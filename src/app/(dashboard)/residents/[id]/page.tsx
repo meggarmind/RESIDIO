@@ -1,8 +1,8 @@
 'use client';
 
-import { use, useState, useCallback, useRef } from 'react';
+import { use, useState, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { isModifiedClick, navigateWithSharedElement } from '@/lib/navigation/shared-element-transition';
-import { motion } from 'framer-motion';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,25 +17,24 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Separator } from '@/components/ui/separator';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { ResidentForm } from '@/components/residents/resident-form';
 import { ResidentArchiveDialog } from '@/components/residents/resident-archive-dialog';
 import { AccountStatusBadge } from '@/components/residents/status-badge';
-import { GranularVerificationBadge } from '@/components/residents/contact-verification-badge';
 import { useResident, useDeleteResident, useUpdateResidentStatus, useVerifyResident } from '@/hooks/use-residents';
 import { useVerificationStatus, useAdminVerifyContact } from '@/hooks/use-verification';
 import { useWallet } from '@/hooks/use-wallet';
 import { LinkedHouses } from '@/components/residents/linked-houses';
-import { ResidentPayments } from '@/components/residents/resident-payments';
-import { WalletBalance } from '@/components/residents/wallet-balance';
-import { WalletTransactions } from '@/components/residents/wallet-transactions';
-import { WalletPaymentBatchTools } from '@/components/residents/wallet-payment-batch-tools';
 import { CrossPropertyPaymentSummary } from '@/components/residents/cross-property-payment-summary';
-import { ResidentSecurityContacts } from '@/components/residents/resident-security-contacts';
-import { PaymentAliases } from '@/components/residents/payment-aliases';
-import { PreferencesForm } from '@/components/notifications/preferences-form';
-import { NotesTimeline } from '@/components/notes';
+import { resolveResidentTab, isResidentNotFoundError } from '@/components/residents/resident-detail-tabs';
 import { ShimmerCard } from '@/components/ui/shimmer-skeleton';
 import { PageTransition } from '@/components/ui/page-transition';
 import { IconBox } from '@/components/ui/icon-box';
@@ -43,8 +42,25 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Pencil, Trash2, Phone, Mail, ArrowLeft, UserCircle, Link as LinkIcon, ShieldCheck, Shield, UserCheck, Bell, StickyNote, AlertCircle, UserRoundCheck, UserRoundX, Wallet, Check, Loader2, Building2, CalendarClock, IdCard, Globe } from 'lucide-react';
+import { Users, Pencil, Trash2, Phone, Mail, ArrowLeft, UserCircle, Link as LinkIcon, ShieldCheck, Shield, UserCheck, StickyNote, AlertCircle, UserRoundCheck, UserRoundX, Wallet, Loader2, Building2, CalendarClock, IdCard, MoreHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
+
+// Only Overview renders on first paint; the other tabs load when opened (#783).
+const tabSkeleton = () => <Skeleton className="h-64 w-full rounded-xl" />;
+const ResidentMoneyTab = dynamic(
+  () => import('@/components/residents/resident-money-tab').then((m) => ({ default: m.ResidentMoneyTab })),
+  { loading: tabSkeleton, ssr: false }
+);
+const ResidentSecurityContacts = dynamic(
+  () => import('@/components/residents/resident-security-contacts').then((m) => ({ default: m.ResidentSecurityContacts })),
+  { loading: tabSkeleton, ssr: false }
+);
+const NotesTimeline = dynamic(
+  () => import('@/components/notes').then((m) => ({ default: m.NotesTimeline })),
+  { loading: tabSkeleton, ssr: false }
+);
+
+const tabTriggerClass = 'text-xs min-h-11 md:min-h-0 md:h-7';
 
 interface ResidentDetailPageProps {
   params: Promise<{ id: string }>;
@@ -57,21 +73,20 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
   const isEditing = searchParams.get('edit') === 'true';
   const tabParam = searchParams.get('tab');
 
-  const handleTabChange = useCallback((value: string) => {
+  // Each tab change is a history entry, and the tab is read back from the URL,
+  // so back/forward moves between tabs.
+  const handleTabChange = (value: string) => {
     const params = new URLSearchParams(searchParams.toString());
     if (value === 'overview') {
       params.delete('tab');
     } else {
       params.set('tab', value);
     }
-    router.replace(`/residents/${id}?${params.toString()}`, { scroll: false });
-    setTimeout(() => {
-      const panel = document.querySelector(`[data-tab-panel="${value}"]`) as HTMLElement | null;
-      panel?.focus({ preventScroll: true });
-    }, 50);
-  }, [searchParams, router, id]);
+    const query = params.toString();
+    router.push(`/residents/${id}${query ? `?${query}` : ''}`, { scroll: false });
+  };
 
-  const { data: resident, isLoading, error } = useResident(id);
+  const { data: resident, isLoading, error, refetch } = useResident(id);
   const { data: verificationStatus } = useVerificationStatus(id);
   const deleteMutation = useDeleteResident();
   const updateStatusMutation = useUpdateResidentStatus();
@@ -81,6 +96,7 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
   const headerRef = useRef<HTMLDivElement>(null);
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
+  const [isVerifyDialogOpen, setIsVerifyDialogOpen] = useState(false);
 
   // Notes permissions
   const { hasPermission, isLoading: authLoading } = useAuth();
@@ -92,10 +108,11 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
   const canEditNotes = hasPermission(PERMISSIONS.NOTES_UPDATE);
   const canDeleteNotes = hasPermission(PERMISSIONS.NOTES_DELETE);
 
+  const activeTab = resolveResidentTab(tabParam, canViewNotes);
   const wallet = walletData?.data;
   const walletBalance = wallet?.balance || 0;
-  const emailVerified = verificationStatus?.email?.verified;
-  const phoneVerified = verificationStatus?.phone?.verified;
+  const emailVerified = !!verificationStatus?.email?.verified;
+  const phoneVerified = !!verificationStatus?.phone?.verified;
 
   const handleDelete = async () => {
     try {
@@ -107,23 +124,23 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
     }
   };
 
-  const handleVerify = async () => {
-    if (!confirm('Are you sure you want to verify this resident?')) return;
-
+  // One "Verify contact" action: marks each unverified contact verified, then the resident.
+  const handleVerifyContact = async () => {
+    if (!resident) return;
+    const pending: Array<'email' | 'phone'> = [];
+    if (resident.email && !emailVerified) pending.push('email');
+    if (resident.phone_primary && !phoneVerified) pending.push('phone');
     try {
-      await verifyMutation.mutateAsync(id);
-      toast.success('Resident verified successfully');
+      for (const contactType of pending) {
+        await adminVerify.mutateAsync({ residentId: id, contactType });
+      }
+      if (resident.verification_status !== 'verified') {
+        await verifyMutation.mutateAsync(id);
+      }
+      toast.success('Contact details verified');
+      setIsVerifyDialogOpen(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to verify resident');
-    }
-  };
-
-  const handleAdminVerifyContact = async (contactType: 'email' | 'phone') => {
-    try {
-      await adminVerify.mutateAsync({ residentId: id, contactType });
-      toast.success(`${contactType === 'email' ? 'Email' : 'Phone'} verified successfully`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : `Failed to verify ${contactType}`);
+      toast.error(error instanceof Error ? error.message : 'Failed to verify contact details');
     }
   };
 
@@ -142,26 +159,18 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4" role="status" aria-busy="true" aria-label="Loading resident">
         <div className="flex items-center gap-x-3 gap-y-2">
           <div className="h-8 w-8 rounded-md bg-muted" />
           <div className="h-6 w-48 rounded bg-muted" />
           <div className="h-5 w-24 rounded bg-muted" />
         </div>
         <div className="flex gap-1.5 h-9 p-1">
-          {Array.from({ length: 6 }).map((_, i) => (
+          {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="h-7 w-20 rounded bg-muted" />
           ))}
         </div>
         <div className="grid gap-4 md:grid-cols-2">
-          <ShimmerCard />
-          <ShimmerCard />
-        </div>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <ShimmerCard />
-          <ShimmerCard />
-        </div>
-        <div className="grid gap-4 lg:grid-cols-2">
           <ShimmerCard />
           <ShimmerCard />
         </div>
@@ -171,12 +180,26 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
   }
 
   if (error || !resident) {
+    const notFound = !error || isResidentNotFoundError(error.message);
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-4">
-        <p className="text-destructive">Resident not found</p>
-        <Button variant="outline" asChild>
-          <Link href="/residents">Back to Residents</Link>
-        </Button>
+      <div className="flex flex-col items-center justify-center h-64 gap-4 text-center" role="alert">
+        <AlertCircle className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
+        <div>
+          <p className="font-medium">{notFound ? 'Resident not found' : 'Could not load this resident'}</p>
+          <p className="text-sm text-muted-foreground">
+            {notFound
+              ? 'This resident does not exist, was removed, or is not visible to you.'
+              : 'Something went wrong while loading. Check your connection and try again.'}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {!notFound && (
+            <Button onClick={() => { void refetch(); }}>Try again</Button>
+          )}
+          <Button variant="outline" asChild>
+            <Link href="/residents">Back to Residents</Link>
+          </Button>
+        </div>
       </div>
     );
   }
@@ -220,6 +243,10 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
     );
   }
 
+  const hasEmergencyContact = !!(resident.emergency_contact_name || resident.emergency_contact_phone || resident.emergency_contact_resident);
+  const needsContactVerification = (!!resident.email && !emailVerified) || (!!resident.phone_primary && !phoneVerified);
+  const headerButtonClass = 'min-h-11 text-xs md:min-h-0 md:h-8';
+
   return (
     <PageTransition>
     <div className="space-y-4">
@@ -229,7 +256,7 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
         style={{ viewTransitionName: `resident-${id}` }}
         className="flex flex-wrap items-center gap-x-3 gap-y-2"
       >
-        <Button variant="ghost" size="icon" className="h-8 w-8" asChild aria-label="Go back">
+        <Button variant="ghost" size="icon" className="size-11 md:size-8" asChild aria-label="Go back">
           <Link
             href="/residents"
             onClick={(event) => {
@@ -261,40 +288,38 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
         <span className="text-xs text-muted-foreground capitalize">{resident.resident_type}</span>
 
         <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
-          {canVerifyResident && !(
-            (resident.email ? verificationStatus?.email?.verified : true) &&
-            (resident.phone_primary ? verificationStatus?.phone?.verified : true)
-          ) && (
-            <Button
-              size="sm"
-              variant="default"
-              onClick={handleVerify}
-              disabled={verifyMutation.isPending}
-              className="h-8 text-xs"
-            >
-              <ShieldCheck className="h-3.5 w-3.5 mr-1.5" />
-              Verify
-            </Button>
-          )}
           {canUpdateResident && (
-            <Button variant="outline" size="sm" onClick={() => setIsStatusDialogOpen(true)} className="h-8 text-xs">
-              {resident.account_status === 'inactive' ? <UserRoundCheck className="mr-1.5 h-3.5 w-3.5" /> : <UserRoundX className="mr-1.5 h-3.5 w-3.5" />}
-              {resident.account_status === 'inactive' ? 'Reactivate' : 'Inactivate'}
-            </Button>
-          )}
-          {canUpdateResident && (
-            <Button variant="outline" size="sm" asChild className="h-8 text-xs">
+            <Button variant="outline" size="sm" asChild className={headerButtonClass}>
               <Link href={`/residents/${id}?edit=true`}>
                 <Pencil className="h-3.5 w-3.5 mr-1.5" />
                 Edit
               </Link>
             </Button>
           )}
-          {canDeleteResident && (
-            <Button variant="destructive" size="sm" onClick={() => setIsArchiveDialogOpen(true)} disabled={deleteMutation.isPending} className="h-8 text-xs">
-              <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-              Archive
-            </Button>
+          {(canUpdateResident || canDeleteResident) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className={headerButtonClass}>
+                  <MoreHorizontal className="h-3.5 w-3.5 mr-1.5" />
+                  More
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {canUpdateResident && (
+                  <DropdownMenuItem onClick={() => setIsStatusDialogOpen(true)}>
+                    {resident.account_status === 'inactive' ? <UserRoundCheck className="mr-2 h-4 w-4" /> : <UserRoundX className="mr-2 h-4 w-4" />}
+                    {resident.account_status === 'inactive' ? 'Reactivate' : 'Inactivate'}
+                  </DropdownMenuItem>
+                )}
+                {canUpdateResident && canDeleteResident && <DropdownMenuSeparator />}
+                {canDeleteResident && (
+                  <DropdownMenuItem variant="destructive" onClick={() => setIsArchiveDialogOpen(true)} disabled={deleteMutation.isPending}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Archive
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </div>
@@ -318,6 +343,29 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
         </AlertDialogContent>
       </AlertDialog>
 
+      {canVerifyResident && (
+        <AlertDialog open={isVerifyDialogOpen} onOpenChange={setIsVerifyDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Verify contact details?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This marks {[resident.email && !emailVerified ? 'the email address' : null, resident.phone_primary && !phoneVerified ? 'the phone number' : null].filter(Boolean).join(' and ')} as verified by an admin, and the resident as verified. Confirm you have checked them against a trusted source.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(event) => { event.preventDefault(); void handleVerifyContact(); }}
+                disabled={adminVerify.isPending || verifyMutation.isPending}
+              >
+                {(adminVerify.isPending || verifyMutation.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Verify
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
       {canDeleteResident && (
         <ResidentArchiveDialog
           open={isArchiveDialogOpen}
@@ -330,323 +378,185 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
         />
       )}
 
-      <Tabs defaultValue={tabParam ?? 'overview'} className="w-full" onValueChange={handleTabChange}>
-        <TabsList className="h-9 p-1 sticky top-0 z-10 glass">
-          <TabsTrigger value="overview" className="text-xs h-7">Overview</TabsTrigger>
-          <TabsTrigger value="transactions" className="text-xs h-7">
-            <Wallet className="h-3.5 w-3.5 mr-1" />
-            Transactions
-          </TabsTrigger>
-          <TabsTrigger value="payments" className="text-xs h-7">Payments</TabsTrigger>
-          <TabsTrigger value="aliases" className="text-xs h-7">
-            <UserCheck className="h-3.5 w-3.5 mr-1" />
-            Aliases
-          </TabsTrigger>
-          <TabsTrigger value="security" className="text-xs h-7">
-            <Shield className="h-3.5 w-3.5 mr-1" />
-            Security
-          </TabsTrigger>
-          <TabsTrigger value="emergency" className="text-xs h-7">
-            <AlertCircle className="h-3.5 w-3.5 mr-1" />
-            Emergency
-          </TabsTrigger>
-          <TabsTrigger value="notifications" className="text-xs h-7">
-            <Bell className="h-3.5 w-3.5 mr-1" />
-            Notifications
-          </TabsTrigger>
-          {canViewNotes && (
-            <TabsTrigger value="notes" className="text-xs h-7">
-              <StickyNote className="h-3.5 w-3.5 mr-1" />
-              Notes
+      <Tabs value={activeTab} className="w-full" onValueChange={handleTabChange}>
+        <div className="sticky top-0 z-10 overflow-x-auto scrollbar-modern">
+          <TabsList className="glass h-auto w-max p-1 md:h-9">
+            <TabsTrigger value="overview" className={tabTriggerClass}>Overview</TabsTrigger>
+            <TabsTrigger value="money" className={tabTriggerClass}>
+              <Wallet className="h-3.5 w-3.5 mr-1" />
+              Money
             </TabsTrigger>
-          )}
-        </TabsList>
+            <TabsTrigger value="security" className={tabTriggerClass}>
+              <Shield className="h-3.5 w-3.5 mr-1" />
+              Security
+            </TabsTrigger>
+            {canViewNotes && (
+              <TabsTrigger value="notes" className={tabTriggerClass}>
+                <StickyNote className="h-3.5 w-3.5 mr-1" />
+                Notes
+              </TabsTrigger>
+            )}
+          </TabsList>
+        </div>
 
-        <TabsContent value="overview" className="space-y-4 mt-6" role="tabpanel" tabIndex={0} data-tab-panel="overview">
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={{
-              hidden: { opacity: 0 },
-              visible: { opacity: 1, transition: { staggerChildren: 0.12 } },
-            }}
-          >
-            {/* Top row: Identity + Financial Summary */}
-            <div className="grid gap-4 lg:grid-cols-2">
-              {/* Identity & Contact */}
-              <motion.div
-                className="h-full"
-                variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } } }}
-              >
-                <Card variant="compact" className="card-hover-modern h-full flex flex-col">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-                      <IconBox color="blue" size="sm">
-                        <UserCircle className="h-4 w-4" />
-                      </IconBox>
-                      Identity &amp; Contact
-                      {resident.entity_type !== 'individual' && (
-                        <Badge variant="outline" className="ml-auto text-xs font-normal capitalize">
-                          {resident.entity_type}
-                        </Badge>
-                      )}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="flex-1 flex flex-col">
-                    <div className="divide-y divide-border text-sm">
-                      <div className="flex justify-between items-center py-1.5">
-                        <span className="text-muted-foreground flex items-center gap-1.5">
-                          <Phone className="h-3.5 w-3.5" /> Phone
-                        </span>
-                        <span className="font-medium">{resident.phone_primary}</span>
-                      </div>
-                      {resident.phone_secondary && (
-                        <div className="flex justify-between items-center py-1.5">
-                          <span className="text-muted-foreground">Secondary Phone</span>
-                          <span className="font-medium">{resident.phone_secondary}</span>
-                        </div>
-                      )}
-                      {resident.email && (
-                        <div className="flex justify-between items-center py-1.5">
-                          <span className="text-muted-foreground flex items-center gap-1.5">
-                            <Mail className="h-3.5 w-3.5" /> Email
-                          </span>
-                          <span className="font-medium truncate max-w-[60%]" title={resident.email}>{resident.email}</span>
-                        </div>
-                      )}
-                      {resident.entity_type !== 'individual' && (resident.company_name || resident.rc_number) && (
-                        <div className="flex justify-between items-center py-1.5">
-                          <span className="text-muted-foreground flex items-center gap-1.5">
-                            <Building2 className="h-3.5 w-3.5" /> Company
-                          </span>
-                          <span className="font-medium text-right">
-                            {resident.company_name}
-                            {resident.rc_number && (
-                              <span className="text-muted-foreground font-normal"> · RC {resident.rc_number}</span>
-                            )}
-                          </span>
-                        </div>
-                      )}
-                      {resident.entity_type !== 'individual' && (resident.liaison_contact_name || resident.liaison_contact_phone) && (
-                        <div className="flex justify-between items-center py-1.5">
-                          <span className="text-muted-foreground flex items-center gap-1.5">
-                            <UserCheck className="h-3.5 w-3.5" /> Liaison Contact
-                          </span>
-                          <span className="font-medium text-right">
-                            {resident.liaison_contact_name}
-                            {resident.liaison_contact_phone && (
-                              <span className="text-muted-foreground font-normal"> · {resident.liaison_contact_phone}</span>
-                            )}
-                          </span>
-                        </div>
-                      )}
-                      <div className="flex justify-between items-center py-1.5">
-                        <span className="text-muted-foreground flex items-center gap-1.5">
-                          <CalendarClock className="h-3.5 w-3.5" /> Resident Since
-                        </span>
-                        <span className="font-medium">
-                          {new Date(resident.created_at).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
-                        </span>
-                      </div>
-                      {resident.id_type && resident.id_number && (
-                        <div className="flex justify-between items-center py-1.5">
-                          <span className="text-muted-foreground flex items-center gap-1.5">
-                            <IdCard className="h-3.5 w-3.5" /> {resident.id_type}
-                          </span>
-                          <span className="flex items-center gap-1.5">
-                            <span className="font-medium">{resident.id_number}</span>
-                            <Badge variant={resident.id_verified_at ? 'success' : 'outline'} className="text-xs">
-                              {resident.id_verified_at ? 'Verified' : 'Unverified'}
-                            </Badge>
-                          </span>
-                        </div>
-                      )}
-                      <div className="flex justify-between items-center py-1.5">
-                        <span className="text-muted-foreground flex items-center gap-1.5">
-                          <Globe className="h-3.5 w-3.5" /> Portal Access
-                        </span>
-                        <Badge variant={resident.portal_enabled ? 'success' : 'outline'} className="text-xs">
-                          {resident.portal_enabled ? 'Enabled' : 'Not enabled'}
-                        </Badge>
-                      </div>
+        <TabsContent value="overview" className="space-y-4 mt-4">
+          {/* Top row: Identity + Financial Summary */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            {/* Identity & Contact */}
+            <Card variant="compact" className="card-hover-modern h-full flex flex-col">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                  <IconBox color="blue" size="sm">
+                    <UserCircle className="h-4 w-4" />
+                  </IconBox>
+                  Identity &amp; Contact
+                  {resident.entity_type !== 'individual' && (
+                    <Badge variant="outline" className="ml-auto text-xs font-normal capitalize">
+                      {resident.entity_type}
+                    </Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex-1 flex flex-col">
+                <div className="divide-y divide-border text-sm">
+                  <div className="flex justify-between items-center gap-3 py-1.5">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <Phone className="h-3.5 w-3.5" /> Phone
+                    </span>
+                    <span className="font-medium">{resident.phone_primary}</span>
+                  </div>
+                  {resident.phone_secondary && (
+                    <div className="flex justify-between items-center gap-3 py-1.5">
+                      <span className="text-muted-foreground">Secondary Phone</span>
+                      <span className="font-medium">{resident.phone_secondary}</span>
                     </div>
-                    <div className="flex items-center gap-2 flex-wrap pt-2 mt-2 border-t">
-                      <GranularVerificationBadge
-                        emailVerifiedAt={verificationStatus?.email?.verified_at ?? null}
-                        phoneVerifiedAt={verificationStatus?.phone?.verified_at ?? null}
-                        hasEmail={!!resident.email}
-                        hasPhone={!!resident.phone_primary}
-                      />
-                      {resident.email && !emailVerified && (
-                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleAdminVerifyContact('email')} disabled={adminVerify.isPending}>
-                          {adminVerify.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
-                          <Mail className="h-3 w-3 mr-1" />
-                          Verify Email
-                        </Button>
-                      )}
-                      {!phoneVerified && (
-                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleAdminVerifyContact('phone')} disabled={adminVerify.isPending}>
-                          {adminVerify.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
-                          <Phone className="h-3 w-3 mr-1" />
-                          Verify Phone
-                        </Button>
-                      )}
-                      {emailVerified && resident.email && (
-                        <Badge variant="secondary" className="bg-green-100 text-green-700 border-green-200 text-xs">
-                          <Check className="h-3 w-3 mr-1" />
-                          Email verified
-                        </Badge>
-                      )}
-                      {phoneVerified && (
-                        <Badge variant="secondary" className="bg-green-100 text-green-700 border-green-200 text-xs">
-                          <Check className="h-3 w-3 mr-1" />
-                          Phone verified
-                        </Badge>
-                      )}
+                  )}
+                  {resident.email && (
+                    <div className="flex justify-between items-center gap-3 py-1.5">
+                      <span className="text-muted-foreground flex items-center gap-1.5">
+                        <Mail className="h-3.5 w-3.5" /> Email
+                      </span>
+                      <span className="font-medium truncate max-w-[60%]" title={resident.email}>{resident.email}</span>
                     </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
+                  )}
+                  {resident.entity_type !== 'individual' && (resident.company_name || resident.rc_number) && (
+                    <div className="flex justify-between items-center gap-3 py-1.5">
+                      <span className="text-muted-foreground flex items-center gap-1.5">
+                        <Building2 className="h-3.5 w-3.5" /> Company
+                      </span>
+                      <span className="font-medium text-right">
+                        {resident.company_name}
+                        {resident.rc_number && (
+                          <span className="text-muted-foreground font-normal"> · RC {resident.rc_number}</span>
+                        )}
+                      </span>
+                    </div>
+                  )}
+                  {resident.entity_type !== 'individual' && (resident.liaison_contact_name || resident.liaison_contact_phone) && (
+                    <div className="flex justify-between items-center gap-3 py-1.5">
+                      <span className="text-muted-foreground flex items-center gap-1.5">
+                        <UserCheck className="h-3.5 w-3.5" /> Liaison Contact
+                      </span>
+                      <span className="font-medium text-right">
+                        {resident.liaison_contact_name}
+                        {resident.liaison_contact_phone && (
+                          <span className="text-muted-foreground font-normal"> · {resident.liaison_contact_phone}</span>
+                        )}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center gap-3 py-1.5">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <CalendarClock className="h-3.5 w-3.5" /> Resident Since
+                    </span>
+                    <span className="font-medium">
+                      {new Date(resident.created_at).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+                    </span>
+                  </div>
+                  {resident.id_type && resident.id_number && (
+                    <div className="flex justify-between items-center gap-3 py-1.5">
+                      <span className="text-muted-foreground flex items-center gap-1.5">
+                        <IdCard className="h-3.5 w-3.5" /> {resident.id_type}
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="font-medium">{resident.id_number}</span>
+                        <Badge variant={resident.id_verified_at ? 'success' : 'outline'} className="text-xs">
+                          {resident.id_verified_at ? 'Verified' : 'Unverified'}
+                        </Badge>
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-start gap-3 py-1.5">
+                    <span className="text-muted-foreground flex items-center gap-1.5 shrink-0">
+                      <AlertCircle className="h-3.5 w-3.5" /> Emergency Contact
+                    </span>
+                    {hasEmergencyContact ? (
+                      <span className="font-medium text-right">
+                        {resident.emergency_contact_resident ? (
+                          <Link href={`/residents/${resident.emergency_contact_resident_id}`} className="inline-flex items-center gap-1 hover:underline">
+                            <LinkIcon className="h-3 w-3" />
+                            {resident.emergency_contact_resident.first_name} {resident.emergency_contact_resident.last_name}
+                          </Link>
+                        ) : (
+                          resident.emergency_contact_name
+                        )}
+                        {(resident.emergency_contact_resident?.phone_primary || resident.emergency_contact_phone) && (
+                          <span className="text-muted-foreground font-normal"> · {resident.emergency_contact_resident?.phone_primary || resident.emergency_contact_phone}</span>
+                        )}
+                        {resident.emergency_contact_relationship && (
+                          <span className="block text-xs text-muted-foreground font-normal">{resident.emergency_contact_relationship}</span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">None on file</span>
+                    )}
+                  </div>
+                </div>
+                {/* Contact verification: one status line and one action */}
+                <div className="flex items-center gap-2 flex-wrap pt-2 mt-2 border-t" data-testid="contact-verification">
+                  <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+                  {resident.email && (
+                    <Badge variant={emailVerified ? 'success' : 'warning'} className="text-xs">
+                      {emailVerified ? 'Email verified' : 'Email unverified'}
+                    </Badge>
+                  )}
+                  {resident.phone_primary && (
+                    <Badge variant={phoneVerified ? 'success' : 'warning'} className="text-xs">
+                      {phoneVerified ? 'Phone verified' : 'Phone unverified'}
+                    </Badge>
+                  )}
+                  {canVerifyResident && needsContactVerification && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="ml-auto min-h-11 text-xs md:min-h-0 md:h-7"
+                      onClick={() => setIsVerifyDialogOpen(true)}
+                    >
+                      <ShieldCheck className="h-3.5 w-3.5 mr-1" />
+                      Verify contact
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
 
-              {/* Financial Summary (Wallet + Invoices) */}
-              <motion.div
-                className="h-full"
-                variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } } }}
-              >
-                <CrossPropertyPaymentSummary residentId={id} walletBalance={walletBalance} className="h-full flex flex-col" />
-              </motion.div>
-            </div>
-
-            {/* Housing — multi-column grid */}
-            <motion.div
-              className="mt-4"
-              variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } } }}
-            >
-              <LinkedHouses resident={resident} />
-            </motion.div>
-          </motion.div>
-        </TabsContent>
-
-        <TabsContent value="transactions" className="mt-6 space-y-4" role="tabpanel" tabIndex={0} data-tab-panel="transactions">
-          {/*
-            Issue #120: the wallet balance card carries the only manual
-            credit/debit control. It lives on this tab -- alongside the batch
-            settlement tools and the ledger -- rather than on Overview, whose
-            Financial Summary already prints the same figure. The two are never
-            on screen together.
-          */}
-          <WalletBalance residentId={id} />
-          <WalletPaymentBatchTools
-            residentId={id}
-            houses={(resident.resident_houses || []).filter((rh) => rh.is_active).map((rh) => ({
-              id: rh.house_id,
-              label: rh.house?.short_name || rh.house?.house_number || rh.house_id,
-            }))}
-          />
-          <div className="h-[460px] overflow-y-auto scrollbar-modern">
-            <WalletTransactions residentId={id} />
+            {/* Financial Summary (Wallet + Invoices) */}
+            <CrossPropertyPaymentSummary residentId={id} walletBalance={walletBalance} className="h-full flex flex-col" />
           </div>
+
+          <LinkedHouses resident={resident} />
         </TabsContent>
 
-        <TabsContent value="payments" className="mt-6" role="tabpanel" tabIndex={0} data-tab-panel="payments">
-          <div className="max-h-[calc(100vh-12rem)] overflow-y-auto scrollbar-modern">
-            <ResidentPayments residentId={id} />
-          </div>
+        <TabsContent value="money" className="mt-4">
+          <ResidentMoneyTab resident={resident} />
         </TabsContent>
 
-        <TabsContent value="aliases" className="mt-6" role="tabpanel" tabIndex={0} data-tab-panel="aliases">
-          <PaymentAliases
-            residentId={id}
-            residentName={`${resident.first_name} ${resident.last_name}`}
-          />
-        </TabsContent>
-
-        <TabsContent value="security" className="mt-6" role="tabpanel" tabIndex={0} data-tab-panel="security">
+        <TabsContent value="security" className="mt-4">
           <ResidentSecurityContacts residentId={id} />
         </TabsContent>
 
-        <TabsContent value="emergency" className="mt-6" role="tabpanel" tabIndex={0} data-tab-panel="emergency">
-          <div className="max-w-2xl">
-            {resident.emergency_contact_name || resident.emergency_contact_phone || resident.emergency_contact_resident ? (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <AlertCircle className="h-5 w-5" />
-                    Emergency Contact
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {resident.emergency_contact_resident ? (
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Linked Resident</span>
-                        <Link href={`/residents/${resident.emergency_contact_resident_id}`} className="font-medium hover:underline flex items-center gap-1">
-                          <LinkIcon className="h-3 w-3" />
-                          {resident.emergency_contact_resident.first_name} {resident.emergency_contact_resident.last_name}
-                        </Link>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Phone</span>
-                        <span className="font-medium">{resident.emergency_contact_resident.phone_primary}</span>
-                      </div>
-                      {resident.emergency_contact_relationship && (
-                        <>
-                          <Separator />
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Relationship</span>
-                            <span className="font-medium">{resident.emergency_contact_relationship}</span>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  ) : (
-                    <>
-                      {resident.emergency_contact_name && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Name</span>
-                          <span className="font-medium">{resident.emergency_contact_name}</span>
-                        </div>
-                      )}
-                      {resident.emergency_contact_phone && (
-                        <>
-                          <Separator />
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Phone</span>
-                            <span className="font-medium">{resident.emergency_contact_phone}</span>
-                          </div>
-                        </>
-                      )}
-                      {resident.emergency_contact_relationship && (
-                        <>
-                          <Separator />
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Relationship</span>
-                            <span className="font-medium">{resident.emergency_contact_relationship}</span>
-                          </div>
-                        </>
-                      )}
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-            ) : (
-              <Card>
-                <CardContent className="py-12 text-center text-muted-foreground">
-                  <AlertCircle className="h-12 w-12 mx-auto mb-3 opacity-40" />
-                  <p className="font-medium">No emergency contact on file</p>
-                  <p className="text-sm mt-1">An emergency contact can be added from the Edit Resident form.</p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="notifications" className="mt-6" role="tabpanel" tabIndex={0} data-tab-panel="notifications">
-          <PreferencesForm residentId={id} />
-        </TabsContent>
-
         {canViewNotes && (
-          <TabsContent value="notes" className="mt-6" role="tabpanel" tabIndex={0} data-tab-panel="notes">
+          <TabsContent value="notes" className="mt-4">
             <NotesTimeline
               entityType="resident"
               entityId={id}

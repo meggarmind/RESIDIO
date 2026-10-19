@@ -25,6 +25,8 @@ import { prepayFutureInvoices } from '@/actions/billing/prepay-future-invoices';
 import { getWalletPaymentBatch, getWalletPaymentBatches } from '@/actions/billing/get-wallet-payment-batch';
 import { PaymentReceipt } from '@/components/payments/payment-receipt';
 import { useWallet } from '@/hooks/use-wallet';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 type PayableInvoice = {
     id: string;
@@ -47,6 +49,9 @@ export function WalletPaymentBatchTools({
     houses: HouseOption[];
 }) {
     const queryClient = useQueryClient();
+    // CORE.md s6: settle and prepay need billing.manage_wallets; viewers see the invoices and receipts only.
+    const { hasPermission } = useAuth();
+    const canManageWallet = hasPermission(PERMISSIONS.BILLING_MANAGE_WALLETS);
     const { data: walletData, isLoading: isWalletLoading } = useWallet(residentId);
     const walletBalance = isWalletLoading ? null : walletData?.data?.balance ?? null;
     const [invoices, setInvoices] = useState<PayableInvoice[]>([]);
@@ -129,6 +134,7 @@ export function WalletPaymentBatchTools({
         // debit mutations in use-wallet.ts do, or this card would show a
         // stale figure until an unrelated refetch happened to occur.
         queryClient.invalidateQueries({ queryKey: ['wallet', residentId] });
+        queryClient.invalidateQueries({ queryKey: ['yearly-wallet-transactions', residentId] });
         await loadInvoices();
     };
 
@@ -171,6 +177,7 @@ export function WalletPaymentBatchTools({
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
+                {canManageWallet && (
                 <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
                     <div className="space-y-1.5">
                         <Label htmlFor="wallet-payment-date">Payment date</Label>
@@ -178,7 +185,7 @@ export function WalletPaymentBatchTools({
                     </div>
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
-                            <Button disabled={isSettling || selected.length === 0}>
+                            <Button disabled={isSettling || selected.length === 0} className="min-h-11 md:min-h-0">
                                 {isSettling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Receipt className="mr-2 h-4 w-4" />}
                                 Settle selected ({formatCurrency(selectedTotal)})
                             </Button>
@@ -207,6 +214,7 @@ export function WalletPaymentBatchTools({
                         </AlertDialogContent>
                     </AlertDialog>
                 </div>
+                )}
 
                 <div className="rounded-lg border divide-y max-h-64 overflow-y-auto">
                     {isLoading && <p className="p-4 text-sm text-muted-foreground">Loading pending invoices…</p>}
@@ -214,8 +222,8 @@ export function WalletPaymentBatchTools({
                     {invoices.map((invoice) => {
                         const remaining = Number(invoice.amount_due) - Number(invoice.amount_paid);
                         return (
-                            <label key={invoice.id} className="flex cursor-pointer items-center gap-3 p-3 text-sm hover:bg-muted/40">
-                                <input type="checkbox" checked={selected.includes(invoice.id)} onChange={() => toggleInvoice(invoice.id)} />
+                            <label key={invoice.id} className="flex min-h-11 cursor-pointer items-center gap-3 p-3 text-sm hover:bg-muted/40">
+                                {canManageWallet && <input type="checkbox" checked={selected.includes(invoice.id)} onChange={() => toggleInvoice(invoice.id)} />}
                                 <span className="min-w-0 flex-1">
                                     <span className="font-medium">{invoice.invoice_number}</span>
                                     <span className="ml-2 text-muted-foreground">{invoice.period_start.slice(0, 7)}</span>
@@ -226,6 +234,7 @@ export function WalletPaymentBatchTools({
                     })}
                 </div>
 
+                {canManageWallet && (
                 <div className="border-t pt-4 space-y-3">
                     <div className="flex items-center gap-2 text-sm font-medium"><CalendarRange className="h-4 w-4" /> Future prepayment</div>
                     <div className="grid gap-3 sm:grid-cols-3">
@@ -239,11 +248,12 @@ export function WalletPaymentBatchTools({
                         <div className="space-y-1.5"><Label htmlFor="prepay-start">From</Label><Input id="prepay-start" type="month" value={startMonth} onChange={(event) => setStartMonth(event.target.value)} /></div>
                         <div className="space-y-1.5"><Label htmlFor="prepay-end">Through</Label><Input id="prepay-end" type="month" value={endMonth} onChange={(event) => setEndMonth(event.target.value)} /></div>
                     </div>
-                    <Button variant="outline" onClick={handlePrepay} disabled={isPrepaying}>
+                    <Button variant="outline" onClick={handlePrepay} disabled={isPrepaying} className="min-h-11 md:min-h-0">
                         {isPrepaying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckSquare className="mr-2 h-4 w-4" />}
                         Create and pay future invoices
                     </Button>
                 </div>
+                )}
 
                 {receipt && (
                     <div className="border-t pt-4">

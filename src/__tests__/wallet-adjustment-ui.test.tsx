@@ -5,14 +5,13 @@
 // but `WalletBalance` was imported by nothing -- the control was orphaned.
 //
 // These tests pin the three things that must stay true:
-//   1. the resident detail page mounts `WalletBalance` (AC-1);
+//   1. the resident detail page mounts `WalletBalance` (AC-1) -- rendered in
+//      resident-detail-page-783.test.tsx;
 //   2. the "Adjust" control is gated on the WRITE permission
 //      `billing.manage_wallets`, not on the route's view permission (AC-2,
 //      CORE.md s6) -- a viewer without it still sees the balance;
 //   3. submitting the dialog reaches `useCreditWallet` / `useDebitWallet`.
 
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
@@ -21,7 +20,7 @@ import { WalletBalance } from '@/components/residents/wallet-balance';
 import { WalletAdjustmentDialog } from '@/components/residents/wallet-adjustment-dialog';
 import {
   useWallet,
-  useWalletTransactions,
+  useYearlyWalletTransactions,
   useCreditWallet,
   useDebitWallet,
 } from '@/hooks/use-wallet';
@@ -29,7 +28,7 @@ import { useAuth } from '@/lib/auth/auth-provider';
 
 vi.mock('@/hooks/use-wallet', () => ({
   useWallet: vi.fn(),
-  useWalletTransactions: vi.fn(),
+  useYearlyWalletTransactions: vi.fn(),
   useCreditWallet: vi.fn(),
   useDebitWallet: vi.fn(),
 }));
@@ -39,7 +38,7 @@ vi.mock('@/lib/auth/auth-provider', () => ({
 }));
 
 const mockedUseWallet = vi.mocked(useWallet);
-const mockedUseWalletTransactions = vi.mocked(useWalletTransactions);
+const mockedUseYearlyWalletTransactions = vi.mocked(useYearlyWalletTransactions);
 const mockedUseCreditWallet = vi.mocked(useCreditWallet);
 const mockedUseDebitWallet = vi.mocked(useDebitWallet);
 const mockedUseAuth = vi.mocked(useAuth);
@@ -87,15 +86,10 @@ function mockWalletReads(balance = 50000) {
     data: { data: { id: 'w1', resident_id: 'r1', balance } },
     isLoading: false,
   } as unknown as ReturnType<typeof useWallet>);
-  mockedUseWalletTransactions.mockReturnValue({
-    data: {
-      data: [
-        { id: 't1', type: 'credit', amount: 80000 },
-        { id: 't2', type: 'debit', amount: 30000 },
-      ],
-    },
+  mockedUseYearlyWalletTransactions.mockReturnValue({
+    data: [{ year: 2026, total_credits: 80000, total_debits: 30000, net_change: 50000, closing_balance: 50000, transactions: [] }],
     isLoading: false,
-  } as unknown as ReturnType<typeof useWalletTransactions>);
+  } as unknown as ReturnType<typeof useYearlyWalletTransactions>);
 }
 
 /** Mock `useAuth` with a fixed permission set. */
@@ -111,23 +105,6 @@ function mockPermissions(granted: string[]) {
 const MANAGE_WALLETS = 'billing.manage_wallets';
 /** The route's VIEW permission -- deliberately NOT what the button is gated on. */
 const RESIDENTS_VIEW = 'residents.view';
-
-describe('WalletBalance is mounted on the resident detail page (#120)', () => {
-  const pageSource = readFileSync(
-    resolve(process.cwd(), 'src/app/(dashboard)/residents/[id]/page.tsx'),
-    'utf8'
-  );
-
-  it('imports WalletBalance from the residents component directory', () => {
-    expect(pageSource).toMatch(
-      /import\s*\{\s*WalletBalance\s*\}\s*from\s*'@\/components\/residents\/wallet-balance'/
-    );
-  });
-
-  it('renders <WalletBalance> with the resident id', () => {
-    expect(pageSource).toMatch(/<WalletBalance\s+residentId=\{id\}/);
-  });
-});
 
 describe('WalletBalance adjustment control permission gate (#120)', () => {
   it('hides the Adjust control from a user lacking billing.manage_wallets', () => {

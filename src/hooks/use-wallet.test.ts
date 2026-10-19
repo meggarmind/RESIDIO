@@ -72,6 +72,10 @@ describe.each([
 
     expect(mocks.toastSuccess).toHaveBeenCalledWith(successMessage);
     expect(mocks.toastError).not.toHaveBeenCalled();
-    expect(mocks.invalidateQueries).toHaveBeenCalledTimes(2);
+    expect(mocks.invalidateQueries.mock.calls.map(([arg]) => arg.queryKey)).toEqual([
+      ['wallet', 'resident-1'],
+      ['wallet-transactions', 'resident-1'],
+      ['yearly-wallet-transactions', 'resident-1'],
+    ]);
   });
 });
