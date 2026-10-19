@@ -49,7 +49,7 @@ export function HousePaymentStatus({ houseId, className }: HousePaymentStatusPro
           <CardDescription>Aggregate billing summary for this property</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <Skeleton className="h-20 w-full" />
             <Skeleton className="h-20 w-full" />
             <Skeleton className="h-20 w-full" />
@@ -135,14 +135,14 @@ export function HousePaymentStatus({ houseId, className }: HousePaymentStatusPro
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Main Totals Grid */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           {/* Total Due */}
           <div className="border rounded-lg p-4 bg-muted/30">
             <div className="flex items-center gap-2 mb-2">
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
               <p className="text-xs font-medium text-muted-foreground">Total Due</p>
             </div>
-            <p className="text-lg font-semibold">
+            <p className="text-lg sm:text-2xl font-semibold break-words">
               {formatCurrency(status.totalDue)}
             </p>
           </div>
@@ -153,7 +153,7 @@ export function HousePaymentStatus({ houseId, className }: HousePaymentStatusPro
               <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
               <p className="text-xs font-medium text-green-600 dark:text-green-400">Total Paid</p>
             </div>
-            <p className="text-lg font-semibold text-green-700 dark:text-green-300">
+            <p className="text-lg sm:text-2xl font-semibold break-words text-green-700 dark:text-green-300">
               {formatCurrency(status.totalPaid)}
             </p>
           </div>
@@ -181,7 +181,7 @@ export function HousePaymentStatus({ houseId, className }: HousePaymentStatusPro
               </p>
             </div>
             <p className={cn(
-              'text-lg font-semibold',
+              'text-lg sm:text-2xl font-semibold break-words',
               hasOutstanding
                 ? 'text-red-700 dark:text-red-300'
                 : 'text-green-700 dark:text-green-300'
