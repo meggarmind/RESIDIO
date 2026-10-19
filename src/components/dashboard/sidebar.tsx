@@ -12,6 +12,7 @@ import { useSectionedNavigation } from '@/hooks/use-navigation';
 import { useEstateLogo } from '@/hooks/use-estate-logo';
 import { useSidebarState } from '@/hooks/use-sidebar-state';
 import { useSidebarNavState } from '@/hooks/use-sidebar-nav-state';
+import { useOpsStatus } from '@/hooks/use-ops-status';
 import { formatBuildLabel, getBuildInfo } from '@/lib/version';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -27,6 +28,7 @@ export function Sidebar({ className }: SidebarProps) {
   const { data: pendingCount } = usePendingApprovalsCount();
   const { logoUrl } = useEstateLogo();
   const { isCollapsed, isExpanded, toggleCollapsed, setHoverExpanded } = useSidebarState();
+  const opsStatus = useOpsStatus();
   const build = getBuildInfo();
   const buildLabel = formatBuildLabel(build);
   const envBadge =
@@ -142,6 +144,7 @@ export function Sidebar({ className }: SidebarProps) {
                   const isParentOfActive = hasActiveChild(item.children);
                   const isMenuExpanded = userToggled[item.id] ?? isParentOfActive;
                   const showBadgeCount = item.showBadge && typeof pendingCount === 'number' && pendingCount > 0;
+                  const showOpsDot = item.href === '/settings' && (opsStatus.maintenance || opsStatus.commsOverride);
 
                   const navLink = (
                     <div
@@ -189,6 +192,13 @@ export function Sidebar({ className }: SidebarProps) {
                             />
                           )}
                         </>
+                      )}
+                      {showOpsDot && (
+                        <span
+                          role="img"
+                          aria-label="Maintenance mode or communications override is on"
+                          className={cn('h-2 w-2 shrink-0 rounded-full bg-warning', !isExpanded && 'absolute right-1.5 top-1.5')}
+                        />
                       )}
                     </div>
                   );

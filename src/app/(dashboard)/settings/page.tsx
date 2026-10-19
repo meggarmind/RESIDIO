@@ -6,6 +6,7 @@ import { ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { useNotificationTemplates, useNotificationSchedules } from '@/hooks/use-notifications';
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation';
+import { useOpsStatus } from '@/hooks/use-ops-status';
 import { isIndexChild, type SettingsItem } from '@/config/settings-nav';
 
 /**
@@ -20,6 +21,12 @@ export default function SettingsPage() {
   const { groups } = useSettingsNavigation();
   const { data: templates } = useNotificationTemplates();
   const { data: schedules } = useNotificationSchedules();
+  const opsStatus = useOpsStatus();
+  // Cards whose state changes what every user gets (#789); the same state the dashboard banner shows.
+  const isOn: Record<string, boolean> = {
+    '/settings/maintenance': opsStatus.maintenance,
+    '/settings/comms-override': opsStatus.commsOverride,
+  };
 
   const activeTemplates = templates?.filter((t) => t.is_active).length || 0;
   const totalTemplates = templates?.length || 0;
@@ -74,6 +81,8 @@ export default function SettingsPage() {
                               {activeSchedules} schedules
                             </Badge>
                           </div>
+                        ) : isOn[item.href] ? (
+                          <Badge variant="warning">ON</Badge>
                         ) : (
                           <span className="text-sm text-muted-foreground">Open</span>
                         )}

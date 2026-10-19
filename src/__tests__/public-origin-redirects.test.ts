@@ -32,12 +32,11 @@ vi.mock('@supabase/ssr', () => ({
             const builder = {
                 select: () => builder,
                 eq: () => builder,
+                in: async () => ({ data: [{ key: 'maintenance_mode', value: state.maintenance }], error: null }),
                 single: async () =>
                     table === 'profiles'
                         ? { data: state.profile, error: null }
-                        : table === 'system_settings'
-                            ? { data: { value: state.maintenance }, error: null }
-                            : { data: null, error: null },
+                        : { data: null, error: null },
             };
             return builder;
         },
