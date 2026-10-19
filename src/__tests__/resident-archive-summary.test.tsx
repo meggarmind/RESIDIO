@@ -88,7 +88,7 @@ describe('resident archive wiring', () => {
       'utf8'
     );
     const trigger = source.match(
-      /\{canDeleteResident && \(\s*<Button[\s\S]*?>[\s\S]*?Archive[\s\S]*?<\/Button>\s*\)\}/
+      /\{canDeleteResident && \(\s*<DropdownMenuItem[\s\S]*?>[\s\S]*?Archive[\s\S]*?<\/DropdownMenuItem>\s*\)\}/
     )?.[0];
     const dialog = source.match(
       /\{canDeleteResident && \(\s*<ResidentArchiveDialog[\s\S]*?\/>\s*\)\}/
