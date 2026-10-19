@@ -143,14 +143,14 @@ export async function getEnhancedDashboardStats(): Promise<{
     const supabase = await createServerSupabaseClient();
 
     try {
-        const { data: { user } } = await supabase.auth.getUser();
+        // One access lookup authenticates the caller and yields the permission set
+        // fetchRecentActivity needs, so it is not re-read per section (#775).
+        const { userId, permissions } = await getCurrentUserPermissions();
 
-        if (!user) {
+        if (!userId) {
             console.error('[getEnhancedDashboardStats] No active session');
             return { data: null, error: 'Unauthorized' };
         }
-
-        console.log(`[getEnhancedDashboardStats] Fetching stats for user: ${user.id}`);
 
         // Overall Action Timeout (15 seconds)
         const totalTimeoutPromise = new Promise<{ data: EnhancedDashboardStats | null; error: string | null }>((_, reject) => {
@@ -158,7 +158,7 @@ export async function getEnhancedDashboardStats(): Promise<{
         });
 
         return await Promise.race([
-            getStatsWithTimeout(supabase),
+            getStatsWithTimeout(supabase, permissions),
             totalTimeoutPromise
         ]);
     } catch (err) {
@@ -182,7 +182,7 @@ export async function getAdminDashboardSnapshot(): Promise<{
     const supabase = await createServerSupabaseClient();
 
     try {
-        return await getStatsWithTimeout(supabase);
+        return await getStatsWithTimeout(supabase, authorization.permissions);
     } catch (err) {
         console.error('[getAdminDashboardSnapshot] FATAL:', err);
         return {
@@ -192,8 +192,10 @@ export async function getAdminDashboardSnapshot(): Promise<{
     }
 }
 
-async function getStatsWithTimeout(supabase: SupabaseClient): Promise<{ data: EnhancedDashboardStats | null; error: string | null }> {
-    console.log('[getEnhancedDashboardStats] Starting data fetch sequence...');
+async function getStatsWithTimeout(
+    supabase: SupabaseClient,
+    permissions: string[]
+): Promise<{ data: EnhancedDashboardStats | null; error: string | null }> {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
@@ -204,7 +206,12 @@ async function getStatsWithTimeout(supabase: SupabaseClient): Promise<{ data: En
     // Parallel fetch all data with individual timeouts to prevent hanging
     const TIMEOUT = 10000; // 10 seconds per sub-query
 
-    console.log('[getEnhancedDashboardStats] Executing sub-queries in parallel...');
+    // Financial health and the levy card read the same aggregate; issue it once (#775).
+    const financialTotals = fetchFinancialTotals(supabase);
+    // Each consumer handles the rejection through its own withTimeout; this only stops an
+    // unhandled-rejection report if a consumer never awaits it.
+    financialTotals.catch(() => {});
+
     const [
         financialData,
         invoiceDistribution,
@@ -216,7 +223,7 @@ async function getStatsWithTimeout(supabase: SupabaseClient): Promise<{ data: En
         actionMetricsData
     ] = await Promise.all([
         withTimeout(
-            fetchFinancialHealth(supabase, monthStart, monthEnd, prevMonthStart, prevMonthEnd),
+            fetchFinancialHealth(supabase, financialTotals, monthStart, monthEnd, prevMonthStart, prevMonthEnd),
             TIMEOUT,
             null,
             'fetchFinancialHealth'
@@ -234,7 +241,7 @@ async function getStatsWithTimeout(supabase: SupabaseClient): Promise<{ data: En
             'fetchSecurityAlerts'
         ),
         withTimeout(
-            fetchDevelopmentLevyStatus(supabase),
+            fetchDevelopmentLevyStatus(financialTotals),
             TIMEOUT,
             null,
             'fetchDevelopmentLevyStatus'
@@ -246,7 +253,7 @@ async function getStatsWithTimeout(supabase: SupabaseClient): Promise<{ data: En
             'fetchQuickStats'
         ),
         withTimeout(
-            fetchRecentActivity(supabase),
+            fetchRecentActivity(supabase, permissions),
             TIMEOUT,
             null,
             'fetchRecentActivity'
@@ -264,8 +271,6 @@ async function getStatsWithTimeout(supabase: SupabaseClient): Promise<{ data: En
             'fetchActionMetrics'
         )
     ]);
-
-    console.log('[getEnhancedDashboardStats] Sub-queries complete. Aggregating results...');
 
     // Check if all major components failed
     if (!quickStatsData && !financialData && !invoiceDistribution) {
@@ -352,47 +357,67 @@ async function fetchPaymentMetrics(supabase: SupabaseClient, start: Date, end: D
     };
 }
 
+type FinancialTotals = {
+    invoiceTotalDue: number;
+    invoiceTotalPaid: number;
+    overdueAmount: number;
+    overdueCount: number;
+    walletBalance: number;
+    bankNet: number;
+    pettyCashBalance: number;
+    levyCount: number;
+    levyTotalDue: number;
+    levyTotalPaid: number;
+    levyHousesPending: number;
+};
+
+/**
+ * Invoice, overdue, wallet, bank, petty cash and development levy totals via
+ * get_dashboard_financial_totals (SECURITY INVOKER, so RLS applies as the caller). One small read
+ * whatever the table sizes, so the PostgREST 1000-row cap cannot truncate the sums (#775).
+ * Throws on any error or empty result: callers must never render partial numbers.
+ */
+async function fetchFinancialTotals(supabase: SupabaseClient): Promise<FinancialTotals> {
+    // Same UTC date string the old .lt('due_date', ...) used, so the overdue boundary does not move.
+    const today = new Date().toISOString().split('T')[0];
+    const { data, error } = await supabase.rpc('get_dashboard_financial_totals', { p_today: today });
+    if (error) throw error;
+    if (!data) throw new Error('get_dashboard_financial_totals returned no data');
+    return {
+        invoiceTotalDue: Number(data.invoice_total_due) || 0,
+        invoiceTotalPaid: Number(data.invoice_total_paid) || 0,
+        overdueAmount: Number(data.overdue_amount) || 0,
+        overdueCount: Number(data.overdue_count) || 0,
+        walletBalance: Number(data.wallet_balance) || 0,
+        bankNet: Number(data.bank_net) || 0,
+        pettyCashBalance: Number(data.petty_cash_balance) || 0,
+        levyCount: Number(data.levy_count) || 0,
+        levyTotalDue: Number(data.levy_total_due) || 0,
+        levyTotalPaid: Number(data.levy_total_paid) || 0,
+        levyHousesPending: Number(data.levy_houses_pending) || 0,
+    };
+}
+
 async function fetchFinancialHealth(
     supabase: SupabaseClient,
+    financialTotals: Promise<FinancialTotals>,
     monthStart: Date,
     monthEnd: Date,
     prevMonthStart: Date,
     prevMonthEnd: Date
 ): Promise<FinancialHealthMetrics> {
-    // Get invoice totals
-    const { data: invoices, error: invoicesError } = await supabase
-        .from('invoices')
-        .select('amount_due, amount_paid, status')
-        .neq('status', 'void');
-
-    if (invoicesError) throw invoicesError;
-
-    const totalDue = invoices?.reduce((sum: number, i) => sum + (Number(i.amount_due) || 0), 0) ?? 0;
-    const totalCollected = invoices?.reduce((sum: number, i) => sum + (Number(i.amount_paid) || 0), 0) ?? 0;
-    const totalOutstanding = totalDue - totalCollected;
-
-    // Get overdue invoices
-    const { data: overdueInvoices, error: overdueInvoicesError } = await supabase
-        .from('invoices')
-        .select('amount_due, amount_paid')
-        .in('status', ['unpaid', 'partially_paid'])
-        .lt('due_date', new Date().toISOString().split('T')[0]);
-
-    if (overdueInvoicesError) throw overdueInvoicesError;
-
-    const overdueAmount = overdueInvoices?.reduce(
-        (sum: number, i) => sum + ((Number(i.amount_due) || 0) - (Number(i.amount_paid) || 0)),
-        0
-    ) ?? 0;
-    const overdueCount = overdueInvoices?.length ?? 0;
-
     // Payment totals come from one server-side aggregate per month (no row download, so the
     // PostgREST 1000-row cap cannot truncate them). A row counts as verified when is_verified OR
     // it came from a statement/email import.
-    const [currentMetrics, prevMetrics] = await Promise.all([
+    const [totals, currentMetrics, prevMetrics] = await Promise.all([
+        financialTotals,
         fetchPaymentMetrics(supabase, monthStart, monthEnd),
         fetchPaymentMetrics(supabase, prevMonthStart, prevMonthEnd),
     ]);
+
+    const totalDue = totals.invoiceTotalDue;
+    const totalCollected = totals.invoiceTotalPaid;
+    const totalOutstanding = totalDue - totalCollected;
 
     const totalMonthlyRevenue = currentMetrics.collected_total;
     const monthlyRevenue = currentMetrics.verified_total;
@@ -402,41 +427,10 @@ async function fetchFinancialHealth(
         ? ((monthlyRevenue - previousMonthRevenue) / previousMonthRevenue) * 100
         : monthlyRevenue > 0 ? 100 : 0;
 
-    const { data: wallets, error: walletsError } = await supabase
-        .from('resident_wallets')
-        .select('balance');
-
-    if (walletsError) throw walletsError;
-
-    const walletCredits = wallets?.reduce((sum: number, w) => sum + (Number(w.balance) || 0), 0) ?? 0;
-
-    // Portfolio Value: Bank accounts balance + Petty cash
-    // Calculate bank balance from completed statement rows (credits - debits)
-    const { data: bankRows, error: bankRowsError } = await supabase
-        .from('bank_statement_rows')
-        .select(`
-            amount,
-            transaction_type,
-            bank_statement_imports!inner(status)
-        `)
-        .eq('bank_statement_imports.status', 'completed');
-
-    if (bankRowsError) throw bankRowsError;
-
-    const bankBalance = bankRows?.reduce((sum: number, row) => {
-        const amount = Number(row.amount) || 0;
-        return row.transaction_type === 'credit' ? sum + amount : sum - amount;
-    }, 0) ?? 0;
-
-    // Get petty cash balance
-    const { data: pettyCash, error: pettyCashError } = await supabase
-        .from('petty_cash_accounts')
-        .select('current_balance')
-        .eq('is_active', true);
-
-    if (pettyCashError) throw pettyCashError;
-
-    const pettyCashBalance = pettyCash?.reduce((sum: number, pc) => sum + (Number(pc.current_balance) || 0), 0) ?? 0;
+    const walletCredits = totals.walletBalance;
+    // Portfolio Value: bank balance (completed statement rows, credits - debits) + petty cash
+    const bankBalance = totals.bankNet;
+    const pettyCashBalance = totals.pettyCashBalance;
     const estateCash = bankBalance + pettyCashBalance;
 
     const collectionRate = totalDue > 0 ? (totalCollected / totalDue) * 100 : 0;
@@ -455,8 +449,8 @@ async function fetchFinancialHealth(
         pettyCashBalance,
         estateCash,
         walletCredits,
-        overdueAmount,
-        overdueCount
+        overdueAmount: totals.overdueAmount,
+        overdueCount: totals.overdueCount
     };
 }
 
@@ -608,50 +602,15 @@ async function fetchSecurityAlerts(
     };
 }
 
-async function fetchDevelopmentLevyStatus(supabase: SupabaseClient): Promise<DevelopmentLevyStatus> {
-    // Get development levy billing profiles
-    const { data: levyProfiles } = await supabase
-        .from('billing_profiles')
-        .select('id')
-        .eq('is_development_levy', true);
-
-    const levyProfileIds = levyProfiles?.map((p: { id: string }) => p.id) ?? [];
-
-    if (levyProfileIds.length === 0) {
-        return {
-            totalLeviesGenerated: 0,
-            totalLevyAmount: 0,
-            paidLevyAmount: 0,
-            pendingLevyAmount: 0,
-            housesWithPendingLevy: 0
-        };
-    }
-
-    // Get levy invoices
-    const { data: levyInvoices } = await supabase
-        .from('invoices')
-        .select('amount_due, amount_paid, status, house_id')
-        .in('billing_profile_id', levyProfileIds)
-        .neq('status', 'void');
-
-    const totalLeviesGenerated = levyInvoices?.length ?? 0;
-    const totalLevyAmount = levyInvoices?.reduce((sum: number, i) => sum + (Number(i.amount_due) || 0), 0) ?? 0;
-    const paidLevyAmount = levyInvoices?.reduce((sum: number, i) => sum + (Number(i.amount_paid) || 0), 0) ?? 0;
-    const pendingLevyAmount = totalLevyAmount - paidLevyAmount;
-
-    // Count unique houses with pending levy
-    const housesWithPendingLevy = new Set(
-        levyInvoices
-            ?.filter((i) => i.status !== 'paid' && (Number(i.amount_due) - Number(i.amount_paid)) > 0)
-            .map((i) => i.house_id)
-    ).size;
-
+async function fetchDevelopmentLevyStatus(financialTotals: Promise<FinancialTotals>): Promise<DevelopmentLevyStatus> {
+    // Non-void invoices on development-levy billing profiles, aggregated server-side (#775).
+    const totals = await financialTotals;
     return {
-        totalLeviesGenerated,
-        totalLevyAmount,
-        paidLevyAmount,
-        pendingLevyAmount,
-        housesWithPendingLevy
+        totalLeviesGenerated: totals.levyCount,
+        totalLevyAmount: totals.levyTotalDue,
+        paidLevyAmount: totals.levyTotalPaid,
+        pendingLevyAmount: totals.levyTotalDue - totals.levyTotalPaid,
+        housesWithPendingLevy: totals.levyHousesPending
     };
 }
 
@@ -695,12 +654,12 @@ async function fetchQuickStats(supabase: SupabaseClient): Promise<QuickStats> {
     };
 }
 
-async function fetchRecentActivity(supabase: SupabaseClient): Promise<RecentActivityResult> {
+async function fetchRecentActivity(supabase: SupabaseClient, permissions: string[]): Promise<RecentActivityResult> {
     // #197: check the permission the `audit_logs` RLS SELECT policy enforces
     // *before* querying. Without this the denial arrives as zero rows and is
     // indistinguishable from a quiet estate, so the card renders "No recent
-    // activity" at six of the eight roles.
-    const { permissions } = await getCurrentUserPermissions();
+    // activity" at six of the eight roles. The caller resolves `permissions`
+    // once per load (#775).
     if (!permissions.includes(PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS)) {
         return { items: [], permissionDenied: true };
     }
@@ -802,7 +761,9 @@ export async function getDashboardFinancialHealth(): Promise<{ data: FinancialHe
         const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
         const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-        const data = await fetchFinancialHealth(supabase, monthStart, monthEnd, prevMonthStart, prevMonthEnd);
+        const data = await fetchFinancialHealth(
+            supabase, fetchFinancialTotals(supabase), monthStart, monthEnd, prevMonthStart, prevMonthEnd
+        );
         return { data, error: null };
     } catch (err) {
         return { data: null, error: err instanceof Error ? err.message : 'Failed to fetch financial health' };
@@ -888,7 +849,8 @@ export async function getDashboardQuickStats(): Promise<{ data: QuickStats | nul
 export async function getDashboardRecentActivity(): Promise<{ data: RecentActivityResult | null; error: string | null }> {
     try {
         const supabase = await requireAuthClient();
-        const data = await fetchRecentActivity(supabase);
+        const { permissions } = await getCurrentUserPermissions();
+        const data = await fetchRecentActivity(supabase, permissions);
         return { data, error: null };
     } catch (err) {
         return { data: null, error: err instanceof Error ? err.message : 'Failed to fetch recent activity' };
