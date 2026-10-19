@@ -50,6 +50,21 @@ describe('getOverdueInvoiceAging', () => {
     expect(from).not.toHaveBeenCalled();
   });
 
+  it('sends the server-local date, not the UTC date, on a clock ahead of UTC', async () => {
+    const originalTz = process.env.TZ;
+    process.env.TZ = 'Africa/Lagos';
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-19T00:30:00+01:00')); // 2026-10-18 in UTC
+    try {
+      const { rpcCalls } = mockRpc({ data: [], error: null });
+      await getOverdueInvoiceAging();
+      expect(rpcCalls[0].args?.p_today).toBe('2026-10-19');
+    } finally {
+      vi.useRealTimers();
+      process.env.TZ = originalTz;
+    }
+  });
+
   it('returns an empty list when nothing is overdue', async () => {
     mockRpc({ data: [], error: null });
     expect(await getOverdueInvoiceAging()).toEqual({ data: [], error: null });

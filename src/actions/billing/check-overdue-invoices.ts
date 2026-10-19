@@ -146,12 +146,11 @@ export async function getOverdueStats() {
 export async function getOverdueInvoiceAging() {
     const supabase = await createServerSupabaseClient();
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Server-local date, as the old JS day count used: toISOString() would give yesterday east of UTC.
+    const pToday = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
     // Bucketed by GROUP BY in SQL: a row download stopped at the 1000-row cap (#776).
-    const { data, error } = await supabase.rpc('get_overdue_invoice_aging', {
-        p_today: today.toISOString().split('T')[0],
-    });
+    const { data, error } = await supabase.rpc('get_overdue_invoice_aging', { p_today: pToday });
 
     if (error) return { data: null, error: error.message };
 
