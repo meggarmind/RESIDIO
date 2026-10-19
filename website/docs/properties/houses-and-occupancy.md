@@ -7,7 +7,7 @@ residio_sources:
   - src/app/(dashboard)/houses/**
   - src/actions/houses/**
   - src/components/houses/**
-residio_verified_commit: 1955c065
+residio_verified_commit: 55cc5874
 residio_verified_at: '2026-10-19'
 residio_app_version: '0.4.0'
 ---
@@ -40,7 +40,7 @@ Each resident row has one main action and a **…** menu for the rest:
 | --- | --- | --- |
 | Owner-Occupier, Renter | Move Out | *assign residents* |
 | Property Owner, Developer | Transfer | *update houses* |
-| Property Owner, Developer | Remove (ownership) | *assign residents* |
+| Property Owner, Developer | Remove (ownership) | *update houses* |
 | Occupant and other secondary roles | Edit role, Promote (Occupant only), Remove from house | *assign residents* |
 
 **Link Existing** needs *assign residents* and **Add New** needs *create residents*. **Edit** needs
