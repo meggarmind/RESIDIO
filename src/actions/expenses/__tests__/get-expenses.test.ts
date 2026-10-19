@@ -14,10 +14,10 @@ type Result = { data: unknown; error: { message: string } | null };
  * counts and totals in SQL, then one joined select of just that page's ids.
  */
 function mockSupabase(page: Result, rows: Result = { data: [], error: null }) {
-  const rpc = vi.fn((_name: string, _args: Record<string, unknown>) => Promise.resolve(page));
-  const inFilter = vi.fn((_col: string, _ids: string[]) => Promise.resolve(rows));
-  const select = vi.fn((_columns: string) => ({ in: inFilter }));
-  const from = vi.fn((_table: string) => ({ select }));
+  const rpc = vi.fn<(name: string, args: Record<string, unknown>) => Promise<Result>>(() => Promise.resolve(page));
+  const inFilter = vi.fn<(col: string, ids: string[]) => Promise<Result>>(() => Promise.resolve(rows));
+  const select = vi.fn<(columns: string) => { in: typeof inFilter }>(() => ({ in: inFilter }));
+  const from = vi.fn<(table: string) => { select: typeof select }>(() => ({ select }));
   createServerSupabaseClient.mockResolvedValue({ rpc, from });
   return { rpc, from, select, inFilter };
 }
