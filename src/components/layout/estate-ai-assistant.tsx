@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Plus, Minus, Send, X } from 'lucide-react';
 import { useAiAssistant } from '@/hooks/use-ai-assistant';
+import { useAuth } from '@/lib/auth/auth-provider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -23,6 +24,7 @@ export function EstateAiAssistant() {
         isTyping,
         assistantName,
     } = useAiAssistant();
+    const { user } = useAuth();
 
     const [inputValue, setInputValue] = useState('');
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -45,7 +47,8 @@ export function EstateAiAssistant() {
         }
     }, [messages, isTyping]);
 
-    if (isSettingsLoading || isDismissed || disabledByAdmin) return null;
+    // #772: the root layout renders this on every route, so keep it off login and other signed-out screens.
+    if (!user || isSettingsLoading || isDismissed || disabledByAdmin) return null;
 
     return (
         <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
