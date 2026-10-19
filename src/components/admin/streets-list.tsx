@@ -4,21 +4,12 @@ import { useState } from 'react';
 import { useStreets, useCreateStreet, useUpdateStreet, useDuplicateStreet, useDeleteStreet } from '@/hooks/use-reference';
 import { Button } from '@/components/ui/button';
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
-import {
     Dialog,
     DialogContent,
     DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
 } from '@/components/ui/dialog';
 import {
     AlertDialog,
@@ -33,11 +24,12 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Loader2, Pencil, Copy, Trash2, MapPin } from 'lucide-react';
+import { Loader2, Pencil, Copy, Trash2, MapPin } from 'lucide-react';
 import type { Street } from '@/types/database';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
-import { ActiveStatusBadge, SettingsEmptyState, SettingsSkeleton } from '@/components/settings/settings-states';
+import { ActiveStatusBadge } from '@/components/settings/settings-states';
+import { CrudTable } from '@/components/settings/crud-table';
 
 export function StreetsList() {
     const { hasPermission } = useAuth();
@@ -146,16 +138,34 @@ export function StreetsList() {
 
     return (
         <div className="space-y-4">
-            <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium">Streets</h3>
-                {canManage && (
+            <CrudTable
+                title="Streets"
+                addLabel="Add Street"
+                onAdd={openCreateDialog}
+                canManage={canManage}
+                rows={streetsData}
+                rowLabel={(street) => `street ${street.name}`}
+                isLoading={isLoading}
+                columns={[
+                    { header: 'Long Name', cell: (street) => street.name, className: 'font-medium' },
+                    { header: 'Short Name', cell: (street) => street.short_name || '-' },
+                    { header: 'Description', cell: (street) => street.description || '-' },
+                    { header: 'Status', cell: (street) => <ActiveStatusBadge active={street.is_active} />, className: 'w-[100px]' },
+                ]}
+                actions={[
+                    { icon: Pencil, label: 'Edit', onClick: openEditDialog },
+                    { icon: Copy, label: 'Duplicate', onClick: (street) => handleDuplicate(street.id), disabled: duplicateMutation.isPending },
+                    { icon: Trash2, label: 'Delete', onClick: openDeleteDialog, disabled: deleteMutation.isPending, destructive: true },
+                ]}
+                empty={{
+                    icon: MapPin,
+                    title: 'No streets yet',
+                    description: 'Streets group houses for billing and reports.',
+                }}
+            />
+
+            {canManage && (
                 <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
-                    <DialogTrigger asChild>
-                        <Button size="sm" onClick={openCreateDialog}>
-                            <Plus className="mr-2 h-4 w-4" />
-                            Add Street
-                        </Button>
-                    </DialogTrigger>
                     <DialogContent>
                         <DialogHeader>
                             <DialogTitle>
@@ -236,93 +246,7 @@ export function StreetsList() {
                         </form>
                     </DialogContent>
                 </Dialog>
-                )}
-            </div>
-
-            <div className="rounded-md border">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Long Name</TableHead>
-                            <TableHead>Short Name</TableHead>
-                            <TableHead>Description</TableHead>
-                            <TableHead className="w-[100px]">Status</TableHead>
-                            {canManage && <TableHead className="w-[100px] text-right">Actions</TableHead>}
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {isLoading ? (
-                            <TableRow>
-                                <TableCell colSpan={canManage ? 5 : 4}>
-                                    <SettingsSkeleton />
-                                </TableCell>
-                            </TableRow>
-                        ) : streetsData?.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={canManage ? 5 : 4}>
-                                    <SettingsEmptyState
-                                        icon={MapPin}
-                                        title="No streets yet"
-                                        description="Streets group houses for billing and reports."
-                                        action={canManage && (
-                                            <Button size="sm" onClick={openCreateDialog}>
-                                                <Plus className="mr-2 h-4 w-4" />
-                                                Add Street
-                                            </Button>
-                                        )}
-                                    />
-                                </TableCell>
-                            </TableRow>
-                        ) : (
-                            streetsData?.map((street) => (
-                                <TableRow key={street.id}>
-                                    <TableCell className="font-medium">{street.name}</TableCell>
-                                    <TableCell>{street.short_name || '-'}</TableCell>
-                                    <TableCell>{street.description || '-'}</TableCell>
-                                    <TableCell>
-                                        <ActiveStatusBadge active={street.is_active} />
-                                    </TableCell>
-                                    {canManage && (
-                                    <TableCell className="text-right">
-                                        <div className="flex justify-end gap-1">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="size-11 md:size-8"
-                                                onClick={() => openEditDialog(street)}
-                                                aria-label={`Edit street ${street.name}`}
-                                            >
-                                                <Pencil className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="size-11 md:size-8"
-                                                onClick={() => handleDuplicate(street.id)}
-                                                aria-label={`Duplicate street ${street.name}`}
-                                                disabled={duplicateMutation.isPending}
-                                            >
-                                                <Copy className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="size-11 md:size-8 text-destructive hover:text-destructive"
-                                                onClick={() => openDeleteDialog(street)}
-                                                aria-label={`Delete street ${street.name}`}
-                                                disabled={deleteMutation.isPending}
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    </TableCell>
-                                    )}
-                                </TableRow>
-                            ))
-                        )}
-                    </TableBody>
-                </Table>
-            </div>
+            )}
 
             {/* Delete Confirmation Dialog */}
             <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

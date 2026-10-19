@@ -105,6 +105,7 @@ import BillingSettingsPage from '@/app/(dashboard)/settings/billing/page';
 import LateFeesPage from '@/app/(dashboard)/settings/billing/late-fees/page';
 import BrandingPage from '@/app/(dashboard)/settings/branding/page';
 import DataRetentionPage from '@/app/(dashboard)/settings/data-retention/page';
+import { Switch } from '@/components/ui/switch';
 
 type Case = {
   name: string;
@@ -251,5 +252,38 @@ describe('role delete dialog (#788)', () => {
     screen.getAllByRole('button', { name: /Delete role Treasurer/ })[0].click();
     expect(await screen.findByText(/2 users hold "Treasurer"/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Delete' })).toBeDisabled();
+  });
+});
+
+const RAW_COLOUR = /\b(bg|text|border)-(green|red|amber|blue|gray|emerald|yellow|orange|purple)-\d{2,3}\b/;
+
+describe('phone targets and colour tokens (#788)', () => {
+  // The tags list is left out of the colour rule: its palette is the tag colour a user picks.
+  const LISTS = CASES.filter((c) => c.name.endsWith(' list'));
+
+  it.each(LISTS)('$name: icon-only buttons keep a 44px phone size', ({ ui, permission }) => {
+    mocks.permissions.push(permission);
+    render(ui());
+    const iconButtons = screen.getAllByRole('button').filter((b) => !b.textContent?.trim());
+    expect(iconButtons.length).toBeGreaterThan(0);
+    for (const b of iconButtons) expect(b.className, b.getAttribute('aria-label') ?? '').toMatch(/(^|\s)(max-md:)?size-11(\s|$)/);
+  });
+
+  it.each(CASES.filter((c) => c.name !== 'transaction tags list'))(
+    '$name: renders no raw palette colour',
+    ({ ui, permission }) => {
+      mocks.permissions.push(permission);
+      const { container } = render(ui());
+      const raw = [...container.querySelectorAll('[class]')]
+        .map((el) => el.getAttribute('class') ?? '')
+        .filter((c) => RAW_COLOUR.test(c));
+      expect(raw).toEqual([]);
+    }
+  );
+
+  it('the shared switch pads its hit area to 44px below md', () => {
+    render(<Switch aria-label="Toggle" />);
+    const cls = screen.getByRole('switch', { name: 'Toggle' }).className.split(/\s+/);
+    expect(cls).toEqual(expect.arrayContaining(['after:-inset-3', 'md:after:inset-0']));
   });
 });

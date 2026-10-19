@@ -6,21 +6,12 @@ import { useBillingProfiles } from '@/hooks/use-billing';
 import type { HouseType } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
-import {
     Dialog,
     DialogContent,
     DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -31,10 +22,10 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Plus, Loader2, Edit, Home } from 'lucide-react';
+import { Loader2, Pencil, Home } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
-import { SettingsEmptyState, SettingsSkeleton } from '@/components/settings/settings-states';
+import { CrudTable } from '@/components/settings/crud-table';
 
 export function HouseTypesList() {
     const { hasPermission } = useAuth();
@@ -103,19 +94,36 @@ export function HouseTypesList() {
 
     return (
         <div className="space-y-4">
-            <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium">House Types</h3>
-                {canManage && (
+            <CrudTable
+                title="House Types"
+                addLabel="Add Type"
+                onAdd={openCreate}
+                canManage={canManage}
+                rows={typesData}
+                rowLabel={(type) => type.name}
+                isLoading={isLoading}
+                columns={[
+                    { header: 'Name', cell: (type) => type.name, className: 'font-medium' },
+                    { header: 'Description', cell: (type) => type.description || '-' },
+                    {
+                        header: 'Billing Rate',
+                        cell: (type) => type.billing_profile?.name || <span className="text-muted-foreground text-xs">Not Set</span>,
+                    },
+                    { header: 'Max Res.', cell: (type) => type.max_residents, className: 'text-right' },
+                ]}
+                actions={[{ icon: Pencil, label: 'Edit', onClick: openEdit }]}
+                empty={{
+                    icon: Home,
+                    title: 'No house types yet',
+                    description: 'House types set the billing rate and resident limit for each house.',
+                }}
+            />
+
+            {canManage && (
                 <Dialog open={isDialogOpen} onOpenChange={(open) => {
                     setIsDialogOpen(open);
                     if (!open) resetForm();
                 }}>
-                    <DialogTrigger asChild>
-                        <Button size="sm" onClick={openCreate}>
-                            <Plus className="mr-2 h-4 w-4" />
-                            Add Type
-                        </Button>
-                    </DialogTrigger>
                     <DialogContent>
                         <DialogHeader>
                             <DialogTitle>{editingId ? 'Edit House Type' : 'Add New House Type'}</DialogTitle>
@@ -187,63 +195,7 @@ export function HouseTypesList() {
                         </form>
                     </DialogContent>
                 </Dialog>
-                )}
-            </div>
-
-            <div className="rounded-md border">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Name</TableHead>
-                            <TableHead>Description</TableHead>
-                            <TableHead>Billing Rate</TableHead>
-                            <TableHead className="text-right">Max Res.</TableHead>
-                            {canManage && <TableHead className="w-[50px]"><span className="sr-only">Actions</span></TableHead>}
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {isLoading ? (
-                            <TableRow>
-                                <TableCell colSpan={canManage ? 5 : 4}><SettingsSkeleton /></TableCell>
-                            </TableRow>
-                        ) : typesData?.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={canManage ? 5 : 4}>
-                                    <SettingsEmptyState
-                                        icon={Home}
-                                        title="No house types yet"
-                                        description="House types set the billing rate and resident limit for each house."
-                                        action={canManage && (
-                                            <Button size="sm" onClick={openCreate}>
-                                                <Plus className="mr-2 h-4 w-4" />
-                                                Add Type
-                                            </Button>
-                                        )}
-                                    />
-                                </TableCell>
-                            </TableRow>
-                        ) : (
-                            typesData?.map((type) => (
-                                <TableRow key={type.id}>
-                                    <TableCell className="font-medium">{type.name}</TableCell>
-                                    <TableCell>{type.description || '-'}</TableCell>
-                                    <TableCell>
-                                        {type.billing_profile?.name || <span className="text-muted-foreground text-xs">Not Set</span>}
-                                    </TableCell>
-                                    <TableCell className="text-right">{type.max_residents}</TableCell>
-                                    {canManage && (
-                                    <TableCell>
-                                        <Button variant="ghost" size="icon" className="size-11 md:size-8" onClick={() => openEdit(type)} aria-label={`Edit ${type.name}`}>
-                                            <Edit className="h-4 w-4 text-muted-foreground" />
-                                        </Button>
-                                    </TableCell>
-                                    )}
-                                </TableRow>
-                            ))
-                        )}
-                    </TableBody>
-                </Table>
-            </div>
+            )}
         </div>
     );
 }

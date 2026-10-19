@@ -8,17 +8,8 @@ import {
   useDeleteTransactionTag,
   useDeleteTransactionTags,
 } from '@/hooks/use-reference';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import {
   Dialog,
   DialogContent,
@@ -26,7 +17,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -53,7 +43,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Plus, Loader2, Pencil, Trash2, X, Tags } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
-import { ActiveStatusBadge, SettingsEmptyState, SettingsSkeleton } from '@/components/settings/settings-states';
+import { ActiveStatusBadge } from '@/components/settings/settings-states';
+import { CrudTable } from '@/components/settings/crud-table';
 import type { TransactionTag, TransactionTagType, TransactionTagColor } from '@/types/database';
 
 const ALL_VALUE = '_all';
@@ -72,7 +63,6 @@ const colorVariants: Record<TransactionTagColor, string> = {
 export function TransactionTagsList() {
   const { hasPermission } = useAuth();
   const canManage = hasPermission(PERMISSIONS.SETTINGS_MANAGE_REFERENCE);
-  const columnCount = canManage ? 8 : 6;
   const [typeFilter, setTypeFilter] = useState<string>(ALL_VALUE);
   const { data: tagsData, isLoading } = useTransactionTags({
     transaction_type: typeFilter === ALL_VALUE ? undefined : (typeFilter as TransactionTagType),
@@ -223,29 +213,11 @@ export function TransactionTagsList() {
     setSelectedIds([]);
   };
 
-  const toggleSelectAll = (checked: boolean) => {
-    if (checked && tagsData) {
-      setSelectedIds(tagsData.map(tag => tag.id));
-    } else {
-      setSelectedIds([]);
-    }
-  };
-
-  const toggleSelectOne = (id: string, checked: boolean) => {
-    if (checked) {
-      setSelectedIds(prev => [...prev, id]);
-    } else {
-      setSelectedIds(prev => prev.filter(item => item !== id));
-    }
-  };
-
-  const filteredTags = tagsData || [];
-
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <h3 className="text-lg font-medium">Transaction Tags</h3>
+      <CrudTable
+        title="Transaction Tags"
+        headerExtra={
           <Tabs value={typeFilter} onValueChange={setTypeFilter}>
             <TabsList>
               <TabsTrigger value={ALL_VALUE}>All</TabsTrigger>
@@ -253,27 +225,64 @@ export function TransactionTagsList() {
               <TabsTrigger value="debit">Debit</TabsTrigger>
             </TabsList>
           </Tabs>
-        </div>
-        <div className="flex items-center gap-2">
-          {canManage && selectedIds.length > 0 && (
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setBulkDeleteDialogOpen(true)}
-              disabled={bulkDeleteMutation.isPending}
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete Selected ({selectedIds.length})
-            </Button>
-          )}
-          {canManage && (
+        }
+        toolbar={selectedIds.length > 0 && (
+          <Button
+            variant="destructive"
+            size="sm"
+            className="min-h-11 md:min-h-8"
+            onClick={() => setBulkDeleteDialogOpen(true)}
+            disabled={bulkDeleteMutation.isPending}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete Selected ({selectedIds.length})
+          </Button>
+        )}
+        addLabel="Add Tag"
+        onAdd={openCreateDialog}
+        canManage={canManage}
+        rows={tagsData}
+        rowLabel={(tag) => `tag ${tag.name}`}
+        isLoading={isLoading}
+        selection={{ selectedIds, onChange: setSelectedIds }}
+        columns={[
+          { header: 'Name', cell: (tag) => <Badge className={colorVariants[tag.color]}>{tag.name}</Badge> },
+          {
+            header: 'Type',
+            cell: (tag) => (
+              <Badge variant={tag.transaction_type === 'credit' ? 'default' : 'secondary'}>
+                {tag.transaction_type === 'credit' ? 'Credit' : 'Debit'}
+              </Badge>
+            ),
+          },
+          {
+            header: 'Keywords',
+            cell: (tag) =>
+              tag.keywords && tag.keywords.length > 0 ? (
+                <span className="text-sm text-muted-foreground">
+                  {tag.keywords.length} keyword{tag.keywords.length !== 1 ? 's' : ''}
+                </span>
+              ) : (
+                <span className="text-sm text-muted-foreground/50">-</span>
+              ),
+          },
+          { header: 'Description', cell: (tag) => tag.description || '-', className: 'text-muted-foreground' },
+          { header: 'Order', cell: (tag) => tag.sort_order, className: 'w-[80px] font-mono text-sm' },
+          { header: 'Status', cell: (tag) => <ActiveStatusBadge active={tag.is_active} />, className: 'w-[100px]' },
+        ]}
+        actions={[
+          { icon: Pencil, label: 'Edit', onClick: openEditDialog },
+          { icon: Trash2, label: 'Delete', onClick: openDeleteDialog, disabled: deleteMutation.isPending, destructive: true },
+        ]}
+        empty={{
+          icon: Tags,
+          title: 'No transaction tags yet',
+          description: 'Tags classify imported bank transactions by keyword.',
+        }}
+      />
+
+      {canManage && (
           <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
-            <DialogTrigger asChild>
-              <Button size="sm" onClick={openCreateDialog}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Tag
-              </Button>
-            </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>
@@ -474,122 +483,7 @@ export function TransactionTagsList() {
               </form>
             </DialogContent>
           </Dialog>
-          )}
-        </div>
-      </div>
-
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              {canManage && (
-              <TableHead className="w-[40px]">
-                <Checkbox
-                  checked={filteredTags.length > 0 && selectedIds.length === filteredTags.length}
-                  onCheckedChange={(checked) => toggleSelectAll(!!checked)}
-                  aria-label="Select all"
-                />
-              </TableHead>
-              )}
-              <TableHead>Name</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Keywords</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead className="w-[80px]">Order</TableHead>
-              <TableHead className="w-[100px]">Status</TableHead>
-              {canManage && <TableHead className="w-[100px] text-right">Actions</TableHead>}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={columnCount}>
-                  <SettingsSkeleton />
-                </TableCell>
-              </TableRow>
-            ) : filteredTags.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={columnCount}>
-                  <SettingsEmptyState
-                    icon={Tags}
-                    title="No transaction tags yet"
-                    description="Tags classify imported bank transactions by keyword."
-                    action={canManage && (
-                      <Button size="sm" onClick={openCreateDialog}>
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add Tag
-                      </Button>
-                    )}
-                  />
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredTags.map((tag) => (
-                <TableRow key={tag.id}>
-                  {canManage && (
-                  <TableCell>
-                    <Checkbox
-                      checked={selectedIds.includes(tag.id)}
-                      onCheckedChange={(checked) => toggleSelectOne(tag.id, !!checked)}
-                      aria-label={`Select ${tag.name}`}
-                    />
-                  </TableCell>
-                  )}
-                  <TableCell>
-                    <Badge className={colorVariants[tag.color]}>{tag.name}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={tag.transaction_type === 'credit' ? 'default' : 'secondary'}>
-                      {tag.transaction_type === 'credit' ? 'Credit' : 'Debit'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {tag.keywords && tag.keywords.length > 0 ? (
-                      <span className="text-sm text-muted-foreground">
-                        {tag.keywords.length} keyword{tag.keywords.length !== 1 ? 's' : ''}
-                      </span>
-                    ) : (
-                      <span className="text-sm text-muted-foreground/50">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {tag.description || '-'}
-                  </TableCell>
-                  <TableCell className="font-mono text-sm">{tag.sort_order}</TableCell>
-                  <TableCell>
-                    <ActiveStatusBadge active={tag.is_active} />
-                  </TableCell>
-                  {canManage && (
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="size-11 md:size-8"
-                        onClick={() => openEditDialog(tag)}
-                        aria-label={`Edit tag ${tag.name}`}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="size-11 md:size-8 text-destructive hover:bg-destructive/10"
-                        onClick={() => openDeleteDialog(tag)}
-                        disabled={deleteMutation.isPending}
-                        aria-label={`Delete tag ${tag.name}`}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                  )}
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      )}
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -599,7 +493,7 @@ export function TransactionTagsList() {
             <AlertDialogDescription>
               Are you sure you want to delete &quot;{tagToDelete?.name}&quot;? This action cannot be undone.
               {tagToDelete && (
-                <span className="block mt-2 text-sm text-amber-600">
+                <span className="block mt-2 text-sm text-warning">
                   Note: If this tag is in use by any transactions, you will need to reassign them first.
                 </span>
               )}
@@ -626,7 +520,7 @@ export function TransactionTagsList() {
             <AlertDialogTitle>Delete Selected Tags</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete {selectedIds.length} selected tags? This action cannot be undone.
-              <span className="block mt-2 text-sm text-amber-600">
+              <span className="block mt-2 text-sm text-warning">
                 Note: Tags currently in use by transactions cannot be deleted.
               </span>
             </AlertDialogDescription>
