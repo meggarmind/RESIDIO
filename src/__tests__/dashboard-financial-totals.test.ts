@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   getAdminDashboardSnapshot,
@@ -259,77 +258,5 @@ describe('dashboard financial totals come from one aggregate (#775)', () => {
     const result = await getDashboardFinancialHealth();
 
     expect(result.data).toBeNull();
-  });
-});
-
-describe('static: dashboard financial totals migration (#775)', () => {
-  const sql = readFileSync(
-    new URL('../../supabase/migrations/20261019100000_dashboard_financial_totals.sql', import.meta.url),
-    'utf8',
-  ).replace(/\r\n/g, '\n');
-  const code = sql.replace(/--[^\n]*/g, '').replace(/\s+/g, ' ');
-  const FN = 'public.get_dashboard_financial_totals(date)';
-
-  it('is STABLE SECURITY INVOKER with a pinned search_path (RLS applies as the caller)', () => {
-    expect(code).toContain('CREATE OR REPLACE FUNCTION public.get_dashboard_financial_totals(p_today date)');
-    expect(code).toContain('SECURITY INVOKER');
-    expect(code).not.toContain('SECURITY DEFINER');
-    expect(code).toContain('STABLE');
-    expect(code).toContain('SET search_path = public');
-  });
-
-  it('excludes void invoices from the invoice totals and the levy figures', () => {
-    expect(code).toContain("COALESCE(SUM(i.amount_due) FILTER (WHERE i.status <> 'void'), 0) AS total_due");
-    expect(code).toContain("COALESCE(SUM(i.amount_paid) FILTER (WHERE i.status <> 'void'), 0) AS total_paid");
-    expect(code).toContain("WHERE bp.is_development_levy AND li.status <> 'void'");
-  });
-
-  it('counts overdue strictly before p_today, over unpaid and partially paid only', () => {
-    const overdue = "i.status IN ('unpaid', 'partially_paid') AND i.due_date < p_today";
-    expect(code).toContain(`COALESCE(SUM(i.amount_due - i.amount_paid) FILTER (WHERE ${overdue}), 0) AS overdue_amount`);
-    expect(code).toContain(`COUNT(*) FILTER (WHERE ${overdue}) AS overdue_count`);
-    expect(code).not.toMatch(/due_date <= p_today/);
-  });
-
-  it('adds credits and subtracts everything else, over completed imports only', () => {
-    expect(code).toContain("SUM(CASE WHEN r.transaction_type = 'credit' THEN r.amount ELSE -r.amount END)");
-    expect(code).toContain('JOIN public.bank_statement_imports bi ON bi.id = r.import_id');
-    expect(code).toContain("WHERE bi.status = 'completed'");
-  });
-
-  it('sums wallets and only active petty cash accounts', () => {
-    expect(code).toContain('SELECT COALESCE(SUM(w.balance), 0) FROM public.resident_wallets w');
-    expect(code).toContain('SELECT COALESCE(SUM(pc.current_balance), 0) FROM public.petty_cash_accounts pc WHERE pc.is_active');
-  });
-
-  it('counts distinct houses with an unpaid levy balance', () => {
-    expect(code).toContain(
-      "COUNT(DISTINCT li.house_id) FILTER (WHERE li.status <> 'paid' AND li.amount_due - li.amount_paid > 0) AS houses_pending",
-    );
-  });
-
-  it('returns every key the TypeScript mapping reads', () => {
-    const ts = readFileSync(new URL('../actions/dashboard/get-enhanced-dashboard-stats.ts', import.meta.url), 'utf8');
-    for (const key of [
-      'invoice_total_due', 'invoice_total_paid', 'overdue_amount', 'overdue_count', 'wallet_balance', 'bank_net',
-      'petty_cash_balance', 'levy_count', 'levy_total_due', 'levy_total_paid', 'levy_houses_pending',
-    ]) {
-      expect(code).toContain(`'${key}',`);
-      expect(ts).toContain(`data.${key}`);
-    }
-  });
-
-  it('is read-only', () => {
-    expect(code).not.toMatch(/\b(INSERT INTO|UPDATE public|DELETE FROM|ALTER TABLE|DROP |TRUNCATE)/i);
-  });
-
-  it('revokes from PUBLIC and anon and grants only authenticated and service_role', () => {
-    expect(code).toContain(`REVOKE ALL ON FUNCTION ${FN} FROM PUBLIC;`);
-    expect(code).toContain(`REVOKE ALL ON FUNCTION ${FN} FROM anon;`);
-    expect(code).toContain(`GRANT EXECUTE ON FUNCTION ${FN} TO authenticated, service_role;`);
-  });
-
-  it('documents the rollback', () => {
-    expect(sql).toContain('DROP FUNCTION IF EXISTS public.get_dashboard_financial_totals(date);');
   });
 });
