@@ -35,13 +35,14 @@ export function calculateLateFee(amountDue: number, lateFeeType: string, lateFee
 }
 
 // `invoices` has no metadata column (#806): the late-fee invoice item is the record that a fee was applied.
-export const LATE_FEE_ITEM_PREFIX = 'Late Fee';
+// shortcut: a reserved description, not a durable marker; replace with one under #830.
+export const LATE_FEE_ITEM_DESCRIPTION = 'Late Fee (auto)';
 
 export type InvoiceItemRef = { description: string; amount: number };
 
 /** The invoice's late-fee item, if a late fee has been applied to it. */
 export function findLateFeeItem(items: InvoiceItemRef[] | null | undefined): InvoiceItemRef | undefined {
-  return items?.find((item) => item.description.startsWith(LATE_FEE_ITEM_PREFIX));
+  return items?.find((item) => item.description === LATE_FEE_ITEM_DESCRIPTION);
 }
 
 /**
@@ -233,7 +234,7 @@ export async function runLateFeeApplication(
       .from('invoice_items')
       .insert({
         invoice_id: invoice.id,
-        description: `${LATE_FEE_ITEM_PREFIX} (${lateFeeType === 'percentage' ? `${lateFeeAmount}%` : 'Fixed'}) - late payment penalty applied on ${new Date().toLocaleDateString()}`,
+        description: LATE_FEE_ITEM_DESCRIPTION,
         amount: lateFee,
       })
       .select('id')

@@ -156,7 +156,7 @@ describe('runLateFeeApplication (cron trigger) honours configured settings', () 
         expect(vi.mocked(itemChain.insert).mock.calls[0][0]).toMatchObject({
             invoice_id: 'invoice-1',
             amount: 1200,
-            description: expect.stringMatching(/^Late Fee \(12%\)/),
+            description: 'Late Fee (auto)',
         });
 
         // Uses the admin (service-role) client throughout the cron path, not
@@ -204,7 +204,7 @@ describe('runLateFeeApplication uses only columns the schema has (#806)', () => 
         enableFees();
         const charged = {
             ...overdueInvoice,
-            invoice_items: [...overdueInvoice.invoice_items, { description: 'Late Fee (5%) - late payment penalty', amount: 500 }],
+            invoice_items: [...overdueInvoice.invoice_items, { description: 'Late Fee (auto)', amount: 500 }],
         };
         const client = createMockClient([
             { data: [], error: null },
@@ -219,6 +219,29 @@ describe('runLateFeeApplication uses only columns the schema has (#806)', () => 
         expect(result.skippedAlreadyApplied).toBe(1);
         expect(chainsFor(client, 'invoice_items')).toHaveLength(0);
         expect(chainsFor(client, 'invoices')).toHaveLength(1);
+    });
+
+    it('charges an invoice whose only late-fee-like line is an admin adjustment', async () => {
+        enableFees();
+        const adjusted = {
+            ...overdueInvoice,
+            invoice_items: [...overdueInvoice.invoice_items, { description: 'Late Fee adjustment', amount: 200 }],
+        };
+        const client = createMockClient([
+            { data: [], error: null },
+            { data: [adjusted], error: null },
+            { data: { id: 'item-1' }, error: null },
+            { data: null, error: null },
+            { data: { id: 'log-1' }, error: null },
+        ]);
+        adminClientMock.mockReturnValue(client as unknown as ReturnType<typeof createAdminClient>);
+
+        const result = await runLateFeeApplication('cron');
+
+        expect(result.applied).toBe(1);
+        expect(result.skippedAlreadyApplied).toBe(0);
+        const [itemChain] = chainsFor(client, 'invoice_items');
+        expect(vi.mocked(itemChain.insert).mock.calls[0][0]).toMatchObject({ description: 'Late Fee (auto)' });
     });
 
     it('removes the late-fee item when the invoice amount update fails, so the next run retries', async () => {

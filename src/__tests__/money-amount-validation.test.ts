@@ -226,7 +226,7 @@ describe('requestLateFeeWaiver', () => {
       id: 'inv-1',
       invoice_number: 'INV-1',
       resident_id: 'r1',
-      invoice_items: [{ description: 'Late Fee (5%) - late payment penalty', amount: 1000 }],
+      invoice_items: [{ description: 'Late Fee (auto)', amount: 1000 }],
     };
   });
 
@@ -258,6 +258,18 @@ describe('requestLateFeeWaiver', () => {
     });
     spy.mockRestore();
     expect(state.writes.some((w) => w.table === 'late_fee_waivers' && w.op === 'insert')).toBe(true);
+  });
+
+  it('refuses a waiver on an invoice whose only late-fee-like line is an admin adjustment', async () => {
+    state.singles.invoices = {
+      id: 'inv-1',
+      invoice_number: 'INV-1',
+      resident_id: 'r1',
+      invoice_items: [{ description: 'Late Fee adjustment', amount: 1000 }],
+    };
+    const result = await requestLateFeeWaiver({ invoiceId: 'inv-1', reason: 'r', waiverType: 'full' });
+    expect(result).toEqual({ success: false, error: 'This invoice does not have a late fee applied' });
+    expect(state.writes).toEqual([]);
   });
 });
 
