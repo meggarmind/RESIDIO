@@ -162,7 +162,7 @@ Based on the 2026-08-08 performance audit. Quick wins implemented; remaining wor
 
 ### Medium Effort ⏳ PENDING
 
-- [ ] **Dashboard data fetching overhaul:** Replace `fetchFinancialHealth` row-level fetch with aggregate SQL (SUM/COUNT). Split `getEnhancedDashboardStats` into per-card queries so `<Suspense>` boundaries actually stream. Add `staleTime: 5min` to the dashboard hook.
+- [ ] **Dashboard data fetching overhaul:** ~~Replace `fetchFinancialHealth` row-level fetch with aggregate SQL (SUM/COUNT).~~ Done in #775 (`get_dashboard_financial_totals`). Split `getEnhancedDashboardStats` into per-card queries so `<Suspense>` boundaries actually stream. Add `staleTime: 5min` to the dashboard hook.
 - [ ] **Middleware DB query reduction:** Move `profiles` + `role_permissions` queries into `Promise.all` with auth check. Consider caching `role_id` in session JWT metadata (avoid 2-4 DB roundtrips per request).
 - [ ] **Add `Suspense` + `loading.tsx` to remaining route groups:** `/payments`, `/residents`, `/houses` — each block on their respective data queries with no fallback.
 
