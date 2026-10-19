@@ -32,6 +32,10 @@ vi.mock('@/actions/notifications/reminder-config', () => ({
   }),
   setRemindersEnabled: vi.fn(),
 }));
+vi.mock('@/hooks/use-settings', () => ({
+  useBillingSettings: () => query([]),
+  useUpdateSetting: () => mutation(),
+}));
 vi.mock('@/hooks/use-security', () => ({
   useSecurityContactCategories: () => query(m.categories),
   useUpdateSecurityContactCategory: () => mutation(),
@@ -62,6 +66,7 @@ import RemindersOverviewPage from '@/app/(dashboard)/settings/notifications/remi
 import CategoriesPage from '@/app/(dashboard)/settings/security/categories/page';
 import NotificationsSettingsPage from '@/app/(dashboard)/settings/notifications/page';
 import { TemplateForm } from '@/components/notifications/template-form';
+import BillingSettingsPage from '@/app/(dashboard)/settings/billing/page';
 
 beforeAll(() => {
   if (!globalThis.ResizeObserver) {
@@ -158,5 +163,14 @@ describe('settings copy', () => {
   it('has no "Phase 9" or "future phase" notes', () => {
     const offenders = sourceFiles(SETTINGS_DIR).filter((f) => /phase 9|future phase/i.test(readFileSync(f, 'utf8')));
     expect(offenders).toEqual([]);
+  });
+
+  it.each([
+    ['billing', BillingSettingsPage],
+    ['reminders overview', RemindersOverviewPage],
+  ])('the %s page renders no "Phase 9" or "future phase" copy', async (_name, Page) => {
+    const { container } = render(<Page />);
+    await screen.findAllByText(/reminder/i);
+    expect(container).not.toHaveTextContent(/phase 9|future phase/i);
   });
 });

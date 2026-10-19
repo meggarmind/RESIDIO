@@ -32,12 +32,12 @@ export function formatDateTime(date: Date | string): string {
   return `${day}/${month}/${year} ${hours.toString().padStart(2, '0')}:${minutes}${ampm}`;
 }
 
-// Format validity period as "Valid from X to Y"
 /** "1 day", "7 days". */
 export function formatDayCount(days: number): string {
   return `${days} ${Math.abs(days) === 1 ? 'day' : 'days'}`;
 }
 
+// Format validity period as "Valid from X to Y"
 export function formatValidityPeriod(from: Date | string, until: Date | string | null): string {
   const fromFormatted = formatDateTime(from);
   if (!until) return `Valid from ${fromFormatted}`;
