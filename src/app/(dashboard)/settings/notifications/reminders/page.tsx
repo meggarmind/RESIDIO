@@ -27,7 +27,7 @@ import {
   setRemindersEnabled,
 } from '@/actions/notifications/reminder-config';
 import type { ReminderScheduleConfig } from '@/lib/notifications/types';
-import { formatDaysFromDue, IMPLEMENTED_CHANNELS, NOTIFICATION_CHANNEL_LABELS } from '@/lib/notifications/types';
+import { formatDaysFromDue } from '@/lib/notifications/types';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
@@ -236,8 +236,8 @@ export default function RemindersOverviewPage() {
           <div className="flex items-start gap-2 text-sm text-muted-foreground">
             <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
             <p>
-              The scheduled reminder job runs once a day and sends each active step on its channels.
-              Only {IMPLEMENTED_CHANNELS.map((c) => NOTIFICATION_CHANNEL_LABELS[c]).join(' and ')} are delivered.
+              The scheduled reminder job runs once a day and sends each active step by email.
+              Reminder steps send by Email only; WhatsApp cannot be selected for a step yet.
             </p>
           </div>
         </CardContent>

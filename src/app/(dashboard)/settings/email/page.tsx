@@ -136,7 +136,7 @@ export default function EmailSettingsPage() {
         <AlertDescription>
           Three controls affect payment reminders. <strong>Enable Reminders</strong> on the{' '}
           <a href="/settings/notifications/reminders" className="text-primary underline">Reminders</a> page turns the automatic
-          daily reminders on or off; the scheduled job on the Coolify server runs them once a day, with the steps and channels set in{' '}
+          daily reminders on or off; the scheduled job on the Coolify server runs them once a day by email only, with the steps set in{' '}
           <a href="/settings/notifications/reminders/schedule" className="text-primary underline">Reminder Schedule</a>.{' '}
           <strong>Payment Reminders</strong> above only allows the manual run. <strong>Send Payment Reminders Now</strong> on{' '}
           <a href="/settings/email/debug" className="text-primary underline">Email Debug</a> sends one email-only run, using the days set in{' '}
