@@ -539,7 +539,12 @@ describe('matchImportRows grouped updates (#649)', () => {
     db.bank_statement_rows = [pending({ description: 'RESIDENT dues' }), pending({ description: 'RESIDENT two' })];
     const res = await matchImportRows(IMPORT);
     expect(res).toMatchObject({ error: null, matched_count: 2, unmatched_count: 0 });
-    expect(console.error).toHaveBeenCalledWith(expect.stringContaining(IMPORT), updateError);
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining('failed to update'),
+      2,
+      IMPORT,
+      updateError,
+    );
     expect(logAudit).toHaveBeenCalledTimes(1);
   });
 });
