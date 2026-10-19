@@ -1,6 +1,7 @@
 import { Document, Page, Text, View } from '@react-pdf/renderer';
 import { reportPdfStyles as s } from '@/lib/pdf/reports/base-styles';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatDate } from '@/lib/utils';
+import { formatPdfCurrency } from '@/lib/pdf/format-currency';
 import type { TransactionLogData, DebtorsReportData, IndebtednessReportData, DevelopmentLevyData } from '@/actions/reports/report-engine';
 
 export function TransactionLogPdf({ data }: { data: TransactionLogData }) {
@@ -32,7 +33,7 @@ export function TransactionLogPdf({ data }: { data: TransactionLogData }) {
               <Text style={[s.tableCell, { flex: 2 }]}>{tx.date}</Text>
               <Text style={[s.tableCell, { flex: 3 }]}>{tx.description}</Text>
               <Text style={[s.tableCell, { flex: 2 }]}>{tx.category || '-'}</Text>
-              <Text style={[s.tableCell, s.amountRight, { flex: 2 }, tx.type === 'credit' ? s.amountPositive : s.amountNegative]}>{formatCurrency(tx.amount)}</Text>
+              <Text style={[s.tableCell, s.amountRight, { flex: 2 }, tx.type === 'credit' ? s.amountPositive : s.amountNegative]}>{formatPdfCurrency(tx.amount)}</Text>
               <Text style={[s.tableCell, { flex: 2 }]}>{tx.type}</Text>
             </View>
           ))}
@@ -56,7 +57,7 @@ export function DebtorsReportPdf({ data }: { data: DebtorsReportData }) {
         <View style={s.section}>
           <View style={s.summaryRow}>
             <View style={s.summaryBox}><Text style={s.summaryLabel}>Total Debtors</Text><Text style={s.summaryValue}>{data.summary.totalDebtors}</Text></View>
-            <View style={s.summaryBox}><Text style={s.summaryLabel}>Outstanding</Text><Text style={[s.summaryValue, s.amountNegative]}>{formatCurrency(data.summary.totalOutstanding)}</Text></View>
+            <View style={s.summaryBox}><Text style={s.summaryLabel}>Outstanding</Text><Text style={[s.summaryValue, s.amountNegative]}>{formatPdfCurrency(data.summary.totalOutstanding)}</Text></View>
             <View style={s.summaryBox}><Text style={s.summaryLabel}>Avg Days Overdue</Text><Text style={s.summaryValue}>{data.summary.averageDaysOverdue}</Text></View>
           </View>
         </View>
@@ -72,8 +73,8 @@ export function DebtorsReportPdf({ data }: { data: DebtorsReportData }) {
             <View key={i} style={[s.tableRow, i % 2 === 1 ? s.tableRowAlt : {}]}>
               <Text style={[s.tableCell, { flex: 3 }]}>{d.residentName}</Text>
               <Text style={[s.tableCell, { flex: 2 }]}>{d.houseNumber}</Text>
-              <Text style={[s.tableCell, s.amountRight, { flex: 2 }, s.amountNegative]}>{formatCurrency(d.totalOutstanding)}</Text>
-              <Text style={[s.tableCell, s.amountRight, { flex: 2 }, s.amountNegative]}>{formatCurrency(d.over90Days)}</Text>
+              <Text style={[s.tableCell, s.amountRight, { flex: 2 }, s.amountNegative]}>{formatPdfCurrency(d.totalOutstanding)}</Text>
+              <Text style={[s.tableCell, s.amountRight, { flex: 2 }, s.amountNegative]}>{formatPdfCurrency(d.over90Days)}</Text>
               <Text style={[s.tableCell, { flex: 2 }]}>{d.phonePrimary || d.phoneSecondary || '-'}</Text>
             </View>
           ))}
@@ -108,7 +109,7 @@ export function IndebtednessReportPdf({ data }: { data: IndebtednessReportData }
               <Text style={[s.tableCell, { flex: 2 }]}>{h.streetName}</Text>
               <Text style={[s.tableCell, { flex: 3 }]}>{h.primaryResidentName || 'Vacant'}</Text>
               <Text style={[s.tableCell, { flex: 2 }, h.isIndebted ? s.amountNegative : s.amountPositive]}>{h.isIndebted ? 'Yes' : 'No'}</Text>
-              {typeof h.outstandingAmount === 'number' && <Text style={[s.tableCell, s.amountRight, { flex: 2 }, {}]}>{formatCurrency(h.outstandingAmount || 0)}</Text>}
+              {typeof h.outstandingAmount === 'number' && <Text style={[s.tableCell, s.amountRight, { flex: 2 }, {}]}>{formatPdfCurrency(h.outstandingAmount || 0)}</Text>}
             </View>
           ))}
         </View>
@@ -131,8 +132,8 @@ export function DevelopmentLevyPdf({ data }: { data: DevelopmentLevyData }) {
         <View style={s.section}>
           <View style={s.summaryRow}>
             <View style={s.summaryBox}><Text style={s.summaryLabel}>Total Houses</Text><Text style={s.summaryValue}>{data.summary.totalHouses}</Text></View>
-            <View style={s.summaryBox}><Text style={s.summaryLabel}>Collected</Text><Text style={[s.summaryValue, s.amountPositive]}>{formatCurrency(data.summary.collectedAmount)}</Text></View>
-            <View style={s.summaryBox}><Text style={s.summaryLabel}>Pending</Text><Text style={[s.summaryValue, s.amountNegative]}>{formatCurrency(data.summary.totalAmount - data.summary.collectedAmount)}</Text></View>
+            <View style={s.summaryBox}><Text style={s.summaryLabel}>Collected</Text><Text style={[s.summaryValue, s.amountPositive]}>{formatPdfCurrency(data.summary.collectedAmount)}</Text></View>
+            <View style={s.summaryBox}><Text style={s.summaryLabel}>Pending</Text><Text style={[s.summaryValue, s.amountNegative]}>{formatPdfCurrency(data.summary.totalAmount - data.summary.collectedAmount)}</Text></View>
           </View>
         </View>
         <View style={s.table}>
@@ -146,7 +147,7 @@ export function DevelopmentLevyPdf({ data }: { data: DevelopmentLevyData }) {
             <View key={i} style={[s.tableRow, i % 2 === 1 ? s.tableRowAlt : {}]}>
               <Text style={[s.tableCell, { flex: 2 }]}>{h.houseNumber}</Text>
               <Text style={[s.tableCell, { flex: 3 }]}>{h.responsibleResidentName}</Text>
-              <Text style={[s.tableCell, s.amountRight, { flex: 2 }]}>{formatCurrency(h.levyAmount)}</Text>
+              <Text style={[s.tableCell, s.amountRight, { flex: 2 }]}>{formatPdfCurrency(h.levyAmount)}</Text>
               <Text style={[s.tableCell, { flex: 2 }, h.isPaid ? s.amountPositive : s.amountNegative]}>{h.isPaid ? 'Paid' : 'Unpaid'}</Text>
             </View>
           ))}

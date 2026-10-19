@@ -2,6 +2,10 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { InvoiceStatus, InvoiceType } from '@/types/database';
+import { buildStatementLedger, type LedgerWalletTransaction } from '@/lib/billing/statement-ledger';
+
+// Dates are interpolated into PostgREST or-filters, so only plain YYYY-MM-DD is accepted.
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 // ============================================================
 // Account Statement Types
@@ -87,6 +91,10 @@ export async function getAccountStatement(
     const supabase = await createServerSupabaseClient();
     const { residentId, houseId, fromDate, toDate } = params;
 
+    if (!ISO_DATE.test(fromDate) || !ISO_DATE.test(toDate)) {
+        return { data: null, error: 'Dates must be in YYYY-MM-DD format' };
+    }
+
     // 1. Get resident details
     const { data: resident, error: residentError } = await supabase
         .from('residents')
@@ -121,27 +129,24 @@ export async function getAccountStatement(
         }
     }
 
-    // 3. Get invoices in period (excluding void)
+    // 3. Get invoices in period (excluding void), dated by the period they bill.
+    // Legacy invoices carry their import date in created_at, so created_at is only the fallback.
     let invoiceQuery = supabase
         .from('invoices')
         .select(`
             id,
             invoice_number,
             amount_due,
-            amount_paid,
             status,
             invoice_type,
             period_start,
             period_end,
-            due_date,
             created_at,
             billing_profile:billing_profiles(name)
         `)
         .eq('resident_id', residentId)
         .neq('status', 'void')
-        .gte('created_at', fromDate)
-        .lte('created_at', toDate)
-        .order('created_at', { ascending: true });
+        .or(`and(period_start.gte.${fromDate},period_start.lte.${toDate}),and(period_start.is.null,created_at.gte.${fromDate},created_at.lte.${toDate})`);
 
     if (houseId) {
         invoiceQuery = invoiceQuery.eq('house_id', houseId);
@@ -156,7 +161,7 @@ export async function getAccountStatement(
     // 4. Get payments in period
     let paymentQuery = supabase
         .from('payment_records')
-        .select('id, amount, payment_date, reference, method, notes')
+        .select('id, amount, payment_date, reference_number, method, notes')
         .eq('resident_id', residentId)
         .eq('status', 'paid')
         .gte('payment_date', fromDate)
@@ -180,15 +185,7 @@ export async function getAccountStatement(
         .eq('resident_id', residentId)
         .single();
 
-    let walletTransactions: Array<{
-        id: string;
-        type: 'credit' | 'debit';
-        amount: number;
-        description: string | null;
-        reference_type: string | null;
-        reference_id: string | null;
-        created_at: string;
-    }> = [];
+    let walletTransactions: LedgerWalletTransaction[] = [];
 
     if (wallet) {
         const { data: walletTx } = await supabase
@@ -199,19 +196,18 @@ export async function getAccountStatement(
             .lte('created_at', toDate)
             .order('created_at', { ascending: true });
 
-        walletTransactions = walletTx || [];
+        walletTransactions = (walletTx || []) as LedgerWalletTransaction[];
     }
 
-    // 6. Calculate opening balance (all transactions before fromDate)
+    // 6. Calculate opening balance (invoices billed before fromDate)
     let openingBalance = 0;
 
-    // Invoices before period
     let priorInvoiceQuery = supabase
         .from('invoices')
         .select('amount_due, amount_paid')
         .eq('resident_id', residentId)
         .neq('status', 'void')
-        .lt('created_at', fromDate);
+        .or(`period_start.lt.${fromDate},and(period_start.is.null,created_at.lt.${fromDate})`);
 
     if (houseId) {
         priorInvoiceQuery = priorInvoiceQuery.eq('house_id', houseId);
@@ -225,111 +221,18 @@ export async function getAccountStatement(
         });
     }
 
-    // 7. Build transaction list
-    const transactions: StatementTransaction[] = [];
-    let runningBalance = openingBalance;
-
-    // Add invoices as debits
-    (invoices || []).forEach((invoice) => {
-        // billing_profile can be array or single object depending on Supabase relationship
-        const bpData = invoice.billing_profile as { name: string }[] | { name: string } | null;
-        const billingProfile = Array.isArray(bpData) ? bpData[0] : bpData;
-        const periodStr = invoice.period_start && invoice.period_end
-            ? `${formatPeriodDate(invoice.period_start)} - ${formatPeriodDate(invoice.period_end)}`
-            : null;
-
-        runningBalance += invoice.amount_due || 0;
-
-        transactions.push({
-            id: `inv-${invoice.id}`,
-            date: invoice.created_at,
-            type: 'invoice',
-            description: `Invoice #${invoice.invoice_number}${billingProfile ? ` - ${billingProfile.name}` : ''}`,
-            reference: invoice.invoice_number,
-            debit: invoice.amount_due || 0,
-            credit: 0,
-            balance: runningBalance,
-            invoice_id: invoice.id,
-            invoice_status: invoice.status as InvoiceStatus,
-            invoice_type: invoice.invoice_type as InvoiceType,
-            period: periodStr || undefined,
-        });
+    // 7-8. Build the chronological ledger and its totals
+    const { transactions, summary, closingBalance } = buildStatementLedger({
+        openingBalance,
+        invoices: (invoices || []).map((invoice) => {
+            // billing_profile can be array or single object depending on Supabase relationship
+            const bpData = invoice.billing_profile as { name: string }[] | { name: string } | null;
+            const billingProfile = Array.isArray(bpData) ? bpData[0] : bpData;
+            return { ...invoice, billing_profile_name: billingProfile?.name ?? null };
+        }),
+        payments: payments || [],
+        walletTransactions,
     });
-
-    // Add payments as credits
-    (payments || []).forEach((payment) => {
-        runningBalance -= payment.amount || 0;
-
-        transactions.push({
-            id: `pay-${payment.id}`,
-            date: payment.payment_date,
-            type: 'payment',
-            description: `Payment${payment.method ? ` (${payment.method})` : ''}${payment.notes ? ` - ${payment.notes}` : ''}`,
-            reference: payment.reference,
-            debit: 0,
-            credit: payment.amount || 0,
-            balance: runningBalance,
-            payment_id: payment.id,
-        });
-    });
-
-    // Add wallet transactions (only non-invoice related - those are already reflected)
-    walletTransactions.forEach((tx) => {
-        // Skip wallet debits for invoice payments (already covered by payment records)
-        if (tx.reference_type === 'invoice') {
-            return;
-        }
-
-        if (tx.type === 'credit') {
-            // Wallet credits reduce outstanding balance
-            runningBalance -= tx.amount;
-            transactions.push({
-                id: `wtx-${tx.id}`,
-                date: tx.created_at,
-                type: 'wallet_credit',
-                description: tx.description || 'Wallet Credit',
-                reference: tx.reference_id,
-                debit: 0,
-                credit: tx.amount,
-                balance: runningBalance,
-            });
-        } else {
-            // Non-invoice wallet debits increase balance (e.g., manual adjustments)
-            runningBalance += tx.amount;
-            transactions.push({
-                id: `wtx-${tx.id}`,
-                date: tx.created_at,
-                type: 'wallet_debit',
-                description: tx.description || 'Wallet Debit',
-                reference: tx.reference_id,
-                debit: tx.amount,
-                credit: 0,
-                balance: runningBalance,
-            });
-        }
-    });
-
-    // Sort all transactions by date
-    transactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-    // Recalculate running balances after sorting
-    let balance = openingBalance;
-    transactions.forEach((tx) => {
-        balance += tx.debit - tx.credit;
-        tx.balance = balance;
-    });
-
-    // 8. Calculate summary
-    const summary = {
-        totalInvoiced: transactions.filter(t => t.type === 'invoice').reduce((sum, t) => sum + t.debit, 0),
-        totalPaid: transactions.filter(t => t.type === 'payment').reduce((sum, t) => sum + t.credit, 0),
-        totalCredits: transactions.filter(t => t.type === 'wallet_credit').reduce((sum, t) => sum + t.credit, 0),
-        totalDebits: transactions.filter(t => t.type === 'wallet_debit').reduce((sum, t) => sum + t.debit, 0),
-        netChange: 0,
-    };
-    summary.netChange = (summary.totalInvoiced + summary.totalDebits) - (summary.totalPaid + summary.totalCredits);
-
-    const closingBalance = openingBalance + summary.netChange;
 
     // 9. Get current user for generated by
     const { data: { user } } = await supabase.auth.getUser();
@@ -402,10 +305,4 @@ export async function getMyAccountStatement(
         fromDate: params.fromDate,
         toDate: params.toDate,
     });
-}
-
-// Helper to format period dates
-function formatPeriodDate(dateStr: string): string {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
 }
