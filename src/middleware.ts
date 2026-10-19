@@ -6,6 +6,7 @@ import { resolveAccess, toAccessClient } from '@/lib/auth/access';
 import { getPublicOrigin } from '@/lib/http/public-origin';
 import { TWO_FACTOR_COOKIE, getSessionIdFromAccessToken, verifyTwoFactorMarker } from '@/lib/auth/two-factor-marker';
 import type { ProfileApprovalStatus } from '@/types/database';
+import { isMaintenanceModeOn } from '@/lib/settings/maintenance-mode';
 
 /**
  * Routes the middleware guards, and what each requires.
@@ -177,7 +178,7 @@ export async function middleware(request: NextRequest) {
         // PGRST116 is "no row" (a legitimately missing profile). Any other error
         // means we could not establish whether 2FA applies, so we must not guess.
         profileQueryFailed = !!profileData?.error && profileData.error.code !== 'PGRST116';
-        isMaintenanceMode = maintenanceData?.data?.value === true;
+        isMaintenanceMode = isMaintenanceModeOn(maintenanceData?.data?.value);
     }
 
     // Fail closed when the profile lookup itself errored (#455): without it the
