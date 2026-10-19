@@ -4,7 +4,12 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { getSettingValueAsService } from '@/lib/settings/service';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
-import { runLateFeeApplication, type ApplyLateFeesResult } from '@/lib/billing/apply-late-fees';
+import {
+  runLateFeeApplication,
+  previewLateFeeApplication,
+  type ApplyLateFeesResult,
+  type LateFeePreview,
+} from '@/lib/billing/apply-late-fees';
 import type { LateFeeLog } from '@/types/database';
 
 /**
@@ -27,6 +32,16 @@ export async function applyLateFees(): Promise<ApplyLateFeesResult> {
     };
   }
   return runLateFeeApplication('manual', auth.userId);
+}
+
+/**
+ * Dry run of `applyLateFees` for the confirmation dialog (#790): counts and the naira
+ * total it would add, read-only. Same permission as the write it previews.
+ */
+export async function previewLateFees(): Promise<{ data: LateFeePreview | null; error: string | null }> {
+  const auth = await authorizePermission(PERMISSIONS.BILLING_APPLY_LATE_FEES);
+  if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
+  return previewLateFeeApplication();
 }
 
 // Get late fee application history

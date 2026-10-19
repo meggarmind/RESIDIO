@@ -7,6 +7,7 @@ import { useBillingProfiles, useDeleteBillingProfile, useDuplicateBillingProfile
 import { useCurrentDevelopmentLevyProfileId } from '@/hooks/use-settings';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { ConfirmAction } from '@/components/ui/confirm-action';
 import { Badge } from '@/components/ui/badge';
 import { Trash2, Building, Users, Clock, Pencil, Landmark, CheckCircle, Copy, History } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
@@ -164,19 +165,23 @@ export default function BillingProfilesPage() {
                                             >
                                                 <Copy className="h-4 w-4" />
                                             </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="text-destructive h-8 w-8"
-                                                aria-label={`Delete ${profile.name}`}
-                                                onClick={async () => {
-                                                    if (confirm('Delete this profile? This might affect automated billing.')) {
-                                                        await deleteMutation.mutateAsync(profile.id);
-                                                    }
-                                                }}
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
+                                            <ConfirmAction
+                                                trigger={
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="text-destructive h-8 w-8"
+                                                        aria-label={`Delete ${profile.name}`}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                }
+                                                title={`Delete ${profile.name}?`}
+                                                description="The rate card is deleted permanently and automated billing stops using it. This cannot be undone."
+                                                confirmLabel="Delete rate card"
+                                                destructive
+                                                onConfirm={() => deleteMutation.mutateAsync(profile.id)}
+                                            />
                                         </div>
                                     </div>
                                 </CardHeader>

@@ -1,9 +1,10 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import Image from 'next/image';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { ConfirmAction } from '@/components/ui/confirm-action';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Loader2, Upload, X, ImageIcon } from 'lucide-react';
@@ -52,12 +53,20 @@ export default function BrandingPage() {
     }
   };
 
-  const handleRemoveLogo = () => {
-    removeLogo.mutate();
-  };
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const handleRemoveLogo = () => setConfirmRemove(true);
 
   return (
     <div className="space-y-6">
+      <ConfirmAction
+        open={confirmRemove}
+        onOpenChange={setConfirmRemove}
+        title="Remove the estate logo?"
+        description="The logo is removed straight away wherever the app shows it. To get it back you have to upload the file again."
+        confirmLabel="Remove logo"
+        destructive
+        onConfirm={() => removeLogo.mutate()}
+      />
       <div>
         <h3 className="text-lg font-medium">Branding</h3>
         <p className="text-sm text-muted-foreground">

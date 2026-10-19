@@ -7,16 +7,63 @@ import { logAudit } from '@/lib/audit/logger';
 import { revalidatePath } from 'next/cache';
 import { subDays, subMonths } from 'date-fns';
 
+// The ages pruneSystemData deletes by. The saved audit_log_retention_days setting is not read.
+function pruneCutoffs() {
+    return {
+        date30DaysAgo: subDays(new Date(), 30).toISOString(),
+        date90DaysAgo: subDays(new Date(), 90).toISOString(),
+        date6MonthsAgo: subMonths(new Date(), 6).toISOString(),
+    };
+}
+
+/**
+ * Counts what pruneSystemData would delete right now, for its confirmation dialog (#790).
+ * Reads only, with the same filters and clients as the delete.
+ */
+export async function previewPruneSystemData() {
+    const { authorized, error: authError } = await authorizePermission(PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION);
+    if (!authorized) return { data: null, error: authError || 'Unauthorized' };
+
+    const supabase = await createServerSupabaseClient();
+    const { date30DaysAgo, date90DaysAgo, date6MonthsAgo } = pruneCutoffs();
+    type UntypedCount = {
+        from: (table: string) => {
+            select: (columns: string, opts: { count: 'exact'; head: true }) => {
+                lt: (column: string, value: string) => PromiseLike<{ count: number | null; error: { message: string } | null }>;
+            };
+        };
+    };
+
+    const [readNotifications, unreadNotifications, auditLogs, searchLogs, systemActionLogs] = await Promise.all([
+        supabase.from('in_app_notifications').select('id', { count: 'exact', head: true }).eq('read', true).lt('created_at', date30DaysAgo),
+        supabase.from('in_app_notifications').select('id', { count: 'exact', head: true }).eq('read', false).lt('created_at', date90DaysAgo),
+        supabase.from('audit_logs').select('id', { count: 'exact', head: true }).lt('created_at', date6MonthsAgo),
+        supabase.from('search_logs').select('id', { count: 'exact', head: true }).lt('created_at', date30DaysAgo),
+        (createAdminClient() as unknown as UntypedCount).from('system_action_log').select('id', { count: 'exact', head: true }).lt('occurred_at', date90DaysAgo),
+    ]);
+
+    // search_logs is optional in pruneSystemData too, so its error is not fatal here.
+    const failed = [readNotifications, unreadNotifications, auditLogs, systemActionLogs].find((r) => r.error);
+    if (failed?.error) return { data: null, error: failed.error.message };
+
+    return {
+        data: {
+            notifications: (readNotifications.count || 0) + (unreadNotifications.count || 0),
+            auditLogs: auditLogs.count || 0,
+            searchLogs: searchLogs.error ? 0 : searchLogs.count || 0,
+            systemActionLogs: systemActionLogs.count || 0,
+        },
+        error: null,
+    };
+}
+
 export async function pruneSystemData() {
     const { authorized } = await authorizePermission(PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION);
     if (!authorized) throw new Error('Unauthorized');
 
     const supabase = await createServerSupabaseClient();
 
-    // Calculate cutoff dates
-    const date30DaysAgo = subDays(new Date(), 30).toISOString();
-    const date90DaysAgo = subDays(new Date(), 90).toISOString();
-    const date6MonthsAgo = subMonths(new Date(), 6).toISOString();
+    const { date30DaysAgo, date90DaysAgo, date6MonthsAgo } = pruneCutoffs();
 
     const results = {
         notifications: 0,
