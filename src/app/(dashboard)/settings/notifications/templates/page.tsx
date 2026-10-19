@@ -6,6 +6,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -30,6 +32,8 @@ import { previewTemplate } from '@/lib/notifications/templates';
 import type { NotificationTemplate } from '@/lib/notifications/types';
 
 export default function NotificationTemplatesPage() {
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(PERMISSIONS.NOTIFICATIONS_MANAGE);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editTemplate, setEditTemplate] = useState<NotificationTemplate | null>(null);
   const [previewTemplateData, setPreviewTemplateData] = useState<NotificationTemplate | null>(null);
@@ -60,10 +64,12 @@ export default function NotificationTemplatesPage() {
             </p>
           </div>
         </div>
+        {canManage && (
         <Button onClick={() => setIsCreateOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
           New Template
         </Button>
+        )}
       </div>
       <Separator />
 

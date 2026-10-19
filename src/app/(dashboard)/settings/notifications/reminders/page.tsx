@@ -20,7 +20,6 @@ import {
   CheckCircle,
   XCircle,
   AlertTriangle,
-  Loader2,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -29,6 +28,9 @@ import {
 } from '@/actions/notifications/reminder-config';
 import type { ReminderScheduleConfig } from '@/lib/notifications/types';
 import { toast } from 'sonner';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { SettingsSkeleton } from '@/components/settings/settings-states';
 
 function formatDaysFromDue(days: number): string {
   if (days === 0) return 'On due date';
@@ -43,6 +45,8 @@ function getEscalationBadgeVariant(step: number): 'default' | 'secondary' | 'des
 }
 
 export default function RemindersOverviewPage() {
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
   const [schedule, setSchedule] = useState<ReminderScheduleConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [lastRun, setLastRun] = useState<string | null>(null);
@@ -80,11 +84,7 @@ export default function RemindersOverviewPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
+    return <SettingsSkeleton rows={4} />;
   }
 
   const steps = schedule?.steps || [];
@@ -92,7 +92,7 @@ export default function RemindersOverviewPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-lg font-medium flex items-center gap-2">
             <Bell className="h-5 w-5" />
@@ -108,6 +108,7 @@ export default function RemindersOverviewPage() {
             id="enable-reminders"
             checked={enabled}
             onCheckedChange={handleToggleEnabled}
+            disabled={!canManage}
           />
         </div>
       </div>

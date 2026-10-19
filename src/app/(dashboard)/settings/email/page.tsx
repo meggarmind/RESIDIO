@@ -10,6 +10,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Mail, Bell, FileText, UserPlus, Loader2, Info, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useSettings, useUpdateSetting } from '@/hooks/use-settings';
 import { getEmailStatus } from '@/actions/email/get-email-status';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 function settingsToObject(settings: { key: string; value: unknown }[] | undefined): Record<string, unknown> {
   if (!settings) return {};
@@ -20,6 +22,8 @@ function settingsToObject(settings: { key: string; value: unknown }[] | undefine
 }
 
 export default function EmailSettingsPage() {
+  const { hasPermission } = useAuth();
+  const canEdit = hasPermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
   const { data: settings, isLoading } = useSettings('email');
   const updateSetting = useUpdateSetting();
   const [isEmailConfigured, setIsEmailConfigured] = useState<boolean | null>(null);
@@ -73,13 +77,14 @@ export default function EmailSettingsPage() {
         <CardContent>
           <div className="flex items-center justify-between">
             <div>
-              <Label>Enable Email Notifications</Label>
+              <Label htmlFor="email_enabled">Enable Email Notifications</Label>
               <p className="text-xs text-muted-foreground mt-1">When disabled, no emails will be sent from the system</p>
             </div>
             <Switch
+              id="email_enabled"
               checked={settingsMap.email_enabled !== false}
               onCheckedChange={() => handleToggle('email_enabled', settingsMap.email_enabled !== false)}
-              disabled={updateSetting.isPending || !isEmailConfigured}
+              disabled={!canEdit || updateSetting.isPending || !isEmailConfigured}
             />
           </div>
         </CardContent>
@@ -93,35 +98,35 @@ export default function EmailSettingsPage() {
         <CardContent className="space-y-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="rounded-lg bg-amber-100 p-2"><Bell className="h-4 w-4 text-amber-600" /></div>
+              <div className="rounded-lg bg-warning/10 p-2"><Bell className="h-4 w-4 text-warning" /></div>
               <div>
-                <Label>Payment Reminders</Label>
+                <Label htmlFor="email_payment_reminders_enabled">Payment Reminders</Label>
                 <p className="text-xs text-muted-foreground">Automatic reminders before invoice due dates</p>
               </div>
             </div>
-            <Switch checked={settingsMap.email_payment_reminders_enabled !== false} onCheckedChange={() => handleToggle('email_payment_reminders_enabled', settingsMap.email_payment_reminders_enabled !== false)} disabled={updateSetting.isPending} />
+            <Switch id="email_payment_reminders_enabled" checked={settingsMap.email_payment_reminders_enabled !== false} onCheckedChange={() => handleToggle('email_payment_reminders_enabled', settingsMap.email_payment_reminders_enabled !== false)} disabled={!canEdit || updateSetting.isPending} />
           </div>
           <Separator />
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="rounded-lg bg-blue-100 p-2"><FileText className="h-4 w-4 text-blue-600" /></div>
+              <div className="rounded-lg bg-info/10 p-2"><FileText className="h-4 w-4 text-info" /></div>
               <div>
-                <Label>Invoice Notifications</Label>
+                <Label htmlFor="email_invoice_notifications_enabled">Invoice Notifications</Label>
                 <p className="text-xs text-muted-foreground">Send email when a new invoice is generated</p>
               </div>
             </div>
-            <Switch checked={settingsMap.email_invoice_notifications_enabled !== false} onCheckedChange={() => handleToggle('email_invoice_notifications_enabled', settingsMap.email_invoice_notifications_enabled !== false)} disabled={updateSetting.isPending} />
+            <Switch id="email_invoice_notifications_enabled" checked={settingsMap.email_invoice_notifications_enabled !== false} onCheckedChange={() => handleToggle('email_invoice_notifications_enabled', settingsMap.email_invoice_notifications_enabled !== false)} disabled={!canEdit || updateSetting.isPending} />
           </div>
           <Separator />
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="rounded-lg bg-green-100 p-2"><UserPlus className="h-4 w-4 text-green-600" /></div>
+              <div className="rounded-lg bg-success/10 p-2"><UserPlus className="h-4 w-4 text-success" /></div>
               <div>
-                <Label>Welcome Emails</Label>
+                <Label htmlFor="email_welcome_enabled">Welcome Emails</Label>
                 <p className="text-xs text-muted-foreground">Send welcome email to new residents with their code</p>
               </div>
             </div>
-            <Switch checked={settingsMap.email_welcome_enabled !== false} onCheckedChange={() => handleToggle('email_welcome_enabled', settingsMap.email_welcome_enabled !== false)} disabled={updateSetting.isPending} />
+            <Switch id="email_welcome_enabled" checked={settingsMap.email_welcome_enabled !== false} onCheckedChange={() => handleToggle('email_welcome_enabled', settingsMap.email_welcome_enabled !== false)} disabled={!canEdit || updateSetting.isPending} />
           </div>
         </CardContent>
       </Card>

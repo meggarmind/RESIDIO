@@ -9,14 +9,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { SettingEffect } from '@/components/settings/setting-effect';
 import { CalendarClock, Info, CheckCircle, AlertTriangle } from 'lucide-react';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { SettingsSkeleton } from '@/components/settings/settings-states';
 
 export default function InvoiceGenerationPage() {
+    const { hasPermission } = useAuth();
+    const canEdit = hasPermission(PERMISSIONS.SETTINGS_MANAGE_BILLING);
     const { data: generationDay, isLoading: generationDayLoading } = useInvoiceGenerationDay();
     const updateGenerationDayMutation = useUpdateInvoiceGenerationDay();
     const { data: autoGenerateEnabled, isLoading: autoGenerateLoading } = useAutoGenerateEnabled();
     const updateAutoGenerateMutation = useUpdateAutoGenerateEnabled();
 
-    if (generationDayLoading || autoGenerateLoading) return <div>Loading settings...</div>;
+    if (generationDayLoading || autoGenerateLoading) return <SettingsSkeleton rows={3} />;
 
     return (
         <div className="space-y-6">
@@ -42,7 +47,7 @@ export default function InvoiceGenerationPage() {
                                 id="auto_generate_invoices"
                                 checked={autoGenerateEnabled === true}
                                 onCheckedChange={(checked) => updateAutoGenerateMutation.mutate(checked)}
-                                disabled={updateAutoGenerateMutation.isPending || autoGenerateLoading}
+                                disabled={!canEdit || updateAutoGenerateMutation.isPending || autoGenerateLoading}
                             />
                         </div>
 
@@ -59,9 +64,9 @@ export default function InvoiceGenerationPage() {
                             <Select
                                 value={String(generationDay || 2)}
                                 onValueChange={(value) => updateGenerationDayMutation.mutate(parseInt(value))}
-                                disabled={updateGenerationDayMutation.isPending || generationDayLoading}
+                                disabled={!canEdit || updateGenerationDayMutation.isPending || generationDayLoading}
                             >
-                                <SelectTrigger className="w-[180px]">
+                                <SelectTrigger id="generation_day" className="min-h-11 w-[180px] md:min-h-9">
                                     <SelectValue placeholder="Select day" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -87,13 +92,13 @@ export default function InvoiceGenerationPage() {
                         </Alert>
 
                         {autoGenerateEnabled && (
-                            <div className="flex items-center gap-2 text-sm text-green-600">
+                            <div className="flex items-center gap-2 text-sm text-success">
                                 <CheckCircle className="h-4 w-4" />
                                 <span>Auto-generation is active - invoices will be created on the {generationDay || 2}{generationDay === 1 ? 'st' : generationDay === 2 ? 'nd' : generationDay === 3 ? 'rd' : 'th'} of each month</span>
                             </div>
                         )}
                         {!autoGenerateEnabled && (
-                            <div className="text-sm text-amber-600 flex items-center gap-2">
+                            <div className="text-sm text-warning flex items-center gap-2">
                                 <AlertTriangle className="h-4 w-4" />
                                 <span>Auto-generation is disabled - invoices must be generated manually from the Billing page</span>
                             </div>

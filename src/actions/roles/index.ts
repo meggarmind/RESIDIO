@@ -54,6 +54,20 @@ export async function getRolesWithPermissions(): Promise<{
     .from('role_permissions')
     .select('role_id, permission_id');
 
+  // Holders per role, so the delete dialog can say who would be affected (#788).
+  // Explicit column: `*` would include profiles.two_factor_secret_encrypted (#455).
+  const { data: holders, error: holdersError } = await supabase
+    .from('profiles')
+    .select('role_id')
+    .not('role_id', 'is', null);
+  if (holdersError) {
+    console.error('[getRolesWithPermissions] Could not count role holders:', holdersError);
+  }
+  const holderCounts = new Map<string, number>();
+  for (const h of holders || []) {
+    if (h.role_id) holderCounts.set(h.role_id, (holderCounts.get(h.role_id) ?? 0) + 1);
+  }
+
   // Build the result with permissions
   const rolesWithPermissions: AppRoleWithPermissions[] = (roles || []).map((role) => {
     const rolePermIds = rolePerms
@@ -67,6 +81,7 @@ export async function getRolesWithPermissions(): Promise<{
     return {
       ...role,
       permissions: rolePermissions as AppPermission[],
+      user_count: holdersError ? null : holderCounts.get(role.id) ?? 0,
     };
   });
 

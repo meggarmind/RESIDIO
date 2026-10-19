@@ -33,10 +33,15 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Loader2, Pencil, Copy, Trash2 } from 'lucide-react';
+import { Plus, Loader2, Pencil, Copy, Trash2, MapPin } from 'lucide-react';
 import type { Street } from '@/types/database';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { ActiveStatusBadge, SettingsEmptyState, SettingsSkeleton } from '@/components/settings/settings-states';
 
 export function StreetsList() {
+    const { hasPermission } = useAuth();
+    const canManage = hasPermission(PERMISSIONS.SETTINGS_MANAGE_REFERENCE);
     const { data: streetsData, isLoading } = useStreets();
     const createMutation = useCreateStreet();
     const updateMutation = useUpdateStreet();
@@ -143,6 +148,7 @@ export function StreetsList() {
         <div className="space-y-4">
             <div className="flex items-center justify-between">
                 <h3 className="text-lg font-medium">Streets</h3>
+                {canManage && (
                 <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
                     <DialogTrigger asChild>
                         <Button size="sm" onClick={openCreateDialog}>
@@ -230,6 +236,7 @@ export function StreetsList() {
                         </form>
                     </DialogContent>
                 </Dialog>
+                )}
             </div>
 
             <div className="rounded-md border">
@@ -240,20 +247,30 @@ export function StreetsList() {
                             <TableHead>Short Name</TableHead>
                             <TableHead>Description</TableHead>
                             <TableHead className="w-[100px]">Status</TableHead>
-                            <TableHead className="w-[100px] text-right">Actions</TableHead>
+                            {canManage && <TableHead className="w-[100px] text-right">Actions</TableHead>}
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {isLoading ? (
                             <TableRow>
-                                <TableCell colSpan={5} className="h-24 text-center">
-                                    Loading streets...
+                                <TableCell colSpan={canManage ? 5 : 4}>
+                                    <SettingsSkeleton />
                                 </TableCell>
                             </TableRow>
                         ) : streetsData?.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={5} className="h-24 text-center">
-                                    No streets found.
+                                <TableCell colSpan={canManage ? 5 : 4}>
+                                    <SettingsEmptyState
+                                        icon={MapPin}
+                                        title="No streets yet"
+                                        description="Streets group houses for billing and reports."
+                                        action={canManage && (
+                                            <Button size="sm" onClick={openCreateDialog}>
+                                                <Plus className="mr-2 h-4 w-4" />
+                                                Add Street
+                                            </Button>
+                                        )}
+                                    />
                                 </TableCell>
                             </TableRow>
                         ) : (
@@ -263,22 +280,15 @@ export function StreetsList() {
                                     <TableCell>{street.short_name || '-'}</TableCell>
                                     <TableCell>{street.description || '-'}</TableCell>
                                     <TableCell>
-                                        <span
-                                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                                                street.is_active
-                                                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-                                                    : 'bg-gray-100 text-gray-800'
-                                            }`}
-                                        >
-                                            {street.is_active ? 'Active' : 'Inactive'}
-                                        </span>
+                                        <ActiveStatusBadge active={street.is_active} />
                                     </TableCell>
+                                    {canManage && (
                                     <TableCell className="text-right">
                                         <div className="flex justify-end gap-1">
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-8 w-8"
+                                                className="size-11 md:size-8"
                                                 onClick={() => openEditDialog(street)}
                                                 aria-label={`Edit street ${street.name}`}
                                             >
@@ -287,7 +297,7 @@ export function StreetsList() {
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-8 w-8"
+                                                className="size-11 md:size-8"
                                                 onClick={() => handleDuplicate(street.id)}
                                                 aria-label={`Duplicate street ${street.name}`}
                                                 disabled={duplicateMutation.isPending}
@@ -297,7 +307,7 @@ export function StreetsList() {
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                                className="size-11 md:size-8 text-destructive hover:text-destructive"
                                                 onClick={() => openDeleteDialog(street)}
                                                 aria-label={`Delete street ${street.name}`}
                                                 disabled={deleteMutation.isPending}
@@ -306,6 +316,7 @@ export function StreetsList() {
                                             </Button>
                                         </div>
                                     </TableCell>
+                                    )}
                                 </TableRow>
                             ))
                         )}

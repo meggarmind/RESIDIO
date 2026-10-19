@@ -10,8 +10,14 @@ import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Bell, AlertTriangle } from 'lucide-react';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { SettingsSkeleton } from '@/components/settings/settings-states';
 
 export default function BillingSettingsPage() {
+    const { hasPermission } = useAuth();
+    // updateSetting enforces settings.manage_general, whatever the route admits.
+    const canEdit = hasPermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
     const { data: settings, isLoading: settingsLoading } = useBillingSettings();
     const updateSettingMutation = useUpdateSetting();
 
@@ -69,7 +75,7 @@ export default function BillingSettingsPage() {
         updateSettingMutation.mutate({ key: 'payment_reminder_days', value: newDays });
     };
 
-    if (settingsLoading) return <div>Loading settings...</div>;
+    if (settingsLoading) return <SettingsSkeleton rows={6} />;
 
     return (
         <div className="space-y-6">
@@ -93,7 +99,7 @@ export default function BillingSettingsPage() {
                                 id="bill_vacant_houses"
                                 checked={settingsMap.bill_vacant_houses === true}
                                 onCheckedChange={() => handleSettingToggle('bill_vacant_houses', settingsMap.bill_vacant_houses === true)}
-                                disabled={updateSettingMutation.isPending}
+                                disabled={!canEdit || updateSettingMutation.isPending}
                             />
                         </div>
 
@@ -111,7 +117,7 @@ export default function BillingSettingsPage() {
                                 id="bill_under_renovation_houses"
                                 checked={settingsMap.bill_under_renovation_houses === true}
                                 onCheckedChange={() => handleSettingToggle('bill_under_renovation_houses', settingsMap.bill_under_renovation_houses === true)}
-                                disabled={updateSettingMutation.isPending}
+                                disabled={!canEdit || updateSettingMutation.isPending}
                             />
                         </div>
 
@@ -129,7 +135,7 @@ export default function BillingSettingsPage() {
                                 id="bill_under_construction_houses"
                                 checked={settingsMap.bill_under_construction_houses === true}
                                 onCheckedChange={() => handleSettingToggle('bill_under_construction_houses', settingsMap.bill_under_construction_houses === true)}
-                                disabled={updateSettingMutation.isPending}
+                                disabled={!canEdit || updateSettingMutation.isPending}
                             />
                         </div>
 
@@ -147,7 +153,7 @@ export default function BillingSettingsPage() {
                                 id="auto_generate_levies"
                                 checked={settingsMap.auto_generate_levies !== false}
                                 onCheckedChange={() => handleSettingToggle('auto_generate_levies', settingsMap.auto_generate_levies !== false)}
-                                disabled={updateSettingMutation.isPending}
+                                disabled={!canEdit || updateSettingMutation.isPending}
                             />
                         </div>
 
@@ -165,7 +171,7 @@ export default function BillingSettingsPage() {
                                 id="pro_rata_first_month"
                                 checked={settingsMap.pro_rata_first_month !== false}
                                 onCheckedChange={() => handleSettingToggle('pro_rata_first_month', settingsMap.pro_rata_first_month !== false)}
-                                disabled={updateSettingMutation.isPending}
+                                disabled={!canEdit || updateSettingMutation.isPending}
                             />
                         </div>
 
@@ -186,6 +192,7 @@ export default function BillingSettingsPage() {
                                 integer
                                 unit="days"
                                 value={getDueWindowDays()}
+                                disabled={!canEdit}
                                 onCommit={(value) => updateSettingMutation.mutate({ key: 'invoice_due_window_days', value: String(value) })}
                             />
                         </div>
@@ -215,7 +222,7 @@ export default function BillingSettingsPage() {
                                                 id={`reminder-${option.value}`}
                                                 checked={isChecked}
                                                 onCheckedChange={() => handleReminderDayToggle(option.value)}
-                                                disabled={updateSettingMutation.isPending}
+                                                disabled={!canEdit || updateSettingMutation.isPending}
                                             />
                                             <Label
                                                 htmlFor={`reminder-${option.value}`}
@@ -229,9 +236,9 @@ export default function BillingSettingsPage() {
                             </div>
                         </div>
 
-                        <Alert className="bg-amber-50 border-amber-200 dark:bg-amber-950 dark:border-amber-800">
-                            <AlertTriangle className="h-4 w-4 text-amber-600" />
-                            <AlertDescription className="text-amber-800 dark:text-amber-200">
+                        <Alert className="border-warning/20 bg-warning/10">
+                            <AlertTriangle className="h-4 w-4 text-warning" />
+                            <AlertDescription className="text-foreground">
                                 Email notifications will be implemented in Phase 9. For now, this configuration stores your preferences.
                             </AlertDescription>
                         </Alert>

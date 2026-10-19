@@ -654,7 +654,7 @@ export function useLateFeeWaivers(params: {
     invoiceId?: string;
     page?: number;
     limit?: number;
-} = {}) {
+} = {}, options: { enabled?: boolean } = {}) {
     return useQuery({
         queryKey: ['late-fee-waivers', params],
         queryFn: async () => {
@@ -662,6 +662,7 @@ export function useLateFeeWaivers(params: {
             if (result.error) throw new Error(result.error);
             return { data: result.data, total: result.total };
         },
+        enabled: options.enabled ?? true,
     });
 }
 

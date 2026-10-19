@@ -2,7 +2,7 @@
 
 import { BankAccountsList } from '@/components/admin/bank-accounts-list';
 import { BankPasswordsSection } from '@/components/admin/bank-passwords-section';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
 
 export default function BankAccountsPage() {
   return (
@@ -15,7 +15,6 @@ export default function BankAccountsPage() {
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>Bank Accounts Management</CardTitle>
           <CardDescription>
             Add, edit, or remove bank accounts. Changes by non-admin users require approval.
           </CardDescription>

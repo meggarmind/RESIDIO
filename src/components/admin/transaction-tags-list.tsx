@@ -50,7 +50,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Loader2, Pencil, Trash2, X } from 'lucide-react';
+import { Plus, Loader2, Pencil, Trash2, X, Tags } from 'lucide-react';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { ActiveStatusBadge, SettingsEmptyState, SettingsSkeleton } from '@/components/settings/settings-states';
 import type { TransactionTag, TransactionTagType, TransactionTagColor } from '@/types/database';
 
 const ALL_VALUE = '_all';
@@ -67,6 +70,9 @@ const colorVariants: Record<TransactionTagColor, string> = {
 };
 
 export function TransactionTagsList() {
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(PERMISSIONS.SETTINGS_MANAGE_REFERENCE);
+  const columnCount = canManage ? 8 : 6;
   const [typeFilter, setTypeFilter] = useState<string>(ALL_VALUE);
   const { data: tagsData, isLoading } = useTransactionTags({
     transaction_type: typeFilter === ALL_VALUE ? undefined : (typeFilter as TransactionTagType),
@@ -249,7 +255,7 @@ export function TransactionTagsList() {
           </Tabs>
         </div>
         <div className="flex items-center gap-2">
-          {selectedIds.length > 0 && (
+          {canManage && selectedIds.length > 0 && (
             <Button
               variant="destructive"
               size="sm"
@@ -260,6 +266,7 @@ export function TransactionTagsList() {
               Delete Selected ({selectedIds.length})
             </Button>
           )}
+          {canManage && (
           <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
             <DialogTrigger asChild>
               <Button size="sm" onClick={openCreateDialog}>
@@ -467,6 +474,7 @@ export function TransactionTagsList() {
               </form>
             </DialogContent>
           </Dialog>
+          )}
         </div>
       </div>
 
@@ -474,6 +482,7 @@ export function TransactionTagsList() {
         <Table>
           <TableHeader>
             <TableRow>
+              {canManage && (
               <TableHead className="w-[40px]">
                 <Checkbox
                   checked={filteredTags.length > 0 && selectedIds.length === filteredTags.length}
@@ -481,31 +490,43 @@ export function TransactionTagsList() {
                   aria-label="Select all"
                 />
               </TableHead>
+              )}
               <TableHead>Name</TableHead>
               <TableHead>Type</TableHead>
               <TableHead>Keywords</TableHead>
               <TableHead>Description</TableHead>
               <TableHead className="w-[80px]">Order</TableHead>
               <TableHead className="w-[100px]">Status</TableHead>
-              <TableHead className="w-[100px] text-right">Actions</TableHead>
+              {canManage && <TableHead className="w-[100px] text-right">Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center">
-                  <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                <TableCell colSpan={columnCount}>
+                  <SettingsSkeleton />
                 </TableCell>
               </TableRow>
             ) : filteredTags.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center">
-                  No transaction tags found.
+                <TableCell colSpan={columnCount}>
+                  <SettingsEmptyState
+                    icon={Tags}
+                    title="No transaction tags yet"
+                    description="Tags classify imported bank transactions by keyword."
+                    action={canManage && (
+                      <Button size="sm" onClick={openCreateDialog}>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Tag
+                      </Button>
+                    )}
+                  />
                 </TableCell>
               </TableRow>
             ) : (
               filteredTags.map((tag) => (
                 <TableRow key={tag.id}>
+                  {canManage && (
                   <TableCell>
                     <Checkbox
                       checked={selectedIds.includes(tag.id)}
@@ -513,6 +534,7 @@ export function TransactionTagsList() {
                       aria-label={`Select ${tag.name}`}
                     />
                   </TableCell>
+                  )}
                   <TableCell>
                     <Badge className={colorVariants[tag.color]}>{tag.name}</Badge>
                   </TableCell>
@@ -535,21 +557,15 @@ export function TransactionTagsList() {
                   </TableCell>
                   <TableCell className="font-mono text-sm">{tag.sort_order}</TableCell>
                   <TableCell>
-                    <span
-                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${tag.is_active
-                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-                        : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
-                        }`}
-                    >
-                      {tag.is_active ? 'Active' : 'Inactive'}
-                    </span>
+                    <ActiveStatusBadge active={tag.is_active} />
                   </TableCell>
+                  {canManage && (
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
                       <Button
                         variant="outline"
                         size="icon"
-                        className="h-8 w-8"
+                        className="size-11 md:size-8"
                         onClick={() => openEditDialog(tag)}
                         aria-label={`Edit tag ${tag.name}`}
                       >
@@ -558,7 +574,7 @@ export function TransactionTagsList() {
                       <Button
                         variant="outline"
                         size="icon"
-                        className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                        className="size-11 md:size-8 text-destructive hover:bg-destructive/10"
                         onClick={() => openDeleteDialog(tag)}
                         disabled={deleteMutation.isPending}
                         aria-label={`Delete tag ${tag.name}`}
@@ -567,6 +583,7 @@ export function TransactionTagsList() {
                       </Button>
                     </div>
                   </TableCell>
+                  )}
                 </TableRow>
               ))
             )}

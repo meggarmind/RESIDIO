@@ -24,8 +24,12 @@ import {
   removeBankAccountPassword,
   type BankAccountWithPassword,
 } from '@/actions/email-imports/bank-passwords';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 export function BankPasswordsSection() {
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(PERMISSIONS.EMAIL_IMPORTS_MANAGE_PASSWORDS);
   const queryClient = useQueryClient();
   const [selectedAccount, setSelectedAccount] = useState<BankAccountWithPassword | null>(null);
   const [password, setPassword] = useState('');
@@ -124,7 +128,7 @@ export function BankPasswordsSection() {
               {allAccounts.map((account) => (
                 <div
                   key={account.id}
-                  className="flex items-center justify-between p-4 border rounded-lg"
+                  className="flex flex-wrap items-center justify-between gap-3 p-4 border rounded-lg"
                 >
                   <div className="flex items-center gap-4">
                     <Key className="h-5 w-5 text-muted-foreground" />
@@ -142,9 +146,12 @@ export function BankPasswordsSection() {
                           <Shield className="h-3 w-3 mr-1" />
                           Password Set
                         </Badge>
+                        {canManage && (
+                        <>
                         <Button
                           variant="ghost"
                           size="sm"
+                          className="min-h-11 md:min-h-8"
                           onClick={() => handleOpenDialog(account)}
                         >
                           Update
@@ -154,7 +161,8 @@ export function BankPasswordsSection() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              aria-label="Remove password"
+                              className="size-11 md:size-8"
+                              aria-label={`Remove password for ${account.account_name}`}
                               disabled={removePasswordMutation.isPending}
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
@@ -166,12 +174,16 @@ export function BankPasswordsSection() {
                           destructive
                           onConfirm={() => removePasswordMutation.mutate(account.id)}
                         />
+                        </>
+                        )}
                       </>
-                    ) : (
+                    ) : canManage ? (
                       <Button variant="outline" size="sm" onClick={() => handleOpenDialog(account)}>
                         <Key className="h-4 w-4 mr-2" />
                         Set Password
                       </Button>
+                    ) : (
+                      <Badge variant="outline">No password</Badge>
                     )}
                   </div>
                 </div>

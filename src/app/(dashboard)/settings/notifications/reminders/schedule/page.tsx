@@ -49,7 +49,6 @@ import {
   ArrowLeft,
   CheckCircle,
   XCircle,
-  Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
@@ -63,6 +62,9 @@ import {
 } from '@/actions/notifications/reminder-config';
 import type { ReminderScheduleConfig, ReminderScheduleStep, NotificationChannel } from '@/lib/notifications/types';
 import { REMINDER_ESCALATION_LABELS, NOTIFICATION_CHANNEL_LABELS, isChannelImplemented } from '@/lib/notifications/types';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { SettingsEmptyState, SettingsSkeleton } from '@/components/settings/settings-states';
 
 function formatDaysFromDue(days: number): string {
   if (days === 0) return 'On due date';
@@ -79,6 +81,8 @@ function getEscalationBadgeVariant(level: string): 'default' | 'secondary' | 'de
 }
 
 export default function ReminderSchedulePage() {
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
   const [schedule, setSchedule] = useState<ReminderScheduleConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [editingStep, setEditingStep] = useState<ReminderScheduleStep | null>(null);
@@ -186,14 +190,52 @@ export default function ReminderSchedulePage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
+    return <SettingsSkeleton rows={4} />;
   }
 
   const steps = schedule?.steps || [];
+
+  const stepSwitch = (step: ReminderScheduleStep) => (
+    <Switch
+      checked={step.isActive}
+      onCheckedChange={() => handleToggleStep(step.id)}
+      disabled={!canManage}
+      aria-label={`${formatDaysFromDue(step.daysFromDue)} step active`}
+    />
+  );
+
+  const stepActions = (step: ReminderScheduleStep) => (
+    <div className="flex justify-end gap-1">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-11 md:size-8"
+        aria-label={`Edit ${formatDaysFromDue(step.daysFromDue)} step`}
+        onClick={() => setEditingStep({ ...step })}
+      >
+        <Edit className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label={`Remove ${formatDaysFromDue(step.daysFromDue)} step`}
+        onClick={() => setDeleteStepId(step.id)}
+        className="size-11 md:size-8 text-destructive hover:text-destructive"
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+
+  const channelBadges = (step: ReminderScheduleStep) => (
+    <div className="flex flex-wrap gap-1">
+      {step.channels.map((ch) => (
+        <Badge key={ch} variant="outline" className="text-xs">
+          {NOTIFICATION_CHANNEL_LABELS[ch]}
+        </Badge>
+      ))}
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -214,17 +256,18 @@ export default function ReminderSchedulePage() {
 
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <CardTitle className="text-base">Escalation Schedule</CardTitle>
               <CardDescription>
                 Define reminder steps that escalate as the due date approaches.
               </CardDescription>
             </div>
+            {canManage && (
             <div className="flex gap-2">
               <ConfirmAction
                 trigger={
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" className="min-h-11 md:min-h-8">
                     <RefreshCw className="h-4 w-4 mr-1" />
                     Reset to Default
                   </Button>
@@ -235,19 +278,47 @@ export default function ReminderSchedulePage() {
                 destructive
                 onConfirm={handleResetToDefault}
               />
-              <Button size="sm" onClick={() => setShowAddDialog(true)}>
+              <Button size="sm" className="min-h-11 md:min-h-8" onClick={() => setShowAddDialog(true)}>
                 <Plus className="h-4 w-4 mr-1" />
                 Add Step
               </Button>
             </div>
+            )}
           </div>
         </CardHeader>
         <CardContent>
           {steps.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No reminder steps configured. Add a step to get started.
-            </div>
+            <SettingsEmptyState
+              title="No reminder steps yet"
+              description="Each step sends a reminder a set number of days before or after the due date."
+              action={canManage && (
+                <Button size="sm" onClick={() => setShowAddDialog(true)}>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Step
+                </Button>
+              )}
+            />
           ) : (
+            <>
+            {/* Phone: one card per step instead of a table scrolled inside the card (#788). */}
+            <ul className="space-y-3 md:hidden">
+              {steps.map((step) => (
+                <li key={step.id} className="space-y-2 rounded-md border p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium">{formatDaysFromDue(step.daysFromDue)}</span>
+                    <Badge variant={getEscalationBadgeVariant(step.escalationLevel)}>
+                      {REMINDER_ESCALATION_LABELS[step.escalationLevel]}
+                    </Badge>
+                  </div>
+                  {channelBadges(step)}
+                  <div className="flex items-center justify-between gap-2">
+                    {stepSwitch(step)}
+                    {canManage && stepActions(step)}
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <div className="hidden md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -255,7 +326,7 @@ export default function ReminderSchedulePage() {
                   <TableHead>Level</TableHead>
                   <TableHead>Channels</TableHead>
                   <TableHead>Active</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  {canManage && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -269,40 +340,15 @@ export default function ReminderSchedulePage() {
                         {REMINDER_ESCALATION_LABELS[step.escalationLevel]}
                       </Badge>
                     </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        {step.channels.map((ch) => (
-                          <Badge key={ch} variant="outline" className="text-xs">
-                            {NOTIFICATION_CHANNEL_LABELS[ch]}
-                          </Badge>
-                        ))}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Switch
-                        checked={step.isActive}
-                        onCheckedChange={() => handleToggleStep(step.id)}
-                      />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => setEditingStep({ ...step })}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setDeleteStepId(step.id)}
-                          className="text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
+                    <TableCell>{channelBadges(step)}</TableCell>
+                    <TableCell>{stepSwitch(step)}</TableCell>
+                    {canManage && <TableCell className="text-right">{stepActions(step)}</TableCell>}
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+            </div>
+            </>
           )}
         </CardContent>
       </Card>
@@ -318,13 +364,15 @@ export default function ReminderSchedulePage() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>Days from Due Date</Label>
+              <Label htmlFor="new-step-days">Days from Due Date</Label>
               <Input
+                id="new-step-days"
                 type="number"
+                aria-describedby="new-step-days-help"
                 value={newStep.daysFromDue}
                 onChange={(e) => setNewStep(prev => ({ ...prev, daysFromDue: parseInt(e.target.value) || 0 }))}
               />
-              <p className="text-xs text-muted-foreground">
+              <p id="new-step-days-help" className="text-xs text-muted-foreground">
                 Negative = before due, Positive = after due, 0 = on due date
               </p>
             </div>
@@ -350,6 +398,8 @@ export default function ReminderSchedulePage() {
                     key={ch}
                     type="button"
                     variant={newStep.channels.includes(ch) ? 'default' : 'outline'}
+                    aria-pressed={newStep.channels.includes(ch)}
+                    className="min-h-11 md:min-h-8"
                     size="sm"
                     onClick={() => {
                       setNewStep(prev => ({
@@ -383,8 +433,9 @@ export default function ReminderSchedulePage() {
           {editingStep && (
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label>Days from Due Date</Label>
+                <Label htmlFor="edit-step-days">Days from Due Date</Label>
                 <Input
+                  id="edit-step-days"
                   type="number"
                   value={editingStep.daysFromDue}
                   onChange={(e) => setEditingStep(prev => prev ? { ...prev, daysFromDue: parseInt(e.target.value) || 0 } : null)}
@@ -412,6 +463,8 @@ export default function ReminderSchedulePage() {
                       key={ch}
                       type="button"
                       variant={editingStep.channels.includes(ch) ? 'default' : 'outline'}
+                      aria-pressed={editingStep.channels.includes(ch)}
+                      className="min-h-11 md:min-h-8"
                       size="sm"
                       onClick={() => {
                         setEditingStep(prev => prev ? {
