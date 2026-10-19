@@ -7,14 +7,16 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DollarSign, FileX2, Info, Loader2, Check, X } from 'lucide-react';
-import { CurrencyInput } from '@/components/ui/currency-input';
+import { NumericSettingInput } from '@/components/settings/numeric-setting-input';
+import { SettingEffect } from '@/components/settings/setting-effect';
+import { ConfirmAction } from '@/components/ui/confirm-action';
+import { previewLateFees } from '@/actions/billing/apply-late-fees';
 import { formatCurrency } from '@/lib/utils';
 import { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
@@ -45,11 +47,6 @@ export default function LateFeesPage() {
 
     const handleSettingToggle = (key: string, currentValue: boolean) => {
         updateSettingMutation.mutate({ key, value: !currentValue });
-    };
-
-    const handleNumberSettingChange = (key: string, value: number) => {
-        const clampedValue = Math.min(Math.max(value, 1), 90);
-        updateSettingMutation.mutate({ key, value: String(clampedValue) });
     };
 
     const getLateFeeEnabled = (): boolean => {
@@ -96,9 +93,9 @@ export default function LateFeesPage() {
         return 5;
     };
 
-    const handleLateFeeAmountChange = (value: number | undefined) => {
-        updateSettingMutation.mutate({ key: 'late_fee_amount', value: value || 0 });
-    };
+    const commitSetting = (key: string) => (value: number) => updateSettingMutation.mutate({ key, value: String(value) });
+
+    const EXISTING_INVOICES_EFFECT = 'existing overdue invoices too: the next run, manual or automatic, uses the values saved here for every overdue invoice that does not carry a late fee yet. Invoices that already carry one are not changed.';
 
     if (settingsLoading) return <div>Loading settings...</div>;
 
@@ -121,6 +118,7 @@ export default function LateFeesPage() {
                                 <p className="text-sm text-muted-foreground">
                                     Apply late fee charges to overdue invoices
                                 </p>
+                                <SettingEffect>{EXISTING_INVOICES_EFFECT}</SettingEffect>
                             </div>
                             <Switch
                                 id="late_fee_enabled"
@@ -140,6 +138,7 @@ export default function LateFeesPage() {
                                         <p className="text-sm text-muted-foreground">
                                             How the late fee is calculated
                                         </p>
+                                        <SettingEffect>{EXISTING_INVOICES_EFFECT}</SettingEffect>
                                     </div>
                                     <Select
                                         value={getLateFeeType()}
@@ -168,28 +167,27 @@ export default function LateFeesPage() {
                                                 ? 'Percentage of the invoice total to charge'
                                                 : 'Fixed amount to add to the invoice'}
                                         </p>
+                                        <SettingEffect>{EXISTING_INVOICES_EFFECT}</SettingEffect>
                                     </div>
                                     {getLateFeeType() === 'percentage' ? (
-                                        <div className="flex items-center gap-2">
-                                            <Input
-                                                id="late_fee_amount"
-                                                type="number"
-                                                min={0}
-                                                max={100}
-                                                step={0.5}
-                                                value={getLateFeeAmount()}
-                                                onChange={(e) => handleLateFeeAmountChange(parseFloat(e.target.value))}
-                                                className="w-20 text-center"
-                                                disabled={updateSettingMutation.isPending}
-                                            />
-                                            <span className="text-muted-foreground">%</span>
-                                        </div>
-                                    ) : (
-                                        <CurrencyInput
+                                        <NumericSettingInput
+                                            id="late_fee_amount"
+                                            min={0.1}
+                                            max={100}
+                                            unit="%"
                                             value={getLateFeeAmount()}
-                                            onValueChange={handleLateFeeAmountChange}
+                                            onCommit={commitSetting('late_fee_amount')}
+                                        />
+                                    ) : (
+                                        <NumericSettingInput
+                                            id="late_fee_amount"
+                                            min={1}
+                                            max={10000000}
+                                            unit="₦"
+                                            unitPosition="prefix"
                                             className="w-32 text-right"
-                                            disabled={updateSettingMutation.isPending}
+                                            value={getLateFeeAmount()}
+                                            onCommit={commitSetting('late_fee_amount')}
                                         />
                                     )}
                                 </div>
@@ -200,18 +198,18 @@ export default function LateFeesPage() {
                                     <div className="space-y-0.5">
                                         <Label htmlFor="grace_period_days">Grace Period (days)</Label>
                                         <p className="text-sm text-muted-foreground">
-                                            Days after due date before late fee applies
+                                            Days after due date before late fee applies (1-30). The late fee run treats 0 as 7, so 0 is not accepted.
                                         </p>
+                                        <SettingEffect>{EXISTING_INVOICES_EFFECT}</SettingEffect>
                                     </div>
-                                    <Input
+                                    <NumericSettingInput
                                         id="grace_period_days"
-                                        type="number"
-                                        min={0}
+                                        min={1}
                                         max={30}
+                                        integer
+                                        unit="days"
                                         value={getGracePeriodDays()}
-                                        onChange={(e) => handleNumberSettingChange('grace_period_days', parseInt(e.target.value) || 7)}
-                                        className="w-20 text-center"
-                                        disabled={updateSettingMutation.isPending}
+                                        onCommit={commitSetting('grace_period_days')}
                                     />
                                 </div>
 
@@ -223,6 +221,7 @@ export default function LateFeesPage() {
                                         <p className="text-sm text-muted-foreground">
                                             Automatically apply late fees on the configured day
                                         </p>
+                                        <SettingEffect>when late fees are added without anyone clicking. Each run charges every eligible overdue invoice.</SettingEffect>
                                     </div>
                                     <Switch
                                         id="late_fee_auto_apply"
@@ -275,14 +274,33 @@ export default function LateFeesPage() {
                                                 Manually apply late fees to all eligible overdue invoices
                                             </p>
                                         </div>
-                                        <Button
-                                            variant="outline"
-                                            onClick={() => applyLateFeesMutation.mutate()}
-                                            disabled={applyLateFeesMutation.isPending}
-                                        >
-                                            {applyLateFeesMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                            Apply Late Fees Now
-                                        </Button>
+                                        <ConfirmAction
+                                            trigger={
+                                                <Button variant="outline" disabled={applyLateFeesMutation.isPending}>
+                                                    {applyLateFeesMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                                    Apply Late Fees Now
+                                                </Button>
+                                            }
+                                            title="Apply late fees now?"
+                                            description={
+                                                <>
+                                                    <p>Late fees are added to residents&apos; invoices straight away. This cannot be undone here: a fee can only be removed through a waiver.</p>
+                                                    <p>Running it again is safe: invoices that already carry a late fee are skipped.</p>
+                                                </>
+                                            }
+                                            confirmLabel="Apply late fees"
+                                            destructive
+                                            loadPreview={previewLateFees}
+                                            renderPreview={(preview) => (
+                                                <ul className="space-y-1">
+                                                    <li><strong>{preview.eligible}</strong> invoice(s) will be charged, <strong>{formatCurrency(preview.totalLateFees)}</strong> in total.</li>
+                                                    <li>{preview.skippedAlreadyApplied} already carry a late fee and {preview.skippedWaiver} have a pending waiver; these are skipped.</li>
+                                                    <li>Rule: {preview.lateFeeType === 'fixed' ? formatCurrency(preview.lateFeeRate) : `${preview.lateFeeRate}%`} on invoices more than {preview.gracePeriodDays} day(s) overdue.</li>
+                                                    {!preview.enabled && <li className="text-destructive">Late fees are switched off, so the run will stop without charging anything.</li>}
+                                                </ul>
+                                            )}
+                                            onConfirm={() => applyLateFeesMutation.mutate()}
+                                        />
                                     </div>
                                     <Alert>
                                         <Info className="h-4 w-4" />

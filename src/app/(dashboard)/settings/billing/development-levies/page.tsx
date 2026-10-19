@@ -8,6 +8,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CheckCircle, Loader2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
+import { ConfirmAction } from '@/components/ui/confirm-action';
+import { SettingEffect } from '@/components/settings/setting-effect';
+import { previewRetroactiveLevies } from '@/actions/billing/generate-levies';
 
 const NONE_VALUE = '_none';
 
@@ -33,6 +36,7 @@ export default function DevelopmentLeviesPage() {
                                 <p className="text-sm text-muted-foreground">
                                     This profile will be applied to all newly created houses
                                 </p>
+                                <SettingEffect>the Development Levy report. Levy generation charges every active one-time rate card, whichever is selected here, and invoices already issued are not changed.</SettingEffect>
                             </div>
                             <Select
                                 value={currentDevLevyId || NONE_VALUE}
@@ -78,14 +82,35 @@ export default function DevelopmentLeviesPage() {
                 <p className="text-sm text-muted-foreground mb-4">
                     Generate outstanding one-time levies for existing houses that haven&apos;t been charged yet.
                 </p>
-                <Button
-                    variant="outline"
-                    onClick={() => generateLeviesMutation.mutate()}
-                    disabled={generateLeviesMutation.isPending}
-                >
-                    {generateLeviesMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Generate Retroactive Levies
-                </Button>
+                <ConfirmAction
+                    trigger={
+                        <Button variant="outline" disabled={generateLeviesMutation.isPending}>
+                            {generateLeviesMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Generate Retroactive Levies
+                        </Button>
+                    }
+                    title="Generate retroactive levies?"
+                    description={
+                        <>
+                            <p>A levy invoice is created for each active house whose billable resident has not been charged a one-time rate card yet, and is paid from the resident&apos;s wallet where it can be. This cannot be undone here: each invoice has to be voided by hand.</p>
+                            <p>Running it again is safe: a house already charged for a rate card is skipped.</p>
+                        </>
+                    }
+                    confirmLabel="Generate levies"
+                    destructive
+                    loadPreview={previewRetroactiveLevies}
+                    renderPreview={(preview) => (
+                        <ul className="space-y-1">
+                            {!preview.autoGenerateEnabled ? (
+                                <li className="text-destructive">Auto-Generate Levies is off in Billing Settings, so this run will create nothing.</li>
+                            ) : (
+                                <li><strong>{preview.invoices}</strong> levy invoice(s) for <strong>{preview.houses}</strong> house(s), <strong>{formatCurrency(preview.totalAmount)}</strong> in total.</li>
+                            )}
+                            <li>{preview.housesChecked} active house(s) checked; {preview.alreadyCharged} levy charge(s) already made are skipped.</li>
+                        </ul>
+                    )}
+                    onConfirm={() => generateLeviesMutation.mutate()}
+                />
             </div>
         </div>
     );

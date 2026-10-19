@@ -11,6 +11,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { TestTube, Send, Loader2, Info } from 'lucide-react';
 import { useSettings } from '@/hooks/use-settings';
 import { useTestEmail, useSendPaymentReminders } from '@/hooks/use-email';
+import { previewPaymentReminders } from '@/actions/email/send-payment-reminders';
+import { ConfirmAction } from '@/components/ui/confirm-action';
 
 function settingsToObject(settings: { key: string; value: unknown }[] | undefined): Record<string, unknown> {
   if (!settings) return {};
@@ -81,10 +83,34 @@ export default function EmailDebugPage() {
                 </p>
               )}
             </div>
-            <Button variant="outline" onClick={() => sendReminders.mutate()} disabled={sendReminders.isPending}>
-              {sendReminders.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              <Send className="mr-2 h-4 w-4" /> Send Reminders
-            </Button>
+            <ConfirmAction
+              trigger={
+                <Button variant="outline" disabled={sendReminders.isPending}>
+                  {sendReminders.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <Send className="mr-2 h-4 w-4" /> Send Reminders
+                </Button>
+              }
+              title="Send payment reminders now?"
+              description={
+                <>
+                  <p>Emails go out straight away and cannot be recalled. In production they reach real residents unless Debug Mode is on; elsewhere they go to the override contacts.</p>
+                  <p>Running it again the same day sends the same reminders again.</p>
+                </>
+              }
+              confirmLabel="Send reminders"
+              loadPreview={previewPaymentReminders}
+              renderPreview={(preview) =>
+                preview.disabledReason ? (
+                  <p className="text-destructive">{preview.disabledReason}: nothing will be sent.</p>
+                ) : (
+                  <p>
+                    <strong>{preview.invoices}</strong> reminder(s) to <strong>{preview.recipients}</strong> resident(s).
+                    {preview.skipped > 0 && ` ${preview.skipped} invoice(s) skipped (no email or nothing owed).`}
+                  </p>
+                )
+              }
+              onConfirm={() => sendReminders.mutate()}
+            />
           </div>
           <Separator />
           <div className="space-y-3">
