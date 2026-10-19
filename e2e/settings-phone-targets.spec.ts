@@ -13,7 +13,7 @@ const PHONE_PAGES = [
 ];
 
 // Tabs are navigation, out of scope here; inline text links are exempt from the target-size rule.
-const CONTROLS = 'button, [role="switch"], [role="checkbox"], [role="combobox"], input:not([type="hidden"]), select, textarea';
+const CONTROLS = 'button:not([role="tab"]), [role="switch"], [role="checkbox"], [role="combobox"], input:not([type="hidden"]), select, textarea';
 
 /** Visible controls in the settings content whose hit area (box plus any ::after pad) is under 44px. */
 async function undersizedControls(page: Page): Promise<string[]> {
