@@ -47,6 +47,13 @@ describe('getAccountStatement', () => {
     expect(from).not.toHaveBeenCalled();
   });
 
+  it('rejects a malformed toDate on its own', async () => {
+    const { from } = setup({});
+    const result = await getAccountStatement({ residentId: 'r1', fromDate: '2015-01-01', toDate: '2026-10-19,id.neq.0' });
+    expect(result).toEqual({ data: null, error: 'Dates must be in YYYY-MM-DD format' });
+    expect(from).not.toHaveBeenCalled();
+  });
+
   it('selects reference_number, filters invoices by period, and nets mirrored wallet credits out', async () => {
     const { queries } = setup({
       residents: [{ data: RESIDENT, error: null }],

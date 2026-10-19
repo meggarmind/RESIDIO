@@ -77,6 +77,16 @@ describe('buildStatementLedger', () => {
     expect(transactions.map((t) => [t.type, t.balance])).toEqual([['invoice', 5000], ['payment', 0]]);
   });
 
+  it('posts a same-day wallet debit before a payment, though wallet rows are gathered last', () => {
+    const { transactions } = buildStatementLedger({
+      openingBalance: 0,
+      invoices: [],
+      payments: [payment({ payment_date: '2015-03-01' })],
+      walletTransactions: [walletTx({ type: 'debit', reference_type: 'adjustment', amount: 5000, created_at: '2015-03-01' })],
+    });
+    expect(transactions.map((t) => [t.type, t.balance])).toEqual([['wallet_debit', 5000], ['payment', 0]]);
+  });
+
   it('runs the balance from the opening balance in date order and totals each kind', () => {
     const result = buildStatementLedger({
       openingBalance: 2000,
