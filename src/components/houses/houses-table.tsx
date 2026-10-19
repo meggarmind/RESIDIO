@@ -312,9 +312,9 @@ export function HousesTable() {
     <div className="space-y-4">
       {/* 1. Integrated Toolbar */}
       <div className="flex flex-col space-y-4">
-        <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-4">
           {/* Search Area */}
-          <div className="relative flex-1">
+          <div className="relative flex-1 min-w-[12rem]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/70" />
             <Input
               placeholder="Search by house #, street, or resident..."
@@ -325,7 +325,7 @@ export function HousesTable() {
           </div>
 
           {/* Filter Area - Right Aligned / Wrapped */}
-          <div className="flex flex-wrap sm:flex-nowrap gap-2 w-full sm:w-auto">
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
             <Select value={streetId} onValueChange={handleStreetChange}>
               <SelectTrigger className="w-[140px] flex-1 sm:flex-none">
                 <SelectValue placeholder="Street" />
