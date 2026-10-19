@@ -145,21 +145,28 @@ export async function requestLateFeeWaiver(params: {
     return { success: false, error: 'This invoice does not have a late fee applied' };
   }
 
-  const lateFeeAmount = Number(lateFeeItem.amount) || 0;
-  if (lateFeeAmount <= 0) {
-    return { success: false, error: 'No late fee to waive' };
+  const { data: waivers, error: waiversError } = await supabase
+    .from('late_fee_waivers')
+    .select('status, waiver_type, waiver_amount, original_late_fee')
+    .eq('invoice_id', invoiceId)
+    .in('status', ['pending', 'approved']);
+
+  if (waiversError) {
+    console.error('Load existing waivers error:', waiversError);
+    return { success: false, error: 'Failed to check existing waivers' };
   }
 
-  // Check for existing pending waiver
-  const { data: existingWaiver } = await supabase
-    .from('late_fee_waivers')
-    .select('id')
-    .eq('invoice_id', invoiceId)
-    .eq('status', 'pending')
-    .single();
-
-  if (existingWaiver) {
+  if (waivers?.some((w) => w.status === 'pending')) {
     return { success: false, error: 'A pending waiver request already exists for this invoice' };
+  }
+
+  const waived = (waivers ?? []).reduce(
+    (sum, w) => sum + (Number(w.waiver_type === 'full' ? w.original_late_fee : w.waiver_amount) || 0),
+    0
+  );
+  const lateFeeAmount = Math.round(((Number(lateFeeItem.amount) || 0) - waived) * 100) / 100;
+  if (lateFeeAmount <= 0) {
+    return { success: false, error: 'No late fee to waive' };
   }
 
   // Validate partial waiver amount
@@ -169,7 +176,7 @@ export async function requestLateFeeWaiver(params: {
       return { success: false, error: waiverAmountError ?? 'Partial waiver amount must be greater than 0' };
     }
     if (waiverAmount >= lateFeeAmount) {
-      return { success: false, error: 'Partial waiver amount must be less than the total late fee' };
+      return { success: false, error: 'Partial waiver amount must be less than the remaining late fee' };
     }
   }
 
