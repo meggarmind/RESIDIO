@@ -24,6 +24,7 @@
     "db:migrate": "node scripts/cloud-only-guard.mjs db-migrate",
     "db:types": "node scripts/db-types.mjs",
     "db:reconcile-version": "node scripts/reconcile-migration-version.mjs",
+    "deploy:stage": "node scripts/coolify-deploy.mjs",
     "secret-scan": "node scripts/secret-scan.mjs",
     "hooks:install": "git config core.hooksPath .githooks",
     "docs:drift": "node scripts/docs-drift.mjs",
