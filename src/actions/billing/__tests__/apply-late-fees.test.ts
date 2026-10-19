@@ -38,6 +38,7 @@ interface FluentQuery {
     lt: (column?: unknown, value?: unknown) => FluentQuery;
     update: (values?: unknown) => FluentQuery;
     insert: (values?: unknown) => FluentQuery;
+    delete: () => FluentQuery;
     order: (column?: unknown, options?: unknown) => FluentQuery;
     single: () => Promise<MockResult>;
     maybeSingle: () => Promise<MockResult>;
@@ -62,6 +63,7 @@ const createMockClient = (results: MockResult[]) => {
         chain.lt = fluent;
         chain.update = fluent;
         chain.insert = fluent;
+        chain.delete = fluent;
         chain.order = fluent;
         chain.single = vi.fn().mockImplementation(async () => take());
         chain.maybeSingle = chain.single;
@@ -81,8 +83,26 @@ const overdueInvoice = {
     amount_due: 10000,
     due_date: '2026-07-01',
     status: 'unpaid',
-    metadata: {},
+    invoice_items: [{ description: 'Security Levy', amount: 10000 }],
 };
+
+/** The chain returned for each `.from(table)` call, in call order. */
+const chainsFor = (client: ReturnType<typeof createMockClient>, table: string) =>
+    client.from.mock.calls
+        .map((args, i) => ({ table: args[0], chain: client.from.mock.results[i]?.value as FluentQuery }))
+        .filter((c) => c.table === table)
+        .map((c) => c.chain);
+
+const enableFees = () =>
+    settingsMock.mockImplementation(async (key: string) => {
+        switch (key) {
+            case 'late_fee_enabled': return true;
+            case 'late_fee_type': return 'percentage';
+            case 'late_fee_amount': return 5;
+            case 'grace_period_days': return 7;
+            default: return null;
+        }
+    });
 
 beforeEach(() => {
     vi.clearAllMocks();
@@ -107,8 +127,8 @@ describe('runLateFeeApplication (cron trigger) honours configured settings', () 
         const client = createMockClient([
             { data: [], error: null }, // pending waivers
             { data: [overdueInvoice], error: null }, // overdue invoices
+            { data: { id: 'item-1' }, error: null }, // invoice_items insert.select().single()
             { data: null, error: null }, // invoice update
-            { data: null, error: null }, // invoice_items insert
             { data: { id: 'log-1' }, error: null }, // late_fee_log insert.select().single()
         ]);
         adminClientMock.mockReturnValue(client as unknown as ReturnType<typeof createAdminClient>);
@@ -129,13 +149,14 @@ describe('runLateFeeApplication (cron trigger) honours configured settings', () 
             .filter((c) => c.table === 'invoices');
         expect(invoicesCalls).toHaveLength(2); // select overdue invoices, then update
         const updateChain = invoicesCalls[1].chain;
-        expect(vi.mocked(updateChain.update).mock.calls[0][0]).toMatchObject({
+        expect(vi.mocked(updateChain.update).mock.calls[0][0]).toEqual({
             amount_due: 11200, // 10000 + 1200
-            metadata: expect.objectContaining({
-                late_fee_amount: 1200,
-                late_fee_rate: 12,
-                late_fee_type: 'percentage',
-            }),
+        });
+        const [itemChain] = chainsFor(client, 'invoice_items');
+        expect(vi.mocked(itemChain.insert).mock.calls[0][0]).toMatchObject({
+            invoice_id: 'invoice-1',
+            amount: 1200,
+            description: expect.stringMatching(/^Late Fee \(12%\)/),
         });
 
         // Uses the admin (service-role) client throughout the cron path, not
@@ -150,6 +171,75 @@ describe('runLateFeeApplication (cron trigger) honours configured settings', () 
 
         expect(result.success).toBe(false);
         expect(result.errors).toContain('Late fees are not enabled');
+    });
+});
+
+describe('runLateFeeApplication uses only columns the schema has (#806)', () => {
+    // Residio_Stage has no invoices.metadata and no invoice_items.name/quantity, so
+    // selecting or writing them failed every run; the late-fee item is the marker.
+    it('reads and writes no invoices.metadata and inserts only real invoice_items columns', async () => {
+        enableFees();
+        const client = createMockClient([
+            { data: [], error: null },
+            { data: [overdueInvoice], error: null },
+            { data: { id: 'item-1' }, error: null },
+            { data: null, error: null },
+            { data: { id: 'log-1' }, error: null },
+        ]);
+        adminClientMock.mockReturnValue(client as unknown as ReturnType<typeof createAdminClient>);
+
+        const result = await runLateFeeApplication('cron');
+
+        expect(result.errors).toEqual([]);
+        const [selectChain, updateChain] = chainsFor(client, 'invoices');
+        const selected = vi.mocked(selectChain.select).mock.calls[0][0] as string;
+        expect(selected).not.toContain('metadata');
+        expect(selected).toContain('invoice_items(description, amount)');
+        expect(Object.keys(vi.mocked(updateChain.update).mock.calls[0][0] as object)).toEqual(['amount_due']);
+        const [itemChain] = chainsFor(client, 'invoice_items');
+        expect(Object.keys(vi.mocked(itemChain.insert).mock.calls[0][0] as object).sort()).toEqual(['amount', 'description', 'invoice_id']);
+    });
+
+    it('skips an invoice that already carries a late-fee item, writing nothing to it', async () => {
+        enableFees();
+        const charged = {
+            ...overdueInvoice,
+            invoice_items: [...overdueInvoice.invoice_items, { description: 'Late Fee (5%) - late payment penalty', amount: 500 }],
+        };
+        const client = createMockClient([
+            { data: [], error: null },
+            { data: [charged], error: null },
+            { data: { id: 'log-1' }, error: null },
+        ]);
+        adminClientMock.mockReturnValue(client as unknown as ReturnType<typeof createAdminClient>);
+
+        const result = await runLateFeeApplication('cron');
+
+        expect(result.applied).toBe(0);
+        expect(result.skippedAlreadyApplied).toBe(1);
+        expect(chainsFor(client, 'invoice_items')).toHaveLength(0);
+        expect(chainsFor(client, 'invoices')).toHaveLength(1);
+    });
+
+    it('removes the late-fee item when the invoice amount update fails, so the next run retries', async () => {
+        enableFees();
+        const client = createMockClient([
+            { data: [], error: null },
+            { data: [overdueInvoice], error: null },
+            { data: { id: 'item-1' }, error: null },
+            { data: null, error: { message: 'update refused' } },
+            { data: null, error: null }, // invoice_items delete
+            { data: { id: 'log-1' }, error: null },
+        ]);
+        adminClientMock.mockReturnValue(client as unknown as ReturnType<typeof createAdminClient>);
+
+        const result = await runLateFeeApplication('cron');
+
+        expect(result.applied).toBe(0);
+        expect(result.errors).toEqual(['Failed to apply late fee to invoice INV-202608-A1: update refused']);
+        const [, deleteChain] = chainsFor(client, 'invoice_items');
+        expect(deleteChain.delete).toHaveBeenCalled();
+        expect(vi.mocked(deleteChain.eq).mock.calls).toContainEqual(['id', 'item-1']);
     });
 });
 

@@ -7,10 +7,10 @@ import { planRetroactiveLevies, type LevyPlanProfile } from '@/lib/billing/retro
 
 describe('planLateFees', () => {
   const invoices = [
-    { id: 'a', amount_due: 10000, metadata: null },
-    { id: 'b', amount_due: 20000, metadata: { late_fee_applied: true } },
-    { id: 'c', amount_due: 30000, metadata: {} },
-    { id: 'd', amount_due: 5000, metadata: {} },
+    { id: 'a', amount_due: 10000, invoice_items: null },
+    { id: 'b', amount_due: 20000, invoice_items: [{ description: 'Late Fee (5%) - late payment penalty', amount: 1000 }] },
+    { id: 'c', amount_due: 30000, invoice_items: [{ description: 'Security Levy', amount: 30000 }] },
+    { id: 'd', amount_due: 5000, invoice_items: [] },
   ];
 
   it('charges percentage fees on eligible invoices and skips applied and waived ones', () => {

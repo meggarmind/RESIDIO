@@ -226,7 +226,7 @@ describe('requestLateFeeWaiver', () => {
       id: 'inv-1',
       invoice_number: 'INV-1',
       resident_id: 'r1',
-      metadata: { late_fee_applied: true, late_fee_amount: 1000 },
+      invoice_items: [{ description: 'Late Fee (5%) - late payment penalty', amount: 1000 }],
     };
   });
 
