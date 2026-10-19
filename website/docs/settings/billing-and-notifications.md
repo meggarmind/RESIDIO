@@ -6,8 +6,8 @@ residio_sources:
   - src/app/(dashboard)/settings/billing/**
   - src/app/(dashboard)/settings/notifications/**
   - src/app/(dashboard)/settings/message-templates/**
-residio_verified_commit: c65b6ca7
-residio_verified_at: '2026-09-07'
+residio_verified_commit: b94498b4
+residio_verified_at: '2026-10-19'
 residio_app_version: '0.4.0'
 ---
 
@@ -23,9 +23,19 @@ Two separate permissions govern this. **Manage Billing Profiles** shows the **Ra
 
 Use **Late Fees** for grace periods, fee rules, and waivers. Use **Invoice Generation** for recurring generation controls and run history.
 
+Set billing up in this order, which the note at the top of every billing page repeats: **Billing Profiles** (rate cards) first, then **Billing Settings** (rules), then **Development Levies**, which picks one of the rate cards.
+
+Number fields such as the grace period, the late fee amount and the invoice due window save when you leave the field or press Enter, not while you type. A value outside the allowed range shows a message and is not saved; clearing a field never saves a default. The grace period runs from 1 to 30 days, because the late fee run treats 0 as 7.
+
+Each billing setting carries an **Affects** line saying whether a change reaches invoices already issued. Late fee rules (on or off, type, amount, grace period) reach existing overdue invoices at the next run, manual or automatic, unless an invoice already carries a late fee. Due window, vacant and under-renovation or under-construction billing, and the invoice generation controls reach future invoices only.
+
+**Apply Late Fees Now** and **Generate Retroactive Levies** open a confirmation first. It shows how many invoices (or houses) would be charged and the naira total, says the charges cannot be undone from that screen, and confirms that a second run skips what is already charged. Nothing is charged until you press the confirm button.
+
 ## Notifications
 
 Use **Settings → Notifications** to review reminders, schedules, and templates. Keep templates clear and test them before enabling a new automated message.
+
+The **Enable Reminders** switch saves the state you set it to. **Reset to Default** on the reminder schedule asks before it replaces your steps, and **Send Reminders** under **Email → Debug & Testing** shows how many reminders would go to how many residents before it sends.
 
 Sent-notification history and the outgoing queue are system state rather than configuration, so they live under **System → Notification History** and **System → Notification Queue** instead. From the queue you can cancel a pending item or retry one that failed.
 
