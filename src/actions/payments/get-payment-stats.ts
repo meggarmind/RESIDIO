@@ -2,13 +2,6 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
-// PostgREST caps a bare `.select()` at 1000 rows. Paging by this size keeps each
-// page at the cap boundary so a full table is read in the fewest possible round trips.
-const PAGE_SIZE = 1000;
-// Sane upper bound on paging iterations so a pathological (e.g. corrupted/unbounded)
-// dataset can't turn this into a request that loops effectively forever.
-const MAX_PAGES = 1000;
-
 export async function getPaymentStats() {
     const supabase = await createServerSupabaseClient();
 
@@ -28,38 +21,15 @@ export async function getPaymentStats() {
         return { stats: null, error: countError.message };
     }
 
-    // total_collected requires summing `amount` across every 'paid' row. There is no
-    // sum RPC for payments, so page through the amount column in PAGE_SIZE chunks
-    // until a short (< PAGE_SIZE) page tells us we've read everything.
-    let total_collected = 0;
-    let page = 0;
+    // One server-side SUM instead of paging every paid row (#776). SECURITY INVOKER RPC, so RLS applies.
+    const { data: paidSum, error: sumError } = await supabase.rpc('sum_paid_payments');
 
-    while (page < MAX_PAGES) {
-        const from = page * PAGE_SIZE;
-        const to = from + PAGE_SIZE - 1;
-
-        const { data, error } = await supabase
-            .from('payment_records')
-            .select('amount')
-            .eq('status', 'paid')
-            .range(from, to);
-
-        if (error) {
-            console.error('Fetch payment stats error:', error);
-            return { stats: null, error: error.message };
-        }
-
-        const rows = data ?? [];
-        for (const row of rows) {
-            total_collected += Number(row.amount) || 0;
-        }
-
-        if (rows.length < PAGE_SIZE) {
-            break;
-        }
-
-        page += 1;
+    if (sumError) {
+        console.error('Fetch payment stats error:', sumError);
+        return { stats: null, error: sumError.message };
     }
+
+    const total_collected = Number(paidSum) || 0;
 
     const stats = {
         total_collected,

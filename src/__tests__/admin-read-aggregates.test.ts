@@ -1,0 +1,217 @@
+import { readFileSync } from 'node:fs';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { getOverdueInvoiceAging } from '@/actions/billing/check-overdue-invoices';
+import { getContactVerificationStats } from '@/actions/residents/get-resident-stats';
+import { getFinancialOverview } from '@/actions/reports/get-financial-overview';
+
+const { createServerSupabaseClient, authorizePermission } = vi.hoisted(() => ({
+  createServerSupabaseClient: vi.fn(),
+  authorizePermission: vi.fn(),
+}));
+
+vi.mock('@/lib/supabase/server', () => ({ createServerSupabaseClient }));
+vi.mock('@/lib/auth/authorize', () => ({ authorizePermission }));
+
+// Each action must aggregate in SQL (#776): any from() call means rows are being downloaded again.
+function mockRpc(result: { data: unknown; error: { message: string } | null }) {
+  const rpcCalls: Array<{ name: string; args: Record<string, unknown> | undefined }> = [];
+  const from = vi.fn();
+  const rpc = vi.fn((name: string, args?: Record<string, unknown>) => {
+    rpcCalls.push({ name, args });
+    return Promise.resolve(result);
+  });
+  createServerSupabaseClient.mockResolvedValue({ from, rpc });
+  return { rpcCalls, from };
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  authorizePermission.mockResolvedValue({ authorized: true });
+});
+
+describe('getOverdueInvoiceAging', () => {
+  it('maps SQL buckets to the old shape, sorted by days, above 1000 invoices', async () => {
+    const { rpcCalls, from } = mockRpc({
+      data: [
+        { days_overdue: 30, count: '1200' },
+        { days_overdue: 1, count: 5 },
+      ],
+      error: null,
+    });
+
+    const { data, error } = await getOverdueInvoiceAging();
+
+    expect(error).toBeNull();
+    expect(data).toEqual([
+      { daysOverdue: 1, count: 5 },
+      { daysOverdue: 30, count: 1200 },
+    ]);
+    expect(rpcCalls[0].name).toBe('get_overdue_invoice_aging');
+    expect(rpcCalls[0].args?.p_today).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it('returns an empty list when nothing is overdue', async () => {
+    mockRpc({ data: [], error: null });
+    expect(await getOverdueInvoiceAging()).toEqual({ data: [], error: null });
+  });
+
+  it('propagates the error', async () => {
+    mockRpc({ data: null, error: { message: 'boom' } });
+    expect(await getOverdueInvoiceAging()).toEqual({ data: null, error: 'boom' });
+  });
+});
+
+describe('getContactVerificationStats', () => {
+  it('derives partial from the SQL counts and keeps the return shape', async () => {
+    const { rpcCalls, from } = mockRpc({ data: { verified: 700, unverified: 400, total: 1500 }, error: null });
+
+    const { data, error } = await getContactVerificationStats();
+
+    expect(error).toBeNull();
+    expect(data).toEqual({ verified: 700, unverified: 400, partial: 400, total: 1500 });
+    expect(rpcCalls[0].name).toBe('get_contact_verification_stats');
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it('reports zeros for no active residents', async () => {
+    mockRpc({ data: { verified: 0, unverified: 0, total: 0 }, error: null });
+    const { data } = await getContactVerificationStats();
+    expect(data).toEqual({ verified: 0, unverified: 0, partial: 0, total: 0 });
+  });
+
+  it('propagates the error', async () => {
+    mockRpc({ data: null, error: { message: 'boom' } });
+    expect(await getContactVerificationStats()).toEqual({ data: null, error: 'boom' });
+  });
+});
+
+describe('getFinancialOverview', () => {
+  const params = { startDate: '2026-01-01', endDate: '2026-12-31' };
+
+  it('maps summary and per-tag totals, passing filters through', async () => {
+    const { rpcCalls, from } = mockRpc({
+      data: {
+        total_credits: '150000.50',
+        total_debits: '20000.25',
+        transaction_count: 2500,
+        by_tag: [
+          { tag_id: 't1', tag_name: 'Dues', tag_color: 'green', transaction_type: 'credit', count: 2400, total: '150000.50' },
+          { tag_id: null, tag_name: 'Untagged', tag_color: 'gray', transaction_type: 'debit', count: 100, total: '20000.25' },
+        ],
+      },
+      error: null,
+    });
+
+    const result = await getFinancialOverview({ ...params, bankAccountId: 'acc-1', transactionType: 'debit' });
+
+    expect(result.error).toBeUndefined();
+    expect(result.summary).toEqual({
+      totalCredits: 150000.5,
+      totalDebits: 20000.25,
+      netBalance: 130000.25,
+      transactionCount: 2500,
+    });
+    expect(result.byTag).toEqual([
+      { tagId: 't1', tagName: 'Dues', tagColor: 'green', transactionType: 'credit', count: 2400, total: 150000.5 },
+      { tagId: null, tagName: 'Untagged', tagColor: 'gray', transactionType: 'debit', count: 100, total: 20000.25 },
+    ]);
+    expect(rpcCalls[0]).toEqual({
+      name: 'get_financial_overview',
+      args: { p_start_date: '2026-01-01', p_end_date: '2026-12-31', p_bank_account_id: 'acc-1', p_transaction_type: 'debit' },
+    });
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it("sends null filters for 'all' and no bank account", async () => {
+    const { rpcCalls } = mockRpc({
+      data: { total_credits: 0, total_debits: 0, transaction_count: 0, by_tag: [] },
+      error: null,
+    });
+
+    const result = await getFinancialOverview({ ...params, transactionType: 'all' });
+
+    expect(rpcCalls[0].args).toMatchObject({ p_bank_account_id: null, p_transaction_type: null });
+    expect(result.summary).toEqual({ totalCredits: 0, totalDebits: 0, netBalance: 0, transactionCount: 0 });
+    expect(result.byTag).toEqual([]);
+  });
+
+  it('propagates the error with zeroed totals', async () => {
+    mockRpc({ data: null, error: { message: 'boom' } });
+    const result = await getFinancialOverview(params);
+    expect(result.error).toBe('boom');
+    expect(result.summary.transactionCount).toBe(0);
+  });
+
+  it('stops before querying when unauthorized', async () => {
+    const { rpcCalls } = mockRpc({ data: null, error: null });
+    authorizePermission.mockResolvedValue({ authorized: false, error: 'Forbidden' });
+    const result = await getFinancialOverview(params);
+    expect(result.error).toBe('Forbidden');
+    expect(rpcCalls).toHaveLength(0);
+  });
+});
+
+describe('migration 20261019100000_admin_read_aggregates', () => {
+  const sql = readFileSync(
+    new URL('../../supabase/migrations/20261019100000_admin_read_aggregates.sql', import.meta.url),
+    'utf8',
+  );
+  const code = sql.replace(/--.*$/gm, '').replace(/\s+/g, ' ');
+  const fn = (name: string) => {
+    const start = code.indexOf(`FUNCTION public.${name}(`);
+    return code.slice(start, code.indexOf('$$;', start));
+  };
+  const signatures = [
+    'sum_paid_payments()',
+    'get_overdue_invoice_aging(date)',
+    'get_contact_verification_stats()',
+    'get_financial_overview(date, date, uuid, text)',
+  ];
+
+  it('is SECURITY INVOKER and STABLE with a pinned search_path for every function', () => {
+    expect(code).not.toContain('SECURITY DEFINER');
+    expect(code.match(/SECURITY INVOKER/g)).toHaveLength(4);
+    expect(code.match(/STABLE/g)).toHaveLength(4);
+    expect(code.match(/SET search_path = public/g)).toHaveLength(4);
+  });
+
+  it('revokes from PUBLIC and anon, grants authenticated and service_role, and documents rollback', () => {
+    for (const sig of signatures) {
+      const escaped = sig.replace(/[()]/g, '\\$&');
+      expect(code).toMatch(new RegExp(`REVOKE ALL ON FUNCTION public\\.${escaped} FROM PUBLIC;`));
+      expect(code).toMatch(new RegExp(`REVOKE ALL ON FUNCTION public\\.${escaped} FROM anon;`));
+      expect(code).toMatch(new RegExp(`GRANT EXECUTE ON FUNCTION public\\.${escaped} TO authenticated, service_role;`));
+      expect(sql).toContain(`DROP FUNCTION IF EXISTS public.${sig};`);
+    }
+  });
+
+  it('sums only paid payments', () => {
+    expect(fn('sum_paid_payments')).toContain("SUM(amount), 0)::numeric FROM public.payment_records WHERE status = 'paid';");
+  });
+
+  it('buckets overdue invoices by whole days before p_today, matching the old filter', () => {
+    const body = fn('get_overdue_invoice_aging');
+    expect(body).toContain('(p_today - due_date)::integer AS days_overdue');
+    expect(body).toContain("WHERE status IN ('unpaid', 'partially_paid') AND due_date < p_today");
+    expect(body).toContain('GROUP BY 1');
+  });
+
+  it('counts verification over active residents with an absent email treated as complete', () => {
+    const body = fn('get_contact_verification_stats');
+    expect(body).toContain("'verified', COUNT(*) FILTER ( WHERE phone_verified_at IS NOT NULL AND (COALESCE(email, '') = '' OR email_verified_at IS NOT NULL) )");
+    expect(body).toContain("'unverified', COUNT(*) FILTER ( WHERE email_verified_at IS NULL AND phone_verified_at IS NULL )");
+    expect(body).toContain("WHERE account_status = 'active'");
+  });
+
+  it('keeps credits and debits apart and filters to completed imports in an inclusive range', () => {
+    const body = fn('get_financial_overview');
+    expect(body).toContain("'total_credits', (SELECT COALESCE(SUM(amount) FILTER (WHERE transaction_type = 'credit')");
+    expect(body).toContain("'total_debits', (SELECT COALESCE(SUM(amount) FILTER (WHERE transaction_type = 'debit')");
+    expect(body).toContain("i.status = 'completed'");
+    expect(body).toContain('r.transaction_date >= p_start_date AND r.transaction_date <= p_end_date');
+    expect(body).toContain('(p_bank_account_id IS NULL OR i.bank_account_id = p_bank_account_id)');
+    expect(body).toContain('(p_transaction_type IS NULL OR r.transaction_type = p_transaction_type)');
+    expect(body).toContain('ORDER BY total DESC');
+  });
+});

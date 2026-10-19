@@ -148,25 +148,17 @@ export async function getOverdueInvoiceAging() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const { data, error } = await supabase
-        .from('invoices')
-        .select('due_date')
-        .in('status', ['unpaid', 'partially_paid'])
-        .lt('due_date', today.toISOString().split('T')[0]);
+    // Bucketed by GROUP BY in SQL: a row download stopped at the 1000-row cap (#776).
+    const { data, error } = await supabase.rpc('get_overdue_invoice_aging', {
+        p_today: today.toISOString().split('T')[0],
+    });
 
     if (error) return { data: null, error: error.message };
 
-    const byDays = new Map<number, number>();
-    for (const invoice of data ?? []) {
-        const dueDate = new Date(`${invoice.due_date}T00:00:00`);
-        const days = Math.floor((today.getTime() - dueDate.getTime()) / 86_400_000);
-        byDays.set(days, (byDays.get(days) ?? 0) + 1);
-    }
-
     return {
-        data: [...byDays.entries()]
-            .sort(([left], [right]) => left - right)
-            .map(([daysOverdue, count]) => ({ daysOverdue, count })),
+        data: ((data ?? []) as Array<{ days_overdue: number; count: number | string }>)
+            .map((row) => ({ daysOverdue: Number(row.days_overdue), count: Number(row.count) }))
+            .sort((left, right) => left.daysOverdue - right.daysOverdue),
         error: null,
     };
 }
