@@ -11,6 +11,11 @@ import { useSystemSettings, useUpdateSettings } from '@/hooks/use-settings';
 import { pruneSystemData, previewPruneSystemData } from '@/actions/system/prune-data';
 import { ConfirmAction } from '@/components/ui/confirm-action';
 import { NumericSettingInput } from '@/components/settings/numeric-setting-input';
+import {
+  AUDIT_LOG_RETENTION_DEFAULT_DAYS,
+  AUDIT_LOG_RETENTION_MAX_DAYS,
+  AUDIT_LOG_RETENTION_MIN_DAYS,
+} from '@/lib/validators/setting-value';
 
 function settingsToObject(settings: { key: string; value: unknown }[] | undefined): Record<string, unknown> {
   if (!settings) return {};
@@ -24,7 +29,7 @@ export default function DataRetentionPage() {
   const { data: systemSettings, isLoading } = useSystemSettings();
   const updateSettings = useUpdateSettings();
 
-  const [auditLogRetentionDays, setAuditLogRetentionDays] = useState(365);
+  const [auditLogRetentionDays, setAuditLogRetentionDays] = useState(AUDIT_LOG_RETENTION_DEFAULT_DAYS);
   const [isDirty, setIsDirty] = useState(false);
   const [isPruning, setIsPruning] = useState(false);
   const [retentionValid, setRetentionValid] = useState(true);
@@ -32,7 +37,7 @@ export default function DataRetentionPage() {
   useEffect(() => {
     if (systemSettings) {
       const settingsObj = settingsToObject(systemSettings);
-      setAuditLogRetentionDays(Number(settingsObj.audit_log_retention_days) || 365);
+      setAuditLogRetentionDays(Number(settingsObj.audit_log_retention_days) || AUDIT_LOG_RETENTION_DEFAULT_DAYS);
       setIsDirty(false);
     }
   }, [systemSettings]);
@@ -82,12 +87,12 @@ export default function DataRetentionPage() {
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label htmlFor="audit-log-retention">Audit Log Retention (days)</Label>
-              <p className="text-sm text-muted-foreground">Number of days to keep audit log entries before cleanup</p>
+              <p className="text-sm text-muted-foreground">Prune Data below deletes audit log entries older than this. Saved changes apply to the next prune.</p>
             </div>
             <NumericSettingInput
               id="audit-log-retention"
-              min={30}
-              max={3650}
+              min={AUDIT_LOG_RETENTION_MIN_DAYS}
+              max={AUDIT_LOG_RETENTION_MAX_DAYS}
               integer
               unit="days"
               value={auditLogRetentionDays}
@@ -95,9 +100,6 @@ export default function DataRetentionPage() {
               onValidityChange={setRetentionValid}
             />
           </div>
-          <p className="text-xs text-muted-foreground">
-            Note: this setting is stored but not used yet. Prune Data below deletes audit logs older than 6 months, whatever is set here.
-          </p>
           <div className="flex justify-end">
             <Button onClick={handleSaveSettings} disabled={!isDirty || !retentionValid || updateSettings.isPending}>
               {updateSettings.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -120,7 +122,7 @@ export default function DataRetentionPage() {
             <div className="space-y-0.5">
               <Label>Prune Old Data</Label>
               <p className="text-sm text-muted-foreground">
-                Remove old notifications ({'>'}30 days read, {'>'}90 days unread), audit logs ({'>'}6 months), search history ({'>'}30 days), and system action log entries ({'>'}90 days).
+                Remove old notifications ({'>'}30 days read, {'>'}90 days unread), audit logs (older than the Audit Log Retention setting), search history ({'>'}30 days), and system action log entries ({'>'}90 days).
               </p>
             </div>
             <ConfirmAction
@@ -132,8 +134,8 @@ export default function DataRetentionPage() {
               title="Permanently delete old data?"
               description={
                 <>
-                  <p>This cannot be undone. Rows are deleted from the database by fixed ages: read notifications over 30 days, unread over 90 days, audit logs over 6 months, search history over 30 days, system action log over 90 days.</p>
-                  <p>The Audit Log Retention setting above is not used. Deleted audit logs remove the record of who changed what.</p>
+                  <p>This cannot be undone. Rows are deleted from the database: read notifications over 30 days, unread over 90 days, audit logs older than the saved Audit Log Retention setting, search history over 30 days, system action log over 90 days.</p>
+                  <p>Deleted audit logs remove the record of who changed what.</p>
                 </>
               }
               confirmLabel="Delete permanently"
@@ -142,7 +144,7 @@ export default function DataRetentionPage() {
               loadPreview={previewPruneSystemData}
               renderPreview={(preview) => (
                 <ul className="space-y-1">
-                  <li><strong>{preview.auditLogs}</strong> audit log entries</li>
+                  <li><strong>{preview.auditLogs}</strong> audit log entries (older than {preview.auditLogRetentionDays} days)</li>
                   <li><strong>{preview.notifications}</strong> notifications</li>
                   <li><strong>{preview.searchLogs}</strong> search history entries</li>
                   <li><strong>{preview.systemActionLogs}</strong> system action log entries</li>

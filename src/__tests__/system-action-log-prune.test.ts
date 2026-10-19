@@ -1,37 +1,48 @@
 /**
  * Issue #538 -- pruneSystemData removes system_action_log rows older than 90 days.
- * The admin client is a small in-memory table that applies the delete's filter, so the
- * test proves which rows go and which stay rather than only that a delete was issued.
+ * Issue #815 -- it removes audit_logs older than audit_log_retention_days, and the preview
+ * counts exactly what the delete removes.
+ * The admin client is a small in-memory store that applies each query's filter, so the
+ * tests prove which rows go and which stay rather than only that a delete was issued.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { subDays } from 'date-fns';
 import { makeRecordingSupabase, uid } from '@/__tests__/helpers/recording-supabase';
 import { previewPruneSystemData, pruneSystemData } from '@/actions/system/prune-data';
 
-const { authorizePermission, createServerSupabaseClient, createAdminClient, logAudit, table } = vi.hoisted(() => ({
+const { authorizePermission, createServerSupabaseClient, createAdminClient, logAudit, readSetting, table, audit } = vi.hoisted(() => ({
   authorizePermission: vi.fn(),
   createServerSupabaseClient: vi.fn(),
   createAdminClient: vi.fn(),
   logAudit: vi.fn(),
+  readSetting: vi.fn(),
   table: { rows: [] as { id: string; occurred_at: string }[], error: null as { message: string } | null },
+  audit: { rows: [] as { id: string; created_at: string }[] },
 }));
 
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission }));
 vi.mock('@/lib/supabase/server', () => ({ createServerSupabaseClient, createAdminClient }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+vi.mock('@/lib/settings/service', () => ({ readSetting }));
 
 function fakeAdminClient() {
   return {
     from(name: string) {
-      if (name !== 'system_action_log') throw new Error(`unexpected admin table ${name}`);
+      if (name !== 'system_action_log' && name !== 'audit_logs') throw new Error(`unexpected admin table ${name}`);
+      const store = (name === 'system_action_log' ? table : audit) as { rows: Record<string, string>[] };
+      const failure = name === 'system_action_log' ? table.error : null;
       return {
+        select: () => ({
+          lt: async (column: string, value: string) =>
+            failure ? { count: null, error: failure } : { count: store.rows.filter((r) => r[column] < value).length, error: null },
+        }),
         delete: (opts: { count?: string }) => ({
           lt: async (column: string, value: string) => {
-            if (table.error) return { count: null, error: table.error };
-            const before = table.rows.length;
-            table.rows = table.rows.filter((r) => !(r[column as 'occurred_at'] < value));
-            return { count: opts.count === 'exact' ? before - table.rows.length : null, error: null };
+            if (failure) return { count: null, error: failure };
+            const before = store.rows.length;
+            store.rows = store.rows.filter((r) => !(r[column] < value));
+            return { count: opts.count === 'exact' ? before - store.rows.length : null, error: null };
           },
         }),
       };
@@ -45,6 +56,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   table.rows = [];
   table.error = null;
+  audit.rows = [];
+  readSetting.mockResolvedValue({ status: 'absent' });
   authorizePermission.mockResolvedValue({ authorized: true, userId: uid(900), roleName: 'super_admin' });
   createServerSupabaseClient.mockImplementation(async () => makeRecordingSupabase({ results: {}, calls: [] }));
   createAdminClient.mockImplementation(() => fakeAdminClient());
@@ -146,5 +159,85 @@ describe('prune data: in_app_notifications read filter (#807)', () => {
 
     expect(result.error).toBeNull();
     expect(filters).toEqual(['is_read=true', 'is_read=false']);
+  });
+});
+
+
+describe('prune data: audit logs follow audit_log_retention_days (#815)', () => {
+  // Rows a minute either side of the cutoff, so the boundary is tested without racing the clock.
+  const nearCutoff = (days: number, minutes: number) => new Date(subDays(new Date(), days).getTime() + minutes * 60_000).toISOString();
+
+  it('deletes audit logs older than the saved retention and keeps newer ones', async () => {
+    readSetting.mockResolvedValue({ status: 'ok', value: 60 });
+    audit.rows = [
+      { id: 'old-1', created_at: daysAgo(400) },
+      { id: 'old-2', created_at: nearCutoff(60, -1) },
+      { id: 'new-1', created_at: nearCutoff(60, 1) },
+      { id: 'new-2', created_at: daysAgo(1) },
+    ];
+
+    const result = await pruneSystemData();
+
+    expect(result.error).toBeNull();
+    expect(result.data?.auditLogs).toBe(2);
+    expect(result.data?.auditLogRetentionDays).toBe(60);
+    expect(audit.rows.map((r) => r.id)).toEqual(['new-1', 'new-2']);
+  });
+
+  it('uses 365 days when the setting was never saved', async () => {
+    audit.rows = [
+      { id: 'old', created_at: nearCutoff(365, -1) },
+      { id: 'new', created_at: nearCutoff(365, 1) },
+    ];
+
+    const result = await pruneSystemData();
+
+    expect(result.data?.auditLogs).toBe(1);
+    expect(audit.rows.map((r) => r.id)).toEqual(['new']);
+  });
+
+  it('the preview counts exactly the rows the prune then deletes', async () => {
+    readSetting.mockResolvedValue({ status: 'ok', value: 90 });
+    audit.rows = [
+      { id: 'a', created_at: daysAgo(500) },
+      { id: 'b', created_at: nearCutoff(90, -1) },
+      { id: 'c', created_at: nearCutoff(90, 1) },
+    ];
+    table.rows = [{ id: 's-old', occurred_at: daysAgo(120) }, { id: 's-new', occurred_at: daysAgo(10) }];
+
+    const preview = await previewPruneSystemData();
+    const result = await pruneSystemData();
+
+    expect(preview.data?.auditLogs).toBe(2);
+    expect(preview.data?.auditLogRetentionDays).toBe(90);
+    expect(result.data?.auditLogs).toBe(preview.data?.auditLogs);
+    expect(result.data?.systemActionLogs).toBe(preview.data?.systemActionLogs);
+  });
+
+  it.each([0, 29, 3651, 45.5, 'abc', null])('refuses retention %s and deletes nothing', async (value) => {
+    readSetting.mockResolvedValue({ status: 'ok', value });
+    audit.rows = [{ id: 'old', created_at: daysAgo(4000) }];
+    table.rows = [{ id: 's-old', occurred_at: daysAgo(200) }];
+
+    const preview = await previewPruneSystemData();
+    const result = await pruneSystemData();
+
+    expect(preview.data).toBeNull();
+    expect(preview.error).toMatch(/from 30 to 3650/);
+    expect(result.data).toBeNull();
+    expect(result.error).toMatch(/Nothing was deleted/);
+    expect(audit.rows).toHaveLength(1);
+    expect(table.rows).toHaveLength(1);
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+
+  it('deletes nothing when the setting cannot be read', async () => {
+    readSetting.mockResolvedValue({ status: 'error', message: 'boom' });
+    audit.rows = [{ id: 'old', created_at: daysAgo(4000) }];
+
+    const result = await pruneSystemData();
+
+    expect(result.error).toBe('Failed to read the audit log retention setting: boom');
+    expect(audit.rows).toHaveLength(1);
   });
 });

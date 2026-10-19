@@ -361,7 +361,7 @@ export async function matchImportRows(import_id: string): Promise<MatchResidents
         .update(payload)
         .in('id', chunk);
       if (updateError) {
-        console.error(`matchImportRows: failed to update ${chunk.length} rows for import ${import_id}:`, updateError);
+        console.error('matchImportRows: failed to update %d rows for import %s:', chunk.length, import_id, updateError);
       }
     }
   }
