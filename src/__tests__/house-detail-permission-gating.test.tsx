@@ -138,21 +138,22 @@ describe('House detail permission gating (issue #462)', () => {
     expect(screen.queryByRole('button', { name: 'More house actions' })).not.toBeInTheDocument();
   });
 
-  it('hides Remove ownership from a user holding houses.update without assign_resident', () => {
+  it('shows Remove ownership to a houses.update holder without assign_resident', () => {
     mocks.permissions = [PERMISSIONS.HOUSES_VIEW, PERMISSIONS.HOUSES_UPDATE];
     renderPage();
     expect(screen.getByText('Transfer')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^More actions for/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^Remove$/ })).not.toBeInTheDocument();
+    openMenu('More actions for First1 Last1');
+    expect(screen.getByRole('menuitem', { name: /^Remove$/ })).toBeInTheDocument();
   });
 
-  it('shows Transfer only with houses.update, not with assign_resident alone', () => {
+  it('shows Transfer and Remove ownership only with houses.update, not with assign_resident alone', () => {
     mocks.permissions = [PERMISSIONS.HOUSES_VIEW, PERMISSIONS.HOUSES_ASSIGN_RESIDENT];
     renderPage();
 
     expect(screen.queryByText('Transfer')).not.toBeInTheDocument();
-    // Remove-ownership is enforced by assign_resident server-side, so it stays.
-    expect(screen.getByRole('button', { name: /Remove/ })).toBeInTheDocument();
+    // Owner decision 2026-10-20: both change who owns the house, so both need houses.update.
+    expect(screen.queryByRole('button', { name: /^Remove$/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^More actions for First1/ })).not.toBeInTheDocument();
   });
 
   describe('per-role resident actions', () => {

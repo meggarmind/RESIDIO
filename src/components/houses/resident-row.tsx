@@ -58,8 +58,8 @@ export function residentActions(
   if (canAssignResident && SECONDARY_ROLES.includes(role)) {
     actions.push({ action: 'remove', label: 'Remove from house', icon: Trash2, destructive: true, testId: 'remove-resident-button' });
   }
-  // Remove ownership is enforced by houses.assign_resident server-side, unlike Transfer (houses.update).
-  if (canAssignResident && OWNER_ROLES.includes(role)) {
+  // Owner decision 2026-10-20 (#784): Remove ownership, like Transfer, changes who owns the house, so both need houses.update.
+  if (canUpdateHouse && OWNER_ROLES.includes(role)) {
     actions.push({ action: 'remove-ownership', label: 'Remove', icon: UserMinus, destructive: true });
   }
   return actions;
