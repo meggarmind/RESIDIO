@@ -1,5 +1,6 @@
 'use client';
 
+import { createPortal } from 'react-dom';
 import { Loader2, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -13,15 +14,18 @@ interface StickySaveBarProps {
 
 /** Keeps a page's Save in reach while it has unsaved changes (#790). */
 export function StickySaveBar({ isDirty, isSaving, canSave = true, onSave, onDiscard }: StickySaveBarProps) {
-  if (!isDirty) return null;
+  if (!isDirty || typeof document === 'undefined') return null;
   // fixed, not sticky: the dashboard <main> never scrolls itself, the window does.
+  // Portalled to the end of <body> so, at the same z-50, it paints over the root-layout
+  // assistant pill while dialogs (portalled later) still paint over it.
   return (
     <>
       <div aria-hidden className="h-20" />
+      {createPortal(
       <div
         role="region"
         aria-label="Unsaved changes"
-        className="fixed inset-x-0 bottom-0 z-20 flex flex-wrap items-center justify-between gap-3 border-t bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80"
+        className="fixed inset-x-0 bottom-0 z-50 flex flex-wrap items-center justify-between gap-3 border-t bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80"
       >
         <p className="text-sm text-muted-foreground">
           {canSave ? 'You have unsaved changes.' : 'Fix the highlighted fields before saving.'}
@@ -35,7 +39,9 @@ export function StickySaveBar({ isDirty, isSaving, canSave = true, onSave, onDis
             Save changes
           </Button>
         </div>
-      </div>
+      </div>,
+      document.body,
+      )}
     </>
   );
 }
