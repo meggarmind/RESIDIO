@@ -35,8 +35,8 @@ export async function previewPruneSystemData() {
     };
 
     const [readNotifications, unreadNotifications, auditLogs, searchLogs, systemActionLogs] = await Promise.all([
-        supabase.from('in_app_notifications').select('id', { count: 'exact', head: true }).eq('read', true).lt('created_at', date30DaysAgo),
-        supabase.from('in_app_notifications').select('id', { count: 'exact', head: true }).eq('read', false).lt('created_at', date90DaysAgo),
+        supabase.from('in_app_notifications').select('id', { count: 'exact', head: true }).eq('is_read', true).lt('created_at', date30DaysAgo),
+        supabase.from('in_app_notifications').select('id', { count: 'exact', head: true }).eq('is_read', false).lt('created_at', date90DaysAgo),
         supabase.from('audit_logs').select('id', { count: 'exact', head: true }).lt('created_at', date6MonthsAgo),
         supabase.from('search_logs').select('id', { count: 'exact', head: true }).lt('created_at', date30DaysAgo),
         (createAdminClient() as unknown as UntypedCount).from('system_action_log').select('id', { count: 'exact', head: true }).lt('occurred_at', date90DaysAgo),
@@ -80,7 +80,7 @@ export async function pruneSystemData() {
         const { count: readNotificationsCount, error: readError } = await supabase
             .from('in_app_notifications')
             .delete({ count: 'exact' })
-            .eq('read', true)
+            .eq('is_read', true)
             .lt('created_at', date30DaysAgo);
 
         if (readError) throw new Error(`Failed to prune read notifications: ${readError.message}`);
@@ -89,7 +89,7 @@ export async function pruneSystemData() {
         const { count: unreadNotificationsCount, error: unreadError } = await supabase
             .from('in_app_notifications')
             .delete({ count: 'exact' })
-            .eq('read', false)
+            .eq('is_read', false)
             .lt('created_at', date90DaysAgo);
 
         if (unreadError) throw new Error(`Failed to prune unread notifications: ${unreadError.message}`);
