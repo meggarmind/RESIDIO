@@ -15,6 +15,8 @@ import type { BillingProfileWithItems, LevyGenerationResult } from '@/types/bill
 
 const log = createLogger('[Levies]');
 
+const LEVY_HOUSE_CHUNK_SIZE = 10;
+
 
 /**
  * Builds a rate snapshot from a billing profile for audit trail
@@ -45,6 +47,41 @@ function buildRateSnapshot(
     return snapshot;
 }
 
+type LevyRunContext = {
+    supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>;
+    userId: string;
+    dueWindowDays: number;
+};
+
+const emptyResult = (): LevyGenerationResult => ({ success: true, generated: 0, skipped: 0, errors: [] });
+
+/**
+ * Reads what every house in a run shares: the user and the two levy settings.
+ * Returns null context with a result to hand back when the run should not proceed.
+ */
+async function prepareLevyRun(): Promise<{ ctx: LevyRunContext | null; result: LevyGenerationResult }> {
+    const supabase = await createServerSupabaseClient();
+    const result = emptyResult();
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+        return { ctx: null, result: { success: false, generated: 0, skipped: 0, errors: ['User not authenticated'] } };
+    }
+
+    // Check if auto levy generation is enabled
+    const autoGenerateLevies = await getSystemSetting(supabase, 'auto_generate_levies');
+    if (autoGenerateLevies === false) {
+        log.info('Auto levy generation is disabled');
+        return { ctx: null, result };
+    }
+
+    // Get due window setting for calculating due dates
+    const dueWindowSetting = await getSystemSetting(supabase, 'invoice_due_window_days');
+    const dueWindowDays = parseInt(String(dueWindowSetting).replace(/"/g, '')) || 30;
+
+    return { ctx: { supabase, userId: user.id, dueWindowDays }, result };
+}
+
 /**
  * Generates one-time levies for a specific house.
  * Called when a house is created or when retroactively applying levies.
@@ -65,53 +102,45 @@ export async function generateLeviesForHouse(
         return { success: false, generated: 0, skipped: 0, errors: [auth.error || 'Unauthorized'] };
     }
 
-    const supabase = await createServerSupabaseClient();
-
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-        return {
-            success: false,
-            generated: 0,
-            skipped: 0,
-            errors: ['User not authenticated'],
-        };
-    }
-
-    const result: LevyGenerationResult = {
-        success: true,
-        generated: 0,
-        skipped: 0,
-        errors: [],
-    };
-
+    let result: LevyGenerationResult;
     try {
-        // Check if auto levy generation is enabled
-        const autoGenerateLevies = await getSystemSetting(supabase, 'auto_generate_levies');
-        if (autoGenerateLevies === false) {
-            log.info('Auto levy generation is disabled');
-            return result;
-        }
+        const run = await prepareLevyRun();
+        if (!run.ctx) return run.result;
 
-        // Get due window setting for calculating due dates
-        const dueWindowSetting = await getSystemSetting(supabase, 'invoice_due_window_days');
-        const dueWindowDays = parseInt(String(dueWindowSetting).replace(/"/g, '')) || 30;
-
-        // Get house details including number_of_plots
-        const { data: house, error: houseError } = await supabase
+        // Get house details
+        const { data: house, error: houseError } = await run.ctx.supabase
             .from('houses')
-            .select('id, house_number, number_of_plots, street:streets(name)')
+            .select('id, house_number')
             .eq('id', houseId)
             .single();
 
         if (houseError || !house) {
-            result.errors.push('House not found');
-            result.success = false;
-            return result;
+            return { success: false, generated: 0, skipped: 0, errors: ['House not found'] };
         }
 
-        const houseLabel = house.house_number;
+        result = await generateLeviesForHouseInRun(run.ctx, house, residentId);
+    } catch (error) {
+        result = { success: false, generated: 0, skipped: 0, errors: [`Unexpected error: ${error instanceof Error ? error.message : String(error)}`] };
+    }
 
+    revalidatePath('/billing');
+    return result;
+}
+
+/**
+ * Per-house levy work, without the permission check, user lookup or settings reads:
+ * callers have done those once for the whole run (#778).
+ */
+async function generateLeviesForHouseInRun(
+    { supabase, userId, dueWindowDays }: LevyRunContext,
+    house: { id: string; house_number: string },
+    residentId?: string
+): Promise<LevyGenerationResult> {
+    const houseId = house.id;
+    const houseLabel = house.house_number;
+    const result = emptyResult();
+
+    try {
         // Find the primary resident for this house if not provided
         let targetResidentId = residentId;
         let targetResidentRole: BillableRole | null = null;
@@ -253,7 +282,7 @@ export async function generateLeviesForHouse(
                         due_date: dueDate.toISOString().split('T')[0],
                         period_start: now.toISOString().split('T')[0],
                         period_end: now.toISOString().split('T')[0],
-                        created_by: user.id,
+                        created_by: userId,
                     })
                     .select()
                     .single();
@@ -288,7 +317,7 @@ export async function generateLeviesForHouse(
                         billing_profile_id: profile.id,
                         resident_id: targetResidentId,
                         invoice_id: newInvoice.id,
-                        applied_by: user.id,
+                        applied_by: userId,
                         notes: `Auto-generated levy: ${profile.name}`,
                     });
 
@@ -330,9 +359,8 @@ export async function generateLeviesForHouse(
     } catch (error) {
         result.success = false;
         result.errors.push(`Unexpected error: ${error instanceof Error ? error.message : String(error)}`);
-        }
+    }
 
-    revalidatePath('/billing');
     return result;
 }
 
@@ -347,16 +375,17 @@ export async function generateRetroactiveLevies(): Promise<LevyGenerationResult>
         return { success: false, generated: 0, skipped: 0, errors: [auth.error || 'Unauthorized'] };
     }
 
-    const supabase = await createServerSupabaseClient();
-
-    const result: LevyGenerationResult = {
-        success: true,
-        generated: 0,
-        skipped: 0,
-        errors: [],
-    };
+    const result = emptyResult();
 
     try {
+        const run = await prepareLevyRun();
+        if (!run.ctx) {
+            revalidatePath('/billing');
+            return run.result;
+        }
+        const { ctx } = run;
+        const { supabase } = ctx;
+
         // Get all active houses
         const { data: houses, error: housesError } = await supabase
             .from('houses')
@@ -372,11 +401,18 @@ export async function generateRetroactiveLevies(): Promise<LevyGenerationResult>
         log.info(`Processing retroactive levies for ${houses?.length || 0} houses`);
         const batchStartedAt = new Date().toISOString();
 
-        for (const house of houses || []) {
-            const houseResult = await generateLeviesForHouse(house.id);
-            result.generated += houseResult.generated;
-            result.skipped += houseResult.skipped;
-            result.errors.push(...houseResult.errors);
+        // Houses run in small concurrent chunks. Safe because a levy invoice number is
+        // derived from the house id and date (no shared sequence), and the wallet debit
+        // RPC locks the wallet row, so houses never contend on a counter (#778).
+        const allHouses = houses || [];
+        for (let i = 0; i < allHouses.length; i += LEVY_HOUSE_CHUNK_SIZE) {
+            const chunk = allHouses.slice(i, i + LEVY_HOUSE_CHUNK_SIZE);
+            const houseResults = await Promise.all(chunk.map((house) => generateLeviesForHouseInRun(ctx, house)));
+            for (const houseResult of houseResults) {
+                result.generated += houseResult.generated;
+                result.skipped += houseResult.skipped;
+                result.errors.push(...houseResult.errors);
+            }
         }
 
         log.info(`Retroactive: Generated=${result.generated}, Skipped=${result.skipped}`);

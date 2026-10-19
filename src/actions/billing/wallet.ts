@@ -6,7 +6,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { callWalletPaymentRpc } from '@/lib/billing/wallet-payment-rpc';
-import { debitWalletForInvoiceAtomic } from '@/lib/billing/wallet-invoice-debit';
+import { debitWalletForInvoiceAtomic, type WalletInvoiceDebitResult } from '@/lib/billing/wallet-invoice-debit';
 
 export type WalletTransaction = {
     id: string;
@@ -330,6 +330,15 @@ export async function allocateWalletToInvoices(
     let invoicesPaid = 0;
     let totalAllocated = 0;
 
+    // The debit result carries the post-debit balance, so the wallet is re-read only
+    // when it does not (#778).
+    const walletEmptyAfterDebit = async (result: WalletInvoiceDebitResult) => {
+        if (result.newBalance !== null) return result.newBalance <= 0;
+        if (result.error === 'Insufficient wallet balance') return true;
+        const { data: wallet } = await getOrCreateWallet(residentId);
+        return !wallet || wallet.balance <= 0;
+    };
+
     // If priority house provided, get those invoices first
     if (priorityHouseId) {
         const { data: priorityInvoices, error: priorityError } = await supabase
@@ -350,9 +359,7 @@ export async function allocateWalletToInvoices(
                     console.log(`[Wallet] Allocated ₦${result.amountDebited} to priority house invoice ${invoice.invoice_number}`);
                 }
 
-                // Check if wallet is now empty
-                const { data: wallet } = await getOrCreateWallet(residentId);
-                if (!wallet || wallet.balance <= 0) {
+                if (await walletEmptyAfterDebit(result)) {
                     return { success: true, invoicesPaid, totalAllocated, error: null };
                 }
             }
@@ -385,9 +392,7 @@ export async function allocateWalletToInvoices(
             totalAllocated += result.amountDebited;
         }
 
-        // Check if wallet is now empty
-        const { data: wallet } = await getOrCreateWallet(residentId);
-        if (!wallet || wallet.balance <= 0) {
+        if (await walletEmptyAfterDebit(result)) {
             break;
         }
     }
