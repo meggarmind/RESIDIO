@@ -6,8 +6,9 @@ description: Manage the estate property registry and occupancy state.
 residio_sources:
   - src/app/(dashboard)/houses/**
   - src/actions/houses/**
-residio_verified_commit: 93ed5d0
-residio_verified_at: '2026-08-29'
+  - src/components/houses/**
+residio_verified_commit: 1955c065
+residio_verified_at: '2026-10-19'
 residio_app_version: '0.4.0'
 ---
 
@@ -22,6 +23,30 @@ Open **Houses** to inspect the property registry, current occupancy, street, hou
 1. Search by house label or short name.
 2. Filter by street, house type, occupancy, or active status.
 3. Open the property to review current residents and ownership history.
+
+## The house page
+
+The header shows the house, its type and one status line: occupancy, the number of active
+residents and the amount outstanding. If the outstanding figure cannot be loaded, the line says
+so rather than showing nothing owed.
+
+The page opens on **Residents**. **Billing** holds the payment status and yearly ledger, and
+**History** the ownership and occupancy timeline (the latest 100 events). Each tab is kept in the
+address as `?tab=`, so a link opens the same tab.
+
+Each resident row has one main action and a **…** menu for the rest:
+
+| Role | Actions | Permission |
+| --- | --- | --- |
+| Owner-Occupier, Renter | Move Out | *assign residents* |
+| Property Owner, Developer | Transfer | *update houses* |
+| Property Owner, Developer | Remove (ownership) | *assign residents* |
+| Occupant and other secondary roles | Edit role, Promote (Occupant only), Remove from house | *assign residents* |
+
+**Link Existing** needs *assign residents* and **Add New** needs *create residents*. **Edit** needs
+*update houses*. **Delete house** is in the **…** menu beside Edit and needs *delete houses*; it
+stays disabled, with the reason shown, until every resident has been removed, and it asks for
+confirmation before deleting.
 
 ## Occupancy is not a manual label
 
