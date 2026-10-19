@@ -16,6 +16,81 @@ export type ApplyLateFeesResult = {
 
 export type LateFeeTriggerType = 'manual' | 'cron' | 'api';
 
+export type LateFeePreview = {
+  enabled: boolean;
+  gracePeriodDays: number;
+  lateFeeType: string;
+  lateFeeRate: number;
+  eligible: number;
+  totalLateFees: number;
+  skippedWaiver: number;
+  skippedAlreadyApplied: number;
+};
+
+export function calculateLateFee(amountDue: number, lateFeeType: string, lateFeeAmount: number): number {
+  if (lateFeeType === 'percentage') {
+    return Math.round((amountDue * lateFeeAmount) / 100 * 100) / 100;
+  }
+  return lateFeeAmount;
+}
+
+/**
+ * What `runLateFeeApplication` would do right now, without writing anything (#790).
+ * Mirrors its settings reads, invoice query and skip rules.
+ */
+export function planLateFees(
+  invoices: { id: string; amount_due: number; metadata: unknown }[],
+  pendingWaiverInvoiceIds: Set<string>,
+  lateFeeType: string,
+  lateFeeAmount: number
+): Pick<LateFeePreview, 'eligible' | 'totalLateFees' | 'skippedWaiver' | 'skippedAlreadyApplied'> {
+  const plan = { eligible: 0, totalLateFees: 0, skippedWaiver: 0, skippedAlreadyApplied: 0 };
+  for (const invoice of invoices) {
+    const metadata = (invoice.metadata as Record<string, unknown>) || {};
+    if (metadata.late_fee_applied) {
+      plan.skippedAlreadyApplied++;
+    } else if (pendingWaiverInvoiceIds.has(invoice.id)) {
+      plan.skippedWaiver++;
+    } else {
+      plan.eligible++;
+      plan.totalLateFees += calculateLateFee(invoice.amount_due, lateFeeType, lateFeeAmount);
+    }
+  }
+  plan.totalLateFees = Math.round(plan.totalLateFees * 100) / 100;
+  return plan;
+}
+
+/** Read-only dry run of a manual application; the caller checks the permission. */
+export async function previewLateFeeApplication(): Promise<{ data: LateFeePreview | null; error: string | null }> {
+  const supabase = await createServerSupabaseClient();
+
+  const enabled = !!(await getSettingValueAsService('late_fee_enabled'));
+  const lateFeeType = ((await getSettingValueAsService('late_fee_type')) as string) || 'percentage';
+  const lateFeeRate = Number(await getSettingValueAsService('late_fee_amount')) || 5;
+  const gracePeriodDays = Number(await getSettingValueAsService('grace_period_days')) || 7;
+
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - gracePeriodDays);
+  const cutoffDateStr = cutoffDate.toISOString().split('T')[0];
+
+  const { data: pendingWaivers, error: waiverError } = await supabase
+    .from('late_fee_waivers')
+    .select('invoice_id')
+    .eq('status', 'pending');
+  if (waiverError) return { data: null, error: waiverError.message };
+
+  const { data: overdueInvoices, error } = await supabase
+    .from('invoices')
+    .select('id, amount_due, metadata')
+    .in('status', ['unpaid', 'partially_paid'])
+    .lt('due_date', cutoffDateStr);
+  if (error) return { data: null, error: error.message };
+
+  const pendingIds = new Set((pendingWaivers || []).map((w: { invoice_id: string }) => w.invoice_id));
+  const plan = planLateFees(overdueInvoices || [], pendingIds, lateFeeType, lateFeeRate);
+  return { data: { enabled, gracePeriodDays, lateFeeType, lateFeeRate, ...plan }, error: null };
+}
+
 /**
  * Apply late fees to overdue invoices.
  *
@@ -143,13 +218,7 @@ export async function runLateFeeApplication(
       continue;
     }
 
-    // Calculate late fee
-    let lateFee: number;
-    if (lateFeeType === 'percentage') {
-      lateFee = Math.round((invoice.amount_due * lateFeeAmount) / 100 * 100) / 100;
-    } else {
-      lateFee = lateFeeAmount;
-    }
+    const lateFee = calculateLateFee(invoice.amount_due, lateFeeType, lateFeeAmount);
 
     // Update invoice with late fee
     const newTotal = invoice.amount_due + lateFee;

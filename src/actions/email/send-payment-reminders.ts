@@ -193,3 +193,61 @@ export async function sendPaymentReminders(): Promise<ReminderResult> {
 
   return result;
 }
+
+/**
+ * Who `sendPaymentReminders` would email right now, for its confirmation dialog (#790).
+ * Same settings, query and skip rules, without sending. Reads only.
+ */
+export async function previewPaymentReminders(): Promise<{
+  data: { recipients: number; invoices: number; skipped: number; disabledReason: string | null } | null;
+  error: string | null;
+}> {
+  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
+  if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
+
+  const empty = { recipients: 0, invoices: 0, skipped: 0 };
+  if ((await getSettingValue('email_payment_reminders_enabled')) === false) {
+    return { data: { ...empty, disabledReason: 'Payment reminders are disabled' }, error: null };
+  }
+  const reminderDaysRaw = await getSettingValue('payment_reminder_days');
+  const reminderDays = Array.isArray(reminderDaysRaw)
+    ? reminderDaysRaw.map((d) => Number(d)).filter((d) => !isNaN(d))
+    : [7, 3, 1];
+  if (reminderDays.length === 0) {
+    return { data: { ...empty, disabledReason: 'No reminder days configured' }, error: null };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const targetDates = reminderDays.map((daysAhead) => {
+    const targetDate = new Date(today);
+    targetDate.setDate(targetDate.getDate() + daysAhead);
+    return targetDate.toISOString().split('T')[0];
+  });
+
+  // One query per reminder day, as the send loop runs them; a date listed twice is sent twice.
+  const results = await Promise.all(targetDates.map((date) =>
+    supabase
+      .from('invoices')
+      .select('amount_due, amount_paid, resident:residents(id, email)')
+      .eq('due_date', date)
+      .in('status', ['unpaid', 'partially_paid'])
+  ));
+  const failed = results.find((r) => r.error);
+  if (failed?.error) return { data: null, error: failed.error.message };
+
+  const recipients = new Set<string>();
+  let invoices = 0;
+  let skipped = 0;
+  for (const invoice of results.flatMap((r) => r.data || [])) {
+    const resident = embed(invoice.resident);
+    if (!resident?.email || invoice.amount_due - invoice.amount_paid <= 0) {
+      skipped++;
+      continue;
+    }
+    invoices++;
+    recipients.add(resident.id);
+  }
+  return { data: { recipients: recipients.size, invoices, skipped, disabledReason: null }, error: null };
+}

@@ -383,9 +383,10 @@ export async function areRemindersEnabled(): Promise<boolean> {
 }
 
 /**
- * Toggle invoice reminders enabled/disabled
+ * Turn invoice reminders on or off. Takes the intended state rather than flipping, so a
+ * double click or a stale tab cannot reverse it (#790).
  */
-export async function toggleRemindersEnabled(): Promise<{
+export async function setRemindersEnabled(enabled: boolean): Promise<{
   success: boolean;
   enabled?: boolean;
   error?: string;
@@ -397,7 +398,7 @@ export async function toggleRemindersEnabled(): Promise<{
 
   try {
     const currentEnabled = await areRemindersEnabled();
-    const newEnabled = !currentEnabled;
+    const newEnabled = enabled;
 
     const saved = await updateSetting(SETTINGS_KEYS.REMINDERS_ENABLED, newEnabled);
 
