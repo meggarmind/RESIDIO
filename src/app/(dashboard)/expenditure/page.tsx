@@ -4,7 +4,8 @@ import { getExpenseCategories } from '@/actions/expenses/get-expense-categories'
 import { getProjects } from '@/actions/projects/get-projects';
 import { getPettyCashMetrics, getPettyCashAccounts } from '@/actions/finance/petty-cash';
 import { ExpenditurePageClient } from '@/components/expenditure/expenditure-page-client';
-import { parseExpenseFilters } from '@/components/expenditure/expense-filters';
+import { redirect } from 'next/navigation';
+import { expenseFiltersToQuery, parseExpenseFilters } from '@/components/expenditure/expense-filters';
 
 /** One failed read degrades its own section instead of blanking the page (#785). */
 function orFallback<T>(promise: Promise<T>, fallback: T, label: string): Promise<T> {
@@ -30,6 +31,11 @@ export default async function ExpenditurePage({
         orFallback(getPettyCashMetrics(), null, 'petty cash metrics'),
         orFallback(getPettyCashAccounts(), [], 'petty cash accounts'),
     ]);
+
+    const lastPage = Math.max(1, Math.ceil(ledger.count / filters.pageSize));
+    if (!ledger.error && filters.page > lastPage) {
+        redirect(`/expenditure${expenseFiltersToQuery({ ...filters, page: lastPage })}`);
+    }
 
     return (
         <ExpenditurePageClient

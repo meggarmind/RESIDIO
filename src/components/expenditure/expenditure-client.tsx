@@ -94,13 +94,18 @@ export function ExpenditureClient({
         setSearch(filters.search ?? '');
     }, [filters.search]);
 
+    const applyFiltersRef = useRef(applyFilters);
+    useEffect(() => {
+        applyFiltersRef.current = applyFilters;
+    });
+
     // Debounce typing into the URL.
     useEffect(() => {
         const term = search.trim() || undefined;
         if (term === filters.search) return;
-        const timer = setTimeout(() => applyFilters({ search: term }), 400);
+        const timer = setTimeout(() => applyFiltersRef.current({ search: term }), 400);
         return () => clearTimeout(timer);
-        // applyFilters is rebuilt every render; the effect only cares about the typed term.
+        // The effect only cares about the typed term; the ref supplies the latest filters.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [search]);
 
@@ -313,7 +318,8 @@ function ExpenseActions({ expense }: { expense: Expense }) {
         inFlight.current = true;
         setIsPending(true);
         try {
-            await updateExpenseStatus(expense.id, status);
+            const { error } = await updateExpenseStatus(expense.id, status);
+            if (error) throw new Error(error);
             toast.success(`Expense marked as ${status}`);
             router.refresh();
         } catch (error) {

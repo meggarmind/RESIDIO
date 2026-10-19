@@ -149,8 +149,8 @@ describe('Cancel Expense needs confirmation (#785)', () => {
   });
 
   it('sends one request when confirm is double-clicked', async () => {
-    let resolve!: () => void;
-    mocks.updateExpenseStatus.mockReturnValue(new Promise<void>((r) => (resolve = r)));
+    let resolve!: (value: { error: null }) => void;
+    mocks.updateExpenseStatus.mockReturnValue(new Promise((r) => (resolve = r)));
     renderLedger();
 
     fireEvent.click(screen.getByText('Cancel Expense'));
@@ -158,26 +158,26 @@ describe('Cancel Expense needs confirmation (#785)', () => {
     fireEvent.click(confirm);
     fireEvent.click(confirm);
 
-    await act(async () => resolve());
+    await act(async () => resolve({ error: null }));
     expect(mocks.updateExpenseStatus).toHaveBeenCalledTimes(1);
     expect(mocks.updateExpenseStatus).toHaveBeenCalledWith('exp-1', 'cancelled');
   });
 
   it('Mark as Paid sends one request on a double-click', async () => {
-    let resolve!: () => void;
-    mocks.updateExpenseStatus.mockReturnValue(new Promise<void>((r) => (resolve = r)));
+    let resolve!: (value: { error: null }) => void;
+    mocks.updateExpenseStatus.mockReturnValue(new Promise((r) => (resolve = r)));
     renderLedger();
 
     fireEvent.click(screen.getByText('Mark as Paid'));
     fireEvent.click(screen.getByText('Mark as Paid'));
 
-    await act(async () => resolve());
+    await act(async () => resolve({ error: null }));
     expect(mocks.updateExpenseStatus).toHaveBeenCalledTimes(1);
     expect(mocks.updateExpenseStatus).toHaveBeenCalledWith('exp-1', 'paid');
   });
 
-  it('shows the server error rather than a generic one', async () => {
-    mocks.updateExpenseStatus.mockRejectedValue(new Error('Unauthorized'));
+  it('shows the error the action returns rather than a generic one', async () => {
+    mocks.updateExpenseStatus.mockResolvedValue({ error: 'Unauthorized' });
     renderLedger();
 
     fireEvent.click(screen.getByText('Mark as Paid'));
@@ -201,6 +201,31 @@ describe('ledger filters, totals and errors (#785)', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Pending' }));
 
     expect(mocks.push).toHaveBeenCalledWith('/expenditure?status=pending');
+  });
+
+  it('a debounced search keeps a filter chosen while typing', () => {
+    vi.useFakeTimers();
+    try {
+      const { rerender } = renderLedger();
+      fireEvent.change(screen.getByLabelText('Search expenses'), { target: { value: 'diesel' } });
+      rerender(
+        <ExpenditureClient
+          expenses={[PENDING]}
+          count={1}
+          total={45000}
+          error={null}
+          filters={{ ...FILTERS, status: 'pending' }}
+          categories={[]}
+          canManage
+        />
+      );
+
+      act(() => vi.advanceTimersByTime(400));
+
+      expect(mocks.push).toHaveBeenLastCalledWith('/expenditure?status=pending&q=diesel');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('pages through the URL', () => {
