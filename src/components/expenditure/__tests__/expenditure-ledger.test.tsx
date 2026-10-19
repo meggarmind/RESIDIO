@@ -228,6 +228,53 @@ describe('ledger filters, totals and errors (#785)', () => {
     }
   });
 
+  it('typing past an earlier debounced search is not overwritten when that search lands', () => {
+    vi.useFakeTimers();
+    try {
+      const { rerender } = renderLedger();
+      const box = screen.getByLabelText('Search expenses');
+      fireEvent.change(box, { target: { value: 'die' } });
+      act(() => vi.advanceTimersByTime(400));
+      expect(mocks.push).toHaveBeenLastCalledWith('/expenditure?q=die');
+
+      fireEvent.change(box, { target: { value: 'diesel' } });
+      rerender(
+        <ExpenditureClient
+          expenses={[PENDING]}
+          count={1}
+          total={45000}
+          error={null}
+          filters={{ ...FILTERS, search: 'die' }}
+          categories={[]}
+          canManage
+        />
+      );
+      expect(box).toHaveValue('diesel');
+
+      act(() => vi.advanceTimersByTime(400));
+      expect(mocks.push).toHaveBeenLastCalledWith('/expenditure?q=diesel');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a URL change from elsewhere (back button) still updates the search box', () => {
+    const { rerender } = renderLedger({ filters: { ...FILTERS, search: 'diesel' } });
+    rerender(
+      <ExpenditureClient
+        expenses={[PENDING]}
+        count={1}
+        total={45000}
+        error={null}
+        filters={{ ...FILTERS, search: 'gas' }}
+        categories={[]}
+        canManage
+      />
+    );
+
+    expect(screen.getByLabelText('Search expenses')).toHaveValue('gas');
+  });
+
   it('a debounced search keeps a filter chosen while the navigation is still in flight', () => {
     vi.useFakeTimers();
     try {

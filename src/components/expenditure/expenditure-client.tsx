@@ -95,8 +95,13 @@ export function ExpenditureClient({
         startTransition(() => router.push(`${pathname}${expenseFiltersToQuery(next)}`));
     };
 
-    // Keep the box in step with the URL (back button, Clear filters).
+    const pushedSearch = useRef<{ search?: string } | null>(null);
+
+    // Keep the box in step with the URL (back button, Clear filters), but not with its own debounced push.
     useEffect(() => {
+        const own = pushedSearch.current;
+        pushedSearch.current = null;
+        if (own && own.search === filters.search) return;
         setSearch(filters.search ?? '');
     }, [filters.search]);
 
@@ -104,7 +109,10 @@ export function ExpenditureClient({
     useEffect(() => {
         const term = search.trim() || undefined;
         if (term === latest.current.search) return;
-        const timer = setTimeout(() => applyFilters({ search: term }), 400);
+        const timer = setTimeout(() => {
+            pushedSearch.current = { search: term };
+            applyFilters({ search: term });
+        }, 400);
         return () => clearTimeout(timer);
         // The effect only cares about the typed term; applyFilters reads the latest filters from the ref.
         // eslint-disable-next-line react-hooks/exhaustive-deps
