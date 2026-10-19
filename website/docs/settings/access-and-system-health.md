@@ -12,8 +12,8 @@ residio_sources:
   - src/app/(dashboard)/system/page.tsx
   - src/components/system/**
   - src/actions/system/**
-residio_verified_commit: 895a6ea
-residio_verified_at: '2026-10-16'
+residio_verified_commit: 0d86eebb
+residio_verified_at: '2026-10-19'
 residio_app_version: '0.4.0'
 ---
 
@@ -56,11 +56,15 @@ Open **System → Audit Logs** to trace creates, updates, approvals, and adminis
 
 ## Action log
 
-Open **System → Action Log** to see what automated processes, such as scheduled jobs and incoming webhooks, did and whether it worked. Audit logs record what a signed-in person changed; the action log covers runs with nobody signed in. Each entry shows when it ran, its source, the action, an outcome (success, partial or failure), how long it took, any error message, and a collapsible summary of counts and ids. Filter by source, outcome, or date range; newest entries come first. Only super administrators see this page and its sidebar link. It is read-only, and entries are not yet pruned automatically.
+Open **System → Action Log** to see what automated processes, such as scheduled jobs and incoming webhooks, did and whether it worked. Audit logs record what a signed-in person changed; the action log covers runs with nobody signed in. Each entry shows when it ran, its source, the action, an outcome (success, partial or failure), how long it took, any error message, and a collapsible summary of counts and ids. Filter by source, outcome, or date range; newest entries come first. Only super administrators see this page and its sidebar link. It is read-only. Entries older than 90 days are removed when someone runs **Prune Data** under **Settings → Data Retention**; nothing prunes them automatically.
 
 ## System health
 
 Maintenance mode and data retention are configuration, so they stay under **Settings**. The things you only watch have moved to **System**: **System → Cron Status** for scheduled jobs, and **System → Notification Queue** for messages waiting to go out. A health warning is a prompt to investigate, not a reason to delete data.
+
+Turning maintenance mode on asks first and lists how many active accounts, by role, would be sent to the maintenance page: everyone without the super admin role. It shows the saved maintenance message; unsaved edits to the message are not used until you save them. Turning it off takes effect at once. The other fields on the page (message, session timeout, duplicate threshold) are saved together from the save bar that appears when something has changed, and the page warns before you leave with unsaved changes.
+
+**Prune Data** under **Settings → Data Retention** shows how many audit log entries, notifications, search entries and system action log entries it would delete, and runs only after you type PRUNE. It deletes by fixed ages (audit logs over 6 months); the **Audit Log Retention** setting on the same page is not used yet.
 
 ## Safe maintenance sequence
 

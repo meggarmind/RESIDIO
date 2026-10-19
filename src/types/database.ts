@@ -322,6 +322,10 @@ export type AuditEntityType =
   | 'impersonation_sessions'     // Admin impersonation system
   | 'documents'                   // Phase 15: Document Management
   | 'document_categories'         // Phase 15: Document Management
+  | 'document_tags'                // #382: Document taxonomy
+  | 'document_tag_assignments'     // #382: Document taxonomy
+  | 'document_custom_fields'       // #382: Document taxonomy
+  | 'document_custom_field_values' // #382: Document taxonomy
   | 'entity_notes'               // Notes Module
   | 'gmail_oauth_credentials'     // Phase 17: Email Import
   | 'email_imports'               // Phase 17: Email Import
@@ -416,6 +420,10 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   impersonation_sessions: 'Impersonation Session',     // Admin impersonation system
   documents: 'Document',                                // Phase 15: Document Management
   document_categories: 'Document Category',             // Phase 15: Document Management
+  document_tags: 'Document Tag',                        // #382: Document taxonomy
+  document_tag_assignments: 'Document Tag Assignment',  // #382: Document taxonomy
+  document_custom_fields: 'Document Custom Field',      // #382: Document taxonomy
+  document_custom_field_values: 'Document Custom Field Value', // #382: Document taxonomy
   entity_notes: 'Note',                                 // Notes Module
   gmail_oauth_credentials: 'Gmail Connection',          // Email Import System
   email_imports: 'Email Import',                        // Email Import System
@@ -1504,6 +1512,7 @@ export interface VisitorVehicleWithContact extends VisitorVehicle {
     id: string;
     full_name: string;
     phone_primary: string;
+    status: SecurityContactStatus;
     resident: {
       id: string;
       first_name: string;
@@ -1630,7 +1639,8 @@ export interface AccessLogWithDetails extends AccessLog {
 // ============================================
 
 // Import status for bank statement imports
-export type ImportStatus = 'pending' | 'processing' | 'awaiting_approval' | 'approved' | 'completed' | 'failed' | 'rejected';
+// 'posting' is the claim processImport takes before creating any payment (#707).
+export type ImportStatus = 'pending' | 'processing' | 'awaiting_approval' | 'approved' | 'posting' | 'completed' | 'failed' | 'rejected';
 
 // Transaction filter options
 export type TransactionFilter = 'credit' | 'debit' | 'all';
@@ -1650,6 +1660,7 @@ export const IMPORT_STATUS_LABELS: Record<ImportStatus, string> = {
   processing: 'Processing',
   awaiting_approval: 'Awaiting Approval',
   approved: 'Approved',
+  posting: 'Posting',
   completed: 'Completed',
   failed: 'Failed',
   rejected: 'Rejected',
@@ -2106,9 +2117,60 @@ export interface Document {
   updated_at: string;
 }
 
+// Document tag (from document_tags table, #382). Nested via parent_tag_id, at most 5 levels.
+export interface DocumentTag {
+  id: string;
+  name: string;
+  color: string;
+  parent_tag_id: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export const DOCUMENT_CUSTOM_FIELD_DATA_TYPES = [
+  'text',
+  'number',
+  'date',
+  'money',
+  'boolean',
+  'url',
+  'document_link',
+] as const;
+
+export type DocumentCustomFieldDataType = (typeof DOCUMENT_CUSTOM_FIELD_DATA_TYPES)[number];
+
+// Document custom field definition (from document_custom_fields table, #382)
+export interface DocumentCustomField {
+  id: string;
+  name: string;
+  data_type: DocumentCustomFieldDataType;
+  options: Record<string, unknown>;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// One typed value (from document_custom_field_values table, #382): exactly one value_* is set
+export interface DocumentCustomFieldValue {
+  id: string;
+  document_id: string;
+  field_id: string;
+  value_text: string | null;
+  value_number: number | null;
+  value_date: string | null;
+  value_money: number | null;
+  value_boolean: boolean | null;
+  value_url: string | null;
+  value_document_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // Document with relations
 export interface DocumentWithRelations extends Document {
   category: DocumentCategory | null;
+  tags?: Pick<DocumentTag, 'id' | 'name' | 'color'>[];
   uploader: {
     id: string;
     full_name: string;
@@ -2166,6 +2228,7 @@ export interface DocumentUpdateInput {
 // Document list filter params
 export interface DocumentListParams {
   category_id?: string;
+  tag_id?: string; // matches the tag and every tag nested under it
   search?: string;
   is_archived?: boolean;
   uploaded_by?: string;

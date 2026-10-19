@@ -105,11 +105,11 @@ const rowVariants = {
 
 // Status configuration with theme-aware colors
 const statusConfig: Record<InvoiceStatus, { icon: React.ElementType; label: string; textColor: string; bgColor: string }> = {
-  unpaid: { icon: AlertCircle, label: 'Unpaid', textColor: 'var(--status-warning)', bgColor: 'var(--status-warning-subtle)' },
-  partially_paid: { icon: Clock, label: 'Partial', textColor: 'var(--status-info)', bgColor: 'var(--status-info-subtle)' },
-  paid: { icon: CheckCircle2, label: 'Paid', textColor: 'var(--status-success)', bgColor: 'var(--status-success-subtle)' },
+  unpaid: { icon: AlertCircle, label: 'Unpaid', textColor: 'var(--status-warning-text)', bgColor: 'var(--status-warning-subtle)' },
+  partially_paid: { icon: Clock, label: 'Partial', textColor: 'var(--status-info-text)', bgColor: 'var(--status-info-subtle)' },
+  paid: { icon: CheckCircle2, label: 'Paid', textColor: 'var(--status-success-text)', bgColor: 'var(--status-success-subtle)' },
   void: { icon: XCircle, label: 'Void', textColor: 'var(--text-disabled)', bgColor: 'var(--bg-secondary)' },
-  overdue: { icon: AlertCircle, label: 'Overdue', textColor: 'var(--status-error)', bgColor: 'var(--status-error-subtle)' },
+  overdue: { icon: AlertCircle, label: 'Overdue', textColor: 'var(--status-error-text)', bgColor: 'var(--status-error-subtle)' },
 };
 
 /**

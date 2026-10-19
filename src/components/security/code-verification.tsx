@@ -34,10 +34,25 @@ import {
   CategoryBadge,
   ValidityBadge,
 } from './security-badges';
-import { useVerifyAccessCode, useRecordCheckIn } from '@/hooks/use-security';
-import { verifyAccessCodeSchema, checkInSchema, type VerifyAccessCodeData, type CheckInData } from '@/lib/validators/security-contact';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { VehiclePlateSearch } from './vehicle-plate-search';
+import { VEHICLE_TYPE_OPTIONS, describeVehicle } from './contact-vehicles-card';
+import {
+  useVerifyAccessCode,
+  useRecordCheckIn,
+  useContactVehicles,
+  useCreateVehicle,
+  useCurrentUserSecurityPermissions,
+} from '@/hooks/use-security';
+import { verifyAccessCodeSchema, type VerifyAccessCodeData, type CheckInData } from '@/lib/validators/security-contact';
 import { toast } from 'sonner';
-import type { AccessCodeWithContact } from '@/types/database';
+import type { AccessCodeWithContact, VehicleType } from '@/types/database';
 import {
   Search,
   CheckCircle,
@@ -50,6 +65,9 @@ import {
   LogIn,
 } from 'lucide-react';
 
+const NO_VEHICLE = 'none';
+const NEW_VEHICLE = 'new';
+
 export function CodeVerification() {
   const [verificationResult, setVerificationResult] = useState<{
     data: AccessCodeWithContact | null;
@@ -59,9 +77,24 @@ export function CodeVerification() {
   const [showCheckInDialog, setShowCheckInDialog] = useState(false);
   const [gateLocation, setGateLocation] = useState('');
   const [notes, setNotes] = useState('');
+  // NO_VEHICLE, NEW_VEHICLE, or a registered vehicle id; null until the guard picks
+  const [vehicleChoice, setVehicleChoice] = useState<string | null>(null);
+  const [newPlate, setNewPlate] = useState('');
+  const [newVehicleType, setNewVehicleType] = useState<VehicleType>('car');
+
+  const { data: permissionsData } = useCurrentUserSecurityPermissions();
+  const canViewVehicles = permissionsData?.permissions?.view_contacts || false;
+  const canRegisterVehicles = permissionsData?.permissions?.register_contacts || false;
 
   const verifyMutation = useVerifyAccessCode();
   const checkInMutation = useRecordCheckIn();
+  const createVehicleMutation = useCreateVehicle();
+  const { data: vehicles } = useContactVehicles(
+    showCheckInDialog && canViewVehicles ? verificationResult?.data?.contact_id : undefined
+  );
+  // Default to the primary vehicle until the guard picks something else.
+  const selectedVehicle =
+    vehicleChoice ?? vehicles?.find((v) => v.is_primary)?.id ?? NO_VEHICLE;
 
   const form = useForm<VerifyAccessCodeData>({
     resolver: zodResolver(verifyAccessCodeSchema),
@@ -90,9 +123,25 @@ export function CodeVerification() {
     if (!verificationResult?.data) return;
 
     try {
+      let vehicleId: string | undefined;
+      if (selectedVehicle === NEW_VEHICLE) {
+        const vehicle = await createVehicleMutation.mutateAsync({
+          contact_id: verificationResult.data.contact_id,
+          plate_number: newPlate,
+          vehicle_type: newVehicleType,
+          is_primary: false,
+        });
+        vehicleId = vehicle?.id;
+        // A retry after a failed check-in must reuse this vehicle, not register the plate again.
+        if (vehicleId) setVehicleChoice(vehicleId);
+      } else if (selectedVehicle !== NO_VEHICLE) {
+        vehicleId = selectedVehicle;
+      }
+
       const checkInData: CheckInData = {
         access_code_id: verificationResult.data.id,
         contact_id: verificationResult.data.contact_id,
+        vehicle_id: vehicleId,
         gate_location: gateLocation || undefined,
         notes: notes || undefined,
       };
@@ -104,6 +153,9 @@ export function CodeVerification() {
       form.reset();
       setGateLocation('');
       setNotes('');
+      setVehicleChoice(null);
+      setNewPlate('');
+      setNewVehicleType('car');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to record check-in');
     }
@@ -111,6 +163,8 @@ export function CodeVerification() {
 
   const contact = verificationResult?.data?.contact;
   const resident = contact?.resident;
+
+  const checkInPending = checkInMutation.isPending || createVehicleMutation.isPending;
 
   return (
     <div className="space-y-6">
@@ -186,7 +240,14 @@ export function CodeVerification() {
                 </div>
               </div>
               {verificationResult.valid && (
-                <Button onClick={() => setShowCheckInDialog(true)} className="gap-2">
+                <Button
+                  onClick={() => {
+                    setVehicleChoice(null);
+                    setNewPlate('');
+                    setShowCheckInDialog(true);
+                  }}
+                  className="gap-2"
+                >
                   <LogIn className="h-4 w-4" />
                   Record Check-In
                 </Button>
@@ -263,6 +324,8 @@ export function CodeVerification() {
         </Card>
       )}
 
+      <VehiclePlateSearch />
+
       {/* Check-In Dialog */}
       <Dialog open={showCheckInDialog} onOpenChange={setShowCheckInDialog}>
         <DialogContent>
@@ -274,6 +337,53 @@ export function CodeVerification() {
           </DialogHeader>
 
           <div className="space-y-4">
+            {canViewVehicles && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Vehicle (Optional)</label>
+                <Select value={selectedVehicle} onValueChange={setVehicleChoice}>
+                  <SelectTrigger aria-label="Vehicle">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_VEHICLE}>No vehicle (on foot)</SelectItem>
+                    {vehicles?.map((vehicle) => (
+                      <SelectItem key={vehicle.id} value={vehicle.id}>
+                        {vehicle.plate_number} · {describeVehicle(vehicle)}
+                      </SelectItem>
+                    ))}
+                    {canRegisterVehicles && (
+                      <SelectItem value={NEW_VEHICLE}>Register a new plate…</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+                {selectedVehicle === NEW_VEHICLE && (
+                  <div className="flex gap-2">
+                    <Input
+                      aria-label="New plate number"
+                      placeholder="Plate number"
+                      className="font-mono uppercase"
+                      value={newPlate}
+                      onChange={(e) => setNewPlate(e.target.value.toUpperCase())}
+                    />
+                    <Select
+                      value={newVehicleType}
+                      onValueChange={(value) => setNewVehicleType(value as VehicleType)}
+                    >
+                      <SelectTrigger className="w-40" aria-label="New vehicle type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {VEHICLE_TYPE_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+            )}
             <div>
               <label className="text-sm font-medium">Gate Location (Optional)</label>
               <Input
@@ -296,8 +406,11 @@ export function CodeVerification() {
             <Button variant="outline" onClick={() => setShowCheckInDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCheckIn} disabled={checkInMutation.isPending}>
-              {checkInMutation.isPending ? (
+            <Button
+              onClick={handleCheckIn}
+              disabled={checkInPending || (selectedVehicle === NEW_VEHICLE && newPlate.trim().length < 2)}
+            >
+              {checkInPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <LogIn className="mr-2 h-4 w-4" />

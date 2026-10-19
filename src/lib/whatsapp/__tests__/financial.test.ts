@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { canPerformWhatsAppFinancialLookup, composeStatementAnswer, handleFinancialMessage } from '@/lib/whatsapp/financial';
+import {
+  canPerformWhatsAppFinancialLookup,
+  composeStatementAnswer,
+  createSupabaseWhatsAppFinancialRepository,
+  handleFinancialMessage,
+} from '@/lib/whatsapp/financial';
 import type {
   FinancialAnswer,
   FinancialHouse,
@@ -9,6 +14,11 @@ import type { WhatsAppInboundMessage } from '@/lib/whatsapp/types';
 import type { WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
 import { getSettingResultAsService } from '@/lib/settings/service';
 import { isWhatsAppMasterSwitchOn } from '@/lib/whatsapp/master-switch';
+import { createAdminClient } from '@/lib/supabase/server';
+
+vi.mock('@/lib/supabase/server', () => ({
+  createAdminClient: vi.fn(),
+}));
 
 vi.mock('@/lib/whatsapp/master-switch', () => ({
   isWhatsAppMasterSwitchOn: vi.fn(),
@@ -279,5 +289,66 @@ describe('WhatsApp financial master switch (#547)', () => {
     expect(send).not.toHaveBeenCalled();
     expect(repo.logDisclosure).not.toHaveBeenCalled();
     for (const fn of Object.values(repo)) expect(fn).not.toHaveBeenCalled();
+  });
+});
+
+describe('WhatsApp disclosure log (#795)', () => {
+  it('inserts the disclosure with the snake_case columns of whatsapp_disclosure_logs', async () => {
+    const insert = vi.fn().mockResolvedValue({ error: null });
+    const from = vi.fn().mockReturnValue({ insert });
+    vi.mocked(createAdminClient).mockReturnValue({ from } as unknown as ReturnType<typeof createAdminClient>);
+
+    await createSupabaseWhatsAppFinancialRepository().logDisclosure({
+      residentId: 'resident-1',
+      phoneNumber: '+2348000000000',
+      houseId: 'house-1',
+      menuItem: 'balance',
+      pinAuthenticated: true,
+      metadata: { period: 'this_month' },
+    });
+
+    expect(from).toHaveBeenCalledWith('whatsapp_disclosure_logs');
+    expect(insert).toHaveBeenCalledWith({
+      resident_id: 'resident-1',
+      phone_number: '+2348000000000',
+      house_id: 'house-1',
+      menu_item: 'balance',
+      pin_authenticated: true,
+      metadata: { period: 'this_month' },
+    });
+  });
+
+  it('throws when the insert fails, so the handler never treats an unlogged disclosure as done', async () => {
+    const insert = vi.fn().mockResolvedValue({ error: { code: 'PGRST204', message: 'column not found' } });
+    vi.mocked(createAdminClient).mockReturnValue({ from: vi.fn().mockReturnValue({ insert }) } as unknown as ReturnType<typeof createAdminClient>);
+
+    await expect(createSupabaseWhatsAppFinancialRepository().logDisclosure({
+      residentId: 'resident-1',
+      phoneNumber: '+2348000000000',
+      houseId: null,
+      menuItem: 'statement',
+      pinAuthenticated: false,
+    })).rejects.toMatchObject({ code: 'PGRST204' });
+  });
+
+  it.each([
+    ['a menu answer', ['1']],
+    ['a statement', ['5', '1']],
+  ])('logs %s before sending it, and sends nothing when the log fails', async (_label, texts) => {
+    const repo = repository();
+    const send = vi.fn().mockResolvedValue({ success: true });
+    for (const text of texts.slice(0, -1)) {
+      await handleFinancialMessage(message(text), identity, { repository: repo, optedIn: true, send });
+      vi.mocked(repo.getSession).mockResolvedValue(vi.mocked(repo.saveSession).mock.lastCall![0]);
+    }
+    send.mockClear();
+    vi.mocked(repo.logDisclosure).mockRejectedValueOnce(new Error('insert failed'));
+
+    await expect(
+      handleFinancialMessage(message(texts.at(-1)!), identity, { repository: repo, optedIn: true, send })
+    ).rejects.toThrow('insert failed');
+
+    expect(repo.logDisclosure).toHaveBeenCalledTimes(1);
+    expect(send).not.toHaveBeenCalled();
   });
 });

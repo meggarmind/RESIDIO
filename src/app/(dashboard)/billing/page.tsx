@@ -20,6 +20,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { RecordCard, RecordCardSkeleton } from '@/components/ui/record-card';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -28,17 +29,16 @@ import { formatCurrency } from '@/lib/utils';
 import { endOfMonth, endOfYear, format, startOfMonth, startOfYear, subMonths } from 'date-fns';
 import { Loader2, FileText, RefreshCw, ChevronLeft, ChevronRight, Search, AlertCircle, Clock, CheckCircle2, Receipt, TrendingUp, CalendarRange } from 'lucide-react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useMemo } from 'react';
 import type { DateRange } from 'react-day-picker';
 import { getBillingResidentFilterOptions } from '@/actions/billing/get-invoices';
-import { INVOICE_TYPE_LABELS, type InvoiceType, type InvoiceStatus } from '@/types/database';
+import { INVOICE_TYPE_LABELS, type InvoiceType, type InvoiceStatus, type InvoiceWithDetails } from '@/types/database';
 import {
     EnhancedStatCard,
     EnhancedTableCard,
     EnhancedPageHeader,
 } from '@/components/dashboard/enhanced-stat-card';
-import { useVisualTheme } from '@/contexts/visual-theme-context';
 import { cn } from '@/lib/utils';
 import { Can } from '@/components/auth/can';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
@@ -56,6 +56,52 @@ const invoiceTypeColors: Record<InvoiceType, string> = {
     ADJUSTMENT: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
     OTHER: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300',
 };
+
+// Type and status badges, shared by the table row and the phone card
+function InvoiceTypeBadge({ invoice }: { invoice: InvoiceWithDetails }) {
+    return (
+        <Badge className={cn(invoice.invoice_type ? invoiceTypeColors[invoice.invoice_type as InvoiceType] : invoiceTypeColors.SERVICE_CHARGE)}>
+            {invoice.invoice_type ? INVOICE_TYPE_LABELS[invoice.invoice_type as InvoiceType] : 'Service Charge'}
+        </Badge>
+    );
+}
+
+function InvoiceStatusBadge({ invoice }: { invoice: InvoiceWithDetails }) {
+    return (
+        <Badge className={cn(statusColors[invoice.status] || '')}>
+            {invoice.status}
+        </Badge>
+    );
+}
+
+// Phone card, the stacked counterpart of an invoice table row (below md)
+function InvoiceCard({ invoice, onNavigate }: { invoice: InvoiceWithDetails; onNavigate: (id: string) => void }) {
+    const residentName = `${invoice.resident?.first_name ?? ''} ${invoice.resident?.last_name ?? ''}`.trim();
+    const house = [invoice.house?.house_number, invoice.house?.street?.name].filter(Boolean).join(', ');
+
+    return (
+        <RecordCard
+            data-testid="invoice-card"
+            title={formatCurrency(invoice.amount_due)}
+            badge={<InvoiceStatusBadge invoice={invoice} />}
+            subtitle={[residentName, house].filter(Boolean).join(' · ')}
+            label={`Open invoice ${invoice.invoice_number}`}
+            onClick={() => onNavigate(invoice.id)}
+        >
+            <div className="space-y-1">
+                <p>
+                    {new Date(invoice.period_start).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}
+                    <span className="text-muted-foreground"> · Due </span>
+                    {new Date(invoice.due_date).toLocaleDateString('en-GB')}
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-xs text-muted-foreground">{invoice.invoice_number}</span>
+                    <InvoiceTypeBadge invoice={invoice} />
+                </div>
+            </div>
+        </RecordCard>
+    );
+}
 
 type BillingResident = {
     id: string;
@@ -109,6 +155,7 @@ export function buildBillingResidentOptions(
 }
 
 export default function BillingPage() {
+    const router = useRouter();
     const searchParams = useSearchParams();
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(20);
@@ -124,8 +171,6 @@ export default function BillingPage() {
     const [residents, setResidents] = useState<BillingResident[]>([]);
     const [residentAliases, setResidentAliases] = useState<Map<string, string[]>>(new Map());
 
-    const { themeId } = useVisualTheme();
-    const isModern = themeId === 'modern';
 
     const dateRange = useMemo(() => {
         if (datePreset === 'custom') {
@@ -149,6 +194,8 @@ export default function BillingPage() {
     const { data: overdueStats } = useOverdueStats();
 
     const invoices = data?.data ?? [];
+    // Shown in the table's empty row and in the phone card list
+    const emptyMessage = 'No invoices found. Click "Generate Monthly Invoices" to create them.';
     const totalCount = data?.total ?? 0;
     const totalPages = Math.ceil(totalCount / limit);
 
@@ -216,7 +263,6 @@ export default function BillingPage() {
                             variant="outline"
                             size="sm"
                             onClick={() => refetch()}
-                            className={cn(isModern && 'rounded-xl')}
                         >
                             <RefreshCw className="mr-2 h-4 w-4" />
                             Refresh
@@ -225,7 +271,6 @@ export default function BillingPage() {
                             variant="outline"
                             onClick={() => checkOverdueMutation.mutateAsync()}
                             disabled={checkOverdueMutation.isPending}
-                            className={cn(isModern && 'rounded-xl')}
                         >
                             {checkOverdueMutation.isPending ? (
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -237,9 +282,6 @@ export default function BillingPage() {
                         <Can permission={PERMISSIONS.BILLING_CREATE_INVOICE}>
                             <Button
                                 asChild
-                                className={cn(
-                                    isModern && 'rounded-xl bg-[#0EA5E9] hover:bg-[#0284C7] text-white'
-                                )}
                             >
                                 <Link href="/billing/generate">
                                     <FileText className="mr-2 h-4 w-4" />
@@ -317,10 +359,7 @@ export default function BillingPage() {
                                     setSearch(e.target.value);
                                     setPage(1);
                                 }}
-                                className={cn(
-                                    'pl-8 h-9 text-sm',
-                                    isModern && 'rounded-xl border-gray-200 dark:border-[#334155]'
-                                )}
+                                className={cn('pl-8 h-9 text-sm')}
                             />
                         </div>
 
@@ -334,14 +373,14 @@ export default function BillingPage() {
                             placeholder="All residents"
                             searchPlaceholder="Search name or alias..."
                             emptyMessage="No residents found."
-                            className={cn('h-9 w-full min-w-[280px] max-w-[360px] text-sm', isModern && 'rounded-xl')}
+                            className={cn('h-9 w-full min-w-[280px] max-w-[360px] text-sm')}
                         />
 
                         <Select value={status} onValueChange={(value) => {
                             setStatus(value);
                             setPage(1);
                         }}>
-                            <SelectTrigger aria-label="Filter by status" className={cn("w-[110px] h-9 text-sm", isModern && 'rounded-xl')}>
+                            <SelectTrigger aria-label="Filter by status" className={cn("w-[110px] h-9 text-sm")}>
                                 <SelectValue placeholder="Status" />
                             </SelectTrigger>
                             <SelectContent>
@@ -357,7 +396,7 @@ export default function BillingPage() {
                             setInvoiceType(value);
                             setPage(1);
                         }}>
-                            <SelectTrigger className={cn("w-[110px] h-9 text-sm", isModern && 'rounded-xl')}>
+                            <SelectTrigger className={cn("w-[110px] h-9 text-sm")}>
                                 <SelectValue placeholder="Type" />
                             </SelectTrigger>
                             <SelectContent>
@@ -373,7 +412,7 @@ export default function BillingPage() {
                             setDatePreset(value);
                             setPage(1);
                         }}>
-                            <SelectTrigger className={cn("w-[120px] h-9 text-sm", isModern && 'rounded-xl')}>
+                            <SelectTrigger className={cn("w-[120px] h-9 text-sm")}>
                                 <SelectValue placeholder="Date" />
                             </SelectTrigger>
                             <SelectContent>
@@ -390,7 +429,7 @@ export default function BillingPage() {
                                 <Button
                                     variant={datePreset === 'custom' ? 'secondary' : 'outline'}
                                     size="sm"
-                                    className={cn('h-9 gap-2 text-sm', isModern && 'rounded-xl')}
+                                    className={cn('h-9 gap-2 text-sm')}
                                 >
                                     <CalendarRange className="h-4 w-4" />
                                     {customDateRange?.from && customDateRange.to
@@ -414,7 +453,7 @@ export default function BillingPage() {
                                 variant="ghost"
                                 size="sm"
                                 onClick={handleClearFilters}
-                                className={cn("h-9 px-2 text-muted-foreground hover:text-foreground", isModern && 'rounded-xl')}
+                                className={cn("h-9 px-2 text-muted-foreground hover:text-foreground")}
                                 title="Clear Filters"
                             >
                                 <RefreshCw className="h-4 w-4" />
@@ -423,11 +462,23 @@ export default function BillingPage() {
                     </div>
                 }
             >
-                <div className={cn(
-                    'rounded-xl border overflow-hidden shadow-soft animate-slide-up',
-                    isModern && 'border-gray-200 dark:border-[#334155]'
-                )}>
-                    <Table variant={isModern ? "modern" : "default"}>
+                {/* Phone: stacked cards below md. Both lists stay in the DOM and CSS picks one. */}
+                <div className="space-y-3 md:hidden" data-testid="invoice-card-list">
+                    {isLoading ? (
+                        [...Array(5)].map((_, i) => <RecordCardSkeleton key={i} />)
+                    ) : invoices.length === 0 ? (
+                        <div className="rounded-xl border bg-card py-8 text-center text-muted-foreground shadow-soft">
+                            {emptyMessage}
+                        </div>
+                    ) : (
+                        invoices.map((invoice) => (
+                            <InvoiceCard key={invoice.id} invoice={invoice} onNavigate={(id) => router.push(`/billing/${id}`)} />
+                        ))
+                    )}
+                </div>
+
+                <div className={cn('hidden md:block rounded-xl border overflow-hidden shadow-soft animate-slide-up')}>
+                    <Table variant="default">
                         <TableHeader>
                             <TableRow interactive={false}>
                                 <TableHead>Invoice #</TableHead>
@@ -445,30 +496,27 @@ export default function BillingPage() {
                             {isLoading ? (
                                 [...Array(5)].map((_, i) => (
                                     <TableRow key={i}>
-                                        <TableCell><Skeleton className={cn('h-4 w-24', isModern && 'rounded-lg')} /></TableCell>
-                                        <TableCell><Skeleton className={cn('h-4 w-32', isModern && 'rounded-lg')} /></TableCell>
-                                        <TableCell><Skeleton className={cn('h-4 w-40', isModern && 'rounded-lg')} /></TableCell>
-                                        <TableCell><Skeleton className={cn('h-4 w-20', isModern && 'rounded-lg')} /></TableCell>
-                                        <TableCell><Skeleton className={cn('h-4 w-24', isModern && 'rounded-lg')} /></TableCell>
-                                        <TableCell className="text-right"><Skeleton className={cn('h-4 w-20 ml-auto', isModern && 'rounded-lg')} /></TableCell>
-                                        <TableCell><Skeleton className={cn('h-5 w-24 rounded-full', isModern && 'rounded-full')} /></TableCell>
-                                        <TableCell><Skeleton className={cn('h-5 w-16 rounded-full', isModern && 'rounded-full')} /></TableCell>
-                                        <TableCell><Skeleton className={cn('h-8 w-12', isModern && 'rounded-lg')} /></TableCell>
+                                        <TableCell><Skeleton className={cn('h-4 w-24')} /></TableCell>
+                                        <TableCell><Skeleton className={cn('h-4 w-32')} /></TableCell>
+                                        <TableCell><Skeleton className={cn('h-4 w-40')} /></TableCell>
+                                        <TableCell><Skeleton className={cn('h-4 w-20')} /></TableCell>
+                                        <TableCell><Skeleton className={cn('h-4 w-24')} /></TableCell>
+                                        <TableCell className="text-right"><Skeleton className={cn('h-4 w-20 ml-auto')} /></TableCell>
+                                        <TableCell><Skeleton className={cn('h-5 w-24 rounded-full')} /></TableCell>
+                                        <TableCell><Skeleton className={cn('h-5 w-16 rounded-full')} /></TableCell>
+                                        <TableCell><Skeleton className={cn('h-8 w-12')} /></TableCell>
                                     </TableRow>
                                 ))
                             ) : invoices.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
-                                        No invoices found. Click &quot;Generate Monthly Invoices&quot; to create them.
+                                        {emptyMessage}
                                     </TableCell>
                                 </TableRow>
                             ) : (
                                 invoices.map((invoice) => (
                                     <TableRow
                                         key={invoice.id}
-                                        className={cn(
-                                            isModern && 'hover:bg-gray-50 dark:hover:bg-[#0F172A]'
-                                        )}
                                     >
                                         <TableCell className="font-mono text-sm">
                                             {invoice.invoice_number}
@@ -489,27 +537,16 @@ export default function BillingPage() {
                                             {formatCurrency(invoice.amount_due)}
                                         </TableCell>
                                         <TableCell>
-                                            <Badge className={cn(
-                                                invoice.invoice_type ? invoiceTypeColors[invoice.invoice_type as InvoiceType] : invoiceTypeColors.SERVICE_CHARGE,
-                                                isModern && 'rounded-full'
-                                            )}>
-                                                {invoice.invoice_type ? INVOICE_TYPE_LABELS[invoice.invoice_type as InvoiceType] : 'Service Charge'}
-                                            </Badge>
+                                            <InvoiceTypeBadge invoice={invoice} />
                                         </TableCell>
                                         <TableCell>
-                                            <Badge className={cn(
-                                                statusColors[invoice.status] || '',
-                                                isModern && 'rounded-full'
-                                            )}>
-                                                {invoice.status}
-                                            </Badge>
+                                            <InvoiceStatusBadge invoice={invoice} />
                                         </TableCell>
                                         <TableCell>
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
                                                 asChild
-                                                className={cn(isModern && 'rounded-lg')}
                                             >
                                                 <Link href={`/billing/${invoice.id}`}>View</Link>
                                             </Button>
@@ -527,17 +564,14 @@ export default function BillingPage() {
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                         <div className="flex items-center gap-2">
-                            <span className={cn(
-                                'text-sm text-muted-foreground whitespace-nowrap',
-                                isModern && 'text-gray-500 dark:text-gray-400'
-                            )}>
+                            <span className={cn('text-sm text-muted-foreground whitespace-nowrap')}>
                                 Rows per page
                             </span>
                             <Select value={limit.toString()} onValueChange={(value) => {
                                 setLimit(Number(value));
                                 setPage(1);
                             }}>
-                                <SelectTrigger className={cn("h-8 w-[70px]", isModern && 'rounded-xl')}>
+                                <SelectTrigger className={cn("h-8 w-[70px]")}>
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -547,10 +581,7 @@ export default function BillingPage() {
                                 </SelectContent>
                             </Select>
                         </div>
-                        <div className={cn(
-                            'text-sm text-muted-foreground',
-                            isModern && 'text-gray-500 dark:text-gray-400'
-                        )}>
+                        <div className={cn('text-sm text-muted-foreground')}>
                             Showing {((page - 1) * limit) + 1} to {Math.min(page * limit, totalCount)} of {totalCount} invoices
                         </div>
                     </div>
@@ -560,7 +591,6 @@ export default function BillingPage() {
                             size="sm"
                             onClick={() => setPage(p => Math.max(1, p - 1))}
                             disabled={page === 1}
-                            className={cn(isModern && 'rounded-xl')}
                         >
                             <ChevronLeft className="h-4 w-4" />
                             Previous
@@ -583,11 +613,7 @@ export default function BillingPage() {
                                         variant={page === pageNum ? 'default' : 'outline'}
                                         size="sm"
                                         onClick={() => setPage(pageNum)}
-                                        className={cn(
-                                            'w-9',
-                                            isModern && 'rounded-xl',
-                                            page === pageNum && isModern && 'bg-[#0EA5E9] hover:bg-[#0284C7]'
-                                        )}
+                                        className={cn('w-9')}
                                     >
                                         {pageNum}
                                     </Button>
@@ -599,7 +625,6 @@ export default function BillingPage() {
                             size="sm"
                             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                             disabled={page === totalPages}
-                            className={cn(isModern && 'rounded-xl')}
                         >
                             Next
                             <ChevronRight className="h-4 w-4" />

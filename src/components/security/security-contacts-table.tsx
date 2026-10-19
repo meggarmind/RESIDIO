@@ -30,6 +30,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
+import { RecordCard, RecordCardSkeleton } from '@/components/ui/record-card';
 import { EnhancedTableCard } from '@/components/dashboard/enhanced-stat-card';
 import { SecurityContactStatusBadge, CategoryBadge } from './security-badges';
 import { AccessCodeDisplay } from './access-code-display';
@@ -58,7 +59,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import type { SecurityContactFilters } from '@/lib/validators/security-contact';
-import type { SecurityContactStatus } from '@/types/database';
+import type { SecurityContactStatus, SecurityContactWithDetails } from '@/types/database';
 import { SECURITY_CONTACT_STATUS_LABELS } from '@/types/database';
 
 const ALL_VALUE = '_all';
@@ -127,6 +128,224 @@ export function getEmptyStateMessage(params: {
   return 'No security contacts found';
 }
 
+// Helper to get expiry info for a contact's access codes
+function getExpiryInfo(accessCodes: { valid_until: string | null; is_active: boolean }[] | undefined) {
+  if (!accessCodes || accessCodes.length === 0) return null;
+
+  // Find the earliest expiring active code
+  const activeCodes = accessCodes.filter(c => c.is_active && c.valid_until);
+  if (activeCodes.length === 0) return null;
+
+  const earliestExpiry = activeCodes
+    .map(c => new Date(c.valid_until!))
+    .sort((a, b) => a.getTime() - b.getTime())[0];
+
+  const now = new Date();
+  const daysUntilExpiry = Math.ceil((earliestExpiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+  return {
+    date: earliestExpiry,
+    daysUntilExpiry,
+    isExpired: daysUntilExpiry < 0,
+    isExpiringSoon: daysUntilExpiry >= 0 && daysUntilExpiry <= 7,
+  };
+}
+
+// Per-contact display state, shared by the table row and the phone card
+function describeContact(contact: SecurityContactWithDetails) {
+  // Use helper to find valid (non-expired) active code
+  const activeCode = findValidAccessCode(contact.access_codes);
+  // Compute effective status based on code expiration
+  const effectiveStatus = getEffectiveContactStatus(contact.status, contact.access_codes);
+  // Get expiry info for row styling
+  const expiryInfo = getExpiryInfo(contact.access_codes);
+  const isExpired = effectiveStatus === 'expired';
+  // Background and opacity by expiry status
+  const tintClassName = cn(
+    isExpired && 'bg-red-50 dark:bg-red-950/20',
+    expiryInfo?.isExpiringSoon && !expiryInfo.isExpired && 'bg-yellow-50 dark:bg-yellow-950/20',
+    isExpired && 'opacity-75'
+  );
+  return { activeCode, effectiveStatus, expiryInfo, isExpired, tintClassName };
+}
+
+function ContactExpiry({ expiryInfo }: { expiryInfo: ReturnType<typeof getExpiryInfo> }) {
+  if (!expiryInfo) {
+    return <span className="text-muted-foreground text-sm">No expiry</span>;
+  }
+
+  // Calculate days since expiry for tooltip
+  const daysSinceExpiry = expiryInfo.isExpired ? Math.abs(expiryInfo.daysUntilExpiry) : 0;
+
+  return (
+    <div className="flex items-center gap-1">
+      {expiryInfo.isExpired ? (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge
+                variant="destructive"
+                className={cn(
+                  'gap-1',
+                  daysSinceExpiry <= 7 && 'animate-pulse'
+                )}
+              >
+                <AlertTriangle className="h-3 w-3" />
+                {daysSinceExpiry}d ago
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Expired on {expiryInfo.date.toLocaleDateString()}</p>
+              <p className="text-xs text-muted-foreground">
+                {daysSinceExpiry} day(s) ago
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      ) : expiryInfo.isExpiringSoon ? (
+        <Badge variant="outline" className="gap-1 bg-yellow-50 text-yellow-700 border-yellow-300 dark:bg-yellow-950 dark:text-yellow-300 dark:border-yellow-700">
+          <Clock className="h-3 w-3" />
+          {expiryInfo.daysUntilExpiry}d
+        </Badge>
+      ) : (
+        <span className="text-sm text-muted-foreground">
+          {expiryInfo.date.toLocaleDateString()}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function ContactAccessCode({ activeCode }: { activeCode: ReturnType<typeof findValidAccessCode> }) {
+  return activeCode ? (
+    <AccessCodeDisplay
+      code={activeCode.code}
+      size="sm"
+      showCopy
+    />
+  ) : (
+    <span className="text-muted-foreground text-sm">No active code</span>
+  );
+}
+
+function ContactActionsMenu({
+  contactId,
+  effectiveStatus,
+  onNavigate,
+}: {
+  contactId: string;
+  effectiveStatus: SecurityContactStatus;
+  onNavigate: (href: string) => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label="Open actions menu">
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem
+          onClick={() => onNavigate(`/security/contacts/${contactId}`)}
+        >
+          <Eye className="mr-2 h-4 w-4" />
+          View Details
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => onNavigate(`/security/contacts/${contactId}/edit`)}
+        >
+          <Pencil className="mr-2 h-4 w-4" />
+          Edit
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() =>
+            onNavigate(`/security/contacts/${contactId}?action=generate-code`)
+          }
+        >
+          <Key className="mr-2 h-4 w-4" />
+          Generate Code
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {effectiveStatus === 'active' && (
+          <DropdownMenuItem
+            onClick={() =>
+              onNavigate(`/security/contacts/${contactId}?action=suspend`)
+            }
+            className="text-yellow-600"
+          >
+            <Ban className="mr-2 h-4 w-4" />
+            Suspend
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem
+          onClick={() =>
+            onNavigate(`/security/contacts/${contactId}?action=revoke`)
+          }
+          className="text-destructive"
+        >
+          <Trash2 className="mr-2 h-4 w-4" />
+          Revoke
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+// Phone card, the stacked counterpart of a contact table row (below md)
+function SecurityContactCard({
+  contact,
+  showResident,
+  onNavigate,
+}: {
+  contact: SecurityContactWithDetails;
+  showResident: boolean;
+  onNavigate: (href: string) => void;
+}) {
+  const { activeCode, effectiveStatus, expiryInfo, isExpired, tintClassName } = describeContact(contact);
+
+  return (
+    <RecordCard
+      data-testid="security-contact-card"
+      className={tintClassName}
+      title={
+        <span className={cn(isExpired && 'line-through text-muted-foreground')}>
+          {contact.full_name}
+        </span>
+      }
+      badge={<SecurityContactStatusBadge status={effectiveStatus} />}
+      subtitle={[contact.phone_primary, contact.id_number].filter(Boolean).join(' · ')}
+      label={`Open ${contact.full_name}`}
+      onClick={() => onNavigate(`/security/contacts/${contact.id}`)}
+      actions={
+        <>
+          <div className="mr-auto">
+            <ContactAccessCode activeCode={activeCode} />
+          </div>
+          <ContactActionsMenu contactId={contact.id} effectiveStatus={effectiveStatus} onNavigate={onNavigate} />
+        </>
+      }
+    >
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <CategoryBadge name={contact.category?.name || 'Unknown'} />
+          <ContactExpiry expiryInfo={expiryInfo} />
+        </div>
+        {showResident && contact.resident && (
+          <p>
+            <Link href={`/residents/${contact.resident.id}`} className="hover:underline">
+              {contact.resident.first_name} {contact.resident.last_name}
+              <span className="text-xs text-muted-foreground ml-1">
+                ({contact.resident.resident_code})
+              </span>
+            </Link>
+          </p>
+        )}
+      </div>
+    </RecordCard>
+  );
+}
+
 export function SecurityContactsTable({
   residentId,
   showResidentColumn = true,
@@ -151,29 +370,6 @@ export function SecurityContactsTable({
     expiring_within_days: expiringFilter ? 7 : undefined,
     page,
     limit: pageSize,
-  };
-
-  // Helper to get expiry info for a contact's access codes
-  const getExpiryInfo = (accessCodes: { valid_until: string | null; is_active: boolean }[] | undefined) => {
-    if (!accessCodes || accessCodes.length === 0) return null;
-
-    // Find the earliest expiring active code
-    const activeCodes = accessCodes.filter(c => c.is_active && c.valid_until);
-    if (activeCodes.length === 0) return null;
-
-    const earliestExpiry = activeCodes
-      .map(c => new Date(c.valid_until!))
-      .sort((a, b) => a.getTime() - b.getTime())[0];
-
-    const now = new Date();
-    const daysUntilExpiry = Math.ceil((earliestExpiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-
-    return {
-      date: earliestExpiry,
-      daysUntilExpiry,
-      isExpired: daysUntilExpiry < 0,
-      isExpiringSoon: daysUntilExpiry >= 0 && daysUntilExpiry <= 7,
-    };
   };
 
   const { data, isLoading, error } = useSecurityContacts(filters);
@@ -205,8 +401,8 @@ export function SecurityContactsTable({
       <div className="space-y-4 p-4">
         {/* Filters */}
         <div className="flex flex-col gap-3">
-          <div className="flex flex-col sm:flex-row gap-2">
-            <form onSubmit={handleSearch} className="flex gap-2 flex-1">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
+            <form onSubmit={handleSearch} className="flex gap-2 flex-1 min-w-[12rem]">
               <div className="relative flex-1 max-w-md">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -222,7 +418,7 @@ export function SecurityContactsTable({
             </form>
 
             {/* Quick Filters - moved to same row */}
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -235,14 +431,15 @@ export function SecurityContactsTable({
                         setPage(1);
                       }}
                       className={cn(
-                        'gap-2',
+                        // tighter below sm so the active button and its badge fit a 320px row
+                        'gap-1.5 sm:gap-2',
                         expiringFilter && 'bg-yellow-600 hover:bg-yellow-700'
                       )}
                     >
                       <Clock className="h-4 w-4" />
                       Expiring Soon
                       {expiringFilter && (
-                        <Badge variant="secondary" className="ml-1 bg-yellow-100 text-yellow-800">
+                        <Badge variant="secondary" className="sm:ml-1 bg-yellow-100 text-yellow-800">
                           7 days
                         </Badge>
                       )}
@@ -301,7 +498,7 @@ export function SecurityContactsTable({
           </div>
 
           {/* Second row - Status, Category, Add Contact */}
-          <div className="flex flex-col sm:flex-row gap-2">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
             <Select
               value={status}
               onValueChange={(v) => setStatus(v as SecurityContactStatus | typeof ALL_VALUE)}
@@ -346,8 +543,29 @@ export function SecurityContactsTable({
           </div>
         </div>
 
+        {/* Phone: stacked cards below md. Both lists stay in the DOM and CSS picks one. */}
+        <div className="space-y-3 md:hidden" data-testid="security-contact-card-list">
+          {isLoading ? (
+            [...Array(5)].map((_, i) => <RecordCardSkeleton key={i} />)
+          ) : visibleContacts.length === 0 ? (
+            <div className="rounded-xl border bg-card py-8 text-center shadow-soft">
+              <Users className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+              <p className="text-muted-foreground">{emptyStateMessage}</p>
+            </div>
+          ) : (
+            visibleContacts.map((contact) => (
+              <SecurityContactCard
+                key={contact.id}
+                contact={contact}
+                showResident={showResidentColumn}
+                onNavigate={(href) => router.push(href)}
+              />
+            ))
+          )}
+        </div>
+
         {/* Table */}
-        <div className="rounded-xl border overflow-hidden shadow-soft animate-slide-up">
+        <div className="hidden md:block rounded-xl border overflow-hidden shadow-soft animate-slide-up">
           <Table variant="modern">
             <TableHeader>
               <TableRow interactive={false}>
@@ -389,30 +607,8 @@ export function SecurityContactsTable({
                 </TableRow>
               ) : (
                 visibleContacts.map((contact) => {
-                    // Use helper to find valid (non-expired) active code
-                    const activeCode = findValidAccessCode(contact.access_codes);
-                    // Compute effective status based on code expiration
-                    const effectiveStatus = getEffectiveContactStatus(contact.status, contact.access_codes);
-                    // Get expiry info for row styling
-                    const expiryInfo = getExpiryInfo(contact.access_codes);
-
-                    // Calculate days since expiry for tooltip
-                    const daysSinceExpiry = expiryInfo?.isExpired
-                      ? Math.abs(expiryInfo.daysUntilExpiry)
-                      : 0;
-
-                    // Determine row background and styling based on expiry status
-                    const isExpired = effectiveStatus === 'expired';
-                    const rowClassName = cn(
-                      'hover:bg-gray-50 dark:hover:bg-[#0F172A]',
-                      // Background colors
-                      isExpired && 'bg-red-50 dark:bg-red-950/20',
-                      expiryInfo?.isExpiringSoon && !expiryInfo.isExpired && 'bg-yellow-50 dark:bg-yellow-950/20',
-                      // Left border indicator for expired
-                      isExpired && 'border-l-4 border-l-red-500',
-                      // Reduced opacity for expired rows
-                      isExpired && 'opacity-75'
-                    );
+                    const { activeCode, effectiveStatus, expiryInfo, isExpired, tintClassName } = describeContact(contact);
+                    const rowClassName = cn('hover:bg-muted/50', tintClassName);
 
                     return (
                       <TableRow key={contact.id} className={rowClassName}>
@@ -455,109 +651,13 @@ export function SecurityContactsTable({
                           <SecurityContactStatusBadge status={effectiveStatus} />
                         </TableCell>
                         <TableCell>
-                          {expiryInfo ? (
-                            <div className="flex items-center gap-1">
-                              {expiryInfo.isExpired ? (
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Badge
-                                        variant="destructive"
-                                        className={cn(
-                                          'gap-1',
-                                          daysSinceExpiry <= 7 && 'animate-pulse'
-                                        )}
-                                      >
-                                        <AlertTriangle className="h-3 w-3" />
-                                        {daysSinceExpiry}d ago
-                                      </Badge>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>Expired on {expiryInfo.date.toLocaleDateString()}</p>
-                                      <p className="text-xs text-muted-foreground">
-                                        {daysSinceExpiry} day(s) ago
-                                      </p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              ) : expiryInfo.isExpiringSoon ? (
-                                <Badge variant="outline" className="gap-1 bg-yellow-50 text-yellow-700 border-yellow-300 dark:bg-yellow-950 dark:text-yellow-300 dark:border-yellow-700">
-                                  <Clock className="h-3 w-3" />
-                                  {expiryInfo.daysUntilExpiry}d
-                                </Badge>
-                              ) : (
-                                <span className="text-sm text-muted-foreground">
-                                  {expiryInfo.date.toLocaleDateString()}
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground text-sm">No expiry</span>
-                          )}
+                          <ContactExpiry expiryInfo={expiryInfo} />
                         </TableCell>
                         <TableCell>
-                          {activeCode ? (
-                            <AccessCodeDisplay
-                              code={activeCode.code}
-                              size="sm"
-                              showCopy
-                            />
-                          ) : (
-                            <span className="text-muted-foreground text-sm">No active code</span>
-                          )}
+                          <ContactAccessCode activeCode={activeCode} />
                         </TableCell>
                         <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" aria-label="Open actions menu">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                onClick={() => router.push(`/security/contacts/${contact.id}`)}
-                              >
-                                <Eye className="mr-2 h-4 w-4" />
-                                View Details
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => router.push(`/security/contacts/${contact.id}/edit`)}
-                              >
-                                <Pencil className="mr-2 h-4 w-4" />
-                                Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={() =>
-                                  router.push(`/security/contacts/${contact.id}?action=generate-code`)
-                                }
-                              >
-                                <Key className="mr-2 h-4 w-4" />
-                                Generate Code
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              {effectiveStatus === 'active' && (
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    router.push(`/security/contacts/${contact.id}?action=suspend`)
-                                  }
-                                  className="text-yellow-600"
-                                >
-                                  <Ban className="mr-2 h-4 w-4" />
-                                  Suspend
-                                </DropdownMenuItem>
-                              )}
-                              <DropdownMenuItem
-                                onClick={() =>
-                                  router.push(`/security/contacts/${contact.id}?action=revoke`)
-                                }
-                                className="text-destructive"
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Revoke
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <ContactActionsMenu contactId={contact.id} effectiveStatus={effectiveStatus} onNavigate={(href) => router.push(href)} />
                         </TableCell>
                       </TableRow>
                     );

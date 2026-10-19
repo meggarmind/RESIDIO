@@ -42,6 +42,7 @@ import {
   approveImport,
   rejectImport,
   submitForApproval,
+  resetFailedImport,
   type ImportSearchParams,
   type ImportRowSearchParams,
   type CreateImportParams,
@@ -593,6 +594,31 @@ export function useSubmitForApproval() {
     },
     onError: (error) => {
       toast.error(error.message);
+    },
+  });
+}
+
+export function useResetFailedImport() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (importId: string) => {
+      const result = await resetFailedImport(importId);
+      if (result.error) throw new Error(result.error);
+      return result;
+    },
+    onSuccess: () => {
+      toast.success('Import reset for review');
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+    onSettled: (_result, _error, importId) => {
+      queryClient.invalidateQueries({ queryKey: ['imports'] });
+      queryClient.invalidateQueries({ queryKey: ['import', importId] });
+      queryClient.invalidateQueries({ queryKey: ['import-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['import-rows', importId] });
+      queryClient.invalidateQueries({ queryKey: ['import-row-summary', importId] });
     },
   });
 }

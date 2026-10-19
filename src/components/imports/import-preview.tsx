@@ -776,7 +776,7 @@ export function ImportPreview({
                         <TableCell className="px-1">
                           <div className="flex flex-col">
                             <span>{row.transaction_date ? formatCalendarDate(row.transaction_date, 'en-GB', { day: '2-digit', month: 'short' }) : '--'}</span>
-                            <span className={cn("text-[9px] font-semibold", isCredit ? "text-green-600" : isDebit ? "text-red-600" : "text-muted-foreground")}>
+                            <span className={cn("text-xs font-semibold", isCredit ? "text-green-600" : isDebit ? "text-red-600" : "text-muted-foreground")}>
                               {isCredit ? 'CR' : isDebit ? 'DR' : '--'}
                             </span>
                           </div>
@@ -843,7 +843,7 @@ export function ImportPreview({
                               value={currentTagId}
                               onValueChange={(value) => handleTagChange(row.id, value)}
                             >
-                              <SelectTrigger className="h-6 w-full text-[10px] px-1">
+                              <SelectTrigger className="h-6 w-full text-xs px-1">
                                 <SelectValue placeholder="--" />
                               </SelectTrigger>
                               <SelectContent>
@@ -862,7 +862,7 @@ export function ImportPreview({
                             </Select>
                           ) : (
                             // Debit transactions: Expense categories (shown in Assignment column)
-                            <span className="text-[10px] text-muted-foreground italic">
+                            <span className="text-xs text-muted-foreground italic">
                               {r.matched_expense_category_id ? '✓ Cat.' : '--'}
                             </span>
                           )}

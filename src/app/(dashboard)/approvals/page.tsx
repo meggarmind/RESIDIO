@@ -10,6 +10,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { RecordCard } from '@/components/ui/record-card';
 import { Textarea } from '@/components/ui/textarea';
 import {
     Select,
@@ -71,6 +72,76 @@ function ReapplyButton({ requestId }: { requestId: string }) {
     );
 }
 
+// Status badge, shared by the table row and the phone card
+function ApprovalStatusBadge({ request }: { request: ApprovalRequestWithDetails }) {
+    return (
+        <Badge variant={STATUS_BADGES[request.status].variant} className="whitespace-nowrap">
+            {request.status === 'pending' && <Clock className="h-3 w-3 mr-1" />}
+            {request.status === 'approved' && <CheckCircle className="h-3 w-3 mr-1" />}
+            {request.status === 'rejected' && <XCircle className="h-3 w-3 mr-1" />}
+            {STATUS_BADGES[request.status].label}
+        </Badge>
+    );
+}
+
+// Stuck badge; on the phone card it sits in the body so the badge slot does not squeeze the title
+function StuckApprovalBadge({ className }: { className?: string }) {
+    return (
+        <Badge variant="destructive" className={cn('whitespace-nowrap', className)}>
+            <AlertTriangle className="h-3 w-3 mr-1" />
+            Approved, not applied
+        </Badge>
+    );
+}
+
+// Row actions, shared by the table row and the phone card
+function ApprovalActions({
+    request,
+    onAction,
+}: {
+    request: ApprovalRequestWithDetails;
+    onAction: (request: ApprovalRequestWithDetails, action: 'approve' | 'reject') => void;
+}) {
+    return (
+        <>
+            {request.status === 'pending' && (
+                <Can permission={PERMISSIONS.APPROVALS_APPROVE_REJECT}>
+                <div className="flex flex-wrap gap-2 justify-end">
+                    <Button
+                        size="sm"
+                        variant="default"
+                        onClick={() => onAction(request, 'approve')}
+                        className="h-8 rounded-lg"
+                    >
+                        <Check className="h-4 w-4 mr-1" />
+                        Approve
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => onAction(request, 'reject')}
+                        className="h-8 rounded-lg"
+                    >
+                        <X className="h-4 w-4 mr-1" />
+                        Reject
+                    </Button>
+                </div>
+                </Can>
+            )}
+            {isStuckApproval(request) && (
+                <Can permission={PERMISSIONS.APPROVALS_APPROVE_REJECT}>
+                    <ReapplyButton requestId={request.id} />
+                </Can>
+            )}
+            {request.status !== 'pending' && request.reviewer && (
+                <span className="text-xs text-muted-foreground italic">
+                    by {request.reviewer.full_name}
+                </span>
+            )}
+        </>
+    );
+}
+
 export default function ApprovalsPage() {
     const [statusFilter, setStatusFilter] = useState<string>('pending');
     const [actionDialog, setActionDialog] = useState<{
@@ -127,7 +198,8 @@ export default function ApprovalsPage() {
     const totalCount = data?.count || 0;
     const totalPages = Math.ceil(totalCount / pageSize);
 
-    const renderChangeDetails = (request: ApprovalRequestWithDetails) => {
+    // `wrap` lets long values break onto a new line in the narrow phone card
+    const renderChangeDetails = (request: ApprovalRequestWithDetails, wrap = false) => {
         const currentValues = (request.current_values as Record<string, unknown>) || {};
         const requestedChanges = (request.requested_changes as Record<string, unknown>) || {};
 
@@ -136,7 +208,7 @@ export default function ApprovalsPage() {
                 {Object.keys(requestedChanges).map((key) => {
                     if (key === 'reason' || key === 'status') return null;
                     return (
-                        <div key={key} className="flex items-center gap-2">
+                        <div key={key} className={cn('flex items-center gap-2', wrap && 'flex-wrap wrap-anywhere')}>
                             <span className="text-muted-foreground">{key.replace(/_/g, ' ')}:</span>
                             <span className="line-through text-muted-foreground">
                                 {String(currentValues[key] ?? 'N/A')}
@@ -203,7 +275,29 @@ export default function ApprovalsPage() {
                             </Button>
                         </div>
                     ) : data?.data && data.data.length > 0 ? (
-                        <div className="rounded-xl border overflow-hidden shadow-soft animate-slide-up">
+                        <>
+                        {/* Phone: stacked cards below md. Both lists stay in the DOM and CSS picks one. */}
+                        <div className="space-y-3 md:hidden" data-testid="approval-card-list">
+                            {data.data.map((request) => (
+                                <RecordCard
+                                    key={request.id}
+                                    data-testid="approval-card"
+                                    title={request.entity_name}
+                                    badge={<ApprovalStatusBadge request={request} />}
+                                    subtitle={[
+                                        APPROVAL_REQUEST_TYPE_LABELS[request.request_type] || request.request_type,
+                                        request.requester?.full_name || 'Unknown',
+                                        formatDistanceToNow(new Date(request.created_at), { addSuffix: true }),
+                                    ].join(' · ')}
+                                    actions={<ApprovalActions request={request} onAction={handleAction} />}
+                                >
+                                    {isStuckApproval(request) && <StuckApprovalBadge className="mb-2" />}
+                                    {renderChangeDetails(request, true)}
+                                </RecordCard>
+                            ))}
+                        </div>
+
+                        <div className="hidden md:block rounded-xl border overflow-hidden shadow-soft animate-slide-up">
                             <Table variant="modern">
                                 <TableHeader>
                                     <TableRow interactive={false}>
@@ -239,60 +333,18 @@ export default function ApprovalsPage() {
                                                 </span>
                                             </TableCell>
                                             <TableCell>
-                                                <Badge variant={STATUS_BADGES[request.status].variant} className="whitespace-nowrap">
-                                                    {request.status === 'pending' && <Clock className="h-3 w-3 mr-1" />}
-                                                    {request.status === 'approved' && <CheckCircle className="h-3 w-3 mr-1" />}
-                                                    {request.status === 'rejected' && <XCircle className="h-3 w-3 mr-1" />}
-                                                    {STATUS_BADGES[request.status].label}
-                                                </Badge>
-                                                {isStuckApproval(request) && (
-                                                    <Badge variant="destructive" className="ml-2 whitespace-nowrap">
-                                                        <AlertTriangle className="h-3 w-3 mr-1" />
-                                                        Approved, not applied
-                                                    </Badge>
-                                                )}
+                                                <ApprovalStatusBadge request={request} />
+                                                {isStuckApproval(request) && <StuckApprovalBadge className="ml-2" />}
                                             </TableCell>
                                             <TableCell className="text-right">
-                                                {request.status === 'pending' && (
-                                                    <Can permission={PERMISSIONS.APPROVALS_APPROVE_REJECT}>
-                                                    <div className="flex gap-2 justify-end">
-                                                        <Button
-                                                            size="sm"
-                                                            variant="default"
-                                                            onClick={() => handleAction(request, 'approve')}
-                                                            className="h-8 rounded-lg"
-                                                        >
-                                                            <Check className="h-4 w-4 mr-1" />
-                                                            Approve
-                                                        </Button>
-                                                        <Button
-                                                            size="sm"
-                                                            variant="destructive"
-                                                            onClick={() => handleAction(request, 'reject')}
-                                                            className="h-8 rounded-lg"
-                                                        >
-                                                            <X className="h-4 w-4 mr-1" />
-                                                            Reject
-                                                        </Button>
-                                                    </div>
-                                                    </Can>
-                                                )}
-                                                {isStuckApproval(request) && (
-                                                    <Can permission={PERMISSIONS.APPROVALS_APPROVE_REJECT}>
-                                                        <ReapplyButton requestId={request.id} />
-                                                    </Can>
-                                                )}
-                                                {request.status !== 'pending' && request.reviewer && (
-                                                    <span className="text-xs text-muted-foreground italic">
-                                                        by {request.reviewer.full_name}
-                                                    </span>
-                                                )}
+                                                <ApprovalActions request={request} onAction={handleAction} />
                                             </TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
                             </Table>
                         </div>
+                        </>
                     ) : (
                         <div className="text-center py-12 text-muted-foreground border rounded-xl border-dashed">
                             <CheckCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />

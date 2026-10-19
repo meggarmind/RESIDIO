@@ -497,7 +497,7 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
 
                     {itemShortcut && (
                       <div className="flex items-center gap-1 opacity-0 group-aria-selected:opacity-100 transition-opacity">
-                        <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+                        <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-xs font-medium text-muted-foreground">
                           {shortcutKey}{itemShortcut}
                         </kbd>
                       </div>
@@ -513,7 +513,7 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
       {/* Keyboard shortcut hint */}
       <div className="border-t px-4 py-3 text-xs text-muted-foreground flex items-center justify-between">
         <span>Navigate with ↑↓ arrows, select with Enter</span>
-        <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+        <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-xs font-medium text-muted-foreground">
           <span className="min-w-[12px] text-center">{shortcutKey}</span>K
         </kbd>
       </div>

@@ -50,7 +50,7 @@ export function FloatingAiAssistant() {
                         className="w-[380px] h-[600px] rounded-2xl shadow-2xl overflow-hidden border bg-background"
                     >
                         {/* Custom Header for Floating Mode */}
-                        <div className="flex items-center justify-between p-3 border-b bg-muted/50">
+                        <div className="flex h-12 items-center justify-between px-3 border-b bg-muted/50">
                             <span className="font-semibold text-sm">Estate Assistant</span>
                             <div className="flex items-center gap-1">
                                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setIsMinimized(true)} aria-label="Minimize assistant">
@@ -107,6 +107,7 @@ export function FloatingAiAssistant() {
                                     e.stopPropagation();
                                     dismissSuggestion();
                                 }}
+                                aria-label="Dismiss suggestion"
                                 className="absolute -top-1 -right-1 h-4 w-4 bg-muted text-muted-foreground rounded-full border flex items-center justify-center hover:bg-destructive hover:text-destructive-foreground transition-colors"
                             >
                                 <X className="h-2 w-2" />

@@ -11,6 +11,8 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { RecordCard } from '@/components/ui/record-card';
+import { RecordSortControl } from '@/components/ui/record-sort-control';
 import {
     Dialog,
     DialogContent,
@@ -54,8 +56,115 @@ interface PaymentTableProps {
     onSort?: (column: 'payment_date' | 'amount' | 'status') => void;
 }
 
+// Sort options for the phone sort control (the table uses its column headers)
+export const PAYMENT_SORT_OPTIONS = [
+    { value: 'payment_date', label: 'Date' },
+    { value: 'amount', label: 'Amount' },
+    { value: 'status', label: 'Status' },
+];
+
+// View and Delete buttons, shared by the table row and the phone card
+function PaymentActions({
+    payment,
+    clickableRows,
+    onDelete,
+}: {
+    payment: PaymentRowWithResident;
+    clickableRows?: boolean;
+    onDelete: (id: string) => void;
+}) {
+    return (
+        <>
+            {!clickableRows && (
+                <Button variant="ghost" size="icon" asChild aria-label="View payment">
+                    <Link href={`/payments/${payment.id}`}>
+                        <Eye className="h-4 w-4" />
+                    </Link>
+                </Button>
+            )}
+            <Can permission={PERMISSIONS.PAYMENTS_DELETE}>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-destructive hover:text-destructive"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(payment.id);
+                    }}
+                    aria-label="Delete payment"
+                >
+                    <Trash2 className="h-4 w-4" />
+                </Button>
+            </Can>
+        </>
+    );
+}
+
+// Memoized phone card, the stacked counterpart of PaymentRow (below md)
+const PaymentCard = memo(function PaymentCard({
+    payment,
+    showResident,
+    isSelected,
+    onToggleSelection,
+    onDelete,
+    clickableRows,
+    onNavigate,
+}: {
+    payment: PaymentRowWithResident;
+    showResident: boolean;
+    isSelected: boolean;
+    onToggleSelection: (id: string) => void;
+    onDelete: (id: string) => void;
+    clickableRows?: boolean;
+    onNavigate?: (id: string) => void;
+}) {
+    const residentName = `${payment.resident?.first_name ?? ''} ${payment.resident?.last_name ?? ''}`.trim();
+    const method = payment.method ? payment.method.replace('_', ' ') : '-';
+
+    const cardProps = {
+        'data-testid': 'payment-card',
+        title: formatCurrency(Number(payment.amount)),
+        badge: <PaymentStatusBadge status={payment.status} />,
+        subtitle: showResident
+            ? [residentName, payment.resident?.resident_code].filter(Boolean).join(' · ')
+            : undefined,
+        leading: !clickableRows ? (
+            <Checkbox
+                checked={isSelected}
+                onCheckedChange={() => onToggleSelection(payment.id)}
+                aria-label={`Select payment ${payment.reference_number}`}
+            />
+        ) : undefined,
+        actions: <PaymentActions payment={payment} clickableRows={clickableRows} onDelete={onDelete} />,
+    };
+    const cardBody = (
+        <div className="space-y-0.5">
+            <p>
+                {format(new Date(payment.payment_date), 'MMM d, yyyy')}
+                <span className="text-muted-foreground"> · </span>
+                <span className="capitalize">{method}</span>
+            </p>
+            <p className="font-mono text-xs text-muted-foreground">Ref {payment.reference_number || '-'}</p>
+        </div>
+    );
+
+    // A tap target needs both a label and a handler (RecordCard's props are a union),
+    // so the two cases are rendered explicitly.
+    return clickableRows ? (
+        <RecordCard
+            {...cardProps}
+            label={`Open payment of ${formatCurrency(Number(payment.amount))}`}
+            onClick={() => onNavigate?.(payment.id)}
+        >
+            {cardBody}
+        </RecordCard>
+    ) : (
+        <RecordCard {...cardProps}>{cardBody}</RecordCard>
+    );
+});
+
 // Memoized row component to prevent unnecessary re-renders
- 
+
 const PaymentRow = memo(function PaymentRow({
     payment,
     showResident,
@@ -110,27 +219,7 @@ const PaymentRow = memo(function PaymentRow({
             <TableCell className="text-xs font-mono">{payment.reference_number || '-'}</TableCell>
             <TableCell className="text-right">
                 <div className="flex justify-end gap-2">
-                    {!clickableRows && (
-                        <Button variant="ghost" size="icon" asChild aria-label="View payment">
-                            <Link href={`/payments/${payment.id}`}>
-                                <Eye className="h-4 w-4" />
-                            </Link>
-                        </Button>
-                    )}
-                    <Can permission={PERMISSIONS.PAYMENTS_DELETE}>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-destructive hover:text-destructive"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onDelete(payment.id);
-                            }}
-                            aria-label="Delete payment"
-                        >
-                            <Trash2 className="h-4 w-4" />
-                        </Button>
-                    </Can>
+                    <PaymentActions payment={payment} clickableRows={clickableRows} onDelete={onDelete} />
                 </div>
             </TableCell>
         </TableRow>
@@ -285,7 +374,31 @@ export function PaymentTable({ data, showResident = true, residentId, clickableR
 
     return (
         <>
-            <div className="border rounded-md">
+            {/* Phone: stacked cards below md. Both lists stay in the DOM and CSS picks one. */}
+            <div className="space-y-3 md:hidden" data-testid="payment-card-list">
+                {onSort && (
+                    <RecordSortControl
+                        options={PAYMENT_SORT_OPTIONS}
+                        sortBy={sortBy}
+                        sortOrder={sortOrder}
+                        onSort={(value) => onSort(value as 'payment_date' | 'amount' | 'status')}
+                    />
+                )}
+                {data.map((payment) => (
+                    <PaymentCard
+                        key={payment.id}
+                        payment={payment}
+                        showResident={showResident}
+                        isSelected={selectedIds.has(payment.id)}
+                        onToggleSelection={toggleSelection}
+                        onDelete={handleDelete}
+                        clickableRows={clickableRows}
+                        onNavigate={handleNavigate}
+                    />
+                ))}
+            </div>
+
+            <div className="hidden md:block border rounded-md">
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -440,6 +553,7 @@ export function PaymentTable({ data, showResident = true, residentId, clickableR
                                             variant="default"
                                             size="icon"
                                             className="bg-primary-foreground text-primary"
+                                            aria-label="Set status for selected payments"
                                             disabled={bulkUpdateMutation.isPending}
                                         >
                                             <CheckCircle className="h-4 w-4" />
@@ -470,6 +584,7 @@ export function PaymentTable({ data, showResident = true, residentId, clickableR
                                 <Button
                                     variant="outline"
                                     size="icon"
+                                    aria-label="Export selected payments to CSV"
                                     onClick={handleExportCSV}
                                     className="bg-transparent text-primary-foreground border-primary-foreground"
                                 >
@@ -479,6 +594,7 @@ export function PaymentTable({ data, showResident = true, residentId, clickableR
                                 <Button
                                     variant="destructive"
                                     size="icon"
+                                    aria-label="Delete selected payments"
                                     onClick={() => setDeleteDialogOpen(true)}
                                 >
                                     <Trash2 className="h-4 w-4" />
@@ -490,6 +606,7 @@ export function PaymentTable({ data, showResident = true, residentId, clickableR
                             variant="ghost"
                             size="icon"
                             onClick={clearSelection}
+                            aria-label="Clear selection"
                             className="text-primary-foreground hover:bg-primary-foreground/10"
                         >
                             <X className="h-4 w-4" />

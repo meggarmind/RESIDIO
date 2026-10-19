@@ -68,50 +68,28 @@ type GetContactVerificationStatsResponse = {
  * - unverified: neither email nor phone is verified
  * - partial: one is verified, the other is not
  *
- * Uses raw SQL for complex conditional counting.
+ * Counted in SQL by get_contact_verification_stats (#776): a row download stopped at the 1000-row cap.
  */
 export async function getContactVerificationStats(): Promise<GetContactVerificationStatsResponse> {
   const supabase = await createServerSupabaseClient();
 
-  // We need to fetch residents with their verification fields to calculate stats
-  // Using a more efficient approach with RPC or a simpler query
-  const { data: residents, error } = await supabase
-    .from('residents')
-    .select('email, email_verified_at, phone_verified_at')
-    .eq('account_status', 'active'); // Only count active residents
+  const { data, error } = await supabase.rpc('get_contact_verification_stats');
 
-  if (error) {
-    return { data: null, error: error.message };
+  if (error || !data) {
+    return { data: null, error: error?.message ?? 'Failed to fetch verification stats' };
   }
 
-  let verified = 0;
-  let unverified = 0;
-  let partial = 0;
-
-  for (const resident of residents || []) {
-    const hasEmail = !!resident.email;
-    const emailVerified = !!resident.email_verified_at;
-    const phoneVerified = !!resident.phone_verified_at;
-
-    // Email is considered complete if not present or verified
-    const emailComplete = !hasEmail || emailVerified;
-    const phoneComplete = phoneVerified;
-
-    if (emailComplete && phoneComplete) {
-      verified++;
-    } else if (!emailVerified && !phoneVerified) {
-      unverified++;
-    } else {
-      partial++;
-    }
-  }
+  const counts = data as { verified: number; unverified: number; total: number };
+  const verified = Number(counts.verified) || 0;
+  const unverified = Number(counts.unverified) || 0;
+  const total = Number(counts.total) || 0;
 
   return {
     data: {
       verified,
       unverified,
-      partial,
-      total: residents?.length ?? 0,
+      partial: total - verified - unverified,
+      total,
     },
     error: null,
   };

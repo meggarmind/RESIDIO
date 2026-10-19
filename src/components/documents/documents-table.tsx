@@ -39,7 +39,9 @@ import {
 import { CategoryBadge, FileTypeBadge } from './category-badge';
 import { DocumentPreview } from './document-preview';
 import { DocumentUploadForm } from './document-upload-form';
-import { useDocuments, useDocumentCategories, useDeleteDocument, useArchiveDocument } from '@/hooks/use-documents';
+import { TagChips } from './tag-chips';
+import { useDocuments, useDocumentCategories, useDocumentTags, useDeleteDocument, useArchiveDocument } from '@/hooks/use-documents';
+import { tagPathLabel } from '@/lib/documents/taxonomy';
 import { getDocumentDownloadUrl } from '@/actions/documents/download-document';
 import {
   FileText,
@@ -114,7 +116,10 @@ const DocumentRow = memo(function DocumentRow({
         </div>
       </TableCell>
       <TableCell>
-        <CategoryBadge category={document.category} />
+        <div className="space-y-1">
+          <CategoryBadge category={document.category} />
+          <TagChips tags={document.tags} />
+        </div>
       </TableCell>
       <TableCell className="text-muted-foreground whitespace-nowrap">
         {formatFileSize(document.file_size_bytes)}
@@ -202,6 +207,7 @@ export function DocumentsTable({
     limit: pageSize,
   });
   const { data: categories = [] } = useDocumentCategories();
+  const { data: tags = [] } = useDocumentTags();
   const deleteMutation = useDeleteDocument();
   const archiveMutation = useArchiveDocument();
 
@@ -214,6 +220,14 @@ export function DocumentsTable({
     setParams((prev) => ({
       ...prev,
       category_id: value === ALL_VALUE ? undefined : value,
+      page: 1,
+    }));
+  }, []);
+
+  const handleTagChange = useCallback((value: string) => {
+    setParams((prev) => ({
+      ...prev,
+      tag_id: value === ALL_VALUE ? undefined : value,
       page: 1,
     }));
   }, []);
@@ -289,6 +303,7 @@ export function DocumentsTable({
                   size="icon"
                   className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6"
                   onClick={() => handleSearch('')}
+                  aria-label="Clear search"
                 >
                   <X className="h-3 w-3" />
                 </Button>
@@ -311,6 +326,22 @@ export function DocumentsTable({
                 ))}
               </SelectContent>
             </Select>
+
+            {tags.length > 0 && (
+              <Select value={params.tag_id ?? ALL_VALUE} onValueChange={handleTagChange}>
+                <SelectTrigger className="w-[180px]" aria-label="Filter by tag">
+                  <SelectValue placeholder="All Tags" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_VALUE}>All Tags</SelectItem>
+                  {tags.map((tag) => (
+                    <SelectItem key={tag.id} value={tag.id}>
+                      {tagPathLabel(tags, tag.id)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           <div className="flex gap-2">
@@ -320,6 +351,8 @@ export function DocumentsTable({
                 size="icon"
                 className="h-8 w-8"
                 onClick={() => setViewMode('list')}
+                aria-label="List view"
+                aria-pressed={viewMode === 'list'}
               >
                 <List className="h-4 w-4" />
               </Button>
@@ -328,6 +361,8 @@ export function DocumentsTable({
                 size="icon"
                 className="h-8 w-8"
                 onClick={() => setViewMode('grid')}
+                aria-label="Grid view"
+                aria-pressed={viewMode === 'grid'}
               >
                 <LayoutGrid className="h-4 w-4" />
               </Button>
@@ -382,7 +417,7 @@ export function DocumentsTable({
                 <TableHeader>
                   <TableRow interactive={false}>
                     <TableHead>Document</TableHead>
-                    <TableHead>Category</TableHead>
+                    <TableHead>Category &amp; Tags</TableHead>
                     <TableHead>Size</TableHead>
                     <TableHead>Uploaded By</TableHead>
                     <TableHead>Date</TableHead>

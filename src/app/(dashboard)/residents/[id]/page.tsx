@@ -386,7 +386,7 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
                       </IconBox>
                       Identity &amp; Contact
                       {resident.entity_type !== 'individual' && (
-                        <Badge variant="outline" className="ml-auto text-[10px] font-normal capitalize">
+                        <Badge variant="outline" className="ml-auto text-xs font-normal capitalize">
                           {resident.entity_type}
                         </Badge>
                       )}
@@ -455,7 +455,7 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
                           </span>
                           <span className="flex items-center gap-1.5">
                             <span className="font-medium">{resident.id_number}</span>
-                            <Badge variant={resident.id_verified_at ? 'success' : 'outline'} className="text-[10px]">
+                            <Badge variant={resident.id_verified_at ? 'success' : 'outline'} className="text-xs">
                               {resident.id_verified_at ? 'Verified' : 'Unverified'}
                             </Badge>
                           </span>
@@ -465,7 +465,7 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
                         <span className="text-muted-foreground flex items-center gap-1.5">
                           <Globe className="h-3.5 w-3.5" /> Portal Access
                         </span>
-                        <Badge variant={resident.portal_enabled ? 'success' : 'outline'} className="text-[10px]">
+                        <Badge variant={resident.portal_enabled ? 'success' : 'outline'} className="text-xs">
                           {resident.portal_enabled ? 'Enabled' : 'Not enabled'}
                         </Badge>
                       </div>

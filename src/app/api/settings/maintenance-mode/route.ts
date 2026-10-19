@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { isMaintenanceModeOn } from '@/lib/settings/maintenance-mode';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,8 +29,7 @@ export async function GET() {
     .eq('key', 'maintenance_message')
     .single();
 
-  // Extract boolean from JSONB value
-  const maintenanceMode = modeSetting?.value === true || modeSetting?.value === 'true';
+  const maintenanceMode = isMaintenanceModeOn(modeSetting?.value);
   const message = typeof messageSetting?.value === 'string'
     ? messageSetting.value
     : 'System is currently undergoing maintenance. Please check back shortly.';

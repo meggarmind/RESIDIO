@@ -17,15 +17,12 @@ import {
   EnhancedPageHeader,
 } from '@/components/dashboard/enhanced-stat-card';
 import { ModernPaymentsEmptyState } from '@/components/dashboard/modern-empty-state';
-import { useVisualTheme } from '@/contexts/visual-theme-context';
 import { cn } from '@/lib/utils';
 import { Can } from '@/components/auth/can';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 function PaymentsContent() {
   const searchParams = useSearchParams();
-  const { themeId } = useVisualTheme();
-  const isModern = themeId === 'modern';
 
   // Parse URL params
   const page = Number(searchParams.get('page')) || 1;
@@ -65,12 +62,7 @@ function PaymentsContent() {
         icon={CreditCard}
         actions={
           <Can permission={PERMISSIONS.PAYMENTS_CREATE}>
-            <Button
-              asChild
-              className={cn(
-                isModern && 'rounded-xl bg-[#0EA5E9] hover:bg-[#0284C7] text-white'
-              )}
-            >
+            <Button asChild>
               <Link href="/payments/new">
                 <Plus className="mr-2 h-4 w-4" /> Record Payment
               </Link>
@@ -121,17 +113,11 @@ function PaymentsContent() {
         <PaymentFilters />
 
         {paymentsResult?.error ? (
-          <div role="alert" className={cn(
-            'text-red-500 py-4',
-            isModern && 'bg-red-50 dark:bg-red-900/20 rounded-xl p-4'
-          )}>
+          <div role="alert" className={cn('text-red-500 py-4')}>
             Error: {paymentsResult.error}
           </div>
         ) : paymentsLoading ? (
-          <div className={cn(
-            'py-8 text-center text-muted-foreground',
-            isModern && 'bg-gray-50 dark:bg-[#0F172A] rounded-xl'
-          )}>
+          <div className={cn('py-8 text-center text-muted-foreground')}>
             Loading payments...
           </div>
         ) : payments.length === 0 ? (

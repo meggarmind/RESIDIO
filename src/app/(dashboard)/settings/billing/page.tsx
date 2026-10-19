@@ -4,7 +4,8 @@ import { useBillingSettings, useUpdateSetting } from '@/hooks/use-settings';
 import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
+import { NumericSettingInput } from '@/components/settings/numeric-setting-input';
+import { SettingEffect } from '@/components/settings/setting-effect';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -36,11 +37,7 @@ export default function BillingSettingsPage() {
         updateSettingMutation.mutate({ key, value: !currentValue });
     };
 
-    const handleNumberSettingChange = (key: string, value: number) => {
-        const clampedValue = Math.min(Math.max(value, 1), 90);
-        updateSettingMutation.mutate({ key, value: String(clampedValue) });
-    };
-
+    // The stored value; 30 only when nothing is stored, matching invoice generation's default.
     const getDueWindowDays = (): number => {
         const value = settingsMap.invoice_due_window_days;
         if (typeof value === 'string') {
@@ -90,6 +87,7 @@ export default function BillingSettingsPage() {
                                 <p className="text-sm text-muted-foreground">
                                     Bill property owners for vacant properties
                                 </p>
+                                <SettingEffect>future invoice runs only. Invoices already issued are not changed.</SettingEffect>
                             </div>
                             <Switch
                                 id="bill_vacant_houses"
@@ -107,6 +105,7 @@ export default function BillingSettingsPage() {
                                 <p className="text-sm text-muted-foreground">
                                     Bill property owners for properties under renovation
                                 </p>
+                                <SettingEffect>future invoice runs only. Invoices already issued are not changed.</SettingEffect>
                             </div>
                             <Switch
                                 id="bill_under_renovation_houses"
@@ -124,6 +123,7 @@ export default function BillingSettingsPage() {
                                 <p className="text-sm text-muted-foreground">
                                     Bill property owners for properties under construction
                                 </p>
+                                <SettingEffect>future invoice runs only. Invoices already issued are not changed.</SettingEffect>
                             </div>
                             <Switch
                                 id="bill_under_construction_houses"
@@ -141,6 +141,7 @@ export default function BillingSettingsPage() {
                                 <p className="text-sm text-muted-foreground">
                                     Automatically generate one-time levies when a house is created
                                 </p>
+                                <SettingEffect>levies charged from now on when a house is created or a resident is assigned, and Generate Retroactive Levies, which creates nothing while this is off. Levy invoices already issued are not changed.</SettingEffect>
                             </div>
                             <Switch
                                 id="auto_generate_levies"
@@ -158,6 +159,7 @@ export default function BillingSettingsPage() {
                                 <p className="text-sm text-muted-foreground">
                                     Apply pro-rata calculation for the first billing month
                                 </p>
+                                <SettingEffect>nothing at present: invoice generation does not read this setting.</SettingEffect>
                             </div>
                             <Switch
                                 id="pro_rata_first_month"
@@ -175,16 +177,16 @@ export default function BillingSettingsPage() {
                                 <p className="text-sm text-muted-foreground">
                                     Days from invoice issue date until payment is due (1-90)
                                 </p>
+                                <SettingEffect>invoices and levies created after the change. Due dates already set are not changed.</SettingEffect>
                             </div>
-                            <Input
+                            <NumericSettingInput
                                 id="invoice_due_window_days"
-                                type="number"
                                 min={1}
                                 max={90}
+                                integer
+                                unit="days"
                                 value={getDueWindowDays()}
-                                onChange={(e) => handleNumberSettingChange('invoice_due_window_days', parseInt(e.target.value) || 30)}
-                                className="w-20 text-center"
-                                disabled={updateSettingMutation.isPending}
+                                onCommit={(value) => updateSettingMutation.mutate({ key: 'invoice_due_window_days', value: String(value) })}
                             />
                         </div>
                     </CardContent>

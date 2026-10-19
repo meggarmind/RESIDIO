@@ -307,6 +307,7 @@ export function QueueViewer() {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
+                        aria-label="View queue item details"
                         onClick={() => setSelectedItem(item as QueueItemWithDetails)}
                       >
                         <Eye className="h-4 w-4" />
@@ -316,6 +317,7 @@ export function QueueViewer() {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 text-destructive"
+                          aria-label="Cancel queue item"
                           onClick={() => setCancelItemId(item.id)}
                         >
                           <XCircle className="h-4 w-4" />
@@ -326,6 +328,7 @@ export function QueueViewer() {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8"
+                          aria-label="Retry queue item"
                           onClick={() => handleRetry(item.id)}
                           disabled={retryMutation.isPending}
                         >

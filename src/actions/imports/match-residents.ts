@@ -5,9 +5,14 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
 import { createMatcher, type ResidentMatchData } from '@/lib/matching';
-import type { BankStatementRow, MatchConfidence, MatchMethod, ResidentPaymentAlias } from '@/types/database';
-import { checkDuplicate } from './process-import';
+import type { BankStatementRow, ExpenseCategory, MatchConfidence, MatchMethod, ResidentPaymentAlias } from '@/types/database';
+import { checkDuplicatesBatch } from './process-import';
+import { findMatchingExpenseCategory } from '@/lib/expenses/category-matcher';
 import { logAudit } from '@/lib/audit/logger';
+import { isImportRowEditable, rowsLockedMessage } from '@/lib/imports/row-edit-guard';
+
+// Small for the same URL-length reason as DUPLICATE_BATCH_CHUNK in process-import.ts.
+const UPDATE_CHUNK_SIZE = 50;
 
 // ============================================================
 // Retry Helper with Exponential Backoff
@@ -41,6 +46,43 @@ async function fetchWithRetry<T>(
 
   // This shouldn't be reached but TypeScript needs it
   return { data: null, error: { message: 'Unknown error after retries' } };
+}
+
+// ============================================================
+// Row-edit lock (#707)
+// ============================================================
+
+/**
+ * Returns why rows of these imports may not be edited, or null when every import is still under
+ * review (pending/processing). Once an import is submitted its rows are what the approver signs off.
+ */
+async function rowEditBlockedReason(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  importIds: string[]
+): Promise<string | null> {
+  const ids = [...new Set(importIds)];
+  if (ids.length === 0) return null;
+
+  const { data, error } = await supabase.from('bank_statement_imports').select('id, status').in('id', ids);
+  if (error) return error.message;
+  if (!data || data.length !== ids.length) return 'Import not found';
+
+  const locked = data.find((i) => !isImportRowEditable(i.status));
+  return locked ? rowsLockedMessage(locked.status) : null;
+}
+
+/** rowEditBlockedReason for a single row, looked up by id. */
+async function rowLockReason(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  row_id: string
+): Promise<string | null> {
+  const { data: row, error } = await supabase
+    .from('bank_statement_rows')
+    .select('import_id')
+    .eq('id', row_id)
+    .single();
+  if (error || !row) return 'Row not found';
+  return rowEditBlockedReason(supabase, [row.import_id]);
 }
 
 // ============================================================
@@ -82,6 +124,13 @@ export async function matchImportRows(import_id: string): Promise<MatchResidents
       unmatched_count: 0,
       error: auth.error || 'Unauthorized',
     };
+  }
+
+  // Rows are locked once the import is submitted (#707); the pending rows this would match could
+  // still exist then, since submit requires only one matched row.
+  const blocked = await rowEditBlockedReason(supabase, [import_id]);
+  if (blocked) {
+    return { results: [], matched_count: 0, unmatched_count: 0, error: blocked };
   }
 
   // Get pending rows for this import
@@ -193,6 +242,42 @@ export async function matchImportRows(import_id: string): Promise<MatchResidents
   let matchedCount = 0;
   let unmatchedCount = 0;
 
+  // Check for duplicates (cross-referencing payment_records and expenses) for all rows at once (#649)
+  const dupChecks = await checkDuplicatesBatch(
+    rows.map((row) => ({
+      id: row.id,
+      reference: row.reference,
+      amount: row.amount,
+      transaction_date: row.transaction_date,
+      transaction_hash: row.transaction_hash,
+      description: row.description,
+    })),
+    1 // tolerance days
+  );
+
+  // Expense categories are loaded once, on the first unmatched debit that needs them.
+  let expenseCategories: ExpenseCategory[] | null | undefined;
+  const loadExpenseCategories = async () => {
+    if (expenseCategories === undefined) {
+      const { data, error } = await supabase
+        .from('expense_categories')
+        .select('*')
+        .eq('is_active', true)
+        .order('sort_order')
+        .order('name');
+      if (error || !data) {
+        console.error('Error fetching categories for auto-match:', error);
+        expenseCategories = null;
+      } else {
+        expenseCategories = data as ExpenseCategory[];
+      }
+    }
+    return expenseCategories;
+  };
+
+  // Rows with an identical update payload are written together.
+  const updateBuckets = new Map<string, { payload: Record<string, unknown>; ids: string[] }>();
+
   for (const row of rows) {
     const matchResult = matcher.match({
       description: row.description || '',
@@ -200,15 +285,7 @@ export async function matchImportRows(import_id: string): Promise<MatchResidents
       reference: row.reference,
     });
 
-    // Check for duplicates (cross-referencing payment_records and expenses)
-    const dupCheck = await checkDuplicate(
-      row.reference,
-      row.amount || 0,
-      row.transaction_date || '',
-      1, // tolerance days
-      row.transaction_hash,
-      row.description
-    );
+    const dupCheck = dupChecks.get(row.id) ?? { is_duplicate: false };
 
     const result: MatchRowResult = {
       row_id: row.id,
@@ -238,8 +315,7 @@ export async function matchImportRows(import_id: string): Promise<MatchResidents
       status = 'matched';
     } else if (isDebit) {
       // For debit transactions, try to auto-match to expense category
-      const { autoMatchExpenseCategory } = await import('@/actions/expenses/get-expense-categories');
-      const categoryMatch = await autoMatchExpenseCategory(row.description || '');
+      const categoryMatch = findMatchingExpenseCategory(await loadExpenseCategories(), row.description || '');
 
       if (categoryMatch.category) {
         // Debit matched to expense category
@@ -259,16 +335,35 @@ export async function matchImportRows(import_id: string): Promise<MatchResidents
       status = 'unmatched';
     }
 
-    await supabase
-      .from('bank_statement_rows')
-      .update({
-        matched_resident_id: matchResult.resident_id,
-        match_confidence: matchResult.confidence,
-        match_method: matchResult.method,
-        status,
-        ...additionalUpdates,
-      })
-      .eq('id', row.id);
+    const payload = {
+      matched_resident_id: matchResult.resident_id,
+      match_confidence: matchResult.confidence,
+      match_method: matchResult.method,
+      status,
+      ...additionalUpdates,
+    };
+    const bucketKey = JSON.stringify(payload);
+    const bucket = updateBuckets.get(bucketKey);
+    if (bucket) {
+      bucket.ids.push(row.id);
+    } else {
+      updateBuckets.set(bucketKey, { payload, ids: [row.id] });
+    }
+  }
+
+  // Write each bucket of identical payloads with one update per chunk of ids. As before, a failed
+  // write does not change the response; it is logged with context.
+  for (const { payload, ids } of updateBuckets.values()) {
+    for (let i = 0; i < ids.length; i += UPDATE_CHUNK_SIZE) {
+      const chunk = ids.slice(i, i + UPDATE_CHUNK_SIZE);
+      const { error: updateError } = await supabase
+        .from('bank_statement_rows')
+        .update(payload)
+        .in('id', chunk);
+      if (updateError) {
+        console.error('matchImportRows: failed to update %d rows for import %s:', chunk.length, import_id, updateError);
+      }
+    }
   }
 
   // Update import matched count
@@ -347,6 +442,11 @@ export async function manualMatchRow(params: ManualMatchParams): Promise<ManualM
       data: null,
       error: 'Row not found',
     };
+  }
+
+  const blocked = await rowEditBlockedReason(supabase, [row.import_id]);
+  if (blocked) {
+    return { data: null, error: blocked };
   }
 
   // Verify resident exists if provided
@@ -502,6 +602,11 @@ export async function unmatchRow(row_id: string): Promise<ManualMatchResponse> {
     return { data: null, error: auth.error || 'Unauthorized' };
   }
 
+  const blocked = await rowLockReason(supabase, row_id);
+  if (blocked) {
+    return { data: null, error: blocked };
+  }
+
   const { data, error } = await supabase
     .from('bank_statement_rows')
     .update({
@@ -551,6 +656,11 @@ export async function skipRow(row_id: string): Promise<ManualMatchResponse> {
     return { data: null, error: auth.error || 'Unauthorized' };
   }
 
+  const blocked = await rowLockReason(supabase, row_id);
+  if (blocked) {
+    return { data: null, error: blocked };
+  }
+
   const { data, error } = await supabase
     .from('bank_statement_rows')
     .update({ status: 'skipped' })
@@ -598,6 +708,21 @@ export async function batchUpdateRowStatus(params: BatchUpdateParams): Promise<{
   }
 
   const { row_ids, status } = params;
+
+  // Ids that match no row are ignored, as the update below does.
+  if (row_ids.length > 0) {
+    const { data: rows, error: rowsError } = await supabase
+      .from('bank_statement_rows')
+      .select('import_id')
+      .in('id', row_ids);
+    if (rowsError) {
+      return { count: 0, error: rowsError.message };
+    }
+    const blocked = await rowEditBlockedReason(supabase, (rows ?? []).map((r) => r.import_id));
+    if (blocked) {
+      return { count: 0, error: blocked };
+    }
+  }
 
   const { error, count } = await supabase
     .from('bank_statement_rows')

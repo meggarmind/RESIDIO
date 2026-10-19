@@ -20,28 +20,15 @@ const buttonVariants = cva(
         ghost:
           "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 rounded-md",
         link: "text-primary underline-offset-4 hover:underline",
-        // Modern theme variants
-        modern:
-          "bg-[#0EA5E9] text-white hover:bg-[#0284C7] rounded-xl shadow-sm hover:shadow-lg hover:-translate-y-0.5 font-semibold",
-        "modern-outline":
-          "border-2 border-[#0EA5E9] text-[#0EA5E9] bg-transparent hover:bg-[#0EA5E9]/10 dark:hover:bg-[#0EA5E9]/20 rounded-xl font-semibold",
-        "modern-ghost":
-          "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#334155] hover:text-gray-900 dark:hover:text-white rounded-xl",
-        "modern-secondary":
-          "bg-gray-100 dark:bg-[#334155] text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-[#475569] rounded-xl shadow-sm",
-        "modern-destructive":
-          "bg-red-500 text-white hover:bg-red-600 rounded-xl shadow-sm hover:shadow-lg hover:-translate-y-0.5 font-semibold",
-        "modern-success":
-          "bg-emerald-500 text-white hover:bg-emerald-600 rounded-xl shadow-sm hover:shadow-lg hover:-translate-y-0.5 font-semibold",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",
         sm: "h-8 gap-1.5 px-3 has-[>svg]:px-2.5",
         lg: "h-10 px-6 has-[>svg]:px-4",
         xl: "h-12 px-8 text-base has-[>svg]:px-6",
-        icon: "size-9",
-        "icon-sm": "size-8",
-        "icon-lg": "size-10",
+        icon: "size-9 max-md:size-11",
+        "icon-sm": "size-8 max-md:size-11",
+        "icon-lg": "size-10 max-md:size-11",
         "icon-xl": "size-12",
       },
     },

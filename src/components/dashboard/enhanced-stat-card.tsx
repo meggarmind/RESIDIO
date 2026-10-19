@@ -3,7 +3,6 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useVisualTheme } from '@/contexts/visual-theme-context';
 import { cn } from '@/lib/utils';
 import { type LucideIcon, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
@@ -39,8 +38,7 @@ export function statValueFontSize(value: string | number): string {
  * Enhanced Stat Card Component
  *
  * Theme-aware stat card with gradient accents and improved visual hierarchy.
- * Adapts to Modern theme with distinct styling while maintaining compatibility
- * with the Default theme.
+ * Follows the active theme tokens.
  *
  * Features:
  * - Gradient icon backgrounds with glow effect
@@ -62,44 +60,32 @@ export function EnhancedStatCard({
   animate = true,
   onClick,
 }: EnhancedStatCardProps) {
-  const { themeId } = useVisualTheme();
-  const isModern = themeId === 'modern';
-
   // Color mappings for accent colors with enhanced gradients
   const accentColors = {
     default: {
-      iconBg: isModern
-        ? 'bg-gradient-to-br from-[#0EA5E9]/20 to-[#22D3EE]/10 dark:from-[#0EA5E9]/30 dark:to-[#22D3EE]/20'
-        : 'bg-primary/10 dark:bg-primary/20',
-      iconColor: isModern
-        ? 'text-[#0EA5E9] dark:text-[#38BDF8]'
-        : 'text-primary',
+      iconBg: 'bg-primary/10 dark:bg-primary/20',
+      iconColor: 'text-primary',
       valueColor: '',
-      gradient: 'from-[#0EA5E9] to-[#22D3EE]',
     },
     success: {
       iconBg: 'bg-gradient-to-br from-emerald-100 to-green-50 dark:from-emerald-900/40 dark:to-green-900/20',
       iconColor: 'text-emerald-600 dark:text-emerald-400',
       valueColor: 'text-emerald-600 dark:text-emerald-400',
-      gradient: 'from-emerald-500 to-green-400',
     },
     warning: {
       iconBg: 'bg-gradient-to-br from-amber-100 to-orange-50 dark:from-amber-900/40 dark:to-orange-900/20',
       iconColor: 'text-amber-600 dark:text-amber-400',
       valueColor: 'text-amber-600 dark:text-amber-400',
-      gradient: 'from-amber-500 to-orange-400',
     },
     danger: {
       iconBg: 'bg-gradient-to-br from-red-100 to-rose-50 dark:from-red-900/40 dark:to-rose-900/20',
       iconColor: 'text-red-600 dark:text-red-400',
       valueColor: 'text-red-600 dark:text-red-400',
-      gradient: 'from-red-500 to-rose-400',
     },
     info: {
       iconBg: 'bg-gradient-to-br from-blue-100 to-sky-50 dark:from-blue-900/40 dark:to-sky-900/20',
       iconColor: 'text-blue-600 dark:text-blue-400',
       valueColor: 'text-blue-600 dark:text-blue-400',
-      gradient: 'from-blue-500 to-sky-400',
     },
   };
 
@@ -127,44 +113,21 @@ export function EnhancedStatCard({
     <Card
       className={cn(
         'relative overflow-hidden group',
-        isModern
-          ? cn(
-            'rounded-2xl border-gray-200/80 dark:border-[#334155]/80',
-            'bg-white/90 dark:bg-[#1E293B]/90',
-            'backdrop-blur-sm',
-            'hover:border-[#0EA5E9]/30 dark:hover:border-[#0EA5E9]/20',
-            'shadow-soft hover:shadow-elevated',
-            'transition-all duration-300 ease-out'
-          )
-          : 'hover:shadow-md transition-all duration-200',
+        'hover:shadow-md transition-all duration-200',
         animate && 'animate-slide-up',
         className
       )}
       onClick={onClick}
     >
-      {/* Modern theme gradient accent line with animation */}
-      {isModern && (
-        <div className={cn(
-          'absolute inset-x-0 top-0 h-1 bg-gradient-to-r opacity-80 group-hover:opacity-100 transition-opacity duration-300',
-          colors.gradient
-        )} />
-      )}
-
-      <CardHeader className={cn(
-        'flex flex-row items-center justify-between space-y-0 pb-3',
-        isModern && 'pt-5'
-      )}>
-        <CardTitle className={cn(
-          'text-sm font-medium tracking-wide',
-          isModern ? 'text-gray-500 dark:text-gray-400 uppercase text-xs' : 'text-muted-foreground'
-        )}>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+        <CardTitle className="text-sm font-medium tracking-wide text-muted-foreground">
           {title}
         </CardTitle>
         <div
           className={cn(
             'flex h-11 w-11 items-center justify-center transition-transform duration-300 group-hover:scale-110',
             colors.iconBg,
-            isModern ? 'rounded-xl shadow-sm' : 'rounded-lg'
+            'rounded-lg'
           )}
         >
           <Icon className={cn('h-5 w-5', colors.iconColor)} />
@@ -173,34 +136,22 @@ export function EnhancedStatCard({
       <CardContent className="@container pb-5">
         {isLoading ? (
           <div className="space-y-3">
-            <Skeleton className={cn(
-              'h-9 w-28',
-              isModern && 'rounded-lg'
-            )} />
-            {description && (
-              <Skeleton className={cn(
-                'h-4 w-24',
-                isModern && 'rounded-md'
-              )} />
-            )}
+            <Skeleton className="h-9 w-28" />
+            {description && <Skeleton className="h-4 w-24" />}
           </div>
         ) : (
           <>
             <div
               className={cn(
                 'text-3xl font-bold tracking-tight tabular-nums whitespace-nowrap',
-                colors.valueColor,
-                isModern && 'text-gray-900 dark:text-white'
+                colors.valueColor
               )}
               style={{ fontSize: statValueFontSize(value) }}
             >
               {value}
             </div>
             {description && (
-              <p className={cn(
-                'text-sm mt-1',
-                isModern ? 'text-gray-500 dark:text-gray-400' : 'text-muted-foreground'
-              )}>
+              <p className="text-sm mt-1 text-muted-foreground">
                 {description}
               </p>
             )}
@@ -246,44 +197,25 @@ export function EnhancedTableCard({
   className,
   animate = true,
 }: EnhancedTableCardProps) {
-  const { themeId } = useVisualTheme();
-  const isModern = themeId === 'modern';
-
   return (
     <Card
       className={cn(
         'overflow-hidden',
-        isModern
-          ? cn(
-            'rounded-2xl border-gray-200/80 dark:border-[#334155]/80',
-            'bg-white/95 dark:bg-[#1E293B]/95',
-            'backdrop-blur-sm shadow-soft',
-            'hover:shadow-elevated transition-shadow duration-300'
-          )
-          : 'hover:shadow-md transition-shadow duration-200',
+        'hover:shadow-md transition-shadow duration-200',
         animate && 'animate-slide-up',
         className
       )}
     >
       {(title || actions) && (
-        <CardHeader className={cn(
-          'flex flex-row items-center justify-between py-5',
-          isModern && 'border-b border-gray-100/80 dark:border-[#334155]/80 bg-gray-50/50 dark:bg-[#0F172A]/30'
-        )}>
+        <CardHeader className="flex flex-row items-center justify-between py-5">
           <div>
             {title && (
-              <CardTitle className={cn(
-                'text-lg font-semibold',
-                isModern && 'text-gray-900 dark:text-white'
-              )}>
+              <CardTitle className="text-lg font-semibold">
                 {title}
               </CardTitle>
             )}
             {description && (
-              <p className={cn(
-                'text-sm mt-1',
-                isModern ? 'text-gray-500 dark:text-gray-400' : 'text-muted-foreground'
-              )}>
+              <p className="text-sm mt-1 text-muted-foreground">
                 {description}
               </p>
             )}
@@ -323,9 +255,6 @@ export function EnhancedPageHeader({
   className,
   animate = true,
 }: EnhancedPageHeaderProps) {
-  const { themeId } = useVisualTheme();
-  const isModern = themeId === 'modern';
-
   return (
     <div className={cn(
       'flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4',
@@ -334,32 +263,16 @@ export function EnhancedPageHeader({
     )}>
       <div className="flex items-center gap-4">
         {Icon && (
-          <div className={cn(
-            'flex h-12 w-12 items-center justify-center transition-transform duration-300 hover:scale-105',
-            isModern
-              ? 'rounded-2xl bg-gradient-to-br from-[#0EA5E9]/20 to-[#22D3EE]/10 dark:from-[#0EA5E9]/30 dark:to-[#22D3EE]/20 shadow-sm'
-              : 'rounded-xl bg-primary/10 dark:bg-primary/20'
-          )}>
-            <Icon className={cn(
-              'h-6 w-6',
-              isModern
-                ? 'text-[#0EA5E9] dark:text-[#38BDF8]'
-                : 'text-primary'
-            )} />
+          <div className="flex h-12 w-12 items-center justify-center transition-transform duration-300 hover:scale-105 rounded-xl bg-primary/10 dark:bg-primary/20">
+            <Icon className="h-6 w-6 text-primary" />
           </div>
         )}
         <div>
-          <h1 className={cn(
-            'text-2xl sm:text-3xl font-bold tracking-tight',
-            isModern && 'text-gray-900 dark:text-white'
-          )}>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
             {title}
           </h1>
           {description && (
-            <p className={cn(
-              'text-sm sm:text-base mt-1',
-              isModern ? 'text-gray-500 dark:text-gray-400' : 'text-muted-foreground'
-            )}>
+            <p className="text-sm sm:text-base mt-1 text-muted-foreground">
               {description}
             </p>
           )}
@@ -398,42 +311,27 @@ export function EnhancedAlertBanner({
   className,
   animate = true,
 }: EnhancedAlertBannerProps) {
-  const { themeId } = useVisualTheme();
-  const isModern = themeId === 'modern';
-
   const typeStyles = {
     info: {
-      bg: isModern
-        ? 'bg-gradient-to-r from-blue-50 to-sky-50/50 dark:from-blue-900/30 dark:to-sky-900/20 border-blue-200/80 dark:border-blue-700/50'
-        : 'bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-900',
-      iconBg: 'bg-blue-100 dark:bg-blue-900/50',
+      bg: 'bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-900',
       icon: 'text-blue-600 dark:text-blue-400',
       title: 'text-blue-900 dark:text-blue-100',
       description: 'text-blue-700 dark:text-blue-300',
     },
     warning: {
-      bg: isModern
-        ? 'bg-gradient-to-r from-amber-50 to-orange-50/50 dark:from-amber-900/30 dark:to-orange-900/20 border-amber-200/80 dark:border-amber-700/50'
-        : 'bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-900',
-      iconBg: 'bg-amber-100 dark:bg-amber-900/50',
+      bg: 'bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-900',
       icon: 'text-amber-600 dark:text-amber-400',
       title: 'text-amber-900 dark:text-amber-100',
       description: 'text-amber-700 dark:text-amber-300',
     },
     success: {
-      bg: isModern
-        ? 'bg-gradient-to-r from-emerald-50 to-green-50/50 dark:from-emerald-900/30 dark:to-green-900/20 border-emerald-200/80 dark:border-emerald-700/50'
-        : 'bg-emerald-50 dark:bg-emerald-950 border-emerald-200 dark:border-emerald-900',
-      iconBg: 'bg-emerald-100 dark:bg-emerald-900/50',
+      bg: 'bg-emerald-50 dark:bg-emerald-950 border-emerald-200 dark:border-emerald-900',
       icon: 'text-emerald-600 dark:text-emerald-400',
       title: 'text-emerald-900 dark:text-emerald-100',
       description: 'text-emerald-700 dark:text-emerald-300',
     },
     error: {
-      bg: isModern
-        ? 'bg-gradient-to-r from-red-50 to-rose-50/50 dark:from-red-900/30 dark:to-rose-900/20 border-red-200/80 dark:border-red-700/50'
-        : 'bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-900',
-      iconBg: 'bg-red-100 dark:bg-red-900/50',
+      bg: 'bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-900',
       icon: 'text-red-600 dark:text-red-400',
       title: 'text-red-900 dark:text-red-100',
       description: 'text-red-700 dark:text-red-300',
@@ -446,7 +344,6 @@ export function EnhancedAlertBanner({
     <div
       className={cn(
         'rounded-lg border p-4',
-        isModern && 'rounded-2xl p-5 backdrop-blur-sm',
         styles.bg,
         animate && 'animate-slide-up',
         className
@@ -454,10 +351,7 @@ export function EnhancedAlertBanner({
     >
       <div className="flex items-start gap-4">
         {Icon && (
-          <div className={cn(
-            'flex h-9 w-9 items-center justify-center rounded-xl flex-shrink-0',
-            isModern && styles.iconBg
-          )}>
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl flex-shrink-0">
             <Icon className={cn('h-5 w-5', styles.icon)} />
           </div>
         )}

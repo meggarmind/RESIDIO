@@ -204,7 +204,7 @@ function StepIndicator({ steps, currentStep, reportType }: { steps: Step[]; curr
                                 {isCompleted ? (
                                     <Check className="h-5 w-5" />
                                 ) : (
-                                    <span className={cn("text-sm font-medium", isSkipped && "text-[9px]")}>
+                                    <span className={cn("text-sm font-medium", isSkipped && "text-xs")}>
                                         {isSkipped ? "N/A" : step.id}
                                     </span>
                                 )}

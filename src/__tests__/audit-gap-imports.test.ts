@@ -10,13 +10,13 @@ import { matchImportRows } from '@/actions/imports/match-residents';
 import { createImportRows } from '@/actions/imports/create-import';
 import { updateImportStatus } from '@/lib/imports/update-import-status';
 
-const { authorizePermission, createServerSupabaseClient, logAudit, fetchAllRows, checkDuplicate, calls, results } =
+const { authorizePermission, createServerSupabaseClient, logAudit, fetchAllRows, checkDuplicatesBatch, calls, results } =
   vi.hoisted(() => ({
     authorizePermission: vi.fn(),
     createServerSupabaseClient: vi.fn(),
     logAudit: vi.fn(),
     fetchAllRows: vi.fn(),
-    checkDuplicate: vi.fn(),
+    checkDuplicatesBatch: vi.fn(),
     calls: [] as string[],
     results: {} as Record<string, QueryResult>,
   }));
@@ -36,7 +36,7 @@ vi.mock('@/lib/matching', () => ({
 }));
 vi.mock('@/actions/imports/process-import', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
-  checkDuplicate,
+  checkDuplicatesBatch,
 }));
 
 const boom = { message: 'boom' };
@@ -50,7 +50,7 @@ beforeEach(() => {
     calls.push('audit');
   });
   createServerSupabaseClient.mockImplementation(async () => makeRecordingSupabase({ results, calls }));
-  checkDuplicate.mockResolvedValue({ is_duplicate: false });
+  checkDuplicatesBatch.mockImplementation(async (rows: Array<{ id: string }>) => new Map(rows.map((r) => [r.id, { is_duplicate: false }])));
   vi.spyOn(console, 'error').mockImplementation(() => {});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
@@ -104,6 +104,11 @@ describe('matchImportRows audit (#556)', () => {
     transaction_hash: null,
     transaction_type: 'credit',
   }));
+
+  beforeEach(() => {
+    // Rows can only be matched while the import is under review (#707).
+    results['bank_statement_imports.select'] = { data: [{ id: uid(5), status: 'processing' }] };
+  });
 
   it('writes ONE bounded entry for the whole run, after the writes', async () => {
     fetchAllRows.mockResolvedValue({ data: rows, error: null });
@@ -177,7 +182,8 @@ describe('createImportRows audit (#556)', () => {
 
 describe('updateImportStatus audit (#541)', () => {
   beforeEach(() => {
-    results['bank_statement_imports.select'] = { data: { status: 'approved' } };
+    // processImport's claim (#707) is the only way in, so the helper only ever starts from posting.
+    results['bank_statement_imports.select'] = { data: { status: 'posting' } };
     results['bank_statement_imports.update'] = { data: [{ id: uid(5), file_name: 'jan.csv' }] };
   });
 
@@ -220,8 +226,8 @@ describe('updateImportStatus audit (#541)', () => {
   });
 
   it.each([
-    ['approved', 'completed'],
-    ['approved', 'failed'],
+    ['posting', 'completed'],
+    ['posting', 'failed'],
   ] as const)('includes a completed_at ISO timestamp for %s -> %s', async (from, status) => {
     results['bank_statement_imports.select'] = { data: { status: from } };
     await updateImportStatus({ import_id: uid(5), status });

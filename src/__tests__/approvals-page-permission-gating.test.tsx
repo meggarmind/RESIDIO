@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -58,7 +58,7 @@ describe('ApprovalsPage permission gating (issue #462)', () => {
     render(<ApprovalsPage />);
 
     // The row is still readable...
-    expect(screen.getByText('Invoice INV-1')).toBeInTheDocument();
+    expect(within(screen.getByRole('table')).getByText('Invoice INV-1')).toBeInTheDocument();
     // ...but the actions are not offered.
     expect(screen.queryByRole('button', { name: /approve/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /reject/i })).not.toBeInTheDocument();
@@ -68,7 +68,8 @@ describe('ApprovalsPage permission gating (issue #462)', () => {
     mocks.permissions = [PERMISSIONS.APPROVALS_VIEW, PERMISSIONS.APPROVALS_APPROVE_REJECT];
     render(<ApprovalsPage />);
 
-    expect(screen.getByRole('button', { name: /approve/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /reject/i })).toBeInTheDocument();
+    // One in the table row and one on the phone card (#744)
+    expect(screen.getAllByRole('button', { name: /approve/i })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: /reject/i })).toHaveLength(2);
   });
 });

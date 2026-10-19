@@ -25,7 +25,8 @@ import {
 } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useUploadDocument, useDocumentCategories } from '@/hooks/use-documents';
+import { useUploadDocument, useDocumentCategories, useDocumentTags } from '@/hooks/use-documents';
+import { TagPicker } from './tag-chips';
 import { ALLOWED_DOCUMENT_MIME_TYPES, MAX_DOCUMENT_FILE_SIZE, DOCUMENT_MIME_TYPE_LABELS } from '@/types/database';
 import { Upload, File, X, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -52,8 +53,10 @@ export function DocumentUploadForm({
   const [file, setFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [tagIds, setTagIds] = useState<string[]>([]);
 
   const { data: categories = [] } = useDocumentCategories();
+  const { data: tags = [] } = useDocumentTags();
   const uploadMutation = useUploadDocument();
 
   const {
@@ -100,6 +103,7 @@ export function DocumentUploadForm({
     setFile(null);
     setUploadProgress(0);
     setFileError(null);
+    setTagIds([]);
     onOpenChange(false);
   };
 
@@ -118,6 +122,7 @@ export function DocumentUploadForm({
     if (data.category_id) {
       formData.append('category_id', data.category_id);
     }
+    tagIds.forEach((id) => formData.append('tag_ids', id));
 
     // Simulate progress (actual progress would require XHR)
     setUploadProgress(20);
@@ -126,10 +131,11 @@ export function DocumentUploadForm({
     }, 200);
 
     try {
-      await uploadMutation.mutateAsync(formData);
+      const { warning } = await uploadMutation.mutateAsync(formData);
       clearInterval(progressInterval);
       setUploadProgress(100);
-      toast.success('Document uploaded successfully');
+      if (warning) toast.warning(warning);
+      else toast.success('Document uploaded successfully');
       handleClose();
       onSuccess?.();
     } catch (error) {
@@ -181,6 +187,7 @@ export function DocumentUploadForm({
                   type="button"
                   variant="ghost"
                   size="icon"
+                  aria-label={`Remove ${file.name}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     setFile(null);
@@ -250,6 +257,12 @@ export function DocumentUploadForm({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Tags */}
+          <div className="space-y-2">
+            <Label>Tags</Label>
+            <TagPicker tags={tags} value={tagIds} onChange={setTagIds} />
           </div>
 
           {/* Progress */}

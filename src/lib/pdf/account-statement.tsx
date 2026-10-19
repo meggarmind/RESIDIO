@@ -6,6 +6,7 @@ import {
   StyleSheet,
 } from '@react-pdf/renderer';
 import { format } from 'date-fns';
+import { formatPdfCurrency } from '@/lib/pdf/format-currency';
 import type { AccountStatementData, StatementTransaction } from '@/actions/billing/get-account-statement';
 
 // ============================================================
@@ -269,12 +270,7 @@ const styles = StyleSheet.create({
 // ============================================================
 
 function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-NG', {
-    style: 'currency',
-    currency: 'NGN',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
+  return formatPdfCurrency(amount, 0);
 }
 
 function formatDate(dateStr: string): string {

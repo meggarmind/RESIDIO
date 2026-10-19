@@ -13,7 +13,14 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { createPayment } from '@/actions/payments/create-payment';
-import { extractSenderName } from '@/lib/email-imports/utils';
+import { getSettingResultAsService } from '@/lib/settings/service';
+import {
+  EMAIL_AUTO_PROCESS_LIMIT_KEY,
+  EMAIL_AUTO_PROCESS_LIMIT_NGN,
+  exceedsEmailAutoProcessLimit,
+  extractSenderName,
+  isValidEmailAutoProcessLimit,
+} from '@/lib/email-imports/utils';
 import { createExpense } from '@/actions/expenses/create-expense';
 import { updateEmailImportStatus } from './create-email-import';
 import type {
@@ -21,6 +28,36 @@ import type {
   ProcessEmailTransactionsOptions,
   ProcessEmailTransactionsResult,
 } from '@/types/database';
+
+// ============================================================
+// Auto-process limit (#710)
+// ============================================================
+
+/**
+ * The current auto-process limit, read with the service reader because the
+ * fetch-emails cron has no user session. Returns null when the read failed or
+ * the stored value is invalid, which callers treat as "every credit is over
+ * the limit": a failed read must never raise it.
+ */
+async function readEmailAutoProcessLimit(): Promise<number | null> {
+  const result = await getSettingResultAsService(EMAIL_AUTO_PROCESS_LIMIT_KEY);
+  if (result.status === 'absent') return EMAIL_AUTO_PROCESS_LIMIT_NGN;
+  if (result.status === 'error') {
+    console.error(
+      `[email-imports] could not read "${EMAIL_AUTO_PROCESS_LIMIT_KEY}"; queueing every credit for review:`,
+      result.message
+    );
+    return null;
+  }
+  if (!isValidEmailAutoProcessLimit(result.value)) {
+    console.error(
+      `[email-imports] invalid "${EMAIL_AUTO_PROCESS_LIMIT_KEY}" value; queueing every credit for review:`,
+      result.value
+    );
+    return null;
+  }
+  return result.value;
+}
 
 // ============================================================
 // Process Email Transactions (Auto-process + Queue)
@@ -80,6 +117,9 @@ export async function processEmailTransactions(
     expensesCreated: 0,
   };
 
+  // Read once per run, not per transaction.
+  const autoProcessLimit = await readEmailAutoProcessLimit();
+
   // 1. Process Matched Credits (Payments)
   const creditTransactions = (transactions || []).filter(tx => tx.transaction_type === 'credit');
 
@@ -115,6 +155,17 @@ export async function processEmailTransactions(
       autoProcessHighConfidence &&
       emailTx.match_confidence === 'high' &&
       (emailTx.match_method === 'alias' || emailTx.match_method === 'phone');
+
+    if (canAutoProcess && exceedsEmailAutoProcessLimit(emailTx, autoProcessLimit)) {
+      // Over the limit: wait for an approver (#709). The review queue shows
+      // the reason from the amount, so no column records it.
+      await adminClient
+        .from('email_transactions')
+        .update({ status: 'queued_for_review' })
+        .eq('id', emailTx.id);
+      result.queuedForReview++;
+      continue;
+    }
 
     if (canAutoProcess) {
       // Auto-process: Create payment
@@ -421,6 +472,21 @@ export async function processSingleTransaction(
   // ============================================================
   // Handle Credit (Payment)
   // ============================================================
+  const canApproveOverLimit =
+    auth.permissions.includes(PERMISSIONS.IMPORTS_APPROVE) || auth.roleName === 'super_admin';
+  if (!canApproveOverLimit) {
+    const limit = await readEmailAutoProcessLimit();
+    if (exceedsEmailAutoProcessLimit(emailTx, limit)) {
+      const over = limit === null
+        ? 'the approval limit could not be read, so payments'
+        : `payments over ₦${limit.toLocaleString('en-NG')}`;
+      return {
+        success: false,
+        error: `Needs approval: ${over} require the '${PERMISSIONS.IMPORTS_APPROVE}' permission or super admin`,
+      };
+    }
+  }
+
   if (!params.residentId) {
     return { success: false, error: 'Resident ID required for payment transactions' };
   }
@@ -696,11 +762,13 @@ export async function getReviewQueue(params?: {
 }): Promise<{
   data: EmailTransaction[] | null;
   count: number | null;
+  /** The current auto-process limit; null when it could not be read (#710). */
+  autoProcessLimit: number | null;
   error: string | null;
 }> {
   const auth = await authorizePermission(PERMISSIONS.EMAIL_IMPORTS_VIEW);
   if (!auth.authorized) {
-    return { data: null, count: null, error: auth.error || 'Unauthorized' };
+    return { data: null, count: null, autoProcessLimit: null, error: auth.error || 'Unauthorized' };
   }
 
   const supabase = await createServerSupabaseClient();
@@ -727,13 +795,16 @@ export async function getReviewQueue(params?: {
     query = query.range(params.offset, params.offset + (params.limit || 10) - 1);
   }
 
-  const { data, count, error } = await query;
+  const [{ data, count, error }, autoProcessLimit] = await Promise.all([
+    query,
+    readEmailAutoProcessLimit(),
+  ]);
 
   if (error) {
-    return { data: null, count: null, error: error.message };
+    return { data: null, count: null, autoProcessLimit, error: error.message };
   }
 
-  return { data: data as EmailTransaction[], count, error: null };
+  return { data: data as EmailTransaction[], count, autoProcessLimit, error: null };
 }
 
 

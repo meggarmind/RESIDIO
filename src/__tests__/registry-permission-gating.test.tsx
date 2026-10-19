@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -97,7 +97,9 @@ describe('Residents permission gating (issue #462)', () => {
   it('hides Add resident and row Edit from a residents.view-only user', () => {
     mocks.permissions = [PERMISSIONS.RESIDENTS_VIEW];
     render(<ResidentsPage />);
-    expect(screen.getByText('Ada Obi')).toBeInTheDocument();
+    // The row is in the table and again in the phone card list
+    expect(within(screen.getByRole('table')).getByText('Ada Obi')).toBeInTheDocument();
+    expect(within(screen.getByTestId('resident-card-list')).getByText('Ada Obi')).toBeInTheDocument();
     expect(screen.queryByText('Add resident')).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Edit resident' })).not.toBeInTheDocument();
   });
@@ -110,7 +112,8 @@ describe('Residents permission gating (issue #462)', () => {
     ];
     render(<ResidentsPage />);
     expect(screen.getByText('Add resident')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Edit resident' })).toBeInTheDocument();
+    expect(within(screen.getByRole('table')).getByRole('link', { name: 'Edit resident' })).toBeInTheDocument();
+    expect(within(screen.getByTestId('resident-card-list')).getByRole('link', { name: 'Edit resident' })).toBeInTheDocument();
   });
 
   it('keeps Edit hidden when only residents.create is held', () => {
@@ -139,7 +142,8 @@ describe('Houses permission gating (issue #462)', () => {
     render(<HousesPage />);
     expect(screen.getByText('Add property')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Add$/ })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Edit house' })).toBeInTheDocument();
+    expect(within(screen.getByRole('table')).getByRole('link', { name: 'Edit house' })).toBeInTheDocument();
+    expect(within(screen.getByTestId('house-card-list')).getByRole('link', { name: 'Edit house' })).toBeInTheDocument();
   });
 
   it('keeps Edit hidden when only houses.create is held', () => {

@@ -333,6 +333,7 @@ export function Sidebar({ className }: SidebarProps) {
                   <button
                     type="button"
                     onClick={() => router.push('/portal?impersonate=true')}
+                    aria-label="View as Resident"
                     className={cn(
                       'flex items-center rounded-lg text-sm transition-all duration-200 w-full cursor-pointer',
                       isExpanded ? 'gap-3 px-3 py-2 text-left' : 'justify-center px-2 py-2'
@@ -432,7 +433,7 @@ export function Sidebar({ className }: SidebarProps) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div className="flex justify-center" data-testid="build-info">
-                    <Badge variant={envBadge.variant} className="px-1.5 py-0 text-[10px]">
+                    <Badge variant={envBadge.variant} className="px-1.5 py-0 text-xs">
                       {envBadge.text}
                     </Badge>
                   </div>
@@ -459,7 +460,7 @@ export function Sidebar({ className }: SidebarProps) {
                 </TooltipContent>
               </Tooltip>
               {envBadge && (
-                <Badge variant={envBadge.variant} className="px-1.5 py-0 text-[10px]">
+                <Badge variant={envBadge.variant} className="px-1.5 py-0 text-xs">
                   {envBadge.text}
                 </Badge>
               )}

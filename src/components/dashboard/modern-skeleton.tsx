@@ -21,7 +21,7 @@ export function ModernSkeleton({ className, ...props }: ModernSkeletonProps) {
   return (
     <div
       className={cn(
-        'relative overflow-hidden rounded-xl bg-gray-200 dark:bg-[#334155]',
+        'relative overflow-hidden rounded-xl bg-muted',
         // Shimmer animation
         'before:absolute before:inset-0 before:-translate-x-full',
         'before:animate-[shimmer_2s_infinite]',
@@ -42,8 +42,8 @@ export function ModernStatsCardSkeleton({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        'rounded-xl border bg-white dark:bg-[#1E293B] p-6',
-        'border-gray-200 dark:border-[#334155]',
+        'rounded-xl border bg-card p-6',
+        'border-border',
         className
       )}
     >
@@ -65,8 +65,8 @@ export function ModernFinancialHealthSkeleton({ className }: { className?: strin
   return (
     <div
       className={cn(
-        'rounded-xl border bg-white dark:bg-[#1E293B] p-6',
-        'border-gray-200 dark:border-[#334155]',
+        'rounded-xl border bg-card p-6',
+        'border-border',
         className
       )}
     >
@@ -104,8 +104,8 @@ export function ModernPendingPaymentsSkeleton({ className }: { className?: strin
   return (
     <div
       className={cn(
-        'rounded-xl border bg-white dark:bg-[#1E293B] p-6',
-        'border-gray-200 dark:border-[#334155]',
+        'rounded-xl border bg-card p-6',
+        'border-border',
         className
       )}
     >
@@ -115,7 +115,7 @@ export function ModernPendingPaymentsSkeleton({ className }: { className?: strin
       </div>
       <div className="space-y-4">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="flex items-center gap-4 p-3 rounded-xl bg-gray-50 dark:bg-[#0F172A]">
+          <div key={i} className="flex items-center gap-4 p-3 rounded-xl bg-muted/50">
             <ModernSkeleton className="h-10 w-10 rounded-full" />
             <div className="flex-1 space-y-2">
               <ModernSkeleton className="h-4 w-32" />
@@ -142,7 +142,7 @@ export function ModernTableRowSkeleton({
   return (
     <div
       className={cn(
-        'flex items-center gap-4 p-4 border-b border-gray-100 dark:border-[#334155]',
+        'flex items-center gap-4 p-4 border-b border-border/50',
         className
       )}
     >
@@ -175,13 +175,13 @@ export function ModernTableSkeleton({
   return (
     <div
       className={cn(
-        'rounded-xl border bg-white dark:bg-[#1E293B]',
-        'border-gray-200 dark:border-[#334155]',
+        'rounded-xl border bg-card',
+        'border-border',
         className
       )}
     >
       {/* Header */}
-      <div className="flex items-center gap-4 p-4 border-b-2 border-gray-200 dark:border-[#334155]">
+      <div className="flex items-center gap-4 p-4 border-b-2 border-border">
         {Array.from({ length: columns }).map((_, i) => (
           <ModernSkeleton
             key={i}
@@ -207,8 +207,8 @@ export function ModernQuickActionSkeleton({ className }: { className?: string })
   return (
     <div
       className={cn(
-        'rounded-xl border bg-white dark:bg-[#1E293B] p-4',
-        'border-gray-200 dark:border-[#334155]',
+        'rounded-xl border bg-card p-4',
+        'border-border',
         'flex items-center gap-4',
         className
       )}
@@ -235,8 +235,8 @@ export function ModernActivityLogSkeleton({
   return (
     <div
       className={cn(
-        'rounded-xl border bg-white dark:bg-[#1E293B] p-6',
-        'border-gray-200 dark:border-[#334155]',
+        'rounded-xl border bg-card p-6',
+        'border-border',
         className
       )}
     >

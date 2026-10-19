@@ -131,7 +131,7 @@ function FinancialDashboardContent() {
               {invoiceAging.map(({ daysOverdue, count }) => (
                 <div key={daysOverdue} className="flex min-w-6 flex-1 flex-col items-center gap-1">
                   <div className="w-full rounded-t bg-amber-500" style={{ height: `${Math.max(8, (count / Math.max(...invoiceAging.map((item) => item.count))) * 100)}%` }} title={`${daysOverdue} days overdue: ${count} invoice(s)`} />
-                  <span className="text-[10px] text-muted-foreground">{daysOverdue}d</span>
+                  <span className="text-xs text-muted-foreground">{daysOverdue}d</span>
                 </div>
               ))}
             </div>

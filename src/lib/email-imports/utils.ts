@@ -143,3 +143,51 @@ export function getUnmatchedCount(counts: EmailImportCounts): number {
     const matched = counts.transactions_matched ?? 0;
     return Math.max(0, extracted - matched);
 }
+
+/**
+ * Email credits strictly above this amount (naira, as stored in
+ * email_transactions.amount) are never auto-processed and need an approver
+ * to release them (owner decision #668 Q5, #709). Debits are not limited.
+ * The live value is the `email_import_auto_process_limit` setting (#710); this
+ * is the default used when that row is absent.
+ */
+export const EMAIL_AUTO_PROCESS_LIMIT_NGN = 60000;
+
+export const EMAIL_AUTO_PROCESS_LIMIT_KEY = 'email_import_auto_process_limit';
+
+/** Upper bound for the setting; anything higher would switch the control off. */
+export const EMAIL_AUTO_PROCESS_LIMIT_MAX = 100_000_000;
+
+/** A usable limit: whole naira, from 1 to EMAIL_AUTO_PROCESS_LIMIT_MAX. */
+export function isValidEmailAutoProcessLimit(value: unknown): value is number {
+    return (
+        typeof value === 'number' &&
+        Number.isInteger(value) &&
+        value > 0 &&
+        value <= EMAIL_AUTO_PROCESS_LIMIT_MAX
+    );
+}
+
+/**
+ * Whether a transaction is above the limit and would become a payment. Anything
+ * that is not a debit takes the payment path when released, so it counts.
+ * A `null` limit means the setting could not be read: every credit counts as
+ * over it (fail closed, #710).
+ */
+export function exceedsEmailAutoProcessLimit(
+    tx: {
+        transaction_type: string | null;
+        amount: number | string | null;
+    },
+    limit: number | null = EMAIL_AUTO_PROCESS_LIMIT_NGN
+): boolean {
+    if (tx.transaction_type === 'debit') return false;
+    return limit === null || Number(tx.amount) > limit;
+}
+
+/** The review-queue label for an over-limit credit. */
+export function emailOverLimitLabel(limit: number | null): string {
+    return limit === null
+        ? 'Needs approval: approval limit unavailable'
+        : `Needs approval: over ₦${limit.toLocaleString('en-NG')}`;
+}

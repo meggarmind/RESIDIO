@@ -16,6 +16,91 @@ export type ApplyLateFeesResult = {
 
 export type LateFeeTriggerType = 'manual' | 'cron' | 'api';
 
+export type LateFeePreview = {
+  enabled: boolean;
+  gracePeriodDays: number;
+  lateFeeType: string;
+  lateFeeRate: number;
+  eligible: number;
+  totalLateFees: number;
+  skippedWaiver: number;
+  skippedAlreadyApplied: number;
+};
+
+export function calculateLateFee(amountDue: number, lateFeeType: string, lateFeeAmount: number): number {
+  if (lateFeeType === 'percentage') {
+    return Math.round((amountDue * lateFeeAmount) / 100 * 100) / 100;
+  }
+  return lateFeeAmount;
+}
+
+// `invoices` has no metadata column (#806): the late-fee invoice item is the record that a fee was applied.
+// shortcut: a reserved description, not a durable marker; replace with one under #830.
+export const LATE_FEE_ITEM_DESCRIPTION = 'Late Fee (auto)';
+
+export type InvoiceItemRef = { description: string; amount: number };
+
+/** The invoice's late-fee item, if a late fee has been applied to it. */
+export function findLateFeeItem(items: InvoiceItemRef[] | null | undefined): InvoiceItemRef | undefined {
+  return items?.find((item) => item.description === LATE_FEE_ITEM_DESCRIPTION);
+}
+
+/**
+ * What `runLateFeeApplication` would do right now, without writing anything (#790).
+ * Mirrors its settings reads, invoice query and skip rules.
+ */
+export function planLateFees(
+  invoices: { id: string; amount_due: number; invoice_items: InvoiceItemRef[] | null }[],
+  pendingWaiverInvoiceIds: Set<string>,
+  lateFeeType: string,
+  lateFeeAmount: number
+): Pick<LateFeePreview, 'eligible' | 'totalLateFees' | 'skippedWaiver' | 'skippedAlreadyApplied'> {
+  const plan = { eligible: 0, totalLateFees: 0, skippedWaiver: 0, skippedAlreadyApplied: 0 };
+  for (const invoice of invoices) {
+    if (findLateFeeItem(invoice.invoice_items)) {
+      plan.skippedAlreadyApplied++;
+    } else if (pendingWaiverInvoiceIds.has(invoice.id)) {
+      plan.skippedWaiver++;
+    } else {
+      plan.eligible++;
+      plan.totalLateFees += calculateLateFee(invoice.amount_due, lateFeeType, lateFeeAmount);
+    }
+  }
+  plan.totalLateFees = Math.round(plan.totalLateFees * 100) / 100;
+  return plan;
+}
+
+/** Read-only dry run of a manual application; the caller checks the permission. */
+export async function previewLateFeeApplication(): Promise<{ data: LateFeePreview | null; error: string | null }> {
+  const supabase = await createServerSupabaseClient();
+
+  const enabled = !!(await getSettingValueAsService('late_fee_enabled'));
+  const lateFeeType = ((await getSettingValueAsService('late_fee_type')) as string) || 'percentage';
+  const lateFeeRate = Number(await getSettingValueAsService('late_fee_amount')) || 5;
+  const gracePeriodDays = Number(await getSettingValueAsService('grace_period_days')) || 7;
+
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - gracePeriodDays);
+  const cutoffDateStr = cutoffDate.toISOString().split('T')[0];
+
+  const { data: pendingWaivers, error: waiverError } = await supabase
+    .from('late_fee_waivers')
+    .select('invoice_id')
+    .eq('status', 'pending');
+  if (waiverError) return { data: null, error: waiverError.message };
+
+  const { data: overdueInvoices, error } = await supabase
+    .from('invoices')
+    .select('id, amount_due, invoice_items(description, amount)')
+    .in('status', ['unpaid', 'partially_paid'])
+    .lt('due_date', cutoffDateStr);
+  if (error) return { data: null, error: error.message };
+
+  const pendingIds = new Set((pendingWaivers || []).map((w: { invoice_id: string }) => w.invoice_id));
+  const plan = planLateFees(overdueInvoices || [], pendingIds, lateFeeType, lateFeeRate);
+  return { data: { enabled, gracePeriodDays, lateFeeType, lateFeeRate, ...plan }, error: null };
+}
+
 /**
  * Apply late fees to overdue invoices.
  *
@@ -78,7 +163,7 @@ export async function runLateFeeApplication(
   // Find overdue invoices that haven't had late fees applied yet
   const { data: overdueInvoices, error: fetchError } = await supabase
     .from('invoices')
-    .select('id, invoice_number, amount_due, due_date, status, metadata')
+    .select('id, invoice_number, amount_due, due_date, status, invoice_items(description, amount)')
     .in('status', ['unpaid', 'partially_paid'])
     .lt('due_date', cutoffDateStr)
     .order('due_date', { ascending: true });
@@ -129,10 +214,8 @@ export async function runLateFeeApplication(
   let skippedAlreadyApplied = 0;
 
   for (const invoice of overdueInvoices) {
-    const metadata = (invoice.metadata as Record<string, unknown>) || {};
-
     // Skip if late fee already applied
-    if (metadata.late_fee_applied) {
+    if (findLateFeeItem(invoice.invoice_items)) {
       skippedAlreadyApplied++;
       continue;
     }
@@ -143,50 +226,38 @@ export async function runLateFeeApplication(
       continue;
     }
 
-    // Calculate late fee
-    let lateFee: number;
-    if (lateFeeType === 'percentage') {
-      lateFee = Math.round((invoice.amount_due * lateFeeAmount) / 100 * 100) / 100;
-    } else {
-      lateFee = lateFeeAmount;
-    }
+    const lateFee = calculateLateFee(invoice.amount_due, lateFeeType, lateFeeAmount);
 
-    // Update invoice with late fee
-    const newTotal = invoice.amount_due + lateFee;
-    const newMetadata = {
-      ...metadata,
-      late_fee_applied: true,
-      late_fee_amount: lateFee,
-      late_fee_applied_at: new Date().toISOString(),
-      late_fee_type: lateFeeType,
-      late_fee_rate: lateFeeAmount,
-      original_amount: invoice.amount_due,
-    };
-
-    const { error: updateError } = await supabase
-      .from('invoices')
-      .update({
-        amount_due: newTotal,
-        metadata: newMetadata,
+    // Add the late fee item first: it is the applied marker, so a failed amount update
+    // below must remove it rather than leave the fee recorded but uncharged.
+    const { data: item, error: itemError } = await supabase
+      .from('invoice_items')
+      .insert({
+        invoice_id: invoice.id,
+        description: LATE_FEE_ITEM_DESCRIPTION,
+        amount: lateFee,
       })
-      .eq('id', invoice.id);
+      .select('id')
+      .single();
 
-    if (updateError) {
-      errors.push(`Failed to apply late fee to invoice ${invoice.invoice_number}: ${updateError.message}`);
+    if (itemError || !item) {
+      errors.push(`Failed to add late fee item to invoice ${invoice.invoice_number}: ${itemError?.message ?? 'no row returned'}`);
       continue;
     }
 
-    // Add late fee as an invoice item
-    const { error: itemError } = await supabase.from('invoice_items').insert({
-      invoice_id: invoice.id,
-      name: `Late Fee (${lateFeeType === 'percentage' ? `${lateFeeAmount}%` : 'Fixed'})`,
-      description: `Late payment penalty applied on ${new Date().toLocaleDateString()}`,
-      amount: lateFee,
-      quantity: 1,
-    });
+    const newTotal = invoice.amount_due + lateFee;
+    const { error: updateError } = await supabase
+      .from('invoices')
+      .update({ amount_due: newTotal })
+      .eq('id', invoice.id);
 
-    if (itemError) {
-      errors.push(`Failed to add late fee item to invoice ${invoice.invoice_number}: ${itemError.message}`);
+    if (updateError) {
+      const { error: removeError } = await supabase.from('invoice_items').delete().eq('id', item.id);
+      if (removeError) {
+        console.error(`Late fee item ${item.id} left on uncharged invoice ${invoice.invoice_number}:`, removeError);
+      }
+      errors.push(`Failed to apply late fee to invoice ${invoice.invoice_number}: ${updateError.message}`);
+      continue;
     }
 
     applied++;

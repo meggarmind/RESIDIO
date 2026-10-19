@@ -143,7 +143,7 @@ function ReportCard({
                         {/* Content */}
                         <div className="min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                                <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
+                                <Badge variant="secondary" className="text-xs uppercase tracking-wide">
                                     {config.label}
                                 </Badge>
                             </div>
@@ -390,7 +390,7 @@ export function ReportsPageClient() {
                         {reports.length > 0 && (
                             <Badge
                                 variant="secondary"
-                                className="ml-1.5 h-5 w-5 p-0 flex items-center justify-center text-[10px]"
+                                className="ml-1.5 h-5 w-5 p-0 flex items-center justify-center text-xs"
                             >
                                 {reports.length}
                             </Badge>

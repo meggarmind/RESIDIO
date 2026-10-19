@@ -50,110 +50,56 @@ export async function getFinancialOverview(
   }
 
   try {
-    // Build query for bank statement rows
-    let query = supabase
-      .from('bank_statement_rows')
-      .select(`
-        id,
-        amount,
-        transaction_type,
-        tag_id,
-        transaction_tags (
-          id,
-          name,
-          color,
-          transaction_type
-        ),
-        bank_statement_imports!inner (
-          id,
-          bank_account_id,
-          status
-        )
-      `)
-      .gte('transaction_date', params.startDate)
-      .lte('transaction_date', params.endDate)
-      .eq('bank_statement_imports.status', 'completed');
+    // Aggregated in SQL by get_financial_overview (#776): a row download stopped at the 1000-row cap.
+    const { data, error } = await supabase.rpc('get_financial_overview', {
+      p_start_date: params.startDate,
+      p_end_date: params.endDate,
+      p_bank_account_id: params.bankAccountId || null,
+      p_transaction_type: params.transactionType && params.transactionType !== 'all' ? params.transactionType : null,
+    });
 
-    // Filter by bank account if specified
-    if (params.bankAccountId) {
-      query = query.eq('bank_statement_imports.bank_account_id', params.bankAccountId);
-    }
-
-    // Filter by transaction type if specified
-    if (params.transactionType && params.transactionType !== 'all') {
-      query = query.eq('transaction_type', params.transactionType);
-    }
-
-    const { data: rows, error } = await query;
-
-    if (error) {
+    if (error || !data) {
       console.error('Error fetching financial overview:', error);
       return {
         summary: { totalCredits: 0, totalDebits: 0, netBalance: 0, transactionCount: 0 },
         byTag: [],
-        error: error.message,
+        error: error?.message ?? 'Failed to fetch financial overview',
       };
     }
 
-    // Calculate summary
-    let totalCredits = 0;
-    let totalDebits = 0;
-    const tagTotals: Map<
-      string | null,
-      { tagName: string; tagColor: string; transactionType: TransactionTagType; count: number; total: number }
-    > = new Map();
+    const overview = data as {
+      total_credits: number | string;
+      total_debits: number | string;
+      transaction_count: number;
+      by_tag: Array<{
+        tag_id: string | null;
+        tag_name: string;
+        tag_color: string;
+        transaction_type: TransactionTagType;
+        count: number;
+        total: number | string;
+      }>;
+    };
 
-    for (const row of rows || []) {
-      const amount = Number(row.amount) || 0;
-
-      if (row.transaction_type === 'credit') {
-        totalCredits += amount;
-      } else if (row.transaction_type === 'debit') {
-        totalDebits += amount;
-      }
-
-      // Group by tag
-      const tagId = row.tag_id || null;
-      // The join returns an object or null (not array) because it's a single relation
-      const tag = row.transaction_tags as unknown as { id: string; name: string; color: string; transaction_type: TransactionTagType } | null;
-      const tagName = tag?.name || 'Untagged';
-      const tagColor = tag?.color || 'gray';
-      const transactionType = (row.transaction_type || 'credit') as TransactionTagType;
-
-      const existing = tagTotals.get(tagId);
-      if (existing) {
-        existing.count += 1;
-        existing.total += amount;
-      } else {
-        tagTotals.set(tagId, {
-          tagName,
-          tagColor,
-          transactionType,
-          count: 1,
-          total: amount,
-        });
-      }
-    }
-
-    // Convert map to array
-    const byTag: TagBreakdown[] = Array.from(tagTotals.entries()).map(([tagId, data]) => ({
-      tagId,
-      tagName: data.tagName,
-      tagColor: data.tagColor,
-      transactionType: data.transactionType,
-      count: data.count,
-      total: data.total,
+    // Already sorted by total (descending) in SQL
+    const byTag: TagBreakdown[] = (overview.by_tag ?? []).map((tag) => ({
+      tagId: tag.tag_id,
+      tagName: tag.tag_name,
+      tagColor: tag.tag_color,
+      transactionType: tag.transaction_type,
+      count: Number(tag.count) || 0,
+      total: Number(tag.total) || 0,
     }));
 
-    // Sort by total (descending)
-    byTag.sort((a, b) => b.total - a.total);
+    const totalCredits = Number(overview.total_credits) || 0;
+    const totalDebits = Number(overview.total_debits) || 0;
 
     return {
       summary: {
         totalCredits,
         totalDebits,
         netBalance: totalCredits - totalDebits,
-        transactionCount: rows?.length || 0,
+        transactionCount: Number(overview.transaction_count) || 0,
       },
       byTag,
     };

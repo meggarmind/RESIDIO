@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -81,7 +81,8 @@ describe('Payments permission gating (issue #462)', () => {
   it('shows the row delete button to a user holding payments.delete', () => {
     mocks.permissions = [PERMISSIONS.PAYMENTS_VIEW, PERMISSIONS.PAYMENTS_DELETE];
     render(<PaymentTable data={[PAYMENT]} />);
-    expect(screen.getByRole('button', { name: 'Delete payment' })).toBeInTheDocument();
+    expect(within(screen.getByRole('table')).getByRole('button', { name: 'Delete payment' })).toBeInTheDocument();
+    expect(within(screen.getByTestId('payment-card-list')).getByRole('button', { name: 'Delete payment' })).toBeInTheDocument();
   });
 
   it('hides bulk Update Status and Delete Selected from a view-only user, keeps Export', () => {

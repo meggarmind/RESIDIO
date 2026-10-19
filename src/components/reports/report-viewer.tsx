@@ -101,7 +101,7 @@ function VersionHistorySheet({
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-semibold text-sm">Version {version.version}</span>
                     {version.isLatest && (
-                      <span className="text-[10px] bg-emerald-500/10 text-emerald-600 px-1.5 py-0.5 rounded-full font-medium">
+                      <span className="text-xs bg-emerald-500/10 text-emerald-600 px-1.5 py-0.5 rounded-full font-medium">
                         Latest
                       </span>
                     )}

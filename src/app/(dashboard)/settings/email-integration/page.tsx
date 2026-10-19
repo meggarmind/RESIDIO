@@ -1,13 +1,16 @@
 'use client';
 
-import { Suspense, useEffect } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { ConfirmAction } from '@/components/ui/confirm-action';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Label } from '@/components/ui/label';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import {
   AlertCircle,
   CheckCircle2,
@@ -16,6 +19,7 @@ import {
   Mail,
   RefreshCw,
   Settings,
+  ShieldCheck,
   Unlink,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -25,6 +29,15 @@ import {
   useDisconnectGmail,
   useManualFetch,
 } from '@/hooks/use-gmail-connection';
+import { useSettings, useUpdateSetting } from '@/hooks/use-settings';
+import { useCan } from '@/components/auth/can';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import {
+  EMAIL_AUTO_PROCESS_LIMIT_KEY,
+  EMAIL_AUTO_PROCESS_LIMIT_NGN,
+  isValidEmailAutoProcessLimit,
+} from '@/lib/email-imports/utils';
 
 /**
  * Gmail import — connection, credentials, and the operational console
@@ -112,9 +125,18 @@ function EmailIntegrationContent() {
                     <p className="text-sm text-muted-foreground">{connectionStatus.email}</p>
                   </div>
                 </div>
-                <Button variant="outline" onClick={() => disconnectMutation.mutate()} disabled={disconnectMutation.isPending}>
-                  <Unlink className="h-4 w-4 mr-2" /> Disconnect
-                </Button>
+                <ConfirmAction
+                  trigger={
+                    <Button variant="outline" disabled={disconnectMutation.isPending}>
+                      <Unlink className="h-4 w-4 mr-2" /> Disconnect
+                    </Button>
+                  }
+                  title="Disconnect Gmail?"
+                  description={`Bank alert emails stop being fetched from ${connectionStatus.email} until someone connects Gmail again, which needs a fresh Google sign-in.`}
+                  confirmLabel="Disconnect"
+                  destructive
+                  onConfirm={() => disconnectMutation.mutate()}
+                />
               </div>
               <Separator />
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -190,6 +212,8 @@ function EmailIntegrationContent() {
         </Card>
       )}
 
+      <AutoProcessLimitCard />
+
       <Card className="bg-muted/30">
         <CardContent className="pt-6">
           <div className="flex items-center justify-between">
@@ -204,5 +228,73 @@ function EmailIntegrationContent() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/**
+ * The email-import auto-process limit (#710). Shown with settings.view; saving
+ * goes through updateSetting, which for this key needs settings.manage_general
+ * and the super_admin role (owner decision), so the control is gated on both.
+ */
+function AutoProcessLimitCard() {
+  const canView = useCan(PERMISSIONS.SETTINGS_VIEW);
+  const { profile } = useAuth();
+  const canEdit =
+    useCan(PERMISSIONS.SETTINGS_MANAGE_GENERAL) && profile?.role_name === 'super_admin';
+  const { data: settings, isLoading } = useSettings('email_integration');
+  const updateSetting = useUpdateSetting();
+  const [draft, setDraft] = useState<number | null>(null);
+
+  if (!canView) return null;
+
+  const stored = settings?.find((s) => s.key === EMAIL_AUTO_PROCESS_LIMIT_KEY)?.value;
+  const current = stored === undefined ? EMAIL_AUTO_PROCESS_LIMIT_NGN : Number(stored);
+  const value = draft ?? current;
+  const canSave = canEdit && draft !== null && draft !== current && isValidEmailAutoProcessLimit(draft);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <ShieldCheck className="h-5 w-5" /> Approval Limit
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <Skeleton className="h-10 w-64" />
+        ) : (
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="space-y-1">
+              <Label htmlFor="email-auto-process-limit">Auto-process limit (NGN)</Label>
+              <p id="email-auto-process-limit-help" className="text-sm text-muted-foreground">
+                Auto-matched payments above this amount wait for approval.
+              </p>
+              <CurrencyInput
+                id="email-auto-process-limit"
+                aria-describedby="email-auto-process-limit-help"
+                value={value}
+                onValueChange={setDraft}
+                allowDecimals={false}
+                className="w-48 text-right"
+                disabled={!canEdit || updateSetting.isPending}
+              />
+            </div>
+            {canEdit && (
+              <Button
+                onClick={() =>
+                  updateSetting.mutate(
+                    { key: EMAIL_AUTO_PROCESS_LIMIT_KEY, value: String(draft) },
+                    { onSuccess: () => setDraft(null) }
+                  )
+                }
+                disabled={!canSave || updateSetting.isPending}
+              >
+                {updateSetting.isPending ? 'Saving...' : 'Save'}
+              </Button>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

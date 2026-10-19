@@ -2,25 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Loader2, Save, Database, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSystemSettings, useUpdateSettings } from '@/hooks/use-settings';
-import { pruneSystemData } from '@/actions/system/prune-data';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
+import { pruneSystemData, previewPruneSystemData } from '@/actions/system/prune-data';
+import { ConfirmAction } from '@/components/ui/confirm-action';
+import { NumericSettingInput } from '@/components/settings/numeric-setting-input';
 
 function settingsToObject(settings: { key: string; value: unknown }[] | undefined): Record<string, unknown> {
   if (!settings) return {};
@@ -37,6 +27,7 @@ export default function DataRetentionPage() {
   const [auditLogRetentionDays, setAuditLogRetentionDays] = useState(365);
   const [isDirty, setIsDirty] = useState(false);
   const [isPruning, setIsPruning] = useState(false);
+  const [retentionValid, setRetentionValid] = useState(true);
 
   useEffect(() => {
     if (systemSettings) {
@@ -52,17 +43,16 @@ export default function DataRetentionPage() {
     });
   };
 
+  // Throws on failure so the confirmation stays open.
   const handlePruneData = async () => {
     setIsPruning(true);
     try {
-      const result = await pruneSystemData();
-      if (result.error) {
-        toast.error(result.error);
-      } else if (result.data) {
-        toast.success(`Pruned ${result.data.notifications} notifications, ${result.data.auditLogs} audit logs, and ${result.data.searchLogs} search logs.`);
+      const result = await pruneSystemData().catch(() => ({ data: null, error: 'Failed to prune data' }));
+      if (result.error || !result.data) {
+        toast.error(result.error || 'Failed to prune data');
+        throw new Error(result.error || 'Failed to prune data');
       }
-    } catch {
-      toast.error('Failed to prune data');
+      toast.success(`Pruned ${result.data.notifications} notifications, ${result.data.auditLogs} audit logs, ${result.data.searchLogs} search logs, and ${result.data.systemActionLogs} system action log entries.`);
     } finally {
       setIsPruning(false);
     }
@@ -91,21 +81,25 @@ export default function DataRetentionPage() {
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label>Audit Log Retention (days)</Label>
+              <Label htmlFor="audit-log-retention">Audit Log Retention (days)</Label>
               <p className="text-sm text-muted-foreground">Number of days to keep audit log entries before cleanup</p>
             </div>
-            <Input
-              type="number" min={30} max={3650}
+            <NumericSettingInput
+              id="audit-log-retention"
+              min={30}
+              max={3650}
+              integer
+              unit="days"
               value={auditLogRetentionDays}
-              onChange={(e) => { setAuditLogRetentionDays(parseInt(e.target.value) || 365); setIsDirty(true); }}
-              className="w-24 text-center"
+              onCommit={(value) => { setAuditLogRetentionDays(value); setIsDirty(true); }}
+              onValidityChange={setRetentionValid}
             />
           </div>
           <p className="text-xs text-muted-foreground">
-            Note: Audit log cleanup functionality will be implemented in a future release.
+            Note: this setting is stored but not used yet. Prune Data below deletes audit logs older than 6 months, whatever is set here.
           </p>
           <div className="flex justify-end">
-            <Button onClick={handleSaveSettings} disabled={!isDirty || updateSettings.isPending}>
+            <Button onClick={handleSaveSettings} disabled={!isDirty || !retentionValid || updateSettings.isPending}>
               {updateSettings.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <Save className="mr-2 h-4 w-4" /> Save
             </Button>
@@ -126,31 +120,36 @@ export default function DataRetentionPage() {
             <div className="space-y-0.5">
               <Label>Prune Old Data</Label>
               <p className="text-sm text-muted-foreground">
-                Remove old notifications ({'>'}30 days read, {'>'}90 days unread), audit logs ({'>'}6 months), and search history ({'>'}30 days).
+                Remove old notifications ({'>'}30 days read, {'>'}90 days unread), audit logs ({'>'}6 months), search history ({'>'}30 days), and system action log entries ({'>'}90 days).
               </p>
             </div>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30">
-                  <Trash2 className="mr-2 h-4 w-4" /> Prune Data
+            <ConfirmAction
+              trigger={
+                <Button variant="outline" disabled={isPruning} className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30">
+                  {isPruning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />} Prune Data
                 </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This action cannot be undone. This will permanently delete old notifications, audit logs, and search history from the database.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handlePruneData} className="bg-red-600 hover:bg-red-700 text-white">
-                    {isPruning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Yes, Prune Data
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+              }
+              title="Permanently delete old data?"
+              description={
+                <>
+                  <p>This cannot be undone. Rows are deleted from the database by fixed ages: read notifications over 30 days, unread over 90 days, audit logs over 6 months, search history over 30 days, system action log over 90 days.</p>
+                  <p>The Audit Log Retention setting above is not used. Deleted audit logs remove the record of who changed what.</p>
+                </>
+              }
+              confirmLabel="Delete permanently"
+              destructive
+              confirmWord="PRUNE"
+              loadPreview={previewPruneSystemData}
+              renderPreview={(preview) => (
+                <ul className="space-y-1">
+                  <li><strong>{preview.auditLogs}</strong> audit log entries</li>
+                  <li><strong>{preview.notifications}</strong> notifications</li>
+                  <li><strong>{preview.searchLogs}</strong> search history entries</li>
+                  <li><strong>{preview.systemActionLogs}</strong> system action log entries</li>
+                </ul>
+              )}
+              onConfirm={handlePruneData}
+            />
           </div>
         </CardContent>
       </Card>

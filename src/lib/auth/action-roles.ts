@@ -97,6 +97,7 @@ export const PERMISSIONS = {
   IMPORTS_REVIEW: 'imports.review',
   IMPORTS_APPROVE: 'imports.approve',
   IMPORTS_REJECT: 'imports.reject',
+  IMPORTS_RESET: 'imports.reset',
 
   // Approvals Module
   APPROVALS_VIEW: 'approvals.view',
@@ -117,6 +118,8 @@ export const PERMISSIONS = {
   DOCUMENTS_UPDATE: 'documents.update',
   DOCUMENTS_DELETE: 'documents.delete',
   DOCUMENTS_MANAGE_CATEGORIES: 'documents.manage_categories',
+  DOCUMENTS_MANAGE_TAGS: 'documents.manage_tags',
+  DOCUMENTS_MANAGE_CUSTOM_FIELDS: 'documents.manage_custom_fields',
 
   // Expenditure
   EXPENDITURE_VIEW: 'view_expenditure',
@@ -206,6 +209,7 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.IMPORTS_REVIEW,
     PERMISSIONS.IMPORTS_APPROVE,
     PERMISSIONS.IMPORTS_REJECT,
+    PERMISSIONS.IMPORTS_RESET,
   ],
   '/payments/email-imports': [PERMISSIONS.EMAIL_IMPORTS_VIEW],
   '/billing': [PERMISSIONS.BILLING_VIEW],
@@ -277,6 +281,7 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/settings/transaction-tags': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
   '/settings/bank-accounts': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
   '/settings/document-categories': [PERMISSIONS.DOCUMENTS_MANAGE_CATEGORIES],
+  '/settings/document-taxonomy': [PERMISSIONS.DOCUMENTS_MANAGE_TAGS, PERMISSIONS.DOCUMENTS_MANAGE_CUSTOM_FIELDS],
 
   // Access & security
   '/settings/roles': [PERMISSIONS.SYSTEM_MANAGE_ROLES, PERMISSIONS.SYSTEM_ASSIGN_ROLES],

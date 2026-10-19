@@ -1,11 +1,11 @@
 /**
- * Issue #594 part 2 -- toggleRemindersEnabled audited with the settings KEY as entityId
+ * Issue #594 part 2 -- toggleRemindersEnabled (now setRemindersEnabled) audited with the settings KEY as entityId
  * (never written: audit_logs.entity_id is uuid). It now uses the row id returned by
  * updateSetting, keeps the key in the values, and skips the audit when no row came back.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { expectUuidEntityId, uid } from '@/__tests__/helpers/recording-supabase';
-import { toggleRemindersEnabled } from '@/actions/notifications/reminder-config';
+import { setRemindersEnabled } from '@/actions/notifications/reminder-config';
 
 const { authorizePermission, logAudit, updateSetting, getSettingValueAsService } = vi.hoisted(() => ({
   authorizePermission: vi.fn(),
@@ -27,10 +27,10 @@ beforeEach(() => {
   getSettingValueAsService.mockResolvedValue(true);
 });
 
-describe('toggleRemindersEnabled audit', () => {
+describe('setRemindersEnabled audit', () => {
   it('audits once with the settings row id and keeps the key in the values', async () => {
     updateSetting.mockResolvedValue({ data: { id: uid(1) }, error: null });
-    expect((await toggleRemindersEnabled()).success).toBe(true);
+    expect((await setRemindersEnabled(false)).success).toBe(true);
     expect(logAudit).toHaveBeenCalledTimes(1);
     expectUuidEntityId(logAudit);
     expect(logAudit).toHaveBeenCalledWith(
@@ -41,7 +41,13 @@ describe('toggleRemindersEnabled audit', () => {
   });
   it('does not audit when updateSetting returns no row', async () => {
     updateSetting.mockResolvedValue({ data: null, error: 'nope' });
-    await toggleRemindersEnabled();
+    await setRemindersEnabled(false);
     expect(logAudit).not.toHaveBeenCalled();
+  });
+  it('writes the state it is given instead of flipping the stored one (#790)', async () => {
+    getSettingValueAsService.mockResolvedValue(false);
+    updateSetting.mockResolvedValue({ data: { id: uid(1) }, error: null });
+    expect(await setRemindersEnabled(false)).toMatchObject({ success: true, enabled: false });
+    expect(updateSetting).toHaveBeenCalledWith(expect.any(String), false);
   });
 });

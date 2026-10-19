@@ -424,6 +424,7 @@ export function TransactionTagsList() {
                               <button
                                 type="button"
                                 onClick={() => removeKeyword(keyword)}
+                                aria-label={`Remove keyword ${keyword}`}
                                 className="ml-1 rounded-full hover:bg-muted p-0.5"
                               >
                                 <X className="h-3 w-3" />
@@ -550,6 +551,7 @@ export function TransactionTagsList() {
                         size="icon"
                         className="h-8 w-8"
                         onClick={() => openEditDialog(tag)}
+                        aria-label={`Edit tag ${tag.name}`}
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -559,6 +561,7 @@ export function TransactionTagsList() {
                         className="h-8 w-8 text-destructive hover:bg-destructive/10"
                         onClick={() => openDeleteDialog(tag)}
                         disabled={deleteMutation.isPending}
+                        aria-label={`Delete tag ${tag.name}`}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

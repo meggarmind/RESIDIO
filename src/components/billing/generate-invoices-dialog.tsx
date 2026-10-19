@@ -351,7 +351,7 @@ export function GenerateInvoicesDialog({ open, onClose }: GenerateInvoicesDialog
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-md border bg-muted/30 p-3"><p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 text-sm font-semibold tabular-nums">{value}</p></div>;
+  return <div className="rounded-md border bg-muted/30 p-3"><p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 text-sm font-semibold tabular-nums">{value}</p></div>;
 }
 
 function RunProgress({ run, isTerminal, onClose }: { run: NonNullable<ReturnType<typeof useInvoiceGenerationRun>['data']>; isTerminal: boolean; onClose: () => void }) {

@@ -86,6 +86,13 @@
   --color-status-error-subtle: var(--status-error-subtle);
   --color-status-info: var(--status-info);
   --color-status-info-subtle: var(--status-info-subtle);
+  /* text-status-* and text-success/warning use the darker text shade (#767) */
+  --text-color-status-success: var(--status-success-text);
+  --text-color-status-warning: var(--status-warning-text);
+  --text-color-status-error: var(--status-error-text);
+  --text-color-status-info: var(--status-info-text);
+  --text-color-success: var(--status-success-text);
+  --text-color-warning: var(--status-warning-text);
 
   /* Border Colors */
   --color-border-default: var(--border-default);

@@ -1,16 +1,18 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { z } from 'zod';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Globe, Facebook, Instagram, Twitter, Save, Loader2 } from 'lucide-react';
+import { Globe, Facebook, Instagram, Twitter } from 'lucide-react';
 import { ResidentPortalCard } from './resident-portal-card';
-import { useGeneralSettings, useUpdateSettings, useUpdateSetting } from '@/hooks/use-settings';
+import { useGeneralSettings, useUpdateSettings } from '@/hooks/use-settings';
+import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
+import { StickySaveBar } from '@/components/settings/sticky-save-bar';
 
 function settingsToObject(settings: { key: string; value: unknown }[] | undefined): Record<string, string> {
   if (!settings) return {};
@@ -31,18 +33,49 @@ type EstateForm = {
   estate_twitter_url: string;
   estate_instagram_url: string;
   assistant_name: string;
+  disable_ai_assistant: boolean;
+  ai_assistant_greeting_enabled: boolean;
 };
 
 const EMPTY_FORM: EstateForm = {
   estate_name: '', estate_address: '', estate_phone: '', estate_email: '',
   estate_logo_url: '', estate_website_url: '', estate_facebook_url: '',
   estate_twitter_url: '', estate_instagram_url: '', assistant_name: '',
+  disable_ai_assistant: false, ai_assistant_greeting_enabled: true,
 };
+
+const optionalUrl = z.union([
+  z.literal(''),
+  z.url({ protocol: /^https?$/, error: 'Enter a full web address starting with https://' }),
+]);
+
+// Blank is allowed everywhere; what is filled in must be usable (#790).
+const estateFormSchema = z.object({
+  estate_email: z.union([z.literal(''), z.email({ error: 'Enter an email address such as contact@estate.com' })]),
+  estate_website_url: optionalUrl,
+  estate_facebook_url: optionalUrl,
+  estate_twitter_url: optionalUrl,
+  estate_instagram_url: optionalUrl,
+});
+
+function fieldErrors(form: EstateForm): Partial<Record<keyof EstateForm, string>> {
+  const result = estateFormSchema.safeParse(form);
+  if (result.success) return {};
+  const errors: Partial<Record<keyof EstateForm, string>> = {};
+  for (const issue of result.error.issues) {
+    const key = issue.path[0] as keyof EstateForm;
+    errors[key] ??= issue.message;
+  }
+  return errors;
+}
+
+function FieldError({ id, message }: { id: string; message?: string }) {
+  return message ? <p id={id} role="alert" className="text-xs text-destructive">{message}</p> : null;
+}
 
 export default function EstateInfoPage() {
   const { data: generalSettings, isLoading: isLoadingSettings } = useGeneralSettings();
   const updateSettings = useUpdateSettings();
-  const updateSetting = useUpdateSetting();
 
   const settingsObj = useMemo(() => settingsToObject(generalSettings), [generalSettings]);
 
@@ -57,21 +90,29 @@ export default function EstateInfoPage() {
     estate_twitter_url: settingsObj.estate_twitter_url || '',
     estate_instagram_url: settingsObj.estate_instagram_url || '',
     assistant_name: settingsObj.assistant_name || '',
+    disable_ai_assistant: String(settingsObj.disable_ai_assistant) === 'true',
+    ai_assistant_greeting_enabled: String(settingsObj.ai_assistant_greeting_enabled) !== 'false',
   }), [settingsObj]);
 
   const [localOverrides, setLocalOverrides] = useState<Partial<EstateForm>>({});
   const estateForm = useMemo(() => ({ ...EMPTY_FORM, ...serverForm, ...localOverrides }), [serverForm, localOverrides]);
   const isDirty = Object.keys(localOverrides).length > 0;
+  // Only fields edited here are checked, so an old stored value never blocks an unrelated save.
+  const errors = Object.fromEntries(
+    Object.entries(fieldErrors(estateForm)).filter(([key]) => key in localOverrides)
+  ) as Partial<Record<keyof EstateForm, string>>;
+  const hasErrors = Object.keys(errors).length > 0;
+  useUnsavedChangesGuard(isDirty);
 
-  const isAssistantDisabled = String(settingsObj.disable_ai_assistant) === 'true';
-  const isAssistantGreetingEnabled = String(settingsObj.ai_assistant_greeting_enabled) !== 'false';
-
-  const handleInputChange = (field: keyof EstateForm, value: string) => {
+  const handleInputChange = <K extends keyof EstateForm>(field: K, value: EstateForm[K]) => {
     setLocalOverrides(prev => ({ ...prev, [field]: value }));
   };
+  const errorProps = (field: keyof EstateForm, id: string) =>
+    errors[field] ? { 'aria-invalid': true, 'aria-describedby': `${id}-error` } : {};
 
   const handleSaveEstateInfo = async () => {
-    updateSettings.mutate(estateForm, {
+    if (hasErrors) return;
+    updateSettings.mutate(localOverrides, {
       onSuccess: () => {
         setLocalOverrides({});
       }
@@ -123,8 +164,10 @@ export default function EstateInfoPage() {
                       type="email"
                       placeholder="contact@estate.com"
                       value={estateForm.estate_email}
+                      {...errorProps('estate_email', 'estate-email')}
                       onChange={(e) => handleInputChange('estate_email', e.target.value)}
                     />
+                    <FieldError id="estate-email-error" message={errors.estate_email} />
                   </div>
                 </div>
 
@@ -159,9 +202,11 @@ export default function EstateInfoPage() {
                         placeholder="https://www.estate.com"
                         className="pl-10"
                         value={estateForm.estate_website_url}
+                        {...errorProps('estate_website_url', 'estate-website')}
                         onChange={(e) => handleInputChange('estate_website_url', e.target.value)}
                       />
                     </div>
+                    <FieldError id="estate-website-error" message={errors.estate_website_url} />
                   </div>
                 </div>
               </>
@@ -194,9 +239,8 @@ export default function EstateInfoPage() {
                   </div>
                   <Switch
                     id="assistant-visible"
-                    checked={!isAssistantDisabled}
-                    onCheckedChange={(checked) => updateSetting.mutate({ key: 'disable_ai_assistant', value: !checked })}
-                    disabled={updateSetting.isPending}
+                    checked={!estateForm.disable_ai_assistant}
+                    onCheckedChange={(checked) => handleInputChange('disable_ai_assistant', !checked)}
                   />
                 </div>
 
@@ -209,9 +253,8 @@ export default function EstateInfoPage() {
                   </div>
                   <Switch
                     id="assistant-greeting"
-                    checked={isAssistantGreetingEnabled}
-                    onCheckedChange={(checked) => updateSetting.mutate({ key: 'ai_assistant_greeting_enabled', value: checked })}
-                    disabled={updateSetting.isPending}
+                    checked={estateForm.ai_assistant_greeting_enabled}
+                    onCheckedChange={(checked) => handleInputChange('ai_assistant_greeting_enabled', checked)}
                   />
                 </div>
 
@@ -260,9 +303,11 @@ export default function EstateInfoPage() {
                       placeholder="https://facebook.com/yourestate"
                       className="pl-10"
                       value={estateForm.estate_facebook_url}
+                      {...errorProps('estate_facebook_url', 'facebook-url')}
                       onChange={(e) => handleInputChange('estate_facebook_url', e.target.value)}
                     />
                   </div>
+                  <FieldError id="facebook-url-error" message={errors.estate_facebook_url} />
                 </div>
 
                 <div className="space-y-2">
@@ -275,9 +320,11 @@ export default function EstateInfoPage() {
                       placeholder="https://twitter.com/yourestate"
                       className="pl-10"
                       value={estateForm.estate_twitter_url}
+                      {...errorProps('estate_twitter_url', 'twitter-url')}
                       onChange={(e) => handleInputChange('estate_twitter_url', e.target.value)}
                     />
                   </div>
+                  <FieldError id="twitter-url-error" message={errors.estate_twitter_url} />
                 </div>
 
                 <div className="space-y-2">
@@ -290,9 +337,11 @@ export default function EstateInfoPage() {
                       placeholder="https://instagram.com/yourestate"
                       className="pl-10"
                       value={estateForm.estate_instagram_url}
+                      {...errorProps('estate_instagram_url', 'instagram-url')}
                       onChange={(e) => handleInputChange('estate_instagram_url', e.target.value)}
                     />
                   </div>
+                  <FieldError id="instagram-url-error" message={errors.estate_instagram_url} />
                 </div>
               </>
             )}
@@ -300,16 +349,13 @@ export default function EstateInfoPage() {
         </Card>
 
         {!isLoadingSettings && (
-          <div className="flex justify-end">
-            <Button
-              onClick={handleSaveEstateInfo}
-              disabled={!isDirty || updateSettings.isPending}
-            >
-              {updateSettings.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              <Save className="mr-2 h-4 w-4" />
-              Save Changes
-            </Button>
-          </div>
+          <StickySaveBar
+            isDirty={isDirty}
+            isSaving={updateSettings.isPending}
+            canSave={!hasErrors}
+            onSave={handleSaveEstateInfo}
+            onDiscard={() => setLocalOverrides({})}
+          />
         )}
       </div>
     </div>

@@ -44,7 +44,7 @@ const waiverRow = (over: Record<string, unknown> = {}) => ({
   waiver_type: 'full',
   original_late_fee: 100,
   waiver_amount: null,
-  invoice: { id: 'inv-1', invoice_number: 'INV-1', amount_due: 500, metadata: {} },
+  invoice: { id: 'inv-1', invoice_number: 'INV-1', amount_due: 500 },
   ...over,
 });
 
