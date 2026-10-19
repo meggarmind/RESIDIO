@@ -734,7 +734,8 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
             // Check if we can reconcile a pending expense
             if (dupCheck.existing_status === 'pending' && dupCheck.existing_payment_id) {
               // Reconcile: Update status to 'paid' and link
-              await updateExpenseStatus(dupCheck.existing_payment_id, 'paid');
+              const { error: reconcileError } = await updateExpenseStatus(dupCheck.existing_payment_id, 'paid');
+              if (reconcileError) throw new Error(reconcileError);
 
               // Log the reconciliation
               await logAudit({

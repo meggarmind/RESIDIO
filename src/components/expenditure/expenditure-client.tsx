@@ -1,167 +1,170 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Camera, ArrowLeft, ArrowRight, Search, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, Search, X } from 'lucide-react';
 import {
     Table,
     TableBody,
     TableCell,
+    TableFooter,
     TableHead,
     TableHeader,
     TableRow
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatDate } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { ConfirmAction } from '@/components/ui/confirm-action';
 import { MoreHorizontal, CheckCircle2, XCircle } from 'lucide-react';
 import { updateExpenseStatus } from '@/actions/expenses/update-expense';
 import { toast } from 'sonner';
-import { useRouter } from 'next/navigation';
 import { EnhancedTableCard } from '@/components/dashboard/enhanced-stat-card';
+import { EXPENSE_PAGE_SIZES, expenseFiltersToQuery, type ExpenseFilters } from './expense-filters';
+import type { ExpenseCategory } from '@/types/database';
 
 interface Expense {
     id: string;
     expense_date: string;
-    description: string;
+    description: string | null;
     amount: number;
-    status: string;
-    category?: { id: string; name: string };
-    vendor?: { name: string };
-    resident?: { first_name: string; last_name: string };
-    staff?: { full_name: string };
+    status: string | null;
+    category?: { name: string } | null;
+    vendor?: { name: string } | null;
+    resident?: { first_name: string; last_name: string } | null;
+    staff?: { full_name: string } | null;
 }
 
 interface ExpenditureClientProps {
     expenses: Expense[];
-    onLogExpense: () => void;
-    onSnapLog: () => void;
+    /** Every expense matching the filters, not just this page. */
+    count: number;
+    total: number;
+    error: string | null;
+    filters: ExpenseFilters;
+    categories: Pick<ExpenseCategory, 'id' | 'name'>[];
+    /** EXPENDITURE_MANAGE: shows the row status actions. */
+    canManage: boolean;
+}
+
+const STATUS_BADGE: Record<string, 'warning' | 'success' | 'outline'> = {
+    pending: 'warning',
+    paid: 'success',
+    cancelled: 'outline',
+};
+
+function payeeName(expense: Expense) {
+    return expense.vendor?.name ||
+        (expense.resident ? `${expense.resident.first_name} ${expense.resident.last_name}` : null) ||
+        expense.staff?.full_name ||
+        '-';
 }
 
 export function ExpenditureClient({
     expenses,
-    onLogExpense,
-    onSnapLog
+    count,
+    total,
+    error,
+    filters,
+    categories,
+    canManage,
 }: ExpenditureClientProps) {
-    const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(20);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [statusFilter, setStatusFilter] = useState<string>('all');
-    const [categoryFilter, setCategoryFilter] = useState<string>('all');
-    const [payeeTypeFilter, setPayeeTypeFilter] = useState<string>('all');
+    const router = useRouter();
+    const pathname = usePathname();
+    const [isNavigating, startTransition] = useTransition();
+    const [search, setSearch] = useState(filters.search ?? '');
 
-    // Helper functions
-    const matchesSearch = (expense: Expense, query: string) => {
-        const searchLower = query.toLowerCase();
-        return (
-            expense.description?.toLowerCase().includes(searchLower) ||
-            expense.category?.name?.toLowerCase().includes(searchLower) ||
-            expense.vendor?.name?.toLowerCase().includes(searchLower) ||
-            expense.resident?.first_name?.toLowerCase().includes(searchLower) ||
-            expense.resident?.last_name?.toLowerCase().includes(searchLower) ||
-            expense.staff?.full_name?.toLowerCase().includes(searchLower)
-        );
+    const latest = useRef(filters);
+    useEffect(() => {
+        latest.current = filters;
+    }, [filters]);
+
+    const applyFilters = (patch: Partial<ExpenseFilters>) => {
+        // Any filter change starts again at page 1 unless the patch names a page.
+        const next = { ...latest.current, page: 1, ...patch };
+        latest.current = next;
+        startTransition(() => router.push(`${pathname}${expenseFiltersToQuery(next)}`));
     };
 
-    const matchesPayeeType = (expense: Expense, type: string) => {
-        if (type === 'vendor') return !!expense.vendor;
-        if (type === 'resident') return !!expense.resident;
-        if (type === 'staff') return !!expense.staff;
-        return false;
-    };
+    const pushedSearch = useRef<{ search?: string } | null>(null);
 
-    // Get unique categories
-    const categories = useMemo(() => {
-        const uniqueCategories = new Map();
-        expenses.forEach(expense => {
-            if (expense.category) {
-                uniqueCategories.set(expense.category.id, expense.category);
-            }
-        });
-        return Array.from(uniqueCategories.values());
-    }, [expenses]);
+    // Keep the box in step with the URL (back button, Clear filters), but not with its own debounced push.
+    useEffect(() => {
+        const own = pushedSearch.current;
+        pushedSearch.current = null;
+        if (own && own.search === filters.search) return;
+        setSearch(filters.search ?? '');
+    }, [filters.search]);
 
-    // Filter expenses
-    const filteredExpenses = useMemo(() => {
-        return expenses.filter(expense => {
-            // Search filter
-            if (searchQuery && !matchesSearch(expense, searchQuery)) return false;
-            // Status filter
-            if (statusFilter !== 'all' && expense.status !== statusFilter) return false;
-            // Category filter
-            if (categoryFilter !== 'all' && expense.category?.id !== categoryFilter) return false;
-            // Payee type filter
-            if (payeeTypeFilter !== 'all' && !matchesPayeeType(expense, payeeTypeFilter)) return false;
-            return true;
-        });
-    }, [expenses, searchQuery, statusFilter, categoryFilter, payeeTypeFilter]);
+    // Debounce typing into the URL.
+    useEffect(() => {
+        const term = search.trim() || undefined;
+        if (term === latest.current.search) return;
+        const timer = setTimeout(() => {
+            pushedSearch.current = { search: term };
+            applyFilters({ search: term });
+        }, 400);
+        return () => clearTimeout(timer);
+        // The effect only cares about the typed term; applyFilters reads the latest filters from the ref.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [search]);
 
-    // Pagination
-    const totalPages = Math.ceil(filteredExpenses.length / pageSize);
-    const paginatedExpenses = filteredExpenses.slice((page - 1) * pageSize, page * pageSize);
-
-    const handleClearFilters = () => {
-        setSearchQuery('');
-        setStatusFilter('all');
-        setCategoryFilter('all');
-        setPayeeTypeFilter('all');
-        setPage(1);
-    };
+    const hasFilters = !!(filters.status || filters.categoryId || filters.search);
+    const totalPages = Math.max(1, Math.ceil(count / filters.pageSize));
+    const firstRow = count === 0 ? 0 : (filters.page - 1) * filters.pageSize + 1;
+    const lastRow = Math.min(filters.page * filters.pageSize, count);
+    const columns = canManage ? 7 : 6;
 
     return (
-        <EnhancedTableCard
-            title="Expense Ledger"
-            description="All estate expenses and transactions"
-        >
-            {/* Integrated Toolbar */}
-            <div className="flex flex-col sm:flex-row gap-4 mb-4">
-                {/* Primary Search - flex-1 */}
+        <EnhancedTableCard>
+            <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center">
+                <ToggleGroup
+                    type="single"
+                    variant="outline"
+                    aria-label="Filter by status"
+                    value={filters.status ?? 'all'}
+                    onValueChange={(value) => {
+                        // Radix sends '' when the pressed item is clicked again; keep the selection.
+                        if (!value) return;
+                        applyFilters({ status: value === 'all' ? undefined : (value as ExpenseFilters['status']) });
+                    }}
+                    className="w-full md:w-auto"
+                >
+                    <ToggleGroupItem value="all" className="h-11 flex-1 px-4 md:h-9 md:flex-none">All</ToggleGroupItem>
+                    <ToggleGroupItem value="pending" className="h-11 flex-1 px-4 md:h-9 md:flex-none">Pending</ToggleGroupItem>
+                    <ToggleGroupItem value="paid" className="h-11 flex-1 px-4 md:h-9 md:flex-none">Paid</ToggleGroupItem>
+                </ToggleGroup>
+
                 <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" aria-hidden />
                     <Input
+                        type="search"
+                        aria-label="Search expenses"
                         placeholder="Search by description, payee, or category..."
-                        className="pl-9"
-                        value={searchQuery}
-                        onChange={(e) => {
-                            setSearchQuery(e.target.value);
-                            setPage(1);
-                        }}
+                        className="h-11 pl-9 md:h-9"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
                     />
                 </div>
 
-                {/* Status Filter */}
-                <Select value={statusFilter} onValueChange={(val) => {
-                    setStatusFilter(val);
-                    setPage(1);
-                }}>
-                    <SelectTrigger className="w-[150px]">
-                        <SelectValue placeholder="All Status" />
+                <Select
+                    value={filters.categoryId ?? 'all'}
+                    onValueChange={(value) => applyFilters({ categoryId: value === 'all' ? undefined : value })}
+                >
+                    <SelectTrigger aria-label="Filter by category" className="h-11 w-full md:h-9 md:w-[200px]">
+                        <SelectValue placeholder="All categories" />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="all">All Status</SelectItem>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="paid">Paid</SelectItem>
-                        <SelectItem value="cancelled">Cancelled</SelectItem>
-                    </SelectContent>
-                </Select>
-
-                {/* Category Filter */}
-                <Select value={categoryFilter} onValueChange={(val) => {
-                    setCategoryFilter(val);
-                    setPage(1);
-                }}>
-                    <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="All Categories" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All Categories</SelectItem>
+                        <SelectItem value="all">All categories</SelectItem>
                         {categories.map((category) => (
                             <SelectItem key={category.id} value={category.id}>
                                 {category.name}
@@ -170,98 +173,26 @@ export function ExpenditureClient({
                     </SelectContent>
                 </Select>
 
-                {/* Payee Type Filter */}
-                <Select value={payeeTypeFilter} onValueChange={(val) => {
-                    setPayeeTypeFilter(val);
-                    setPage(1);
-                }}>
-                    <SelectTrigger className="w-[150px]">
-                        <SelectValue placeholder="All Payees" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All Payees</SelectItem>
-                        <SelectItem value="vendor">Vendor</SelectItem>
-                        <SelectItem value="resident">Resident</SelectItem>
-                        <SelectItem value="staff">Staff</SelectItem>
-                    </SelectContent>
-                </Select>
-
-                {/* Action Buttons */}
-                <Button onClick={onSnapLog} variant="secondary" className="gap-2">
-                    <Camera className="h-4 w-4" />
-                    Snap & Log
-                </Button>
-                <Button onClick={onLogExpense} className="gap-2">
-                    <Plus className="h-4 w-4" />
-                    Log Expense
-                </Button>
-            </div>
-
-            {/* Active Filter Badges */}
-            {(statusFilter !== 'all' || categoryFilter !== 'all' || payeeTypeFilter !== 'all' || searchQuery) && (
-                <div className="flex items-center gap-2 mb-4">
-                    {statusFilter !== 'all' && (
-                        <Badge variant="secondary" className="gap-1">
-                            Status: <span className="capitalize">{statusFilter}</span>
-                            <button
-                                onClick={() => setStatusFilter('all')}
-                                aria-label="Clear status filter"
-                                className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
-                            >
-                                <X className="h-3 w-3" />
-                            </button>
-                        </Badge>
-                    )}
-                    {categoryFilter !== 'all' && (
-                        <Badge variant="secondary" className="gap-1">
-                            Category: {categories.find(c => c.id === categoryFilter)?.name}
-                            <button
-                                onClick={() => setCategoryFilter('all')}
-                                aria-label="Clear category filter"
-                                className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
-                            >
-                                <X className="h-3 w-3" />
-                            </button>
-                        </Badge>
-                    )}
-                    {payeeTypeFilter !== 'all' && (
-                        <Badge variant="secondary" className="gap-1">
-                            Payee: <span className="capitalize">{payeeTypeFilter}</span>
-                            <button
-                                onClick={() => setPayeeTypeFilter('all')}
-                                aria-label="Clear payee filter"
-                                className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
-                            >
-                                <X className="h-3 w-3" />
-                            </button>
-                        </Badge>
-                    )}
-                    {searchQuery && (
-                        <Badge variant="secondary" className="gap-1">
-                            Search: {searchQuery}
-                            <button
-                                onClick={() => setSearchQuery('')}
-                                aria-label="Clear search filter"
-                                className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
-                            >
-                                <X className="h-3 w-3" />
-                            </button>
-                        </Badge>
-                    )}
+                {hasFilters && (
                     <Button
                         variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-xs"
-                        onClick={handleClearFilters}
+                        className="h-11 gap-1 md:h-9"
+                        onClick={() => {
+                            setSearch('');
+                            applyFilters({ status: undefined, categoryId: undefined, search: undefined });
+                        }}
                     >
-                        Clear all
+                        <X className="h-4 w-4" />
+                        Clear filters
                     </Button>
-                </div>
-            )}
+                )}
+            </div>
 
-            {/* Table Wrapper */}
-            <div className="rounded-xl border overflow-hidden shadow-soft animate-slide-up">
-                <Table>
+            <div
+                className="rounded-xl border overflow-x-auto shadow-soft animate-slide-up transition-opacity aria-busy:opacity-60"
+                aria-busy={isNavigating}
+            >
+                <Table className="min-w-[720px]">
                     <TableHeader>
                         <TableRow interactive={false}>
                             <TableHead>Date</TableHead>
@@ -270,121 +201,108 @@ export function ExpenditureClient({
                             <TableHead>Description</TableHead>
                             <TableHead className="text-right">Amount</TableHead>
                             <TableHead>Status</TableHead>
+                            {canManage && <TableHead className="w-12"><span className="sr-only">Actions</span></TableHead>}
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {paginatedExpenses.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
-                                    No expenses found.
+                        {error ? (
+                            <TableRow interactive={false}>
+                                <TableCell colSpan={columns} className="py-12 text-center text-muted-foreground" role="alert">
+                                    <span className="inline-flex items-center gap-2">
+                                        <AlertCircle className="h-4 w-4" />
+                                        Could not load expenses. Refresh to try again.
+                                    </span>
+                                </TableCell>
+                            </TableRow>
+                        ) : expenses.length === 0 ? (
+                            <TableRow interactive={false}>
+                                <TableCell colSpan={columns} className="text-center py-12 text-muted-foreground">
+                                    {hasFilters ? 'No expenses match these filters.' : 'No expenses recorded yet.'}
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            paginatedExpenses.map((expense) => (
-                                <TableRow key={expense.id} className="hover:bg-gray-50 dark:hover:bg-[#0F172A]">
-                                    <TableCell>{new Date(expense.expense_date).toLocaleDateString()}</TableCell>
+                            expenses.map((expense) => (
+                                <TableRow key={expense.id}>
+                                    <TableCell className="whitespace-nowrap tabular-nums">{formatDate(expense.expense_date)}</TableCell>
                                     <TableCell>{expense.category?.name || '-'}</TableCell>
-                                    <TableCell>
-                                        {expense.vendor?.name ||
-                                            (expense.resident ? `${expense.resident.first_name} ${expense.resident.last_name}` : null) ||
-                                            expense.staff?.full_name ||
-                                            '-'}
-                                    </TableCell>
+                                    <TableCell>{payeeName(expense)}</TableCell>
                                     <TableCell className="max-w-xs truncate">{expense.description}</TableCell>
-                                    <TableCell className="text-right font-medium">
+                                    <TableCell className="text-right font-medium tabular-nums whitespace-nowrap">
                                         {formatCurrency(expense.amount)}
                                     </TableCell>
                                     <TableCell>
-                                        <Badge
-                                            variant={expense.status === 'paid' ? 'success' : expense.status === 'cancelled' ? 'destructive' : 'secondary'}
-                                            className="rounded-full"
-                                        >
+                                        <Badge variant={STATUS_BADGE[expense.status ?? ''] ?? 'outline'} className="rounded-full capitalize">
                                             {expense.status}
                                         </Badge>
-                                        {expense.status === 'pending' && (
-                                            <span className="ml-2 inline-block">
-                                                <ExpenseActions expense={expense} />
-                                            </span>
-                                        )}
                                     </TableCell>
+                                    {canManage && (
+                                        <TableCell className="w-12 text-right">
+                                            {expense.status === 'pending' && <ExpenseActions expense={expense} />}
+                                        </TableCell>
+                                    )}
                                 </TableRow>
                             ))
                         )}
                     </TableBody>
+                    {!error && count > 0 && (
+                        <TableFooter>
+                            <TableRow interactive={false}>
+                                <TableCell colSpan={4} className="font-medium">
+                                    Total{hasFilters ? ' (filtered)' : ''}, {count} {count === 1 ? 'expense' : 'expenses'}
+                                </TableCell>
+                                <TableCell className="text-right font-semibold tabular-nums whitespace-nowrap">
+                                    {formatCurrency(total)}
+                                </TableCell>
+                                <TableCell colSpan={columns - 5} />
+                            </TableRow>
+                        </TableFooter>
+                    )}
                 </Table>
             </div>
 
-            {/* Pagination Footer */}
-            {filteredExpenses.length > 0 && (
+            {!error && count > 0 && (
                 <div className="flex flex-col sm:flex-row gap-4 justify-between items-center mt-4">
-                    {/* Left Section - Settings */}
                     <div className="flex items-center gap-4">
                         <div className="flex items-center gap-2">
-                            <span className="text-sm text-muted-foreground">Rows per page</span>
+                            <span className="text-sm text-muted-foreground" id="expense-page-size-label">Rows per page</span>
                             <Select
-                                value={pageSize.toString()}
-                                onValueChange={(val) => {
-                                    setPageSize(Number(val));
-                                    setPage(1);
-                                }}
+                                value={String(filters.pageSize)}
+                                onValueChange={(value) => applyFilters({ pageSize: Number(value) })}
                             >
-                                <SelectTrigger className="h-8 w-[70px] rounded-xl">
+                                <SelectTrigger aria-labelledby="expense-page-size-label" className="h-11 w-[76px] rounded-xl md:h-8">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="10">10</SelectItem>
-                                    <SelectItem value="20">20</SelectItem>
-                                    <SelectItem value="50">50</SelectItem>
+                                    {EXPENSE_PAGE_SIZES.map((size) => (
+                                        <SelectItem key={size} value={String(size)}>{size}</SelectItem>
+                                    ))}
                                 </SelectContent>
                             </Select>
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                            Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, filteredExpenses.length)} of {filteredExpenses.length} expenses
+                        <p className="text-sm text-muted-foreground tabular-nums">
+                            {firstRow}-{lastRow} of {count}
                         </p>
                     </div>
 
-                    {/* Right Section - Navigation */}
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-2">
                         <Button
                             variant="outline"
-                            size="sm"
-                            onClick={() => setPage(p => Math.max(1, p - 1))}
-                            disabled={page === 1}
-                            className="h-8 w-9 p-0"
+                            aria-label="Previous page"
+                            onClick={() => applyFilters({ page: latest.current.page - 1 })}
+                            disabled={filters.page <= 1}
+                            className="h-11 w-11 p-0 md:h-8 md:w-9"
                         >
                             <ArrowLeft className="h-4 w-4" />
                         </Button>
-                        <div className="flex items-center gap-1">
-                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                                let pageNum: number;
-                                if (totalPages <= 5) {
-                                    pageNum = i + 1;
-                                } else if (page <= 3) {
-                                    pageNum = i + 1;
-                                } else if (page >= totalPages - 2) {
-                                    pageNum = totalPages - 4 + i;
-                                } else {
-                                    pageNum = page - 2 + i;
-                                }
-                                return (
-                                    <Button
-                                        key={pageNum}
-                                        variant={page === pageNum ? 'default' : 'outline'}
-                                        size="sm"
-                                        onClick={() => setPage(pageNum)}
-                                        className="h-8 w-9 p-0"
-                                    >
-                                        {pageNum}
-                                    </Button>
-                                );
-                            })}
-                        </div>
+                        <span className="text-sm text-muted-foreground tabular-nums">
+                            Page {filters.page} of {totalPages}
+                        </span>
                         <Button
                             variant="outline"
-                            size="sm"
-                            onClick={() => setPage(p => p + 1)}
-                            disabled={page >= totalPages}
-                            className="h-8 w-9 p-0"
+                            aria-label="Next page"
+                            onClick={() => applyFilters({ page: latest.current.page + 1 })}
+                            disabled={filters.page >= totalPages}
+                            className="h-11 w-11 p-0 md:h-8 md:w-9"
                         >
                             <ArrowRight className="h-4 w-4" />
                         </Button>
@@ -395,37 +313,77 @@ export function ExpenditureClient({
     );
 }
 
+function errorMessage(error: unknown) {
+    return error instanceof Error && error.message ? error.message : 'Failed to update status';
+}
+
+/** Row actions for a pending expense. Rendered only for EXPENDITURE_MANAGE holders. */
 function ExpenseActions({ expense }: { expense: Expense }) {
     const router = useRouter();
+    const [isPending, setIsPending] = useState(false);
+    const [confirmCancel, setConfirmCancel] = useState(false);
+    // A ref, not state: a second click can land before the disabled re-render.
+    const inFlight = useRef(false);
 
-    const handleUpdateStatus = async (status: 'paid' | 'cancelled') => {
+    const updateStatus = async (status: 'paid' | 'cancelled') => {
+        if (inFlight.current) return;
+        inFlight.current = true;
+        setIsPending(true);
         try {
-            await updateExpenseStatus(expense.id, status);
+            const { error } = await updateExpenseStatus(expense.id, status);
+            if (error) throw new Error(error);
             toast.success(`Expense marked as ${status}`);
             router.refresh();
-        } catch {
-            toast.error('Failed to update status');
+        } catch (error) {
+            toast.error(errorMessage(error));
+            // ConfirmAction keeps its dialog open on a throw so the admin can retry or cancel.
+            throw error;
+        } finally {
+            inFlight.current = false;
+            setIsPending(false);
         }
     };
 
     return (
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-8 w-8 p-0">
-                    <span className="sr-only">Open menu</span>
-                    <MoreHorizontal className="h-4 w-4" />
-                </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleUpdateStatus('paid')}>
-                    <CheckCircle2 className="mr-2 h-4 w-4 text-green-600" />
-                    Mark as Paid
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleUpdateStatus('cancelled')}>
-                    <XCircle className="mr-2 h-4 w-4 text-red-600" />
-                    Cancel Expense
-                </DropdownMenuItem>
-            </DropdownMenuContent>
-        </DropdownMenu>
+        <>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button
+                        variant="ghost"
+                        className="h-11 w-11 p-0 md:h-8 md:w-8"
+                        disabled={isPending}
+                        aria-label={`Actions for ${expense.description || 'expense'}`}
+                    >
+                        <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    <DropdownMenuItem disabled={isPending} onSelect={() => updateStatus('paid').catch(() => {})}>
+                        <CheckCircle2 className="mr-2 h-4 w-4 text-success" />
+                        Mark as Paid
+                    </DropdownMenuItem>
+                    <DropdownMenuItem disabled={isPending} onSelect={() => setConfirmCancel(true)}>
+                        <XCircle className="mr-2 h-4 w-4 text-muted-foreground" />
+                        Cancel Expense
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+
+            <ConfirmAction
+                open={confirmCancel}
+                onOpenChange={setConfirmCancel}
+                title="Cancel this expense?"
+                description={
+                    <p>
+                        {expense.description || 'This expense'} for{' '}
+                        <span className="font-medium tabular-nums">{formatCurrency(expense.amount)}</span> will be
+                        marked cancelled. It stays in the ledger but no longer counts as pending.
+                    </p>
+                }
+                confirmLabel="Mark cancelled"
+                destructive
+                onConfirm={() => updateStatus('cancelled')}
+            />
+        </>
     );
 }

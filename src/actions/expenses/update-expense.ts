@@ -9,7 +9,7 @@ import type { ExpenseStatus } from '@/types/database';
 
 export async function updateExpenseStatus(expenseId: string, status: ExpenseStatus) {
     const { authorized } = await authorizePermission(PERMISSIONS.EXPENDITURE_MANAGE);
-    if (!authorized) throw new Error('Unauthorized');
+    if (!authorized) return { error: 'Unauthorized' };
 
     const supabase = await createServerSupabaseClient();
 
@@ -21,11 +21,11 @@ export async function updateExpenseStatus(expenseId: string, status: ExpenseStat
         .single();
 
     if (fetchError || !existingExpense) {
-        throw new Error('Expense not found');
+        return { error: 'Expense not found' };
     }
 
     if (existingExpense.status === status) {
-        return { success: true }; // No change needed
+        return { error: null }; // No change needed
     }
 
     // Prepare update data
@@ -46,7 +46,7 @@ export async function updateExpenseStatus(expenseId: string, status: ExpenseStat
 
     if (updateError) {
         console.error('Error updating expense status:', updateError);
-        throw new Error('Failed to update expense status');
+        return { error: 'Failed to update expense status' };
     }
 
     // Audit log
@@ -62,5 +62,5 @@ export async function updateExpenseStatus(expenseId: string, status: ExpenseStat
     revalidatePath('/expenditure');
     revalidatePath('/analytics'); // Status change might affect financial reports pending/paid split
 
-    return { success: true };
+    return { error: null };
 }
