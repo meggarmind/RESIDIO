@@ -5,14 +5,13 @@
 // but `WalletBalance` was imported by nothing -- the control was orphaned.
 //
 // These tests pin the three things that must stay true:
-//   1. the resident detail page mounts `WalletBalance` (AC-1);
+//   1. the resident detail page mounts `WalletBalance` (AC-1) -- rendered in
+//      resident-detail-page-783.test.tsx;
 //   2. the "Adjust" control is gated on the WRITE permission
 //      `billing.manage_wallets`, not on the route's view permission (AC-2,
 //      CORE.md s6) -- a viewer without it still sees the balance;
 //   3. submitting the dialog reaches `useCreditWallet` / `useDebitWallet`.
 
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
@@ -106,33 +105,6 @@ function mockPermissions(granted: string[]) {
 const MANAGE_WALLETS = 'billing.manage_wallets';
 /** The route's VIEW permission -- deliberately NOT what the button is gated on. */
 const RESIDENTS_VIEW = 'residents.view';
-
-// Since #783 the wallet lives on the page's "Money" tab component.
-describe('WalletBalance is mounted on the resident detail page (#120)', () => {
-  const pageSource = readFileSync(
-    resolve(process.cwd(), 'src/app/(dashboard)/residents/[id]/page.tsx'),
-    'utf8'
-  );
-  const moneyTabSource = readFileSync(
-    resolve(process.cwd(), 'src/components/residents/resident-money-tab.tsx'),
-    'utf8'
-  );
-
-  it('the page mounts the Money tab', () => {
-    expect(pageSource).toMatch(/import\('@\/components\/residents\/resident-money-tab'\)/);
-    expect(pageSource).toMatch(/<ResidentMoneyTab\s+resident=\{resident\}/);
-  });
-
-  it('imports WalletBalance from the residents component directory', () => {
-    expect(moneyTabSource).toMatch(
-      /import\s*\{\s*WalletBalance\s*\}\s*from\s*'@\/components\/residents\/wallet-balance'/
-    );
-  });
-
-  it('renders <WalletBalance> with the resident id', () => {
-    expect(moneyTabSource).toMatch(/<WalletBalance\s+residentId=\{id\}/);
-  });
-});
 
 describe('WalletBalance adjustment control permission gate (#120)', () => {
   it('hides the Adjust control from a user lacking billing.manage_wallets', () => {

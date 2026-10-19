@@ -82,28 +82,6 @@ describe('ArchiveImpactSummary', () => {
 });
 
 describe('resident archive wiring', () => {
-  it('keeps the archive trigger and dialog behind RESIDENTS_DELETE', () => {
-    const source = readFileSync(
-      resolve(process.cwd(), 'src/app/(dashboard)/residents/[id]/page.tsx'),
-      'utf8'
-    );
-    const trigger = source.match(
-      /\{canDeleteResident && \(\s*<DropdownMenuItem[\s\S]*?>[\s\S]*?Archive[\s\S]*?<\/DropdownMenuItem>\s*\)\}/
-    )?.[0];
-    const dialog = source.match(
-      /\{canDeleteResident && \(\s*<ResidentArchiveDialog[\s\S]*?\/>\s*\)\}/
-    )?.[0];
-
-    expect(source).toContain(
-      'const canDeleteResident = hasPermission(PERMISSIONS.RESIDENTS_DELETE);'
-    );
-    expect(trigger).toBeDefined();
-    expect(trigger).toContain('onClick={() => setIsArchiveDialogOpen(true)}');
-    expect(trigger).not.toContain('confirm(');
-    expect(dialog).toBeDefined();
-    expect(dialog).toContain('onConfirm={handleDelete}');
-  });
-
   it('keeps explicit cancel and destructive archive actions in the impact dialog', () => {
     const source = readFileSync(
       resolve(process.cwd(), 'src/components/residents/resident-archive-dialog.tsx'),

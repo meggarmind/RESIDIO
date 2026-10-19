@@ -134,6 +134,7 @@ export function WalletPaymentBatchTools({
         // debit mutations in use-wallet.ts do, or this card would show a
         // stale figure until an unrelated refetch happened to occur.
         queryClient.invalidateQueries({ queryKey: ['wallet', residentId] });
+        queryClient.invalidateQueries({ queryKey: ['yearly-wallet-transactions', residentId] });
         await loadInvoices();
     };
 

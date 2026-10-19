@@ -6,7 +6,7 @@ residio_sources:
   - src/app/(dashboard)/residents/[id]/**
   - src/actions/residents/transfer-ownership.ts
   - src/actions/residents/unassign-house.ts
-residio_verified_commit: 777c50d4
+residio_verified_commit: c4b751c2
 residio_verified_at: '2026-10-19'
 residio_app_version: '0.4.0'
 ---

@@ -6,11 +6,9 @@
 //      (CORE.md s6), and shown to a holder.
 //   2. The Link dialog's house and sponsor lists load only while the dialog is open.
 //   3. Payments are paged on the server.
-//   4. The tab strip is controlled by `?tab=` (back/forward), legacy tab links resolve,
-//      and a load failure is not reported as "not found".
+//   4. Legacy tab links resolve, and a load failure is not reported as "not found".
+// The rendered page is covered in resident-detail-page-783.test.tsx.
 
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
@@ -263,40 +261,12 @@ describe('resolveResidentTab (#783)', () => {
 describe('isResidentNotFoundError (#783)', () => {
   it('treats a missing row or a malformed id as not found', () => {
     expect(isResidentNotFoundError('JSON object requested, multiple (or no) rows returned')).toBe(true);
+    expect(isResidentNotFoundError('Cannot coerce the result to a single JSON object')).toBe(true);
     expect(isResidentNotFoundError('invalid input syntax for type uuid: "abc"')).toBe(true);
   });
 
   it('treats network and server failures as failures', () => {
     expect(isResidentNotFoundError('Failed to fetch')).toBe(false);
     expect(isResidentNotFoundError(undefined)).toBe(false);
-  });
-});
-
-describe('resident detail page wiring (#783)', () => {
-  const source = readFileSync(resolve(process.cwd(), 'src/app/(dashboard)/residents/[id]/page.tsx'), 'utf8');
-
-  it('drives the tabs from the URL so back/forward switches tab', () => {
-    expect(source).toContain('const activeTab = resolveResidentTab(tabParam, canViewNotes);');
-    expect(source).toMatch(/<Tabs value=\{activeTab\}/);
-    expect(source).not.toMatch(/<Tabs[^>]*defaultValue/);
-    expect(source).not.toContain('setTimeout(');
-  });
-
-  it('confirms verification with an AlertDialog, not native confirm()', () => {
-    expect(source).not.toMatch(/\bconfirm\(/);
-    expect(source).toMatch(/\{canVerifyResident && \(\s*<AlertDialog open=\{isVerifyDialogOpen\}/);
-  });
-
-  it('loads the non-Overview tabs on demand', () => {
-    for (const mod of ['resident-money-tab', 'resident-security-contacts']) {
-      expect(source).toContain(`import('@/components/residents/${mod}')`);
-      expect(source).not.toContain(`from '@/components/residents/${mod}'`);
-    }
-    expect(source).not.toContain("from 'framer-motion'");
-  });
-
-  it('has no fixed-height nested scroll boxes and no hard-coded green badges', () => {
-    expect(source).not.toMatch(/h-\[460px\]|max-h-\[calc\(100vh-12rem\)\]/);
-    expect(source).not.toContain('bg-green-100');
   });
 });

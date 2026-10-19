@@ -75,6 +75,7 @@ export function useVerifyPaystackPayment() {
       queryClient.invalidateQueries({ queryKey: ['payments'] });
       queryClient.invalidateQueries({ queryKey: ['resident-wallet'] });
       queryClient.invalidateQueries({ queryKey: ['wallet-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['yearly-wallet-transactions'] });
       queryClient.invalidateQueries({ queryKey: ['resident-indebtedness'] });
 
       if (data?.status === 'success') {

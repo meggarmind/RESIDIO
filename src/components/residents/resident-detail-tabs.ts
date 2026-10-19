@@ -23,5 +23,5 @@ export function resolveResidentTab(tabParam: string | null, canViewNotes: boolea
  * real failure (network, server) and must not be reported as "not found".
  */
 export function isResidentNotFoundError(message: string | undefined): boolean {
-  return !!message && /(0|no\)) rows|invalid input syntax for type uuid/i.test(message);
+  return !!message && /(0|no\)) rows|cannot coerce the result to a single json object|invalid input syntax for type uuid/i.test(message);
 }
