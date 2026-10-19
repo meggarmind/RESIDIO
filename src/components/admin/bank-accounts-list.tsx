@@ -64,7 +64,7 @@ export function BankAccountsList() {
   const includeInactive = Boolean(canAutoApprove) && (statusFilter === 'all' || statusFilter === 'inactive') && Boolean(canViewInactive?.authorized);
 
   // Data queries
-  const { data: accountsData, isLoading, refetch } = useBankAccounts(includeInactive);
+  const { data: accountsData, isLoading } = useBankAccounts(includeInactive);
 
   // Mutations
   const createMutation = useCreateBankAccount();

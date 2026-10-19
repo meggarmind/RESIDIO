@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Mail, Bell, FileText, UserPlus, Loader2, Info, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Mail, Bell, FileText, UserPlus, Info, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useSettings, useUpdateSetting } from '@/hooks/use-settings';
 import { getEmailStatus } from '@/actions/email/get-email-status';
 import { useAuth } from '@/lib/auth/auth-provider';

@@ -16,7 +16,6 @@ import {
   Clock,
   History,
   FileText,
-  Settings2,
   ArrowRight,
   Bell,
   MessageSquare,

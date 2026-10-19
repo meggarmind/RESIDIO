@@ -43,7 +43,6 @@ import {
   Power,
   PowerOff,
   Calendar,
-  Clock,
   Zap,
   RefreshCw,
 } from 'lucide-react';
