@@ -101,7 +101,7 @@ This is distinct from the rollout mode described below: the master switch decide
 | `Pilot` | Only named residents, plus every resident on one nominated street. |
 | `Estate` | All residents. |
 
-Use **Rollout and pilot controls** to set the mode. In pilot mode you supply a list of resident IDs, a pilot street, or both — a resident matching either rule is included.
+Use **Rollout and pilot controls** to set the mode. In pilot mode you choose pilot residents by name from a searchable list (each entry shows the resident code and house, to tell same-name residents apart), a pilot street, or both — a resident matching either rule is included.
 
 ### Promote a pilot to the estate
 
