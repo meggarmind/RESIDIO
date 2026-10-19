@@ -199,7 +199,7 @@ export function BankAccountsList() {
         {canManage && (
         <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
           <DialogTrigger asChild>
-            <Button size="sm" onClick={openCreateDialog}>
+            <Button size="sm" className="min-h-11 md:min-h-8" onClick={openCreateDialog}>
               <Plus className="mr-2 h-4 w-4" />
               Add Account
             </Button>
@@ -341,7 +341,7 @@ export function BankAccountsList() {
                     title="No bank accounts here"
                     description="Bank accounts receive statement imports and payments."
                     action={canManage && (
-                      <Button size="sm" onClick={openCreateDialog}>
+                      <Button size="sm" className="min-h-11 md:min-h-8" onClick={openCreateDialog}>
                         <Plus className="mr-2 h-4 w-4" />
                         Add Account
                       </Button>

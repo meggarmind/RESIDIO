@@ -302,7 +302,7 @@ export function RolesList() {
         {canManage && (
         <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
           <DialogTrigger asChild>
-            <Button size="sm" onClick={openCreateDialog}>
+            <Button size="sm" className="min-h-11 md:min-h-8" onClick={openCreateDialog}>
               <Plus className="mr-2 h-4 w-4" />
               Add Role
             </Button>

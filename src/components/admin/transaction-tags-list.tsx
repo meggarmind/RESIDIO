@@ -422,6 +422,7 @@ export function TransactionTagsList() {
                           type="button"
                           variant="outline"
                           size="sm"
+                          className="min-h-11 md:min-h-8"
                           onClick={addKeyword}
                           disabled={!newKeyword.trim()}
                         >

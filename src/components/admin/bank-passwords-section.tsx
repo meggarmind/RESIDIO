@@ -178,7 +178,7 @@ export function BankPasswordsSection() {
                         )}
                       </>
                     ) : canManage ? (
-                      <Button variant="outline" size="sm" onClick={() => handleOpenDialog(account)}>
+                      <Button variant="outline" size="sm" className="min-h-11 md:min-h-8" onClick={() => handleOpenDialog(account)}>
                         <Key className="h-4 w-4 mr-2" />
                         Set Password
                       </Button>
