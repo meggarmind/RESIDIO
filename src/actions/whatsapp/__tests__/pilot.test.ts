@@ -2,13 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { logAudit } from '@/lib/audit/logger';
 import { createAdminClient } from '@/lib/supabase/server';
-import { promoteWhatsAppPilotToEstate, updateWhatsAppPilotSettings, type PilotSettings } from '../pilot';
+import { getWhatsAppPilotResidentOptions, promoteWhatsAppPilotToEstate, updateWhatsAppPilotSettings, type PilotSettings } from '../pilot';
 
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: vi.fn() }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit: vi.fn() }));
 vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
-vi.mock('@/lib/auth/action-roles', () => ({ PERMISSIONS: { WHATSAPP_MANAGE: 'whatsapp.manage' } }));
+vi.mock('@/lib/auth/action-roles', () => ({ PERMISSIONS: { WHATSAPP_MANAGE: 'whatsapp.manage', WHATSAPP_VIEW: 'whatsapp.view' } }));
 
 const ROW_ID = '55555555-5555-4555-8555-555555555555'; // audit entity_id is a uuid (#594)
 const authorized = { authorized: true, userId: 'admin-1', error: null };
@@ -176,5 +176,58 @@ describe('updateWhatsAppPilotSettings', () => {
         await expect(updateWhatsAppPilotSettings({ ...validInput, [field]: 30 })).resolves.toEqual({ success: true, error: null });
       });
     }
+  });
+});
+
+describe('getWhatsAppPilotResidentOptions (#801)', () => {
+  function residentsQuery(result: { data?: unknown; error?: unknown }) {
+    const chain = {} as Record<string, ReturnType<typeof vi.fn>>;
+    for (const method of ['select', 'order']) chain[method] = vi.fn().mockReturnValue(chain);
+    chain.limit = vi.fn().mockResolvedValue(result);
+    return chain;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(authorizePermission).mockResolvedValue(authorized as never);
+  });
+
+  it('authorizes with WHATSAPP_VIEW first and reads nothing when denied', async () => {
+    vi.mocked(authorizePermission).mockResolvedValue({ authorized: false, error: 'Forbidden' } as never);
+    await expect(getWhatsAppPilotResidentOptions()).resolves.toEqual({ data: [], error: 'Forbidden' });
+    expect(authorizePermission).toHaveBeenCalledWith('whatsapp.view');
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it('returns id, name and a non-contact detail from the active house', async () => {
+    const chain = residentsQuery({
+      data: [
+        {
+          id: 'res-1', first_name: 'Ada', last_name: 'Okoro', resident_code: 'RES001',
+          resident_houses: [
+            { is_active: false, house: { house_number: '3', street: { name: 'Old Road' } } },
+            { is_active: true, house: { house_number: '12', street: { name: 'Palm Close' } } },
+          ],
+        },
+        { id: 'res-2', first_name: 'Bola', last_name: null, resident_code: 'RES002', resident_houses: [] },
+      ],
+      error: null,
+    });
+    vi.mocked(createAdminClient).mockReturnValue({ from: vi.fn().mockReturnValue(chain) } as never);
+
+    await expect(getWhatsAppPilotResidentOptions()).resolves.toEqual({
+      data: [
+        { id: 'res-1', name: 'Ada Okoro', detail: 'RES001 · 12 Palm Close' },
+        { id: 'res-2', name: 'Bola', detail: 'RES002' },
+      ],
+      error: null,
+    });
+    const columns = chain.select.mock.calls[0][0] as string;
+    expect(columns).not.toMatch(/phone|email/);
+  });
+
+  it('surfaces a read error with an empty list', async () => {
+    vi.mocked(createAdminClient).mockReturnValue({ from: vi.fn().mockReturnValue(residentsQuery({ data: null, error: { message: 'boom' } })) } as never);
+    await expect(getWhatsAppPilotResidentOptions()).resolves.toEqual({ data: [], error: 'boom' });
   });
 });
