@@ -66,5 +66,14 @@ test.describe('Settings phone targets and layout (#788)', () => {
         expect(overflow).toBeLessThanOrEqual(0);
         const addRole = await page.getByRole('button', { name: 'Add Role' }).boundingBox();
         expect(addRole && addRole.x + addRole.width).toBeLessThanOrEqual(1440);
+        await expect(page.getByRole('button', { name: /^Edit role/ }).first()).toBeVisible();
+        // Row actions are visible without scrolling the table sideways ("Actions clipped").
+        const clipped = await page.getByTestId('settings-content').evaluate((root) => {
+            const right = root.getBoundingClientRect().right;
+            return Array.from(root.querySelectorAll<HTMLElement>('button[aria-label^="Edit role"], button[aria-label^="Delete role"]'))
+                .filter((el) => el.getBoundingClientRect().width > 0 && el.getBoundingClientRect().right > right)
+                .map((el) => el.getAttribute('aria-label'));
+        });
+        expect(clipped).toEqual([]);
     });
 });

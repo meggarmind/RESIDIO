@@ -526,8 +526,6 @@ export function RolesList() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Role</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead className="text-center">Level</TableHead>
                   <TableHead className="text-center">Access</TableHead>
                   <TableHead className="w-[100px]">Status</TableHead>
                   {canManage && <TableHead className="w-[100px] text-right">Actions</TableHead>}
@@ -536,22 +534,20 @@ export function RolesList() {
               <TableBody>
                 {rolesData.map((role) => (
                   <TableRow key={role.id}>
-                    <TableCell>
+                    <TableCell className="whitespace-normal">
                       <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className="font-medium">{role.display_name}</span>
                           {role.is_system_role && <SystemBadge />}
                         </div>
                         <code className="text-xs text-muted-foreground">
                           {role.name}
                         </code>
+                        {/* Category and level live here, not in their own columns, so Actions fit the 1440 column (#788). */}
+                        <span className="text-xs text-muted-foreground">
+                          {CATEGORY_LABELS[role.category]} · Level {role.level}
+                        </span>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm">{CATEGORY_LABELS[role.category]}</span>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant="outline">{role.level}</Badge>
                     </TableCell>
                     <TableCell className="text-center">{accessButton(role)}</TableCell>
                     <TableCell>
