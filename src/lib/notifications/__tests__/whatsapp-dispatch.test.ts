@@ -186,6 +186,7 @@ describe('WhatsApp notification dispatch', () => {
       templateName: 'invoice_reminder',
       languageCode: 'en_US',
       parameters: ['Ada', 'INV-001', 'NGN 10,000', '1 Sep'],
+      idempotencySeed: 'queue-1',
     }, undefined, undefined);
   });
 

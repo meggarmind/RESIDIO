@@ -84,6 +84,7 @@ describe('WhatsApp financial menu', () => {
       pinAuthenticated: false,
     }));
     expect(send.mock.calls[0]?.[0].body).toContain('Outstanding balance');
+    expect(send.mock.calls[0]?.[0].idempotencySeed).toBe('wamid-1');
   });
 
   it('asks multi-property residents to choose a property before answering', async () => {

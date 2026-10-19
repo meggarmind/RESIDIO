@@ -187,6 +187,8 @@ async function sendViaWhatsApp(
     templateName: decision.template.name,
     languageCode: decision.template.languageCode,
     parameters: decision.template.parameters,
+    // Chatmaid dedupes on content; the queue id keeps a repeat notice a distinct send (#842).
+    ...(item.id === IMMEDIATE_ITEM_ID ? {} : { idempotencySeed: item.id }),
   };
   // Communications override (#716): forward the resident's flag when the caller looked it up.
   const result = await sendWhatsAppTemplate(templateMessage, undefined, context);
