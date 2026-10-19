@@ -50,7 +50,7 @@ const optionalUrl = z.union([
 ]);
 
 // Blank is allowed everywhere; what is filled in must be usable (#790).
-export const estateFormSchema = z.object({
+const estateFormSchema = z.object({
   estate_email: z.union([z.literal(''), z.email({ error: 'Enter an email address such as contact@estate.com' })]),
   estate_website_url: optionalUrl,
   estate_facebook_url: optionalUrl,

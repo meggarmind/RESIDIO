@@ -213,7 +213,7 @@ export default function MaintenancePage() {
             <NumericSettingInput
               key={`threshold-${resetKey}`}
               id="duplicate-threshold"
-              min={0}
+              min={1}
               max={100}
               integer
               unit="%"
