@@ -31,6 +31,11 @@ describe('PilotResidentPicker (#801)', () => {
     expect(screen.getByText('Unknown resident (deadbeef)')).toBeInTheDocument();
   });
 
+  it('shows the load error when the resident list failed', () => {
+    render(<PilotResidentPicker options={[]} value={['deadbeef-0000']} onChange={vi.fn()} error="permission denied" />);
+    expect(screen.getByText('Could not load residents: permission denied')).toBeInTheDocument();
+  });
+
   it('removes a selected resident by ID', () => {
     const onChange = vi.fn();
     render(<PilotResidentPicker options={OPTIONS} value={['res-1', 'res-2']} onChange={onChange} />);

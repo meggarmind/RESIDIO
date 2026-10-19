@@ -98,6 +98,7 @@ export async function getWhatsAppPilotResidentOptions(): Promise<{
     .select('id, first_name, last_name, resident_code, resident_houses!resident_id(is_active, house:houses(house_number, street:streets(name)))')
     .order('first_name')
     .order('last_name')
+    // shortcut: capped at 1000 residents, so saved IDs past the cap show as Unknown; page or fetch saved IDs by .in('id') when an estate nears 1000.
     .limit(1000);
   if (error) return { data: [], error: error.message };
   type Row = {

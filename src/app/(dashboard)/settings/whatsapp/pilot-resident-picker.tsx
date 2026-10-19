@@ -9,11 +9,12 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import type { PilotResidentOption } from '@/actions/whatsapp/pilot';
 
 /** Multi-select over residents by name; the value stays a list of resident UUIDs (#801). Mirrors TagPicker. */
-export function PilotResidentPicker({ options, value, onChange, disabled }: {
+export function PilotResidentPicker({ options, value, onChange, disabled, error }: {
   options: PilotResidentOption[];
   value: string[];
   onChange: (residentIds: string[]) => void;
   disabled?: boolean;
+  error?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const byId = new Map(options.map((option) => [option.id, option]));
@@ -72,6 +73,7 @@ export function PilotResidentPicker({ options, value, onChange, disabled }: {
           </Command>
         </PopoverContent>
       </Popover>
+      {error && <p className="text-xs text-destructive">Could not load residents: {error}</p>}
     </div>
   );
 }
