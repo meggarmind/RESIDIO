@@ -20,13 +20,18 @@ import type {
  * Three load-bearing decisions, each a direct consequence of a measured
  * failure mode:
  *
- * 1. **Idempotency key = sha256(fromNumber|to|content), never a domain id.**
+ * 1. **Idempotency key = sha256(fromNumber|to|seed|content), never a domain id alone.**
  *    Replaying Chatmaid's `idempotencyKey` with an unchanged body correctly
  *    dedupes. Replaying the SAME key with a DIFFERENT body returns `201`
  *    carrying the ORIGINAL message and silently drops the new one -- no
  *    `409`, no error. An adapter keyed on e.g. an invoice id would drop
  *    every corrected message while logging success. Hashing the body itself
  *    means a genuinely different message always gets a different key.
+ *    The optional `seed` (inbound message id, or notification queue id) is
+ *    mixed in so a legitimately REPEATED text, such as the standard menu
+ *    reply, is a distinct send rather than a silently dropped duplicate
+ *    (#842), while a retry of the same inbound message or queue item reuses
+ *    the same key and stays deduplicated.
  *
  * 2. **`sendTemplate` renders to plain text locally.** Chatmaid has no
  *    template/content-SID concept -- there is nothing to call. The
@@ -227,14 +232,21 @@ function invalidateConnectionCache(config: ChatmaidWhatsAppConfig): void {
 }
 
 /**
- * sha256 hex of `fromNumber|to|content`, which is already exactly 64 hex
+ * sha256 hex of `fromNumber|to|seed|content`, which is already exactly 64 hex
  * characters -- Chatmaid's `idempotencyKey` cap -- so the `.slice()` below
  * is a defensive no-op rather than lossy truncation. Keyed on the message
  * body (see file docblock point 1), never on a domain id such as an invoice
  * or notification-queue id.
  */
-function buildIdempotencyKey(fromNumber: string, to: string, content: string): string {
-  const hash = createHash('sha256').update(`${fromNumber}|${to}|${content}`, 'utf8').digest('hex');
+function buildIdempotencyKey(
+  fromNumber: string,
+  to: string,
+  content: string,
+  seed = ''
+): string {
+  const hash = createHash('sha256')
+    .update(`${fromNumber}|${to}|${seed}|${content}`, 'utf8')
+    .digest('hex');
   return hash.slice(0, CHATMAID_MAX_IDEMPOTENCY_KEY_LENGTH);
 }
 
@@ -273,7 +285,11 @@ export function createChatmaidWhatsAppProvider(
   config: ChatmaidWhatsAppConfig,
   fetchImpl: typeof fetch = fetch
 ): WhatsAppProvider {
-  async function sendContent(to: string, content: string): Promise<WhatsAppSendResult> {
+  async function sendContent(
+    to: string,
+    content: string,
+    seed?: string
+  ): Promise<WhatsAppSendResult> {
     if (content.length > CHATMAID_MAX_CONTENT_LENGTH) {
       return {
         success: false,
@@ -287,7 +303,7 @@ export function createChatmaidWhatsAppProvider(
       return { success: false, error: connection.error };
     }
 
-    const idempotencyKey = buildIdempotencyKey(config.fromNumber, to, content);
+    const idempotencyKey = buildIdempotencyKey(config.fromNumber, to, content, seed);
 
     let response: Response;
     try {
@@ -349,11 +365,11 @@ export function createChatmaidWhatsAppProvider(
 
   return {
     async sendText(message: WhatsAppTextMessage) {
-      return sendContent(message.to, message.body);
+      return sendContent(message.to, message.body, message.idempotencySeed);
     },
     async sendTemplate(message: WhatsAppTemplateMessage) {
       const content = renderTemplateToText(message.templateName, message.parameters);
-      return sendContent(message.to, content);
+      return sendContent(message.to, content, message.idempotencySeed);
     },
   };
 }
