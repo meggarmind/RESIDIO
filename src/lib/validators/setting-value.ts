@@ -29,6 +29,20 @@ function toNumber(value: unknown): number | null {
   return null;
 }
 
+/**
+ * Bounds for audit_log_retention_days, which the data-retention prune deletes
+ * audit logs by (#815). The floor stops a save or prune that would wipe the
+ * audit trail; the page's input uses the same bounds.
+ */
+export const AUDIT_LOG_RETENTION_KEY = 'audit_log_retention_days';
+export const AUDIT_LOG_RETENTION_MIN_DAYS = 30;
+export const AUDIT_LOG_RETENTION_MAX_DAYS = 3650;
+export const AUDIT_LOG_RETENTION_DEFAULT_DAYS = 365;
+
+export function isValidAuditLogRetentionDays(n: unknown): n is number {
+  return typeof n === 'number' && Number.isInteger(n) && n >= AUDIT_LOG_RETENTION_MIN_DAYS && n <= AUDIT_LOG_RETENTION_MAX_DAYS;
+}
+
 /** Clock slack allowed on top of the longest Debug Mode duration when checking an expiry. */
 const DEBUG_EXPIRY_SLACK_MINUTES = 5;
 
@@ -84,6 +98,12 @@ export function settingValueError(key: string, value: unknown, now: Date = new D
     return isValidEmailAutoProcessLimit(toNumber(value))
       ? null
       : `Setting "${key}" must be a whole naira amount from 1 to ${EMAIL_AUTO_PROCESS_LIMIT_MAX.toLocaleString('en-NG')}`;
+  }
+
+  if (key === AUDIT_LOG_RETENTION_KEY) {
+    return isValidAuditLogRetentionDays(toNumber(value))
+      ? null
+      : `Setting "${key}" must be a whole number of days from ${AUDIT_LOG_RETENTION_MIN_DAYS} to ${AUDIT_LOG_RETENTION_MAX_DAYS}`;
   }
 
   if (typeof value === 'number' && !Number.isFinite(value)) {

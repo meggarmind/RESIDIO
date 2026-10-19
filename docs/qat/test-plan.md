@@ -129,7 +129,7 @@ These operations are destructive against shared data. They are **scripted as Ski
 
 | Operation | Location | Why excluded |
 |---|---|---|
-| `pruneSystemData` | `/settings/data-retention` | Hard-deletes audit logs older than 6 months, notifications, search logs, and system action log entries older than 90 days. Irreversible. |
+| `pruneSystemData` | `/settings/data-retention` | Hard-deletes audit logs older than the Audit Log Retention setting, notifications, search logs, and system action log entries older than 90 days. Irreversible. |
 | `resetEmailImports` | `/payments/email-imports` | Hard-deletes **all** email imports, messages, transactions, and any payment records linked to them — globally when called without a `userId`. |
 | `promoteWhatsAppPilotToEstate` | `/settings/whatsapp` | One-way. Expands WhatsApp messaging from the pilot allowlist to the entire estate; cannot be reverted through the UI. |
 | Enable maintenance mode | `/settings/maintenance` | Redirects every non-`super_admin` user app-wide to `/maintenance` until manually disabled. |

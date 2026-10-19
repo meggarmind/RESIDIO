@@ -5,14 +5,44 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { revalidatePath } from 'next/cache';
-import { subDays, subMonths } from 'date-fns';
+import { subDays } from 'date-fns';
+import { readSetting } from '@/lib/settings/service';
+import {
+    AUDIT_LOG_RETENTION_DEFAULT_DAYS,
+    AUDIT_LOG_RETENTION_KEY,
+    AUDIT_LOG_RETENTION_MAX_DAYS,
+    AUDIT_LOG_RETENTION_MIN_DAYS,
+    isValidAuditLogRetentionDays,
+} from '@/lib/validators/setting-value';
 
-// The ages pruneSystemData deletes by. The saved audit_log_retention_days setting is not read.
-function pruneCutoffs() {
+type ServerClient = Awaited<ReturnType<typeof createServerSupabaseClient>>;
+
+/**
+ * The ages pruneSystemData deletes by. Audit logs go by the saved audit_log_retention_days
+ * setting (#815), 365 when it was never saved; an unreadable or out-of-range value is an error,
+ * so nothing is deleted rather than the audit trail being cut by a bad value.
+ */
+async function pruneCutoffs(supabase: ServerClient) {
+    const setting = await readSetting(supabase, AUDIT_LOG_RETENTION_KEY);
+    if (setting.status === 'error') {
+        return { cutoffs: null, error: `Failed to read the audit log retention setting: ${setting.message}` };
+    }
+    const auditLogRetentionDays = setting.status === 'absent' ? AUDIT_LOG_RETENTION_DEFAULT_DAYS : setting.value;
+    if (!isValidAuditLogRetentionDays(auditLogRetentionDays)) {
+        return {
+            cutoffs: null,
+            error: `Audit log retention must be a whole number of days from ${AUDIT_LOG_RETENTION_MIN_DAYS} to ${AUDIT_LOG_RETENTION_MAX_DAYS}; it is ${JSON.stringify(auditLogRetentionDays)}. Nothing was deleted.`,
+        };
+    }
+    const now = new Date();
     return {
-        date30DaysAgo: subDays(new Date(), 30).toISOString(),
-        date90DaysAgo: subDays(new Date(), 90).toISOString(),
-        date6MonthsAgo: subMonths(new Date(), 6).toISOString(),
+        cutoffs: {
+            date30DaysAgo: subDays(now, 30).toISOString(),
+            date90DaysAgo: subDays(now, 90).toISOString(),
+            auditLogCutoff: subDays(now, auditLogRetentionDays).toISOString(),
+            auditLogRetentionDays,
+        },
+        error: null,
     };
 }
 
@@ -25,7 +55,9 @@ export async function previewPruneSystemData() {
     if (!authorized) return { data: null, error: authError || 'Unauthorized' };
 
     const supabase = await createServerSupabaseClient();
-    const { date30DaysAgo, date90DaysAgo, date6MonthsAgo } = pruneCutoffs();
+    const { cutoffs, error: cutoffError } = await pruneCutoffs(supabase);
+    if (!cutoffs) return { data: null, error: cutoffError };
+    const { date30DaysAgo, date90DaysAgo, auditLogCutoff, auditLogRetentionDays } = cutoffs;
     type UntypedCount = {
         from: (table: string) => {
             select: (columns: string, opts: { count: 'exact'; head: true }) => {
@@ -37,7 +69,8 @@ export async function previewPruneSystemData() {
     const [readNotifications, unreadNotifications, auditLogs, searchLogs, systemActionLogs] = await Promise.all([
         supabase.from('in_app_notifications').select('id', { count: 'exact', head: true }).eq('is_read', true).lt('created_at', date30DaysAgo),
         supabase.from('in_app_notifications').select('id', { count: 'exact', head: true }).eq('is_read', false).lt('created_at', date90DaysAgo),
-        supabase.from('audit_logs').select('id', { count: 'exact', head: true }).lt('created_at', date6MonthsAgo),
+        // Counted with the admin client the delete uses, so the preview matches what is deleted.
+        createAdminClient().from('audit_logs').select('id', { count: 'exact', head: true }).lt('created_at', auditLogCutoff),
         supabase.from('search_logs').select('id', { count: 'exact', head: true }).lt('created_at', date30DaysAgo),
         (createAdminClient() as unknown as UntypedCount).from('system_action_log').select('id', { count: 'exact', head: true }).lt('occurred_at', date90DaysAgo),
     ]);
@@ -50,6 +83,7 @@ export async function previewPruneSystemData() {
         data: {
             notifications: (readNotifications.count || 0) + (unreadNotifications.count || 0),
             auditLogs: auditLogs.count || 0,
+            auditLogRetentionDays,
             searchLogs: searchLogs.error ? 0 : searchLogs.count || 0,
             systemActionLogs: systemActionLogs.count || 0,
         },
@@ -63,11 +97,14 @@ export async function pruneSystemData() {
 
     const supabase = await createServerSupabaseClient();
 
-    const { date30DaysAgo, date90DaysAgo, date6MonthsAgo } = pruneCutoffs();
+    const { cutoffs, error: cutoffError } = await pruneCutoffs(supabase);
+    if (!cutoffs) return { data: null, error: cutoffError };
+    const { date30DaysAgo, date90DaysAgo, auditLogCutoff, auditLogRetentionDays } = cutoffs;
 
     const results = {
         notifications: 0,
         auditLogs: 0,
+        auditLogRetentionDays,
         searchLogs: 0,
         systemActionLogs: 0,
         success: false,
@@ -96,11 +133,12 @@ export async function pruneSystemData() {
 
         results.notifications = (readNotificationsCount || 0) + (unreadNotificationsCount || 0);
 
-        // 2. Prune Audit Logs > 6 months
-        const { count: auditLogsCount, error: auditError } = await supabase
+        // 2. Prune Audit Logs older than the retention setting (#815). audit_logs has no DELETE
+        // policy (immutable to users), so a user-scoped delete matches nothing: use the admin client.
+        const { count: auditLogsCount, error: auditError } = await createAdminClient()
             .from('audit_logs')
             .delete({ count: 'exact' })
-            .lt('created_at', date6MonthsAgo);
+            .lt('created_at', auditLogCutoff);
 
         if (auditError) throw new Error(`Failed to prune audit logs: ${auditError.message}`);
 
