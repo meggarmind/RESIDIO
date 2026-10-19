@@ -17,6 +17,7 @@ import {
   createSupabaseChatmaidSessionPauseStore,
   extractChatmaidMessages,
   extractChatmaidOutgoingRecipient,
+  isChatmaidManualOutgoing,
   verifyChatmaidSignature,
 } from '@/lib/whatsapp/providers/chatmaid-inbound';
 
@@ -131,6 +132,10 @@ async function handleMessageReceived(payload: unknown) {
 }
 
 async function handleMessageOutgoing(payload: unknown) {
+  if (!isChatmaidManualOutgoing(payload)) {
+    return NextResponse.json({ received: true, processed: false, ignored: 'not_manual' });
+  }
+
   const recipient = extractChatmaidOutgoingRecipient(payload);
   if (!recipient) {
     console.warn('[chatmaid-webhook] message.outgoing without a usable recipient; ignored');

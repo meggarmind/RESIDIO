@@ -329,6 +329,28 @@ describe('Chatmaid WhatsApp webhook route', () => {
     expect(h.handleResidentMessage).not.toHaveBeenCalled();
   });
 
+  it('pauses on message.outgoing that carries no source', async () => {
+    const h = await load();
+    const body = JSON.stringify({ event: 'message.outgoing', data: { to: '+2348000000000' } });
+
+    expect((await h.POST(post('message.outgoing', body))).status).toBe(200);
+    expect(h.pause).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not pause on an API-sourced message.outgoing (the bot\'s own reply)', async () => {
+    const h = await load();
+    const body = JSON.stringify({
+      event: 'message.outgoing',
+      data: { from: '+15550001111', to: '+2348000000000', source: 'api' },
+    });
+
+    const response = await h.POST(post('message.outgoing', body));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ processed: false, ignored: 'not_manual' });
+    expect(h.pause).not.toHaveBeenCalled();
+  });
+
   it('returns 500 when the pause cannot be recorded, so Chatmaid retries', async () => {
     const h = await load();
     h.pause.mockRejectedValueOnce(new Error('db down'));
