@@ -228,7 +228,7 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
             <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                     <CollapsibleTrigger asChild>
-                        <button className="flex items-center text-left cursor-pointer hover:opacity-80 transition-opacity">
+                        <button className="flex items-center min-h-11 md:min-h-0 text-left cursor-pointer hover:opacity-80 transition-opacity">
                             <CardTitle className="flex items-center gap-2 text-sm font-semibold">
                                 <Home className="h-4 w-4" />
                                 House Assignments ({activeHouses.length})

@@ -71,7 +71,7 @@ export function WalletBalance({ residentId, showActions = true }: WalletBalanceP
               <CardDescription className="text-xs">Resident payment wallet</CardDescription>
             </div>
             {canShowAdjustment && (
-              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setIsAdjustmentDialogOpen(true)}>
+              <Button size="sm" variant="outline" className="h-7 text-xs min-h-11 md:min-h-0" onClick={() => setIsAdjustmentDialogOpen(true)}>
                 <Plus className="h-3.5 w-3.5 mr-1" />
                 Adjust
               </Button>
