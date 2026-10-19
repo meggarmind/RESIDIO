@@ -7,7 +7,7 @@ residio_sources:
   - src/app/(dashboard)/settings/page.tsx
   - src/app/(dashboard)/settings/estate-info/**
   - src/app/(dashboard)/settings/branding/**
-residio_verified_commit: 0d86eebb
+residio_verified_commit: c6a1556e
 residio_verified_at: '2026-10-19'
 residio_app_version: '0.4.0'
 ---
@@ -33,6 +33,8 @@ Day-to-day account work — assigning roles, watching cron jobs, the notificatio
 
 :::info[You see only what you can open]
 Both this page and the Settings sidebar show only the sections your role can actually reach, so two admins will see different menus. If a colleague cannot find a page described in this guide, their role does not hold the permission for it — see [Roles and permissions](../getting-started/roles-and-permissions.md). The Chairman role can open Settings and navigate to the areas their permissions allow — announcements, documents, billing profiles, email imports, notifications, security categories, and WhatsApp — but does not see configuration pages or system maintenance.
+
+Inside a page, each button and field is shown for the permission its save needs, not the permission that opened the page. An admin who can open a page without being allowed to change it sees the current values with the fields disabled, and no Add, Edit, Delete or Save buttons. For example, an admin who only assigns roles is pointed to **System → Accounts** from **Roles & Permissions**, because defining roles needs the Manage roles permission.
 :::
 
 Change one setting at a time, save, and verify the affected workflow. Configuration changes can alter what other admins see or what automated jobs do.

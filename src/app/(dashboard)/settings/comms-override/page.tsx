@@ -20,6 +20,13 @@ import {
 } from '@/actions/settings/comms-override';
 import { isValidOverrideEmail, isValidOverridePhone } from '@/lib/comms-override/resolver';
 import { DEBUG_DURATION_MAX, DEBUG_DURATION_MIN } from '@/lib/comms-override/limits';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+
+function useCanManageComms() {
+  const { hasPermission } = useAuth();
+  return hasPermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
+}
 
 const QUERY_KEY = ['comms-override-state'];
 
@@ -76,6 +83,7 @@ export default function CommsOverridePage() {
 }
 
 function OverrideForm({ data }: { data: CommsOverrideState }) {
+  const canManage = useCanManageComms();
   const queryClient = useQueryClient();
   const [enabled, setEnabled] = useState(data.storedEnabled);
   const [email, setEmail] = useState(data.email);
@@ -146,7 +154,7 @@ function OverrideForm({ data }: { data: CommsOverrideState }) {
               id="comms-override-enabled"
               checked={data.isProduction ? enabled : true}
               onCheckedChange={setEnabled}
-              disabled={!data.isProduction || save.isPending}
+              disabled={!canManage || !data.isProduction || save.isPending}
             />
           </div>
         </CardContent>
@@ -160,23 +168,25 @@ function OverrideForm({ data }: { data: CommsOverrideState }) {
         <CardContent className="space-y-4">
           <div className="space-y-1">
             <Label htmlFor="comms-override-email">Override email</Label>
-            <Input id="comms-override-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
-            {emailError && <p className="text-xs text-destructive">{emailError}</p>}
+            <Input id="comms-override-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" disabled={!canManage} aria-invalid={!!emailError} aria-describedby={emailError ? 'comms-override-email-error' : undefined} />
+            {emailError && <p id="comms-override-email-error" role="alert" className="text-xs text-destructive">{emailError}</p>}
           </div>
           <div className="space-y-1">
             <Label htmlFor="comms-override-phone">Override phone (SMS and WhatsApp)</Label>
-            <Input id="comms-override-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+2348012345678" />
-            {phoneError && <p className="text-xs text-destructive">{phoneError}</p>}
+            <Input id="comms-override-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+2348012345678" disabled={!canManage} aria-invalid={!!phoneError} aria-describedby={phoneError ? 'comms-override-phone-error' : undefined} />
+            {phoneError && <p id="comms-override-phone-error" role="alert" className="text-xs text-destructive">{phoneError}</p>}
           </div>
           <div className="space-y-1">
             <Label htmlFor="comms-override-whatsapp">WhatsApp number (optional)</Label>
-            <Input id="comms-override-whatsapp" value={whatsappPhone} onChange={(e) => setWhatsappPhone(e.target.value)} placeholder="Falls back to the override phone" />
-            {whatsappError && <p className="text-xs text-destructive">{whatsappError}</p>}
+            <Input id="comms-override-whatsapp" value={whatsappPhone} onChange={(e) => setWhatsappPhone(e.target.value)} placeholder="Falls back to the override phone" disabled={!canManage} aria-invalid={!!whatsappError} aria-describedby={whatsappError ? 'comms-override-whatsapp-error' : undefined} />
+            {whatsappError && <p id="comms-override-whatsapp-error" role="alert" className="text-xs text-destructive">{whatsappError}</p>}
           </div>
-          <Button onClick={() => save.mutate()} disabled={save.isPending || hasErrors}>
-            {save.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Save
-          </Button>
+          {canManage && (
+            <Button className="min-h-11 md:min-h-9" onClick={() => save.mutate()} disabled={save.isPending || hasErrors}>
+              {save.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save
+            </Button>
+          )}
         </CardContent>
       </Card>
     </div>
@@ -194,6 +204,7 @@ function formatRemaining(ms: number): string {
 }
 
 function DebugModeCard({ data }: { data: CommsOverrideState }) {
+  const canManage = useCanManageComms();
   const queryClient = useQueryClient();
   const [duration, setDuration] = useState(String(data.debugDurationMinutes));
   const [now, setNow] = useState(() => Date.now());
@@ -290,17 +301,19 @@ function DebugModeCard({ data }: { data: CommsOverrideState }) {
               )}
               .
             </p>
-            <Button variant="outline" onClick={() => run.mutate({ enabled: false })} disabled={run.isPending}>
-              {run.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Turn off Debug Mode
-            </Button>
+            {canManage && (
+              <Button variant="outline" className="min-h-11 md:min-h-9" onClick={() => run.mutate({ enabled: false })} disabled={run.isPending}>
+                {run.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Turn off Debug Mode
+              </Button>
+            )}
           </div>
         ) : (
           <div className="space-y-3">
             <p>Debug Mode is <strong>off</strong>.</p>
-            {data.debugMode && (
+            {canManage && data.debugMode && (
               // The stored switch is still on (expired, or no usable expiry): always allow switching it off.
-              <Button variant="outline" onClick={() => run.mutate({ enabled: false })} disabled={run.isPending}>
+              <Button variant="outline" className="min-h-11 md:min-h-9" onClick={() => run.mutate({ enabled: false })} disabled={run.isPending}>
                 {run.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Turn off Debug Mode
               </Button>
@@ -314,7 +327,8 @@ function DebugModeCard({ data }: { data: CommsOverrideState }) {
                 </AlertDescription>
               </Alert>
             )}
-            <div className="flex items-end gap-3">
+            {canManage && (
+            <div className="flex flex-wrap items-end gap-3">
               <div className="space-y-1">
                 <Label htmlFor="comms-debug-duration">Duration (minutes, {DEBUG_DURATION_MIN} to {DEBUG_DURATION_MAX})</Label>
                 <Input
@@ -325,9 +339,12 @@ function DebugModeCard({ data }: { data: CommsOverrideState }) {
                   value={duration}
                   onChange={(e) => setDuration(e.target.value)}
                   className="w-32"
+                  aria-invalid={!durationValid}
+                  aria-describedby={!durationValid ? 'comms-debug-duration-error' : undefined}
                 />
               </div>
               <Button
+                className="min-h-11 md:min-h-9"
                 onClick={() => run.mutate({ enabled: true, durationMinutes: durationNumber })}
                 disabled={run.isPending || !canEnable || !durationValid}
               >
@@ -335,8 +352,9 @@ function DebugModeCard({ data }: { data: CommsOverrideState }) {
                 Turn on Debug Mode
               </Button>
             </div>
-            {!durationValid && (
-              <p className="text-xs text-destructive">Enter a whole number from {DEBUG_DURATION_MIN} to {DEBUG_DURATION_MAX}.</p>
+            )}
+            {canManage && !durationValid && (
+              <p id="comms-debug-duration-error" role="alert" className="text-xs text-destructive">Enter a whole number from {DEBUG_DURATION_MIN} to {DEBUG_DURATION_MAX}.</p>
             )}
           </div>
         )}

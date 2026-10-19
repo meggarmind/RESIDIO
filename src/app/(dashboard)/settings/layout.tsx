@@ -15,7 +15,8 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
             <div className="flex flex-col space-y-8 lg:flex-row lg:space-x-12 lg:space-y-0">
                 <SettingsMobileNav />
                 <SettingsSidebar className="hidden lg:block lg:w-1/5" />
-                <div className="flex-1 lg:max-w-4xl">{children}</div>
+                {/* min-w-0: a wide table must scroll inside its own container, not widen the page (#788). */}
+                <div className="min-w-0 flex-1 lg:max-w-4xl" data-testid="settings-content">{children}</div>
             </div>
         </div>
     );

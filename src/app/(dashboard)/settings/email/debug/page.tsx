@@ -13,6 +13,9 @@ import { useSettings } from '@/hooks/use-settings';
 import { useTestEmail, useSendPaymentReminders } from '@/hooks/use-email';
 import { previewPaymentReminders } from '@/actions/email/send-payment-reminders';
 import { ConfirmAction } from '@/components/ui/confirm-action';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { SettingsSkeleton } from '@/components/settings/settings-states';
 
 function settingsToObject(settings: { key: string; value: unknown }[] | undefined): Record<string, unknown> {
   if (!settings) return {};
@@ -23,6 +26,8 @@ function settingsToObject(settings: { key: string; value: unknown }[] | undefine
 }
 
 export default function EmailDebugPage() {
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
   const { data: settings, isLoading } = useSettings('email');
   const sendReminders = useSendPaymentReminders();
   const testEmailMutation = useTestEmail();
@@ -37,7 +42,7 @@ export default function EmailDebugPage() {
     }
   };
 
-  if (isLoading) return <div className="flex items-center justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  if (isLoading) return <SettingsSkeleton rows={4} />;
 
   return (
     <div className="space-y-6">
@@ -67,6 +72,7 @@ export default function EmailDebugPage() {
         </AlertDescription>
       </Alert>
 
+      {canManage && (
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Manual Actions</CardTitle>
@@ -115,11 +121,11 @@ export default function EmailDebugPage() {
           <Separator />
           <div className="space-y-3">
             <div>
-              <Label>Test Email</Label>
+              <Label htmlFor="test-email-address">Test Email</Label>
               <p className="text-xs text-muted-foreground">Send a test email to verify your configuration</p>
             </div>
-            <div className="flex gap-2">
-              <Input type="email" placeholder="test@example.com" value={testEmailAddress} onChange={(e) => setTestEmailAddress(e.target.value)} className="max-w-xs" />
+            <div className="flex flex-wrap gap-2">
+              <Input id="test-email-address" type="email" placeholder="test@example.com" value={testEmailAddress} onChange={(e) => setTestEmailAddress(e.target.value)} className="max-w-xs" />
               <Button variant="outline" onClick={handleTestEmail} disabled={!testEmailAddress || testEmailMutation.isPending}>
                 {testEmailMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 <TestTube className="mr-2 h-4 w-4" /> Send Test
@@ -128,6 +134,7 @@ export default function EmailDebugPage() {
           </div>
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }

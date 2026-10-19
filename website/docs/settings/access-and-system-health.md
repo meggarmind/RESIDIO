@@ -12,7 +12,7 @@ residio_sources:
   - src/app/(dashboard)/system/page.tsx
   - src/components/system/**
   - src/actions/system/**
-residio_verified_commit: 0fa25959
+residio_verified_commit: c6a1556e
 residio_verified_at: '2026-10-19'
 residio_app_version: '0.4.0'
 ---
@@ -45,6 +45,8 @@ Open **System → Accounts** for the day-to-day account work:
 | Orphaned Accounts | Logins that are not linked to any resident |
 
 The **Access** column on Role Definitions shows how many modules and privileges a role holds, and opens the picker where you grant or revoke them. [Roles and permissions](../getting-started/roles-and-permissions) covers creating a role.
+
+Deleting a role states how many users hold it. A role that anyone still holds cannot be deleted: reassign those users first. Defining roles needs the Manage roles permission; an admin who can only assign roles is sent to **System → Accounts** instead.
 
 **Resident portal access per account.** On the **Role Assignments** tab, each administrator row and the account you select under *Assign Roles* carries a *Resident portal* control with three choices: **Inherit** (follow the estate-wide switch in Settings → Estate Information), **Enabled** and **Disabled**. The text beside it shows the effective result, for example "Inherit (currently off)". *Enabled* works while the estate-wide switch is off, so you can open the portal links to a pilot group first. Changing it needs the permission to assign roles; without it you see the effective state read-only. Every change is recorded in the audit log. This setting only controls whether links are shown: *My Portal* and *Resident Portal* also require the account to be linked to a resident, so an administrator with no resident record never sees them, and *View as Resident* additionally needs the impersonation permission.
 

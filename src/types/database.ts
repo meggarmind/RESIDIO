@@ -2002,6 +2002,8 @@ export interface RolePermission {
 // Role with permissions (for UI display)
 export interface AppRoleWithPermissions extends AppRole {
   permissions: AppPermission[];
+  /** Profiles holding the role; null when the count could not be read. Absent on single-role reads. */
+  user_count?: number | null;
 }
 
 // Profile with role details (new RBAC)

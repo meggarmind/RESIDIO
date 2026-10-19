@@ -54,6 +54,21 @@ export async function getRolesWithPermissions(): Promise<{
     .from('role_permissions')
     .select('role_id, permission_id');
 
+  // Holders per role, so the delete dialog can say who would be affected (#788).
+  // A head count per role, the same query deleteRole uses: loading the rows would be capped by max_rows.
+  const holderCounts = new Map<string, number | null>(
+    await Promise.all(
+      (roles || []).map(async (role) => {
+        const { count, error } = await supabase
+          .from('profiles')
+          .select('id', { count: 'exact', head: true })
+          .eq('role_id', role.id);
+        if (error) console.error('[getRolesWithPermissions] Could not count role holders:', error);
+        return [role.id, error ? null : count] as const;
+      })
+    )
+  );
+
   // Build the result with permissions
   const rolesWithPermissions: AppRoleWithPermissions[] = (roles || []).map((role) => {
     const rolePermIds = rolePerms
@@ -67,6 +82,7 @@ export async function getRolesWithPermissions(): Promise<{
     return {
       ...role,
       permissions: rolePermissions as AppPermission[],
+      user_count: holderCounts.get(role.id) ?? null,
     };
   });
 

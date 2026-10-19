@@ -243,7 +243,7 @@ export default function DocumentCategoriesPage() {
                       </TableCell>
                       <TableCell>
                         {category.is_resident_accessible ? (
-                          <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                          <Badge variant="secondary" className="bg-success/10 text-success">
                             <Users className="h-3 w-3 mr-1" />
                             Visible
                           </Badge>
@@ -255,7 +255,7 @@ export default function DocumentCategoriesPage() {
                       </TableCell>
                       <TableCell>
                         {category.is_active ? (
-                          <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                          <Badge variant="secondary" className="bg-success/10 text-success">
                             Active
                           </Badge>
                         ) : (

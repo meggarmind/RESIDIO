@@ -1,7 +1,7 @@
 'use client';
 
 import { HouseTypesList } from '@/components/admin/house-types-list';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
 
 export default function HouseTypesPage() {
   return (
@@ -14,7 +14,6 @@ export default function HouseTypesPage() {
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>House Types Management</CardTitle>
           <CardDescription>
             Configure house types and link them to billing profiles.
           </CardDescription>

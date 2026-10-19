@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertTriangle, Loader2, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSystemSettings, useUpdateSettings } from '@/hooks/use-settings';
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
@@ -17,6 +17,9 @@ import { ConfirmAction } from '@/components/ui/confirm-action';
 import { NumericSettingInput } from '@/components/settings/numeric-setting-input';
 import { StickySaveBar } from '@/components/settings/sticky-save-bar';
 import { isMaintenanceModeOn } from '@/lib/settings/maintenance-mode';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { SettingsSkeleton } from '@/components/settings/settings-states';
 
 const DEFAULT_MESSAGE = 'The system is currently under maintenance. Please try again later.';
 
@@ -36,6 +39,11 @@ function settingsToObject(settings: { key: string; value: unknown }[] | undefine
 
 export default function MaintenancePage() {
   const queryClient = useQueryClient();
+  const { hasPermission } = useAuth();
+  // The switch enforces system.manage_maintenance; the saved fields go through
+  // updateSettings, which enforces settings.manage_general.
+  const canToggle = hasPermission(PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE);
+  const canEdit = hasPermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
   const { data: systemSettings, isLoading } = useSystemSettings();
   const updateSettings = useUpdateSettings();
 
@@ -91,7 +99,7 @@ export default function MaintenancePage() {
     updateSettings.mutate(overrides, { onSuccess: () => setOverrides({}) });
   };
 
-  if (isLoading) return <div className="flex items-center justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  if (isLoading) return <SettingsSkeleton rows={4} />;
 
   return (
     <div className="space-y-6">
@@ -103,7 +111,7 @@ export default function MaintenancePage() {
       </div>
       <Separator />
 
-      <Card className={maintenanceMode ? 'border-amber-300 bg-amber-50/30 dark:bg-amber-950/30' : ''}>
+      <Card className={maintenanceMode ? 'border-warning/40 bg-warning/5' : ''}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ShieldAlert className="h-5 w-5" />
@@ -123,7 +131,7 @@ export default function MaintenancePage() {
               id="maintenance-mode"
               checked={maintenanceMode}
               onCheckedChange={(checked) => (checked ? setConfirmOpen(true) : setMaintenanceMode(false).catch(() => {}))}
-              disabled={switching}
+              disabled={!canToggle || switching}
             />
           </div>
           <ConfirmAction
@@ -168,8 +176,10 @@ export default function MaintenancePage() {
               onChange={(e) => setField('maintenance_message', e.target.value)}
               placeholder="Enter the message to display during maintenance..."
               rows={3}
+              disabled={!canEdit}
+              aria-describedby="maintenance-message-help"
             />
-            <p className="text-xs text-muted-foreground">This message will be shown to users on the maintenance page once saved.</p>
+            <p id="maintenance-message-help" className="text-xs text-muted-foreground">This message will be shown to users on the maintenance page once saved.</p>
           </div>
         </CardContent>
       </Card>
@@ -195,6 +205,7 @@ export default function MaintenancePage() {
               value={form.session_timeout_minutes}
               onCommit={(value) => setField('session_timeout_minutes', value)}
               onValidityChange={timeoutValidity}
+              disabled={!canEdit}
             />
           </div>
         </CardContent>
@@ -221,18 +232,21 @@ export default function MaintenancePage() {
               value={form.duplicate_matching_threshold}
               onCommit={(value) => setField('duplicate_matching_threshold', value)}
               onValidityChange={thresholdValidity}
+              disabled={!canEdit}
             />
           </div>
         </CardContent>
       </Card>
 
-      <StickySaveBar
-        isDirty={isDirty || !canSave}
-        isSaving={updateSettings.isPending}
-        canSave={canSave && isDirty}
-        onSave={handleSave}
-        onDiscard={() => { setOverrides({}); setInvalidFields({}); setResetKey((k) => k + 1); }}
-      />
+      {canEdit && (
+        <StickySaveBar
+          isDirty={isDirty || !canSave}
+          isSaving={updateSettings.isPending}
+          canSave={canSave && isDirty}
+          onSave={handleSave}
+          onDiscard={() => { setOverrides({}); setInvalidFields({}); setResetKey((k) => k + 1); }}
+        />
+      )}
     </div>
   );
 }

@@ -6,6 +6,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -21,6 +23,8 @@ import { ScheduleForm } from '@/components/notifications/schedule-form';
 import type { ScheduleWithTemplate } from '@/lib/notifications/types';
 
 export default function NotificationSchedulesPage() {
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(PERMISSIONS.NOTIFICATIONS_MANAGE);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editSchedule, setEditSchedule] = useState<ScheduleWithTemplate | null>(null);
 
@@ -48,10 +52,12 @@ export default function NotificationSchedulesPage() {
             </p>
           </div>
         </div>
+        {canManage && (
         <Button onClick={() => setIsCreateOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
           New Schedule
         </Button>
+        )}
       </div>
       <Separator />
 
