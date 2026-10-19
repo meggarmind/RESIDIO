@@ -19,6 +19,8 @@ const m = vi.hoisted(() => ({
 const query = (data: unknown) => ({ data, isLoading: false });
 const mutation = () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false });
 
+vi.mock('@/lib/auth/auth-provider', () => ({ useAuth: () => ({ isLoading: false, hasPermission: () => true }) }));
+
 vi.mock('@/actions/notifications/reminder-config', () => ({
   getReminderSettings: async () => ({
     enabled: true,
