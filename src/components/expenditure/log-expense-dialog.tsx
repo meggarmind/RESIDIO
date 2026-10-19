@@ -32,7 +32,7 @@ import { createExpense } from '@/actions/expenses/create-expense';
 import { toast } from 'sonner';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
-import { Wallet, Building2, CreditCard } from 'lucide-react';
+import { Wallet, Building2, CreditCard, Camera } from 'lucide-react';
 import type { Expense } from '@/types/database';
 import type {
     VendorOption,
@@ -78,6 +78,8 @@ interface LogExpenseDialogProps {
     pettyCashAccounts?: PettyCashOption[];
     onSuccess: (newExpense: Expense) => void;
     initialData?: Partial<ExpenseFormValues>;
+    /** Shows a "Scan a receipt" entry that prefills this form (#785: one Log Expense action). */
+    onScanReceipt?: () => void;
 }
 
 export interface ExpenseFormValues {
@@ -106,7 +108,8 @@ export function LogExpenseDialog({
     staff = [],
     pettyCashAccounts = [],
     onSuccess,
-    initialData
+    initialData,
+    onScanReceipt
 }: LogExpenseDialogProps) {
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -199,8 +202,14 @@ export function LogExpenseDialog({
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[600px]">
-                <DialogHeader>
+                <DialogHeader className="flex-row items-center justify-between gap-2 space-y-0 pr-8">
                     <DialogTitle>Log Estate Expense</DialogTitle>
+                    {onScanReceipt && (
+                        <Button type="button" variant="outline" size="sm" className="gap-2" onClick={onScanReceipt}>
+                            <Camera className="h-4 w-4" />
+                            Scan a receipt
+                        </Button>
+                    )}
                 </DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 py-4">

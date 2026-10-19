@@ -3,34 +3,44 @@ import { getVendors } from '@/actions/vendors/get-vendors';
 import { getExpenseCategories } from '@/actions/expenses/get-expense-categories';
 import { getProjects } from '@/actions/projects/get-projects';
 import { getPettyCashMetrics, getPettyCashAccounts } from '@/actions/finance/petty-cash';
-import { getActiveResidents } from '@/actions/residents/get-residents';
-import { getStaff } from '@/actions/settings/get-staff';
 import { ExpenditurePageClient } from '@/components/expenditure/expenditure-page-client';
+import { parseExpenseFilters } from '@/components/expenditure/expense-filters';
 
-export default async function ExpenditurePage() {
-    const [expenses, vendors, categories, projects, pettyCashMetrics, pettyCashAccounts, residentsData, staff] = await Promise.all([
-        getExpenses(),
-        getVendors(),
-        getExpenseCategories(),
-        getProjects(),
-        getPettyCashMetrics(),
-        getPettyCashAccounts(),
-        getActiveResidents(),
-        getStaff(),
+/** One failed read degrades its own section instead of blanking the page (#785). */
+function orFallback<T>(promise: Promise<T>, fallback: T, label: string): Promise<T> {
+    return promise.catch((error) => {
+        console.error(`Expenditure page: failed to load ${label}:`, error);
+        return fallback;
+    });
+}
+
+export default async function ExpenditurePage({
+    searchParams,
+}: {
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+    const filters = parseExpenseFilters(await searchParams);
+
+    const [ledger, pending, vendors, categories, projects, pettyCashMetrics, pettyCashAccounts] = await Promise.all([
+        getExpenses(filters),
+        getExpenses({ status: 'pending', pageSize: 0 }),
+        orFallback(getVendors(), [], 'vendors'),
+        orFallback(getExpenseCategories(), [], 'expense categories'),
+        orFallback(getProjects(), [], 'projects'),
+        orFallback(getPettyCashMetrics(), null, 'petty cash metrics'),
+        orFallback(getPettyCashAccounts(), [], 'petty cash accounts'),
     ]);
-
-    const residents = residentsData.data || [];
 
     return (
         <ExpenditurePageClient
-            initialExpenses={expenses}
+            ledger={ledger}
+            pending={pending}
+            filters={filters}
             vendors={vendors}
             categories={categories}
             projects={projects}
             pettyCashMetrics={pettyCashMetrics}
             pettyCashAccounts={pettyCashAccounts}
-            residents={residents}
-            staff={staff}
         />
     );
 }
