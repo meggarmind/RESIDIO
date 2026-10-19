@@ -33,7 +33,9 @@ Each billing setting carries an **Affects** line saying whether a change reaches
 
 ## Notifications
 
-Use **Settings → Notifications** to review reminders, schedules, and templates. Keep templates clear and test them before enabling a new automated message.
+Use **Settings → Notifications** to review reminders and templates. Notification templates are system templates: they are read-only and sent by name. Announcement text lives in **Announcement Templates**. Notification Schedules is hidden, because nothing sent what it configured; automatic reminders follow **Reminder Schedule**.
+
+Three controls affect payment reminders. **Enable Reminders** on the Reminders page turns the automatic daily reminders on or off. **Payment Reminders** under **Email Notifications** only allows the manual run. **Send Payment Reminders Now** under **Email → Debug & Testing** sends one email-only run, using the reminder days set in **Billing**.
 
 The **Enable Reminders** switch saves the state you set it to. **Reset to Default** on the reminder schedule asks before it replaces your steps, and **Send Reminders** under **Email → Debug & Testing** shows how many reminders would go to how many residents before it sends.
 

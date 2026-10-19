@@ -95,7 +95,6 @@ describe('Settings/System search entry permissions', () => {
       '/settings/notifications/reminders': ['notifications.manage'],
       '/settings/notifications/reminders/schedule': ['notifications.manage'],
       '/settings/notifications/templates': ['notifications.manage'],
-      '/settings/notifications/schedules': ['notifications.manage'],
       '/settings/email': ['settings.manage_general'],
       '/settings/email/debug': ['settings.manage_general'],
       '/settings/comms-override': ['settings.manage_general'],

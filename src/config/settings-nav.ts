@@ -101,8 +101,8 @@ export const settingsConfig: SettingsGroup[] = [
                     { title: "Overview", href: "/settings/notifications", description: "Notification dashboard", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
                     { title: "Reminders", href: "/settings/notifications/reminders", description: "Invoice payment reminders", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
                     { title: "Reminder Schedule", href: "/settings/notifications/reminders/schedule", description: "Configure reminder escalation", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
-                    { title: "Notification Templates", href: "/settings/notifications/templates", description: "Message templates", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
-                    { title: "Notification Schedules", href: "/settings/notifications/schedules", description: "Notification schedules", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
+                    { title: "Notification Templates", href: "/settings/notifications/templates", description: "System message templates, read-only", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
+                    // Notification Schedules hidden (#787): nothing consumes notification_schedules.
                     // History moved to /system/notification-history (ADR-0004): it shows
                     // sent-notification state, not configuration.
                 ]
@@ -117,7 +117,7 @@ export const settingsConfig: SettingsGroup[] = [
                 ]
             },
             { title: "Communications override", href: "/settings/comms-override", description: "Redirect outbound email, SMS and WhatsApp to override contacts", permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL] },
-            { title: "Message Templates", href: "/settings/message-templates", description: "Pre-written messages", permissions: [PERMISSIONS.ANNOUNCEMENTS_MANAGE_TEMPLATES] },
+            { title: "Announcement Templates", href: "/settings/message-templates", description: "Reusable announcement text", permissions: [PERMISSIONS.ANNOUNCEMENTS_MANAGE_TEMPLATES] },
             { title: "Announcement Categories", href: "/settings/announcement-categories", description: "Organize announcements", permissions: [PERMISSIONS.ANNOUNCEMENTS_MANAGE_CATEGORIES] },
         ]
     },
@@ -174,7 +174,7 @@ export const settingsConfig: SettingsGroup[] = [
             // top-level /system dashboard (#176, ADR-0004). No "System" parent or
             // Overview child: that overview had no single successor once its two
             // links moved up a level, so it was retired rather than kept.
-            { title: "Maintenance", href: "/settings/maintenance", description: "Maintenance mode and messages", permissions: [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE] },
+            { title: "System Behaviour", href: "/settings/maintenance", description: "Maintenance mode, session timeout and duplicate matching", permissions: [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE] },
             { title: "Data & Retention", href: "/settings/data-retention", description: "Retention policies and pruning", permissions: [PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION] },
             // Cron Status moved to /system/cron-status (#174, ADR-0004): it shows live
             // job status, not configuration. /settings/cron-status and

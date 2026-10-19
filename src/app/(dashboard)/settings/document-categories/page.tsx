@@ -45,7 +45,7 @@ import {
 } from '@/hooks/use-documents';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
-import { Plus, Pencil, Trash2, FolderOpen, Users, GripVertical } from 'lucide-react';
+import { Plus, Pencil, Trash2, FolderOpen, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import type { DocumentCategory } from '@/types/database';
 
@@ -222,15 +222,12 @@ export default function DocumentCategoriesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {categories
+                {[...categories]
                   .sort((a, b) => a.display_order - b.display_order)
                   .map((category, index) => (
                     <TableRow key={category.id} className={!category.is_active ? 'opacity-50' : ''}>
                       <TableCell className="text-muted-foreground">
-                        <div className="flex items-center gap-2">
-                          <GripVertical className="h-4 w-4 text-muted-foreground/50" />
-                          {index + 1}
-                        </div>
+                        {index + 1}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">

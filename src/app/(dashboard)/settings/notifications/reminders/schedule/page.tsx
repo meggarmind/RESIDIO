@@ -59,16 +59,10 @@ import {
   resetToDefaultSchedule,
 } from '@/actions/notifications/reminder-config';
 import type { ReminderScheduleConfig, ReminderScheduleStep, NotificationChannel } from '@/lib/notifications/types';
-import { REMINDER_ESCALATION_LABELS, NOTIFICATION_CHANNEL_LABELS, isChannelImplemented } from '@/lib/notifications/types';
+import { REMINDER_ESCALATION_LABELS, NOTIFICATION_CHANNEL_LABELS, isChannelImplemented, formatDaysFromDue } from '@/lib/notifications/types';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { SettingsEmptyState, SettingsSkeleton } from '@/components/settings/settings-states';
-
-function formatDaysFromDue(days: number): string {
-  if (days === 0) return 'On due date';
-  if (days < 0) return `${Math.abs(days)} day${Math.abs(days) > 1 ? 's' : ''} before`;
-  return `${days} day${days > 1 ? 's' : ''} after`;
-}
 
 function getEscalationBadgeVariant(level: string): 'default' | 'secondary' | 'destructive' {
   switch (level) {

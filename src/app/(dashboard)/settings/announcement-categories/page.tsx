@@ -52,16 +52,17 @@ import {
 } from '@/hooks/use-announcements';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
-import { Plus, Pencil, Trash2, Megaphone, GripVertical } from 'lucide-react';
+import { Plus, Pencil, Trash2, Megaphone } from 'lucide-react';
 import { toast } from 'sonner';
 import type { AnnouncementCategory } from '@/types/database';
 
-// Available colors for categories
+// Available colors for categories. Red, green and yellow read as status colours, so they
+// are no longer offered; categories already saved with them still render.
 const CATEGORY_COLORS = [
   { value: 'blue', label: 'Blue', class: 'bg-blue-500' },
-  { value: 'green', label: 'Green', class: 'bg-green-500' },
-  { value: 'yellow', label: 'Yellow', class: 'bg-yellow-500' },
-  { value: 'red', label: 'Red', class: 'bg-red-500' },
+  { value: 'green', label: 'Green', class: 'bg-green-500', legacy: true },
+  { value: 'yellow', label: 'Yellow', class: 'bg-yellow-500', legacy: true },
+  { value: 'red', label: 'Red', class: 'bg-red-500', legacy: true },
   { value: 'purple', label: 'Purple', class: 'bg-purple-500' },
   { value: 'orange', label: 'Orange', class: 'bg-orange-500' },
   { value: 'pink', label: 'Pink', class: 'bg-pink-500' },
@@ -282,15 +283,12 @@ export default function AnnouncementCategoriesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {categories
+                {[...categories]
                   .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0))
                   .map((category, index) => (
                     <TableRow key={category.id} className={!category.is_active ? 'opacity-50' : ''}>
                       <TableCell className="text-muted-foreground">
-                        <div className="flex items-center gap-2">
-                          <GripVertical className="h-4 w-4 text-muted-foreground/50" />
-                          {index + 1}
-                        </div>
+                        {index + 1}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -408,7 +406,7 @@ export default function AnnouncementCategoriesPage() {
                     <SelectValue placeholder="Select color" />
                   </SelectTrigger>
                   <SelectContent>
-                    {CATEGORY_COLORS.map((color) => (
+                    {CATEGORY_COLORS.filter((c) => !c.legacy || c.value === watchColor).map((color) => (
                       <SelectItem key={color.value} value={color.value}>
                         <div className="flex items-center gap-2">
                           <div className={`h-3 w-3 rounded-full ${color.class}`} />

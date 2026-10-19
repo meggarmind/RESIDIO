@@ -33,6 +33,11 @@ export function formatDateTime(date: Date | string): string {
 }
 
 // Format validity period as "Valid from X to Y"
+/** "1 day", "7 days". */
+export function formatDayCount(days: number): string {
+  return `${days} ${Math.abs(days) === 1 ? 'day' : 'days'}`;
+}
+
 export function formatValidityPeriod(from: Date | string, until: Date | string | null): string {
   const fromFormatted = formatDateTime(from);
   if (!until) return `Valid from ${fromFormatted}`;
