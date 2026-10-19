@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
   fromCalls: [] as string[],
   writes: [] as Array<{ table: string; op: string; payload: unknown }>,
   singles: {} as Record<string, unknown>,
+  lists: {} as Record<string, unknown[]>,
 }));
 
 function builder(table: string): Record<string, unknown> {
@@ -29,6 +30,7 @@ function builder(table: string): Record<string, unknown> {
     data: state.singles[table] ?? null,
     error: state.singles[table] ? null : { message: 'not found' },
   }));
+  chain.then = (resolve: (v: unknown) => unknown) => resolve({ data: state.lists[table] ?? [], error: null });
   return chain;
 }
 
@@ -81,6 +83,7 @@ beforeEach(() => {
   state.fromCalls.length = 0;
   state.writes.length = 0;
   state.singles = {};
+  state.lists = {};
 });
 
 describe('validateMoneyAmount', () => {
@@ -226,7 +229,7 @@ describe('requestLateFeeWaiver', () => {
       id: 'inv-1',
       invoice_number: 'INV-1',
       resident_id: 'r1',
-      metadata: { late_fee_applied: true, late_fee_amount: 1000 },
+      invoice_items: [{ description: 'Late Fee (auto)', amount: 1000 }],
     };
   });
 
@@ -258,6 +261,45 @@ describe('requestLateFeeWaiver', () => {
     });
     spy.mockRestore();
     expect(state.writes.some((w) => w.table === 'late_fee_waivers' && w.op === 'insert')).toBe(true);
+  });
+
+  it('refuses a second full waiver once an approved full waiver covers the fee', async () => {
+    state.lists.late_fee_waivers = [
+      { status: 'approved', waiver_type: 'full', waiver_amount: null, original_late_fee: 1000 },
+    ];
+    const result = await requestLateFeeWaiver({ invoiceId: 'inv-1', reason: 'r', waiverType: 'full' });
+    expect(result).toEqual({ success: false, error: 'No late fee to waive' });
+    expect(state.writes).toEqual([]);
+  });
+
+  it('sizes a full waiver as the fee left after approved partial waivers', async () => {
+    state.lists.late_fee_waivers = [
+      { status: 'approved', waiver_type: 'partial', waiver_amount: 400, original_late_fee: 1000 },
+    ];
+    await requestLateFeeWaiver({ invoiceId: 'inv-1', reason: 'r', waiverType: 'full' });
+    const insert = state.writes.find((w) => w.table === 'late_fee_waivers' && w.op === 'insert');
+    expect(insert?.payload).toMatchObject({ original_late_fee: 600 });
+  });
+
+  it('rejects a partial waiver that is not below the remaining fee', async () => {
+    state.lists.late_fee_waivers = [
+      { status: 'approved', waiver_type: 'partial', waiver_amount: 400, original_late_fee: 1000 },
+    ];
+    const result = await requestLateFeeWaiver({ invoiceId: 'inv-1', reason: 'r', waiverType: 'partial', waiverAmount: 600 });
+    expect(result.success).toBe(false);
+    expect(state.writes).toEqual([]);
+  });
+
+  it('refuses a waiver on an invoice whose only late-fee-like line is an admin adjustment', async () => {
+    state.singles.invoices = {
+      id: 'inv-1',
+      invoice_number: 'INV-1',
+      resident_id: 'r1',
+      invoice_items: [{ description: 'Late Fee adjustment', amount: 1000 }],
+    };
+    const result = await requestLateFeeWaiver({ invoiceId: 'inv-1', reason: 'r', waiverType: 'full' });
+    expect(result).toEqual({ success: false, error: 'This invoice does not have a late fee applied' });
+    expect(state.writes).toEqual([]);
   });
 });
 

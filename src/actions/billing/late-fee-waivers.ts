@@ -6,6 +6,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { validateMoneyAmount } from '@/lib/validators/money';
+import { findLateFeeItem } from '@/lib/billing/apply-late-fees';
 import type {
   LateFeeWaiver,
   LateFeeWaiverWithDetails,
@@ -130,7 +131,7 @@ export async function requestLateFeeWaiver(params: {
   // Get the invoice to check if it has a late fee applied
   const { data: invoice, error: invoiceError } = await supabase
     .from('invoices')
-    .select('id, invoice_number, resident_id, metadata, status, amount_due')
+    .select('id, invoice_number, resident_id, status, amount_due, invoice_items(description, amount)')
     .eq('id', invoiceId)
     .single();
 
@@ -139,26 +140,33 @@ export async function requestLateFeeWaiver(params: {
   }
 
   // Check if late fee has been applied
-  const metadata = invoice.metadata as Record<string, unknown> | null;
-  if (!metadata?.late_fee_applied) {
+  const lateFeeItem = findLateFeeItem(invoice.invoice_items);
+  if (!lateFeeItem) {
     return { success: false, error: 'This invoice does not have a late fee applied' };
   }
 
-  const lateFeeAmount = (metadata.late_fee_amount as number) || 0;
-  if (lateFeeAmount <= 0) {
-    return { success: false, error: 'No late fee to waive' };
+  const { data: waivers, error: waiversError } = await supabase
+    .from('late_fee_waivers')
+    .select('status, waiver_type, waiver_amount, original_late_fee')
+    .eq('invoice_id', invoiceId)
+    .in('status', ['pending', 'approved']);
+
+  if (waiversError) {
+    console.error('Load existing waivers error:', waiversError);
+    return { success: false, error: 'Failed to check existing waivers' };
   }
 
-  // Check for existing pending waiver
-  const { data: existingWaiver } = await supabase
-    .from('late_fee_waivers')
-    .select('id')
-    .eq('invoice_id', invoiceId)
-    .eq('status', 'pending')
-    .single();
-
-  if (existingWaiver) {
+  if (waivers?.some((w) => w.status === 'pending')) {
     return { success: false, error: 'A pending waiver request already exists for this invoice' };
+  }
+
+  const waived = (waivers ?? []).reduce(
+    (sum, w) => sum + (Number(w.waiver_type === 'full' ? w.original_late_fee : w.waiver_amount) || 0),
+    0
+  );
+  const lateFeeAmount = Math.round(((Number(lateFeeItem.amount) || 0) - waived) * 100) / 100;
+  if (lateFeeAmount <= 0) {
+    return { success: false, error: 'No late fee to waive' };
   }
 
   // Validate partial waiver amount
@@ -168,7 +176,7 @@ export async function requestLateFeeWaiver(params: {
       return { success: false, error: waiverAmountError ?? 'Partial waiver amount must be greater than 0' };
     }
     if (waiverAmount >= lateFeeAmount) {
-      return { success: false, error: 'Partial waiver amount must be less than the total late fee' };
+      return { success: false, error: 'Partial waiver amount must be less than the remaining late fee' };
     }
   }
 
@@ -243,22 +251,13 @@ export async function approveLateFeeWaiver(
   }
 
   const invoice = embed(waiver.invoice);
-  const metadata = (invoice.metadata as Record<string, unknown>) || {};
 
   // Calculate the amount to waive
   const waiverAmount =
     waiver.waiver_type === 'full' ? waiver.original_late_fee : waiver.waiver_amount;
 
-  // Update the invoice - reduce total and update metadata
+  // Reduce the invoice total; the approved waiver row records what was waived.
   const newTotal = Math.max(0, invoice.amount_due - waiverAmount);
-  const newMetadata = {
-    ...metadata,
-    late_fee_waived: true,
-    late_fee_waiver_amount: waiverAmount,
-    late_fee_waiver_date: new Date().toISOString(),
-    late_fee_waiver_type: waiver.waiver_type,
-    late_fee_remaining: waiver.waiver_type === 'full' ? 0 : waiver.original_late_fee - waiverAmount,
-  };
 
   // Claim the waiver first (guarded on status = 'pending') so two concurrent
   // approvals cannot both reduce the invoice.
@@ -288,7 +287,6 @@ export async function approveLateFeeWaiver(
     .from('invoices')
     .update({
       amount_due: newTotal,
-      metadata: newMetadata,
       updated_at: new Date().toISOString(),
     })
     .eq('id', waiver.invoice_id);
