@@ -35,8 +35,9 @@ type UpdateResidentHouseData = {
   is_billing_responsible?: boolean;
 };
 
-export function useResidents(params: Partial<ResidentSearchParams> = {}) {
+export function useResidents(params: Partial<ResidentSearchParams> = {}, options: { enabled?: boolean } = {}) {
   return useQuery({
+    enabled: options.enabled ?? true,
     queryKey: ['residents', params],
     queryFn: async () => {
       const result = await getResidents(params);

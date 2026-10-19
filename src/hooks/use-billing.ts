@@ -433,6 +433,7 @@ export function useAllocateWallet() {
             toast.success(`Allocated ₦${result.totalAllocated.toLocaleString()} to ${result.invoicesPaid} invoices`);
             queryClient.invalidateQueries({ queryKey: ['resident-wallet', residentId] });
             queryClient.invalidateQueries({ queryKey: ['wallet-transactions', residentId] });
+            queryClient.invalidateQueries({ queryKey: ['yearly-wallet-transactions', residentId] });
             queryClient.invalidateQueries({ queryKey: ['invoices'] });
             queryClient.invalidateQueries({ queryKey: ['resident-indebtedness', residentId] });
         },

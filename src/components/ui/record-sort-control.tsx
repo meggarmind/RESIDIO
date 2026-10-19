@@ -38,7 +38,7 @@ function RecordSortControl({ options, sortBy, sortOrder = "asc", onSort, classNa
   return (
     <div data-slot="record-sort-control" className={cn("flex items-center gap-2", className)}>
       <Select value={sortBy ?? ""} onValueChange={(value) => onSort(value)}>
-        <SelectTrigger className="flex-1" aria-label="Sort by">
+        <SelectTrigger className="flex-1 min-h-11 md:min-h-0" aria-label="Sort by">
           <SelectValue placeholder="Sort by" />
         </SelectTrigger>
         <SelectContent>
@@ -53,6 +53,7 @@ function RecordSortControl({ options, sortBy, sortOrder = "asc", onSort, classNa
         type="button"
         variant="outline"
         size="icon"
+        className="size-11 md:size-9"
         aria-label={directionLabel}
         disabled={sortBy === undefined}
         onClick={() => {

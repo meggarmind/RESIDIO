@@ -217,7 +217,7 @@ export function CrossPropertyPaymentSummary({ residentId, walletBalance, classNa
               <Button
                 variant="ghost"
                 size="sm"
-                className="w-full justify-between hover:bg-muted/50 h-8 text-xs"
+                className="w-full justify-between hover:bg-muted/50 h-8 min-h-11 md:min-h-0 text-xs"
               >
                 <div className="flex items-center gap-1.5">
                   <Home className="h-3.5 w-3.5" />
