@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   useSendPaymentReminders: vi.fn(),
 }));
 vi.mock('@/hooks/use-settings', () => ({ useSettings: mocks.useSettings }));
+vi.mock('@/actions/email/send-payment-reminders', () => ({ previewPaymentReminders: vi.fn() }));
 vi.mock('@/hooks/use-email', () => ({
   useTestEmail: mocks.useTestEmail,
   useSendPaymentReminders: mocks.useSendPaymentReminders,

@@ -8,6 +8,8 @@ import { getSystemSetting } from '@/lib/settings/get-system-setting';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
+import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
+import { planRetroactiveLevies, LEVY_BILLABLE_ROLES, type LevyPlanProfile, type RetroactiveLevyPlan } from '@/lib/billing/retroactive-levy-plan';
 import type { RateSnapshot, BillableRole } from '@/types/database';
 import type { BillingProfileWithItems, LevyGenerationResult } from '@/types/billing';
 
@@ -421,4 +423,44 @@ export async function generateRetroactiveLevies(): Promise<LevyGenerationResult>
 
     revalidatePath('/billing');
     return result;
+}
+
+/**
+ * Dry run of `generateRetroactiveLevies` for its confirmation dialog (#790): how many
+ * houses and invoices it would create and their naira total. Reads only.
+ */
+export async function previewRetroactiveLevies(): Promise<{ data: RetroactiveLevyPlan | null; error: string | null }> {
+    const auth = await authorizePermission(PERMISSIONS.BILLING_CREATE_INVOICE);
+    if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
+
+    const supabase = await createServerSupabaseClient();
+
+    const autoGenerateLevies = await getSystemSetting(supabase, 'auto_generate_levies');
+
+    const [houses, links, history, profiles] = await Promise.all([
+        fetchAllRows<{ id: string }>((from, to) =>
+            supabase.from('houses').select('id').eq('is_active', true).order('id').range(from, to)),
+        fetchAllRows<{ house_id: string; resident_role: string }>((from, to) =>
+            supabase.from('resident_houses').select('house_id, resident_role')
+                .eq('is_active', true).in('resident_role', [...LEVY_BILLABLE_ROLES]).order('id').range(from, to)),
+        fetchAllRows<{ house_id: string; billing_profile_id: string }>((from, to) =>
+            supabase.from('house_levy_history').select('house_id, billing_profile_id').order('id').range(from, to)),
+        supabase.from('billing_profiles')
+            .select('id, name, target_type, applicable_roles, is_development_levy, billing_items(amount)')
+            .eq('is_active', true).eq('is_one_time', true),
+    ]);
+
+    const error = houses.error || links.error || history.error || profiles.error?.message;
+    if (error) return { data: null, error };
+
+    return {
+        data: planRetroactiveLevies({
+            autoGenerateEnabled: autoGenerateLevies !== false,
+            houseIds: (houses.data || []).map((h) => h.id),
+            residentLinks: links.data || [],
+            profiles: (profiles.data || []) as LevyPlanProfile[],
+            history: history.data || [],
+        }),
+        error: null,
+    };
 }

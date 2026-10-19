@@ -1,18 +1,29 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertTriangle, Loader2, Save, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, Loader2, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
-import { useSystemSettings, useUpdateSettings, useUpdateSetting } from '@/hooks/use-settings';
-import { updateMaintenanceMode } from '@/actions/settings/update-maintenance-mode';
+import { useSystemSettings, useUpdateSettings } from '@/hooks/use-settings';
+import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
+import { updateMaintenanceMode, previewMaintenanceLockout } from '@/actions/settings/update-maintenance-mode';
+import { ConfirmAction } from '@/components/ui/confirm-action';
+import { NumericSettingInput } from '@/components/settings/numeric-setting-input';
+import { StickySaveBar } from '@/components/settings/sticky-save-bar';
+
+const DEFAULT_MESSAGE = 'The system is currently under maintenance. Please try again later.';
+
+type MaintenanceForm = {
+  maintenance_message: string;
+  session_timeout_minutes: number;
+  duplicate_matching_threshold: number;
+};
 
 function settingsToObject(settings: { key: string; value: unknown }[] | undefined): Record<string, unknown> {
   if (!settings) return {};
@@ -23,48 +34,60 @@ function settingsToObject(settings: { key: string; value: unknown }[] | undefine
 }
 
 export default function MaintenancePage() {
+  const queryClient = useQueryClient();
   const { data: systemSettings, isLoading } = useSystemSettings();
   const updateSettings = useUpdateSettings();
-  const updateSetting = useUpdateSetting();
-
-  const [maintenanceMode, setMaintenanceMode] = useState(false);
-  const [maintenanceMessage, setMaintenanceMessage] = useState('');
-  const [sessionTimeoutMinutes, setSessionTimeoutMinutes] = useState(60);
-  const [duplicateMatchingThreshold, setDuplicateMatchingThreshold] = useState(90);
-  const [isDirty, setIsDirty] = useState(false);
 
   const settingsObj = useMemo(() => settingsToObject(systemSettings), [systemSettings]);
-  const [initialized, setInitialized] = useState(false);
+  const savedForm = useMemo<MaintenanceForm>(() => ({
+    maintenance_message: (settingsObj.maintenance_message as string) || DEFAULT_MESSAGE,
+    session_timeout_minutes: Number(settingsObj.session_timeout_minutes) || 60,
+    duplicate_matching_threshold: Number(settingsObj.duplicate_matching_threshold) || 90,
+  }), [settingsObj]);
+  // The stored value may be a boolean or the string 'true' (updateSetting stores strings).
+  const maintenanceMode = String(settingsObj.maintenance_mode) === 'true';
 
-  if (systemSettings && !initialized) {
-    setInitialized(true);
-    setMaintenanceMode(settingsObj.maintenance_mode === true);
-    setMaintenanceMessage((settingsObj.maintenance_message as string) || 'The system is currently under maintenance. Please try again later.');
-    setSessionTimeoutMinutes(Number(settingsObj.session_timeout_minutes) || 60);
-    setDuplicateMatchingThreshold(Number(settingsObj.duplicate_matching_threshold) || 90);
-  }
+  // One save model: every field below is a draft until Save. Maintenance mode itself is an
+  // action with its own confirmation, not part of the draft.
+  const [overrides, setOverrides] = useState<Partial<MaintenanceForm>>({});
+  const [invalidFields, setInvalidFields] = useState<Record<string, boolean>>({});
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [switching, setSwitching] = useState(false);
+  // Remounts the numeric fields on Discard so their drafts and messages reset too.
+  const [resetKey, setResetKey] = useState(0);
 
-  const handleMaintenanceModeToggle = async () => {
-    const newValue = !maintenanceMode;
-    setMaintenanceMode(newValue);
-    const result = await updateMaintenanceMode(newValue, maintenanceMessage);
-    if (result.success) {
-      toast.success(`Maintenance mode ${newValue ? 'enabled' : 'disabled'}`);
-      updateSetting.mutate({ key: 'maintenance_mode', value: newValue });
-    } else {
-      setMaintenanceMode(!newValue);
-      toast.error(result.error || 'Failed to update maintenance mode');
+  const form = { ...savedForm, ...overrides };
+  const isDirty = Object.keys(overrides).length > 0;
+  const canSave = !Object.values(invalidFields).some(Boolean);
+  useUnsavedChangesGuard(isDirty);
+
+  const setField = <K extends keyof MaintenanceForm>(key: K, value: MaintenanceForm[K]) =>
+    setOverrides((prev) => ({ ...prev, [key]: value }));
+  const trackValidity = useCallback(
+    (key: string) => (valid: boolean) => setInvalidFields((prev) => (prev[key] === !valid ? prev : { ...prev, [key]: !valid })),
+    []
+  );
+  const timeoutValidity = useMemo(() => trackValidity('session_timeout_minutes'), [trackValidity]);
+  const thresholdValidity = useMemo(() => trackValidity('duplicate_matching_threshold'), [trackValidity]);
+
+  const setMaintenanceMode = async (enabled: boolean) => {
+    setSwitching(true);
+    try {
+      // The message shown is the saved one; unsaved edits are not sent with the switch.
+      const result = await updateMaintenanceMode(enabled);
+      if (!result.success) {
+        toast.error(result.error || 'Failed to update maintenance mode');
+        throw new Error(result.error);
+      }
+      toast.success(`Maintenance mode ${enabled ? 'enabled' : 'disabled'}`);
+      await queryClient.invalidateQueries({ queryKey: ['settings'] });
+    } finally {
+      setSwitching(false);
     }
   };
 
-  const handleSaveSettings = () => {
-    updateSettings.mutate({
-      maintenance_message: maintenanceMessage,
-      session_timeout_minutes: sessionTimeoutMinutes,
-      duplicate_matching_threshold: duplicateMatchingThreshold,
-    }, {
-      onSuccess: () => setIsDirty(false),
-    });
+  const handleSave = () => {
+    updateSettings.mutate(overrides, { onSuccess: () => setOverrides({}) });
   };
 
   if (isLoading) return <div className="flex items-center justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
@@ -92,11 +115,42 @@ export default function MaintenancePage() {
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label>Enable Maintenance Mode</Label>
-              <p className="text-sm text-muted-foreground">Only admin users can access the application</p>
+              <Label htmlFor="maintenance-mode">Enable Maintenance Mode</Label>
+              <p className="text-sm text-muted-foreground">Only super admins can use the application. Takes effect as soon as you confirm.</p>
             </div>
-            <Switch checked={maintenanceMode} onCheckedChange={handleMaintenanceModeToggle} disabled={updateSetting.isPending} />
+            <Switch
+              id="maintenance-mode"
+              checked={maintenanceMode}
+              onCheckedChange={(checked) => (checked ? setConfirmOpen(true) : setMaintenanceMode(false).catch(() => {}))}
+              disabled={switching}
+            />
           </div>
+          <ConfirmAction
+            open={confirmOpen}
+            onOpenChange={setConfirmOpen}
+            title="Turn on maintenance mode?"
+            description={
+              <>
+                <p>Everyone signed in without the super admin role is sent to the maintenance page on their next page load, until maintenance mode is turned off again.</p>
+                <p>They will see: &ldquo;{savedForm.maintenance_message}&rdquo;</p>
+                {overrides.maintenance_message !== undefined && (
+                  <p>Your unsaved message edits are not used. Save them first to show them.</p>
+                )}
+              </>
+            }
+            confirmLabel="Turn on maintenance mode"
+            destructive
+            loadPreview={previewMaintenanceLockout}
+            renderPreview={(preview) => (
+              <div className="space-y-1">
+                <p><strong>{preview.total}</strong> active account(s) will be locked out:</p>
+                <ul className="list-disc pl-5">
+                  {preview.byRole.map((r) => <li key={r.role}>{r.role}: {r.count}</li>)}
+                </ul>
+              </div>
+            )}
+            onConfirm={() => setMaintenanceMode(true)}
+          />
           {maintenanceMode && (
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
@@ -106,14 +160,15 @@ export default function MaintenancePage() {
           )}
           <Separator />
           <div className="space-y-2">
-            <Label>Maintenance Message</Label>
+            <Label htmlFor="maintenance-message">Maintenance Message</Label>
             <Textarea
-              value={maintenanceMessage}
-              onChange={(e) => { setMaintenanceMessage(e.target.value); setIsDirty(true); }}
+              id="maintenance-message"
+              value={form.maintenance_message}
+              onChange={(e) => setField('maintenance_message', e.target.value)}
               placeholder="Enter the message to display during maintenance..."
               rows={3}
             />
-            <p className="text-xs text-muted-foreground">This message will be shown to users on the maintenance page.</p>
+            <p className="text-xs text-muted-foreground">This message will be shown to users on the maintenance page once saved.</p>
           </div>
         </CardContent>
       </Card>
@@ -126,14 +181,19 @@ export default function MaintenancePage() {
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label>Session Timeout (minutes)</Label>
+              <Label htmlFor="session-timeout">Session Timeout (minutes)</Label>
               <p className="text-sm text-muted-foreground">Inactive users will be logged out after this duration</p>
             </div>
-            <Input
-              type="number" min={5} max={1440}
-              value={sessionTimeoutMinutes}
-              onChange={(e) => { setSessionTimeoutMinutes(parseInt(e.target.value) || 60); setIsDirty(true); }}
-              className="w-24 text-center"
+            <NumericSettingInput
+              key={`timeout-${resetKey}`}
+              id="session-timeout"
+              min={5}
+              max={1440}
+              integer
+              unit="min"
+              value={form.session_timeout_minutes}
+              onCommit={(value) => setField('session_timeout_minutes', value)}
+              onValidityChange={timeoutValidity}
             />
           </div>
         </CardContent>
@@ -147,31 +207,31 @@ export default function MaintenancePage() {
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label>Confidence Threshold (%)</Label>
+              <Label htmlFor="duplicate-threshold">Confidence Threshold (%)</Label>
               <p className="text-sm text-muted-foreground">Transactions above this score will be flagged as duplicates</p>
             </div>
-            <div className="flex items-center gap-2">
-              <Input
-                type="number" min={0} max={100}
-                value={duplicateMatchingThreshold}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value);
-                  if (!isNaN(val) && val >= 0 && val <= 100) { setDuplicateMatchingThreshold(val); setIsDirty(true); }
-                }}
-                className="w-24 text-center"
-              />
-              <span className="text-sm text-muted-foreground">%</span>
-            </div>
+            <NumericSettingInput
+              key={`threshold-${resetKey}`}
+              id="duplicate-threshold"
+              min={1}
+              max={100}
+              integer
+              unit="%"
+              value={form.duplicate_matching_threshold}
+              onCommit={(value) => setField('duplicate_matching_threshold', value)}
+              onValidityChange={thresholdValidity}
+            />
           </div>
         </CardContent>
       </Card>
 
-      <div className="flex justify-end">
-        <Button onClick={handleSaveSettings} disabled={!isDirty || updateSettings.isPending}>
-          {updateSettings.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          <Save className="mr-2 h-4 w-4" /> Save Settings
-        </Button>
-      </div>
+      <StickySaveBar
+        isDirty={isDirty || !canSave}
+        isSaving={updateSettings.isPending}
+        canSave={canSave && isDirty}
+        onSave={handleSave}
+        onDiscard={() => { setOverrides({}); setInvalidFields({}); setResetKey((k) => k + 1); }}
+      />
     </div>
   );
 }

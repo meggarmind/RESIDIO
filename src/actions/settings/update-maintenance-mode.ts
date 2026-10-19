@@ -4,6 +4,8 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { updateSetting } from './update-setting';
 import { logAudit } from '@/lib/audit/logger';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
 
 interface UpdateMaintenanceModeResult {
   success: boolean;
@@ -62,4 +64,42 @@ export async function updateMaintenanceMode(
     const errorMessage = error instanceof Error ? error.message : 'Failed to update maintenance mode';
     return { success: false, error: errorMessage };
   }
+}
+
+export type MaintenanceLockoutPreview = {
+  total: number;
+  byRole: { role: string; count: number }[];
+};
+
+/**
+ * Who maintenance mode would lock out, for its confirmation dialog (#790). The middleware
+ * redirects every signed-in user whose role is not super_admin, so this counts active
+ * accounts by role, excluding super_admin. Reads only.
+ */
+export async function previewMaintenanceLockout(): Promise<{ data: MaintenanceLockoutPreview | null; error: string | null }> {
+  const auth = await authorizePermission(PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE);
+  if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
+
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await fetchAllRows<{ app_roles: unknown }>((from, to) =>
+    supabase
+      .from('profiles')
+      .select('app_roles!profiles_role_id_fkey (name, display_name)')
+      .eq('approval_status', 'active')
+      .order('id')
+      .range(from, to)
+  );
+  if (error || !data) return { data: null, error: error || 'Failed to load users' };
+
+  const counts = new Map<string, number>();
+  for (const profile of data) {
+    const role = (Array.isArray(profile.app_roles) ? profile.app_roles[0] : profile.app_roles) as
+      | { name: string; display_name: string }
+      | null;
+    if (role?.name === 'super_admin') continue;
+    const label = role?.display_name || 'No admin role (residents)';
+    counts.set(label, (counts.get(label) || 0) + 1);
+  }
+  const byRole = [...counts].map(([role, count]) => ({ role, count })).sort((a, b) => b.count - a.count);
+  return { data: { total: byRole.reduce((sum, r) => sum + r.count, 0), byRole }, error: null };
 }

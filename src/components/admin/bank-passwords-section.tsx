@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { ConfirmAction } from '@/components/ui/confirm-action';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -148,18 +149,23 @@ export function BankPasswordsSection() {
                         >
                           Update
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            if (confirm('Remove password for this account?')) {
-                              removePasswordMutation.mutate(account.id);
-                            }
-                          }}
-                          disabled={removePasswordMutation.isPending}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                        <ConfirmAction
+                          trigger={
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              aria-label="Remove password"
+                              disabled={removePasswordMutation.isPending}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          }
+                          title="Remove the statement password?"
+                          description="Password-protected statements for this account cannot be opened until a password is set again."
+                          confirmLabel="Remove password"
+                          destructive
+                          onConfirm={() => removePasswordMutation.mutate(account.id)}
+                        />
                       </>
                     ) : (
                       <Button variant="outline" size="sm" onClick={() => handleOpenDialog(account)}>

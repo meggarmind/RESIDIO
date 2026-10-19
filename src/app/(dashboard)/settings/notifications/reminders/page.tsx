@@ -25,7 +25,7 @@ import {
 import Link from 'next/link';
 import {
   getReminderSettings,
-  toggleRemindersEnabled,
+  setRemindersEnabled,
 } from '@/actions/notifications/reminder-config';
 import type { ReminderScheduleConfig } from '@/lib/notifications/types';
 import { toast } from 'sonner';
@@ -65,9 +65,9 @@ export default function RemindersOverviewPage() {
     loadSettings();
   }, []);
 
-  const handleToggleEnabled = async () => {
+  const handleToggleEnabled = async (checked: boolean) => {
     try {
-      const result = await toggleRemindersEnabled();
+      const result = await setRemindersEnabled(checked);
       if (result.success) {
         setEnabled(result.enabled!);
         toast.success(`Reminders ${result.enabled ? 'enabled' : 'disabled'}`);

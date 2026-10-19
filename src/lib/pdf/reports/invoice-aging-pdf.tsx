@@ -1,6 +1,7 @@
 import { Document, Page, Text, View } from '@react-pdf/renderer';
 import { reportPdfStyles as s } from '@/lib/pdf/reports/base-styles';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatDate } from '@/lib/utils';
+import { formatPdfCurrency } from '@/lib/pdf/format-currency';
 import type { InvoiceAgingData } from '@/actions/reports/report-engine';
 
 export function InvoiceAgingPdf({ data }: { data: InvoiceAgingData }) {
@@ -33,7 +34,7 @@ export function InvoiceAgingPdf({ data }: { data: InvoiceAgingData }) {
             ].map((bracket) => (
               <View key={bracket.label} style={s.summaryBox}>
                 <Text style={s.summaryLabel}>{bracket.label}</Text>
-                <Text style={[s.summaryValue, bracket.value > 0 ? s.amountNegative : {}]}>{formatCurrency(bracket.value)}</Text>
+                <Text style={[s.summaryValue, bracket.value > 0 ? s.amountNegative : {}]}>{formatPdfCurrency(bracket.value)}</Text>
               </View>
             ))}
           </View>
@@ -41,7 +42,7 @@ export function InvoiceAgingPdf({ data }: { data: InvoiceAgingData }) {
 
         {byBracket.map((bracket) => (
           <View key={bracket.bracket} style={s.section}>
-            <Text style={s.sectionTitle}>{bracket.bracket} ({bracket.invoiceCount} invoices — {formatCurrency(bracket.totalAmount)})</Text>
+            <Text style={s.sectionTitle}>{bracket.bracket} ({bracket.invoiceCount} invoices — {formatPdfCurrency(bracket.totalAmount)})</Text>
             <View style={s.table}>
               <View style={s.tableHeader}>
                 <Text style={[s.tableHeaderCell, { flex: 3 }]}>Invoice</Text>
@@ -55,8 +56,8 @@ export function InvoiceAgingPdf({ data }: { data: InvoiceAgingData }) {
                   <Text style={[s.tableCell, { flex: 3 }]}>{inv.invoiceNumber}</Text>
                   <Text style={[s.tableCell, { flex: 2 }]}>{inv.residentName}</Text>
                   <Text style={[s.tableCell, { flex: 2 }]}>{inv.dueDate}</Text>
-                  <Text style={[s.tableCell, s.amountRight, { flex: 2 }]}>{formatCurrency(inv.amountDue)}</Text>
-                  <Text style={[s.tableCell, s.amountRight, { flex: 2 }, inv.outstanding > 0 ? s.amountNegative : s.amountPositive]}>{formatCurrency(inv.outstanding)}</Text>
+                  <Text style={[s.tableCell, s.amountRight, { flex: 2 }]}>{formatPdfCurrency(inv.amountDue)}</Text>
+                  <Text style={[s.tableCell, s.amountRight, { flex: 2 }, inv.outstanding > 0 ? s.amountNegative : s.amountPositive]}>{formatPdfCurrency(inv.outstanding)}</Text>
                 </View>
               ))}
             </View>

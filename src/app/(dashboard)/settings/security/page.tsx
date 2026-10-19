@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
+import { NumericSettingInput } from '@/components/settings/numeric-setting-input';
 import {
   Dialog,
   DialogContent,
@@ -91,37 +91,36 @@ export default function SecuritySettingsPage() {
 
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label>Max Contacts Per Category</Label>
+                  <Label htmlFor="security_max_contacts_per_resident">Max Contacts Per Category</Label>
                   <p className="text-sm text-muted-foreground">
                     Maximum number of active contacts allowed per category
                   </p>
                 </div>
-                <Input
-                  type="number"
+                <NumericSettingInput
+                  id="security_max_contacts_per_resident"
                   min={1}
                   max={100}
-                  value={String(settingsMap.max_contacts_per_resident || 50)}
-                  onChange={(e) => updateSetting.mutate({ key: 'security_max_contacts_per_resident', value: parseInt(e.target.value) || 50 })}
-                  className="w-20 text-center"
-                  disabled={updateSetting.isPending}
+                  integer
+                  value={settingsMap.max_contacts_per_resident || 50}
+                  onCommit={(value) => updateSetting.mutate({ key: 'security_max_contacts_per_resident', value })}
                 />
               </div>
 
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label>Warning Days Before Expiry</Label>
+                  <Label htmlFor="security_expiry_warning_days">Warning Days Before Expiry</Label>
                   <p className="text-sm text-muted-foreground">
                     Days before contact expiry to trigger a warning notification
                   </p>
                 </div>
-                <Input
-                  type="number"
+                <NumericSettingInput
+                  id="security_expiry_warning_days"
                   min={1}
                   max={30}
-                  value={String(settingsMap.expiry_warning_days?.[0] || 7)}
-                  onChange={(e) => updateSetting.mutate({ key: 'security_expiry_warning_days', value: [parseInt(e.target.value) || 7] })}
-                  className="w-20 text-center"
-                  disabled={updateSetting.isPending}
+                  integer
+                  unit="days"
+                  value={settingsMap.expiry_warning_days?.[0] || 7}
+                  onCommit={(value) => updateSetting.mutate({ key: 'security_expiry_warning_days', value: [value] })}
                 />
               </div>
             </>
