@@ -1,5 +1,5 @@
 import { getWhatsAppForcePin, getWhatsAppOptIns, getWhatsAppPendingContacts } from '@/actions/whatsapp/identity';
-import { getWhatsAppEnabled, getWhatsAppPilotSettings } from '@/actions/whatsapp/pilot';
+import { getWhatsAppEnabled, getWhatsAppPilotResidentOptions, getWhatsAppPilotSettings } from '@/actions/whatsapp/pilot';
 import { getWhatsAppDisclosureLogs, getWhatsAppHealth, getWhatsAppSessions } from '@/actions/whatsapp/admin-console';
 import { getWhatsAppConnectionStatus, type WhatsAppConnectionStatus } from '@/actions/whatsapp/connection';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,7 +28,7 @@ const DISCONNECTED_STATUS: WhatsAppConnectionStatus = {
 };
 
 export default async function WhatsAppOperationsPage() {
-  const [optInResult, pendingResult, forcePinResult, sessionsResult, disclosuresResult, healthResult, pilotResult, connectionResult, whatsappEnabledResult] = await Promise.all([
+  const [optInResult, pendingResult, forcePinResult, sessionsResult, disclosuresResult, healthResult, pilotResult, connectionResult, whatsappEnabledResult, pilotResidentsResult] = await Promise.all([
     getWhatsAppOptIns(),
     getWhatsAppPendingContacts(),
     getWhatsAppForcePin(),
@@ -38,6 +38,7 @@ export default async function WhatsAppOperationsPage() {
     getWhatsAppPilotSettings(),
     getWhatsAppConnectionStatus(),
     getWhatsAppEnabled(),
+    getWhatsAppPilotResidentOptions(),
   ]);
 
   // Fallback idiom matches src/actions/system/cron-status.ts.
@@ -72,7 +73,7 @@ export default async function WhatsAppOperationsPage() {
           <CardContent><OptInImport /></CardContent>
         </Card>
       </div>
-      <Card><CardHeader><CardTitle>Rollout and pilot controls</CardTitle><CardDescription>Keep WhatsApp disabled until a defined pilot is verified. Promotion is audited.</CardDescription></CardHeader><CardContent><PilotControls initial={pilotResult.data || { mode: 'disabled', residentIds: [], streetId: '', outboundDailyCap: 100, outboundBurstCap: 20, outboundBurstWindowMinutes: 10, financialLookupDailyCap: 50, sessionRetentionDays: 1, processedMessageRetentionDays: 2 }} /></CardContent></Card>
+      <Card><CardHeader><CardTitle>Rollout and pilot controls</CardTitle><CardDescription>Keep WhatsApp disabled until a defined pilot is verified. Promotion is audited.</CardDescription></CardHeader><CardContent><PilotControls initial={pilotResult.data || { mode: 'disabled', residentIds: [], streetId: '', outboundDailyCap: 100, outboundBurstCap: 20, outboundBurstWindowMinutes: 10, financialLookupDailyCap: 50, sessionRetentionDays: 1, processedMessageRetentionDays: 2 }} residentOptions={pilotResidentsResult.data} /></CardContent></Card>
       <OperationsConsole
         optIns={(optInResult.data || []) as OptIn[]}
         pending={(pendingResult.data || []) as Pending[]}

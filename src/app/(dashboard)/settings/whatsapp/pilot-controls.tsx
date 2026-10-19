@@ -5,10 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
-import { promoteWhatsAppPilotToEstate, updateWhatsAppPilotSettings } from '@/actions/whatsapp/pilot';
+import { promoteWhatsAppPilotToEstate, updateWhatsAppPilotSettings, type PilotResidentOption } from '@/actions/whatsapp/pilot';
+import { PilotResidentPicker } from '@/app/(dashboard)/settings/whatsapp/pilot-resident-picker';
 import type { WhatsAppRolloutMode } from '@/lib/whatsapp/rollout';
 
-export function PilotControls({ initial }: { initial: {
+export function PilotControls({ initial, residentOptions }: { initial: {
   mode: WhatsAppRolloutMode;
   residentIds: string[];
   streetId: string;
@@ -18,11 +19,11 @@ export function PilotControls({ initial }: { initial: {
   financialLookupDailyCap: number;
   sessionRetentionDays: number;
   processedMessageRetentionDays: number;
-} }) {
+}; residentOptions: PilotResidentOption[] }) {
   const { hasPermission } = useAuth();
   const canManage = hasPermission(PERMISSIONS.WHATSAPP_MANAGE);
   const [mode, setMode] = useState(initial.mode);
-  const [residentIds, setResidentIds] = useState(initial.residentIds.join(','));
+  const [residentIds, setResidentIds] = useState(initial.residentIds);
   const [streetId, setStreetId] = useState(initial.streetId);
   const [outboundCap, setOutboundCap] = useState(String(initial.outboundDailyCap));
   const [lookupCap, setLookupCap] = useState(String(initial.financialLookupDailyCap));
@@ -39,7 +40,7 @@ export function PilotControls({ initial }: { initial: {
     startTransition(async () => {
       const result = await updateWhatsAppPilotSettings({
         mode,
-        residentIds: residentIds.split(',').map((value) => value.trim()).filter(Boolean),
+        residentIds,
         streetId: streetId.trim(),
         outboundDailyCap: Number(outboundCap),
         outboundBurstCap: Number(burstCap),
@@ -61,7 +62,7 @@ export function PilotControls({ initial }: { initial: {
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">Rollout mode</span><select value={mode} onChange={(event) => setMode(event.target.value as WhatsAppRolloutMode)} className="h-9 w-full rounded-md border bg-background px-3"><option value="disabled">Disabled</option><option value="pilot">Pilot</option><option value="estate">Estate-wide</option></select></label>
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">Pilot street ID</span><Input value={streetId} onChange={(event) => setStreetId(event.target.value)} placeholder="Optional" /></label>
-        <label className="space-y-1 text-sm sm:col-span-2"><span className="text-muted-foreground">Pilot resident IDs</span><Input value={residentIds} onChange={(event) => setResidentIds(event.target.value)} placeholder="Comma-separated UUIDs" /></label>
+        <div className="space-y-1 text-sm sm:col-span-2"><span className="text-muted-foreground">Pilot residents</span><PilotResidentPicker options={residentOptions} value={residentIds} onChange={setResidentIds} disabled={!canManage} /></div>
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">Daily outbound cap</span><Input type="number" min="0" value={outboundCap} onChange={(event) => setOutboundCap(event.target.value)} /></label>
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">Burst cap</span><Input type="number" min="0" value={burstCap} onChange={(event) => setBurstCap(event.target.value)} /></label>
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">Burst window (minutes)</span><Input type="number" min="1" value={burstWindow} onChange={(event) => setBurstWindow(event.target.value)} /></label>

@@ -80,6 +80,7 @@ function Page() {
           sessionRetentionDays: 1,
           processedMessageRetentionDays: 2,
         }}
+        residentOptions={[{ id: 'res-1', name: 'Ada Okoro', detail: 'RES001 · 12 Palm Close' }]}
       />
       <OperationsConsole
         optIns={[]}
@@ -100,6 +101,7 @@ const WRITE_CONTROLS: [string, RegExp][] = [
   ['button', /^Save template content SIDs$/],
   ['button', /^Save rollout controls$/],
   ['button', /^Promote estate-wide$/],
+  ['button', /^Choose pilot residents$/],
   ['button', /^Import opt-ins$/],
   ['button', /^Attach$/],
   ['button', /^Ignore$/],
@@ -147,7 +149,7 @@ describe('WhatsApp settings permission gating (issue #7)', () => {
     mocks.permissions = [PERMISSIONS.WHATSAPP_VIEW, PERMISSIONS.WHATSAPP_MANAGE];
     render(<Page />);
 
-    for (const name of [/^Disconnect$/, /^Test connection$/, /^Save template content SIDs$/, /^Save rollout controls$/, /^Promote estate-wide$/, /^Ignore$/, /^Reset$/, /^Import opt-ins$/]) {
+    for (const name of [/^Disconnect$/, /^Test connection$/, /^Save template content SIDs$/, /^Save rollout controls$/, /^Promote estate-wide$/, /^Choose pilot residents$/, /^Ignore$/, /^Reset$/, /^Import opt-ins$/]) {
       expect(screen.getByRole('button', { name })).toBeEnabled();
     }
     expect(screen.getByRole('switch', { name: /Enable the WhatsApp channel/ })).toBeEnabled();
