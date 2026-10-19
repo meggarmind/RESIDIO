@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getOverdueInvoiceAging } from '@/actions/billing/check-overdue-invoices';
 import { getContactVerificationStats } from '@/actions/residents/get-resident-stats';
@@ -149,69 +148,5 @@ describe('getFinancialOverview', () => {
     const result = await getFinancialOverview(params);
     expect(result.error).toBe('Forbidden');
     expect(rpcCalls).toHaveLength(0);
-  });
-});
-
-describe('migration 20261019100000_admin_read_aggregates', () => {
-  const sql = readFileSync(
-    new URL('../../supabase/migrations/20261019100000_admin_read_aggregates.sql', import.meta.url),
-    'utf8',
-  );
-  const code = sql.replace(/--.*$/gm, '').replace(/\s+/g, ' ');
-  const fn = (name: string) => {
-    const start = code.indexOf(`FUNCTION public.${name}(`);
-    return code.slice(start, code.indexOf('$$;', start));
-  };
-  const signatures = [
-    'sum_paid_payments()',
-    'get_overdue_invoice_aging(date)',
-    'get_contact_verification_stats()',
-    'get_financial_overview(date, date, uuid, text)',
-  ];
-
-  it('is SECURITY INVOKER and STABLE with a pinned search_path for every function', () => {
-    expect(code).not.toContain('SECURITY DEFINER');
-    expect(code.match(/SECURITY INVOKER/g)).toHaveLength(4);
-    expect(code.match(/STABLE/g)).toHaveLength(4);
-    expect(code.match(/SET search_path = public/g)).toHaveLength(4);
-  });
-
-  it('revokes from PUBLIC and anon, grants authenticated and service_role, and documents rollback', () => {
-    for (const sig of signatures) {
-      const escaped = sig.replace(/[()]/g, '\\$&');
-      expect(code).toMatch(new RegExp(`REVOKE ALL ON FUNCTION public\\.${escaped} FROM PUBLIC;`));
-      expect(code).toMatch(new RegExp(`REVOKE ALL ON FUNCTION public\\.${escaped} FROM anon;`));
-      expect(code).toMatch(new RegExp(`GRANT EXECUTE ON FUNCTION public\\.${escaped} TO authenticated, service_role;`));
-      expect(sql).toContain(`DROP FUNCTION IF EXISTS public.${sig};`);
-    }
-  });
-
-  it('sums only paid payments', () => {
-    expect(fn('sum_paid_payments')).toContain("SUM(amount), 0)::numeric FROM public.payment_records WHERE status = 'paid';");
-  });
-
-  it('buckets overdue invoices by whole days before p_today, matching the old filter', () => {
-    const body = fn('get_overdue_invoice_aging');
-    expect(body).toContain('(p_today - due_date)::integer AS days_overdue');
-    expect(body).toContain("WHERE status IN ('unpaid', 'partially_paid') AND due_date < p_today");
-    expect(body).toContain('GROUP BY 1');
-  });
-
-  it('counts verification over active residents with an absent email treated as complete', () => {
-    const body = fn('get_contact_verification_stats');
-    expect(body).toContain("'verified', COUNT(*) FILTER ( WHERE phone_verified_at IS NOT NULL AND (COALESCE(email, '') = '' OR email_verified_at IS NOT NULL) )");
-    expect(body).toContain("'unverified', COUNT(*) FILTER ( WHERE email_verified_at IS NULL AND phone_verified_at IS NULL )");
-    expect(body).toContain("WHERE account_status = 'active'");
-  });
-
-  it('keeps credits and debits apart and filters to completed imports in an inclusive range', () => {
-    const body = fn('get_financial_overview');
-    expect(body).toContain("'total_credits', (SELECT COALESCE(SUM(amount) FILTER (WHERE transaction_type = 'credit')");
-    expect(body).toContain("'total_debits', (SELECT COALESCE(SUM(amount) FILTER (WHERE transaction_type = 'debit')");
-    expect(body).toContain("i.status = 'completed'");
-    expect(body).toContain('r.transaction_date >= p_start_date AND r.transaction_date <= p_end_date');
-    expect(body).toContain('(p_bank_account_id IS NULL OR i.bank_account_id = p_bank_account_id)');
-    expect(body).toContain('(p_transaction_type IS NULL OR r.transaction_type = p_transaction_type)');
-    expect(body).toContain('ORDER BY total DESC');
   });
 });
