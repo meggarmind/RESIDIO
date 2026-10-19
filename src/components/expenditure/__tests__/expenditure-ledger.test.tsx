@@ -228,6 +228,21 @@ describe('ledger filters, totals and errors (#785)', () => {
     }
   });
 
+  it('a debounced search keeps a filter chosen while the navigation is still in flight', () => {
+    vi.useFakeTimers();
+    try {
+      renderLedger();
+      fireEvent.change(screen.getByLabelText('Search expenses'), { target: { value: 'diesel' } });
+      fireEvent.click(screen.getByRole('radio', { name: 'Pending' }));
+
+      act(() => vi.advanceTimersByTime(400));
+
+      expect(mocks.push).toHaveBeenLastCalledWith('/expenditure?status=pending&q=diesel');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('pages through the URL', () => {
     renderLedger({ count: 45 });
 

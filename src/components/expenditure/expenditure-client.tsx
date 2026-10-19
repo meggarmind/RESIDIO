@@ -83,9 +83,15 @@ export function ExpenditureClient({
     const [isNavigating, startTransition] = useTransition();
     const [search, setSearch] = useState(filters.search ?? '');
 
+    const latest = useRef(filters);
+    useEffect(() => {
+        latest.current = filters;
+    }, [filters]);
+
     const applyFilters = (patch: Partial<ExpenseFilters>) => {
         // Any filter change starts again at page 1 unless the patch names a page.
-        const next = { ...filters, page: 1, ...patch };
+        const next = { ...latest.current, page: 1, ...patch };
+        latest.current = next;
         startTransition(() => router.push(`${pathname}${expenseFiltersToQuery(next)}`));
     };
 
@@ -94,18 +100,13 @@ export function ExpenditureClient({
         setSearch(filters.search ?? '');
     }, [filters.search]);
 
-    const applyFiltersRef = useRef(applyFilters);
-    useEffect(() => {
-        applyFiltersRef.current = applyFilters;
-    });
-
     // Debounce typing into the URL.
     useEffect(() => {
         const term = search.trim() || undefined;
-        if (term === filters.search) return;
-        const timer = setTimeout(() => applyFiltersRef.current({ search: term }), 400);
+        if (term === latest.current.search) return;
+        const timer = setTimeout(() => applyFilters({ search: term }), 400);
         return () => clearTimeout(timer);
-        // The effect only cares about the typed term; the ref supplies the latest filters.
+        // The effect only cares about the typed term; applyFilters reads the latest filters from the ref.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [search]);
 
@@ -168,7 +169,10 @@ export function ExpenditureClient({
                     <Button
                         variant="ghost"
                         className="h-11 gap-1 md:h-9"
-                        onClick={() => applyFilters({ status: undefined, categoryId: undefined, search: undefined })}
+                        onClick={() => {
+                            setSearch('');
+                            applyFilters({ status: undefined, categoryId: undefined, search: undefined });
+                        }}
                     >
                         <X className="h-4 w-4" />
                         Clear filters
@@ -276,7 +280,7 @@ export function ExpenditureClient({
                         <Button
                             variant="outline"
                             aria-label="Previous page"
-                            onClick={() => applyFilters({ page: filters.page - 1 })}
+                            onClick={() => applyFilters({ page: latest.current.page - 1 })}
                             disabled={filters.page <= 1}
                             className="h-11 w-11 p-0 md:h-8 md:w-9"
                         >
@@ -288,7 +292,7 @@ export function ExpenditureClient({
                         <Button
                             variant="outline"
                             aria-label="Next page"
-                            onClick={() => applyFilters({ page: filters.page + 1 })}
+                            onClick={() => applyFilters({ page: latest.current.page + 1 })}
                             disabled={filters.page >= totalPages}
                             className="h-11 w-11 p-0 md:h-8 md:w-9"
                         >
