@@ -1,6 +1,7 @@
 import { Document, Page, Text, View } from '@react-pdf/renderer';
 import { reportPdfStyles as s } from '@/lib/pdf/reports/base-styles';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatDate } from '@/lib/utils';
+import { formatPdfCurrency } from '@/lib/pdf/format-currency';
 import type { CollectionReportData } from '@/actions/reports/report-engine';
 
 export function CollectionReportPdf({ data }: { data: CollectionReportData }) {
@@ -31,15 +32,15 @@ export function CollectionReportPdf({ data }: { data: CollectionReportData }) {
             </View>
             <View style={s.summaryBox}>
               <Text style={s.summaryLabel}>Invoiced</Text>
-              <Text style={[s.summaryValue]}>{formatCurrency(summary.totalInvoiced)}</Text>
+              <Text style={[s.summaryValue]}>{formatPdfCurrency(summary.totalInvoiced)}</Text>
             </View>
             <View style={s.summaryBox}>
               <Text style={s.summaryLabel}>Collected</Text>
-              <Text style={[s.summaryValue, s.amountPositive]}>{formatCurrency(summary.totalCollected)}</Text>
+              <Text style={[s.summaryValue, s.amountPositive]}>{formatPdfCurrency(summary.totalCollected)}</Text>
             </View>
             <View style={s.summaryBox}>
               <Text style={s.summaryLabel}>Outstanding</Text>
-              <Text style={[s.summaryValue, s.amountNegative]}>{formatCurrency(summary.totalOutstanding)}</Text>
+              <Text style={[s.summaryValue, s.amountNegative]}>{formatPdfCurrency(summary.totalOutstanding)}</Text>
             </View>
           </View>
         </View>
@@ -58,9 +59,9 @@ export function CollectionReportPdf({ data }: { data: CollectionReportData }) {
               <View key={i} style={[s.tableRow, i % 2 === 1 ? s.tableRowAlt : {}]}>
                 <Text style={[s.tableCell, { flex: 3 }]}>{r.residentName}</Text>
                 <Text style={[s.tableCell, { flex: 2 }]}>{r.houseNumber}</Text>
-                <Text style={[s.tableCell, s.amountRight, { flex: 2 }]}>{formatCurrency(r.totalInvoiced)}</Text>
-                <Text style={[s.tableCell, s.amountRight, { flex: 2 }]}>{formatCurrency(r.totalPaid)}</Text>
-                <Text style={[s.tableCell, s.amountRight, { flex: 2 }, r.outstanding > 0 ? s.amountNegative : s.amountPositive]}>{formatCurrency(r.outstanding)}</Text>
+                <Text style={[s.tableCell, s.amountRight, { flex: 2 }]}>{formatPdfCurrency(r.totalInvoiced)}</Text>
+                <Text style={[s.tableCell, s.amountRight, { flex: 2 }]}>{formatPdfCurrency(r.totalPaid)}</Text>
+                <Text style={[s.tableCell, s.amountRight, { flex: 2 }, r.outstanding > 0 ? s.amountNegative : s.amountPositive]}>{formatPdfCurrency(r.outstanding)}</Text>
               </View>
             ))}
           </View>

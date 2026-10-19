@@ -6,6 +6,7 @@ import {
   StyleSheet,
 } from '@react-pdf/renderer';
 import { format } from 'date-fns';
+import { formatPdfCurrency } from '@/lib/pdf/format-currency';
 import type { InvoiceWithDetails } from '@/types/database';
 
 // Styles for PDF
@@ -217,14 +218,9 @@ const styles = StyleSheet.create({
   },
 });
 
-// Format currency helper (inline to avoid importing client code)
+// Format currency helper (PDF-safe; avoids importing client code)
 function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-NG', {
-    style: 'currency',
-    currency: 'NGN',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
+  return formatPdfCurrency(amount, 0);
 }
 
 interface InvoiceReceiptPDFProps {

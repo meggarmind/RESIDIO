@@ -1,6 +1,7 @@
 import { Document, Page, Text, View } from '@react-pdf/renderer';
 import { reportPdfStyles as s } from '@/lib/pdf/reports/base-styles';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatDate } from '@/lib/utils';
+import { formatPdfCurrency } from '@/lib/pdf/format-currency';
 import type { FinancialOverviewData } from '@/actions/reports/report-engine';
 
 export function FinancialOverviewPdf({ data }: { data: FinancialOverviewData }) {
@@ -27,15 +28,15 @@ export function FinancialOverviewPdf({ data }: { data: FinancialOverviewData }) 
           <View style={s.summaryRow}>
             <View style={s.summaryBox}>
               <Text style={s.summaryLabel}>Total Credits</Text>
-              <Text style={[s.summaryValue, s.amountPositive]}>{formatCurrency(summary.totalCredits)}</Text>
+              <Text style={[s.summaryValue, s.amountPositive]}>{formatPdfCurrency(summary.totalCredits)}</Text>
             </View>
             <View style={s.summaryBox}>
               <Text style={s.summaryLabel}>Total Debits</Text>
-              <Text style={[s.summaryValue, s.amountNegative]}>{formatCurrency(summary.totalDebits)}</Text>
+              <Text style={[s.summaryValue, s.amountNegative]}>{formatPdfCurrency(summary.totalDebits)}</Text>
             </View>
             <View style={s.summaryBox}>
               <Text style={s.summaryLabel}>Net Balance</Text>
-              <Text style={[s.summaryValue, summary.netBalance >= 0 ? s.amountPositive : s.amountNegative]}>{formatCurrency(summary.netBalance)}</Text>
+              <Text style={[s.summaryValue, summary.netBalance >= 0 ? s.amountPositive : s.amountNegative]}>{formatPdfCurrency(summary.netBalance)}</Text>
             </View>
           </View>
         </View>
@@ -54,7 +55,7 @@ export function FinancialOverviewPdf({ data }: { data: FinancialOverviewData }) 
                 <View key={i} style={[s.tableRow, i % 2 === 1 ? s.tableRowAlt : {}]}>
                   <Text style={[s.tableCell, { flex: 3 }]}>{cat.categoryName}</Text>
                   <Text style={[s.tableCell, { flex: 2 }]}>{cat.transactionCount}</Text>
-                  <Text style={[s.tableCell, s.amountRight, { flex: 3 }]}>{formatCurrency(cat.totalAmount)}</Text>
+                  <Text style={[s.tableCell, s.amountRight, { flex: 3 }]}>{formatPdfCurrency(cat.totalAmount)}</Text>
                   <Text style={[s.tableCell, s.amountRight, { flex: 2 }]}>{cat.percentageOfTotal.toFixed(1)}%</Text>
                 </View>
               ))}
@@ -76,7 +77,7 @@ export function FinancialOverviewPdf({ data }: { data: FinancialOverviewData }) 
                 <View key={i} style={[s.tableRow, i % 2 === 1 ? s.tableRowAlt : {}]}>
                   <Text style={[s.tableCell, { flex: 3 }]}>{cat.categoryName}</Text>
                   <Text style={[s.tableCell, { flex: 2 }]}>{cat.transactionCount}</Text>
-                  <Text style={[s.tableCell, s.amountRight, { flex: 3 }]}>{formatCurrency(cat.totalAmount)}</Text>
+                  <Text style={[s.tableCell, s.amountRight, { flex: 3 }]}>{formatPdfCurrency(cat.totalAmount)}</Text>
                   <Text style={[s.tableCell, s.amountRight, { flex: 2 }]}>{cat.percentageOfTotal.toFixed(1)}%</Text>
                 </View>
               ))}
@@ -97,9 +98,9 @@ export function FinancialOverviewPdf({ data }: { data: FinancialOverviewData }) 
               {monthlyTrend.map((m, i) => (
                 <View key={i} style={[s.tableRow, i % 2 === 1 ? s.tableRowAlt : {}]}>
                   <Text style={[s.tableCell, { flex: 2 }]}>{m.month}</Text>
-                  <Text style={[s.tableCell, s.amountRight, { flex: 3 }]}>{formatCurrency(m.credits)}</Text>
-                  <Text style={[s.tableCell, s.amountRight, { flex: 3 }]}>{formatCurrency(m.debits)}</Text>
-                  <Text style={[s.tableCell, s.amountRight, { flex: 3 }, m.net >= 0 ? s.amountPositive : s.amountNegative]}>{formatCurrency(m.net)}</Text>
+                  <Text style={[s.tableCell, s.amountRight, { flex: 3 }]}>{formatPdfCurrency(m.credits)}</Text>
+                  <Text style={[s.tableCell, s.amountRight, { flex: 3 }]}>{formatPdfCurrency(m.debits)}</Text>
+                  <Text style={[s.tableCell, s.amountRight, { flex: 3 }, m.net >= 0 ? s.amountPositive : s.amountNegative]}>{formatPdfCurrency(m.net)}</Text>
                 </View>
               ))}
             </View>
