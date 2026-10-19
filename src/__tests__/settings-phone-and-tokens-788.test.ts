@@ -15,6 +15,8 @@ const FILES = [
   `${S}/billing/profiles/page.tsx`,
   `${S}/branding/page.tsx`,
   `${S}/data-retention/page.tsx`,
+  `${S}/document-categories/page.tsx`,
+  `${S}/message-templates/page.tsx`,
   `${S}/email/page.tsx`,
   `${S}/email-integration/page.tsx`,
   `${S}/maintenance/page.tsx`,

@@ -297,7 +297,7 @@ export default function MessageTemplatesPage() {
                       {template.is_active ? (
                         <Badge
                           variant="secondary"
-                          className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                          className="bg-success/10 text-success"
                         >
                           Active
                         </Badge>
