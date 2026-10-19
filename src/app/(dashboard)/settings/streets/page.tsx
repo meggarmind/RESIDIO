@@ -1,7 +1,7 @@
 'use client';
 
 import { StreetsList } from '@/components/admin/streets-list';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
 
 export default function StreetsPage() {
   return (
@@ -14,7 +14,6 @@ export default function StreetsPage() {
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>Streets Management</CardTitle>
           <CardDescription>
             Add, edit, or remove streets used throughout the system.
           </CardDescription>

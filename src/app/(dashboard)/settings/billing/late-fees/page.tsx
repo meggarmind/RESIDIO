@@ -21,8 +21,16 @@ import { formatCurrency } from '@/lib/utils';
 import { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import type { LateFeeWaiverWithDetails } from '@/types/database';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { SettingsSkeleton } from '@/components/settings/settings-states';
 
 export default function LateFeesPage() {
+    const { hasPermission } = useAuth();
+    // Each control is gated on the permission its action enforces.
+    const canEdit = hasPermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
+    const canApply = hasPermission(PERMISSIONS.BILLING_APPLY_LATE_FEES);
+    const canReview = hasPermission(PERMISSIONS.BILLING_APPROVE_LATE_FEE_WAIVER);
     const { data: settings, isLoading: settingsLoading } = useBillingSettings();
     const updateSettingMutation = useUpdateSetting();
     const applyLateFeesMutation = useApplyLateFees();
@@ -30,8 +38,12 @@ export default function LateFeesPage() {
     const [waiverReviewNotes, setWaiverReviewNotes] = useState('');
     const [reviewingWaiverId, setReviewingWaiverId] = useState<string | null>(null);
 
-    const { data: waivers, isLoading: waiversLoading } = useLateFeeWaivers({ status: 'pending' });
     const { data: pendingWaiverCount } = usePendingWaiverCount();
+    // Only fetch the list once the card will show.
+    const { data: waivers, isLoading: waiversLoading } = useLateFeeWaivers(
+        { status: 'pending' },
+        { enabled: (pendingWaiverCount ?? 0) > 0 }
+    );
     const approveWaiverMutation = useApproveLateFeeWaiver();
     const rejectWaiverMutation = useRejectLateFeeWaiver();
 
@@ -97,7 +109,71 @@ export default function LateFeesPage() {
 
     const EXISTING_INVOICES_EFFECT = 'existing overdue invoices too: the next run, manual or automatic, uses the values saved here for every overdue invoice that does not carry a late fee yet. Invoices that already carry one are not changed.';
 
-    if (settingsLoading) return <div>Loading settings...</div>;
+    const waiverTypeBadge = (waiver: LateFeeWaiverWithDetails) => (
+        <Badge variant={waiver.waiver_type === 'full' ? 'default' : 'secondary'}>
+            {waiver.waiver_type === 'full' ? 'Full' : `Partial (${formatCurrency(waiver.waiver_amount || 0)})`}
+        </Badge>
+    );
+
+    const closeReview = () => {
+        setReviewingWaiverId(null);
+        setWaiverReviewNotes('');
+    };
+
+    const reviewControls = (waiver: LateFeeWaiverWithDetails) =>
+        reviewingWaiverId === waiver.id ? (
+            <div className="flex flex-col gap-2 md:items-end">
+                <Textarea
+                    placeholder="Review notes (optional)"
+                    aria-label={`Review notes for ${waiver.invoice?.invoice_number ?? 'this waiver'}`}
+                    value={waiverReviewNotes}
+                    onChange={(e) => setWaiverReviewNotes(e.target.value)}
+                    className="h-16 w-full text-sm md:w-48"
+                />
+                <div className="flex flex-wrap gap-2 md:justify-end">
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        className="min-h-11 text-success md:min-h-8"
+                        onClick={() => {
+                            approveWaiverMutation.mutate({ waiverId: waiver.id, notes: waiverReviewNotes });
+                            closeReview();
+                        }}
+                        disabled={approveWaiverMutation.isPending}
+                    >
+                        <Check className="mr-1 h-4 w-4" />
+                        Approve
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        className="min-h-11 text-destructive md:min-h-8"
+                        onClick={() => {
+                            rejectWaiverMutation.mutate({ waiverId: waiver.id, notes: waiverReviewNotes });
+                            closeReview();
+                        }}
+                        disabled={rejectWaiverMutation.isPending}
+                    >
+                        <X className="mr-1 h-4 w-4" />
+                        Reject
+                    </Button>
+                    <Button size="sm" variant="ghost" className="min-h-11 md:min-h-8" onClick={closeReview}>
+                        Cancel
+                    </Button>
+                </div>
+            </div>
+        ) : (
+            <Button
+                size="sm"
+                variant="outline"
+                className="min-h-11 md:min-h-8"
+                onClick={() => setReviewingWaiverId(waiver.id)}
+            >
+                Review
+            </Button>
+        );
+
+    if (settingsLoading) return <SettingsSkeleton rows={6} />;
 
     return (
         <div className="space-y-6">
@@ -124,7 +200,7 @@ export default function LateFeesPage() {
                                 id="late_fee_enabled"
                                 checked={getLateFeeEnabled()}
                                 onCheckedChange={() => handleSettingToggle('late_fee_enabled', getLateFeeEnabled())}
-                                disabled={updateSettingMutation.isPending}
+                                disabled={!canEdit || updateSettingMutation.isPending}
                             />
                         </div>
 
@@ -143,7 +219,7 @@ export default function LateFeesPage() {
                                     <Select
                                         value={getLateFeeType()}
                                         onValueChange={(value) => updateSettingMutation.mutate({ key: 'late_fee_type', value })}
-                                        disabled={updateSettingMutation.isPending}
+                                        disabled={!canEdit || updateSettingMutation.isPending}
                                     >
                                         <SelectTrigger className="w-[180px]">
                                             <SelectValue />
@@ -176,6 +252,7 @@ export default function LateFeesPage() {
                                             max={100}
                                             unit="%"
                                             value={getLateFeeAmount()}
+                                            disabled={!canEdit}
                                             onCommit={commitSetting('late_fee_amount')}
                                         />
                                     ) : (
@@ -187,6 +264,7 @@ export default function LateFeesPage() {
                                             unitPosition="prefix"
                                             className="w-32 text-right"
                                             value={getLateFeeAmount()}
+                                            disabled={!canEdit}
                                             onCommit={commitSetting('late_fee_amount')}
                                         />
                                     )}
@@ -209,6 +287,7 @@ export default function LateFeesPage() {
                                         integer
                                         unit="days"
                                         value={getGracePeriodDays()}
+                                        disabled={!canEdit}
                                         onCommit={commitSetting('grace_period_days')}
                                     />
                                 </div>
@@ -227,7 +306,7 @@ export default function LateFeesPage() {
                                         id="late_fee_auto_apply"
                                         checked={getLateFeeAutoApply()}
                                         onCheckedChange={() => handleSettingToggle('late_fee_auto_apply', getLateFeeAutoApply())}
-                                        disabled={updateSettingMutation.isPending}
+                                        disabled={!canEdit || updateSettingMutation.isPending}
                                     />
                                 </div>
 
@@ -244,7 +323,7 @@ export default function LateFeesPage() {
                                             <Select
                                                 value={String(getLateFeeApplicationDay())}
                                                 onValueChange={(value) => updateSettingMutation.mutate({ key: 'late_fee_application_day', value })}
-                                                disabled={updateSettingMutation.isPending}
+                                                disabled={!canEdit || updateSettingMutation.isPending}
                                             >
                                                 <SelectTrigger className="w-[180px]">
                                                     <SelectValue placeholder="Select day" />
@@ -264,6 +343,8 @@ export default function LateFeesPage() {
                                     </>
                                 )}
 
+                                {canApply && (
+                                <>
                                 <Separator />
 
                                 <div className="space-y-3">
@@ -309,6 +390,8 @@ export default function LateFeesPage() {
                                         </AlertDescription>
                                     </Alert>
                                 </div>
+                                </>
+                                )}
                             </>
                         )}
                     </CardContent>
@@ -329,12 +412,34 @@ export default function LateFeesPage() {
                     <Card>
                         <CardContent className="pt-6">
                             {waiversLoading ? (
-                                <div className="flex items-center justify-center py-8">
-                                    <Loader2 className="h-6 w-6 animate-spin" />
-                                </div>
+                                <SettingsSkeleton />
                             ) : (waivers?.data?.length ?? 0) === 0 ? (
                                 <p className="text-center text-muted-foreground py-8">No pending waiver requests</p>
                             ) : (
+                                <>
+                                {/* Phone: one stacked card per request (#788). */}
+                                <ul className="space-y-3 md:hidden">
+                                    {waivers?.data?.map((waiver: LateFeeWaiverWithDetails) => (
+                                        <li key={waiver.id} className="space-y-2 rounded-md border p-3 text-sm">
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div className="min-w-0">
+                                                    <p className="font-medium">{waiver.invoice?.invoice_number}</p>
+                                                    <p className="text-muted-foreground">
+                                                        {waiver.resident?.first_name} {waiver.resident?.last_name}
+                                                    </p>
+                                                </div>
+                                                <span className="font-medium">{formatCurrency(waiver.original_late_fee)}</span>
+                                            </div>
+                                            {waiverTypeBadge(waiver)}
+                                            <p className="break-words">{waiver.reason}</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {formatDistanceToNow(new Date(waiver.created_at), { addSuffix: true })}
+                                            </p>
+                                            {canReview && reviewControls(waiver)}
+                                        </li>
+                                    ))}
+                                </ul>
+                                <div className="hidden md:block">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
@@ -344,7 +449,7 @@ export default function LateFeesPage() {
                                             <TableHead>Waiver Type</TableHead>
                                             <TableHead>Reason</TableHead>
                                             <TableHead>Requested</TableHead>
-                                            <TableHead className="text-right">Actions</TableHead>
+                                            {canReview && <TableHead className="text-right">Actions</TableHead>}
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -359,79 +464,20 @@ export default function LateFeesPage() {
                                                 <TableCell>
                                                     {formatCurrency(waiver.original_late_fee)}
                                                 </TableCell>
-                                                <TableCell>
-                                                    <Badge variant={waiver.waiver_type === 'full' ? 'default' : 'secondary'}>
-                                                        {waiver.waiver_type === 'full' ? 'Full' : `Partial (${formatCurrency(waiver.waiver_amount || 0)})`}
-                                                    </Badge>
-                                                </TableCell>
+                                                <TableCell>{waiverTypeBadge(waiver)}</TableCell>
                                                 <TableCell className="max-w-[200px] truncate" title={waiver.reason}>
                                                     {waiver.reason}
                                                 </TableCell>
                                                 <TableCell>
                                                     {formatDistanceToNow(new Date(waiver.created_at), { addSuffix: true })}
                                                 </TableCell>
-                                                <TableCell className="text-right">
-                                                    {reviewingWaiverId === waiver.id ? (
-                                                        <div className="flex items-center gap-2 justify-end">
-                                                            <Textarea
-                                                                placeholder="Review notes (optional)"
-                                                                value={waiverReviewNotes}
-                                                                onChange={(e) => setWaiverReviewNotes(e.target.value)}
-                                                                className="w-48 h-16 text-xs"
-                                                            />
-                                                            <div className="flex flex-col gap-1">
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="outline"
-                                                                    className="text-green-600"
-                                                                    onClick={() => {
-                                                                        approveWaiverMutation.mutate({ waiverId: waiver.id, notes: waiverReviewNotes });
-                                                                        setReviewingWaiverId(null);
-                                                                        setWaiverReviewNotes('');
-                                                                    }}
-                                                                    disabled={approveWaiverMutation.isPending}
-                                                                >
-                                                                    <Check className="h-3 w-3" />
-                                                                </Button>
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="outline"
-                                                                    className="text-red-600"
-                                                                    onClick={() => {
-                                                                        rejectWaiverMutation.mutate({ waiverId: waiver.id, notes: waiverReviewNotes });
-                                                                        setReviewingWaiverId(null);
-                                                                        setWaiverReviewNotes('');
-                                                                    }}
-                                                                    disabled={rejectWaiverMutation.isPending}
-                                                                >
-                                                                    <X className="h-3 w-3" />
-                                                                </Button>
-                                                            </div>
-                                                            <Button
-                                                                size="sm"
-                                                                variant="ghost"
-                                                                onClick={() => {
-                                                                    setReviewingWaiverId(null);
-                                                                    setWaiverReviewNotes('');
-                                                                }}
-                                                            >
-                                                                Cancel
-                                                            </Button>
-                                                        </div>
-                                                    ) : (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            onClick={() => setReviewingWaiverId(waiver.id)}
-                                                        >
-                                                            Review
-                                                        </Button>
-                                                    )}
-                                                </TableCell>
+                                                {canReview && <TableCell className="text-right">{reviewControls(waiver)}</TableCell>}
                                             </TableRow>
                                         ))}
                                     </TableBody>
                                 </Table>
+                                </div>
+                                </>
                             )}
                         </CardContent>
                     </Card>

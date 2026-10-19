@@ -21,8 +21,14 @@ import {
   useUpdateSecuritySetting,
   useResetSecuritySettings,
 } from '@/hooks/use-security';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { SettingsSkeleton } from '@/components/settings/settings-states';
 
 export default function SecuritySettingsPage() {
+  const { hasPermission } = useAuth();
+  // The route also admits security.manage_categories; these writes need settings.manage_security.
+  const canManage = hasPermission(PERMISSIONS.SETTINGS_MANAGE_SECURITY);
   const { data: settings, isLoading: settingsLoading } = useSecuritySettings();
   const updateSetting = useUpdateSecuritySetting();
   const resetSettings = useResetSecuritySettings();
@@ -52,10 +58,12 @@ export default function SecuritySettingsPage() {
             Core security configuration and reset options.
           </p>
         </div>
-        <Button variant="outline" onClick={() => setShowResetDialog(true)}>
-          <RotateCcw className="h-4 w-4 mr-2" />
-          Reset to Defaults
-        </Button>
+        {canManage && (
+          <Button variant="outline" onClick={() => setShowResetDialog(true)}>
+            <RotateCcw className="h-4 w-4 mr-2" />
+            Reset to Defaults
+          </Button>
+        )}
       </div>
 
       <Card>
@@ -70,22 +78,21 @@ export default function SecuritySettingsPage() {
         </CardHeader>
         <CardContent className="space-y-6">
           {settingsLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin" />
-            </div>
+            <SettingsSkeleton />
           ) : (
             <>
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label>Auto-Expire Contacts</Label>
+                  <Label htmlFor="security_auto_expire_contacts">Auto-Expire Contacts</Label>
                   <p className="text-sm text-muted-foreground">
                     Automatically deactivate contacts after their validity period expires
                   </p>
                 </div>
                 <Switch
+                  id="security_auto_expire_contacts"
                   checked={settingsMap.auto_expire_contacts ?? true}
                   onCheckedChange={() => updateSetting.mutate({ key: 'security_auto_expire_contacts', value: !(settingsMap.auto_expire_contacts ?? true) })}
-                  disabled={updateSetting.isPending}
+                  disabled={!canManage || updateSetting.isPending}
                 />
               </div>
 
@@ -102,6 +109,7 @@ export default function SecuritySettingsPage() {
                   max={100}
                   integer
                   value={settingsMap.max_contacts_per_resident || 50}
+                  disabled={!canManage}
                   onCommit={(value) => updateSetting.mutate({ key: 'security_max_contacts_per_resident', value })}
                 />
               </div>
@@ -120,6 +128,7 @@ export default function SecuritySettingsPage() {
                   integer
                   unit="days"
                   value={settingsMap.expiry_warning_days?.[0] || 7}
+                  disabled={!canManage}
                   onCommit={(value) => updateSetting.mutate({ key: 'security_expiry_warning_days', value: [value] })}
                 />
               </div>

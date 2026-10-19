@@ -16,7 +16,6 @@ import {
   Clock,
   History,
   FileText,
-  Settings2,
   ArrowRight,
   Bell,
   MessageSquare,
@@ -67,10 +66,10 @@ export default function NotificationsSettingsPage() {
                 <div
                   key={channel}
                   className={`flex items-center gap-3 p-3 rounded-lg border ${
-                    implemented ? 'bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-800' : 'bg-muted/50'
+                    implemented ? 'bg-success/10 border-success/20' : 'bg-muted/50'
                   }`}
                 >
-                  <Icon className={`h-5 w-5 ${implemented ? 'text-green-600' : 'text-muted-foreground'}`} />
+                  <Icon className={`h-5 w-5 ${implemented ? 'text-success' : 'text-muted-foreground'}`} />
                   <div className="flex-1">
                     <p className="font-medium">{NOTIFICATION_CHANNEL_LABELS[channel]}</p>
                     <p className="text-xs text-muted-foreground">
@@ -78,7 +77,7 @@ export default function NotificationsSettingsPage() {
                     </p>
                   </div>
                   {implemented ? (
-                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <CheckCircle className="h-4 w-4 text-success" />
                   ) : (
                     <Clock className="h-4 w-4 text-muted-foreground" />
                   )}
@@ -256,7 +255,7 @@ export default function NotificationsSettingsPage() {
           <CardContent className="space-y-4">
             <div className="flex gap-2">
               <Badge variant="secondary">{historyStats?.total || 0} total</Badge>
-              <Badge variant="outline" className="text-green-600">
+              <Badge variant="outline" className="text-success">
                 {historyStats?.delivered || 0} delivered
               </Badge>
             </div>
@@ -281,25 +280,25 @@ export default function NotificationsSettingsPage() {
             <div className="flex flex-wrap gap-4">
               {queueStats.pending > 0 && (
                 <div className="flex items-center gap-2">
-                  <div className="h-2 w-2 rounded-full bg-yellow-500" />
+                  <div className="h-2 w-2 rounded-full bg-warning" />
                   <span className="text-sm">{queueStats.pending} pending</span>
                 </div>
               )}
               {queueStats.processing > 0 && (
                 <div className="flex items-center gap-2">
-                  <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+                  <div className="h-2 w-2 rounded-full bg-info animate-pulse" />
                   <span className="text-sm">{queueStats.processing} processing</span>
                 </div>
               )}
               {queueStats.failed > 0 && (
                 <div className="flex items-center gap-2">
-                  <XCircle className="h-4 w-4 text-red-500" />
-                  <span className="text-sm text-red-600">{queueStats.failed} failed</span>
+                  <XCircle className="h-4 w-4 text-destructive" />
+                  <span className="text-sm text-destructive">{queueStats.failed} failed</span>
                 </div>
               )}
               {queueStats.sent > 0 && (
                 <div className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <CheckCircle className="h-4 w-4 text-success" />
                   <span className="text-sm">{queueStats.sent} sent</span>
                 </div>
               )}

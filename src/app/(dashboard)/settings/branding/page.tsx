@@ -10,6 +10,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Loader2, Upload, X, ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { useGeneralSettings, useUploadEstateLogo, useRemoveEstateLogo } from '@/hooks/use-settings';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 function settingsToObject(settings: { key: string; value: unknown }[] | undefined): Record<string, string> {
   if (!settings) return {};
@@ -21,6 +23,8 @@ function settingsToObject(settings: { key: string; value: unknown }[] | undefine
 
 export default function BrandingPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
 
   const { data: generalSettings, isLoading: isLoadingSettings } = useGeneralSettings();
   const uploadLogo = useUploadEstateLogo();
@@ -96,7 +100,7 @@ export default function BrandingPage() {
             </div>
           ) : (
             <div className="flex items-start gap-4">
-              <div className="relative group">
+              <div>
                 {logoUrl ? (
                   <div className="relative h-20 w-20 rounded-lg overflow-hidden border bg-muted">
                     <Image
@@ -106,18 +110,6 @@ export default function BrandingPage() {
                       className="object-contain"
                       unoptimized
                     />
-                    <button
-                      onClick={handleRemoveLogo}
-                      disabled={removeLogo.isPending}
-                      className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-                      title="Remove logo"
-                    >
-                      {removeLogo.isPending ? (
-                        <Loader2 className="h-5 w-5 text-white animate-spin" />
-                      ) : (
-                        <X className="h-5 w-5 text-white" />
-                      )}
-                    </button>
                   </div>
                 ) : (
                   <div className="h-20 w-20 rounded-lg bg-primary/10 border-2 border-dashed border-primary/50 flex items-center justify-center text-muted-foreground">
@@ -126,6 +118,7 @@ export default function BrandingPage() {
                 )}
               </div>
 
+              {canManage && (
               <div className="flex-1 space-y-2">
                 <div>
                   <p className="text-sm font-medium">Upload Logo</p>
@@ -146,6 +139,7 @@ export default function BrandingPage() {
                   <Button
                     variant="outline"
                     size="sm"
+                    className="min-h-11 md:min-h-8"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploadLogo.isPending}
                   >
@@ -163,7 +157,7 @@ export default function BrandingPage() {
                       size="sm"
                       onClick={handleRemoveLogo}
                       disabled={removeLogo.isPending}
-                      className="text-destructive hover:text-destructive"
+                      className="min-h-11 text-destructive hover:text-destructive md:min-h-8"
                     >
                       {removeLogo.isPending ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -175,6 +169,7 @@ export default function BrandingPage() {
                   )}
                 </div>
               </div>
+              )}
             </div>
           )}
         </CardContent>

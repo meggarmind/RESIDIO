@@ -13,6 +13,7 @@ const { step } = vi.hoisted(() => ({ step: {
 } }));
 
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+vi.mock('@/lib/auth/auth-provider', () => ({ useAuth: () => ({ hasPermission: () => true }) }));
 vi.mock('@/actions/notifications/reminder-config', () => ({
   getReminderSettings: vi.fn().mockResolvedValue({
     schedule: { id: 'default', name: 'Std', isDefault: true, isActive: true, steps: [step] },
@@ -39,7 +40,7 @@ describe('reminder schedule page while SMS is off', () => {
 
   it('offers no SMS toggle in the edit-step dialog', async () => {
     render(<ReminderSchedulePage />);
-    await screen.findByText('7 days before');
+    await screen.findAllByText('7 days before');
     const rowButtons = within(screen.getByRole('row', { name: /7 days before/i })).getAllByRole(
       'button'
     );

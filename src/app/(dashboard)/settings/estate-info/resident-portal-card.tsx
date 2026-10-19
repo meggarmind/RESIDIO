@@ -89,7 +89,7 @@ export function ResidentPortalCard() {
                 aria-label="Show resident portal links"
               />
             </div>
-            <p className="text-[0.8rem] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               This switch only hides or shows links in the admin dashboard. It does not block the /portal
               route: anyone who opens /portal directly still reaches it.
             </p>

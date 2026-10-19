@@ -22,14 +22,16 @@ import {
 import { useState } from 'react';
 import { BILLABLE_ROLE_OPTIONS } from '@/types/database';
 import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { SettingsEmptyState, SettingsSkeleton } from '@/components/settings/settings-states';
 
 export default function BillingProfilesPage() {
     const { hasPermission } = useAuth();
-    // Mirrors the server gate on `listBillingProfileVersions`, which reproduces
-    // the SELECT policy on billing_profile_versions. Without this a `secretary`
+    // Mirrors the server gate on `listBillingProfileVersions` and on every profile
+    // write (create, update, duplicate, delete). Without this a `secretary`
     // -- who holds billing.view but not billing.manage_profiles -- would be
-    // offered a control that can only ever produce an error toast.
-    const canViewVersions = hasPermission('billing.manage_profiles');
+    // offered controls that can only ever produce an error toast.
+    const canManage = hasPermission(PERMISSIONS.BILLING_MANAGE_PROFILES);
     const { data: profiles, isLoading } = useBillingProfiles();
     const deleteMutation = useDeleteBillingProfile();
     const duplicateMutation = useDuplicateBillingProfile();
@@ -46,7 +48,7 @@ export default function BillingProfilesPage() {
         });
     };
 
-    if (isLoading) return <div>Loading profiles...</div>;
+    if (isLoading) return <SettingsSkeleton rows={4} />;
 
     return (
         <div className="space-y-6">
@@ -58,6 +60,7 @@ export default function BillingProfilesPage() {
                             Define the standard rates for different types of units or residents.
                         </p>
                     </div>
+                    {canManage && (
                     <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                         <DialogTrigger asChild>
                             <Button>Create Profile</Button>
@@ -72,6 +75,7 @@ export default function BillingProfilesPage() {
                             <BillingProfileForm onSuccess={() => setIsCreateOpen(false)} />
                         </DialogContent>
                     </Dialog>
+                    )}
                 </div>
 
                 <div className="grid gap-4">
@@ -79,20 +83,20 @@ export default function BillingProfilesPage() {
                         const roleLabels = getRoleLabels(profile.applicable_roles);
                         const isCurrentDevLevy = profile.is_development_levy && profile.id === currentDevLevyId;
                         return (
-                            <Card key={profile.id} className={isCurrentDevLevy ? 'border-green-300 bg-green-50/30' : ''}>
+                            <Card key={profile.id} className={isCurrentDevLevy ? 'border-success/40 bg-success/5' : ''}>
                                 <CardHeader className="pb-2">
                                     <div className="flex justify-between items-start">
                                         <div>
                                             <div className="flex items-center gap-2 flex-wrap">
                                                 <CardTitle className="text-base">{profile.name}</CardTitle>
                                                 {profile.is_development_levy && (
-                                                    <Badge className="text-xs bg-blue-100 text-blue-800 hover:bg-blue-100">
+                                                    <Badge className="text-xs bg-info/10 text-info hover:bg-info/10">
                                                         <Landmark className="h-3 w-3 mr-1" />
                                                         Development Levy
                                                     </Badge>
                                                 )}
                                                 {isCurrentDevLevy && (
-                                                    <Badge className="text-xs bg-green-100 text-green-800 hover:bg-green-100">
+                                                    <Badge className="text-xs bg-success/10 text-success hover:bg-success/10">
                                                         <CheckCircle className="h-3 w-3 mr-1" />
                                                         Current
                                                     </Badge>
@@ -133,32 +137,31 @@ export default function BillingProfilesPage() {
                                                 )}
                                             </div>
                                         </div>
+                                        {canManage && (
                                         <div className="flex gap-1">
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-8 w-8"
+                                                className="size-11 md:size-8"
                                                 aria-label={`Edit ${profile.name}`}
                                                 onClick={() => setEditProfileId(profile.id)}
                                             >
                                                 <Pencil className="h-4 w-4" />
                                             </Button>
-                                            {canViewVersions && (
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-8 w-8"
-                                                    title="Rate versions"
-                                                    aria-label="Rate versions"
-                                                    onClick={() => setVersionsProfile({ id: profile.id, name: profile.name })}
-                                                >
-                                                    <History className="h-4 w-4" />
-                                                </Button>
-                                            )}
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-8 w-8"
+                                                className="size-11 md:size-8"
+                                                title="Rate versions"
+                                                aria-label={`Rate versions for ${profile.name}`}
+                                                onClick={() => setVersionsProfile({ id: profile.id, name: profile.name })}
+                                            >
+                                                <History className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="size-11 md:size-8"
                                                 aria-label={`Duplicate ${profile.name}`}
                                                 onClick={() => duplicateMutation.mutate(profile.id)}
                                                 disabled={duplicateMutation.isPending}
@@ -170,7 +173,7 @@ export default function BillingProfilesPage() {
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
-                                                        className="text-destructive h-8 w-8"
+                                                        className="text-destructive size-11 md:size-8"
                                                         aria-label={`Delete ${profile.name}`}
                                                     >
                                                         <Trash2 className="h-4 w-4" />
@@ -183,6 +186,7 @@ export default function BillingProfilesPage() {
                                                 onConfirm={() => deleteMutation.mutateAsync(profile.id)}
                                             />
                                         </div>
+                                        )}
                                     </div>
                                 </CardHeader>
                                 <CardContent>
@@ -206,8 +210,12 @@ export default function BillingProfilesPage() {
                     })}
 
                     {(!profiles || profiles.length === 0) && (
-                        <div className="text-center py-8 text-muted-foreground border rounded-lg border-dashed">
-                            No billing profiles found. Create one to get started.
+                        <div className="rounded-lg border border-dashed">
+                            <SettingsEmptyState
+                                title="No billing profiles yet"
+                                description="A billing profile (rate card) lists the charges billed to a house type or role."
+                                action={canManage && <Button size="sm" onClick={() => setIsCreateOpen(true)}>Create Profile</Button>}
+                            />
                         </div>
                     )}
                 </div>
