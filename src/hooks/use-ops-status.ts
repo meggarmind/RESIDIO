@@ -6,7 +6,11 @@ import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { OPS_STATUS_COOKIE, decodeOpsStatus, type OpsStatus } from '@/lib/settings/ops-status';
 
-const subscribe = () => () => {};
+const subscribe = (onChange: () => void) => {
+  const store = (window as { cookieStore?: EventTarget }).cookieStore;
+  store?.addEventListener('change', onChange);
+  return () => store?.removeEventListener('change', onChange);
+};
 
 function readCookie(): string | undefined {
   const prefix = `${OPS_STATUS_COOKIE}=`;

@@ -5,6 +5,8 @@ import { OPS_STATUS_KEYS, decodeOpsStatus, encodeOpsStatus, opsStatusFromRows } 
 describe('ops status (#789)', () => {
   it('reads the same override key the resolver reads', () => {
     expect(OPS_STATUS_KEYS).toContain(OVERRIDE_SETTING_KEYS.enabled);
+    expect(OPS_STATUS_KEYS).toContain(OVERRIDE_SETTING_KEYS.debugMode);
+    expect(OPS_STATUS_KEYS).toContain(OVERRIDE_SETTING_KEYS.debugExpiresAt);
   });
 
   it('reads maintenance in both stored forms', () => {
@@ -22,6 +24,29 @@ describe('ops status (#789)', () => {
 
   it('reports the override on outside production, where the resolver forces it on', () => {
     expect(opsStatusFromRows([{ key: 'comms_override_enabled', value: 'false' }], false).commsOverride).toBe(true);
+  });
+
+  it('reports the override on in production while Debug Mode redirects, with the switch off', () => {
+    const now = new Date('2026-10-20T12:00:00Z');
+    const rows = (expiresAt: string) => [
+      { key: 'comms_override_enabled', value: false },
+      { key: 'comms_debug_mode', value: true },
+      { key: 'comms_debug_expires_at', value: expiresAt },
+    ];
+    expect(opsStatusFromRows(rows('2026-10-20T13:00:00Z'), true, now).commsOverride).toBe(true);
+    expect(opsStatusFromRows(rows('not a date'), true, now).commsOverride).toBe(true);
+    expect(opsStatusFromRows(rows('2026-10-20T11:00:00Z'), true, now).commsOverride).toBe(false);
+    expect(opsStatusFromRows(rows(''), true, now).commsOverride).toBe(false);
+    expect(
+      opsStatusFromRows(
+        [
+          { key: 'comms_debug_mode', value: false },
+          { key: 'comms_debug_expires_at', value: '2026-10-20T13:00:00Z' },
+        ],
+        true,
+        now
+      ).commsOverride
+    ).toBe(false);
   });
 
   it('round-trips through the cookie value and rejects anything else', () => {
