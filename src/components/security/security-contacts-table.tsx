@@ -418,7 +418,7 @@ export function SecurityContactsTable({
             </form>
 
             {/* Quick Filters - moved to same row */}
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -431,14 +431,15 @@ export function SecurityContactsTable({
                         setPage(1);
                       }}
                       className={cn(
-                        'gap-2',
+                        // tighter below sm so the active button and its badge fit a 320px row
+                        'gap-1.5 sm:gap-2',
                         expiringFilter && 'bg-yellow-600 hover:bg-yellow-700'
                       )}
                     >
                       <Clock className="h-4 w-4" />
                       Expiring Soon
                       {expiringFilter && (
-                        <Badge variant="secondary" className="ml-1 bg-yellow-100 text-yellow-800">
+                        <Badge variant="secondary" className="sm:ml-1 bg-yellow-100 text-yellow-800">
                           7 days
                         </Badge>
                       )}
