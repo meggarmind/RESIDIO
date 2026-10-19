@@ -6,7 +6,7 @@ residio_sources:
   - src/app/(dashboard)/settings/billing/**
   - src/app/(dashboard)/settings/notifications/**
   - src/app/(dashboard)/settings/message-templates/**
-residio_verified_commit: 0d86eebb
+residio_verified_commit: 3a07b3fa
 residio_verified_at: '2026-10-19'
 residio_app_version: '0.4.0'
 ---
