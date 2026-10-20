@@ -107,7 +107,8 @@ async function deliverAnnouncementWhatsApp(
   const { data: optIns, error: optInError } = await supabase
     .from('whatsapp_optins')
     .select('resident_id, phone_number')
-    .eq('opted_in', true);
+    .eq('opted_in', true)
+    .is('deactivated_at', null);
 
   if (optInError || !optIns || optIns.length === 0) return;
 

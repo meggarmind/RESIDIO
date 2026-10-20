@@ -173,6 +173,7 @@ export function createSendPolicyFacts(): SendPolicyFacts {
         .eq('resident_id', residentId)
         .eq('phone_number', normalizedPhone)
         .eq('opted_in', true)
+        .is('deactivated_at', null)
         .maybeSingle();
       return { found: Boolean(data), failed: Boolean(error) };
     },
