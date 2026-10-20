@@ -6,6 +6,9 @@ import { describe, expect, it } from 'vitest';
  * Issue #875: every export of a 'use server' module is client-callable, so a
  * cron-only batch exported from one could be triggered by anyone. These live in
  * plain server libs imported only by their CRON_SECRET-authenticated route.
+ * The rest of actions/notifications/invoice-reminders.ts (sendManualReminder,
+ * resolveInvoiceReminders, getInvoiceReminderStatus) was unauthenticated and
+ * unused, so the module was deleted rather than guarded.
  */
 
 function read(relativePath: string): string {
@@ -24,7 +27,7 @@ const CRON_ONLY = [
   {
     fn: 'refreshPaymentCadenceSummary',
     lib: 'lib/analytics/refresh-payment-cadence-summary.ts',
-    formerAction: null,
+    formerAction: 'actions/analytics/refresh-payment-cadence-summary.ts',
     route: 'app/api/cron/refresh-payment-cadence/route.ts',
   },
 ];
@@ -41,15 +44,8 @@ describe('cron-only batches are not server actions (#875)', () => {
       expect(read(route)).toContain(`from '@/${lib.replace(/\.ts$/, '')}'`);
     });
 
-    if (formerAction) {
-      it(`${formerAction} no longer exports ${fn}`, () => {
-        expect(hasUseServer(read(formerAction))).toBe(true);
-        expect(read(formerAction)).not.toMatch(new RegExp(`export[^\\n]*\\b${fn}\\b`));
-      });
-    }
+    it(`the former ${formerAction} server-action module is gone`, () => {
+      expect(() => read(formerAction)).toThrow();
+    });
   }
-
-  it('the former refresh-payment-cadence-summary server action is gone', () => {
-    expect(() => read('actions/analytics/refresh-payment-cadence-summary.ts')).toThrow();
-  });
 });

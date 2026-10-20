@@ -48,7 +48,7 @@ import { buildInvoiceReminderWhatsApp } from '@/lib/whatsapp/outbound';
 /**
  * Invoice with related data for reminder sending
  */
-export interface InvoiceForReminder {
+interface InvoiceForReminder {
   id: string;
   invoice_number: string;
   amount_due: number;
@@ -244,7 +244,7 @@ async function getInvoicesForReminder(
 /**
  * Send reminder through configured channels
  */
-export async function sendReminderToChannels(params: {
+async function sendReminderToChannels(params: {
   invoice: InvoiceForReminder;
   step: ReminderScheduleStep;
   amountRemaining: number;
