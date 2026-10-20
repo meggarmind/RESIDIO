@@ -4,7 +4,9 @@
 // no fake zeros for null data, permission-gated actions, one landmark structure per lane.
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { renderToString } from 'react-dom/server';
+import { hydrateRoot } from 'react-dom/client';
 import '@testing-library/jest-dom/vitest';
 import type {
   DashboardActionMetrics,
@@ -35,6 +37,7 @@ import { CommandRecentActivity, filterEstateActivity } from '@/components/dashbo
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
   perms.all = true;
   perms.granted = new Set();
 });
@@ -132,19 +135,44 @@ describe('CommandStrip', () => {
     expect(screen.queryByText(/All clear/)).toBeNull();
   });
   it('shows a loading placeholder while loading', () => {
-    render(<CommandStrip financialHealth={null} actionMetrics={null} isLoading />);
+    render(<CommandStrip financialHealth={null} actionMetrics={null} isLoading asOf="2026-10-18T10:30:00Z" />);
     expect(screen.getByLabelText('Loading status')).toBeInTheDocument();
+    expect(screen.queryByTestId('command-strip-asof')).toBeNull();
+  });
+  it('carries the one board timestamp', () => {
+    render(<CommandStrip financialHealth={fh()} actionMetrics={am()} asOf="2026-10-18T10:30:00Z" />);
+    expect(screen.getByTestId('command-strip-asof')).toHaveTextContent(/^As of Oct 18, /);
+  });
+  it('server-renders no clock text and fills it in after hydration without a mismatch', async () => {
+    const strip = (
+      <CommandStrip name="Ada Obi" financialHealth={fh()} actionMetrics={am()} asOf="2026-10-18T10:30:00Z" now={new Date(2026, 0, 1, 9)} />
+    );
+    const container = document.createElement('div');
+    container.innerHTML = renderToString(strip);
+    document.body.appendChild(container);
+    expect(within(container).getByRole('heading', { level: 1 })).toHaveTextContent('Welcome, Ada');
+    expect(within(container).queryByTestId('command-strip-asof')).toBeNull();
+
+    const onRecoverableError = vi.fn();
+    const root = await act(async () => hydrateRoot(container, strip, { onRecoverableError }));
+    expect(onRecoverableError).not.toHaveBeenCalled();
+    expect(within(container).getByRole('heading', { level: 1 })).toHaveTextContent('Good morning, Ada');
+    expect(within(container).getByTestId('command-strip-asof')).toHaveTextContent(/^As of Oct 18, /);
+    act(() => root.unmount());
+    container.remove();
   });
 });
 
 const ANATOMY = ['hero', 'status', 'queue'];
+// The money lane's "Verified this month" tooltip trigger is a button; it is not an action.
+const actionButtons = (el: HTMLElement) => within(el).queryAllByRole('button').filter((b) => b.dataset.slot !== 'tooltip-trigger');
 
 function lanes() {
   return (
     <>
-      <MoneyLane financialHealth={fh()} actionMetrics={am()} asOf="2026-10-18T10:30:00Z" />
-      <PeopleLane actionMetrics={am()} quickStats={qs} asOf="2026-10-18T10:30:00Z" />
-      <SecurityLane actionMetrics={am()} securityAlerts={sa} quickStats={qs} asOf="2026-10-18T10:30:00Z" />
+      <MoneyLane financialHealth={fh()} actionMetrics={am()} />
+      <PeopleLane actionMetrics={am()} quickStats={qs} />
+      <SecurityLane actionMetrics={am()} securityAlerts={sa} quickStats={qs} />
     </>
   );
 }
@@ -158,22 +186,32 @@ describe('lanes', () => {
       expect(within(lane).getAllByRole('heading', { level: 2 })).toHaveLength(1);
       for (const part of ANATOMY) expect(screen.getByTestId(`${id}-${part}`)).toBeInTheDocument();
       expect(within(screen.getByTestId(`${id}-queue`)).getAllByRole('listitem')).toHaveLength(3);
-      expect(within(lane).getAllByRole('link').length).toBeGreaterThanOrEqual(1);
-      expect(screen.getByTestId(`${id}-asof`)).toHaveTextContent('as of');
+      // One text link in the header, no per-lane time, no button row.
+      const links = within(lane).getAllByRole('link');
+      expect(links).toHaveLength(1);
+      expect(lane.querySelector('header')).toContainElement(links[0]);
+      expect(actionButtons(lane)).toHaveLength(0);
+      expect(lane).not.toHaveTextContent(/as of/i);
     }
   });
 
-  it('money lane shows real figures, the explanation and the approvals route', () => {
+  it('money lane leads with outstanding, keeps verified this month as one line, and links to approvals', async () => {
     render(<MoneyLane financialHealth={fh()} actionMetrics={am()} />);
     const lane = screen.getByTestId('lane-money');
-    expect(screen.getByTestId('lane-money-hero')).toHaveTextContent('₦40,000');
-    expect(lane).toHaveTextContent('collected of ₦100,000 invoiced, all time (40%)');
-    expect(lane).toHaveTextContent('Verified payments this month: ₦25,000');
-    expect(lane).toHaveTextContent("Collected is everything paid against invoices, all time. Verified is this month's payments that a person confirmed or that came in through a bank or email statement import.");
+    expect(screen.getByTestId('lane-money-hero')).toHaveTextContent('Outstanding on invoices₦60,000');
+    expect(screen.getByTestId('lane-money-verified')).toHaveTextContent('Verified this month: ₦25,000');
+    expect(lane).not.toHaveTextContent('all time');
+    // The explanation lives in a tooltip on the label, not on the page.
+    expect(lane).not.toHaveTextContent('statement import');
+    // Radix positions the tooltip with ResizeObserver, which jsdom lacks.
+    vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
+    fireEvent.focus(within(lane).getByRole('button', { name: 'Verified this month' }));
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('confirmed or that came in through a bank or email statement import');
     expect(within(screen.getByTestId('lane-money-queue')).getAllByRole('listitem')[0]).toHaveTextContent('Payments to verify4');
     expect(within(lane).getByRole('link', { name: 'Verify payments' })).toHaveAttribute('href', '/approvals');
+    // Tone is a screen-reader label only; the coloured icon carries it visually.
     expect(screen.getByTestId('lane-money-state')).toHaveTextContent('Overdue');
-    expect(screen.queryByTestId('lane-money-asof')).toBeNull();
+    expect(screen.getByTestId('lane-money-state')).toHaveClass('sr-only');
   });
 
   it('money lane with no invoices is neutral, not healthy', () => {
@@ -182,23 +220,17 @@ describe('lanes', () => {
     expect(screen.getByTestId('lane-money')).toHaveTextContent('No invoices raised yet');
   });
 
-  it('money lane shows the overdue count as a queue row hint', () => {
-    render(
-      <MoneyLane
-        financialHealth={fh({ overdueCount: 12 })}
-        actionMetrics={am()}
-      />,
-    );
-    expect(screen.getByTestId('lane-money-queue')).toHaveTextContent('12 overdue invoices');
+  it('money lane derives the overdue hint from the overdue count', () => {
+    const { rerender } = render(<MoneyLane financialHealth={fh()} actionMetrics={am()} />);
+    expect(within(screen.getByTestId('lane-money-queue')).getAllByRole('listitem')[1]).toHaveTextContent('2 overdue invoices');
+    rerender(<MoneyLane financialHealth={fh({ overdueCount: 1 })} actionMetrics={am()} />);
+    expect(within(screen.getByTestId('lane-money-queue')).getAllByRole('listitem')[1]).toHaveTextContent('1 overdue invoice');
   });
 
-  it('people lane hides the houses-paid-up line without map counts and shows it with them', () => {
-    const { rerender } = render(<PeopleLane actionMetrics={am()} quickStats={qs} />);
-    expect(screen.queryByTestId('lane-people-paid-up')).toBeNull();
-    rerender(<PeopleLane actionMetrics={am()} quickStats={qs} estateMapCounts={null} />);
-    expect(screen.queryByTestId('lane-people-paid-up')).toBeNull();
-    rerender(<PeopleLane actionMetrics={am()} quickStats={qs} estateMapCounts={{ paid_up: 5, outstanding: 1, overdue: 2, no_invoice: 171 }} />);
-    expect(screen.getByTestId('lane-people-paid-up')).toHaveTextContent('5 of 179 houses paid up');
+  it('people lane shows no house payment counts; the estate map chips own them', () => {
+    render(<PeopleLane actionMetrics={am()} quickStats={qs} />);
+    expect(screen.getByTestId('lane-people')).not.toHaveTextContent(/paid up|overdue/i);
+    expect(screen.getByTestId('lane-people-queue')).toHaveTextContent('Vacant houses59');
   });
 
   it('people and security lanes link to their routes', () => {
@@ -251,18 +283,14 @@ describe('lanes', () => {
     expect(rows[1]).toHaveTextContent('₦12,000');
   });
 
-  it('disables the primary action and hides secondary actions without permission', () => {
+  it('hides the primary link without permission and renders no action buttons', () => {
     perms.all = false;
     perms.granted = new Set(['payments.create']);
     render(lanes());
-    const money = screen.getByTestId('lane-money');
-    expect(within(money).queryByRole('link', { name: 'Verify payments' })).toBeNull();
-    expect(within(money).getByRole('button', { name: 'Verify payments' })).toBeDisabled();
-    expect(within(money).getByRole('link', { name: 'Record payment' })).toBeInTheDocument();
-    expect(within(money).queryByRole('link', { name: 'Generate invoices' })).toBeNull();
-    expect(within(money).queryByRole('link', { name: 'Import statement' })).toBeNull();
-    expect(within(screen.getByTestId('lane-people')).queryByRole('link')).toBeNull();
-    expect(within(screen.getByTestId('lane-security')).queryByRole('link')).toBeNull();
+    for (const id of ['lane-money', 'lane-people', 'lane-security']) {
+      expect(within(screen.getByTestId(id)).queryByRole('link')).toBeNull();
+      expect(actionButtons(screen.getByTestId(id))).toHaveLength(0);
+    }
   });
 });
 

@@ -160,7 +160,7 @@ beforeEach(() => {
   mocks.updates = [];
   authAs(PROCESS_ONLY);
   mocks.createPayment.mockResolvedValue({ data: { id: 'pay-1' }, error: null });
-  mocks.createExpense.mockResolvedValue({ id: 'exp-1' });
+  mocks.createExpense.mockResolvedValue({ data: { id: 'exp-1' }, error: null });
   mocks.getSettingResultAsService.mockResolvedValue({ status: 'absent' });
 });
 

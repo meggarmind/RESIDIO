@@ -15,6 +15,9 @@ test.describe('Phase 2: Dashboard Shell', () => {
         }
         await expect(page.getByRole('heading', { name: 'Money' })).toBeVisible();
         await expect(page.getByRole('region', { name: 'Estate map' })).toBeVisible({ timeout: 20000 });
+        // The lanes' shortcuts live in one Quick actions menu in the strip (#782)
+        await page.getByRole('button', { name: 'Quick actions' }).click();
+        await expect(page.getByRole('menuitem', { name: 'Record payment' })).toBeVisible();
     });
 
     test('TC2.2: Sidebar navigation is visible for admin', async ({ page }) => {
@@ -171,6 +174,12 @@ test.describe('Phase 2: Dashboard Shell', () => {
 
         await expect(page.getByTestId('lane-money')).toBeVisible({ timeout: 20000 });
         await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+
+        // Lane header links are text links with a 44px touch target on phones (#782)
+        for (const name of ['Verify payments', 'Review residents', 'Open security contacts']) {
+            const box = await page.getByRole('link', { name }).boundingBox();
+            expect(Math.round(box?.height ?? 0)).toBeGreaterThanOrEqual(44);
+        }
 
         const overflow = await page.evaluate(() => ({
             scrollWidth: document.documentElement.scrollWidth,

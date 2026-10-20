@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 //
-// #758: the real DashboardPage wires the estate map hook into the People lane and
-// the EstateMap. Only auth and data hooks are mocked; every dashboard component is real.
+// #758, #782: the real DashboardContent wires the snapshot into the strip and lanes and the
+// estate map hook into the EstateMap. Only auth and data hooks are mocked; every dashboard
+// component is real. The server page prefetches only the snapshot; the map loads on the client.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
@@ -9,7 +10,11 @@ import '@testing-library/jest-dom/vitest';
 import type { EstateMapSnapshot } from '@/types/estate-map';
 
 const mocks = vi.hoisted(() => ({
-  map: { data: null as unknown, isLoading: false, error: null as Error | null },
+  map: { data: null as unknown, isPending: false, error: null as Error | null },
+  useSmartSuggestions: vi.fn(() => ({ suggestions: [] })),
+  getSmartSuggestions: vi.fn(),
+  getAdminDashboardSnapshot: vi.fn(),
+  getEstateMapStatus: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams('') }));
@@ -46,9 +51,17 @@ vi.mock('@/hooks/use-dashboard', () => ({
   }),
   useEstateMapStatus: () => mocks.map,
 }));
+vi.mock('@/hooks/use-smart-suggestions', () => ({ useSmartSuggestions: mocks.useSmartSuggestions }));
+vi.mock('@/actions/dashboard/get-smart-suggestions', () => ({ getSmartSuggestions: mocks.getSmartSuggestions }));
+vi.mock('@/actions/dashboard/get-enhanced-dashboard-stats', () => ({ getAdminDashboardSnapshot: mocks.getAdminDashboardSnapshot }));
+vi.mock('@/actions/dashboard/get-estate-map-status', () => ({ getEstateMapStatus: mocks.getEstateMapStatus }));
 vi.mock('@/components/dashboard/offline-admin-banner', () => ({ OfflineAdminBanner: () => null }));
 
+import { isValidElement, type ReactElement } from 'react';
+import { HydrationBoundary, type DehydratedState } from '@tanstack/react-query';
 import DashboardPage from '@/app/(dashboard)/dashboard/page';
+import { DashboardContent } from '@/app/(dashboard)/dashboard/dashboard-content';
+import { ADMIN_DASHBOARD_SNAPSHOT_QUERY_KEY } from '@/hooks/dashboard-query-keys';
 
 const snapshot: EstateMapSnapshot = {
   houses: [
@@ -63,15 +76,18 @@ const snapshot: EstateMapSnapshot = {
 };
 
 beforeEach(() => {
-  mocks.map = { data: snapshot, isLoading: false, error: null };
+  mocks.map = { data: snapshot, isPending: false, error: null };
+  mocks.useSmartSuggestions.mockClear();
+  mocks.getSmartSuggestions.mockClear();
 });
 afterEach(cleanup);
 
 describe('DashboardPage estate map wiring', () => {
-  it('feeds the map counts to the People lane and the houses to the map', () => {
-    render(<DashboardPage />);
-    expect(screen.getByTestId('lane-people-paid-up')).toHaveTextContent('2 of 5 houses paid up');
-    expect(screen.getByTestId('lane-people-overdue')).toHaveTextContent('1 house is overdue');
+  it('feeds the houses and counts to the map only, and the snapshot time to the strip', () => {
+    render(<DashboardContent />);
+    // House counts appear once, on the map chips (#782).
+    expect(screen.getByTestId('lane-people')).not.toHaveTextContent(/paid up|overdue/i);
+    expect(screen.getByTestId('command-strip-asof')).toHaveTextContent(/^As of /);
 
     const map = screen.getByTestId('estate-map');
     expect(within(map).getAllByRole('link', { name: /^House / })).toHaveLength(5);
@@ -84,26 +100,59 @@ describe('DashboardPage estate map wiring', () => {
   });
 
   it('shows the map loading state while the read is pending', () => {
-    mocks.map = { data: null, isLoading: true, error: null };
-    render(<DashboardPage />);
+    mocks.map = { data: null, isPending: true, error: null };
+    render(<DashboardContent />);
     expect(screen.getByTestId('estate-map-loading')).toBeInTheDocument();
-    expect(screen.queryByTestId('lane-people-paid-up')).not.toBeInTheDocument();
+  });
+
+  it('shows loading, not unavailable, while the map query waits for auth', () => {
+    // A query disabled until auth resolves is pending but not loading.
+    mocks.map = { data: undefined, isPending: true, isLoading: false, error: null } as typeof mocks.map;
+    render(<DashboardContent />);
+    expect(screen.getByTestId('estate-map-loading')).toBeInTheDocument();
+    expect(screen.queryByTestId('estate-map-unavailable')).not.toBeInTheDocument();
   });
 
   it('shows the locked state for Unauthorized while the lanes still render', () => {
-    mocks.map = { data: null, isLoading: false, error: new Error('Unauthorized') };
-    render(<DashboardPage />);
+    mocks.map = { data: null, isPending: false, error: new Error('Unauthorized') };
+    render(<DashboardContent />);
     expect(screen.getByTestId('estate-map-locked')).toBeInTheDocument();
     for (const id of ['lane-money', 'lane-people', 'lane-security']) {
       expect(screen.getByTestId(id)).toHaveAttribute('data-lane-state', 'ready');
     }
-    expect(screen.queryByTestId('lane-people-paid-up')).not.toBeInTheDocument();
   });
 
   it('shows the unavailable state for any other map error', () => {
-    mocks.map = { data: null, isLoading: false, error: new Error('boom') };
-    render(<DashboardPage />);
+    mocks.map = { data: null, isPending: false, error: new Error('boom') };
+    render(<DashboardContent />);
     expect(screen.getByTestId('estate-map-unavailable')).toBeInTheDocument();
     expect(screen.queryByTestId('estate-map-locked')).not.toBeInTheDocument();
+  });
+
+  it('does not load smart suggestions; the overdue hint comes from the snapshot', () => {
+    render(<DashboardContent />);
+    expect(mocks.useSmartSuggestions).not.toHaveBeenCalled();
+    expect(mocks.getSmartSuggestions).not.toHaveBeenCalled();
+    expect(within(screen.getByTestId('lane-money-queue')).getAllByRole('listitem')[1]).toHaveTextContent('0 overdue invoices');
+  });
+});
+
+describe('DashboardPage server prefetch', () => {
+  const dehydratedKeys = (el: ReactElement) => {
+    expect(isValidElement(el) && el.type === HydrationBoundary).toBe(true);
+    const state = (el.props as { state: DehydratedState }).state;
+    return state.queries.map((q) => q.queryKey);
+  };
+
+  it('prefetches only the snapshot under the client hook\'s key and leaves the map to the client', async () => {
+    mocks.getAdminDashboardSnapshot.mockResolvedValue({ data: { lastUpdated: 'x' }, error: null });
+    expect(dehydratedKeys(await DashboardPage())).toEqual([[...ADMIN_DASHBOARD_SNAPSHOT_QUERY_KEY]]);
+    expect(mocks.getEstateMapStatus).not.toHaveBeenCalled();
+    expect(mocks.getSmartSuggestions).not.toHaveBeenCalled();
+  });
+
+  it('leaves a failed read out so the client fetches it and shows its own state', async () => {
+    mocks.getAdminDashboardSnapshot.mockResolvedValue({ data: null, error: 'Unauthorized' });
+    expect(dehydratedKeys(await DashboardPage())).toEqual([]);
   });
 });
