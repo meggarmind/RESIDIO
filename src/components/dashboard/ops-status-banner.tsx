@@ -27,7 +27,13 @@ export function OpsStatusBanner() {
   return (
     <div className="space-y-2 px-4 pt-4">
       {active.map((message) => (
-        <Alert key={message.key} variant="warning" role="status">
+        <Alert
+          key={message.key}
+          variant="warning"
+          role="status"
+          // The warning variant's text colour is for a solid amber fill; on its 10% tint it is unreadable.
+          className="text-foreground *:data-[slot=alert-description]:text-foreground"
+        >
           <AlertTriangle />
           <AlertDescription>
             <span>
