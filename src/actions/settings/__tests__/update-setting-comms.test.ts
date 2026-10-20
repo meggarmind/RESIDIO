@@ -11,7 +11,10 @@ vi.mock('@/lib/supabase/server', () => ({
   createServerSupabaseClient: async () => ({ from: mocks.from, auth: { getUser: mocks.getUser } }),
   createAdminClient: vi.fn(),
 }));
-vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: mocks.authorizePermission }));
+vi.mock('@/lib/auth/authorize', () => ({
+  authorizePermission: mocks.authorizePermission,
+  authorizeAnyPermission: mocks.authorizePermission,
+}));
 vi.mock('@/lib/audit/logger', () => ({ logAudit: mocks.logAudit }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
