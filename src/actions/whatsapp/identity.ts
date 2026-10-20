@@ -322,7 +322,8 @@ export async function getWhatsAppForcePin(): Promise<ActionResult<boolean>> {
 
   return {
     success: !error,
-    data: data?.value === true || data?.value === 'true',
+    // Absent row means the default, which is on (#850).
+    data: !data || data.value === true || data.value === 'true',
     error: error?.message || null,
   };
 }
