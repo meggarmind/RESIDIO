@@ -28,14 +28,14 @@ export interface CreateExpenseInput {
 
 export async function createExpense(input: CreateExpenseInput) {
     const { authorized, userId } = await authorizePermission(PERMISSIONS.EXPENDITURE_MANAGE);
-    if (!authorized) throw new Error('Unauthorized');
+    if (!authorized) return { data: null, error: 'Unauthorized' };
 
     const amountError = validateMoneyAmount(input.amount, { label: 'Expense amount' });
-    if (amountError) throw new Error(amountError);
+    if (amountError) return { data: null, error: amountError };
 
     const expenseDate = typeof input.expense_date === 'string' ? input.expense_date : '';
     if (!/^\d{4}-\d{2}-\d{2}/.test(expenseDate) || Number.isNaN(Date.parse(expenseDate))) {
-        throw new Error('Expense date must be a valid date');
+        return { data: null, error: 'Expense date must be a valid date' };
     }
 
     const supabase = await createServerSupabaseClient();
@@ -61,7 +61,7 @@ export async function createExpense(input: CreateExpenseInput) {
     }, 'expense');
 
     if (dupResult.isDuplicate) {
-        throw new Error(`Duplicate Expense Detected: ${dupResult.reason}`);
+        return { data: null, error: `Duplicate Expense Detected: ${dupResult.reason}` };
     }
 
     const { data, error } = await supabase
@@ -95,7 +95,7 @@ export async function createExpense(input: CreateExpenseInput) {
 
     if (error) {
         console.error('Error creating expense:', error);
-        throw new Error('Failed to create expense');
+        return { data: null, error: 'Failed to create expense' };
     }
 
     // Audit log
@@ -118,5 +118,5 @@ export async function createExpense(input: CreateExpenseInput) {
         revalidatePath(`/projects/${input.project_id}`);
     }
 
-    return data;
+    return { data, error: null };
 }

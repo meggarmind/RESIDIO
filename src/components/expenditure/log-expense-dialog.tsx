@@ -166,12 +166,16 @@ export function LogExpenseDialog({
                 payload.staff_id = '';
             }
 
-            const result = await createExpense(payload);
+            const { data: result, error } = await createExpense(payload);
+            if (error || !result) {
+                toast.error(error || 'Failed to record expense');
+                return;
+            }
             toast.success('Expense recorded successfully');
             onSuccess(result);
             onOpenChange(false);
             form.reset();
-        } catch (error) {
+        } catch {
             toast.error('Failed to record expense');
         } finally {
             setIsSubmitting(false);

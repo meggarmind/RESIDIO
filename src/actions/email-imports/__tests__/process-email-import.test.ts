@@ -159,7 +159,7 @@ describe('Email Import Processing', () => {
             });
 
             vi.mocked(createPayment).mockResolvedValue({ success: true, data: { id: 'pay_123' } } as unknown as Awaited<ReturnType<typeof createPayment>>);
-            vi.mocked(createExpense).mockResolvedValue({ id: 'exp_123' } as unknown as Awaited<ReturnType<typeof createExpense>>);
+            vi.mocked(createExpense).mockResolvedValue({ data: { id: 'exp_123' }, error: null } as unknown as Awaited<ReturnType<typeof createExpense>>);
 
             const result = await processEmailTransactions('import_123');
 
@@ -189,7 +189,7 @@ describe('Email Import Processing', () => {
                 return createMockQuery();
             });
 
-            vi.mocked(createExpense).mockRejectedValue(new Error('Expense amount can have at most 2 decimal places'));
+            vi.mocked(createExpense).mockResolvedValue({ data: null, error: 'Expense amount can have at most 2 decimal places' });
 
             const result = await processEmailTransactions('import_123');
 

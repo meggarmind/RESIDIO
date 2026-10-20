@@ -23,7 +23,7 @@ The blocking threshold is configurable in **System Settings > Duplicate Matching
 
 ### 1. Manual Entry
 - **Payments**: `createPayment` action checks for duplicates before insertion. Returns error if blocked.
-- **Expenses**: `createExpense` action checks for duplicates. Throws error if blocked.
+- **Expenses**: `createExpense` action checks for duplicates. Returns error if blocked.
 
 ### 2. Imports
 - **Bank Statements**: Rows are checked against existing DB records. Duplicates are marked with `is_duplicate` flag and skip reason.
