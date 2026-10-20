@@ -66,8 +66,7 @@ function repository(consent: WhatsAppConsentState, overrides: Partial<WhatsAppId
   };
 }
 
-async function run(text: string, repo: WhatsAppIdentityRepository) {
-  const send = vi.fn().mockResolvedValue({ success: true });
+async function run(text: string, repo: WhatsAppIdentityRepository, send = vi.fn().mockResolvedValue({ success: true })) {
   const onIdentified = vi.fn().mockResolvedValue(undefined);
   const result = await handleResidentMessage(message(text), { repository: repo, send, onIdentified });
   return { result, send, onIdentified, bodies: send.mock.calls.map((call) => call[0].body as string) };
@@ -156,6 +155,51 @@ describe('identity read-back (#871 step 1)', () => {
 
     expect(bodies[0]).toContain('Is that you?');
     expect(onIdentified).not.toHaveBeenCalled();
+  });
+});
+
+describe('a failed send is retried as the same inbound', () => {
+  const failing = () => vi.fn().mockResolvedValue({ success: false, error: 'down' });
+
+  it('does not save the identity step when the read-back was not delivered', async () => {
+    const repo = repository(state());
+    await expect(run('1', repo, failing())).rejects.toThrow('down');
+
+    expect(repo.saveConsentStep).not.toHaveBeenCalled();
+  });
+
+  it('does not save the privacy step when the notice was not delivered, so a retried "1" is not acceptance', async () => {
+    const repo = repository(state({ step: `identity:${FINGERPRINT}` }));
+    await expect(run('1', repo, failing())).rejects.toThrow('down');
+    expect(repo.saveConsentStep).not.toHaveBeenCalled();
+
+    const retry = repository(confirmed({ step: `identity:${FINGERPRINT}` }));
+    const { bodies } = await run('1', retry);
+    expect(retry.recordConsentDecision).not.toHaveBeenCalled();
+    expect(bodies[0]).toContain('1. Accept');
+  });
+
+  it('does not save the privacy step when the notice PDF cannot be produced', async () => {
+    const repo = repository(confirmed(), { getPrivacyNoticeUrl: vi.fn().mockRejectedValue(new Error('upload failed')) });
+    await expect(run('hi', repo)).rejects.toThrow('upload failed');
+
+    expect(repo.saveConsentStep).not.toHaveBeenCalled();
+  });
+
+  it('records no acceptance when the thanks was not delivered', async () => {
+    const repo = repository(confirmed({ step: 'privacy:resident-1:v1', pendingRequest: 'OWE' }));
+    const { onIdentified } = await run('1', repo, failing()).catch(() => ({ onIdentified: null }));
+
+    expect(repo.recordConsentDecision).not.toHaveBeenCalled();
+    expect(repo.saveConsentStep).not.toHaveBeenCalled();
+    expect(onIdentified).toBeNull();
+  });
+
+  it('alerts admins of a dispute even when the reply fails', async () => {
+    const repo = repository(state({ step: `identity:${FINGERPRINT}` }));
+    await expect(run('2', repo, failing())).rejects.toThrow('down');
+
+    expect(repo.notifyDisputed).toHaveBeenCalledWith(PHONE, 'resident-1');
   });
 });
 

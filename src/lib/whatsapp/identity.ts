@@ -317,16 +317,18 @@ export function createSupabaseWhatsAppIdentityRepository(): WhatsAppIdentityRepo
     async getStreetName(residentId) {
       const { data, error } = await createAdminClient()
         .from('resident_houses')
-        .select('is_primary, house:houses(street:streets(name))')
+        .select('house:houses(street:streets(name))')
         .eq('resident_id', residentId)
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .order('is_primary', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: true })
+        .order('house_id', { ascending: true });
 
       if (error) {
         throw error;
       }
 
-      const rows = [...(data || [])].sort((a, b) => Number(b.is_primary === true) - Number(a.is_primary === true));
-      for (const row of rows) {
+      for (const row of data || []) {
         const house = (Array.isArray(row.house) ? row.house[0] : row.house) as { street?: { name?: string } | { name?: string }[] } | null;
         const street = Array.isArray(house?.street) ? house?.street[0] : house?.street;
         if (street?.name) return street.name;
@@ -697,12 +699,12 @@ export async function handleResidentMessage(
       await decide('identity_disputed', { identityFingerprint: fingerprint });
       await repository.markDisputed(phoneNumber, residentId);
       await repository.saveConsentStep(phoneNumber, residentId, null, null);
-      await reply(withLines(NOT_ME_REPLY, await repository.getOfficeContactLine()));
       await repository.notifyDisputed(phoneNumber, residentId);
+      await reply(withLines(NOT_ME_REPLY, await repository.getOfficeContactLine()));
       return result('disputed', optedIn);
     } else {
-      await repository.saveConsentStep(phoneNumber, residentId, identityStep, request);
       await reply(identityReadBack(matchedIdentity, street));
+      await repository.saveConsentStep(phoneNumber, residentId, identityStep, request);
       return result('consent_pending', optedIn);
     }
   }
@@ -732,19 +734,17 @@ export async function handleResidentMessage(
     const declined = state.privacy?.decision === 'privacy_declined' && state.privacy.version === notice.version;
 
     if ((promptShown && ACCEPT_NOTICE.test(answer)) || (declined && /^accept\.?$/i.test(answer))) {
+      const thanks = `Thanks, your acceptance of privacy notice ${notice.version} is recorded.`;
+      await reply(financial ? thanks : withLines(
+        thanks,
+        'Estate announcements and notices will be sent here.',
+        optedIn ? '' : 'Reply YES to receive estate WhatsApp alerts, or STOP to decline them.'
+      ));
       await decide('privacy_accepted', { noticeVersion: notice.version });
       await repository.saveConsentStep(phoneNumber, residentId, null, null);
-      const thanks = `Thanks, your acceptance of privacy notice ${notice.version} is recorded.`;
       if (financial) {
-        await reply(thanks);
         // Step 7: answer the request that started the conversation, through the financial handler's PIN gate.
         await options.onIdentified!({ ...message, text: state.pendingRequest || 'MENU' }, matchedIdentity);
-      } else {
-        await reply(withLines(
-          thanks,
-          'Estate announcements and notices will be sent here.',
-          optedIn ? '' : 'Reply YES to receive estate WhatsApp alerts, or STOP to decline them.'
-        ));
       }
       return result('identified', optedIn);
     }
@@ -762,12 +762,12 @@ export async function handleResidentMessage(
       return result('declined', optedIn);
     }
 
-    await repository.saveConsentStep(phoneNumber, residentId, privacyStep, request);
     const noticeUrl = await repository.getPrivacyNoticeUrl(notice);
     await reply(
       withLines(starting ? 'Estate WhatsApp alerts are now enabled.' : '', privacyNoticePrompt(notice.version)),
       [noticeUrl]
     );
+    await repository.saveConsentStep(phoneNumber, residentId, privacyStep, request);
     return result('consent_pending', optedIn);
   }
 

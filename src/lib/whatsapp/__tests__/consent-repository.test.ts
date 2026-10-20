@@ -132,6 +132,26 @@ describe('Supabase consent repository', () => {
     await expect(repo.isDisputed(NUMBER)).resolves.toBe(true);
   });
 
+  it('picks the street from a fixed house order: primary first, then oldest link, then house id', async () => {
+    const houses = query({
+      data: [
+        { house: { street: null } },
+        { house: [{ street: { name: 'Palm Street' } }] },
+        { house: { street: { name: 'Oak Avenue' } } },
+      ],
+      error: null,
+    });
+    client.from.mockReturnValueOnce(houses);
+
+    await expect(createSupabaseWhatsAppIdentityRepository().getStreetName('res-1')).resolves.toBe('Palm Street');
+
+    expect(houses.order.mock.calls).toEqual([
+      ['is_primary', { ascending: false, nullsFirst: false }],
+      ['created_at', { ascending: true }],
+      ['house_id', { ascending: true }],
+    ]);
+  });
+
   it.each(['pending', 'cleared', 'attached'])('does not block a %s number', async (status) => {
     client.from.mockReturnValueOnce(query({ data: { status }, error: null }));
 
