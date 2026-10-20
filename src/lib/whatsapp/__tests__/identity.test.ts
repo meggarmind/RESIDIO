@@ -103,16 +103,28 @@ describe('WhatsApp identity and consent', () => {
     expect(send.mock.calls[0]?.[0].body).not.toContain('balance');
   });
 
-  it('adds the estate office contact line to the invalid link code and unmatched number replies', async () => {
+  it('adds the estate office contact line to the invalid link code reply', async () => {
     const send = vi.fn().mockResolvedValue({ success: true });
     const estateContactLine = vi.fn().mockResolvedValue('Contact the estate office on 0803 699 6725.');
 
     await handleResidentMessage(message('LINK 123456', '2348111111111'), { repository: repository({ findRosterMatches: vi.fn().mockResolvedValue([]) }), send, estateContactLine });
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[0]?.[0].body).toBe(
+      'That link code is invalid or expired. Ask the estate office for a new code.\nContact the estate office on 0803 699 6725.'
+    );
+  });
+
+  it('adds the estate office contact line to the unmatched number reply', async () => {
+    const send = vi.fn().mockResolvedValue({ success: true });
+    const estateContactLine = vi.fn().mockResolvedValue('Contact the estate office on 0803 699 6725.');
+
     await handleResidentMessage(message('hello', '2348111111111'), { repository: repository({ findRosterMatches: vi.fn().mockResolvedValue([]) }), send, estateContactLine });
 
-    for (const call of send.mock.calls) {
-      expect(call[0].body).toContain('Contact the estate office on 0803 699 6725.');
-    }
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[0]?.[0].body).toBe(
+      'Welcome to the Residio Assistant. We could not safely match this number to one Resident. Ask the estate office for a link code, or reply STOP.\nContact the estate office on 0803 699 6725.'
+    );
   });
 
   it('links an unrostered number with a one-time code but waits for consent', async () => {
