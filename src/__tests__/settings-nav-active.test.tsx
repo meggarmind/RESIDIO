@@ -63,8 +63,42 @@ describe('useSettingsNavigation permission filter', () => {
     const { result } = renderHook(() => useSettingsNavigation());
     const titles = result.current.groups.map((group) => group.title);
 
-    expect(titles).toContain('Estate');
-    expect(titles).not.toContain('Integrations');
-    expect(titles).not.toContain('Maintenance & Data');
+    expect(titles).toEqual(['Setup']);
+  });
+});
+
+describe('settings nav grouping (#786, owner decision 2026-10-20)', () => {
+  it('uses the agreed groups, in order', () => {
+    expect(settingsConfig.map((group) => group.title)).toEqual([
+      'Setup',
+      'Estate & Property',
+      'Money',
+      'Messages & Reminders',
+      'Documents',
+      'People & Access',
+      'Connections',
+      'System',
+    ]);
+  });
+
+  it('puts the pages admins look for under the agreed labels', () => {
+    const where = (href: string) => {
+      const group = settingsConfig.find((g) => flattenSettingsNav([g]).some((i) => i.href === href && !i.children));
+      const item = flattenSettingsNav(settingsConfig).find((i) => i.href === href && !i.children);
+      return `${group?.title} > ${item?.title}`;
+    };
+    expect(where('/settings/estate-info')).toBe('Estate & Property > Estate Details');
+    expect(where('/settings/billing/invoices')).toBe('Money > Invoices & Due Dates');
+    expect(where('/settings/billing/profiles')).toBe('Money > Rate Cards');
+    expect(where('/settings/comms-override')).toBe('Messages & Reminders > Redirect Messages (test mode)');
+    expect(where('/settings/email/debug')).toBe('Messages & Reminders > Send a Test');
+    expect(where('/settings/maintenance')).toBe('System > Maintenance Mode');
+    expect(where('/settings/whatsapp')).toBe('Connections > WhatsApp');
+  });
+
+  it('gives every page its own entry, with no label used twice', () => {
+    const leaves = links.map((link) => link.title);
+    expect(new Set(leaves).size).toBe(leaves.length);
+    expect(new Set(links.map((link) => link.href)).size).toBe(links.length);
   });
 });
