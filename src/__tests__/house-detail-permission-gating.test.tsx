@@ -57,21 +57,18 @@ vi.mock('@/hooks/use-residents', () => ({
   useResidents: () => ({ data: { data: [] }, isLoading: false }),
   useAssignHouse: mocks.mutation,
   useUnassignHouse: mocks.mutation,
-  useMoveOutLandlord: mocks.mutation,
   useUpdateResidentHouse: mocks.mutation,
   useSwapResidentRoles: mocks.mutation,
   useTransferOwnership: mocks.mutation,
   useRemoveOwnership: mocks.mutation,
-  usePendingMoveOut: () => ({ data: undefined }),
-  useConfirmRenterMoveOut: mocks.mutation,
 }));
 vi.mock('@/components/houses/house-form', () => ({ HouseForm: () => null }));
 vi.mock('@/components/houses/house-payment-status', () => ({ HousePaymentStatus: () => null }));
 vi.mock('@/components/houses/yearly-payment-table', () => ({ YearlyPaymentTable: () => null }));
-vi.mock('@/components/houses/house-stats-cards', () => ({ HouseStatsCards: () => null }));
 vi.mock('@/components/residents/move-out-wizard', () => ({ MoveOutWizard: () => null }));
 vi.mock('@/components/residents/owner-move-out-wizard', () => ({ OwnerMoveOutWizard: () => null }));
 
+import { fireEvent } from '@testing-library/react';
 import HouseDetailPage from '@/app/(dashboard)/houses/[id]/page';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 
@@ -80,6 +77,9 @@ const params = Object.assign(Promise.resolve({ id: 'house-1' }), {
   status: 'fulfilled',
   value: { id: 'house-1' },
 }) as Promise<{ id: string }>;
+
+// Radix menus open on keyboard activation in jsdom.
+const openMenu = (name: RegExp | string) => fireEvent.keyDown(screen.getByRole('button', { name }), { key: 'Enter' });
 
 function renderPage() {
   return render(
@@ -103,7 +103,8 @@ describe('House detail permission gating (issue #462)', () => {
 
     expect(screen.getByText('First0 Last0')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /^Edit$/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^Delete$/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'More house actions' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^More actions for/ })).not.toBeInTheDocument();
     expect(screen.queryByText('Link Existing')).not.toBeInTheDocument();
     expect(screen.queryByText('Add New')).not.toBeInTheDocument();
     expect(screen.queryByText('Move Out')).not.toBeInTheDocument();
@@ -122,20 +123,37 @@ describe('House detail permission gating (issue #462)', () => {
     renderPage();
 
     expect(screen.getByRole('link', { name: /^Edit$/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Delete$/ })).toBeInTheDocument();
     expect(screen.getByText('Link Existing')).toBeInTheDocument();
     expect(screen.getByText('Add New')).toBeInTheDocument();
     expect(screen.getByText('Move Out')).toBeInTheDocument();
     expect(screen.getByText('Transfer')).toBeInTheDocument();
+    openMenu('More house actions');
+    expect(screen.getByRole('menuitem', { name: /Delete house/ })).toBeInTheDocument();
   });
 
-  it('shows Transfer only with houses.update, not with assign_resident alone', () => {
+  it('hides Delete from a user without houses.delete', () => {
+    mocks.permissions = [PERMISSIONS.HOUSES_VIEW, PERMISSIONS.HOUSES_UPDATE];
+    renderPage();
+    expect(screen.getByRole('link', { name: /^Edit$/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'More house actions' })).not.toBeInTheDocument();
+  });
+
+  it('shows Remove ownership to a houses.update holder without assign_resident', () => {
+    mocks.permissions = [PERMISSIONS.HOUSES_VIEW, PERMISSIONS.HOUSES_UPDATE];
+    renderPage();
+    expect(screen.getByText('Transfer')).toBeInTheDocument();
+    openMenu('More actions for First1 Last1');
+    expect(screen.getByRole('menuitem', { name: /^Remove$/ })).toBeInTheDocument();
+  });
+
+  it('shows Transfer and Remove ownership only with houses.update, not with assign_resident alone', () => {
     mocks.permissions = [PERMISSIONS.HOUSES_VIEW, PERMISSIONS.HOUSES_ASSIGN_RESIDENT];
     renderPage();
 
     expect(screen.queryByText('Transfer')).not.toBeInTheDocument();
-    // Remove-ownership is enforced by assign_resident server-side, so it stays.
-    expect(screen.getByRole('button', { name: /Remove/ })).toBeInTheDocument();
+    // Owner decision 2026-10-20: both change who owns the house, so both need houses.update.
+    expect(screen.queryByRole('button', { name: /^Remove$/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^More actions for First1/ })).not.toBeInTheDocument();
   });
 
   describe('per-role resident actions', () => {
@@ -146,16 +164,17 @@ describe('House detail permission gating (issue #462)', () => {
 
       mocks.permissions = [PERMISSIONS.HOUSES_VIEW];
       renderPage();
-      expect(screen.queryByTestId('remove-resident-button')).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Edit role' })).not.toBeInTheDocument();
-      expect(screen.queryByTitle('Promote to primary role')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Edit role/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^More actions for/ })).not.toBeInTheDocument();
       cleanup();
 
       mocks.permissions = ASSIGN;
       renderPage();
+      expect(screen.getByRole('button', { name: /Edit role/ })).toBeInTheDocument();
+      openMenu('More actions for First1 Last1');
       expect(screen.getByTestId('remove-resident-button')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Edit role' })).toBeInTheDocument();
-      expect(screen.getByTitle('Promote to primary role')).toBeInTheDocument();
+      // Promote is a labelled menu item, not an unlabelled icon button.
+      expect(screen.getByRole('menuitem', { name: 'Promote to primary role' })).toBeInTheDocument();
     });
 
     it('resident_landlord: Move Out needs houses.assign_resident', () => {
