@@ -145,6 +145,9 @@ function repository(houses: FinancialHouse[] = [PALM], overrides: Partial<WhatsA
     createStatementRequest: vi.fn().mockResolvedValue('request-1'),
     queueStatementEmail: vi.fn().mockResolvedValue(undefined),
     logDisclosure: vi.fn().mockResolvedValue(undefined),
+    // Not due by default, so a thank-you or an accepted request opens no survey (#872).
+    askSurvey: vi.fn().mockResolvedValue(null),
+    answerSurvey: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
   return Object.assign(repo, {
@@ -1582,5 +1585,175 @@ describe('WhatsApp Assistant clearance certificate (#816 decision 15)', () => {
     const replies = await chat(repo, ['1', '7']);
     expect(replies[0]).toContain('7. Clearance certificate');
     expect(repo.requestClearance).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('WhatsApp Assistant satisfaction survey (#872)', () => {
+  const ASK = ['How was Residio Assistant today?', '1. Good', '2. Okay', '3. Poor'].join('\n');
+  const REASONS = [
+    'Sorry about that. What went wrong?',
+    '1. Too slow',
+    "2. Couldn't find what I needed",
+    '3. Information looked wrong',
+    '4. Something else',
+  ].join('\n');
+  const PAID_UP: OwedFigures = { invoiceCount: 3, outstanding: 0, overdue: null, next: null, awaitingVerification: 0 };
+
+  function due(overrides: Partial<WhatsAppFinancialRepository> = {}) {
+    return repository([PALM], { askSurvey: vi.fn().mockResolvedValue('survey-1'), ...overrides });
+  }
+
+  it.each(['thanks', 'Thank you', 'ok', 'OK.', 'okay'])('asks after %s right after a financial answer, then stores a Good score', async (thanks) => {
+    const repo = due();
+    const replies = await chat(repo, ['wallet', thanks, '1']);
+
+    expect(replies[1]).toBe(ASK);
+    expect(repo.askSurvey).toHaveBeenCalledWith({ residentId: 'resident-1', phoneNumber: '+2348000000000', trigger: 'answer' });
+    expect(repo.answerSurvey).toHaveBeenCalledWith('resident-1', 'survey-1', { score: 'good' });
+    expect(replies[2]).toBe(`Thanks for the feedback.\n${FOOTER}`);
+    expect(repo.saveSession).toHaveBeenLastCalledWith(expect.objectContaining({ currentNode: 'main', draft: null }));
+  });
+
+  it('stores an Okay score', async () => {
+    const repo = due();
+    await chat(repo, ['wallet', 'thanks', '2']);
+    expect(repo.answerSurvey).toHaveBeenCalledWith('resident-1', 'survey-1', { score: 'okay' });
+  });
+
+  it('asks why on Poor, then for one optional line, then closes with the estate office line', async () => {
+    const repo = due();
+    const replies = await chat(repo, ['wallet', 'thanks', '3', '2', 'The statement missed my last payment']);
+
+    expect(replies[2]).toBe(REASONS);
+    expect(replies[3]).toBe('Anything else you want to tell us? Reply with one line, or SKIP.');
+    expect(replies[4]).toBe(`Thanks for telling us. The estate office will see your feedback.\n${CONTACT}\nReply 0 for menu.`);
+    expect(repo.answerSurvey).toHaveBeenNthCalledWith(1, 'resident-1', 'survey-1', { score: 'poor' });
+    expect(repo.answerSurvey).toHaveBeenNthCalledWith(2, 'resident-1', 'survey-1', { reason: 'not_found' });
+    expect(repo.answerSurvey).toHaveBeenNthCalledWith(3, 'resident-1', 'survey-1', { comment: 'The statement missed my last payment' });
+  });
+
+  it.each([['1', 'too_slow'], ['2', 'not_found'], ['3', 'wrong_information'], ['4', 'other']])('maps reason %s to %s', async (choice, reason) => {
+    const repo = due();
+    await chat(repo, ['wallet', 'thanks', '3', choice]);
+    expect(repo.answerSurvey).toHaveBeenLastCalledWith('resident-1', 'survey-1', { reason });
+  });
+
+  it('stores no comment on SKIP, and never stores digits typed by habit', async () => {
+    const skipped = due();
+    const replies = await chat(skipped, ['wallet', 'thanks', '3', '1', 'skip']);
+    expect(replies[4]).toContain('Thanks for telling us.');
+    expect(skipped.answerSurvey).toHaveBeenCalledTimes(2);
+
+    const digits = due();
+    await chat(digits, ['wallet', 'thanks', '3', '1', '482915']);
+    expect(digits.answerSurvey).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(vi.mocked(digits.answerSurvey).mock.calls)).not.toContain('482915');
+  });
+
+  it('asks nothing when the resident is not due (opted out, or asked in the last 30 days)', async () => {
+    const repo = repository();
+    const replies = await chat(repo, ['wallet', 'thanks']);
+
+    expect(repo.askSurvey).toHaveBeenCalledTimes(1);
+    expect(replies[1]).toBe(UNRECOGNISED);
+    expect(replies.join('\n')).not.toContain('How was Residio Assistant today?');
+  });
+
+  it('asks nothing for a thank-you that is not right after a financial answer', async () => {
+    const repo = due();
+    const replies = await chat(repo, ['hi', 'thanks', 'wallet', 'hi', 'thanks']);
+
+    expect(repo.askSurvey).not.toHaveBeenCalled();
+    expect(replies.join('\n')).not.toContain('How was Residio Assistant today?');
+  });
+
+  it('asks nothing after an answer that is not a success: an amount owed on a clearance, a capped lookup, no receipt', async () => {
+    const owing = due();
+    await chat(owing, ['clearance', 'thanks']);
+    expect(owing.askSurvey).not.toHaveBeenCalled();
+
+    const capped = due();
+    await chat(capped, ['wallet', 'thanks'], identity, { canLookup: vi.fn().mockResolvedValue('resident_cap') });
+    expect(capped.askSurvey).not.toHaveBeenCalled();
+
+    const noReceipts = due();
+    await chat(noReceipts, ['receipt', 'thanks']);
+    expect(noReceipts.askSurvey).not.toHaveBeenCalled();
+  });
+
+  it('asks nothing inside a PIN step or after a session expiry', async () => {
+    const pinStep = due();
+    pinStep.setStoredSession({ phoneNumber: '+2348000000000', residentId: 'resident-1', currentNode: 'pin:menu', selectedHouseId: null, pinAuthenticated: false, expiresAt: new Date(Date.now() + 60_000).toISOString(), draft: { answered: true } });
+    await chat(pinStep, ['ok']);
+    expect(pinStep.askSurvey).not.toHaveBeenCalled();
+
+    const expired = due();
+    expired.setStoredSession({ phoneNumber: '+2348000000000', residentId: 'resident-1', currentNode: 'answer', selectedHouseId: 'house-1', pinAuthenticated: false, expiresAt: new Date(Date.now() - 1000).toISOString(), draft: { answered: true } });
+    const replies = await chat(expired, ['thanks']);
+    expect(replies[0]).toMatch(/^Your session ended after 15 minutes/);
+    expect(expired.askSurvey).not.toHaveBeenCalled();
+  });
+
+  it('does not take a survey answer after the session expired', async () => {
+    const repo = due();
+    repo.setStoredSession({ phoneNumber: '+2348000000000', residentId: 'resident-1', currentNode: 'survey_score', selectedHouseId: 'house-1', pinAuthenticated: false, expiresAt: new Date(Date.now() - 1000).toISOString(), draft: { surveyId: 'survey-1' } });
+    const replies = await chat(repo, ['3']);
+    expect(replies[0]).toMatch(/^Your session ended after 15 minutes/);
+    expect(repo.answerSurvey).not.toHaveBeenCalled();
+  });
+
+  it('reads anything but an answer as an ordinary message and leaves the survey', async () => {
+    const repo = due();
+    const replies = await chat(repo, ['wallet', 'thanks', 'menu', '3']);
+
+    expect(repo.answerSurvey).not.toHaveBeenCalled();
+    expect(replies[2]).toBe(MAIN_MENU);
+    // The survey is over: 3 is now the main menu's How to pay, not a Poor score.
+    expect(replies[3]).toContain('*How to pay*');
+  });
+
+  it('answers the reply as usual when the survey cannot be started', async () => {
+    const repo = due({ askSurvey: vi.fn().mockRejectedValue(new Error('db down')) });
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const replies = await chat(repo, ['wallet', 'ok']);
+
+    expect(replies[1]).toBe(UNRECOGNISED);
+    expect(errors).toHaveBeenCalledWith('WhatsApp survey could not be started:', expect.any(Error));
+    errors.mockRestore();
+  });
+
+  it('asks after an accepted payment report, with the confirmation first', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-20T10:00:00Z'));
+    const repo = due();
+    const replies = await chat(repo, ['report', '50000', '12 Oct 2026', 'GTB TRF', '1', '3']);
+    vi.useRealTimers();
+
+    expect(replies[4]).toBe(`Reported. The estate office will check it against the bank statement. It shows as awaiting verification until then.\n${FOOTER}\n\n${ASK}`);
+    expect(repo.askSurvey).toHaveBeenCalledWith(expect.objectContaining({ trigger: 'payment_report' }));
+    expect(replies[5]).toBe(REASONS);
+  });
+
+  it('asks nothing when a payment report was not accepted', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-20T10:00:00Z'));
+    const repo = due({ createPaymentReport: vi.fn().mockResolvedValue({ status: 'duplicate' }) });
+    const replies = await chat(repo, ['report', '50000', '12 Oct 2026', 'GTB TRF', '1']);
+    vi.useRealTimers();
+
+    expect(repo.askSurvey).not.toHaveBeenCalled();
+    expect(replies[4]).not.toContain('How was Residio Assistant today?');
+  });
+
+  it('asks after an accepted clearance request, and not when one is already waiting', async () => {
+    const accepted = due({ getOwed: vi.fn().mockResolvedValue(PAID_UP) });
+    const replies = await chat(accepted, ['clearance', '2']);
+    expect(replies[0]).toMatch(new RegExp(`${FOOTER}\\n\\n${ASK.replace(/\./g, '\\.').replace(/\?/g, '\\?')}$`));
+    expect(accepted.askSurvey).toHaveBeenCalledWith(expect.objectContaining({ trigger: 'clearance_request' }));
+    expect(accepted.answerSurvey).toHaveBeenCalledWith('resident-1', 'survey-1', { score: 'okay' });
+
+    const waiting = due({ getOwed: vi.fn().mockResolvedValue(PAID_UP), requestClearance: vi.fn().mockResolvedValue({ status: 'duplicate' }) });
+    await chat(waiting, ['clearance']);
+    expect(waiting.askSurvey).not.toHaveBeenCalled();
   });
 });

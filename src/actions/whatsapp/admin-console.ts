@@ -5,6 +5,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/server';
 import { OUTBOUND_PENDING_TIMEOUT_MINUTES } from '@/lib/whatsapp/outbound-sends';
+import { SURVEY_INTERVAL_DAYS, type SurveyReason, type SurveyScore } from '@/lib/whatsapp/survey';
 import { logAudit } from '@/lib/audit/logger';
 import { retryClearanceCopy } from '@/lib/clearance/issue-certificate';
 import { revalidatePath } from 'next/cache';
@@ -161,4 +162,36 @@ export async function getWhatsAppHealth(): Promise<Result<WhatsAppHealth>> {
     },
     error: null,
   };
+}
+
+export type WhatsAppSurveySummary = {
+  asked: number;
+  byScore: Record<SurveyScore, number>;
+  byReason: Record<SurveyReason, number>;
+};
+
+/** Resident feedback of the last 30 days (#872): counts only, no comments and no resident names. */
+export async function getWhatsAppSurveySummary(): Promise<Result<WhatsAppSurveySummary>> {
+  const authorization = await authorizePermission(PERMISSIONS.WHATSAPP_VIEW);
+  if (!authorization.authorized) return { success: false, data: null, error: authorization.error || 'Unauthorized' };
+
+  const since = new Date(Date.now() - SURVEY_INTERVAL_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  // whatsapp_survey_responses is not in the generated types until its migration is applied.
+  const { data, error } = await (createAdminClient() as unknown as SupabaseClient)
+    .from('whatsapp_survey_responses')
+    .select('score, reason')
+    .gte('asked_at', since)
+    .limit(10000);
+  if (error) return { success: false, data: null, error: error.message };
+
+  const summary: WhatsAppSurveySummary = {
+    asked: data?.length ?? 0,
+    byScore: { good: 0, okay: 0, poor: 0 },
+    byReason: { too_slow: 0, not_found: 0, wrong_information: 0, other: 0 },
+  };
+  for (const row of (data || []) as Array<{ score: SurveyScore | null; reason: SurveyReason | null }>) {
+    if (row.score) summary.byScore[row.score] += 1;
+    if (row.reason) summary.byReason[row.reason] += 1;
+  }
+  return { success: true, data: summary, error: null };
 }

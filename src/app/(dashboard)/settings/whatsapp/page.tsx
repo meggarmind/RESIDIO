@@ -1,7 +1,7 @@
 import { getWhatsAppForcePin, getWhatsAppOptIns, getWhatsAppPendingContacts, getWhatsAppPrivacyNotice } from '@/actions/whatsapp/identity';
 import { SettingsPageHeader } from '@/components/settings/settings-page-header';
 import { getWhatsAppEnabled, getWhatsAppPilotResidentOptions, getWhatsAppPilotSettings } from '@/actions/whatsapp/pilot';
-import { getWhatsAppClearanceCopyFailures, getWhatsAppDeliveryProblems, getWhatsAppDisclosureLogs, getWhatsAppHealth, getWhatsAppSessions, getWhatsAppStatementFlags } from '@/actions/whatsapp/admin-console';
+import { getWhatsAppClearanceCopyFailures, getWhatsAppDeliveryProblems, getWhatsAppDisclosureLogs, getWhatsAppHealth, getWhatsAppSessions, getWhatsAppStatementFlags, getWhatsAppSurveySummary } from '@/actions/whatsapp/admin-console';
 import { getWhatsAppConnectionStatus, getWhatsAppOverrideNumbers, type WhatsAppConnectionStatus } from '@/actions/whatsapp/connection';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ForcePinToggle } from '@/app/(dashboard)/settings/whatsapp/force-pin-toggle';
@@ -13,7 +13,7 @@ import { PilotControls } from '@/app/(dashboard)/settings/whatsapp/pilot-control
 import { ConnectionSettings } from '@/app/(dashboard)/settings/whatsapp/connection-settings';
 import { ClearanceCopyFailures, type ClearanceCopyFailure } from '@/app/(dashboard)/settings/whatsapp/clearance-copy-failures';
 import { WhatsAppEnabledToggle } from '@/app/(dashboard)/settings/whatsapp/whatsapp-enabled-toggle';
-import { OperationsConsole, type DeliveryProblem, type Disclosure, type Health, type OptIn, type Pending, type Session, type StatementFlag } from '@/app/(dashboard)/settings/whatsapp/operations-console';
+import { OperationsConsole, type DeliveryProblem, type Disclosure, type Health, type OptIn, type Pending, type Session, type StatementFlag, type SurveySummary } from '@/app/(dashboard)/settings/whatsapp/operations-console';
 
 const DISCONNECTED_STATUS: WhatsAppConnectionStatus = {
   connected: false,
@@ -33,7 +33,7 @@ const DISCONNECTED_STATUS: WhatsAppConnectionStatus = {
 };
 
 export default async function WhatsAppOperationsPage() {
-  const [optInResult, pendingResult, forcePinResult, sessionsResult, disclosuresResult, healthResult, pilotResult, connectionResult, overrideNumbersResult, whatsappEnabledResult, pilotResidentsResult, deliveryProblemsResult, assistantTextResult, statementFlagsResult, privacyNoticeResult, clearanceCopyFailuresResult] = await Promise.all([
+  const [optInResult, pendingResult, forcePinResult, sessionsResult, disclosuresResult, healthResult, pilotResult, connectionResult, overrideNumbersResult, whatsappEnabledResult, pilotResidentsResult, deliveryProblemsResult, assistantTextResult, statementFlagsResult, privacyNoticeResult, clearanceCopyFailuresResult, surveyResult] = await Promise.all([
     getWhatsAppOptIns(),
     getWhatsAppPendingContacts(),
     getWhatsAppForcePin(),
@@ -50,6 +50,7 @@ export default async function WhatsAppOperationsPage() {
     getWhatsAppStatementFlags(),
     getWhatsAppPrivacyNotice(),
     getWhatsAppClearanceCopyFailures(),
+    getWhatsAppSurveySummary(),
   ]);
 
   // Fallback idiom matches src/actions/system/cron-status.ts.
@@ -105,6 +106,7 @@ export default async function WhatsAppOperationsPage() {
           disclosures={(disclosuresResult.data || []) as Disclosure[]}
           deliveryProblems={(deliveryProblemsResult.data || []) as DeliveryProblem[]}
           statementFlags={(statementFlagsResult.data || []) as StatementFlag[]}
+          survey={(surveyResult.data || undefined) as SurveySummary | undefined}
           health={(healthResult.data || { inboundToday: 0, outboundToday: 0, deliveryFailuresToday: 0, templateErrorsToday: 0, capLimitEventsToday: 0 }) as Health}
         />
         <ClearanceCopyFailures rows={(clearanceCopyFailuresResult.data || []) as ClearanceCopyFailure[]} />

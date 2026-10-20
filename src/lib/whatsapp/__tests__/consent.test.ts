@@ -62,6 +62,7 @@ function repository(consent: WhatsAppConsentState, overrides: Partial<WhatsAppId
     getPrivacyNotice: vi.fn().mockResolvedValue({ version: 'v1', text: 'Full notice' }),
     getPrivacyNoticeUrl: vi.fn().mockResolvedValue(NOTICE_URL),
     getOfficeContactLine: vi.fn().mockResolvedValue(CONTACT),
+    optOutOfSurveys: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }

@@ -57,6 +57,7 @@ function repository(overrides: Partial<WhatsAppIdentityRepository> = {}): WhatsA
     getPrivacyNotice: vi.fn().mockResolvedValue({ version: 'v1', text: 'Notice' }),
     getPrivacyNoticeUrl: vi.fn().mockResolvedValue('https://storage.test/notice.pdf'),
     getOfficeContactLine: vi.fn().mockResolvedValue(''),
+    optOutOfSurveys: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }
@@ -83,6 +84,26 @@ describe('WhatsApp identity and consent', () => {
 
     expect(repo.setOptIn).toHaveBeenNthCalledWith(1, 'resident-1', '+2348000000000', true, 'in_chat');
     expect(repo.setOptIn).toHaveBeenNthCalledWith(2, 'resident-1', '+2348000000000', false, 'in_chat');
+  });
+
+  it('stores STOP SURVEYS as a survey opt-out and leaves the alerts opt-in alone (#872)', async () => {
+    const repo = repository({ getOptIn: vi.fn().mockResolvedValue(true) });
+    const send = vi.fn().mockResolvedValue({ success: true });
+
+    const result = await handleResidentMessage(message('stop surveys'), { repository: repo, send });
+
+    expect(repo.optOutOfSurveys).toHaveBeenCalledWith('resident-1');
+    expect(repo.setOptIn).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ status: 'identified', optedIn: true });
+    expect(send.mock.calls[0]?.[0].body).toBe("Done. I won't ask you for feedback again.");
+  });
+
+  it('still treats a plain STOP as an alerts opt-out, not a survey opt-out (#872)', async () => {
+    const repo = repository();
+    await handleResidentMessage(message('STOP'), { repository: repo, send: vi.fn().mockResolvedValue({ success: true }) });
+
+    expect(repo.optOutOfSurveys).not.toHaveBeenCalled();
+    expect(repo.setOptIn).toHaveBeenCalledWith('resident-1', '+2348000000000', false, 'in_chat');
   });
 
   it('re-enables consent with START after an opt-out', async () => {
