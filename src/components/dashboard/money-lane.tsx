@@ -4,16 +4,12 @@ import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { CommandLane, type LaneState, type LaneTone } from '@/components/dashboard/command-lane';
 import type { DashboardActionMetrics, FinancialHealthMetrics } from '@/actions/dashboard/get-enhanced-dashboard-stats';
-import type { SmartSuggestion } from '@/hooks/use-smart-suggestions';
 
 export const formatNaira = (value: number) => `₦${new Intl.NumberFormat('en-NG').format(Math.round(value))}`;
-
-const OVERDUE_SUGGESTION_ID = 'suggestion-severely-overdue-invoices';
 
 interface MoneyLaneProps {
   financialHealth: FinancialHealthMetrics | null;
   actionMetrics: DashboardActionMetrics | null;
-  suggestions?: SmartSuggestion[];
   asOf?: string | null;
   isLoading?: boolean;
   isUnavailable?: boolean;
@@ -22,7 +18,6 @@ interface MoneyLaneProps {
 export function MoneyLane({
   financialHealth,
   actionMetrics,
-  suggestions = [],
   asOf,
   isLoading = false,
   isUnavailable = false,
@@ -38,8 +33,6 @@ export function MoneyLane({
     else if ((actionMetrics?.unverifiedPayments ?? 0) > 0) tone = 'attention';
     else if (invoiced > 0) tone = 'ok';
   }
-
-  const overdueSuggestion = suggestions.find((s) => s.id === OVERDUE_SUGGESTION_ID);
 
   return (
     <CommandLane
@@ -71,7 +64,7 @@ export function MoneyLane({
           key: 'overdue',
           label: 'Overdue invoice balance',
           value: fh ? formatNaira(fh.overdueAmount) : null,
-          hint: overdueSuggestion ? overdueSuggestion.title : fh ? `${fh.overdueCount} overdue ${fh.overdueCount === 1 ? 'invoice' : 'invoices'}` : undefined,
+          hint: fh ? `${fh.overdueCount} overdue ${fh.overdueCount === 1 ? 'invoice' : 'invoices'}` : undefined,
         },
         { key: 'wallet', label: 'Resident wallet credits', value: fh ? formatNaira(fh.walletCredits) : null },
       ]}

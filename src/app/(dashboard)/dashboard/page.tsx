@@ -5,7 +5,6 @@ import { useAuth } from '@/lib/auth/auth-provider';
 import { useAdminDashboardSnapshot, useEstateMapStatus } from '@/hooks/use-dashboard';
 import { toast } from 'sonner';
 import { DashboardSkeleton } from '@/components/dashboard/dashboard-skeleton';
-import { useSmartSuggestions } from '@/hooks/use-smart-suggestions';
 import { CommandStrip } from '@/components/dashboard/command-strip';
 import { MoneyLane } from '@/components/dashboard/money-lane';
 import { PeopleLane } from '@/components/dashboard/people-lane';
@@ -27,7 +26,6 @@ function DashboardContent() {
     const navigationState = useDashboardNavigationState();
     const { data: snapshot, isLoading, isError, isStaleSnapshot, snapshotSavedAt } = useAdminDashboardSnapshot();
     const { data: estateMap, isLoading: estateMapLoading, error: estateMapError } = useEstateMapStatus();
-    const { suggestions } = useSmartSuggestions();
 
     if (authLoading) {
         return <DashboardSkeleton label="Loading dashboard authentication" state="auth" />;
@@ -50,7 +48,6 @@ function DashboardContent() {
                 <MoneyLane
                   financialHealth={snapshot?.financialHealth ?? null}
                   actionMetrics={snapshot?.actionMetrics ?? null}
-                  suggestions={suggestions}
                   asOf={snapshot?.lastUpdated ?? null}
                   isLoading={isLoading}
                   isUnavailable={isError}

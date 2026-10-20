@@ -182,15 +182,14 @@ describe('lanes', () => {
     expect(screen.getByTestId('lane-money')).toHaveTextContent('No invoices raised yet');
   });
 
-  it('money lane turns the overdue suggestion into a queue row hint', () => {
+  it('money lane shows the overdue count as a queue row hint', () => {
     render(
       <MoneyLane
-        financialHealth={fh()}
+        financialHealth={fh({ overdueCount: 12 })}
         actionMetrics={am()}
-        suggestions={[{ id: 'suggestion-severely-overdue-invoices', title: '12 invoices overdue 30+ days', description: '', actionLabel: '', actionUrl: '/billing', priority: 'high', type: 'finance' }]}
       />,
     );
-    expect(screen.getByTestId('lane-money-queue')).toHaveTextContent('12 invoices overdue 30+ days');
+    expect(screen.getByTestId('lane-money-queue')).toHaveTextContent('12 overdue invoices');
   });
 
   it('people lane hides the houses-paid-up line without map counts and shows it with them', () => {
