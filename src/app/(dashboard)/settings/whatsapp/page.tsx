@@ -2,7 +2,7 @@ import { getWhatsAppForcePin, getWhatsAppOptIns, getWhatsAppPendingContacts } fr
 import { SettingsPageHeader } from '@/components/settings/settings-page-header';
 import { getWhatsAppEnabled, getWhatsAppPilotResidentOptions, getWhatsAppPilotSettings } from '@/actions/whatsapp/pilot';
 import { getWhatsAppDeliveryProblems, getWhatsAppDisclosureLogs, getWhatsAppHealth, getWhatsAppSessions } from '@/actions/whatsapp/admin-console';
-import { getWhatsAppConnectionStatus, type WhatsAppConnectionStatus } from '@/actions/whatsapp/connection';
+import { getWhatsAppConnectionStatus, getWhatsAppOverrideNumbers, type WhatsAppConnectionStatus } from '@/actions/whatsapp/connection';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ForcePinToggle } from '@/app/(dashboard)/settings/whatsapp/force-pin-toggle';
 import { OptInImport } from '@/app/(dashboard)/settings/whatsapp/opt-in-import';
@@ -29,7 +29,7 @@ const DISCONNECTED_STATUS: WhatsAppConnectionStatus = {
 };
 
 export default async function WhatsAppOperationsPage() {
-  const [optInResult, pendingResult, forcePinResult, sessionsResult, disclosuresResult, healthResult, pilotResult, connectionResult, whatsappEnabledResult, pilotResidentsResult, deliveryProblemsResult] = await Promise.all([
+  const [optInResult, pendingResult, forcePinResult, sessionsResult, disclosuresResult, healthResult, pilotResult, connectionResult, overrideNumbersResult, whatsappEnabledResult, pilotResidentsResult, deliveryProblemsResult] = await Promise.all([
     getWhatsAppOptIns(),
     getWhatsAppPendingContacts(),
     getWhatsAppForcePin(),
@@ -38,6 +38,7 @@ export default async function WhatsAppOperationsPage() {
     getWhatsAppHealth(),
     getWhatsAppPilotSettings(),
     getWhatsAppConnectionStatus(),
+    getWhatsAppOverrideNumbers(),
     getWhatsAppEnabled(),
     getWhatsAppPilotResidentOptions(),
     getWhatsAppDeliveryProblems(),
@@ -58,7 +59,7 @@ export default async function WhatsAppOperationsPage() {
           <CardDescription>Connect the Meta WhatsApp Cloud API or Twilio without a redeploy.</CardDescription>
         </CardHeader>
         <CardContent>
-          <ConnectionSettings initial={connectionResult.data || DISCONNECTED_STATUS} siteUrl={siteUrl} />
+          <ConnectionSettings initial={connectionResult.data || DISCONNECTED_STATUS} siteUrl={siteUrl} overrideNumbers={overrideNumbersResult.data} />
         </CardContent>
       </Card>
       <Card>

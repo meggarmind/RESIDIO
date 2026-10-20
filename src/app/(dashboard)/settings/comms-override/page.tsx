@@ -19,6 +19,7 @@ import {
   type CommsOverrideState,
 } from '@/actions/settings/comms-override';
 import { isValidOverrideEmail, isValidOverridePhone } from '@/lib/comms-override/resolver';
+import { overrideNumberConflict } from '@/lib/comms-override/number-conflict';
 import { DEBUG_DURATION_MAX, DEBUG_DURATION_MIN } from '@/lib/comms-override/limits';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
@@ -103,8 +104,15 @@ function OverrideForm({ data }: { data: CommsOverrideState }) {
   });
 
   const emailError = email.trim() !== '' && !isValidOverrideEmail(email.trim()) ? 'Enter a valid email address.' : null;
-  const phoneError = phone.trim() !== '' && !isValidOverridePhone(phone.trim()) ? 'Use international format, e.g. +2348012345678.' : null;
-  const whatsappError = whatsappPhone.trim() !== '' && !isValidOverridePhone(whatsappPhone.trim()) ? 'Use international format, e.g. +2348012345678.' : null;
+  const fromConflict = overrideNumberConflict({ phone, whatsappPhone }, data.whatsappFromNumber);
+  const phoneError =
+    phone.trim() !== '' && !isValidOverridePhone(phone.trim())
+      ? 'Use international format, e.g. +2348012345678.'
+      : fromConflict?.field === 'phone' ? fromConflict.message : null;
+  const whatsappError =
+    whatsappPhone.trim() !== '' && !isValidOverridePhone(whatsappPhone.trim())
+      ? 'Use international format, e.g. +2348012345678.'
+      : fromConflict?.field === 'whatsappPhone' ? fromConflict.message : null;
   const hasErrors = Boolean(emailError || phoneError || whatsappError);
   const blankWhileActive = data.effectiveEnabled && (email.trim() === '' || phone.trim() === '');
 

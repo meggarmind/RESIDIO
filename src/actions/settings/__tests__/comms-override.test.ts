@@ -5,12 +5,23 @@ const mocks = vi.hoisted(() => ({
   logAudit: vi.fn(),
   updateSetting: vi.fn(),
   getRawSettingsAsService: vi.fn(),
+  credentialRow: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: mocks.authorizePermission }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit: mocks.logAudit }));
 vi.mock('@/actions/settings/update-setting', () => ({ updateSetting: mocks.updateSetting }));
 vi.mock('@/lib/settings/service', () => ({ getRawSettingsAsService: mocks.getRawSettingsAsService }));
+
+vi.mock('@/lib/supabase/server', () => ({
+  createAdminClient: () => {
+    const chain: Record<string, unknown> = {};
+    chain.select = vi.fn(() => chain);
+    chain.eq = vi.fn(() => chain);
+    chain.maybeSingle = () => mocks.credentialRow();
+    return { from: vi.fn(() => chain) };
+  },
+}));
 
 import { getCommsOverrideState, updateCommsOverrideSettings, setDebugMode } from '@/actions/settings/comms-override';
 
@@ -21,6 +32,7 @@ beforeEach(() => {
   vi.stubEnv('NEXT_PUBLIC_APP_ENV', 'production');
   mocks.authorizePermission.mockResolvedValue({ authorized: true });
   mocks.updateSetting.mockResolvedValue({ data: { id: 'row-1' }, error: null });
+  mocks.credentialRow.mockResolvedValue({ data: null, error: null });
 });
 
 describe('updateCommsOverrideSettings', () => {
@@ -71,7 +83,61 @@ describe('updateCommsOverrideSettings', () => {
   });
 });
 
+describe('updateCommsOverrideSettings from-number conflict (#904)', () => {
+  const FROM = '+2348037000101';
+  const withFrom = () => mocks.credentialRow.mockResolvedValue({ data: { whatsapp_from_number: FROM }, error: null });
+
+  it('rejects an override WhatsApp number equal to the saved from-number, naming that field, and writes nothing', async () => {
+    withFrom();
+    const result = await updateCommsOverrideSettings({ ...valid, whatsappPhone: FROM });
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('override WhatsApp number is the same as the WhatsApp from-number');
+    expect(mocks.updateSetting).not.toHaveBeenCalled();
+    expect(mocks.logAudit).not.toHaveBeenCalled();
+  });
+
+  it('ignores surrounding whitespace in the submitted number', async () => {
+    withFrom();
+    const result = await updateCommsOverrideSettings({ ...valid, whatsappPhone: '+2348037000101 ' });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects an override phone equal to the from-number while the WhatsApp number is blank (fallback)', async () => {
+    withFrom();
+    const result = await updateCommsOverrideSettings({ ...valid, phone: FROM, whatsappPhone: '' });
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('override phone is the same as the WhatsApp from-number');
+    expect(mocks.updateSetting).not.toHaveBeenCalled();
+  });
+
+  it('allows an override phone equal to the from-number when a different WhatsApp number is set', async () => {
+    withFrom();
+    const result = await updateCommsOverrideSettings({ ...valid, phone: FROM, whatsappPhone: '+15550100200' });
+    expect(result.success).toBe(true);
+  });
+
+  it('saves when no WhatsApp provider is connected (blank from-number)', async () => {
+    const result = await updateCommsOverrideSettings({ ...valid, whatsappPhone: FROM });
+    expect(result.success).toBe(true);
+  });
+
+  it('fails closed when the from-number cannot be read', async () => {
+    mocks.credentialRow.mockResolvedValue({ data: null, error: { message: 'boom' } });
+    const result = await updateCommsOverrideSettings(valid);
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Could not verify');
+    expect(mocks.updateSetting).not.toHaveBeenCalled();
+  });
+});
+
 describe('getCommsOverrideState', () => {
+  it('returns the active WhatsApp from-number for the settings page', async () => {
+    mocks.getRawSettingsAsService.mockResolvedValue({ status: 'ok', values: new Map() });
+    mocks.credentialRow.mockResolvedValue({ data: { whatsapp_from_number: '+2348037000101' }, error: null });
+    const { data } = await getCommsOverrideState();
+    expect(data?.whatsappFromNumber).toBe('+2348037000101');
+  });
+
   it('forces the effective switch on outside production regardless of the stored value', async () => {
     vi.stubEnv('NEXT_PUBLIC_APP_ENV', 'staging');
     mocks.getRawSettingsAsService.mockResolvedValue({ status: 'ok', values: new Map([['comms_override_enabled', 'false']]) });
