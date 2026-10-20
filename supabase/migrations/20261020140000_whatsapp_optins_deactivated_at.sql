@@ -13,6 +13,21 @@
 --   setOptIn        clears deactivated_at, so a re-link (LINK code) or YES restores the row;
 --                   LINK-code redemption also sets link_verified_at
 --   financial tier  only when the number is on the resident's roster or link_verified_at is set
+--   backfill        links made with a LINK code before this migration: LINK redemption also marks
+--                   the number's whatsapp_pending_contacts row 'attached' to that resident, and the
+--                   admin "attach" action creates no opt-in row, so an active opt-in matching an
+--                   attached contact was made with a code
+--
+-- VERIFY (run on the database after applying):
+--   SELECT column_name FROM information_schema.columns
+--    WHERE table_schema = 'public' AND table_name = 'whatsapp_optins'
+--      AND column_name IN ('deactivated_at', 'link_verified_at');
+--     -- expect 2 rows
+--   SELECT count(*) FROM public.whatsapp_optins o
+--     JOIN public.whatsapp_pending_contacts pc
+--       ON pc.resident_id = o.resident_id AND pc.phone_number = o.phone_number AND pc.status = 'attached'
+--    WHERE o.deactivated_at IS NULL AND o.link_verified_at IS NULL;
+--     -- expect 0 (every code-made link was backfilled)
 --
 -- ROLLBACK (revert the TS callers first, then):
 --   DROP INDEX IF EXISTS public.idx_whatsapp_optins_phone_active;
@@ -22,6 +37,15 @@
 ALTER TABLE public.whatsapp_optins
   ADD COLUMN IF NOT EXISTS deactivated_at TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS link_verified_at TIMESTAMPTZ;
+
+UPDATE public.whatsapp_optins o
+   SET link_verified_at = pc.updated_at
+  FROM public.whatsapp_pending_contacts pc
+ WHERE pc.resident_id = o.resident_id
+   AND pc.phone_number = o.phone_number
+   AND pc.status = 'attached'
+   AND o.deactivated_at IS NULL
+   AND o.link_verified_at IS NULL;
 
 CREATE INDEX IF NOT EXISTS idx_whatsapp_optins_phone_active
   ON public.whatsapp_optins (phone_number)

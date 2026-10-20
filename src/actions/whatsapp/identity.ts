@@ -134,13 +134,16 @@ export async function importWhatsAppOptIns(
       result.duplicates += 1;
       continue;
     }
-    const { data: optin, error } = await adminClient.from('whatsapp_optins').insert({
+    const { data: optin, error } = await adminClient.from('whatsapp_optins').upsert({
       resident_id: residentId,
       phone_number: phoneNumber,
       opted_in: true,
       source: 'admin_import',
       opted_in_at: now,
-    }).select('id').single();
+      opted_out_at: null,
+      deactivated_at: null,
+      updated_at: now,
+    }, { onConflict: 'resident_id,phone_number' }).select('id').single();
     if (error) {
       result.errors.push(`Failed to import ${residentCode}: ${error.message}`);
       continue;
