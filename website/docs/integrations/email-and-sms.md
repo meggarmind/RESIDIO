@@ -56,14 +56,27 @@ A multi-channel emergency announcement bypasses the normal reminder cadence. Whi
 
 ## Templates
 
-**Settings → Messages & Reminders → Message Wording → Notification Messages** holds the system notification templates, which are read-only and sent by name. **Settings → Messages & Reminders → Message Wording → Announcement Templates** holds reusable announcement text. A template change takes effect on the next send, including sends already sitting in the queue.
+**Settings → Messages & Reminders → Message Wording → Email Wording** lists the five emails residents actually receive, and lets you change their wording. Reusable announcement text is separate, under **Message Wording → Announcement Templates**.
 
-Before saving a template change:
+- Welcome email
+- Payment receipt
+- Payment reminder (manual "Send now" only)
+- Payment reminder (escalating), sent by the scheduled reminders, with separate wording for each stage from friendly to overdue
+- New invoice
 
-1. Read the rendered preview, not just the source.
-2. Confirm every placeholder resolves — an unresolved placeholder reaches the resident verbatim.
-3. Check the message reads correctly in the shortest channel it will be sent on. SMS truncates.
-4. Send one test message to yourself.
+Choose **Edit** on an email to change its subject, heading, main message and sign-off. Each field shows the built-in wording as grey placeholder text. A field you leave empty uses the built-in wording, and **Reset to default** on a field clears your edit. Paragraphs are separated by a blank line. The layout and the details the email shows (amounts, dates, invoice numbers) cannot be edited. You need the notifications manage permission to edit; everyone else can only preview.
+
+Use variables such as `{{resident_name}}` or `{{amount}}` where the value should appear. The edit panel lists the variables each email allows, and a variable that is not on that list is rejected when you save. There is no way to add a new template, duplicate one or delete one.
+
+A change takes effect on the next send. Invoice emails already waiting in the queue were rendered when they were queued, so they keep their old wording.
+
+**Settings → Message Templates** is separate and holds reusable templates for common announcements. It does not change the resident emails above.
+
+Before saving a wording change:
+
+1. Read the **Preview**, which shows your saved wording with sample data.
+2. Keep the subject short, because it is all some mail apps show.
+3. Check the email reads correctly with a real name and amount, not only the sample.
 
 ## Reminders and schedules
 
