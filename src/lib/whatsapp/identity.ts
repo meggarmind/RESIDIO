@@ -307,7 +307,8 @@ export function createSupabaseWhatsAppIdentityRepository(): WhatsAppIdentityRepo
           status: 'attached',
           updated_at: new Date().toISOString(),
         })
-        .eq('phone_number', normalizePhoneNumber(phoneNumber));
+        .eq('phone_number', normalizePhoneNumber(phoneNumber))
+        .neq('status', 'disputed');
 
       if (error) {
         throw error;
@@ -627,6 +628,10 @@ export async function handleResidentMessage(
 
   const linkMatch = text.match(/^LINK\s+([0-9]{6,12})$/i);
   if (linkMatch) {
+    if (await options.repository.isDisputed(phoneNumber)) {
+      await sendReply(message, withLines(NOT_ME_REPLY, await options.repository.getOfficeContactLine()), options.send);
+      return { status: 'disputed', residentId: null, optedIn: false, financialEligible: false, accessTier: 'community' };
+    }
     const residentId = await options.repository.consumeLinkToken(linkMatch[1]);
     if (!residentId) {
       await sendReply(message, await withContact('That link code is invalid or expired. Ask the estate office for a new code.', options), options.send);

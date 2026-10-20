@@ -152,6 +152,18 @@ describe('Supabase consent repository', () => {
     ]);
   });
 
+  it('never overwrites a disputed row when attaching a linked number', async () => {
+    const update = query({ error: null });
+    update.neq = vi.fn().mockReturnValue(update);
+    client.from.mockReturnValueOnce(update);
+
+    await createSupabaseWhatsAppIdentityRepository().attachPendingContact('08000000001', 'res-1');
+
+    expect(update.update).toHaveBeenCalledWith(expect.objectContaining({ status: 'attached', resident_id: 'res-1' }));
+    expect(update.eq).toHaveBeenCalledWith('phone_number', NUMBER);
+    expect(update.neq).toHaveBeenCalledWith('status', 'disputed');
+  });
+
   it.each(['pending', 'cleared', 'attached'])('does not block a %s number', async (status) => {
     client.from.mockReturnValueOnce(query({ data: { status }, error: null }));
 

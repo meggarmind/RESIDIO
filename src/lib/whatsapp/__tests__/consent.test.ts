@@ -242,6 +242,26 @@ describe('"No, not me" (#871 step 2)', () => {
     expect(onIdentified).not.toHaveBeenCalled();
   });
 
+  it('does not let a LINK code lift a dispute: still blocked, nothing consumed or attached', async () => {
+    let disputed = false;
+    const repo = repository(state({ step: `identity:${FINGERPRINT}`, pendingRequest: 'OWE' }), {
+      markDisputed: vi.fn(async () => { disputed = true; }),
+      isDisputed: vi.fn(async () => disputed),
+      consumeLinkToken: vi.fn().mockResolvedValue('resident-1'),
+    });
+    await run('2', repo);
+
+    const link = await run('LINK 123456', repo);
+    expect(link.result.status).toBe('disputed');
+    expect(link.bodies).toEqual([`${NOT_ME_REPLY}\n${CONTACT}`]);
+    expect(repo.consumeLinkToken).not.toHaveBeenCalled();
+    expect(repo.attachPendingContact).not.toHaveBeenCalled();
+
+    const later = await run('OWE', repo);
+    expect(later.result.status).toBe('disputed');
+    expect(later.onIdentified).not.toHaveBeenCalled();
+  });
+
   it('blocks every answer for a disputed number until an admin clears it', async () => {
     const repo = repository(confirmed({ privacy: { decision: 'privacy_accepted', version: 'v1' } }), {
       isDisputed: vi.fn().mockResolvedValue(true),
