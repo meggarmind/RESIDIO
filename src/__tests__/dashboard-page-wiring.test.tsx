@@ -5,6 +5,7 @@
 // component is real. The server page prefetches only the snapshot; the map loads on the client.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { existsSync } from 'node:fs';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import type { EstateMapSnapshot } from '@/types/estate-map';
@@ -126,6 +127,11 @@ describe('DashboardPage estate map wiring', () => {
   it('does not load smart suggestions; the overdue hint comes from the snapshot', () => {
     render(<DashboardContent />);
     expect(within(screen.getByTestId('lane-money-queue')).getAllByRole('listitem')[1]).toHaveTextContent('0 overdue invoices');
+  });
+
+  it('leaves no smart-suggestions action or hook behind (#859)', () => {
+    expect(existsSync('src/actions/dashboard/get-smart-suggestions.ts')).toBe(false);
+    expect(existsSync('src/hooks/use-smart-suggestions.ts')).toBe(false);
   });
 });
 
