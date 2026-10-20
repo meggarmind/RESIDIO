@@ -7,6 +7,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { callWalletPaymentRpc } from '@/lib/billing/wallet-payment-rpc';
 import { debitWalletForInvoiceAtomic, type WalletInvoiceDebitResult } from '@/lib/billing/wallet-invoice-debit';
+import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
 
 export type WalletTransaction = {
     id: string;
@@ -434,8 +435,14 @@ export interface YearlyWalletTransactionSummary {
     total_debits: number;
     net_change: number;
     closing_balance: number;
-    transactions: WalletTransaction[];
+    transactions: YearlyWalletTransaction[];
 }
+
+// Only the columns the yearly Transaction History view renders (#837).
+const YEARLY_WALLET_TRANSACTION_COLUMNS =
+    'id, type, amount, balance_after, reference_type, reference_id, description, created_at';
+
+export type YearlyWalletTransaction = Omit<WalletTransaction, 'wallet_id'>;
 
 /**
  * Get the resident wallet ledger grouped by calendar year for the expandable
@@ -451,14 +458,19 @@ export async function getYearlyWalletTransactions(
         return { data: [], error: null };
     }
 
-    const { data, error } = await supabase
-        .from('wallet_transactions')
-        .select('*')
-        .eq('wallet_id', wallet.id)
-        .order('created_at', { ascending: false });
+    // Paged: a single read is capped at 1000 rows, which would silently truncate the ledger (#837).
+    const { data, error } = await fetchAllRows<YearlyWalletTransaction>((from, to) =>
+        supabase
+            .from('wallet_transactions')
+            .select(YEARLY_WALLET_TRANSACTION_COLUMNS)
+            .eq('wallet_id', wallet.id)
+            .order('created_at', { ascending: false })
+            .order('id', { ascending: false })
+            .range(from, to)
+    );
 
     if (error) {
-        return { data: [], error: error.message };
+        return { data: [], error };
     }
 
     const byYear = new Map<number, YearlyWalletTransactionSummary>();

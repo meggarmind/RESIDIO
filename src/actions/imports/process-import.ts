@@ -782,7 +782,7 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
         }
 
         // Create the expense record
-        const expense = await createExpense({
+        const { data: expense, error: expenseError } = await createExpense({
           amount: Math.abs(row.amount), // Ensure positive amount
           category_id: categoryId,
           expense_date: row.transaction_date || new Date().toISOString().split('T')[0],
@@ -794,6 +794,9 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
           bank_row_id: row.id,
           project_id: row.matched_project_id || undefined, // Add Project ID if matched
         });
+        if (expenseError || !expense) {
+          throw new Error(expenseError || 'Failed to create expense');
+        }
 
         // Update row status with expense_id (we'll store in payment_id field for now)
         await markCreated(row, {
