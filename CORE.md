@@ -124,15 +124,18 @@ Follow `DESIGN_AGENTS.md` for all UI work: OKLCH colors, `new-york` shadcn style
 in `IconBox` wrappers, tactile micro-animations. Wrap raw shadcn components in semantic layout
 components rather than using them directly in pages.
 
-### WhatsApp messages
+### Date format in messages and reports
 
-Write every month in a WhatsApp message as a name, never a number: `31 AUGUST 2026` or
-`31 AUG 2026`, not `31/08/2026`, `08/31/2026` or `2026-08-31`. Numeric dates read as day-first to
-some residents and month-first to others, and a month name cannot be misread. This covers every
-resident-facing text the assistant or the system sends: replies, reminders, receipts, statements,
-and template parameters (`dueDate`, `paymentDate`, period labels). Pick one of the two forms per
-message and keep it; do not mix them. Build dates through one shared formatter, not
-`toLocaleDateString` with a numeric locale.
+Write every month as a name, never a number. Numeric dates (`31/08/2026`, `08/31/2026`,
+`2026-08-31`) read as day-first to some residents and month-first to others; a month name cannot
+be misread.
+
+- **WhatsApp messages: `dd mmm yyyy`**, for example `31 Aug 2026`. This covers every resident-facing
+  text the assistant or the system sends: replies, reminders, receipts, statements, and template
+  parameters (`dueDate`, `paymentDate`, period labels).
+- **PDF reports: `dd mmmm yyyy`**, for example `31 August 2026`.
+
+Build dates through one shared formatter per format, not `toLocaleDateString` with a numeric locale.
 
 ### Testing
 
