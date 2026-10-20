@@ -125,7 +125,7 @@ Gmail integration for bank statements
 - `fetch-emails` - Retrieve emails
 - `parse-email` - Parse bank emails
 - `process-email-import` - Process imported transactions
-- `create-email-import` - Create import batch
+- `create-email-import` - Read import batches (writes live in `src/lib/email-imports/import-records.ts`)
 - `bank-passwords` - Encrypted PDF passwords
 
 #### expenses/ & expenditure/

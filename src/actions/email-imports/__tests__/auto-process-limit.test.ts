@@ -84,7 +84,6 @@ vi.mock('@/lib/audit/logger', () => ({ logAudit: mocks.logAudit }));
 vi.mock('@/actions/payments/create-payment', () => ({ createPayment: mocks.createPayment }));
 vi.mock('@/actions/expenses/create-expense', () => ({ createExpense: mocks.createExpense }));
 vi.mock('@/lib/notifications/admin-notifier', () => ({ notifyAdmins: vi.fn() }));
-vi.mock('@/actions/email-imports/create-email-import', () => ({ updateEmailImportStatus: vi.fn() }));
 vi.mock('@/lib/matching/duplicate-matcher', () => ({
   checkDuplicateGuardrail: async () => ({ isDuplicate: false }),
 }));
