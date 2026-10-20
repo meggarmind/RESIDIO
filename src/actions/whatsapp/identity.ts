@@ -7,6 +7,7 @@ import { logAudit } from '@/lib/audit/logger';
 import { createAdminClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { parseWhatsAppOptInImport } from '@/lib/whatsapp/admin-import';
+import { PRIVACY_NOTICE_TEXT_KEY, PRIVACY_NOTICE_VERSION_KEY } from '@/lib/whatsapp/privacy-notice';
 
 type ActionResult<T> = {
   success: boolean;
@@ -486,4 +487,133 @@ export async function setWhatsAppForcePin(enabled: boolean): Promise<ActionResul
   revalidatePath('/settings/whatsapp');
 
   return { success: true, data: enabled, error: null };
+}
+
+export async function clearWhatsAppDisputedContact(phoneNumber: string): Promise<ActionResult<null>> {
+  const authorization = await authorizePermission(PERMISSIONS.WHATSAPP_MANAGE);
+  if (!authorization.authorized) {
+    return { success: false, data: null, error: authorization.error || 'Unauthorized' };
+  }
+
+  const adminClient = createAdminClient();
+  const { data: contact, error: contactError } = await adminClient
+    .from('whatsapp_pending_contacts')
+    .select('id, phone_number, status, resident_id')
+    .eq('phone_number', phoneNumber)
+    .eq('status', 'disputed')
+    .maybeSingle();
+
+  if (contactError || !contact) {
+    return { success: false, data: null, error: 'No disputed WhatsApp number found.' };
+  }
+
+  // Cleared, not deleted: the number gets the identity read-back again on its next message (#871).
+  const { error } = await adminClient
+    .from('whatsapp_pending_contacts')
+    .update({ status: 'cleared', updated_at: new Date().toISOString() })
+    .eq('id', contact.id)
+    .eq('status', 'disputed');
+
+  if (error) {
+    return { success: false, data: null, error: 'Failed to clear the disputed WhatsApp number.' };
+  }
+
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'whatsapp_pending_contacts',
+    entityId: contact.id,
+    entityDisplay: `WhatsApp disputed number ${phoneNumber}`,
+    oldValues: { status: contact.status, resident_id: contact.resident_id },
+    newValues: { status: 'cleared', resident_id: contact.resident_id },
+  });
+  revalidatePath('/settings/whatsapp');
+
+  return { success: true, data: null, error: null };
+}
+
+type PrivacyNoticeSettings = { version: string; text: string };
+
+const MAX_NOTICE_VERSION_LENGTH = 50;
+const MAX_NOTICE_TEXT_LENGTH = 20000;
+
+export async function getWhatsAppPrivacyNotice(): Promise<ActionResult<PrivacyNoticeSettings>> {
+  const authorization = await authorizePermission(PERMISSIONS.WHATSAPP_VIEW);
+  if (!authorization.authorized) {
+    return { success: false, data: null, error: authorization.error || 'Unauthorized' };
+  }
+
+  const { data, error } = await createAdminClient()
+    .from('system_settings')
+    .select('key, value')
+    .in('key', [PRIVACY_NOTICE_VERSION_KEY, PRIVACY_NOTICE_TEXT_KEY]);
+
+  if (error) {
+    return { success: false, data: null, error: 'Failed to load the WhatsApp privacy notice' };
+  }
+
+  const value = (key: string) => {
+    const row = data?.find((setting) => setting.key === key);
+    return typeof row?.value === 'string' ? row.value : '';
+  };
+  return { success: true, data: { version: value(PRIVACY_NOTICE_VERSION_KEY), text: value(PRIVACY_NOTICE_TEXT_KEY) }, error: null };
+}
+
+export async function setWhatsAppPrivacyNotice(input: PrivacyNoticeSettings): Promise<ActionResult<PrivacyNoticeSettings>> {
+  const authorization = await authorizePermission(PERMISSIONS.WHATSAPP_MANAGE);
+  if (!authorization.authorized) {
+    return { success: false, data: null, error: authorization.error || 'Unauthorized' };
+  }
+
+  const version = input.version.trim();
+  const text = input.text.trim();
+  if (!version || version.length > MAX_NOTICE_VERSION_LENGTH) {
+    return { success: false, data: null, error: `Enter a notice version of 1 to ${MAX_NOTICE_VERSION_LENGTH} characters.` };
+  }
+  if (!text || text.length > MAX_NOTICE_TEXT_LENGTH) {
+    return { success: false, data: null, error: `Enter the notice text (up to ${MAX_NOTICE_TEXT_LENGTH} characters).` };
+  }
+
+  const adminClient = createAdminClient();
+  const { data: oldRows, error: oldError } = await adminClient
+    .from('system_settings')
+    .select('key, value')
+    .in('key', [PRIVACY_NOTICE_VERSION_KEY, PRIVACY_NOTICE_TEXT_KEY]);
+  if (oldError) {
+    return { success: false, data: null, error: 'Failed to load the WhatsApp privacy notice' };
+  }
+  const old = (key: string) => oldRows?.find((row) => row.key === key)?.value;
+  const storedText = old(PRIVACY_NOTICE_TEXT_KEY);
+  if (old(PRIVACY_NOTICE_VERSION_KEY) === version && typeof storedText === 'string' && storedText.trim() !== text) {
+    return { success: false, data: null, error: 'Change the version when you change the notice text, so residents are asked to accept the new wording.' };
+  }
+  const { data: savedRows, error } = await adminClient
+    .from('system_settings')
+    .upsert(
+      [
+        { key: PRIVACY_NOTICE_VERSION_KEY, value: version, category: 'notifications', description: 'Version of the WhatsApp privacy notice residents accept; changing it re-shows the notice' },
+        { key: PRIVACY_NOTICE_TEXT_KEY, value: text, category: 'notifications', description: 'Full text of the WhatsApp privacy notice, sent as a PDF in chat' },
+      ],
+      { onConflict: 'key' }
+    )
+    .select('id, key');
+
+  if (error) {
+    return { success: false, data: null, error: 'Failed to save the WhatsApp privacy notice' };
+  }
+
+  // audit_logs.entity_id is a uuid: use the version row's id; both keys go in the values (#594).
+  const versionRow = savedRows?.find((row) => row.key === PRIVACY_NOTICE_VERSION_KEY);
+  if (versionRow?.id) {
+    await logAudit({
+      action: 'UPDATE',
+      entityType: 'system_settings',
+      entityId: versionRow.id,
+      entityDisplay: 'WhatsApp privacy notice',
+      oldValues: { version: old(PRIVACY_NOTICE_VERSION_KEY), text: old(PRIVACY_NOTICE_TEXT_KEY) },
+      newValues: { version, text },
+    });
+  }
+  revalidatePath('/settings/whatsapp');
+
+  return { success: true, data: { version, text }, error: null };
 }

@@ -1,4 +1,4 @@
-import { getWhatsAppForcePin, getWhatsAppOptIns, getWhatsAppPendingContacts } from '@/actions/whatsapp/identity';
+import { getWhatsAppForcePin, getWhatsAppOptIns, getWhatsAppPendingContacts, getWhatsAppPrivacyNotice } from '@/actions/whatsapp/identity';
 import { SettingsPageHeader } from '@/components/settings/settings-page-header';
 import { getWhatsAppEnabled, getWhatsAppPilotResidentOptions, getWhatsAppPilotSettings } from '@/actions/whatsapp/pilot';
 import { getWhatsAppDeliveryProblems, getWhatsAppDisclosureLogs, getWhatsAppHealth, getWhatsAppSessions, getWhatsAppStatementFlags } from '@/actions/whatsapp/admin-console';
@@ -8,6 +8,7 @@ import { ForcePinToggle } from '@/app/(dashboard)/settings/whatsapp/force-pin-to
 import { AssistantText } from '@/app/(dashboard)/settings/whatsapp/assistant-text';
 import { getWhatsAppAssistantText } from '@/actions/whatsapp/assistant-settings';
 import { OptInImport } from '@/app/(dashboard)/settings/whatsapp/opt-in-import';
+import { PrivacyNoticeSettings } from '@/app/(dashboard)/settings/whatsapp/privacy-notice-settings';
 import { PilotControls } from '@/app/(dashboard)/settings/whatsapp/pilot-controls';
 import { ConnectionSettings } from '@/app/(dashboard)/settings/whatsapp/connection-settings';
 import { WhatsAppEnabledToggle } from '@/app/(dashboard)/settings/whatsapp/whatsapp-enabled-toggle';
@@ -31,7 +32,7 @@ const DISCONNECTED_STATUS: WhatsAppConnectionStatus = {
 };
 
 export default async function WhatsAppOperationsPage() {
-  const [optInResult, pendingResult, forcePinResult, sessionsResult, disclosuresResult, healthResult, pilotResult, connectionResult, overrideNumbersResult, whatsappEnabledResult, pilotResidentsResult, deliveryProblemsResult, assistantTextResult, statementFlagsResult] = await Promise.all([
+  const [optInResult, pendingResult, forcePinResult, sessionsResult, disclosuresResult, healthResult, pilotResult, connectionResult, overrideNumbersResult, whatsappEnabledResult, pilotResidentsResult, deliveryProblemsResult, assistantTextResult, statementFlagsResult, privacyNoticeResult] = await Promise.all([
     getWhatsAppOptIns(),
     getWhatsAppPendingContacts(),
     getWhatsAppForcePin(),
@@ -46,6 +47,7 @@ export default async function WhatsAppOperationsPage() {
     getWhatsAppDeliveryProblems(),
     getWhatsAppAssistantText(),
     getWhatsAppStatementFlags(),
+    getWhatsAppPrivacyNotice(),
   ]);
 
   // Fallback idiom matches src/actions/system/cron-status.ts.
@@ -89,6 +91,10 @@ export default async function WhatsAppOperationsPage() {
         <Card>
           <CardHeader><CardTitle>Assistant replies</CardTitle><CardDescription>Text the resident bot sends. Estate phone, email and office hours come from Settings &gt; Estate info.</CardDescription></CardHeader>
           <CardContent><AssistantText initial={assistantTextResult.data || { paymentInstructions: '', keywordSynonyms: '' }} /></CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle>Privacy notice</CardTitle><CardDescription>Residents confirm their identity and accept this notice before the assistant uses their records. Each decision is logged with the version.</CardDescription></CardHeader>
+          <CardContent><PrivacyNoticeSettings initial={privacyNoticeResult.data || { version: '', text: '' }} /></CardContent>
         </Card>
         <OperationsConsole
           optIns={(optInResult.data || []) as OptIn[]}

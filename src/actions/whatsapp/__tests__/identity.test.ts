@@ -4,11 +4,13 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { logAudit } from '@/lib/audit/logger';
 import { createAdminClient } from '@/lib/supabase/server';
 import {
+  clearWhatsAppDisputedContact,
   createWhatsAppLinkToken,
   importWhatsAppOptIns,
   resetWhatsAppPin,
   resetWhatsAppSession,
   setWhatsAppForcePin,
+  setWhatsAppPrivacyNotice,
   updateWhatsAppPendingContact,
 } from '../identity';
 
@@ -63,6 +65,8 @@ describe('WhatsApp identity write actions', () => {
       ['updateWhatsAppPendingContact', () => updateWhatsAppPendingContact({ phoneNumber: '+2348000000000', status: 'ignored' })],
       ['resetWhatsAppSession', () => resetWhatsAppSession('+2348000000000')],
       ['setWhatsAppForcePin', () => setWhatsAppForcePin(true)],
+      ['clearWhatsAppDisputedContact', () => clearWhatsAppDisputedContact('+2348000000000')],
+      ['setWhatsAppPrivacyNotice', () => setWhatsAppPrivacyNotice({ version: 'v1', text: 'Notice' })],
     ];
 
     it.each(cases)('%s fails closed with no client, write or audit when unauthorized', async (_name, call) => {
@@ -421,5 +425,100 @@ describe('WhatsApp identity write actions', () => {
       expect(result.success).toBe(false);
       expect(logAudit).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('WhatsApp consent admin controls (#871)', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.mocked(authorizePermission).mockResolvedValue(authorized as never);
+    vi.mocked(logAudit).mockResolvedValue(undefined);
+  });
+
+  it('clears only a disputed number, to cleared, and audits it', async () => {
+    const lookup = query({ data: { id: ROW_ID, phone_number: '+2348000000000', status: 'disputed', resident_id: 'res-1' }, error: null });
+    const update = query({ error: null });
+    clientWith(lookup, update);
+
+    const result = await clearWhatsAppDisputedContact('+2348000000000');
+
+    expect(result).toEqual({ success: true, data: null, error: null });
+    expect(lookup.eq).toHaveBeenCalledWith('status', 'disputed');
+    expect(update.update).toHaveBeenCalledWith(expect.objectContaining({ status: 'cleared' }));
+    expect(logAudit).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'UPDATE',
+      entityType: 'whatsapp_pending_contacts',
+      entityId: ROW_ID,
+      oldValues: { status: 'disputed', resident_id: 'res-1' },
+      newValues: { status: 'cleared', resident_id: 'res-1' },
+    }));
+  });
+
+  it('refuses to clear a number that is not disputed, without a write or audit', async () => {
+    const from = clientWith(query({ data: null, error: null }));
+
+    const result = await clearWhatsAppDisputedContact('+2348000000000');
+
+    expect(result.success).toBe(false);
+    expect(from).toHaveBeenCalledTimes(1);
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+
+  it('saves the notice text and version and audits old and new values', async () => {
+    const old = query({ data: [{ key: 'whatsapp_privacy_notice_version', value: 'v1' }, { key: 'whatsapp_privacy_notice_text', value: 'Old' }], error: null });
+    const saved = query({ data: [{ id: ROW_ID, key: 'whatsapp_privacy_notice_version' }, { id: 'other', key: 'whatsapp_privacy_notice_text' }], error: null });
+    clientWith(old, saved);
+
+    const result = await setWhatsAppPrivacyNotice({ version: ' v2 ', text: ' New notice ' });
+
+    expect(result).toEqual({ success: true, data: { version: 'v2', text: 'New notice' }, error: null });
+    expect(saved.upsert).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({ key: 'whatsapp_privacy_notice_version', value: 'v2' }),
+        expect.objectContaining({ key: 'whatsapp_privacy_notice_text', value: 'New notice' }),
+      ],
+      { onConflict: 'key' }
+    );
+    expect(logAudit).toHaveBeenCalledWith(expect.objectContaining({
+      entityType: 'system_settings',
+      entityId: ROW_ID,
+      oldValues: { version: 'v1', text: 'Old' },
+      newValues: { version: 'v2', text: 'New notice' },
+    }));
+  });
+
+  it('refuses a changed text under the same version, without a write or audit', async () => {
+    const old = query({ data: [{ key: 'whatsapp_privacy_notice_version', value: 'v1' }, { key: 'whatsapp_privacy_notice_text', value: 'Old' }], error: null });
+    const from = clientWith(old);
+
+    const result = await setWhatsAppPrivacyNotice({ version: 'v1', text: 'Reworded' });
+
+    expect(result).toEqual({ success: false, data: null, error: 'Change the version when you change the notice text, so residents are asked to accept the new wording.' });
+    expect(from).toHaveBeenCalledTimes(1);
+    expect(old.upsert).not.toHaveBeenCalled();
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+
+  it('re-saves the same text under the same version', async () => {
+    const old = query({ data: [{ key: 'whatsapp_privacy_notice_version', value: 'v1' }, { key: 'whatsapp_privacy_notice_text', value: 'Notice' }], error: null });
+    const saved = query({ data: [{ id: ROW_ID, key: 'whatsapp_privacy_notice_version' }], error: null });
+    clientWith(old, saved);
+
+    const result = await setWhatsAppPrivacyNotice({ version: 'v1', text: ' Notice ' });
+
+    expect(result.success).toBe(true);
+    expect(saved.upsert).toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ version: ' ', text: 'Notice' }],
+    [{ version: 'v1', text: '' }],
+    [{ version: 'x'.repeat(51), text: 'Notice' }],
+  ])('rejects a blank or oversized notice without a write (%o)', async (input) => {
+    const result = await setWhatsAppPrivacyNotice(input);
+
+    expect(result.success).toBe(false);
+    expect(createAdminClient).not.toHaveBeenCalled();
+    expect(logAudit).not.toHaveBeenCalled();
   });
 });
