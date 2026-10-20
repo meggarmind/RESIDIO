@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -23,15 +23,21 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Users, Loader2, Edit } from 'lucide-react';
+import { Loader2, Edit } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatDayCount } from '@/lib/utils';
 import {
   useSecurityContactCategories,
   useUpdateSecurityContactCategory,
   useToggleCategoryActive,
 } from '@/hooks/use-security';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { SettingsSkeleton } from '@/components/settings/settings-states';
 
 export default function CategoriesPage() {
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(PERMISSIONS.SECURITY_MANAGE_CATEGORIES);
   const { data: categories, isLoading } = useSecurityContactCategories();
   const updateCategory = useUpdateSecurityContactCategory();
   const toggleActive = useToggleCategoryActive();
@@ -67,44 +73,43 @@ export default function CategoriesPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">
-            <Users className="inline-block mr-2 h-4 w-4" />
-            Contact Categories
-          </CardTitle>
           <CardDescription>
             Configure validity periods and limits for each contact category.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+            <SettingsSkeleton />
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Category</TableHead>
-                  <TableHead>Validity (Days)</TableHead>
-                  <TableHead>Max Contacts</TableHead>
-                  <TableHead>Warning (Days)</TableHead>
+                  <TableHead>Default Validity</TableHead>
+                  <TableHead>Max Validity</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  {canManage && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {categories?.map((cat) => (
                   <TableRow key={cat.id}>
                     <TableCell className="font-medium">{cat.name}</TableCell>
-                    <TableCell>{cat.default_validity_days} days</TableCell>
-                    <TableCell>{cat.max_validity_days} days</TableCell>
+                    <TableCell>{formatDayCount(cat.default_validity_days)}</TableCell>
+                    <TableCell>{formatDayCount(cat.max_validity_days)}</TableCell>
                     <TableCell>
                       <Badge variant={cat.is_active ? 'default' : 'outline'}>
                         {cat.is_active ? 'Active' : 'Inactive'}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right space-x-2">
+                    {canManage && (
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
                       <Button
                         variant="ghost"
-                        size="sm"
+                        size="icon"
+                        className="size-11 md:size-8"
+                        aria-label={`Edit ${cat.name}`}
                         onClick={() => {
                           setEditingCategoryId(cat.id);
                           setCategoryForm({
@@ -119,8 +124,11 @@ export default function CategoriesPage() {
                         checked={cat.is_active}
                         onCheckedChange={() => toggleActive.mutate(cat.id)}
                         disabled={toggleActive.isPending}
+                        aria-label={`${cat.name} active`}
                       />
+                      </div>
                     </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>

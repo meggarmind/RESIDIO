@@ -1,7 +1,7 @@
 'use client';
 
 import { TransactionTagsList } from '@/components/admin/transaction-tags-list';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
 
 export default function TransactionTagsPage() {
   return (
@@ -15,7 +15,6 @@ export default function TransactionTagsPage() {
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>Tags Management</CardTitle>
           <CardDescription>
             Create and manage tags to categorize incoming (credit) and outgoing (debit) transactions.
           </CardDescription>

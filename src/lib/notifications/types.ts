@@ -5,6 +5,8 @@
  * SMS remains defined for compatibility but is not currently operational.
  */
 
+import { formatDayCount } from '@/lib/utils';
+
 // ============================================================================
 // CHANNEL TYPES - Future-proofed for SMS/WhatsApp
 // ============================================================================
@@ -510,6 +512,14 @@ export const REMINDER_ESCALATION_LABELS: Record<ReminderEscalationLevel, string>
   final: 'Final Notice',
   overdue: 'Overdue Alert',
 };
+
+/**
+ * Describe a step's offset: negative is before the due date, positive after.
+ */
+export function formatDaysFromDue(days: number): string {
+  if (days === 0) return 'On due date';
+  return `${formatDayCount(Math.abs(days))} ${days < 0 ? 'before' : 'after'}`;
+}
 
 /**
  * Configuration for a single reminder schedule step

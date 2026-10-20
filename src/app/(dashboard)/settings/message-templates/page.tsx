@@ -216,9 +216,10 @@ export default function MessageTemplatesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Message Templates</h1>
+          <h1 className="text-3xl font-bold">Announcement Templates</h1>
           <p className="text-muted-foreground">
-            Create reusable templates for common announcements.
+            Reusable text for announcements. These are not notification templates: notifications use the
+            system templates in Notification Templates.
           </p>
         </div>
         <Button onClick={() => handleOpenDialog()}>
@@ -297,7 +298,7 @@ export default function MessageTemplatesPage() {
                       {template.is_active ? (
                         <Badge
                           variant="secondary"
-                          className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                          className="bg-success/10 text-success"
                         >
                           Active
                         </Badge>

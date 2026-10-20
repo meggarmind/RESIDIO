@@ -23,20 +23,15 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Plus } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { TemplateList } from '@/components/notifications/template-list';
 import { TemplateForm } from '@/components/notifications/template-form';
 import { previewTemplate } from '@/lib/notifications/templates';
 import type { NotificationTemplate } from '@/lib/notifications/types';
 
 export default function NotificationTemplatesPage() {
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editTemplate, setEditTemplate] = useState<NotificationTemplate | null>(null);
   const [previewTemplateData, setPreviewTemplateData] = useState<NotificationTemplate | null>(null);
-
-  const handleCreateSuccess = () => {
-    setIsCreateOpen(false);
-  };
 
   const handleEditSuccess = () => {
     setEditTemplate(null);
@@ -56,14 +51,12 @@ export default function NotificationTemplatesPage() {
           <div>
             <h3 className="text-lg font-medium">Notification Templates</h3>
             <p className="text-sm text-muted-foreground">
-              Create and manage notification message templates
+              System templates are read-only and sent by name. Custom templates are never sent.
+              Announcement text lives in{' '}
+              <Link href="/settings/message-templates" className="underline">Announcement Templates</Link>.
             </p>
           </div>
         </div>
-        <Button onClick={() => setIsCreateOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          New Template
-        </Button>
       </div>
       <Separator />
 
@@ -71,24 +64,6 @@ export default function NotificationTemplatesPage() {
         onEdit={setEditTemplate}
         onPreview={setPreviewTemplateData}
       />
-
-      {/* Create Template Dialog */}
-      <Sheet open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <SheetContent className="sm:max-w-xl overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>Create Template</SheetTitle>
-            <SheetDescription>
-              Create a new notification template with variable placeholders
-            </SheetDescription>
-          </SheetHeader>
-          <div className="mt-6">
-            <TemplateForm
-              onSuccess={handleCreateSuccess}
-              onCancel={() => setIsCreateOpen(false)}
-            />
-          </div>
-        </SheetContent>
-      </Sheet>
 
       {/* Edit Template Dialog */}
       <Sheet open={!!editTemplate} onOpenChange={() => setEditTemplate(null)}>

@@ -44,6 +44,9 @@ export default async function WhatsAppOperationsPage() {
   // Fallback idiom matches src/actions/system/cron-status.ts.
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
+  // The resident bot answers residents only when the channel is on and rollout is not disabled.
+  const residentBotActive = whatsappEnabledResult.data === true && !!pilotResult.data && pilotResult.data.mode !== 'disabled';
+
   return (
     <div className="space-y-6">
       <div>
@@ -59,28 +62,34 @@ export default async function WhatsAppOperationsPage() {
           <ConnectionSettings initial={connectionResult.data || DISCONNECTED_STATUS} siteUrl={siteUrl} />
         </CardContent>
       </Card>
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader><CardTitle>WhatsApp channel</CardTitle><CardDescription>Master on/off switch. Distinct from rollout mode below, which chooses who receives messages once this is on.</CardDescription></CardHeader>
-          <CardContent className="flex items-center justify-between gap-4"><p className="text-sm text-muted-foreground">When off, no WhatsApp message can be sent regardless of rollout mode.</p><WhatsAppEnabledToggle initialValue={whatsappEnabledResult.data === true} /></CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle>Financial PIN policy</CardTitle><CardDescription>Require a PIN before any financial answer.</CardDescription></CardHeader>
-          <CardContent className="flex items-center justify-between gap-4"><p className="text-sm text-muted-foreground">Residents can still set a personal PIN when this is off.</p><ForcePinToggle initialValue={forcePinResult.data === true} /></CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle>Import opt-ins</CardTitle><CardDescription>Load approved resident consent records from CSV.</CardDescription></CardHeader>
-          <CardContent><OptInImport /></CardContent>
-        </Card>
-      </div>
+      <Card>
+        <CardHeader><CardTitle>WhatsApp channel</CardTitle><CardDescription>Master on/off switch. Distinct from rollout mode below, which chooses who receives messages once this is on.</CardDescription></CardHeader>
+        <CardContent className="flex items-center justify-between gap-4"><p className="text-sm text-muted-foreground">When off, no WhatsApp message can be sent regardless of rollout mode.</p><WhatsAppEnabledToggle initialValue={whatsappEnabledResult.data === true} /></CardContent>
+      </Card>
       <Card><CardHeader><CardTitle>Rollout and pilot controls</CardTitle><CardDescription>Keep WhatsApp disabled until a defined pilot is verified. Promotion is audited.</CardDescription></CardHeader><CardContent><PilotControls initial={pilotResult.data || { mode: 'disabled', residentIds: [], streetId: '', outboundDailyCap: 100, outboundBurstCap: 20, outboundBurstWindowMinutes: 10, financialLookupDailyCap: 50, sessionRetentionDays: 1, processedMessageRetentionDays: 2 }} residentOptions={pilotResidentsResult.data} residentOptionsError={pilotResidentsResult.error} /></CardContent></Card>
-      <OperationsConsole
-        optIns={(optInResult.data || []) as OptIn[]}
-        pending={(pendingResult.data || []) as Pending[]}
-        sessions={(sessionsResult.data || []) as Session[]}
-        disclosures={(disclosuresResult.data || []) as Disclosure[]}
-        health={(healthResult.data || { inboundToday: 0, outboundToday: 0, deliveryFailuresToday: 0, templateErrorsToday: 0, capLimitEventsToday: 0 }) as Health}
-      />
+      <details open={residentBotActive} className="space-y-4 rounded-lg border p-4">
+        <summary className="cursor-pointer text-lg font-semibold">
+          Resident bot ({residentBotActive ? 'active' : 'inactive'})
+          <span className="block text-sm font-normal text-muted-foreground">PIN policy, opt-ins, sessions and disclosures for the resident WhatsApp bot.</span>
+        </summary>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card>
+            <CardHeader><CardTitle>Financial PIN policy</CardTitle><CardDescription>Require a PIN before any financial answer.</CardDescription></CardHeader>
+            <CardContent className="flex items-center justify-between gap-4"><p className="text-sm text-muted-foreground">Residents can still set a personal PIN when this is off.</p><ForcePinToggle initialValue={forcePinResult.data === true} /></CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle>Import opt-ins</CardTitle><CardDescription>Load approved resident consent records from CSV.</CardDescription></CardHeader>
+            <CardContent><OptInImport /></CardContent>
+          </Card>
+        </div>
+        <OperationsConsole
+          optIns={(optInResult.data || []) as OptIn[]}
+          pending={(pendingResult.data || []) as Pending[]}
+          sessions={(sessionsResult.data || []) as Session[]}
+          disclosures={(disclosuresResult.data || []) as Disclosure[]}
+          health={(healthResult.data || { inboundToday: 0, outboundToday: 0, deliveryFailuresToday: 0, templateErrorsToday: 0, capLimitEventsToday: 0 }) as Health}
+        />
+      </details>
     </div>
   );
 }

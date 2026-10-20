@@ -12,12 +12,15 @@ import {
   useEstateDefaultTheme,
   useSetEstateDefaultTheme,
 } from '@/hooks/use-theme-preferences';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 type AppearanceSettingsFormProps = {
   initialTheme: string;
   dashboardTheme: string | undefined;
   portalTheme: string | undefined;
   isSaving: boolean;
+  canManage: boolean;
   onSave: (theme: string) => Promise<boolean>;
 };
 
@@ -26,6 +29,7 @@ function AppearanceSettingsForm({
   dashboardTheme,
   portalTheme,
   isSaving,
+  canManage,
   onSave,
 }: AppearanceSettingsFormProps) {
   const [selectedTheme, setSelectedTheme] = useState(initialTheme);
@@ -62,7 +66,7 @@ function AppearanceSettingsForm({
             Global Theme
           </CardTitle>
           <CardDescription>
-            Choose the visual theme for the entire estate interface (Admin Dashboard & Resident Portal).
+            Choose the visual theme for the estate interface.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -70,12 +74,13 @@ function AppearanceSettingsForm({
             value={selectedTheme}
             onChange={handleThemeChange}
             context="admin-dashboard" // Context mainly used for preview/class application internally if needed
-            disabled={isSaving}
+            disabled={!canManage || isSaving}
           />
         </CardContent>
       </Card>
 
       {/* Save Button */}
+      {canManage && (
       <div className="flex justify-end">
         <Button
           onClick={handleSave}
@@ -95,11 +100,14 @@ function AppearanceSettingsForm({
           )}
         </Button>
       </div>
+      )}
     </div>
   );
 }
 
 export default function AppearanceSettingsPage() {
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
   // Dashboard theme state
   const { data: dashboardTheme, isLoading: dashboardLoading } = useEstateDefaultTheme('admin-dashboard');
   const setDashboardTheme = useSetEstateDefaultTheme('admin-dashboard');
@@ -178,6 +186,7 @@ export default function AppearanceSettingsPage() {
       dashboardTheme={dashboardTheme}
       portalTheme={portalTheme}
       isSaving={isSaving}
+      canManage={canManage}
       onSave={handleSave}
     />
   );

@@ -7,7 +7,7 @@ residio_sources:
   - src/app/(dashboard)/settings/page.tsx
   - src/app/(dashboard)/settings/estate-info/**
   - src/app/(dashboard)/settings/branding/**
-residio_verified_commit: 0d86eebb
+residio_verified_commit: c6a1556e
 residio_verified_at: '2026-10-19'
 residio_app_version: '0.4.0'
 ---
@@ -20,10 +20,10 @@ Settings are grouped by the decision they control.
 
 - **Estate:** estate identity, branding, appearance, streets, house types, document categories, and document tags and custom fields.
 - **Financial:** billing rules, late fees, invoice generation, levies, billing profiles, bank accounts, and transaction tags.
-- **Communications:** the notifications dashboard, reminders and their schedule, notification templates and schedules, email notifications, message templates, and announcement categories.
+- **Communications:** the notifications dashboard, reminders and their schedule, notification templates, email notifications, announcement templates, and announcement categories.
 - **Access & Security:** role and permission definitions, security settings, and security contact categories.
 - **Integrations:** external services — WhatsApp and Gmail import today, with Paystack and SMS planned. Each keeps its credentials and its day-to-day console (consent, sync status, manual actions) together, rather than splitting configuration from operations the way the other groups do.
-- **Maintenance & Data:** maintenance mode and data retention.
+- **Maintenance & Data:** system behaviour (maintenance mode, session timeout and duplicate matching) and data retention.
 
 **States that affect everyone.** While maintenance mode or the communications override is on, a banner that cannot be dismissed sits above the header on every dashboard page, the **Settings** item in the main menu carries an amber dot, and the matching card on this page reads **ON**. Each banner links to its settings page. You see a state only if your role can open its page: the maintenance permission for maintenance mode, the general settings permission for the override. Debug Mode also counts as the override being on while it is running, since it redirects every message too. Outside production the override is always on, so on Stage the override banner is always shown.
 
@@ -35,6 +35,8 @@ Day-to-day account work — assigning roles, watching cron jobs, the notificatio
 
 :::info[You see only what you can open]
 Both this page and the Settings sidebar show only the sections your role can actually reach, so two admins will see different menus. If a colleague cannot find a page described in this guide, their role does not hold the permission for it — see [Roles and permissions](../getting-started/roles-and-permissions.md). The Chairman role can open Settings and navigate to the areas their permissions allow — announcements, documents, billing profiles, email imports, notifications, security categories, and WhatsApp — but does not see configuration pages or system maintenance.
+
+Inside a page, each button and field is shown for the permission its save needs, not the permission that opened the page. An admin who can open a page without being allowed to change it sees the current values with the fields disabled, and no Add, Edit, Delete or Save buttons. For example, an admin who only assigns roles is pointed to **System → Accounts** from **Roles & Permissions**, because defining roles needs the Manage roles permission.
 :::
 
 Change one setting at a time, save, and verify the affected workflow. Configuration changes can alter what other admins see or what automated jobs do.

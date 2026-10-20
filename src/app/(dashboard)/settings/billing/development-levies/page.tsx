@@ -11,10 +11,16 @@ import { formatCurrency } from '@/lib/utils';
 import { ConfirmAction } from '@/components/ui/confirm-action';
 import { SettingEffect } from '@/components/settings/setting-effect';
 import { previewRetroactiveLevies } from '@/actions/billing/generate-levies';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 const NONE_VALUE = '_none';
 
 export default function DevelopmentLeviesPage() {
+    const { hasPermission } = useAuth();
+    // Each control is gated on the permission its action enforces.
+    const canSetProfile = hasPermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
+    const canGenerate = hasPermission(PERMISSIONS.BILLING_CREATE_INVOICE);
     const { data: developmentLevyProfiles } = useDevelopmentLevyProfiles();
     const { data: currentDevLevyId } = useCurrentDevelopmentLevyProfileId();
     const setCurrentDevLevyMutation = useSetCurrentDevelopmentLevyProfileId();
@@ -41,9 +47,9 @@ export default function DevelopmentLeviesPage() {
                             <Select
                                 value={currentDevLevyId || NONE_VALUE}
                                 onValueChange={(value) => setCurrentDevLevyMutation.mutate(value === NONE_VALUE ? null : value)}
-                                disabled={setCurrentDevLevyMutation.isPending}
+                                disabled={!canSetProfile || setCurrentDevLevyMutation.isPending}
                             >
-                                <SelectTrigger className="w-[280px]">
+                                <SelectTrigger className="w-full sm:w-[280px]">
                                     <SelectValue placeholder="Select a Development Levy" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -62,13 +68,13 @@ export default function DevelopmentLeviesPage() {
                             </Select>
                         </div>
                         {currentDevLevyId && (
-                            <div className="flex items-center gap-2 text-sm text-green-600">
+                            <div className="flex items-center gap-2 text-sm text-success">
                                 <CheckCircle className="h-4 w-4" />
                                 <span>Development Levy is active for new houses</span>
                             </div>
                         )}
                         {!currentDevLevyId && (
-                            <div className="text-sm text-amber-600">
+                            <div className="text-sm text-warning">
                                 No Development Levy selected - new houses will not be charged automatically
                             </div>
                         )}
@@ -77,6 +83,7 @@ export default function DevelopmentLeviesPage() {
             </div>
 
             {/* Retroactive Levy Generation */}
+            {canGenerate && (
             <div>
                 <h3 className="text-lg font-medium">Retroactive Levy Generation</h3>
                 <p className="text-sm text-muted-foreground mb-4">
@@ -112,6 +119,7 @@ export default function DevelopmentLeviesPage() {
                     onConfirm={() => generateLeviesMutation.mutate()}
                 />
             </div>
+            )}
         </div>
     );
 }

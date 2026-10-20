@@ -36,7 +36,7 @@ import { useCreateTemplate, useUpdateTemplate } from '@/hooks/use-notifications'
 import {
   NOTIFICATION_CATEGORY_LABELS,
   NOTIFICATION_CHANNEL_LABELS,
-  isChannelImplemented,
+  IMPLEMENTED_CHANNELS,
 } from '@/lib/notifications/types';
 import type {
   NotificationTemplate,
@@ -144,7 +144,7 @@ export function TemplateForm({ template, onSuccess, onCancel }: TemplateFormProp
   };
 
   const categories = Object.entries(NOTIFICATION_CATEGORY_LABELS) as [NotificationCategory, string][];
-  const channels = Object.entries(NOTIFICATION_CHANNEL_LABELS) as [NotificationChannel, string][];
+  const channels = IMPLEMENTED_CHANNELS.map((c) => [c, NOTIFICATION_CHANNEL_LABELS[c]] as const);
 
   return (
     <Form {...form}>
@@ -231,13 +231,8 @@ export function TemplateForm({ template, onSuccess, onCancel }: TemplateFormProp
                       </FormControl>
                       <SelectContent>
                         {channels.map(([value, label]) => (
-                          <SelectItem
-                            key={value}
-                            value={value}
-                            disabled={!isChannelImplemented(value)}
-                          >
+                          <SelectItem key={value} value={value}>
                             {label}
-                            {!isChannelImplemented(value) && ' (Coming soon)'}
                           </SelectItem>
                         ))}
                       </SelectContent>

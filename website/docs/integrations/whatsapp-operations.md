@@ -19,6 +19,8 @@ Residio connects to the WhatsApp Cloud API so residents can message the estate a
 
 All controls are on **Settings → WhatsApp**, and every promotion is audited.
 
+The Financial PIN policy, opt-in import and operations console sit in a **Resident bot** section on that page. It is collapsed and labelled *inactive* unless the WhatsApp channel is on and the rollout mode is not `Disabled`; expand it to reach those controls.
+
 ![Residio WhatsApp operations settings showing PIN policy, opt-in import, and rollout controls](../assets/admin/whatsapp-operations.png)
 
 ## Connecting a provider

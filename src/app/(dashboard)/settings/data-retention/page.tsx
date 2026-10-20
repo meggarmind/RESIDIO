@@ -16,6 +16,9 @@ import {
   AUDIT_LOG_RETENTION_MAX_DAYS,
   AUDIT_LOG_RETENTION_MIN_DAYS,
 } from '@/lib/validators/setting-value';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { SettingsSkeleton } from '@/components/settings/settings-states';
 
 function settingsToObject(settings: { key: string; value: unknown }[] | undefined): Record<string, unknown> {
   if (!settings) return {};
@@ -26,6 +29,11 @@ function settingsToObject(settings: { key: string; value: unknown }[] | undefine
 }
 
 export default function DataRetentionPage() {
+  const { hasPermission } = useAuth();
+  // Each control is gated on the permission its action enforces: updateSettings
+  // checks settings.manage_general, the prune checks system.manage_data_retention.
+  const canEditRetention = hasPermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
+  const canPrune = hasPermission(PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION);
   const { data: systemSettings, isLoading } = useSystemSettings();
   const updateSettings = useUpdateSettings();
 
@@ -63,7 +71,7 @@ export default function DataRetentionPage() {
     }
   };
 
-  if (isLoading) return <div className="flex items-center justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  if (isLoading) return <SettingsSkeleton rows={4} />;
 
   return (
     <div className="space-y-6">
@@ -98,17 +106,21 @@ export default function DataRetentionPage() {
               value={auditLogRetentionDays}
               onCommit={(value) => { setAuditLogRetentionDays(value); setIsDirty(true); }}
               onValidityChange={setRetentionValid}
+              disabled={!canEditRetention}
             />
           </div>
+          {canEditRetention && (
           <div className="flex justify-end">
             <Button onClick={handleSaveSettings} disabled={!isDirty || !retentionValid || updateSettings.isPending}>
               {updateSettings.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <Save className="mr-2 h-4 w-4" /> Save
             </Button>
           </div>
+          )}
         </CardContent>
       </Card>
 
+      {canPrune && (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -127,7 +139,7 @@ export default function DataRetentionPage() {
             </div>
             <ConfirmAction
               trigger={
-                <Button variant="outline" disabled={isPruning} className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30">
+                <Button variant="outline" disabled={isPruning} className="text-destructive hover:text-destructive hover:bg-destructive/10">
                   {isPruning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />} Prune Data
                 </Button>
               }
@@ -155,6 +167,7 @@ export default function DataRetentionPage() {
           </div>
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }

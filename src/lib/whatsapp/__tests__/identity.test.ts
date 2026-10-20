@@ -55,6 +55,7 @@ describe('WhatsApp identity and consent', () => {
     expect(result).toMatchObject({ status: 'identified', residentId: 'resident-1', optedIn: false, accessTier: 'financial' });
     expect(repo.setOptIn).not.toHaveBeenCalled();
     expect(send.mock.calls[0]?.[0].body).toContain('Reply YES');
+    expect(send.mock.calls[0]?.[0].idempotencySeed).toBe('wamid-hello');
   });
 
   it('records consent with YES and disables it with STOP', async () => {

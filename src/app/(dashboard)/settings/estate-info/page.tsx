@@ -13,6 +13,8 @@ import { ResidentPortalCard } from './resident-portal-card';
 import { useGeneralSettings, useUpdateSettings } from '@/hooks/use-settings';
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
 import { StickySaveBar } from '@/components/settings/sticky-save-bar';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 function settingsToObject(settings: { key: string; value: unknown }[] | undefined): Record<string, string> {
   if (!settings) return {};
@@ -74,6 +76,8 @@ function FieldError({ id, message }: { id: string; message?: string }) {
 }
 
 export default function EstateInfoPage() {
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
   const { data: generalSettings, isLoading: isLoadingSettings } = useGeneralSettings();
   const updateSettings = useUpdateSettings();
 
@@ -129,7 +133,8 @@ export default function EstateInfoPage() {
       </div>
       <Separator />
 
-      <div className="space-y-6">
+      {/* A disabled fieldset makes every field read-only for a user who cannot save. */}
+      <fieldset disabled={!canManage} className="min-w-0 space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>Estate Details</CardTitle>
@@ -265,8 +270,9 @@ export default function EstateInfoPage() {
                     placeholder="Estate Assistant"
                     value={estateForm.assistant_name}
                     onChange={(e) => handleInputChange('assistant_name', e.target.value)}
+                    aria-describedby="assistant-name-help"
                   />
-                  <p className="text-[0.8rem] text-muted-foreground">
+                  <p id="assistant-name-help" className="text-xs text-muted-foreground">
                     Defaults to &quot;[Estate Name] Assistant&quot; when left blank.
                   </p>
                 </div>
@@ -348,7 +354,7 @@ export default function EstateInfoPage() {
           </CardContent>
         </Card>
 
-        {!isLoadingSettings && (
+        {canManage && !isLoadingSettings && (
           <StickySaveBar
             isDirty={isDirty}
             isSaving={updateSettings.isPending}
@@ -357,7 +363,7 @@ export default function EstateInfoPage() {
             onDiscard={() => setLocalOverrides({})}
           />
         )}
-      </div>
+      </fieldset>
     </div>
   );
 }

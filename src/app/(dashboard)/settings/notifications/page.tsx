@@ -3,7 +3,7 @@
 /**
  * Notifications Settings Dashboard
  *
- * Overview page for notification system management with links to templates, schedules, and history.
+ * Overview page for notification system management with links to templates, reminders, and history.
  */
 
 import Link from 'next/link';
@@ -13,41 +13,36 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import {
   Mail,
-  Clock,
   History,
   FileText,
-  Settings2,
   ArrowRight,
-  Bell,
   MessageSquare,
   CheckCircle,
   XCircle,
   AlertCircle,
   CalendarClock,
+  MessageCircle,
 } from 'lucide-react';
-import { useNotificationTemplates, useNotificationSchedules, useQueueStatistics, useNotificationStats } from '@/hooks/use-notifications';
-import { NOTIFICATION_CHANNEL_LABELS, isChannelImplemented } from '@/lib/notifications/types';
+import { useNotificationTemplates, useQueueStatistics, useNotificationStats } from '@/hooks/use-notifications';
+import { NOTIFICATION_CHANNEL_LABELS, IMPLEMENTED_CHANNELS } from '@/lib/notifications/types';
 import type { NotificationChannel } from '@/lib/notifications/types';
+
+const CHANNEL_ICONS: Record<NotificationChannel, typeof Mail> = { email: Mail, sms: MessageSquare, whatsapp: MessageCircle };
 
 export default function NotificationsSettingsPage() {
   const { data: templates, isLoading: templatesLoading } = useNotificationTemplates();
-  const { data: schedules, isLoading: schedulesLoading } = useNotificationSchedules();
   const { data: queueStats, isLoading: queueLoading } = useQueueStatistics();
   const { data: historyStats, isLoading: historyLoading } = useNotificationStats();
 
   const activeTemplates = templates?.filter(t => t.is_active).length || 0;
   const totalTemplates = templates?.length || 0;
-  const activeSchedules = schedules?.filter(s => s.is_active).length || 0;
-  const totalSchedules = schedules?.length || 0;
-
-  const channels: NotificationChannel[] = ['email', 'sms', 'whatsapp'];
 
   return (
     <div className="space-y-6">
       <div>
         <h3 className="text-lg font-medium">Notifications</h3>
         <p className="text-sm text-muted-foreground">
-          Manage notification templates, schedules, and view notification history.
+          Manage notification templates and reminders, and view notification history.
         </p>
       </div>
       <Separator />
@@ -59,29 +54,20 @@ export default function NotificationsSettingsPage() {
           <CardDescription>Available channels for sending notifications</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {channels.map((channel) => {
-              const implemented = isChannelImplemented(channel);
-              const Icon = channel === 'email' ? Mail : channel === 'sms' ? MessageSquare : Bell;
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {IMPLEMENTED_CHANNELS.map((channel) => {
+              const Icon = CHANNEL_ICONS[channel];
               return (
                 <div
                   key={channel}
-                  className={`flex items-center gap-3 p-3 rounded-lg border ${
-                    implemented ? 'bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-800' : 'bg-muted/50'
-                  }`}
+                  className="flex items-center gap-3 p-3 rounded-lg border bg-success/10 border-success/20"
                 >
-                  <Icon className={`h-5 w-5 ${implemented ? 'text-green-600' : 'text-muted-foreground'}`} />
+                  <Icon className="h-5 w-5 text-success" />
                   <div className="flex-1">
                     <p className="font-medium">{NOTIFICATION_CHANNEL_LABELS[channel]}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {implemented ? 'Active' : 'Coming soon'}
-                    </p>
+                    <p className="text-xs text-muted-foreground">Active</p>
                   </div>
-                  {implemented ? (
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                  ) : (
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                  )}
+                  <CheckCircle className="h-4 w-4 text-success" />
                 </div>
               );
             })}
@@ -90,7 +76,7 @@ export default function NotificationsSettingsPage() {
       </Card>
 
       {/* Quick Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Templates */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -103,22 +89,6 @@ export default function NotificationsSettingsPage() {
             </div>
             <p className="text-xs text-muted-foreground">
               {totalTemplates - activeTemplates} inactive
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Schedules */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Schedules</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {schedulesLoading ? '...' : activeSchedules}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {totalSchedules - activeSchedules} inactive
             </p>
           </CardContent>
         </Card>
@@ -169,14 +139,15 @@ export default function NotificationsSettingsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex gap-2 text-sm">
-            <Badge variant="outline" className="gap-1">
-              <Mail className="h-3 w-3" />
-              Email
-            </Badge>
-            <Badge variant="outline" className="gap-1">
-              <MessageSquare className="h-3 w-3" />
-              SMS
-            </Badge>
+            {IMPLEMENTED_CHANNELS.map((channel) => {
+              const Icon = CHANNEL_ICONS[channel];
+              return (
+                <Badge key={channel} variant="outline" className="gap-1">
+                  <Icon className="h-3 w-3" />
+                  {NOTIFICATION_CHANNEL_LABELS[channel]}
+                </Badge>
+              );
+            })}
           </div>
           <p className="text-sm text-muted-foreground">
             Configure escalating reminders at 7, 3, and 1 days before due date, on the due date, and after overdue.
@@ -200,7 +171,7 @@ export default function NotificationsSettingsPage() {
               Templates
             </CardTitle>
             <CardDescription>
-              Create and manage notification message templates with variables
+              System message templates, sent by name
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -211,31 +182,6 @@ export default function NotificationsSettingsPage() {
             <Button asChild className="w-full">
               <Link href="/settings/notifications/templates">
                 Manage Templates
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Schedules */}
-        <Card className="hover:border-primary/50 transition-colors">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              Schedules
-            </CardTitle>
-            <CardDescription>
-              Configure when and how notifications are triggered
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex gap-2">
-              <Badge variant="secondary">{totalSchedules} total</Badge>
-              <Badge variant="default">{activeSchedules} active</Badge>
-            </div>
-            <Button asChild className="w-full">
-              <Link href="/settings/notifications/schedules">
-                Manage Schedules
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
@@ -256,7 +202,7 @@ export default function NotificationsSettingsPage() {
           <CardContent className="space-y-4">
             <div className="flex gap-2">
               <Badge variant="secondary">{historyStats?.total || 0} total</Badge>
-              <Badge variant="outline" className="text-green-600">
+              <Badge variant="outline" className="text-success">
                 {historyStats?.delivered || 0} delivered
               </Badge>
             </div>
@@ -281,25 +227,25 @@ export default function NotificationsSettingsPage() {
             <div className="flex flex-wrap gap-4">
               {queueStats.pending > 0 && (
                 <div className="flex items-center gap-2">
-                  <div className="h-2 w-2 rounded-full bg-yellow-500" />
+                  <div className="h-2 w-2 rounded-full bg-warning" />
                   <span className="text-sm">{queueStats.pending} pending</span>
                 </div>
               )}
               {queueStats.processing > 0 && (
                 <div className="flex items-center gap-2">
-                  <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+                  <div className="h-2 w-2 rounded-full bg-info animate-pulse" />
                   <span className="text-sm">{queueStats.processing} processing</span>
                 </div>
               )}
               {queueStats.failed > 0 && (
                 <div className="flex items-center gap-2">
-                  <XCircle className="h-4 w-4 text-red-500" />
-                  <span className="text-sm text-red-600">{queueStats.failed} failed</span>
+                  <XCircle className="h-4 w-4 text-destructive" />
+                  <span className="text-sm text-destructive">{queueStats.failed} failed</span>
                 </div>
               )}
               {queueStats.sent > 0 && (
                 <div className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <CheckCircle className="h-4 w-4 text-success" />
                   <span className="text-sm">{queueStats.sent} sent</span>
                 </div>
               )}
