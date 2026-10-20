@@ -15,6 +15,7 @@ import type {
   AssistantSettings,
   FinancialHouse,
   OwedFigures,
+  PinAttemptClaim,
   WhatsAppFinancialHandlerOptions,
   WhatsAppFinancialRepository,
   WhatsAppFinancialSession,
@@ -96,6 +97,12 @@ function statementData(rows: number): AccountStatementData {
   };
 }
 
+const CLAIMED_AT = '2026-10-20T09:30:00.123456+00:00';
+
+function counted(fields: Partial<Extract<PinAttemptClaim, { status: 'counted' }>> = {}): PinAttemptClaim {
+  return { status: 'counted', triesInARow: 1, triesInWindow: 1, lockedUntil: null, hardLocked: false, claimedAt: CLAIMED_AT, ...fields };
+}
+
 let counter = 0;
 function message(text: string, type = 'text'): WhatsAppInboundMessage {
   counter += 1;
@@ -113,7 +120,7 @@ function repository(houses: FinancialHouse[] = [PALM], overrides: Partial<WhatsA
     getForcePin: vi.fn().mockResolvedValue(false),
     getPinHash: vi.fn().mockResolvedValue(null),
     setPinHash: vi.fn().mockResolvedValue(undefined),
-    claimPinAttempt: vi.fn().mockResolvedValue(1),
+    claimPinAttempt: vi.fn().mockResolvedValue(counted()),
     clearPinAttempts: vi.fn().mockResolvedValue(undefined),
     getBillableHouses: vi.fn().mockResolvedValue(houses),
     getAssistantSettings: vi.fn().mockResolvedValue(settings()),
@@ -669,7 +676,7 @@ describe('WhatsApp disclosure log (#795)', () => {
   });
 });
 
-describe('WhatsApp PIN lockout and hashing (#850)', () => {
+describe('WhatsApp PIN lockout and hashing (#850, #891)', () => {
   const legacyHash = (pin: string) => createHash('sha256').update(pin).digest('hex');
 
   it('hashes PINs with a per-PIN salt and verifies both salted and legacy hashes', () => {
@@ -699,50 +706,73 @@ describe('WhatsApp PIN lockout and hashing (#850)', () => {
     expect(repo.setPinHash).not.toHaveBeenCalled();
   });
 
-  it('counts a wrong PIN, says how many attempts are left and does not authenticate', async () => {
-    const repo = repository();
+  function wrongPin(claim: PinAttemptClaim, pin = '000000', repo = repository()) {
     vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
-    vi.mocked(repo.claimPinAttempt).mockResolvedValue(3);
+    vi.mocked(repo.claimPinAttempt).mockResolvedValue(claim);
+    return { repo, replies: chat(repo, [`PIN ${pin}`]) };
+  }
 
-    const replies = await chat(repo, ['PIN 000000']);
+  it('counts the try before checking it and reports tries left in a row, with the contact line (#891)', async () => {
+    const { repo, replies } = wrongPin(counted({ triesInARow: 1, triesInWindow: 1 }));
 
+    expect((await replies)[0]).toBe("That PIN isn't correct. You have 2 tries left before it locks for 15 minutes.\n" + CONTACT);
     expect(repo.claimPinAttempt).toHaveBeenCalledWith('resident-1');
     expect(repo.clearPinAttempts).not.toHaveBeenCalled();
     expect(repo.saveSession).not.toHaveBeenCalledWith(expect.objectContaining({ pinAuthenticated: true }));
-    expect(replies[0]).toContain('2 attempt(s) left');
   });
 
-  it('locks on the fifth wrong PIN and gives the estate office line', async () => {
-    const repo = repository();
-    vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
-    vi.mocked(repo.claimPinAttempt).mockResolvedValue(5);
+  it('says one try is left on the second wrong PIN in a row', async () => {
+    const { replies } = wrongPin(counted({ triesInARow: 2, triesInWindow: 2 }));
+    expect((await replies)[0]).toContain('You have 1 try left before it locks for 15 minutes.');
+  });
 
-    const replies = await chat(repo, ['PIN 000000']);
+  it.each([
+    ['the 24-hour limit comes first', 5, "You have 1 try left before it locks until the estate office resets it."],
+    ['both limits arrive on the same try', 4, "You have 2 tries left before it locks until the estate office resets it."],
+  ])('names the estate-office lock when %s', async (_label, triesInWindow, text) => {
+    const { replies } = wrongPin(counted({ triesInARow: 1, triesInWindow }));
+    expect((await replies)[0]).toBe(`That PIN isn't correct. ${text}\n${CONTACT}`);
+  });
 
+  it('locks for 15 minutes on the third wrong PIN in a row and shows the Lagos time', async () => {
+    const { repo, replies } = wrongPin(counted({ triesInARow: 3, triesInWindow: 3, lockedUntil: '2026-10-20T09:45:00.000Z' }));
+    expect((await replies)[0]).toBe(`For security, your PIN is locked until 10:45. Nothing was shown.\n${CONTACT}`);
     expect(repo.saveSession).not.toHaveBeenCalledWith(expect.objectContaining({ pinAuthenticated: true }));
-    expect(replies[0]).toBe(`Too many wrong PINs. Financial answers are locked for 24 hours. Try again after that.\n${CONTACT}`);
   });
 
-  it('refuses even the correct PIN while locked', async () => {
-    const repo = repository();
-    vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
-    vi.mocked(repo.claimPinAttempt).mockResolvedValue(null);
-
-    const replies = await chat(repo, ['PIN 482915']);
-
+  it('refuses even the correct PIN inside the 15-minute lock', async () => {
+    const { repo, replies } = wrongPin({ status: 'locked', lockedUntil: '2026-10-20T09:45:00.000Z' }, '482915');
+    expect((await replies)[0]).toBe(`For security, your PIN is locked until 10:45. Nothing was shown.\n${CONTACT}`);
     expect(repo.clearPinAttempts).not.toHaveBeenCalled();
     expect(repo.saveSession).not.toHaveBeenCalledWith(expect.objectContaining({ pinAuthenticated: true }));
-    expect(replies[0]).toContain('locked for 24 hours');
   });
 
-  it('clears the counter and authenticates on a correct PIN, then shows Financial standing', async () => {
+  it('locks until the estate office resets it on the sixth wrong PIN in 24 hours', async () => {
+    const { replies } = wrongPin(counted({ triesInARow: 3, triesInWindow: 6, lockedUntil: '2026-10-20T09:45:00.000Z', hardLocked: true }));
+    expect((await replies)[0]).toBe(`Your PIN is locked after several wrong tries. The estate office needs to reset it.\n${CONTACT}`);
+  });
+
+  it('refuses even the correct PIN after the hard lock', async () => {
+    const { repo, replies } = wrongPin({ status: 'hard_locked' }, '482915');
+    expect((await replies)[0]).toContain('The estate office needs to reset it.');
+    expect(repo.clearPinAttempts).not.toHaveBeenCalled();
+    expect(repo.saveSession).not.toHaveBeenCalledWith(expect.objectContaining({ pinAuthenticated: true }));
+  });
+
+  it('leaves the contact line out when none is configured', async () => {
+    const repo = repository([PALM], { getAssistantSettings: vi.fn().mockResolvedValue(settings({ estatePhone: null })) });
+    const { replies } = wrongPin(counted(), '000000', repo);
+    expect((await replies)[0]).toBe("That PIN isn't correct. You have 2 tries left before it locks for 15 minutes.");
+  });
+
+  it('clears the claimed try and authenticates on a correct PIN, then shows Financial standing', async () => {
     const repo = repository();
     vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
-    vi.mocked(repo.claimPinAttempt).mockResolvedValue(4);
+    vi.mocked(repo.claimPinAttempt).mockResolvedValue(counted({ triesInARow: 2, triesInWindow: 5 }));
 
     const replies = await chat(repo, ['PIN 482915']);
 
-    expect(repo.clearPinAttempts).toHaveBeenCalledWith('resident-1');
+    expect(repo.clearPinAttempts).toHaveBeenCalledWith('resident-1', CLAIMED_AT);
     expect(repo.setPinHash).not.toHaveBeenCalled();
     expect(repo.saveSession).toHaveBeenCalledWith(expect.objectContaining({ pinAuthenticated: true }));
     expect(replies[0]).toMatch(/^PIN verified\.\n\nFinancial standing\n1\. What I owe/);
@@ -759,18 +789,36 @@ describe('WhatsApp PIN lockout and hashing (#850)', () => {
     expect(verifyPin('482915', stored!)).toBe(true);
   });
 
-  it('claims attempts through the claim_whatsapp_pin_attempt RPC and treats no row as locked', async () => {
-    const rpc = vi.fn().mockResolvedValueOnce({ data: 2, error: null }).mockResolvedValueOnce({ data: null, error: null });
+  it('claims tries through the claim_whatsapp_pin_try RPC with the #891 thresholds', async () => {
+    const row = { tries_in_a_row: 1, tries_in_window: 4, locked_until: null, hard_locked: false, claimed_at: CLAIMED_AT };
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: [{ ...row, status: 'counted' }], error: null })
+      .mockResolvedValueOnce({ data: [{ ...row, status: 'locked', locked_until: '2026-10-20T09:45:00.000Z', claimed_at: null }], error: null })
+      .mockResolvedValueOnce({ data: [{ ...row, status: 'hard_locked', hard_locked: true, claimed_at: null }], error: null })
+      .mockResolvedValueOnce({ data: [], error: null });
     vi.mocked(createAdminClient).mockReturnValue({ rpc } as unknown as ReturnType<typeof createAdminClient>);
     const repo = createSupabaseWhatsAppFinancialRepository();
 
-    await expect(repo.claimPinAttempt('resident-1')).resolves.toBe(2);
-    await expect(repo.claimPinAttempt('resident-1')).resolves.toBeNull();
-    expect(rpc).toHaveBeenCalledWith('claim_whatsapp_pin_attempt', {
+    await expect(repo.claimPinAttempt('resident-1')).resolves.toEqual(counted({ triesInARow: 1, triesInWindow: 4 }));
+    await expect(repo.claimPinAttempt('resident-1')).resolves.toEqual({ status: 'locked', lockedUntil: '2026-10-20T09:45:00.000Z' });
+    await expect(repo.claimPinAttempt('resident-1')).resolves.toEqual({ status: 'hard_locked' });
+    await expect(repo.claimPinAttempt('resident-1')).rejects.toThrow('not counted');
+    expect(rpc).toHaveBeenCalledWith('claim_whatsapp_pin_try', {
       p_resident_id: 'resident-1',
-      p_max_attempts: 5,
-      p_lock_minutes: 1440,
+      p_soft_limit: 3,
+      p_soft_lock_minutes: 15,
+      p_hard_limit: 6,
+      p_window_hours: 24,
     });
+  });
+
+  it('clears a claimed try through the clear_whatsapp_pin_try RPC', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: null });
+    vi.mocked(createAdminClient).mockReturnValue({ rpc } as unknown as ReturnType<typeof createAdminClient>);
+
+    await createSupabaseWhatsAppFinancialRepository().clearPinAttempts('resident-1', CLAIMED_AT);
+
+    expect(rpc).toHaveBeenCalledWith('clear_whatsapp_pin_try', { p_resident_id: 'resident-1', p_claimed_at: CLAIMED_AT });
   });
 
   it.each([

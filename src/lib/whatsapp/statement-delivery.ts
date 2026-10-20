@@ -9,6 +9,7 @@ import { AccountStatementPDF } from '@/lib/pdf/account-statement';
 import { WhatsAppStatementEmail } from '@/emails/whatsapp-statement';
 import { addToQueue, PRIORITY } from '@/lib/notifications/queue';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
+import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
 import { formatDay, formatNaira, PERIOD_LABELS, statementDates, type StatementPeriod } from '@/lib/whatsapp/assistant-format';
 
 /**
@@ -26,7 +27,7 @@ const SIGNED_URL_SECONDS = 60 * 60;
 
 /**
  * whatsapp_statement_requests and whatsapp_disclosure_logs.channel are not in the generated types
- * until the 20261021130000 migration is applied and `npm run db:types` is re-run; drop this then.
+ * until the 20261021150000 migration is applied and `npm run db:types` is re-run; drop this then.
  */
 function db(): SupabaseClient {
   return createAdminClient() as unknown as SupabaseClient;
@@ -236,11 +237,14 @@ export async function retryFailedStatementSend(provider: string, providerMessage
   const request = (claimed || [])[0] as { resident_id: string; phone_number: string; reply_text: string | null; storage_path: string | null } | undefined;
   if (!request?.storage_path || !request.reply_text) return false;
 
+  // Not sent as an inbound reply: the retry is a later, system-initiated send, so it follows the
+  // communications override like any notification, using the resident's stored flag (#716).
+  const override = await resolveResidentOverride([request.resident_id]);
+  if (!override.ok) throw new Error(override.error);
   const result = await sendWhatsAppMessage(
     { to: request.phone_number, body: request.reply_text, idempotencySeed: `${inboundMessageId}:statement-retry`, mediaUrls: [await signedUrl(request.storage_path)] },
     undefined,
-    // Still the reply to the resident's own request: exempt from the comms override (#715).
-    { purpose: 'inbound_reply' },
+    { residentOverride: override.residentOverride },
     { residentId: request.resident_id, inboundMessageId }
   );
   if (!result.success) console.error('[whatsapp-statement] Retry send failed:', { inboundMessageId, error: result.error });

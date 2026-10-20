@@ -19,16 +19,87 @@ type LinkToken = {
   expiresAt: string;
 };
 
+export type WhatsAppCodePurpose = 'link' | 'pin_setup';
+
+/** Minutes a code is valid: link codes keep their 15, PIN setup codes get 10 (#805). */
+const CODE_TTL_MINUTES: Record<WhatsAppCodePurpose, number> = { link: 15, pin_setup: 10 };
+
 function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
+type Resident = { id: string; first_name: string; last_name: string };
+type AdminClient = ReturnType<typeof createAdminClient>;
+
+/**
+ * Inserts a single-use code and audits it. The plaintext code is returned once and is never
+ * stored or audited; only its hash is stored. Callers have already authorized.
+ */
+async function issueCode(
+  adminClient: AdminClient,
+  resident: Resident,
+  purpose: WhatsAppCodePurpose,
+  userId: string | null | undefined
+): Promise<ActionResult<LinkToken>> {
+  if (purpose === 'pin_setup') {
+    // One live setup code per resident, so its wrong-try count and pause (slice C) cannot be
+    // sidestepped by guessing against an older code.
+    const { error: supersedeError } = await adminClient
+      .from('whatsapp_link_tokens')
+      .update({ used_at: new Date().toISOString() })
+      .eq('resident_id', resident.id)
+      .filter('purpose', 'eq', 'pin_setup')
+      .is('used_at', null);
+    if (supersedeError) {
+      return { success: false, data: null, error: 'Failed to create WhatsApp setup code' };
+    }
+  }
+
+  const code = randomInt(100000, 1000000).toString();
+  const expiresAt = new Date(Date.now() + CODE_TTL_MINUTES[purpose] * 60 * 1000).toISOString();
+  // The generated types do not know purpose (#890) until that migration is applied.
+  const { data: token, error: tokenError } = await adminClient
+    .from('whatsapp_link_tokens')
+    .insert({
+      resident_id: resident.id,
+      token_hash: hashToken(code),
+      expires_at: expiresAt,
+      created_by: userId,
+      purpose,
+    } as never)
+    .select('id')
+    .single<{ id: string }>();
+
+  if (tokenError || !token) {
+    return {
+      success: false,
+      data: null,
+      error: purpose === 'link' ? 'Failed to create WhatsApp link code' : 'Failed to create WhatsApp setup code',
+    };
+  }
+
+  await logAudit({
+    action: 'CREATE',
+    entityType: 'whatsapp_link_tokens',
+    entityId: token.id,
+    entityDisplay: `WhatsApp ${purpose === 'link' ? 'link' : 'PIN setup'} code for ${resident.first_name} ${resident.last_name}`,
+    newValues: { resident_id: resident.id, purpose, expires_at: expiresAt },
+  });
+
+  return { success: true, data: { code, expiresAt }, error: null };
+}
+
 export async function createWhatsAppLinkToken(
-  residentId: string
+  residentId: string,
+  purpose: WhatsAppCodePurpose = 'link'
 ): Promise<ActionResult<LinkToken>> {
   const authorization = await authorizePermission(PERMISSIONS.WHATSAPP_MANAGE);
   if (!authorization.authorized) {
     return { success: false, data: null, error: authorization.error || 'Unauthorized' };
+  }
+
+  if (!Object.hasOwn(CODE_TTL_MINUTES, purpose)) {
+    return { success: false, data: null, error: 'Unknown code purpose' };
   }
 
   const adminClient = createAdminClient();
@@ -42,32 +113,79 @@ export async function createWhatsAppLinkToken(
     return { success: false, data: null, error: 'Resident not found' };
   }
 
-  const code = randomInt(100000, 1000000).toString();
-  const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
-  const { data: token, error: tokenError } = await adminClient
-    .from('whatsapp_link_tokens')
-    .insert({
-      resident_id: residentId,
-      token_hash: hashToken(code),
-      expires_at: expiresAt,
-      created_by: authorization.userId,
-    })
-    .select('id')
-    .single();
+  return issueCode(adminClient, resident, purpose, authorization.userId);
+}
 
-  if (tokenError || !token) {
-    return { success: false, data: null, error: 'Failed to create WhatsApp link code' };
+/**
+ * Clears a resident's WhatsApp PIN and lock, signs their sessions out of the PIN, and issues a
+ * PIN setup code returned once (#805, #890). The admin must confirm identity first.
+ */
+export async function resetWhatsAppPin(residentId: string): Promise<ActionResult<LinkToken>> {
+  const authorization = await authorizePermission(PERMISSIONS.WHATSAPP_MANAGE);
+  if (!authorization.authorized) {
+    return { success: false, data: null, error: authorization.error || 'Unauthorized' };
   }
 
-  await logAudit({
-    action: 'CREATE',
-    entityType: 'whatsapp_link_tokens',
-    entityId: token.id,
-    entityDisplay: `WhatsApp link code for ${resident.first_name} ${resident.last_name}`,
-    newValues: { resident_id: residentId, expires_at: expiresAt },
-  });
+  const adminClient = createAdminClient();
+  const { data: resident, error: residentError } = await adminClient
+    .from('residents')
+    .select('id, first_name, last_name')
+    .eq('id', residentId)
+    .maybeSingle();
 
-  return { success: true, data: { code, expiresAt }, error: null };
+  if (residentError || !resident) {
+    return { success: false, data: null, error: 'Resident not found' };
+  }
+
+  // The generated types do not know the #850 and #891 lock columns until those migrations are applied.
+  const { error: pinError } = await adminClient
+    .from('residents')
+    .update({
+      whatsapp_pin_hash: null,
+      whatsapp_pin_set_at: null,
+      whatsapp_pin_failed_attempts: 0,
+      whatsapp_pin_locked_until: null,
+      whatsapp_pin_failed_at: [],
+      whatsapp_pin_hard_locked_at: null,
+    } as never)
+    .eq('id', residentId);
+
+  if (pinError) {
+    return { success: false, data: null, error: 'Failed to reset WhatsApp PIN.' };
+  }
+
+  // A session verified with the old PIN must not stay unlocked.
+  const { error: sessionError } = await adminClient
+    .from('whatsapp_sessions')
+    .update({ pin_authenticated: false })
+    .eq('resident_id', residentId);
+
+  // Never record the hash: the audit says only that it was cleared.
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'residents',
+    entityId: residentId,
+    entityDisplay: `WhatsApp PIN reset for ${resident.first_name} ${resident.last_name}`,
+    newValues: {
+      whatsapp_pin: 'cleared',
+      whatsapp_pin_failed_attempts: 0,
+      whatsapp_pin_locked_until: null,
+      whatsapp_pin_failed_at: [],
+      whatsapp_pin_hard_locked_at: null,
+      whatsapp_sessions_pin_authenticated: sessionError ? 'not cleared' : false,
+    },
+  });
+  revalidatePath('/settings/whatsapp');
+
+  if (sessionError) {
+    return { success: false, data: null, error: 'PIN cleared, but open WhatsApp sessions could not be signed out. Try again.' };
+  }
+
+  const issued = await issueCode(adminClient, resident, 'pin_setup', authorization.userId);
+  if (!issued.success) {
+    return { ...issued, error: 'PIN cleared, but the setup code could not be created. Issue a setup code.' };
+  }
+  return issued;
 }
 
 type OptInImportResult = {

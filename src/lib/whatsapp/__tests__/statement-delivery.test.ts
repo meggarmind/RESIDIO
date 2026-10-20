@@ -19,6 +19,7 @@ vi.mock('@/lib/pdf/account-statement', () => ({ AccountStatementPDF: vi.fn(() =>
 vi.mock('@/lib/notifications/queue', () => ({ addToQueue: vi.fn(), PRIORITY: { NORMAL: 5 } }));
 vi.mock('@/lib/whatsapp/provider', () => ({ sendWhatsAppMessage: vi.fn() }));
 vi.mock('@/lib/billing/account-statement-data', () => ({ loadAccountStatement: vi.fn() }));
+vi.mock('@/lib/comms-override/resident-flag', () => ({ resolveResidentOverride: vi.fn().mockResolvedValue({ ok: true, residentOverride: true }) }));
 vi.mock('@/lib/settings/service', () => ({
   getRawSettingsAsService: vi.fn().mockResolvedValue({ status: 'ok', values: new Map([['estate_name', 'Palm Estate']]) }),
 }));
@@ -103,7 +104,7 @@ describe('WhatsApp statement PDF in chat (#804 decision 24)', () => {
     expect(bucket.upload).not.toHaveBeenCalled();
   });
 
-  it('resends a failed statement once with a fresh signed URL, as a reply', async () => {
+  it('resends a failed statement once with a fresh signed URL, under the resident\'s override flag', async () => {
     mockDb({
       whatsapp_outbound_sends: [{ data: { inbound_message_id: 'wamid-9' }, error: null }],
       whatsapp_statement_requests: [{ data: [{ resident_id: 'resident-1', phone_number: '+2348000000000', reply_text: 'Your PDF is attached.', storage_path: 'statements/a.pdf' }], error: null }],
@@ -115,7 +116,7 @@ describe('WhatsApp statement PDF in chat (#804 decision 24)', () => {
     expect(sendWhatsAppMessage).toHaveBeenCalledWith(
       { to: '+2348000000000', body: 'Your PDF is attached.', idempotencySeed: 'wamid-9:statement-retry', mediaUrls: ['https://storage.test/signed'] },
       undefined,
-      { purpose: 'inbound_reply' },
+      { residentOverride: true },
       { residentId: 'resident-1', inboundMessageId: 'wamid-9' }
     );
   });

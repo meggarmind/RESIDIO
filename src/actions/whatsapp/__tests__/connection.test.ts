@@ -6,6 +6,7 @@ import { encrypt, isEncryptionConfigured } from '@/lib/encryption';
 import { resolveWhatsAppConfig } from '@/lib/whatsapp/config';
 import {
   getWhatsAppConnectionStatus,
+  getWhatsAppOverrideNumbers,
   saveWhatsAppCredentials,
   disconnectWhatsApp,
   testWhatsAppConnection,
@@ -18,6 +19,8 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('@/lib/auth/action-roles', () => ({
   PERMISSIONS: { WHATSAPP_VIEW: 'whatsapp.view', WHATSAPP_MANAGE: 'whatsapp.manage' },
 }));
+const settingsMocks = vi.hoisted(() => ({ getRawSettingsAsService: vi.fn() }));
+vi.mock('@/lib/settings/service', () => ({ getRawSettingsAsService: settingsMocks.getRawSettingsAsService }));
 vi.mock('@/lib/encryption', () => ({
   encrypt: vi.fn((value: string) => `enc(${value})`),
   isEncryptionConfigured: vi.fn(() => true),
@@ -51,6 +54,10 @@ function chatmaidAdmin(rpc: ReturnType<typeof vi.fn>, optins: unknown[] = []) {
   return { rpc, from: vi.fn().mockReturnValue(optinChain), optinChain };
 }
 
+function overrideSettings(values: Record<string, string> = {}) {
+  settingsMocks.getRawSettingsAsService.mockResolvedValue({ status: 'ok', values: new Map(Object.entries(values)) });
+}
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status });
 }
@@ -62,6 +69,7 @@ describe('WhatsApp connection actions', () => {
     vi.clearAllMocks();
     vi.unstubAllGlobals();
     vi.mocked(isEncryptionConfigured).mockReturnValue(true);
+    overrideSettings();
   });
 
   describe('getWhatsAppConnectionStatus', () => {
@@ -317,6 +325,128 @@ describe('WhatsApp connection actions', () => {
       expect(admin.optinChain.eq).toHaveBeenCalledWith('phone_number', '+2348036996725');
       expect(admin.optinChain.eq).toHaveBeenCalledWith('opted_in', true);
       expect(rpc).not.toHaveBeenCalled();
+    });
+
+    describe('communications override conflict (#904)', () => {
+      const chatmaid = (fromNumber: string) => ({
+        provider: 'chatmaid' as const,
+        apiKey: 'sk_test_fake_key',
+        webhookSecret: 'whsec_fake_secret',
+        fromNumber,
+      });
+      const twilio = (fromNumber: string) => ({
+        provider: 'twilio' as const,
+        accountSid: 'AC123',
+        authToken: 'tok',
+        fromNumber,
+      });
+
+      it('rejects a Chatmaid from number equal to the override WhatsApp number, before any lookup', async () => {
+        vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+        const rpc = vi.fn();
+        vi.mocked(createAdminClient).mockReturnValue(chatmaidAdmin(rpc) as never);
+        const fetchMock = vi.fn();
+        vi.stubGlobal('fetch', fetchMock);
+        overrideSettings({ comms_override_whatsapp_phone: '+2348037000101', comms_override_phone: '+15550100100' });
+
+        const result = await saveWhatsAppCredentials(chatmaid('+2348037000101'));
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('same as the WhatsApp number in Communications override');
+        expect(fetchMock).not.toHaveBeenCalled();
+        expect(rpc).not.toHaveBeenCalled();
+      });
+
+      it('compares after normalising, so a local-format override number still conflicts', async () => {
+        vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+        const rpc = vi.fn();
+        vi.mocked(createAdminClient).mockReturnValue(chatmaidAdmin(rpc) as never);
+        overrideSettings({ comms_override_whatsapp_phone: '08037000101' });
+
+        const result = await saveWhatsAppCredentials(chatmaid('+2348037000101'));
+
+        expect(result.success).toBe(false);
+        expect(rpc).not.toHaveBeenCalled();
+      });
+
+      it('rejects a from number equal to the override phone when the override WhatsApp number is blank', async () => {
+        vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+        const rpc = vi.fn();
+        vi.mocked(createAdminClient).mockReturnValue(chatmaidAdmin(rpc) as never);
+        overrideSettings({ comms_override_phone: '+2348037000101' });
+
+        const result = await saveWhatsAppCredentials(chatmaid('+2348037000101'));
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('same as the override phone');
+        expect(rpc).not.toHaveBeenCalled();
+      });
+
+      it('allows a from number equal to the override phone when the override WhatsApp number is set', async () => {
+        vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+        const rpc = vi.fn().mockResolvedValue({ data: { id: 'row-2' }, error: null });
+        vi.mocked(createAdminClient).mockReturnValue(chatmaidAdmin(rpc) as never);
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ data: [{ id: 'p', e164: '+2348037000101' }] })));
+        overrideSettings({ comms_override_phone: '+2348037000101', comms_override_whatsapp_phone: '+15550100200' });
+
+        const result = await saveWhatsAppCredentials(chatmaid('+2348037000101'));
+
+        expect(result.success).toBe(true);
+      });
+
+      it('fails closed when the override settings cannot be read', async () => {
+        vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+        const rpc = vi.fn();
+        vi.mocked(createAdminClient).mockReturnValue(chatmaidAdmin(rpc) as never);
+        settingsMocks.getRawSettingsAsService.mockResolvedValue({ status: 'error', message: 'boom' });
+
+        const result = await saveWhatsAppCredentials(chatmaid('+2348037000101'));
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('Could not verify');
+        expect(rpc).not.toHaveBeenCalled();
+      });
+
+      it('applies the same rule to a Twilio from number', async () => {
+        vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+        const rpc = vi.fn().mockResolvedValue({ data: { id: 'row-3' }, error: null });
+        vi.mocked(createAdminClient).mockReturnValue({ rpc } as never);
+        overrideSettings({ comms_override_whatsapp_phone: '+15551234567' });
+
+        const result = await saveWhatsAppCredentials(twilio('whatsapp:+15551234567'));
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('same as the WhatsApp number in Communications override');
+        expect(rpc).not.toHaveBeenCalled();
+      });
+
+      it('saves a Twilio from number that differs from the override numbers', async () => {
+        vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+        const rpc = vi.fn().mockResolvedValue({ data: { id: 'row-3' }, error: null });
+        vi.mocked(createAdminClient).mockReturnValue({ rpc } as never);
+        overrideSettings({ comms_override_whatsapp_phone: '+15559999999' });
+
+        expect((await saveWhatsAppCredentials(twilio('+15551234567'))).success).toBe(true);
+      });
+    });
+
+    describe('getWhatsAppOverrideNumbers', () => {
+      it('returns the override phone and WhatsApp number to a WHATSAPP_MANAGE holder', async () => {
+        vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+        overrideSettings({ comms_override_phone: '+15550100100', comms_override_whatsapp_phone: '+15550100200' });
+        expect(await getWhatsAppOverrideNumbers()).toEqual({
+          success: true,
+          data: { phone: '+15550100100', whatsappPhone: '+15550100200' },
+          error: null,
+        });
+      });
+
+      it('reads nothing for a caller without WHATSAPP_MANAGE', async () => {
+        vi.mocked(authorizePermission).mockResolvedValue(unauthorized as never);
+        const result = await getWhatsAppOverrideNumbers();
+        expect(result.success).toBe(false);
+        expect(settingsMocks.getRawSettingsAsService).not.toHaveBeenCalled();
+      });
     });
 
     it('does not save Chatmaid credentials the API rejects', async () => {

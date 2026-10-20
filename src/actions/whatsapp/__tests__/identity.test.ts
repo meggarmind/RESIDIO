@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { logAudit } from '@/lib/audit/logger';
@@ -5,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import {
   createWhatsAppLinkToken,
   importWhatsAppOptIns,
+  resetWhatsAppPin,
   resetWhatsAppSession,
   setWhatsAppForcePin,
   updateWhatsAppPendingContact,
@@ -27,7 +29,7 @@ type Result = { data?: unknown; error?: unknown };
 /** Chainable, thenable query double; every builder method returns the same object. */
 function query(result: Result = { data: null, error: null }) {
   const chain = {} as Record<string, ReturnType<typeof vi.fn>>;
-  for (const m of ['select', 'eq', 'in', 'is', 'update', 'insert', 'upsert', 'delete', 'order']) {
+  for (const m of ['select', 'eq', 'in', 'is', 'update', 'insert', 'upsert', 'delete', 'order', 'filter']) {
     chain[m] = vi.fn().mockReturnValue(chain);
   }
   chain.maybeSingle = vi.fn().mockResolvedValue(result);
@@ -55,6 +57,8 @@ describe('WhatsApp identity write actions', () => {
   describe('authorization', () => {
     const cases: [string, () => Promise<{ success: boolean; error: string | null }>][] = [
       ['createWhatsAppLinkToken', () => createWhatsAppLinkToken('res-1')],
+      ['createWhatsAppLinkToken (pin_setup)', () => createWhatsAppLinkToken('res-1', 'pin_setup')],
+      ['resetWhatsAppPin', () => resetWhatsAppPin(ROW_ID)],
       ['importWhatsAppOptIns', () => importWhatsAppOptIns(`${CSV}RES001,+2348000000000`)],
       ['updateWhatsAppPendingContact', () => updateWhatsAppPendingContact({ phoneNumber: '+2348000000000', status: 'ignored' })],
       ['resetWhatsAppSession', () => resetWhatsAppSession('+2348000000000')],
@@ -225,6 +229,150 @@ describe('WhatsApp identity write actions', () => {
       expect(result.success).toBe(true);
       expect(lookup.delete).not.toHaveBeenCalled();
       expect(logAudit).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('createWhatsAppLinkToken (#890)', () => {
+    const resident = { id: ROW_ID, first_name: 'Ada', last_name: 'Okoro' };
+    const minutesUntil = (iso: string) => (Date.parse(iso) - Date.now()) / 60000;
+
+    function expectCodeNeverAudited(code: string) {
+      const hash = createHash('sha256').update(code).digest('hex');
+      for (const call of vi.mocked(logAudit).mock.calls) {
+        const audit = JSON.stringify(call[0]);
+        expect(audit).not.toContain(code);
+        expect(audit).not.toContain(hash);
+      }
+      return hash;
+    }
+
+    it('issues a link code by default: 15 minutes, purpose link, no setup-code supersede', async () => {
+      const insert = query({ data: { id: ROW_ID }, error: null });
+      const from = clientWith(query({ data: resident, error: null }), insert);
+
+      const result = await createWhatsAppLinkToken(ROW_ID);
+
+      expect(result.success).toBe(true);
+      expect(result.data?.code).toMatch(/^\d{6}$/);
+      expect(from).toHaveBeenCalledTimes(2);
+      const row = insert.insert.mock.calls[0]![0];
+      expect(row).toMatchObject({ resident_id: ROW_ID, purpose: 'link', created_by: 'admin-1' });
+      expect(row.expires_at).toBe(result.data?.expiresAt);
+      expect(minutesUntil(row.expires_at)).toBeGreaterThan(14.9);
+      expect(minutesUntil(row.expires_at)).toBeLessThanOrEqual(15);
+      // Only the hash is stored; the plaintext goes back to the caller once.
+      expect(row.token_hash).toBe(expectCodeNeverAudited(result.data!.code));
+      expect(Object.values(row)).not.toContain(result.data!.code);
+      expect(vi.mocked(logAudit).mock.calls[0]![0]).toMatchObject({
+        action: 'CREATE',
+        entityType: 'whatsapp_link_tokens',
+        newValues: { resident_id: ROW_ID, purpose: 'link' },
+      });
+    });
+
+    it('issues a 10-minute pin_setup code and retires earlier unused setup codes first', async () => {
+      const supersede = query();
+      const insert = query({ data: { id: ROW_ID }, error: null });
+      clientWith(query({ data: resident, error: null }), supersede, insert);
+
+      const result = await createWhatsAppLinkToken(ROW_ID, 'pin_setup');
+
+      expect(result.success).toBe(true);
+      expect(supersede.update).toHaveBeenCalledWith({ used_at: expect.any(String) });
+      expect(supersede.eq).toHaveBeenCalledWith('resident_id', ROW_ID);
+      expect(supersede.filter).toHaveBeenCalledWith('purpose', 'eq', 'pin_setup');
+      expect(supersede.is).toHaveBeenCalledWith('used_at', null);
+      const row = insert.insert.mock.calls[0]![0];
+      expect(row.purpose).toBe('pin_setup');
+      expect(minutesUntil(row.expires_at)).toBeGreaterThan(9.9);
+      expect(minutesUntil(row.expires_at)).toBeLessThanOrEqual(10);
+      expect(row.token_hash).toBe(expectCodeNeverAudited(result.data!.code));
+      expect(vi.mocked(logAudit).mock.calls[0]![0].newValues).toMatchObject({ purpose: 'pin_setup' });
+    });
+
+    it('rejects an unknown purpose before touching the database', async () => {
+      const result = await createWhatsAppLinkToken(ROW_ID, 'admin' as never);
+      expect(result).toEqual({ success: false, data: null, error: 'Unknown code purpose' });
+      expect(createAdminClient).not.toHaveBeenCalled();
+      expect(logAudit).not.toHaveBeenCalled();
+    });
+
+    it('does not audit when the insert fails', async () => {
+      clientWith(query({ data: resident, error: null }), query({ data: null, error: { message: 'x' } }));
+      const result = await createWhatsAppLinkToken(ROW_ID);
+      expect(result).toMatchObject({ success: false, data: null });
+      expect(logAudit).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('resetWhatsAppPin (#805, #890)', () => {
+    const resident = { id: ROW_ID, first_name: 'Ada', last_name: 'Okoro' };
+
+    it('clears PIN, attempts and lock, de-authenticates sessions, then issues a setup code once', async () => {
+      const lookup = query({ data: resident, error: null });
+      const pin = query();
+      const sessions = query();
+      const supersede = query();
+      const insert = query({ data: { id: ROW_ID }, error: null });
+      const from = clientWith(lookup, pin, sessions, supersede, insert);
+
+      const result = await resetWhatsAppPin(ROW_ID);
+
+      expect(result.success).toBe(true);
+      expect(from.mock.calls.map((c) => c[0])).toEqual([
+        'residents', 'residents', 'whatsapp_sessions', 'whatsapp_link_tokens', 'whatsapp_link_tokens',
+      ]);
+      expect(lookup.eq).toHaveBeenCalledWith('id', ROW_ID);
+      expect(pin.update).toHaveBeenCalledWith({
+        whatsapp_pin_hash: null,
+        whatsapp_pin_set_at: null,
+        whatsapp_pin_failed_attempts: 0,
+        whatsapp_pin_locked_until: null,
+        whatsapp_pin_failed_at: [],
+        whatsapp_pin_hard_locked_at: null,
+      });
+      expect(pin.eq).toHaveBeenCalledWith('id', ROW_ID);
+      expect(sessions.update).toHaveBeenCalledWith({ pin_authenticated: false });
+      expect(sessions.eq).toHaveBeenCalledWith('resident_id', ROW_ID);
+      expect(insert.insert.mock.calls[0]![0]).toMatchObject({ resident_id: ROW_ID, purpose: 'pin_setup' });
+      expect(result.data?.code).toMatch(/^\d{6}$/);
+
+      expect(logAudit).toHaveBeenCalledTimes(2);
+      expect(vi.mocked(logAudit).mock.calls[0]![0]).toMatchObject({ action: 'UPDATE', entityType: 'residents', entityId: ROW_ID });
+      const hash = createHash('sha256').update(result.data!.code).digest('hex');
+      for (const call of vi.mocked(logAudit).mock.calls) {
+        const audit = JSON.stringify(call[0]);
+        expect(audit).not.toMatch(/whatsapp_pin_hash|scrypt/);
+        expect(audit).not.toContain(result.data!.code);
+        expect(audit).not.toContain(hash);
+      }
+    });
+
+    it('does not write or audit when the resident is not found', async () => {
+      const lookup = query({ data: null, error: null });
+      const from = clientWith(lookup);
+      const result = await resetWhatsAppPin(ROW_ID);
+      expect(result).toMatchObject({ success: false, error: 'Resident not found' });
+      expect(from).toHaveBeenCalledTimes(1);
+      expect(lookup.update).not.toHaveBeenCalled();
+      expect(logAudit).not.toHaveBeenCalled();
+    });
+
+    it('does not audit, touch sessions or issue a code when clearing the PIN fails', async () => {
+      const from = clientWith(query({ data: resident, error: null }), query({ data: null, error: { message: 'x' } }));
+      const result = await resetWhatsAppPin(ROW_ID);
+      expect(result).toMatchObject({ success: false, data: null });
+      expect(from).toHaveBeenCalledTimes(2);
+      expect(logAudit).not.toHaveBeenCalled();
+    });
+
+    it('issues no code when sessions cannot be de-authenticated, and audits that', async () => {
+      const from = clientWith(query({ data: resident, error: null }), query(), query({ data: null, error: { message: 'x' } }));
+      const result = await resetWhatsAppPin(ROW_ID);
+      expect(result).toMatchObject({ success: false, data: null });
+      expect(from).toHaveBeenCalledTimes(3);
+      expect(logAudit).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(logAudit).mock.calls[0]![0].newValues).toMatchObject({ whatsapp_sessions_pin_authenticated: 'not cleared' });
     });
   });
 

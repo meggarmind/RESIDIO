@@ -8,7 +8,7 @@ residio_sources:
   - src/actions/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp/**
   - src/app/api/whatsapp/**
-residio_verified_commit: 29e89ffa
+residio_verified_commit: e894b4d4
 residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
@@ -44,6 +44,8 @@ Whichever provider is chosen, have these details ready before you start:
 | Chatmaid | API key, webhook signing secret, and the from-number of the paired phone in international format (for example `+2348031234567`) |
 
 These all come from the provider's own console, not from Residio. For Chatmaid, enter the paired phone's own number, not the phone ID shown in the Chatmaid dashboard — that ID differs between Chatmaid's test and live environments.
+
+The from-number must not be the number that **Settings → Communications override** redirects WhatsApp to: the WhatsApp number there, or the override phone when the WhatsApp number is blank. A redirected message would be sent to the bridge phone itself and never reach anyone. The connection form shows the conflict under the from-number and disables **Save credentials**. The override form shows the same conflict under its own field and disables **Save**. Existing settings that already clash are not sent: the message is blocked with a reason that names the cause.
 
 ### The webhook callback URL
 
@@ -123,7 +125,7 @@ Moving straight from `Disabled` to `Estate` sends the first real message to ever
 A resident only receives WhatsApp messages after an approved consent record exists. Invoice reminders and payment confirmations check this when the message is created, so a resident without consent gets no queued message at all (an invoice reminder run reports it as "recipient has not opted in"). The check is repeated at send time.
 
 - **Import opt-ins** loads approved consent records from CSV in bulk.
-- The operations console lists current opt-ins and any pending contacts awaiting confirmation.
+- The operations console lists current opt-ins and any pending contacts awaiting confirmation. With the WhatsApp manage permission, each opt-in row has **Issue link code**, **Issue setup code** and **Reset PIN** (see [Issuing codes](#issuing-codes)).
 
 Pending contacts are people who have messaged the number but are not yet matched to a resident record. Resolve them by confirming identity against the resident directory — never by guessing from the phone number alone.
 
@@ -145,7 +147,43 @@ A number linked to a resident (by matching their record or with a link code) kee
 
 The policy is **on** by default. Leave it on for estates where phones are commonly shared.
 
-After **5 wrong PINs** in a row, financial answers for that resident are locked for **24 hours**, even if the correct PIN is then entered. The lock lifts on its own, and the resident is told to try again after 24 hours; a correct PIN before the fifth wrong one resets the count.
+Wrong PINs lock financial answers in two steps. Both refuse even the correct PIN while they last:
+
+- **3 wrong PINs in a row** lock the PIN for **15 minutes**. The resident is told the time it unlocks, and the lock lifts on its own. A correct PIN before the third wrong one resets the count.
+- **6 wrong PINs within 24 hours** lock the PIN until the estate office resets it with **Reset PIN**. This lock never lifts on its own. A correct PIN does not reset this count.
+
+Every wrong-PIN and lock reply ends with the estate office phone, email and office hours from **Settings → Estate info**, or with nothing if neither phone nor email is set.
+
+### Setting a PIN
+
+A resident sets their first PIN with a 6-digit **setup code** from the estate office. Setup codes are issued from the opt-in registry with **Issue setup code**, usually in a batch as each street joins the pilot. Turn the PIN policy on for a street only after its codes are out.
+
+:::note[Rolling out]
+The dashboard issues setup codes now. Until the WhatsApp Assistant is updated to ask for them, a resident without a PIN can still set one by replying `PIN` followed by 4–6 digits. This includes a resident whose PIN you just reset, so reset a PIN only when the resident is ready to set the new one straight away.
+:::
+
+### Issuing codes
+
+Each opt-in row has two code actions. Both need the WhatsApp manage permission and ask you to confirm the resident's identity first.
+
+| Action | What the code does | Valid for |
+|---|---|---|
+| **Issue link code** | The resident replies `LINK` followed by the code from a number, and that number is linked to them with financial answers | 15 minutes |
+| **Issue setup code** | Lets the resident set their first WhatsApp PIN. Issuing a new one cancels any earlier unused setup code | 10 minutes |
+
+The code is shown **once**, with its expiry, in a dialog with a **Copy** button. Residio stores only a one-way hash of it, so closing the dialog loses it for good: issue a new one if needed. Each code works once. A setup code cannot be used with `LINK`. Issuing a code is written to the audit log without the code.
+
+**Confirm identity before issuing any code.** Do it in person, or by calling the resident from the estate phone and checking two facts from their record (house number, resident code, last payment amount). A call-back to the WhatsApp number alone does not count.
+
+### Reset PIN
+
+**Reset PIN** on the opt-in row replaces a forgotten PIN or unlocks a resident early. Use it only after confirming identity as above, because whoever receives the new setup code can set the PIN. It asks for confirmation, then:
+
+1. clears the PIN, the wrong-PIN count and any lock;
+2. signs the resident's open WhatsApp chats out of the PIN, so the next financial question asks for a PIN again;
+3. issues a setup code, valid for 10 minutes and shown once.
+
+The reset is written to the audit log. The PIN and the code are never recorded.
 
 ## What residents see
 
@@ -161,13 +199,13 @@ The main menu opens with `Hi <first name>, what would you like to do?` and lists
 | 4. Alert settings | Always. Turning *All estate WhatsApp messages* off works like replying `STOP` |
 | 9. Contact the estate office | The estate phone or email is set on **Settings → Estate & Property → Estate Details** |
 
-**Financial standing** lists What I owe, Recent payments (the last 5), Statement (this month, this year, last 6 months, last 12 months or all time) and Wallet.
+**Financial standing** lists What I owe, Recent payments (the last 5), Statement (this month, this year, last 6 months, last 12 months or all time) and Wallet. Only this item asks for the PIN. A resident billed for more than one property is asked which one once per session, sees it in every heading, and can change it under **8. More**.
 
 A statement reply is a text summary ending `Reply PDF to download the full statement.` On `PDF`:
 
 - **Up to 40 rows:** the account statement PDF is attached in chat. It is stored privately, Chatmaid is given a link that works for 1 hour, and the file is deleted 12 hours later. If Chatmaid reports the send failed, it is sent once more with a fresh link.
 - **Over 40 rows:** the resident is offered email to their address on file, shown masked (`a***@gmail.com`). On `1` the email is queued and arrives with the PDF attached within 15 minutes, through the notification queue, so the communications override applies to it.
-- **No email on file:** the resident is told so, and the request appears under **Statement requested, no email** in the operations console until an email is added and the statement is sent. Only this item asks for the PIN. A resident billed for more than one property is asked which one once per session, sees it in every heading, and can change it under **8. More**.
+- **No email on file:** the resident is told so, and the request appears under **Statement requested, no email** in the operations console until an email is added and the statement is sent.
 
 - `0` goes back one level; `MENU`, `HI` or `HELLO` show the main menu; `CANCEL` abandons the current step; `LOCK` ends an unlocked session.
 - `9`, `HELP`, `AGENT` and `CONTACT` give the estate office line: phone, email and office hours from Estate Details.
@@ -227,8 +265,12 @@ The cleanup runs automatically shortly after midnight, documented on the Schedul
 | One resident receives nothing | No approved opt-in record for that resident |
 | Sends stop partway through a day | A daily or burst cap has been reached |
 | Financial questions go unanswered | The resident has no PIN set while the PIN policy is on, or the number is linked but is neither on the resident's record nor linked with a link code |
-| Resident is told financial answers are locked | Five wrong PINs were entered; the lock lifts 24 hours after the fifth |
+| Resident is told their PIN is locked until a time | Three wrong PINs in a row; the lock lifts at that time, or earlier with **Reset PIN** |
+| Resident is told the estate office needs to reset their PIN | Six wrong PINs within 24 hours; only **Reset PIN** lifts it |
+| Resident forgot their PIN | Confirm identity, then use **Reset PIN** and give them the setup code |
+| A link or setup code is not accepted | It expired, was already used, or a newer setup code replaced it. Issue a new one |
 | Test connection fails | The provider rejected the saved credentials — recheck the access token or auth token against the provider's console. For Chatmaid, the from-number may not be a paired phone, or the paired phone is not connected to the bridge |
+| A WhatsApp send is blocked with "is the WhatsApp from-number" | The communications override points WhatsApp at the bridge phone itself. Change the override WhatsApp number (or the override phone, if the WhatsApp number is blank) under **Settings → Communications override** |
 | Chatmaid sends fail with "bridge is disconnected", or you received a WhatsApp disconnected alert | The paired phone has lost its connection — re-pair it in the Chatmaid dashboard |
 | Assistant stops replying in one conversation (Chatmaid) | A team member replied from the phone within the last 30 minutes; the Assistant resumes afterwards |
 | Twilio template fails to send | No Content SID mapped for that template name — map it on the connection card |
