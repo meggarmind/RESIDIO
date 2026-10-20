@@ -66,7 +66,7 @@ Coolify, change it here in the same piece of work.
 
 Stage's database holds UAT data copied from the real roster, so its jobs would email and message
 real people. Stage still runs every task, because the **communications override** redirects what
-they send. This was verified on Stage on 2026-10-20 (#718) before any Stage task was created.
+they send. This was verified on Stage on 2026-10-20 (#718, results recorded on #713) before any Stage task was created.
 
 - **What it does.** At send time, the email transport, SMS and WhatsApp seams send to the override
   contacts instead of the real recipient (`src/lib/comms-override/`). Queue rows and UAT data keep
@@ -78,7 +78,7 @@ they send. This was verified on Stage on 2026-10-20 (#718) before any Stage task
   recipients, security contacts and vendors. In a non-production environment the global switch is
   on and cannot be turned off from the UI, so everyone is redirected except a resident an admin has
   explicitly set to receive real messages.
-- **Where it is configured.** **Settings > Communications override** (needs the general settings
+- **Where it is configured.** **Settings > Messages & Reminders > Redirect Messages (test mode)** (page heading "Communications override"; needs the general settings
   permission): one override email, one phone in E.164 (SMS and WhatsApp), and an optional separate
   WhatsApp number. Set them to the owner's own contacts before a Stage task runs. The same page holds
   Debug Mode, which redirects everything on Prod for a limited time.
