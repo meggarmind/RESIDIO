@@ -88,14 +88,16 @@ export async function retryWhatsAppClearanceCopy(copyId: string): Promise<Result
     return { success: false, data: null, error: 'The copy could not be retried. Try again in a few minutes.' };
   }
 
-  await logAudit({
-    action: 'UPDATE',
-    entityType: 'documents',
-    entityId: copyId,
-    entityDisplay: 'Clearance certificate copy',
-    newValues: { retried: true, sent: outcome.sent, ...(outcome.sent ? {} : { reason: outcome.reason }) },
-    description: 'Retried a clearance certificate copy from the WhatsApp console',
-  });
+  if (outcome.documentId) {
+    await logAudit({
+      action: 'UPDATE',
+      entityType: 'documents',
+      entityId: outcome.documentId,
+      entityDisplay: 'Clearance certificate copy',
+      newValues: { retried: true, copyId, sent: outcome.sent, ...(outcome.sent ? {} : { reason: outcome.reason }) },
+      description: 'Retried a clearance certificate copy from the WhatsApp console',
+    });
+  }
   revalidatePath('/settings/whatsapp');
   return outcome.sent ? { success: true, data: null, error: null } : { success: false, data: null, error: `Not sent: ${outcome.reason}` };
 }

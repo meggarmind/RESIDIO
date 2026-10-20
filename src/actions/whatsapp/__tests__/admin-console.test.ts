@@ -129,12 +129,12 @@ describe('WhatsApp operations console actions', () => {
 
   it('retries a failed clearance copy for a manager, and audits the retry', async () => {
     authMock.mockResolvedValue(authorized);
-    vi.mocked(retryClearanceCopy).mockResolvedValue({ sent: true });
+    vi.mocked(retryClearanceCopy).mockResolvedValue({ sent: true, documentId: 'doc-1' });
 
     expect(await retryWhatsAppClearanceCopy('copy-1')).toEqual({ success: true, data: null, error: null });
     expect(authMock).toHaveBeenCalledWith('whatsapp.manage');
     expect(retryClearanceCopy).toHaveBeenCalledWith('copy-1');
-    expect(logAudit).toHaveBeenCalledWith(expect.objectContaining({ action: 'UPDATE', entityId: 'copy-1', newValues: { retried: true, sent: true } }));
+    expect(logAudit).toHaveBeenCalledWith(expect.objectContaining({ action: 'UPDATE', entityType: 'documents', entityId: 'doc-1', newValues: { retried: true, copyId: 'copy-1', sent: true } }));
   });
 
   it('reports why a retried copy still did not send, and refuses without whatsapp.manage', async () => {

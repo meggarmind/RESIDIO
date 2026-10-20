@@ -222,7 +222,7 @@ describe('retryClearanceCopy (#816 decision 24)', () => {
   it('sends a failed copy again with a fresh signed URL and records the new outcome', async () => {
     const { calls, bucket } = mockDb({ clearance_certificate_copies: [{ data: failed, error: null }, { data: { attempts: 1 }, error: null }, { error: null }] });
 
-    expect(await retryClearanceCopy('copy-1')).toEqual({ sent: true });
+    expect(await retryClearanceCopy('copy-1')).toEqual({ sent: true, documentId: 'doc-1' });
 
     expect(bucket.createSignedUrl).toHaveBeenCalledWith('clearance-certificates/CLR-1.pdf', 3600);
     expect(sendWhatsAppToResident).toHaveBeenCalledWith('official-1', failed.body, expect.objectContaining({ mediaUrls: ['https://storage.test/signed/certificate.pdf'] }));
@@ -233,7 +233,7 @@ describe('retryClearanceCopy (#816 decision 24)', () => {
     const { calls } = mockDb({ clearance_certificate_copies: [{ data: failed, error: null }, { data: { attempts: 1 }, error: null }, { error: null }] });
     vi.mocked(sendWhatsAppToResident).mockResolvedValue({ sent: false, reason: 'not opted in' });
 
-    expect(await retryClearanceCopy('copy-1')).toEqual({ sent: false, reason: 'not opted in' });
+    expect(await retryClearanceCopy('copy-1')).toEqual({ sent: false, reason: 'not opted in', documentId: 'doc-1' });
     expect(calls.find((call) => call.op === 'upsert')!.args[0]).toMatchObject({ status: 'failed', error: 'not opted in', attempts: 2 });
   });
 

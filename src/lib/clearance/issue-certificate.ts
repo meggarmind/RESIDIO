@@ -167,7 +167,7 @@ async function copyTo(member: RecipientGroupMember, documentId: string, body: st
 }
 
 /** Sends a failed copy again with a fresh signed URL. Returns the new outcome; the console shows it. */
-export async function retryClearanceCopy(copyId: string): Promise<{ sent: true } | { sent: false; reason: string }> {
+export async function retryClearanceCopy(copyId: string): Promise<({ sent: true } | { sent: false; reason: string }) & { documentId?: string }> {
   const admin = createAdminClient();
   const { data, error } = await copies(admin)
     .select('document_id, recipient_resident_id, body, status, document:documents(file_path)')
@@ -178,12 +178,12 @@ export async function retryClearanceCopy(copyId: string): Promise<{ sent: true }
   if (!copy) return { sent: false, reason: 'copy not found' };
   if (copy.status !== 'failed') return { sent: false, reason: 'copy was already sent' };
   const document = Array.isArray(copy.document) ? copy.document[0] : copy.document;
-  if (!document) return { sent: false, reason: 'certificate not found' };
+  if (!document) return { sent: false, reason: 'certificate not found', documentId: copy.document_id };
 
   const outcome = await sendWhatsAppToResident(copy.recipient_resident_id, copy.body, {
     seed: `clearance-copy:${copy.document_id}:${copy.recipient_resident_id}:${Date.now()}`,
     mediaUrls: [await signedUrl(admin, document.file_path)],
   });
   await recordCopy(admin, copy.document_id, copy.recipient_resident_id, copy.body, outcome);
-  return outcome;
+  return { ...outcome, documentId: copy.document_id };
 }
