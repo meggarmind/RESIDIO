@@ -42,6 +42,8 @@ Buttons appear only for users who hold the permission the action needs:
 
 **Verify contact** marks every unverified contact detail (email and phone) as verified by an admin, and the resident as verified, after a confirmation dialog.
 
+**Move out**, **Transfer** and **Remove assignment** on a linked house each open a confirmation dialog that names the resident and the house affected; nothing changes until you confirm.
+
 Use the edit action only when the source information has been verified. Changes to assignments can affect billing and access decisions.
 
 ## Safe update sequence
