@@ -56,6 +56,52 @@ export function maskReference(reference: string | null | undefined): string | nu
 }
 
 // ---------------------------------------------------------------------------
+// Statement periods (#804 decisions 22-23)
+
+export type StatementPeriod = 'this_month' | 'this_year' | 'last_six_months' | 'last_twelve_months' | 'all_time';
+
+export const PERIOD_LABELS: Record<StatementPeriod, string> = {
+  this_month: 'this month',
+  this_year: 'this year',
+  last_six_months: 'last 6 months',
+  last_twelve_months: 'last 12 months',
+  all_time: 'all time',
+};
+export const PERIODS: StatementPeriod[] = ['this_month', 'this_year', 'last_six_months', 'last_twelve_months', 'all_time'];
+
+/** Period boundaries in Africa/Lagos (#804 decisions 22-23); "last 6 months" is this month plus the 5 before. */
+export function statementRange(period: StatementPeriod, now: Date): { from: Date | null; to: Date } {
+  const { year, month } = lagosParts(now);
+  const from = period === 'this_month'
+    ? lagosMidnight(year, month, 1)
+    : period === 'this_year'
+      ? lagosMidnight(year, 1, 1)
+      : period === 'last_six_months'
+        ? lagosMidnight(year, month - 5, 1)
+        : period === 'last_twelve_months'
+          ? lagosMidnight(year, month - 11, 1)
+          : null;
+  return { from, to: now };
+}
+
+function lagosDateString(date: Date): string {
+  const { year, month, day } = lagosParts(date);
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+/** The period as Lagos calendar dates for the account statement; all time starts at 2000-01-01. */
+export function statementDates(period: StatementPeriod, now: Date): { fromDate: string; toDate: string } {
+  const { from, to } = statementRange(period, now);
+  return { fromDate: from ? lagosDateString(from) : '2000-01-01', toDate: lagosDateString(to) };
+}
+
+/** `a***@gmail.com` (#804 decision 24). */
+export function maskEmail(email: string): string {
+  const [local, domain] = email.split('@');
+  return `${local.slice(0, 1)}***@${domain ?? ''}`;
+}
+
+// ---------------------------------------------------------------------------
 // Estate office hours (#804 amendment 3)
 
 export type OfficeDayHours =

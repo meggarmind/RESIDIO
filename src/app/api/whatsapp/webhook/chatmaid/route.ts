@@ -28,6 +28,7 @@ import {
   updateOutboundSendStatus,
   type OutboundDeliveryStatus,
 } from '@/lib/whatsapp/outbound-sends';
+import { retryFailedStatementSend } from '@/lib/whatsapp/statement-delivery';
 
 /**
  * Chatmaid inbound webhook (#401).
@@ -252,6 +253,13 @@ async function handleDeliveryStatus(event: 'message.sent' | 'message.delivered' 
     let matched = false;
     const outcome = await runOnce(chatmaidEventDedupeKey(event, rawBody), async () => {
       matched = await updateOutboundSendStatus('chatmaid', messageId, status, { code: errorCode, message: errorMessage });
+      // A statement PDF reply that failed is sent once more with a fresh signed URL (#804).
+      // Its failure must not fail this status event, which is already recorded.
+      if (status === 'failed' && matched) {
+        await retryFailedStatementSend('chatmaid', messageId).catch((error) => {
+          console.error('[chatmaid-webhook] Statement retry failed:', { messageId, error });
+        });
+      }
       // Equality, not >=, so a burst raises one alert rather than one per further failure.
       if (status === 'failed' && matched && (await countRecentOutboundFailures()) === OUTBOUND_FAILURE_ALERT_THRESHOLD) {
         await notifyOrThrow({

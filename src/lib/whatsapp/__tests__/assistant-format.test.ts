@@ -5,7 +5,9 @@ import {
   formatClock,
   formatDay,
   formatNaira,
+  maskEmail,
   maskReference,
+  statementDates,
   officeBackLine,
   parseKeywordSynonyms,
   parseOfficeHours,
@@ -37,6 +39,18 @@ describe('WhatsApp Assistant formatting (#804)', () => {
     expect(maskReference('FT26101234A7F2')).toBe('ref ••••A7F2');
     expect(maskReference('  ')).toBeNull();
     expect(maskReference(null)).toBeNull();
+  });
+
+  it('masks an email address to its first character and domain', () => {
+    expect(maskEmail('ada.example@gmail.com')).toBe('a***@gmail.com');
+  });
+
+  it('gives statement periods as Lagos calendar dates', () => {
+    // 23:30 UTC on 31 Jan is 1 Feb in Lagos.
+    const now = new Date('2026-01-31T23:30:00Z');
+    expect(statementDates('this_month', now)).toEqual({ fromDate: '2026-02-01', toDate: '2026-02-01' });
+    expect(statementDates('last_six_months', now)).toEqual({ fromDate: '2025-09-01', toDate: '2026-02-01' });
+    expect(statementDates('all_time', now)).toEqual({ fromDate: '2000-01-01', toDate: '2026-02-01' });
   });
 
   it('reads 12-hour clock times', () => {

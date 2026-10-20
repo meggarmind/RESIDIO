@@ -2,6 +2,7 @@
 
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/server';
 import { OUTBOUND_PENDING_TIMEOUT_MINUTES } from '@/lib/whatsapp/outbound-sends';
 
@@ -25,9 +26,29 @@ export async function getWhatsAppDisclosureLogs(): Promise<Result<unknown[]>> {
 
   const { data, error } = await createAdminClient()
     .from('whatsapp_disclosure_logs')
-    .select('id, resident_id, phone_number, house_id, menu_item, pin_authenticated, created_at, resident:residents(first_name, last_name, resident_code), house:houses(house_number, street:streets(name))')
+    .select('id, resident_id, phone_number, house_id, menu_item, channel, pin_authenticated, created_at, resident:residents(first_name, last_name, resident_code), house:houses(house_number, street:streets(name))')
     .order('created_at', { ascending: false })
     .limit(500);
+
+  return { success: !error, data: data || [], error: error?.message || null };
+}
+
+/**
+ * "Statement requested, no email" (#804 decision 24): residents who asked on WhatsApp for a
+ * statement too long for chat and have no email on file. A row clears once the email is added
+ * and the statement is queued.
+ */
+export async function getWhatsAppStatementFlags(): Promise<Result<unknown[]>> {
+  const authorization = await authorizePermission(PERMISSIONS.WHATSAPP_VIEW);
+  if (!authorization.authorized) return { success: false, data: null, error: authorization.error || 'Unauthorized' };
+
+  // whatsapp_statement_requests is not in the generated types until its migration is applied.
+  const { data, error } = await (createAdminClient() as unknown as SupabaseClient)
+    .from('whatsapp_statement_requests')
+    .select('id, phone_number, period, from_date, to_date, row_count, created_at, resident:residents(first_name, last_name, resident_code), house:houses(house_number, street:streets(name))')
+    .eq('status', 'awaiting_email')
+    .order('created_at', { ascending: false })
+    .limit(200);
 
   return { success: !error, data: data || [], error: error?.message || null };
 }

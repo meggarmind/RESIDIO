@@ -332,7 +332,8 @@ export function createChatmaidWhatsAppProvider(
   async function sendContent(
     to: string,
     content: string,
-    seed?: string
+    seed?: string,
+    mediaUrls?: string[]
   ): Promise<WhatsAppSendResult> {
     if (content.length > CHATMAID_MAX_CONTENT_LENGTH) {
       return {
@@ -362,6 +363,7 @@ export function createChatmaidWhatsAppProvider(
           to,
           content,
           idempotencyKey,
+          ...(mediaUrls?.length ? { mediaUrls } : {}),
         }),
       });
     } catch {
@@ -409,7 +411,7 @@ export function createChatmaidWhatsAppProvider(
 
   return {
     async sendText(message: WhatsAppTextMessage) {
-      return sendContent(message.to, message.body, message.idempotencySeed);
+      return sendContent(message.to, message.body, message.idempotencySeed, message.mediaUrls);
     },
     async sendTemplate(message: WhatsAppTemplateMessage) {
       const content = renderTemplateToText(message.templateName, message.parameters);

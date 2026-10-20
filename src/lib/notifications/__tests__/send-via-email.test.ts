@@ -28,6 +28,8 @@ vi.mock('@/lib/whatsapp', () => ({
 vi.mock('@/lib/whatsapp/config', () => ({ resolveWhatsAppConfig: vi.fn() }));
 vi.mock('@/lib/whatsapp/rollout', () => ({ isWhatsAppRecipientAllowed: vi.fn() }));
 vi.mock('@/lib/sms/send-sms', () => ({ sendSms: vi.fn() }));
+const buildStatementEmail = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/whatsapp/statement-delivery', () => ({ buildStatementEmail }));
 
 import { sendNotification } from '@/lib/notifications/send';
 import { PRIORITY } from '@/lib/notifications/queue';
@@ -82,6 +84,28 @@ describe('sendViaEmail (through sendNotification)', () => {
       error: 'Email notifications are disabled in system settings',
     });
     expect(mocks.send).not.toHaveBeenCalled();
+  });
+
+  it('renders a queued WhatsApp statement at send time with its PDF attached (#804)', async () => {
+    const attachment = { filename: 'statement.pdf', content: Buffer.from('%PDF') };
+    buildStatementEmail.mockResolvedValue({ react: 'statement-email', attachments: [attachment] });
+
+    const result = await sendNotification(buildEmailItem({ metadata: { whatsapp_statement_request_id: 'request-1' } }));
+
+    expect(result).toEqual({ success: true, externalId: 'rid-9' });
+    expect(buildStatementEmail).toHaveBeenCalledWith('request-1');
+    expect(mocks.send.mock.calls[0][0]).toMatchObject({ react: 'statement-email', attachments: [attachment] });
+    expect(mocks.send.mock.calls[0][0]).not.toHaveProperty('text');
+  });
+
+  it('leaves other emails alone, and retries when the statement cannot be built', async () => {
+    await sendNotification(buildEmailItem());
+    expect(buildStatementEmail).not.toHaveBeenCalled();
+    expect(mocks.send.mock.calls[0][0]).toMatchObject({ text: 'Plain body' });
+
+    buildStatementEmail.mockRejectedValue(new Error('request missing'));
+    const result = await sendNotification(buildEmailItem({ metadata: { whatsapp_statement_request_id: 'gone' } }));
+    expect(result).toMatchObject({ success: false, error: 'request missing', retryable: true });
   });
 
   it('fails open when email_enabled is null/absent', async () => {

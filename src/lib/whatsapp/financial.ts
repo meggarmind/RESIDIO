@@ -7,6 +7,15 @@ import { isWhatsAppMasterSwitchOn } from '@/lib/whatsapp/master-switch';
 import { isWhatsAppRecipientAllowed } from '@/lib/whatsapp/rollout';
 import type { WhatsAppInboundMessage, WhatsAppTextMessage } from '@/lib/whatsapp/types';
 import type { WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
+import type { AccountStatementData } from '@/lib/billing/account-statement-data';
+import {
+  STATEMENT_CHAT_ROW_LIMIT,
+  createStatementRequest,
+  loadWhatsAppStatementForPeriod,
+  queueStatementEmail,
+  storeStatementPdf,
+  type StatementRequestInput,
+} from '@/lib/whatsapp/statement-delivery';
 import {
   DEFAULT_KEYWORDS,
   answerFooter,
@@ -15,13 +24,20 @@ import {
   formatNaira,
   lagosMidnight,
   lagosParts,
+  maskEmail,
   maskReference,
   normalizeInput,
   parseKeywordSynonyms,
   parseOfficeHours,
+  PERIOD_LABELS,
+  PERIODS,
+  statementRange,
   type AssistantIntent,
   type OfficeHours,
+  type StatementPeriod,
 } from '@/lib/whatsapp/assistant-format';
+
+export { statementRange, type StatementPeriod };
 
 const SESSION_MINUTES = 15;
 const MAX_PIN_ATTEMPTS = 5;
@@ -45,8 +61,9 @@ const UNSUBSCRIBED_REPLY = "You've been unsubscribed from estate WhatsApp alerts
 
 /** Values written to whatsapp_disclosure_logs.menu_item (shown as-is in the operations console). */
 export type FinancialMenuItem = 'what_i_owe' | 'recent_payments' | 'statement' | 'wallet';
-export type StatementPeriod = 'this_month' | 'this_year' | 'last_six_months' | 'last_twelve_months' | 'all_time';
 export type LookupAllowance = 'ok' | 'resident_cap' | 'estate_cap';
+/** How a disclosure left the estate (#804 decision 25). */
+export type DisclosureChannel = 'chat' | 'pdf' | 'email';
 
 export interface FinancialHouse {
   id: string;
@@ -130,12 +147,20 @@ export interface WhatsAppFinancialRepository {
   getWalletBalance(residentId: string): Promise<number>;
   getStatementRows(residentId: string, houseId: string, from: string | null, to: string): Promise<StatementRows>;
   setAlertsOn(residentId: string, phoneNumber: string, on: boolean): Promise<void>;
+  /** The statement PDF for a period: the admin account statement, with its Lagos dates. */
+  loadStatement(residentId: string, houseId: string, period: StatementPeriod, now: Date): Promise<{ fromDate: string; toDate: string; statement: AccountStatementData }>;
+  /** Stores the PDF privately and returns a 1-hour signed URL for the reply. */
+  storeStatementPdf(input: StatementRequestInput & { replyText: string }, statement: AccountStatementData): Promise<string>;
+  getResidentEmail(residentId: string): Promise<string | null>;
+  createStatementRequest(input: StatementRequestInput & { status: 'awaiting_email' | 'queued' }): Promise<string>;
+  queueStatementEmail(requestId: string, residentId: string, email: string): Promise<void>;
   logDisclosure(input: {
     residentId: string;
     phoneNumber: string;
     houseId: string | null;
     menuItem: FinancialMenuItem;
     pinAuthenticated: boolean;
+    channel?: DisclosureChannel;
     metadata?: Record<string, unknown>;
   }): Promise<void>;
 }
@@ -212,29 +237,7 @@ export function composeWalletAnswer(balance: number, hasContact: boolean): strin
   return ['*Wallet*', `Balance: ${formatNaira(balance)}`, answerFooter(hasContact)].join('\n');
 }
 
-const PERIOD_LABELS: Record<StatementPeriod, string> = {
-  this_month: 'this month',
-  this_year: 'this year',
-  last_six_months: 'last 6 months',
-  last_twelve_months: 'last 12 months',
-  all_time: 'all time',
-};
-const PERIODS: StatementPeriod[] = ['this_month', 'this_year', 'last_six_months', 'last_twelve_months', 'all_time'];
 
-/** Period boundaries in Africa/Lagos (#804 decisions 22-23); "last 6 months" is this month plus the 5 before. */
-export function statementRange(period: StatementPeriod, now: Date): { from: Date | null; to: Date } {
-  const { year, month } = lagosParts(now);
-  const from = period === 'this_month'
-    ? lagosMidnight(year, month, 1)
-    : period === 'this_year'
-      ? lagosMidnight(year, 1, 1)
-      : period === 'last_six_months'
-        ? lagosMidnight(year, month - 5, 1)
-        : period === 'last_twelve_months'
-          ? lagosMidnight(year, month - 11, 1)
-          : null;
-  return { from, to: now };
-}
 
 export function composeStatementAnswer(input: StatementCompositionInput): FinancialAnswer {
   const { from, to } = statementRange(input.period, input.now);
@@ -263,6 +266,7 @@ export function composeStatementAnswer(input: StatementCompositionInput): Financ
       `Payments: ${formatNaira(payments)}`,
       ...(rows.length ? rows.slice(0, STATEMENT_ROW_CAP).map((row) => row.text) : [`No activity for ${input.houseLabel} in this period.`]),
       ...(omitted ? [`+ ${omitted} earlier entries`] : []),
+      'Reply PDF to download the full statement.',
       answerFooter(input.hasContact),
     ].join('\n'),
     metadata: { period: input.period, house_id: input.houseId, row_count: rows.length, omitted },
@@ -536,6 +540,17 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
       if (error) throw error;
     },
 
+    loadStatement: loadWhatsAppStatementForPeriod,
+    storeStatementPdf,
+    createStatementRequest,
+    queueStatementEmail,
+
+    async getResidentEmail(residentId) {
+      const { data, error } = await createAdminClient().from('residents').select('email').eq('id', residentId).single();
+      if (error) throw error;
+      return data?.email?.trim() || null;
+    },
+
     async logDisclosure(input) {
       const supabase = createAdminClient();
       const { error } = await supabase.from('whatsapp_disclosure_logs').insert({
@@ -544,8 +559,10 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
         house_id: input.houseId,
         menu_item: input.menuItem,
         pin_authenticated: input.pinAuthenticated,
+        // channel is not in the generated types until the 20261021130000 migration is applied.
+        channel: input.channel ?? 'chat',
         metadata: input.metadata ?? null,
-      });
+      } as never);
       if (error) throw error;
     },
   };
@@ -602,14 +619,15 @@ async function sendFinancialReply(
   message: WhatsAppInboundMessage,
   body: string,
   send: WhatsAppFinancialHandlerOptions['send'],
-  residentId: string
+  residentId: string,
+  mediaUrls?: string[]
 ): Promise<void> {
   const result = await (send || ((outbound) =>
     // Reply to the person who just messaged us: exempt from the comms override (decision 8, #715).
     sendWhatsAppMessage(outbound, undefined, { purpose: 'inbound_reply' }, {
       residentId,
       inboundMessageId: message.id,
-    })))({ to: message.from, body, idempotencySeed: message.id });
+    })))({ to: message.from, body, idempotencySeed: message.id, ...(mediaUrls ? { mediaUrls } : {}) });
   if (!result.success) throw new ReplySendError(result.error || 'WhatsApp financial reply failed');
 }
 
@@ -656,8 +674,8 @@ function readNode(raw: string): { node: string; misses: number } {
   return { node: node === 'menu' || node.startsWith('property_selection:') || node.startsWith('statement_period:') ? 'main' : node, misses: match ? Number(match[2]) : 0 };
 }
 
-async function respond(turn: Turn, body: string, node: string, misses = 0): Promise<void> {
-  await sendFinancialReply(turn.message, body, turn.options.send, turn.identity.id);
+async function respond(turn: Turn, body: string, node: string, misses = 0, mediaUrls?: string[]): Promise<void> {
+  await sendFinancialReply(turn.message, body, turn.options.send, turn.identity.id, mediaUrls);
   turn.session.currentNode = misses ? `${node}~${misses}` : node;
   turn.session.expiresAt = expiry();
   await turn.options.repository.saveSession(turn.session);
@@ -826,7 +844,79 @@ async function answerItem(turn: Turn, item: FinancialMenuItem, period: Statement
     pinAuthenticated: turn.session.pinAuthenticated,
     metadata,
   });
-  await respond(turn, body, 'answer');
+  await respond(turn, body, item === 'statement' ? `statement:${period}` : 'answer');
+}
+
+function requestInput(turn: Turn, house: FinancialHouse, period: StatementPeriod, fromDate: string, toDate: string, rowCount: number): StatementRequestInput {
+  return { residentId: turn.identity.id, phoneNumber: turn.phoneNumber, houseId: house.id, period, fromDate, toDate, rowCount, inboundMessageId: turn.message.id };
+}
+
+/** `PDF` after a statement (#804 decision 24 as amended by #863): chat up to 40 rows, email beyond. */
+async function deliverStatementPdf(turn: Turn, period: StatementPeriod): Promise<void> {
+  const house = selectedHouse(turn);
+  // The node outlives a LOCK only in theory; check the gate again before any document leaves.
+  if (!house || ((await loadPinGate(turn)) && !turn.session.pinAuthenticated)) return enterFinancial(turn, 'statement');
+  const capped = await capReply(turn);
+  if (capped) return respond(turn, capped, 'financial');
+
+  const repository = turn.options.repository;
+  const { fromDate, toDate, statement } = await repository.loadStatement(turn.identity.id, house.id, period, new Date());
+  const rowCount = statement.transactions.length;
+  const input = requestInput(turn, house, period, fromDate, toDate, rowCount);
+
+  if (rowCount <= STATEMENT_CHAT_ROW_LIMIT) {
+    const body = [
+      `*Statement, ${PERIOD_LABELS[period]}, ${house.label}*`,
+      `Opening balance: ${formatNaira(statement.openingBalance)}`,
+      `Closing balance: ${formatNaira(statement.closingBalance)}`,
+      'Your PDF is attached.',
+      footer(turn),
+    ].join('\n');
+    // Log before the file exists (#795): a failed log then discloses nothing.
+    await repository.logDisclosure({
+      residentId: turn.identity.id,
+      phoneNumber: turn.phoneNumber,
+      houseId: house.id,
+      menuItem: 'statement',
+      pinAuthenticated: turn.session.pinAuthenticated,
+      channel: 'pdf',
+      metadata: { period, row_count: rowCount },
+    });
+    const url = await repository.storeStatementPdf({ ...input, replyText: body }, statement);
+    return respond(turn, body, 'answer', 0, [url]);
+  }
+
+  const email = await repository.getResidentEmail(turn.identity.id);
+  if (!email) {
+    await repository.createStatementRequest({ ...input, status: 'awaiting_email' });
+    return respond(turn, `${withContact(turn, "We don't have an email for you. Reply EMAIL to add one now.")}\n${footer(turn)}`, 'answer');
+  }
+  return respond(turn, `This statement is too long for chat. Send it to ${maskEmail(email)}? Reply 1 Yes, 2 No.`, `statement_email:${period}`);
+}
+
+async function confirmStatementEmail(turn: Turn, period: StatementPeriod): Promise<void> {
+  const house = selectedHouse(turn);
+  // The node outlives a LOCK only in theory; check the gate again before any document leaves.
+  if (!house || ((await loadPinGate(turn)) && !turn.session.pinAuthenticated)) return enterFinancial(turn, 'statement');
+  const capped = await capReply(turn);
+  if (capped) return respond(turn, capped, 'financial');
+
+  const repository = turn.options.repository;
+  const email = await repository.getResidentEmail(turn.identity.id);
+  if (!email) return deliverStatementPdf(turn, period);
+  const { fromDate, toDate, statement } = await repository.loadStatement(turn.identity.id, house.id, period, new Date());
+  await repository.logDisclosure({
+    residentId: turn.identity.id,
+    phoneNumber: turn.phoneNumber,
+    houseId: house.id,
+    menuItem: 'statement',
+    pinAuthenticated: turn.session.pinAuthenticated,
+    channel: 'email',
+    metadata: { period, row_count: statement.transactions.length },
+  });
+  const requestId = await repository.createStatementRequest({ ...requestInput(turn, house, period, fromDate, toDate, statement.transactions.length), status: 'queued' });
+  await repository.queueStatementEmail(requestId, turn.identity.id, email);
+  return respond(turn, `Queued. It will arrive within 15 minutes.\n${footer(turn)}`, 'answer');
 }
 
 async function showNotices(turn: Turn): Promise<void> {
@@ -933,7 +1023,7 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
   }
   if (CONTACT_WORDS.has(input)) return showContact(turn);
   if (input === '0') {
-    const backToFinancial = node === 'answer' || node === 'more' || node === 'statement_period' || node.startsWith('property:');
+    const backToFinancial = node === 'answer' || node === 'more' || node === 'statement_period' || node.startsWith('property:') || node.startsWith('statement:') || node.startsWith('statement_email:');
     return backToFinancial && turn.identity.financialEligible ? enterFinancial(turn, 'menu') : showMain(turn);
   }
 
@@ -944,6 +1034,19 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
   }
 
   if (node.startsWith('property:')) return chooseProperty(turn, node.slice('property:'.length) as Target);
+
+  const statementNode = node.match(/^statement(_email)?:(.+)$/);
+  const statementPeriod = statementNode && PERIODS.includes(statementNode[2] as StatementPeriod) ? (statementNode[2] as StatementPeriod) : null;
+  if (statementPeriod && !statementNode?.[1] && input === 'pdf') {
+    await loadHouses(turn);
+    return deliverStatementPdf(turn, statementPeriod);
+  }
+  if (statementPeriod && statementNode?.[1]) {
+    await loadHouses(turn);
+    if (input === '1') return confirmStatementEmail(turn, statementPeriod);
+    if (input === '2') return respond(turn, `Nothing was sent.\n${footer(turn)}`, 'answer');
+    return miss(turn, node);
+  }
 
   if (node === 'statement_period') {
     const period = /^[1-5]$/.test(input) ? PERIODS[Number(input) - 1] : null;
@@ -978,7 +1081,7 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
     return miss(turn, node);
   }
 
-  if (node === 'financial' || node === 'answer') {
+  if (node === 'financial' || node === 'answer' || node.startsWith('statement:')) {
     const item = FINANCIAL_ITEM_NUMBERS[input];
     if (item) return enterFinancial(turn, item);
     if (input === '8' && (await loadHouses(turn)).length > 1) {

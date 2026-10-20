@@ -94,14 +94,22 @@ async function sendViaEmail(
   };
 
   try {
+    // A WhatsApp statement request (#804) is rendered at send time, with its PDF attached.
+    // Imported lazily: it pulls in the PDF renderer, which nothing else here needs.
+    const statementRequestId = item.metadata?.whatsapp_statement_request_id;
+    const statement = typeof statementRequestId === 'string'
+      ? await (await import('@/lib/whatsapp/statement-delivery')).buildStatementEmail(statementRequestId)
+      : null;
     const result = await sendViaResend(
       {
         to: item.recipient_email,
         subject: item.subject || 'Notification',
         // Prefer HTML if available, otherwise use plain text
-        ...(item.html_body
-          ? { html: item.html_body }
-          : { text: item.body }),
+        ...(statement
+          ? statement
+          : item.html_body
+            ? { html: item.html_body }
+            : { text: item.body }),
       },
       transportOptions
     );

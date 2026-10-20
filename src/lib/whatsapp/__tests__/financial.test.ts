@@ -21,6 +21,7 @@ import type {
 } from '@/lib/whatsapp/financial';
 import type { WhatsAppInboundMessage } from '@/lib/whatsapp/types';
 import type { WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
+import type { AccountStatementData } from '@/lib/billing/account-statement-data';
 import { getSettingResultAsService } from '@/lib/settings/service';
 import { isWhatsAppMasterSwitchOn } from '@/lib/whatsapp/master-switch';
 import { createAdminClient } from '@/lib/supabase/server';
@@ -81,6 +82,20 @@ function settings(overrides: Partial<AssistantSettings> = {}): AssistantSettings
   };
 }
 
+function statementData(rows: number): AccountStatementData {
+  return {
+    resident: { id: 'resident-1', name: 'Ada Example', resident_code: 'RES001', email: null, phone: null, entity_type: 'individual', company_name: null },
+    house: { id: 'house-1', address: '12, Palm Close', short_name: null },
+    period: { from: '2026-10-01', to: '2026-10-20' },
+    openingBalance: 45000,
+    closingBalance: 510000,
+    summary: { totalInvoiced: 0, totalPaid: 0, totalCredits: 0, totalDebits: 0, netChange: 0 },
+    transactions: Array.from({ length: rows }, (_, index) => ({ id: `t${index}`, date: '2026-10-01', type: 'invoice' as const, description: 'x', reference: null, debit: 1, credit: 0, balance: 1 })),
+    generatedAt: '2026-10-20T10:00:00Z',
+    generatedBy: null,
+  };
+}
+
 let counter = 0;
 function message(text: string, type = 'text'): WhatsAppInboundMessage {
   counter += 1;
@@ -108,6 +123,11 @@ function repository(houses: FinancialHouse[] = [PALM], overrides: Partial<WhatsA
     getWalletBalance: vi.fn().mockResolvedValue(15000),
     getStatementRows: vi.fn().mockResolvedValue({ invoices: [], payments: [] }),
     setAlertsOn: vi.fn().mockResolvedValue(undefined),
+    loadStatement: vi.fn().mockResolvedValue({ fromDate: '2026-10-01', toDate: '2026-10-20', statement: statementData(3) }),
+    storeStatementPdf: vi.fn().mockResolvedValue('https://storage.test/signed/statement.pdf'),
+    getResidentEmail: vi.fn().mockResolvedValue('ada.example@gmail.com'),
+    createStatementRequest: vi.fn().mockResolvedValue('request-1'),
+    queueStatementEmail: vi.fn().mockResolvedValue(undefined),
     logDisclosure: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
@@ -499,7 +519,8 @@ describe('WhatsApp Assistant statement (#804 decisions 22-23)', () => {
     expect(lines.slice(0, 4)).toEqual(['*Statement, this year, 12 Palm Close*', '1 Jan 2026 to 20 Oct 2026', 'Charges: ₦1,300.00', 'Payments: ₦250.00']);
     expect(lines[4]).toBe('20 Jan 2026  Payment ref ••••1234  −₦250.00');
     expect(lines[5]).toBe('13 Jan 2026  Invoice INV-12  +₦100.00');
-    expect(lines.at(-2)).toBe('+ 2 earlier entries');
+    expect(lines.at(-3)).toBe('+ 2 earlier entries');
+    expect(lines.at(-2)).toBe('Reply PDF to download the full statement.');
     expect(lines.at(-1)).toBe(FOOTER);
     expect(answer.metadata).toMatchObject({ house_id: 'house-1', row_count: 14, omitted: 2 });
   });
@@ -613,6 +634,7 @@ describe('WhatsApp disclosure log (#795)', () => {
       house_id: 'house-1',
       menu_item: 'what_i_owe',
       pin_authenticated: true,
+      channel: 'chat',
       metadata: { period: 'this_month' },
     });
   });
@@ -866,5 +888,101 @@ describe('WhatsApp What I owe figures (#811, #804 decision 20)', () => {
     const owed = await createSupabaseWhatsAppFinancialRepository().getOwed('resident-1', 'house-1');
 
     expect(owed).toMatchObject({ invoiceCount: 30, outstanding: 0, overdue: null, next: null });
+  });
+});
+
+describe('WhatsApp statement PDF delivery (#804 decision 24, amended by #863)', () => {
+  const PDF_TEXT = [
+    '*Statement, this month, 12 Palm Close*',
+    'Opening balance: ₦45,000.00',
+    'Closing balance: ₦510,000.00',
+    'Your PDF is attached.',
+    FOOTER,
+  ].join('\n');
+
+  it('attaches a PDF of up to 40 rows in chat through a signed URL, logged as a pdf disclosure', async () => {
+    const repo = repository([PALM], { loadStatement: vi.fn().mockResolvedValue({ fromDate: '2026-10-01', toDate: '2026-10-20', statement: statementData(40) }) });
+    const send = vi.fn().mockResolvedValue({ success: true });
+    for (const text of ['statement', '1']) await handleFinancialMessage(message(text), identity, { repository: repo, optedIn: true, send });
+    const pdfMessage = message('PDF');
+    await handleFinancialMessage(pdfMessage, identity, { repository: repo, optedIn: true, send });
+
+    expect(send.mock.calls[1][0].body).toContain('Reply PDF to download the full statement.');
+    expect(send.mock.calls[2][0]).toMatchObject({ body: PDF_TEXT, mediaUrls: ['https://storage.test/signed/statement.pdf'] });
+    expect(repo.loadStatement).toHaveBeenCalledWith('resident-1', 'house-1', 'this_month', expect.any(Date));
+    expect(repo.storeStatementPdf).toHaveBeenCalledWith(
+      expect.objectContaining({ residentId: 'resident-1', houseId: 'house-1', period: 'this_month', fromDate: '2026-10-01', toDate: '2026-10-20', rowCount: 40, inboundMessageId: pdfMessage.id, replyText: PDF_TEXT }),
+      expect.objectContaining({ openingBalance: 45000 })
+    );
+    expect(vi.mocked(repo.logDisclosure).mock.calls.map((call) => call[0].channel)).toEqual([undefined, 'pdf']);
+    expect(repo.getResidentEmail).not.toHaveBeenCalled();
+  });
+
+  it('offers email to the masked address over 40 rows, and queues it on Yes', async () => {
+    const repo = repository([PALM], { loadStatement: vi.fn().mockResolvedValue({ fromDate: '2026-10-01', toDate: '2026-10-20', statement: statementData(41) }) });
+    const replies = await chat(repo, ['statement', '1', 'pdf', '1']);
+
+    expect(replies[2]).toBe('This statement is too long for chat. Send it to a***@gmail.com? Reply 1 Yes, 2 No.');
+    expect(repo.storeStatementPdf).not.toHaveBeenCalled();
+    expect(replies[3]).toBe(`Queued. It will arrive within 15 minutes.\n${FOOTER}`);
+    expect(repo.createStatementRequest).toHaveBeenCalledWith(expect.objectContaining({ status: 'queued', rowCount: 41, houseId: 'house-1' }));
+    expect(repo.queueStatementEmail).toHaveBeenCalledWith('request-1', 'resident-1', 'ada.example@gmail.com');
+    expect(vi.mocked(repo.logDisclosure).mock.calls.at(-1)?.[0]).toMatchObject({ menuItem: 'statement', channel: 'email' });
+  });
+
+  it('sends nothing on No', async () => {
+    const repo = repository([PALM], { loadStatement: vi.fn().mockResolvedValue({ fromDate: '2026-10-01', toDate: '2026-10-20', statement: statementData(41) }) });
+    const replies = await chat(repo, ['statement', '1', 'pdf', '2']);
+
+    expect(replies[3]).toBe(`Nothing was sent.\n${FOOTER}`);
+    expect(repo.queueStatementEmail).not.toHaveBeenCalled();
+    expect(repo.logDisclosure).toHaveBeenCalledTimes(1);
+  });
+
+  it('raises the no-email flag and gives the estate office line when there is no email', async () => {
+    const repo = repository([PALM], {
+      loadStatement: vi.fn().mockResolvedValue({ fromDate: '2026-10-01', toDate: '2026-10-20', statement: statementData(41) }),
+      getResidentEmail: vi.fn().mockResolvedValue(null),
+    });
+    const replies = await chat(repo, ['statement', '1', 'pdf']);
+
+    expect(replies[2]).toBe(`We don't have an email for you. Reply EMAIL to add one now.\n${CONTACT}\n${FOOTER}`);
+    expect(repo.createStatementRequest).toHaveBeenCalledWith(expect.objectContaining({ status: 'awaiting_email', rowCount: 41 }));
+    expect(repo.queueStatementEmail).not.toHaveBeenCalled();
+    // Nothing has left the estate yet: only the text statement is logged.
+    expect(repo.logDisclosure).toHaveBeenCalledTimes(1);
+  });
+
+  it('counts a PDF toward the cap and makes no file once it is reached', async () => {
+    const repo = repository();
+    const canLookup = vi.fn().mockResolvedValueOnce('ok').mockResolvedValueOnce('resident_cap');
+    const replies = await chat(repo, ['statement', '1', 'pdf'], identity, { canLookup });
+
+    expect(replies[2]).toContain("You've reached today's limit");
+    expect(repo.loadStatement).not.toHaveBeenCalled();
+    expect(repo.storeStatementPdf).not.toHaveBeenCalled();
+  });
+
+  it('makes no file when the disclosure log fails', async () => {
+    const repo = repository();
+    vi.mocked(repo.logDisclosure).mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('insert failed'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const replies = await chat(repo, ['statement', '1', 'pdf']);
+
+    expect(replies[2]).toMatch(/^I can't load your records right now/);
+    expect(repo.storeStatementPdf).not.toHaveBeenCalled();
+  });
+
+  it('treats PDF outside a statement as unrecognised, and asks for the PIN again after LOCK', async () => {
+    expect((await chat(repository(), ['pdf']))[0]).toBe(UNRECOGNISED);
+
+    const repo = repository();
+    vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
+    await chat(repo, ['PIN 482915', '3', '1']);
+    const session = vi.mocked(repo.saveSession).mock.lastCall![0];
+    repo.setStoredSession({ ...session, pinAuthenticated: false });
+    const replies = await chat(repo, ['pdf']);
+    expect(replies[0]).toContain('reply PIN followed by your 4–6 digit PIN');
+    expect(repo.storeStatementPdf).not.toHaveBeenCalled();
   });
 });
