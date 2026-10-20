@@ -2,7 +2,6 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { ExpenseCategory } from '@/types/database';
-import { findMatchingExpenseCategory } from '@/lib/expenses/category-matcher';
 
 // ============================================================
 // Response Types
@@ -11,11 +10,6 @@ import { findMatchingExpenseCategory } from '@/lib/expenses/category-matcher';
 type GetExpenseCategoriesResponse = {
     data: ExpenseCategory[];
     error: string | null;
-}
-
-type AutoMatchResult = {
-    category: ExpenseCategory | null;
-    matchedKeyword: string | null;
 }
 
 // ============================================================
@@ -76,38 +70,6 @@ export async function getExpenseCategory(id: string): Promise<ExpenseCategory | 
     }
 
     return data as ExpenseCategory;
-}
-
-// ============================================================
-// Auto-Match Expense Category by Keywords
-// ============================================================
-
-/**
- * Automatically find a matching expense category based on transaction description keywords.
- * Performs case-insensitive matching against all active categories' keywords.
- *
- * @param description - The transaction description to match against
- * @returns The first matching category and the keyword that matched, or null if no match
- */
-export async function autoMatchExpenseCategory(
-    description: string
-): Promise<AutoMatchResult> {
-    const supabase = await createServerSupabaseClient();
-
-    // Fetch active categories that have keywords
-    const { data: categories, error } = await supabase
-        .from('expense_categories')
-        .select('*')
-        .eq('is_active', true)
-        .order('sort_order')
-        .order('name');
-
-    if (error || !categories) {
-        console.error('Error fetching categories for auto-match:', error);
-        return { category: null, matchedKeyword: null };
-    }
-
-    return findMatchingExpenseCategory(categories as ExpenseCategory[], description);
 }
 
 // ============================================================

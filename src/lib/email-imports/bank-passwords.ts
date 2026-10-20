@@ -5,10 +5,40 @@
  * export from a 'use server' file is a client-callable endpoint. They use the session client, so
  * RLS on estate_bank_account_passwords (has_permission('email_imports.manage_passwords')) is the
  * gate. Called only from guarded server code. See #568.
+ *
+ * The scheduled email import has no session, so RLS would hide every row (#884). Passing
+ * `systemSource` (only the CRON_SECRET cron path does) switches the two lookups the PDF parser
+ * makes to the service-role client and records each read in the System Action Log. The
+ * user-facing password actions in src/actions/email-imports/bank-passwords.ts stay gated.
  */
 
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createAdminClient, createServerSupabaseClient } from '@/lib/supabase/server';
 import { decrypt } from '@/lib/encryption';
+import { recordSystemAction } from '@/lib/system-log/recorder';
+
+export interface BankPasswordReadOptions {
+  /** System Action Log source of a sessionless caller, e.g. `cron:fetch-emails`. */
+  systemSource?: string;
+}
+
+async function readClient(options?: BankPasswordReadOptions) {
+  return options?.systemSource ? createAdminClient() : createServerSupabaseClient();
+}
+
+async function logSystemRead(
+  options: BankPasswordReadOptions | undefined,
+  summary: Record<string, unknown>,
+  error: string | null
+) {
+  if (!options?.systemSource) return;
+  await recordSystemAction({
+    source: options.systemSource,
+    action: 'read_bank_pdf_password',
+    outcome: error ? 'failure' : 'success',
+    summary,
+    error,
+  });
+}
 
 // ============================================================
 // Get Decrypted Password (internal use only)
@@ -47,9 +77,23 @@ export async function getDecryptedPassword(
  * Used when parsing emails that reference partial account numbers.
  */
 export async function getPasswordByAccountLast4(
-  accountLast4: string
+  accountLast4: string,
+  options?: BankPasswordReadOptions
 ): Promise<{ data: string | null; bankAccountId: string | null; error: string | null }> {
-  const supabase = await createServerSupabaseClient();
+  const result = await readPasswordByAccountLast4(accountLast4, options);
+  await logSystemRead(
+    options,
+    { lookup: 'account_last4', bankAccountId: result.bankAccountId, found: result.data !== null },
+    result.error
+  );
+  return result;
+}
+
+async function readPasswordByAccountLast4(
+  accountLast4: string,
+  options?: BankPasswordReadOptions
+): Promise<{ data: string | null; bankAccountId: string | null; error: string | null }> {
+  const supabase = await readClient(options);
 
   // Find bank account matching last 4 digits
   const { data: accounts, error: accountError } = await supabase
@@ -98,9 +142,19 @@ export async function getPasswordByAccountLast4(
  * Get all decrypted passwords (internal use only).
  * Used for brute-force decryption when account number is unknown.
  */
-export async function getAllBankPasswords(): Promise<{ data: string[] | null; error: string | null }> {
+export async function getAllBankPasswords(
+  options?: BankPasswordReadOptions
+): Promise<{ data: string[] | null; error: string | null }> {
+  const result = await readAllBankPasswords(options);
+  await logSystemRead(options, { lookup: 'all', count: result.data?.length ?? 0 }, result.error);
+  return result;
+}
+
+async function readAllBankPasswords(
+  options?: BankPasswordReadOptions
+): Promise<{ data: string[] | null; error: string | null }> {
   // Only internal/system use (or authorized admins)
-  const supabase = await createServerSupabaseClient();
+  const supabase = await readClient(options);
 
   const { data: passwords, error } = await supabase
     .from('estate_bank_account_passwords')

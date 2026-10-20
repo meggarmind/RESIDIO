@@ -22,8 +22,6 @@ export {
 
 // Email Import Sessions
 export {
-  createEmailImport,
-  updateEmailImportStatus,
   getEmailImport,
   listEmailImports,
 } from './create-email-import';

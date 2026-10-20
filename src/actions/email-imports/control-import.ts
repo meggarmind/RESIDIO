@@ -10,7 +10,8 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
-import { updateEmailImportStatus, getEmailImport } from './create-email-import';
+import { getEmailImport } from './create-email-import';
+import { writeEmailImportStatus } from '@/lib/email-imports/import-records';
 import { parseAllPendingEmails } from '@/lib/email-imports/parse-email';
 import { processEmailTransactions } from './process-email-import';
 import { matchEmailTransactions } from '@/lib/email-imports/process-email-matching';
@@ -38,7 +39,8 @@ export async function cancelImport(importId: string): Promise<{ success: boolean
     }
 
     // Update status to failed (with cancelled message)
-    const result = await updateEmailImportStatus({
+    const supabase = await createServerSupabaseClient();
+    const result = await writeEmailImportStatus(supabase, {
         importId,
         status: 'failed',
         errorMessage: 'Cancelled by user',
@@ -82,7 +84,7 @@ export async function retryImportProcessing(importId: string): Promise<{ success
     try {
         // If it's stuck in parsing or failed, try to parse -> match -> process
         if (importData.status === 'parsing' || importData.status === 'failed' || importData.status === 'fetching') {
-            await updateEmailImportStatus({ importId, status: 'parsing' });
+            await writeEmailImportStatus(await createServerSupabaseClient(), { importId, status: 'parsing' });
             await parseAllPendingEmails(importId);
 
             // Check if it moved to match
