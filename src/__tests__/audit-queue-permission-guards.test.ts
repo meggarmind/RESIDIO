@@ -316,6 +316,9 @@ describe('audit_logs RLS policy (ADR-0006 boundary, expressed as a test)', () =>
       // this permission). It names the permission in a USING clause, not a
       // role_permissions grant, so it does not hand it back to chairman.
       '20260905002000_policies_part_b_follow_permissions.sql',
+      // #63 rewrites the audit_logs and search_logs USING clauses to the
+      // InitPlan form; it names the permission in ALTER POLICY text, not a grant.
+      '20261020150000_rls_helper_initplan_and_exact_permissions.sql',
     ]);
 
     const offenders = files.filter(
