@@ -100,6 +100,8 @@ function statefulRepository(initialPinHash: string | null = null, allowance: Loo
     createStatementRequest: vi.fn(),
     queueStatementEmail: vi.fn(),
     logDisclosure: vi.fn().mockResolvedValue(undefined),
+    askSurvey: vi.fn().mockResolvedValue(null),
+    answerSurvey: vi.fn().mockResolvedValue(undefined),
   };
   const send = vi.fn().mockResolvedValue({ success: true });
   const say = async (text: string) => {
