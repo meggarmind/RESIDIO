@@ -76,7 +76,7 @@ export async function manuallyVerifyPayment(
         action: 'UPDATE',
         entityType: 'payment_records',
         entityId: paymentId,
-        entityDisplay: `Payment: ${existingPayment.reference || paymentId}`,
+        entityDisplay: `Payment: ${existingPayment.reference_number || paymentId}`,
         oldValues: { is_verified: false },
         newValues: {
             is_verified: true,
@@ -147,7 +147,7 @@ export async function unverifyPayment(
         action: 'UPDATE',
         entityType: 'payment_records',
         entityId: paymentId,
-        entityDisplay: `Payment: ${existingPayment.reference || paymentId}`,
+        entityDisplay: `Payment: ${existingPayment.reference_number || paymentId}`,
         oldValues: {
             is_verified: true,
             verified_by: existingPayment.verified_by,
