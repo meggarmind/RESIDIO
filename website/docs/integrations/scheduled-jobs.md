@@ -10,8 +10,8 @@ residio_sources:
   - src/actions/system/cron-status.ts
   - src/lib/system/cron-status.ts
   - src/app/(dashboard)/system/cron-status/**
-residio_verified_commit: 998f69e
-residio_verified_at: '2026-10-15'
+residio_verified_commit: f164993a
+residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
 
@@ -35,11 +35,14 @@ Times are in UTC. Adjust for your estate's local time when reasoning about when 
 | Report generation | Daily, 06:00 | Builds scheduled reports |
 | Report schedule processing | Daily, 07:00 | Delivers reports to their subscribers |
 | Payment reminders | Daily, 08:00 | Queues reminder messages for outstanding balances |
-| Notification processing | Daily, 09:00 | Sends what is waiting in the notification queue |
+| Notification processing | Every 15 minutes | Sends what is waiting in the notification queue, retrying failed sends with a backoff |
 | Announcement publishing | Hourly | Publishes announcements whose scheduled time has arrived |
 | Email import | Hourly | Reads the connected mailbox for bank alerts and statements |
+| Approval expiry | Hourly | Rejects approval requests left pending past their 72-hour expiry and notifies the requester |
 
-These schedules run as scheduled tasks on the production server only. Test and staging environments run no scheduled jobs, so nothing arrives there on its own and an engineer has to trigger a job by hand.
+These schedules run as scheduled tasks on both the production and the staging server. On staging, every email, SMS and WhatsApp message a job sends goes to the contacts set on **Settings → Messages & Reminders → Redirect Messages (test mode)**, never to the real resident, staff member or report recipient; if the needed override contact is blank the message is blocked instead. See [Email and SMS channels](./email-and-sms) for how the override works.
+
+The override does not reach three kinds of message, which staging can still send to real people: WhatsApp Assistant replies (they go to whoever messaged the number), sign-in emails such as password resets and invites (sent by Supabase), and Paystack payment receipts (sent by Paystack).
 
 A late fee job also exists as an endpoint but has never been on the schedule. If your estate charges late fees, confirm with an engineer how that run is triggered before assuming it is automatic.
 
@@ -62,10 +65,10 @@ The status page judges each job against a frequency it declares internally, and 
 
 | Job | Status page expects | Actually scheduled |
 |---|---|---|
-| Notification processing | Every 5 minutes | Daily, 09:00 |
+| Notification processing | Every 5 minutes | Every 15 minutes |
 | Invoice generation | Monthly, from a set day | Daily, 06:00 |
 
-The practical effect is that **notification processing reports Critical almost permanently**, because it is measured against a five-minute window it was never scheduled to meet. Read that particular card against the queue itself rather than the badge: if **System → Notification Queue** is draining daily, the job is working.
+The practical effect is that **notification processing often reports Warning or Critical**: the card measures the time since the last message was sent, so it goes Critical whenever 30 minutes pass with nothing to send. Read that particular card against the queue itself rather than the badge: if **System → Notification Queue** is draining, the job is working.
 
 Treat this as a known reporting fault, not an outage. It is being tracked for repair.
 
