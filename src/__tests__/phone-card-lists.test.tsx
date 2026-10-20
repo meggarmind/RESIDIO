@@ -61,6 +61,7 @@ vi.mock('@/hooks/use-houses', () => ({
 vi.mock('@/hooks/use-payments', () => ({
   useDeletePayment: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useBulkUpdatePayments: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useBulkVerifyPayments: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 vi.mock('@/actions/billing/get-invoices', () => ({
   getBillingResidentFilterOptions: async () => ({ data: [], error: null }),

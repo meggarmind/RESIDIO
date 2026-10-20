@@ -4,7 +4,7 @@ import { getPayment } from '@/actions/payments/get-payment';
 import { createPayment } from '@/actions/payments/create-payment';
 import { createSplitPayment } from '@/actions/payments/create-split-payment';
 import { updatePayment } from '@/actions/payments/update-payment';
-import { unverifyPayment } from '@/actions/finance/manual-verification';
+import { unverifyPayment, bulkVerifyPayments } from '@/actions/finance/manual-verification';
 import { deletePayment } from '@/actions/payments/delete-payment';
 import { getPaymentStats } from '@/actions/payments/get-payment-stats';
 import { bulkUpdatePayments } from '@/actions/payments/bulk-update-payments';
@@ -132,6 +132,27 @@ export function useBulkUpdatePayments() {
         },
         onSuccess: (result) => {
             queryClient.invalidateQueries({ queryKey: ['payments'] });
+            queryClient.invalidateQueries({ queryKey: ['payment-stats'] });
+            toast.success(result.message);
+        },
+        onError: (error) => {
+            toast.error(error.message);
+        },
+    });
+}
+
+export function useBulkVerifyPayments() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ ids, notes }: { ids: string[]; notes?: string }) => {
+            const result = await bulkVerifyPayments(ids, notes);
+            if (!result.success) throw new Error(result.error || 'Failed to verify payments');
+            return result;
+        },
+        onSuccess: (result) => {
+            queryClient.invalidateQueries({ queryKey: ['payments'] });
+            queryClient.invalidateQueries({ queryKey: ['payment'] });
             queryClient.invalidateQueries({ queryKey: ['payment-stats'] });
             toast.success(result.message);
         },
