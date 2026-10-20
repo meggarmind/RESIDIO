@@ -1109,6 +1109,16 @@ describe('WhatsApp Assistant payment reminders (#816 decisions 2-4)', () => {
     expect(repo.setRemindersOn).not.toHaveBeenCalled();
   });
 
+  it('reads YES and NO as the answer to the confirmation', async () => {
+    const repo = repository();
+    const replies = await chat(repo, ['reminders', 'no', 'reminders', 'yes']);
+
+    expect(replies[1]).toBe(`Nothing was changed.\n${FOOTER}`);
+    expect(replies[3]).toContain('Reminders off.');
+    expect(repo.setRemindersOn).toHaveBeenCalledTimes(1);
+    expect(repo.setRemindersOn).toHaveBeenCalledWith('resident-1', false);
+  });
+
   it('keeps the confirmation open on a miss and does not turn reminders off', async () => {
     const repo = repository();
     const replies = await chat(repo, ['reminders', 'maybe']);

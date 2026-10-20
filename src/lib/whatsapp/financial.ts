@@ -1425,6 +1425,9 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
   // A narration or reference is free text, so it cannot be read as a keyword.
   if (node === 'report_reference' && input !== 'cancel' && input !== 'lock') return reportStep(turn, node);
 
+  // The prompt reads "Reply 1 Yes, 2 No", so YES and NO answer it rather than opening the menu.
+  if (node === 'reminders_confirm' && (input === 'yes' || input === 'no')) return confirmReminders(turn, input === 'yes' ? '1' : '2');
+
   if (GREETINGS.has(input)) return showMain(turn);
   if (input === 'cancel') return showMain(turn, 'Cancelled. Nothing was changed.');
   if (input === 'lock') {
