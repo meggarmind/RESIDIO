@@ -48,6 +48,7 @@ const SETTING_AREAS: { permissions: Permission[]; keys: string[] }[] = [
             'late_fee_auto_apply',
             'late_fee_application_day',
             'current_development_levy_profile_id',
+            'clearance_copy_recipient_group_id',
         ],
     },
     {

@@ -248,13 +248,20 @@ export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 // declared thirteen members, ten of which never existed in any migration --
 // every insert carrying one was rejected by Postgres at runtime (#107).
 // Widening it needs an enum migration; the extra workflows were dropped by owner decision (#306).
-export type ApprovalRequestType = GeneratedDatabase['public']['Enums']['approval_request_type'];
+// The last two values come from migration 20261022000000 (#816); drop them from this union once
+// `npm run db:types` has been re-run against a database that has it.
+export type ApprovalRequestType =
+  | GeneratedDatabase['public']['Enums']['approval_request_type']
+  | 'whatsapp_payment_report'
+  | 'clearance_certificate_request';
 
 // Labels for approval request types
 export const APPROVAL_REQUEST_TYPE_LABELS: Record<ApprovalRequestType, string> = {
   billing_profile_effective_date: 'Billing Profile Effective Date Change',
   house_plots_change: 'House Plots Change',
   late_fee_waiver: 'Late Fee Waiver Request',
+  whatsapp_payment_report: 'Payment Reported on WhatsApp',
+  clearance_certificate_request: 'Clearance Certificate Request',
 };
 
 // Phase 8: Audit Logging Types
@@ -939,7 +946,8 @@ export interface Database {
           user_agent: string | null;
           created_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['audit_logs']['Row'], 'id' | 'created_at'>;
+        // A resident acting over WhatsApp (#816) has no admin profile, so the column is nullable (it is SET NULL on delete).
+        Insert: Omit<Database['public']['Tables']['audit_logs']['Row'], 'id' | 'created_at' | 'actor_id'> & { actor_id: string | null };
         Update: never; // Audit logs are immutable - no updates allowed
       };
 
@@ -1425,7 +1433,9 @@ export interface ApprovalRequest {
   current_values: Record<string, unknown>;
   reason: string | null;
   status: ApprovalStatus;
-  requested_by: string;
+  /** Null for a request a resident made over WhatsApp (#816); see requested_by_resident_id. */
+  requested_by: string | null;
+  requested_by_resident_id?: string | null;
   reviewed_by: string | null;
   reviewed_at: string | null;
   review_notes: string | null;

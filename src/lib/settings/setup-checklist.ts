@@ -12,7 +12,7 @@ export const SETUP_STEPS = [
   { id: 'billingSettings', title: 'Save the billing settings', href: '/settings/billing' },
   { id: 'notificationChannel', title: 'Turn on a notification channel', href: '/settings/email' },
   { id: 'reminderSchedule', title: 'Turn on payment reminders', href: '/settings/notifications/reminders/schedule' },
-  { id: 'customRole', title: 'Give someone a custom role', href: '/settings/roles' },
+  { id: 'customRole', title: 'Give someone a custom role', href: '/system/accounts?tab=roles' },
 ] as const;
 
 export type SetupStepId = (typeof SETUP_STEPS)[number]['id'];

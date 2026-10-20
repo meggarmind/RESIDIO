@@ -21,7 +21,8 @@ import { SETTINGS_SEARCH_ENTRIES, matchSettingsEntries } from '@/lib/search/sett
  */
 
 /** The longest ROUTE_PERMISSIONS prefix matching a path — how middleware resolves. */
-function guardFor(href: string): string | undefined {
+function guardFor(rawHref: string): string | undefined {
+  const href = rawHref.split('?')[0];
   return Object.keys(ROUTE_PERMISSIONS)
     .sort((a, b) => b.length - a.length)
     .find((route) => href === route || route !== '/' && href.startsWith(route + '/'));
@@ -100,7 +101,7 @@ describe('Settings/System search entry permissions', () => {
       '/settings/comms-override': ['settings.manage_general'],
       '/settings/message-templates': ['announcements.manage_templates'],
       '/settings/announcement-categories': ['announcements.manage_categories'],
-      '/settings/roles': ['system.assign_roles', 'system.manage_roles'],
+      '/system/accounts?tab=roles': ['system.assign_roles'],
       '/settings/groups': ['groups.view'],
       '/settings/security': ['settings.manage_security'],
       '/settings/security/categories': ['security.manage_categories'],

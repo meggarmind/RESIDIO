@@ -127,6 +127,15 @@ async function sendViaEmail(
       };
     }
 
+    if (typeof statementRequestId === 'string') {
+      // The email is out, so a failed status update must not fail the send: a retry would send it twice.
+      try {
+        await (await import('@/lib/whatsapp/statement-delivery')).markStatementEmailSent(statementRequestId);
+      } catch (error) {
+        console.error('[notifications] Statement request could not be marked sent:', { statementRequestId, error });
+      }
+    }
+
     return {
       success: true,
       externalId: result.id,

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { handleResidentMessage } from '@/lib/whatsapp/identity';
+import { handleResidentMessage, identityFingerprint } from '@/lib/whatsapp/identity';
 import type { WhatsAppIdentityRepository, WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
 import type { WhatsAppInboundMessage } from '@/lib/whatsapp/types';
 import { isWhatsAppMasterSwitchOn } from '@/lib/whatsapp/master-switch';
@@ -41,6 +41,23 @@ function repository(overrides: Partial<WhatsAppIdentityRepository> = {}): WhatsA
     rememberPendingContact: vi.fn().mockResolvedValue(undefined),
     consumeLinkToken: vi.fn().mockResolvedValue(null),
     attachPendingContact: vi.fn().mockResolvedValue(undefined),
+    // Identity confirmed and notice accepted: these tests cover what follows consent (#871 is in consent.test.ts).
+    getStreetName: vi.fn().mockResolvedValue('Palm Street'),
+    getConsentState: vi.fn().mockResolvedValue({
+      confirmedFingerprint: identityFingerprint(resident, 'Palm Street'),
+      privacy: { decision: 'privacy_accepted', version: 'v1' },
+      step: null,
+      pendingRequest: null,
+    }),
+    recordConsentDecision: vi.fn().mockResolvedValue(undefined),
+    saveConsentStep: vi.fn().mockResolvedValue(undefined),
+    isDisputed: vi.fn().mockResolvedValue(false),
+    markDisputed: vi.fn().mockResolvedValue(undefined),
+    notifyDisputed: vi.fn().mockResolvedValue(undefined),
+    getPrivacyNotice: vi.fn().mockResolvedValue({ version: 'v1', text: 'Notice' }),
+    getPrivacyNoticeUrl: vi.fn().mockResolvedValue('https://storage.test/notice.pdf'),
+    getOfficeContactLine: vi.fn().mockResolvedValue(''),
+    optOutOfSurveys: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }
@@ -67,6 +84,26 @@ describe('WhatsApp identity and consent', () => {
 
     expect(repo.setOptIn).toHaveBeenNthCalledWith(1, 'resident-1', '+2348000000000', true, 'in_chat');
     expect(repo.setOptIn).toHaveBeenNthCalledWith(2, 'resident-1', '+2348000000000', false, 'in_chat');
+  });
+
+  it('stores STOP SURVEYS as a survey opt-out and leaves the alerts opt-in alone (#872)', async () => {
+    const repo = repository({ getOptIn: vi.fn().mockResolvedValue(true) });
+    const send = vi.fn().mockResolvedValue({ success: true });
+
+    const result = await handleResidentMessage(message('stop surveys'), { repository: repo, send });
+
+    expect(repo.optOutOfSurveys).toHaveBeenCalledWith('resident-1');
+    expect(repo.setOptIn).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ status: 'identified', optedIn: true });
+    expect(send.mock.calls[0]?.[0].body).toBe("Done. I won't ask you for feedback again.");
+  });
+
+  it('still treats a plain STOP as an alerts opt-out, not a survey opt-out (#872)', async () => {
+    const repo = repository();
+    await handleResidentMessage(message('STOP'), { repository: repo, send: vi.fn().mockResolvedValue({ success: true }) });
+
+    expect(repo.optOutOfSurveys).not.toHaveBeenCalled();
+    expect(repo.setOptIn).toHaveBeenCalledWith('resident-1', '+2348000000000', false, 'in_chat');
   });
 
   it('re-enables consent with START after an opt-out', async () => {

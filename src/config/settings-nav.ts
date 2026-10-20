@@ -138,16 +138,11 @@ export const settingsConfig: SettingsGroup[] = [
         title: "People & Access",
         icon: Shield,
         items: [
-            // Definitions only: assigning roles to people lives at
-            // /system/accounts (#172, ADR-0004), which only needs
-            // SYSTEM_ASSIGN_ROLES.
-            // Both permissions, deliberately. The page is definitions-only in the sense
-            // that day-to-day account work moved to /system/accounts (#172) -- but it
-            // still carries the Assignment Rules tab, and #172 kept SYSTEM_ASSIGN_ROLES
-            // on this route precisely so someone who can only assign roles can read the
-            // rules governing what they may assign. Narrowing this to MANAGE_ROLES would
-            // hide from them a page they are still allowed to open.
-            { title: "Roles & Permissions", href: "/settings/roles", description: "Create roles and choose what each can do", permissions: [PERMISSIONS.SYSTEM_MANAGE_ROLES, PERMISSIONS.SYSTEM_ASSIGN_ROLES] },
+            // Roles now live on the Roles & Access page (#912, ADR-0004 amendment). The link
+            // opens its Roles tab; the route guard is /system/accounts (SYSTEM_ASSIGN_ROLES), so the
+            // entry asks for exactly that. The tab itself also needs SYSTEM_MANAGE_ROLES and falls back
+            // to Administrators without it.
+            { title: "Roles & Permissions", href: "/system/accounts?tab=roles", description: "Create roles and choose what each can do", permissions: [PERMISSIONS.SYSTEM_ASSIGN_ROLES] },
             { title: "Groups", href: "/settings/groups", description: "Named lists of residents that messages and copies are sent to", permissions: [PERMISSIONS.GROUPS_VIEW] },
             {
                 title: "Security Rules",

@@ -13,8 +13,8 @@ import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
 import { formatDay, formatNaira, PERIOD_LABELS, statementDates, type StatementPeriod } from '@/lib/whatsapp/assistant-format';
 
 /**
- * Statement PDF delivery for the WhatsApp Assistant (#804 decision 24): up to
- * 40 rows go to chat through a 1-hour signed URL to private storage (Chatmaid
+ * Statement PDF delivery for the WhatsApp Assistant (#804 decision 24, #917): every statement is a
+ * PDF, never chat text. Up to 40 rows go to chat through a 1-hour signed URL to private storage (Chatmaid
  * fetches files only from a public HTTPS URL), longer ones are queued as an
  * email with the PDF attached. Files are deleted 12 hours after they are made.
  */
@@ -72,22 +72,35 @@ async function signedUrl(path: string): Promise<string> {
   return signed.data.signedUrl;
 }
 
+/** A PDF sent in chat: what the request row and its 12-hour file purge need to know. */
+export interface ChatPdfInput {
+  residentId: string;
+  phoneNumber: string;
+  houseId: string;
+  /** Stored in the `period` column: a statement period, or `receipt` / `clearance`. */
+  label: string;
+  fromDate: string;
+  toDate: string;
+  rowCount: number;
+  inboundMessageId: string;
+  /** The reply that carries the file, kept so a failed send can be resent once with a fresh URL. */
+  replyText: string;
+}
+
 /**
  * Records the request, uploads the PDF to private storage and returns a 1-hour signed URL. The row
- * is written first, so the 12-hour purge always knows about any file that reached storage.
+ * is written first, so the 12-hour purge always knows about any file that reached storage. Statements,
+ * receipts and clearance certificates share it, so they share the one-retry and the purge (#816).
  */
-export async function storeStatementPdf(
-  input: StatementRequestInput & { replyText: string },
-  statement: AccountStatementData
-): Promise<string> {
+export async function storeChatPdf(folder: string, input: ChatPdfInput, render: () => Promise<Buffer>): Promise<string> {
   const id = randomUUID();
-  const path = `statements/${id}.pdf`;
+  const path = `${folder}/${id}.pdf`;
   const { error } = await db().from('whatsapp_statement_requests').insert({
     id,
     resident_id: input.residentId,
     phone_number: input.phoneNumber,
     house_id: input.houseId,
-    period: input.period,
+    period: input.label,
     from_date: input.fromDate,
     to_date: input.toDate,
     row_count: input.rowCount,
@@ -99,10 +112,17 @@ export async function storeStatementPdf(
   });
   if (error) throw error;
 
-  const pdf = await renderStatementPdf(statement);
+  const pdf = await render();
   const upload = await createAdminClient().storage.from(MEDIA_BUCKET).upload(path, new Uint8Array(pdf), { contentType: 'application/pdf', upsert: true });
-  if (upload.error) throw new Error(`Statement upload failed: ${upload.error.message}`);
+  if (upload.error) throw new Error(`Chat PDF upload failed: ${upload.error.message}`);
   return signedUrl(path);
+}
+
+export async function storeStatementPdf(
+  input: StatementRequestInput & { replyText: string },
+  statement: AccountStatementData
+): Promise<string> {
+  return storeChatPdf('statements', { ...input, label: input.period }, () => renderStatementPdf(statement));
 }
 
 /** An email request; `awaiting_email` is the console's "Statement requested, no email" flag. */
@@ -143,6 +163,16 @@ export async function queueStatementEmail(requestId: string, residentId: string,
     .from('whatsapp_statement_requests')
     .update({ status: 'queued', notification_queue_id: queued.queueId ?? null, updated_at: new Date().toISOString() })
     .eq('id', requestId);
+  if (error) throw error;
+}
+
+/** Moves a statement request from `queued` to `sent` once its email has left; a cancelled request stays cancelled. */
+export async function markStatementEmailSent(requestId: string): Promise<void> {
+  const { error } = await db()
+    .from('whatsapp_statement_requests')
+    .update({ status: 'sent', updated_at: new Date().toISOString() })
+    .eq('id', requestId)
+    .eq('status', 'queued');
   if (error) throw error;
 }
 

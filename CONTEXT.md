@@ -109,7 +109,7 @@ The audit trail recording each financial-standing answer the WhatsApp Assistant 
 _Avoid_: Transcript, chat log
 
 **Pending Contact**:
-An unrostered WhatsApp number that contacted the Assistant and was offered onboarding; surfaced to admins in the operational console to attach or ignore.
+An unrostered WhatsApp number that contacted the Assistant and was offered onboarding; surfaced to admins in the operational console to attach or ignore. A matched number whose holder answered "No, not me" to the identity read-back is also held here as *disputed* until an admin clears it.
 _Avoid_: Unknown user, stray number
 
 **WhatsApp Template**:

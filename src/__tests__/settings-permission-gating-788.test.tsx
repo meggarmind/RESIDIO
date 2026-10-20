@@ -70,7 +70,8 @@ vi.mock('@/hooks/use-security', () => ({
   useToggleCategoryActive: mutation,
 }));
 vi.mock('@/hooks/use-settings', () => ({
-  useBillingSettings: query([{ key: 'late_fee_enabled', value: true }]),
+  useBillingSettings: query([{ key: 'late_fee_enabled', value: true }, { key: 'clearance_copy_recipient_group_id', value: 'g1' }]),
+  useClearanceCopyOptions: query([{ id: 'g1', name: 'Estate officials', description: null, usedBy: ['Clearance certificate copies'], members: [{ residentId: 'm1', name: 'A. Bello', inactive: false, warning: 'not opted in' }, { residentId: 'm2', name: 'B. Okafor', inactive: false, warning: null }] }]),
   useUpdateSetting: mutation,
   useGeneralSettings: query([{ key: 'estate_logo_url', value: 'https://example.test/logo.png' }]),
   useUploadEstateLogo: mutation,
@@ -99,7 +100,6 @@ import { HouseTypesList } from '@/components/admin/house-types-list';
 import { TransactionTagsList } from '@/components/admin/transaction-tags-list';
 import { BankAccountsList } from '@/components/admin/bank-accounts-list';
 import { RolesList } from '@/components/admin/roles-list';
-import RolesSettingsPage from '@/app/(dashboard)/settings/roles/page';
 import SecuritySettingsPage from '@/app/(dashboard)/settings/security/page';
 import CategoriesPage from '@/app/(dashboard)/settings/security/categories/page';
 import BillingSettingsPage from '@/app/(dashboard)/settings/billing/page';
@@ -116,7 +116,7 @@ type Case = {
   /** Buttons that must be absent without the permission and present with it. */
   buttons: RegExp[];
   /** Inputs that must be disabled without the permission and enabled with it. */
-  fields?: [role: 'switch' | 'checkbox' | 'spinbutton' | 'textbox', name: RegExp][];
+  fields?: [role: 'switch' | 'checkbox' | 'spinbutton' | 'textbox' | 'combobox', name: RegExp][];
 };
 
 const CASES: Case[] = [
@@ -168,7 +168,7 @@ const CASES: Case[] = [
     ui: () => <BillingSettingsPage />,
     permission: PERMISSIONS.SETTINGS_MANAGE_BILLING,
     buttons: [],
-    fields: [['switch', /Bill Vacant Houses/], ['checkbox', /7 days before/]],
+    fields: [['switch', /Bill Vacant Houses/], ['checkbox', /7 days before/], ['combobox', /Send copies to/]],
   },
   {
     name: 'billing settings: profiles permission (#840)',
@@ -244,14 +244,7 @@ describe.each(CASES)('$name (#788)', ({ ui, permission, buttons, fields = [] }) 
   });
 });
 
-describe('roles page for an assign-only admin (#788)', () => {
-  it('points to Accounts instead of rendering role definitions it cannot load', () => {
-    mocks.permissions = [PERMISSIONS.SYSTEM_ASSIGN_ROLES];
-    render(<RolesSettingsPage />);
-    expect(screen.getByRole('link', { name: 'Accounts' })).toHaveAttribute('href', '/system/accounts');
-    expect(screen.queryByRole('tab', { name: /Role Definitions/ })).not.toBeInTheDocument();
-  });
-});
+// The assign-only admin's view of the Roles tab moved to roles-access-912.test.tsx (#912).
 
 describe('role delete dialog (#788)', () => {
   it('says how many users hold the role and blocks the delete', async () => {

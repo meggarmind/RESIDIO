@@ -32,6 +32,7 @@ const query = (data: unknown) => ({ data, isLoading: false });
 vi.mock('@/lib/auth/auth-provider', () => ({ useAuth: () => ({ isLoading: false, hasPermission: () => true, hasAnyPermission: () => true }) }));
 vi.mock('@/hooks/use-settings', () => ({
   useBillingSettings: () => query(m.settings),
+  useClearanceCopyOptions: () => query([]),
   useSystemSettings: () => query(m.settings),
   useSettings: () => query(m.settings),
   useUpdateSetting: () => mutation(m.updateSetting),

@@ -11,6 +11,7 @@ import { getOrCreateWallet } from '@/actions/billing/wallet';
 import { getSystemSetting } from '@/lib/settings/get-system-setting';
 import { sendEmail } from '@/lib/email/send-email';
 import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
+import { issueClearanceCertificate } from '@/lib/clearance/issue-certificate';
 import type { ResidentRole } from '@/types/database';
 
 export interface OwnerClearanceCheck {
@@ -380,6 +381,17 @@ export async function initiateOwnerMoveOut(
         entityId: certificate.id,
         entityDisplay: `Clearance certificate ${certificateNumber} for ${resident.first_name} ${resident.last_name} (Owner-Occupier)`,
         newValues: { ...certificate } as Record<string, unknown>,
+    });
+
+    // Save the certificate to the documents store and copy it to the recipient group (#816 decisions 20, 22).
+    // The move-out has happened by now, so a failure is logged and does not undo it.
+    await issueClearanceCertificate({
+        certificate: { ...certificate, destination: 'leaving_estate', destinationHouse: null },
+        variant: 'move_out',
+        destinationText: 'The resident remains the owner of the property as a non-resident landlord.',
+        issuedBy: user.id,
+    }).catch((err) => {
+        console.error('[moveOutOwner] Certificate not saved or copied:', err);
     });
 
     revalidatePath('/houses');

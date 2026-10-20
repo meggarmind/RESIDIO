@@ -8,7 +8,7 @@ residio_sources:
   - src/actions/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp/**
   - src/app/api/whatsapp/**
-residio_verified_commit: 7f0ac22b
+residio_verified_commit: dc3b32b2
 residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
@@ -129,6 +129,19 @@ A resident only receives WhatsApp messages after an approved consent record exis
 
 Pending contacts are people who have messaged the number but are not yet matched to a resident record. Resolve them by confirming identity against the resident directory — never by guessing from the phone number alone.
 
+### Identity check and privacy notice
+
+The alerts opt-in above covers messages the estate sends. Before the assistant uses a resident's records to answer them, two more steps run in chat, for every number including imported opt-ins:
+
+1. **Identity read-back.** On the first message from a matched number the assistant replies `This number is registered to <First> <L.> on <Street>. Is that you?` with `1. Yes, that's me` and `2. No, not me`. It asks again if the resident's name or street changes.
+2. **Privacy notice.** After `Yes`, the resident gets a short message with the full notice attached as a PDF, and replies `1. Accept` or `2. Decline`. A request sent before this, such as `OWE`, is answered after Accept, still behind the PIN policy. A resident who declines gets the estate office contact and can reply `ACCEPT` at any time; no records are used until then.
+
+Every decision (identity confirmed or disputed, notice accepted or declined) is logged permanently with the number, the notice version and the WhatsApp message that carried it. `STOP` and `START` keep their meaning for alerts.
+
+**Privacy notice** in the Resident bot section holds the notice text and version. Changing the version asks every resident to accept again. A text change is refused unless the version changes too, so each accepted version covers one wording. The text needs exco sign-off before launch.
+
+If a holder answers **No, not me**, the number is marked **disputed** in Pending contacts, admins are notified, and the assistant shows no details for it. After checking, an admin with WhatsApp manage permission clicks **Clear dispute**; the number then gets the identity read-back again on its next message. A link code does not lift a dispute; only clearing it does.
+
 ### Linked numbers
 
 A number linked to a resident (by matching their record or with a link code) keeps that link only while it is still in force:
@@ -142,8 +155,10 @@ A number linked to a resident (by matching their record or with a link code) kee
 
 **Financial PIN policy** controls whether a PIN is required before Residio answers any financial question over WhatsApp.
 
-- When the policy is **on**, every resident must enter a PIN before a balance, invoice, or payment answer is returned. A resident without a PIN is asked to set one by replying `PIN` followed by 4–6 digits of their choice.
-- When it is **off**, residents may still set a personal PIN for themselves.
+- When the policy is **on**, every resident must enter a PIN before a balance, invoice, or payment answer is returned. A resident without a PIN is told to reply `PIN` to set one, which needs a setup code from the estate office.
+- When it is **off**, residents may still set a personal PIN, with a setup code, and are then asked for it like everyone else.
+
+The PIN is asked for only when the resident opens Financial standing or one of its items. Greetings, notices, How to pay and the estate office line never ask for it. The prompt is `Enter your 4–6 digit PIN to view your financial standing (e.g. 4821).` The resident can reply with the digits alone, or with `PIN` and the digits. A correct PIN unlocks financial answers for 15 minutes and is answered in one message: `PIN verified. Your financial standing is unlocked for 15 minutes.` followed by the item they picked, or the Financial standing menu. Digits sent when the Assistant has not just asked for the PIN are menu choices, never a PIN try.
 
 The policy is **on** by default. Leave it on for estates where phones are commonly shared.
 
@@ -156,11 +171,27 @@ Every wrong-PIN and lock reply ends with the estate office phone, email and offi
 
 ### Setting a PIN
 
-A resident sets their first PIN with a 6-digit **setup code** from the estate office. Setup codes are issued from the opt-in registry with **Issue setup code**, usually in a batch as each street joins the pilot. Turn the PIN policy on for a street only after its codes are out.
+A resident sets their first PIN with a 6-digit **setup code** from the estate office. Setup codes are issued from the opt-in registry with **Issue setup code**, usually in a batch as each street joins the pilot. Turn the PIN policy on for a street only after its codes are out. Holding the phone is not enough: without a valid code, no PIN can be set.
 
-:::note[Rolling out]
-The dashboard issues setup codes now. Until the WhatsApp Assistant is updated to ask for them, a resident without a PIN can still set one by replying `PIN` followed by 4–6 digits. This includes a resident whose PIN you just reset, so reset a PIN only when the resident is ready to set the new one straight away.
-:::
+In the chat, the resident:
+
+1. replies `PIN` (or `Set a security PIN`) and is asked `Enter the 6-digit setup code from the estate office.`;
+2. sends the code. Each code allows **3 wrong tries**, then pauses for an hour; an expired, used or replaced code is refused and the resident is sent to the estate office;
+3. chooses a 4–6 digit PIN. Easy PINs are refused with `That PIN is too easy to guess. Please choose another 4–6 digit PIN.`: one digit repeated (`0000`), runs (`1234`, `4321`, `123456`), a short block repeated (`1212`, `123123`) and a short denylist such as `2580`;
+4. enters the PIN again to confirm. Three mismatches cancel with `Nothing was changed.`, and the code is used up;
+5. is told `Your PIN is set ✅ Your financial standing is unlocked for 15 minutes. For privacy, you can delete the messages with your PIN from this chat.`, followed by the Financial standing menu.
+
+`CANCEL`, `MENU`, `0` or any other non-numeric reply leaves these steps without changing anything.
+
+### Changing a PIN
+
+A resident who has a PIN replies `Change PIN` (or `Set a security PIN`), enters their current PIN, then chooses and confirms a new one as above. No setup code is needed. Wrong current PINs count toward the lock like any other wrong PIN.
+
+A resident who has a PIN is never shown a prompt to set one.
+
+### What is kept, and alerts
+
+The code and PINs typed in these steps are never written to a log, the audit log or a reply. A chosen PIN is held, only as a salted hash, until it is confirmed. Where the resident has an email address on their record, Residio emails them each time their PIN is set, changed or reset, naming the WhatsApp number masked. Nothing is sent to residents without an email address.
 
 ### Issuing codes
 
@@ -180,8 +211,9 @@ The code is shown **once**, with its expiry, in a dialog with a **Copy** button.
 **Reset PIN** on the opt-in row replaces a forgotten PIN or unlocks a resident early. Use it only after confirming identity as above, because whoever receives the new setup code can set the PIN. It asks for confirmation, then:
 
 1. clears the PIN, the wrong-PIN count and any lock;
-2. signs the resident's open WhatsApp chats out of the PIN, so the next financial question asks for a PIN again;
-3. issues a setup code, valid for 10 minutes and shown once.
+2. signs the resident's open WhatsApp chats out of the PIN, so the next financial question asks for a PIN again, and cancels any PIN change in progress;
+3. issues a setup code, valid for 10 minutes and shown once;
+4. emails the resident, when they have an email address, that their PIN was reset.
 
 The reset is written to the audit log. The PIN and the code are never recorded.
 
@@ -196,30 +228,50 @@ The main menu opens with `Hi <first name>, what would you like to do?` and lists
 | 1. Financial standing | The resident is billed for a property. Marked *PIN protected*, or *unlocked* once the PIN is entered |
 | 2. Latest estate notices | A published estate-wide announcement exists. Shows the 3 latest; the resident replies with a number to read one in full |
 | 3. How to pay | **Payment instructions** is filled in (see below) |
-| 4. Alert settings | Always. Turning *All estate WhatsApp messages* off works like replying `STOP` |
+| 4. Alert settings | Always. Turning *All estate WhatsApp messages* off works like replying `STOP`. A resident billed for a property also sees *Payment reminders*, ON or OFF |
+| 5. Update email | Always |
 | 9. Contact the estate office | The estate phone or email is set on **Settings → Estate & Property → Estate Details** |
 
-**Financial standing** lists What I owe, Recent payments (the last 5), Statement (this month, this year, last 6 months, last 12 months or all time) and Wallet. Only this item asks for the PIN. A resident billed for more than one property is asked which one once per session, sees it in every heading, and can change it under **8. More**.
+**Financial standing** lists What I owe, Recent payments (the last 5), Statement (this month, this year, last 6 months, last 12 months or all time), Wallet, Receipt, Report a payment and Clearance certificate. Only this item, and Update email, ask for the PIN. A resident billed for more than one property is asked which one once per session, sees it in every heading, and can change it under **8. More**.
 
-A statement reply is a text summary ending `Reply PDF to download the full statement.` On `PDF`:
+Every statement is a PDF, never chat text. Choosing a period sends one of these, and the reply names only the period, the property and where the PDF is going; it carries no statement rows. A statement that cannot be made gets the failure reply and the estate office line, not a text fallback.
 
 - **Up to 40 rows:** the account statement PDF is attached in chat. It is stored privately, Chatmaid is given a link that works for 1 hour, and the file is deleted 12 hours later. If Chatmaid reports the send failed, it is sent once more with a fresh link.
-- **Over 40 rows:** the resident is offered email to their address on file, shown masked (`a***@gmail.com`). On `1` the email is queued and arrives with the PDF attached within 15 minutes, through the notification queue, so the communications override applies to it.
+- **Over 40 rows:** the resident is offered email to their address on file, shown masked (`a***@gmail.com`). On `1` the email is queued and arrives with the PDF attached within 15 minutes, through the notification queue, so the communications override applies to it. The request moves from queued to sent once the email has gone.
 - **No email on file:** the resident is told so, and the request appears under **Statement requested, no email** in the operations console until an email is added and the statement is sent.
+
+### Account actions
+
+Beyond answers, a resident can make four changes from chat. Each is recorded in the audit log with the resident as the actor, and nothing else can be changed over WhatsApp.
+
+- **Payment reminders** (Alert settings, item 2): turns payment and invoice reminders on WhatsApp off or on. Turning off asks `Reply 1 Yes, 2 No` first. Announcements, security alerts and the STOP command are unaffected, and so are email and SMS reminders.
+- **Update email** (main menu item 5, or `EMAIL`): the resident types an address, a 6-digit code is emailed to **that** address, and the address is saved and marked verified only when the code comes back. The code expires in 30 minutes, at most 3 codes are sent an hour, and 5 wrong codes cancel it. The old address is emailed that the address changed, showing the new one masked. Statements queued for want of an email are sent as soon as the address is verified, and clear from the operations console.
+- **Receipt** (Financial standing, item 5, or `RECEIPT`): lists the last 5 payments; picking a verified one sends its receipt as a PDF, handled like a statement PDF (private link for 1 hour, file deleted after 12 hours, one retry). A payment still awaiting verification gets `A receipt is available once this payment is verified.` The list and each PDF are disclosures and count toward the caps.
+- **Report a payment** (item 6, or `REPORT`): asks for the amount, the date and the bank narration or reference, shows a summary, and files it on `1`. At most 3 reports a day; the date must be within the last 90 days and not in the future; the same amount, date and property cannot be reported twice. The report is a pending payment that appears in the resident's *Awaiting verification* figure, plus a request in [Approvals](../operations/approvals-and-announcements). Approving it makes it a real payment: verified, credited to the wallet and allocated to invoices; rejecting it, or no decision in 72 hours, closes it. Either way the resident is told by WhatsApp. A screenshot sent during a report is acknowledged, but WhatsApp does not pass the image to Residio: the estate office sees it on the estate phone, and the time it arrived is noted on the payment.
+- **Clearance certificate** (item 7, or `CLEARANCE`): per property. A resident who owes money is told the amount. A resident who owes nothing files a request in Approvals (only one can wait per property: a second resident on the same property is told a request for the property is already waiting, with the estate office line, and the certificate goes to whoever asked first); on approval the certificate is issued, sent to them in chat, saved to Documents under *Clearance certificates* with the property, and copied on WhatsApp to the members of the group chosen under **Settings → Billing → Clearance certificate copies** (see [Billing and notifications settings](../settings/billing-and-notifications)). The same copies go out for every certificate issued from the move-out screens.
 
 - `0` goes back one level; `MENU`, `HI` or `HELLO` show the main menu; `CANCEL` abandons the current step; `LOCK` ends an unlocked session.
 - `9`, `HELP`, `AGENT` and `CONTACT` give the estate office line: phone, email and office hours from Estate Details.
-- Keywords such as `OWE`, `PAYMENTS`, `STATEMENT`, `WALLET`, `PAY` and `NEWS` jump straight to an item. Add the estate's own phrasing under **Extra keywords**.
+- Keywords such as `OWE`, `PAYMENTS`, `STATEMENT`, `WALLET`, `PAY`, `NEWS`, `RECEIPT`, `REPORT`, `CLEARANCE`, `REMINDERS` and `EMAIL` jump straight to an item. Add the estate's own phrasing under **Extra keywords**.
 - A reply the Assistant does not understand gets `I didn't catch that.`; from the second in a row it adds the estate office line. Voice notes, images and stickers get a request to type instead.
 - After 15 minutes without activity the session ends: the next message says so, and the chosen property and the PIN unlock are forgotten.
 - If a lookup fails, the resident is told nothing was shown or changed and to try again shortly, with the estate office line.
+
+### Feedback survey
+
+After a request goes well, the Assistant asks `How was Residio Assistant today?` with `1. Good / 2. Okay / 3. Poor`. It asks only when:
+
+- the resident replies `thanks` or `ok` right after a financial answer, or
+- a payment report or a clearance certificate request has just been accepted.
+
+It never asks after an error, a PIN lock, an expired session or inside a PIN step, and at most once every 30 days per resident, whether or not they answered. On `3. Poor` the Assistant asks what went wrong (`Too slow`, `Couldn't find what I needed`, `Information looked wrong`, `Something else`), then for one optional line (`SKIP` leaves it out), and closes with the estate office line. A resident who replies `STOP SURVEYS` is never asked again; plain `STOP` still only ends alerts. The **Resident feedback** card in the console shows the counts by score and by reason for the last 30 days. It shows no comments and no names.
 
 ### Assistant replies
 
 The **Assistant replies** card in the Resident bot section holds the text the Assistant sends:
 
 - **Payment instructions**: the bank, account number and narration wording sent for *How to pay*. While it is empty, *How to pay* is hidden.
-- **Extra keywords**: one `phrase = item` per line, for example `service charge = owe`. Items are `owe`, `payments`, `statement`, `wallet`, `pay`, `notices` and `contact`.
+- **Extra keywords**: one `phrase = item` per line, for example `service charge = owe`. Items are `owe`, `payments`, `statement`, `wallet`, `pay`, `notices`, `contact`, `email`, `reminders`, `report`, `receipt` and `clearance`.
 
 Each saves on its own and is written to the audit log.
 
@@ -234,19 +286,21 @@ Caps protect residents from a runaway loop and protect the estate from provider 
 | Burst window (minutes) | The window the burst cap is measured over |
 | Financial lookup daily cap | Maximum financial answers returned in a day, across the whole estate (default 500) |
 
-Each resident is also limited to 20 financial answers a day. Only the four Financial standing items count toward either financial cap, including each statement PDF and email; How to pay, notices and the contact line do not. Both reset at midnight Lagos time, and the resident is told which limit was reached.
+Each resident is also limited to 20 financial answers a day. Only the Financial standing answers count toward either financial cap (What I owe, Recent payments, Statement, Wallet, the Receipt list and each receipt PDF, and the Clearance certificate check), including each statement PDF and email; How to pay, notices and the contact line do not. Both reset at midnight Lagos time, and the resident is told which limit was reached.
 
 When a cap is reached, further sends are blocked and the event is counted in the console as a cap limit event. Repeated cap events mean the cap is wrong for the estate size or something is sending in a loop — investigate before raising the number.
 
 ## The operations console
 
-The console on the same page shows today's activity: inbound messages, outbound messages, delivery failures, template errors, and cap limit events. It also lists undelivered messages, active sessions and the disclosure log.
+The console on the same page shows today's activity: inbound messages, outbound messages, delivery failures, template errors, and cap limit events. It also lists undelivered messages, active sessions and the disclosure log, and the **Resident feedback** counts (see *Feedback survey* above).
 
 The **undelivered messages** list covers the last 7 days. It shows each WhatsApp message the provider reported as failed, or that Chatmaid accepted but never confirmed as sent within 15 minutes. Each row shows the time, the resident (when known), the masked number, whether it was a reply or a notification, the provider's reason, and the id of the resident message it answered. Those residents may not have received the message, so contact them another way. Residio does not resend these messages automatically.
 
 The **Statement requested, no email** list shows residents who asked for a statement too long for chat and have no email on file. Add their email to clear it.
 
-The **disclosure log** records every occasion on which financial information was released over WhatsApp, with its channel: `chat` for an answer, `pdf` for a statement PDF sent in chat, and `email` for one sent by email. Treat it as an audit surface: it is the evidence that a disclosure was authorised, and it should never be cleared to tidy a screen.
+The **Clearance certificate copies not sent** list shows each copy of an issued certificate that did not reach a member of the copy group (not opted in, no WhatsApp number, or the provider refused), with the reason and the number of tries. With the WhatsApp manage permission each row has a **Retry**, which sends it again with a fresh link. A failed copy never holds up the resident's own certificate.
+
+The **disclosure log** records every occasion on which financial information was released over WhatsApp, with its channel: `chat` for an answer, `pdf` for a statement or receipt PDF sent in chat, and `email` for one sent by email. Treat it as an audit surface: it is the evidence that a disclosure was authorised, and it should never be cleared to tidy a screen.
 
 ## Data retention
 
@@ -264,10 +318,13 @@ The cleanup runs automatically shortly after midnight, documented on the Schedul
 | Nothing sends | No provider is connected, the master switch is off, rollout mode is `Disabled`, or the recipient is outside the pilot scope |
 | One resident receives nothing | No approved opt-in record for that resident |
 | Sends stop partway through a day | A daily or burst cap has been reached |
-| Financial questions go unanswered | The resident has no PIN set while the PIN policy is on, or the number is linked but is neither on the resident's record nor linked with a link code |
+| Financial questions go unanswered | The resident has no PIN set while the PIN policy is on (issue a setup code), or the number is linked but is neither on the resident's record nor linked with a link code |
 | Resident is told their PIN is locked until a time | Three wrong PINs in a row; the lock lifts at that time, or earlier with **Reset PIN** |
 | Resident is told the estate office needs to reset their PIN | Six wrong PINs within 24 hours; only **Reset PIN** lifts it |
 | Resident forgot their PIN | Confirm identity, then use **Reset PIN** and give them the setup code |
+| A resident says their email code does not work | It expires after 30 minutes, 5 wrong codes cancel it, and only 3 codes are sent an hour. They reply `EMAIL` to start again |
+| A resident's payment report never shows up | Check **Approvals** for a *Payment Reported on WhatsApp* request. Approving it needs both the approvals and the verify payments permissions |
+| A clearance certificate copy did not reach an estate official | See **Clearance certificate copies not sent** in the console; usually the official has not opted in |
 | A link or setup code is not accepted | It expired, was already used, or a newer setup code replaced it. Issue a new one |
 | Test connection fails | The provider rejected the saved credentials — recheck the access token or auth token against the provider's console. For Chatmaid, the from-number may not be a paired phone, or the paired phone is not connected to the bridge |
 | A WhatsApp send is blocked with "is the WhatsApp from-number" | The communications override points WhatsApp at the bridge phone itself. Change the override WhatsApp number (or the override phone, if the WhatsApp number is blank) under **Settings → Communications override** |

@@ -1,48 +1,85 @@
 'use client';
 
 import { Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { RoleAssignmentSection } from '@/components/admin/role-assignment-section';
 import { OrphanedAccountsList } from '@/components/admin/orphaned-accounts-list';
 import { CurrentAdminsList } from '@/components/admin/current-admins-list';
 import { PendingAccountsList } from '@/components/admin/pending-accounts-list';
-import { Users, Ghost, UserCheck, Loader2 } from 'lucide-react';
+import { RolesList } from '@/components/admin/roles-list';
+import { RoleAssignmentRulesEditor } from '@/components/admin/role-assignment-rules';
+import { Users, Ghost, UserCheck, Shield, Settings, Loader2 } from 'lucide-react';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+
+// Values from before #912 still work in old bookmarks and links.
+const TAB_ALIASES: Record<string, string> = { assignments: 'administrators', orphaned: 'unlinked' };
+const OPEN_TABS = ['administrators', 'pending', 'unlinked'];
+const MANAGE_TABS = ['roles', 'rules'];
 
 function AccountsContent() {
   const searchParams = useSearchParams();
-  const tabFromUrl = searchParams.get('tab');
-  const validTabs = ['assignments', 'pending', 'orphaned'];
-  const initialTab = tabFromUrl && validTabs.includes(tabFromUrl) ? tabFromUrl : 'assignments';
+  const router = useRouter();
+  const pathname = usePathname();
+  const { hasPermission } = useAuth();
+  // The route admits system.assign_roles; the Roles and Rules tabs also need
+  // system.manage_roles, which every read and write behind them enforces server-side.
+  const canManageRoles = hasPermission(PERMISSIONS.SYSTEM_MANAGE_ROLES);
+
+  const requested = searchParams.get('tab') ?? '';
+  const wanted = TAB_ALIASES[requested] ?? requested;
+  const allowed = canManageRoles ? [...OPEN_TABS, ...MANAGE_TABS] : OPEN_TABS;
+  const tab = allowed.includes(wanted) ? wanted : 'administrators';
+  const roleFilter = searchParams.get('role') || undefined;
+
+  const onTabChange = (value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('tab', value);
+    // The role filter belongs to the Administrators tab only.
+    if (value !== 'administrators') params.delete('role');
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
+  const clearRoleHref = `${pathname}?tab=administrators`;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-medium">Accounts</h3>
-        <p className="text-sm text-muted-foreground">
-          Manage who holds an administrative role, review new sign-ups waiting for approval,
-          and reconcile authentication accounts that are not linked to a resident.
-        </p>
-      </div>
+      <AccountsHeading />
 
-      <Tabs key={initialTab} defaultValue={initialTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="assignments" className="gap-2">
-            <Users className="h-4 w-4" />
-            Role Assignments
-          </TabsTrigger>
-          <TabsTrigger value="pending" className="gap-2">
-            <UserCheck className="h-4 w-4" />
-            Pending Accounts
-          </TabsTrigger>
-          <TabsTrigger value="orphaned" className="gap-2">
-            <Ghost className="h-4 w-4" />
-            Orphaned Accounts
-          </TabsTrigger>
-        </TabsList>
+      <Tabs value={tab} onValueChange={onTabChange} className="space-y-4">
+        {/* Scrolls inside the bar so five tabs never widen the page at phone width. */}
+        <div className="overflow-x-auto">
+          <TabsList className="w-max min-w-full justify-start">
+            <TabsTrigger value="administrators" className="gap-2">
+              <Users className="h-4 w-4" />
+              Administrators
+            </TabsTrigger>
+            <TabsTrigger value="pending" className="gap-2">
+              <UserCheck className="h-4 w-4" />
+              Pending sign-ups
+            </TabsTrigger>
+            <TabsTrigger value="unlinked" className="gap-2">
+              <Ghost className="h-4 w-4" />
+              Unlinked logins
+            </TabsTrigger>
+            {canManageRoles && (
+              <TabsTrigger value="roles" className="gap-2">
+                <Shield className="h-4 w-4" />
+                Roles
+              </TabsTrigger>
+            )}
+            {canManageRoles && (
+              <TabsTrigger value="rules" className="gap-2">
+                <Settings className="h-4 w-4" />
+                Who can hold each role
+              </TabsTrigger>
+            )}
+          </TabsList>
+        </div>
 
-        <TabsContent value="assignments" className="space-y-4">
+        <TabsContent value="administrators" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Current Administrators</CardTitle>
@@ -52,7 +89,7 @@ function AccountsContent() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <CurrentAdminsList />
+              <CurrentAdminsList roleFilter={roleFilter} clearFilterHref={clearRoleHref} />
             </CardContent>
           </Card>
 
@@ -61,8 +98,7 @@ function AccountsContent() {
               <CardTitle>Assign Roles</CardTitle>
               <CardDescription>
                 Search residents, or search accounts to reach staff who have a login but no
-                resident record. Role assignment is part of the Settings module, so it sits
-                with the Super Administrator.
+                resident record. The roles you can pick are defined on the Roles tab.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -74,7 +110,7 @@ function AccountsContent() {
         <TabsContent value="pending" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Pending Accounts</CardTitle>
+              <CardTitle>Pending Sign-ups</CardTitle>
               <CardDescription>
                 People who have signed up and are waiting to be let in. Until you approve one,
                 the account can sign in but has no access to any estate data. Approving it
@@ -87,14 +123,14 @@ function AccountsContent() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="orphaned" className="space-y-4">
+        <TabsContent value="unlinked" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Orphaned Auth Accounts</CardTitle>
+              <CardTitle>Unlinked logins</CardTitle>
               <CardDescription>
-                Auth accounts that exist in Supabase but are not linked to any resident.
-                These may be from failed registrations or account migrations. Link them to
-                existing residents to enable portal access.
+                Logins that exist but are not linked to any resident. These may be from failed
+                registrations or account migrations. Link them to existing residents to enable
+                portal access. A login that already holds an administrative role is marked.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -102,7 +138,52 @@ function AccountsContent() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {canManageRoles && (
+          <TabsContent value="roles" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardDescription>
+                  Create, edit, or remove roles. System roles (Super Administrator, Resident)
+                  cannot be deleted but their permissions can be customized.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <RolesList />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+
+        {canManageRoles && (
+          <TabsContent value="rules" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Who can hold each role</CardTitle>
+                <CardDescription>
+                  Configure which resident types are allowed to be assigned each executive role.
+                  This helps enforce organizational policies about role eligibility.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <RoleAssignmentRulesEditor />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
+    </div>
+  );
+}
+
+function AccountsHeading() {
+  return (
+    <div>
+      <h3 className="text-lg font-medium">Roles & Access</h3>
+      <p className="text-sm text-muted-foreground">
+        Define roles, choose who holds them, review new sign-ups waiting for approval, and
+        reconcile logins that are not linked to a resident.
+      </p>
     </div>
   );
 }
@@ -110,13 +191,7 @@ function AccountsContent() {
 function LoadingFallback() {
   return (
     <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-medium">Accounts</h3>
-        <p className="text-sm text-muted-foreground">
-          Manage who holds an administrative role, review new sign-ups waiting for approval,
-          and reconcile authentication accounts that are not linked to a resident.
-        </p>
-      </div>
+      <AccountsHeading />
       <div className="flex items-center justify-center py-8">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>

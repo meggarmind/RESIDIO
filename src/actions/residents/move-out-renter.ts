@@ -10,6 +10,7 @@ import { getOrCreateWallet } from '@/actions/billing/wallet';
 import { getSystemSetting } from '@/lib/settings/get-system-setting';
 import { sendEmail } from '@/lib/email/send-email';
 import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
+import { issueClearanceCertificate } from '@/lib/clearance/issue-certificate';
 import { MOVE_OUT_NOTIFY_ROLES } from '@/lib/residents/move-out-recipients';
 import type { ResidentRole } from '@/types/database';
 
@@ -494,6 +495,12 @@ export async function initiateRenterMoveOut(
     entityId: certificate.id,
     entityDisplay: `Clearance certificate ${certificateNumber} for ${resident.first_name} ${resident.last_name}`,
     newValues: { ...certificate } as Record<string, unknown>,
+  });
+
+  // Save the certificate to the documents store and copy it to the recipient group (#816 decisions 20, 22).
+  // The move-out has happened by now, so a failure is logged and does not undo it.
+  await issueClearanceCertificate({ certificate, variant: 'move_out', issuedBy: user.id }).catch((err) => {
+    console.error('[moveOutRenter] Certificate not saved or copied:', err);
   });
 
   revalidatePath('/houses');

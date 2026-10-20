@@ -21,6 +21,8 @@ Each billing profile carries a **rate schedule**: a list of versions, each with 
 
 Two separate permissions govern this. **Manage Billing Profiles** shows the **Rate versions** control and the schedule inside it — a Secretary has neither. **Manage Billing Rate Versions** is what allows a version to be added or edited, and is held by the Super Admin, Chairman, Vice Chairman and Financial Officer only; a Project Manager can read the schedule but not write it, because a version with a past effective month decides what a backfilled invoice charges and those invoice numbers are permanent.
 
+**Clearance Certificate Copies** at the bottom of **Billing Settings** chooses which recipient group receives a WhatsApp copy of every issued clearance certificate: the move-out screens and approved WhatsApp requests alike. The default is *Estate officials*, and *No copies* turns copies off. Members are managed in **Settings → Groups**; the card lists the chosen group's members and warns for anyone who cannot receive a copy (no WhatsApp number, or not opted in). Changing it needs the manage billing settings or manage billing profiles permission and is written to the audit log; it affects certificates issued afterwards.
+
 Use **Late Fees** for grace periods, fee rules, and waivers. Use **Invoices & Due Dates** for recurring generation controls and run history.
 
 Set billing up in this order, which the note at the top of every billing page repeats: **Billing Profiles** (**Rate Cards** in the menu) first, then **Billing Settings** (**Billing Rules → General**), then **Development Levies** (**Levies**), which picks one of the rate cards.

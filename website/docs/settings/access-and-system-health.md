@@ -14,7 +14,7 @@ residio_sources:
   - src/app/(dashboard)/system/page.tsx
   - src/components/system/**
   - src/actions/system/**
-residio_verified_commit: ffcd7926
+residio_verified_commit: 8ee874c6
 residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
@@ -27,24 +27,17 @@ Open **System** in the sidebar — or the status indicator next to the menu butt
 
 ## Roles and permissions
 
-This work is split across two places, because defining what a role *is* and
-working through who holds it are different jobs. Make changes only with an
-approved access request, and record the reason.
+Defining a role and giving it to a person are one task, so both live on one page. Open **System → Roles & Access** (the **Roles & Permissions** link in Settings opens its Roles tab). Make changes only with an approved access request, and record the reason.
 
-Open **Settings → Roles & Permissions** to define roles:
+| Tab | Use it for | Needs |
+| --- | --- | --- |
+| Administrators | Who currently holds an admin role, and assigning one | Assign roles |
+| Pending sign-ups | Sign-ups waiting to be approved or rejected | Assign roles |
+| Unlinked logins | Logins that are not linked to any resident. A login that already holds a role carries a *Holds role* badge | Assign roles |
+| Roles | Roles, the modules and privileges each one carries, and how many people hold each | Manage roles |
+| Who can hold each role | Which resident types are eligible for each executive role | Manage roles |
 
-| Tab | Use it for |
-| --- | --- |
-| Role Definitions | Roles, and the modules and privileges each one carries |
-| Assignment Rules | Which resident types are eligible for each executive role |
-
-Open **System → Accounts** for the day-to-day account work:
-
-| Tab | Use it for |
-| --- | --- |
-| Role Assignments | Who currently holds an admin role |
-| Pending Accounts | Sign-ups waiting to be approved or rejected |
-| Orphaned Accounts | Logins that are not linked to any resident |
+The tab is kept in the address (?tab=), so a link opens the tab you were on. The holder count on the Roles tab opens the Administrators tab filtered to that role; clear the filter from the *Showing* line.
 
 ## Recipient groups
 
@@ -65,13 +58,13 @@ an admin login with no resident record cannot be added.
   both are granted to Super Admin and Chairman. Every create, rename, member change and delete
   is written to the audit log.
 
-The **Access** column on Role Definitions shows how many modules and privileges a role holds, and opens the picker where you grant or revoke them. [Roles and permissions](../getting-started/roles-and-permissions) covers creating a role.
+The **Access** column on the Roles tab shows how many modules and privileges a role holds, and opens the picker where you grant or revoke them. [Roles and permissions](../getting-started/roles-and-permissions) covers creating a role.
 
-Deleting a role states how many users hold it. A role that anyone still holds cannot be deleted: reassign those users first. Defining roles needs the Manage roles permission; an admin who can only assign roles is sent to **System → Accounts** instead.
+Deleting a role states how many users hold it. A role that anyone still holds cannot be deleted: reassign those users first. Defining roles needs the Manage roles permission; an admin who can only assign roles sees the first three tabs and never the Roles or Who can hold each role tabs.
 
-**Resident portal access per account.** On the **Role Assignments** tab, each administrator row and the account you select under *Assign Roles* carries a *Resident portal* control with three choices: **Inherit** (follow the estate-wide switch in Settings → Estate & Property → Estate Details), **Enabled** and **Disabled**. The text beside it shows the effective result, for example "Inherit (currently off)". *Enabled* works while the estate-wide switch is off, so you can open the portal links to a pilot group first. Changing it needs the permission to assign roles; without it you see the effective state read-only. Every change is recorded in the audit log. This setting only controls whether links are shown: *My Portal* and *Resident Portal* also require the account to be linked to a resident, so an administrator with no resident record never sees them, and *View as Resident* additionally needs the impersonation permission.
+**Resident portal access per account.** On the **Administrators** tab, each administrator row and the account you select under *Assign Roles* carries a *Resident portal* control with three choices: **Inherit** (follow the estate-wide switch in Settings → Estate & Property → Estate Details), **Enabled** and **Disabled**. The text beside it shows the effective result, for example "Inherit (currently off)". *Enabled* works while the estate-wide switch is off, so you can open the portal links to a pilot group first. Changing it needs the permission to assign roles; without it you see the effective state read-only. Every change is recorded in the audit log. This setting only controls whether links are shown: *My Portal* and *Resident Portal* also require the account to be linked to a resident, so an administrator with no resident record never sees them, and *View as Resident* additionally needs the impersonation permission.
 
-Work the **Pending Accounts** queue, under System, as part of routine access review. A new sign-up has no access to anything until it is approved there, so a queue left unattended is a person locked out rather than a person with access they should not have. [Roles and permissions](../getting-started/roles-and-permissions) covers the approval and rejection steps.
+Work the **Pending sign-ups** queue, under System → Roles & Access, as part of routine access review. A new sign-up has no access to anything until it is approved there, so a queue left unattended is a person locked out rather than a person with access they should not have. [Roles and permissions](../getting-started/roles-and-permissions) covers the approval and rejection steps.
 
 ## Audit logs
 

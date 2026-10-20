@@ -1,12 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { createAdminClient } from '@/lib/supabase/server';
-import { getWhatsAppDeliveryProblems, getWhatsAppDisclosureLogs, getWhatsAppHealth, getWhatsAppSessions, getWhatsAppStatementFlags } from '../admin-console';
+import { getWhatsAppClearanceCopyFailures, getWhatsAppDeliveryProblems, getWhatsAppDisclosureLogs, getWhatsAppHealth, getWhatsAppSessions, getWhatsAppStatementFlags, getWhatsAppSurveySummary, retryWhatsAppClearanceCopy } from '../admin-console';
+import { logAudit } from '@/lib/audit/logger';
+import { retryClearanceCopy } from '@/lib/clearance/issue-certificate';
 import { filterDisclosureLogs, filterOptIns } from '@/app/(dashboard)/settings/whatsapp/operations-console';
 
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: vi.fn() }));
 vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
-vi.mock('@/lib/auth/action-roles', () => ({ PERMISSIONS: { WHATSAPP_VIEW: 'whatsapp.view' } }));
+vi.mock('@/lib/auth/action-roles', () => ({ PERMISSIONS: { WHATSAPP_VIEW: 'whatsapp.view', WHATSAPP_MANAGE: 'whatsapp.manage' } }));
+vi.mock('@/lib/audit/logger', () => ({ logAudit: vi.fn() }));
+vi.mock('@/lib/clearance/issue-certificate', () => ({ retryClearanceCopy: vi.fn() }));
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
 const authMock = vi.mocked(authorizePermission);
 const clientMock = vi.mocked(createAdminClient);
@@ -50,6 +55,8 @@ describe('WhatsApp operations console actions', () => {
     expect((await getWhatsAppHealth()).error).toBe('Forbidden');
     expect((await getWhatsAppDeliveryProblems()).error).toBe('Forbidden');
     expect((await getWhatsAppStatementFlags()).error).toBe('Forbidden');
+    expect((await getWhatsAppClearanceCopyFailures()).error).toBe('Forbidden');
+    expect((await getWhatsAppSurveySummary()).error).toBe('Forbidden');
     expect(clientMock).not.toHaveBeenCalled();
   });
 
@@ -94,6 +101,38 @@ describe('WhatsApp operations console actions', () => {
     expect(result.data).toEqual({ inboundToday: 4, outboundToday: 6, deliveryFailuresToday: 1, templateErrorsToday: 3, capLimitEventsToday: 5 });
   });
 
+  it('counts the last 30 days of survey scores and reasons, with no comments or names (#872)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-20T12:00:00.000Z'));
+    authMock.mockResolvedValue(authorized);
+    const query = chain({
+      data: [
+        { score: 'good', reason: null },
+        { score: 'good', reason: null },
+        { score: 'okay', reason: null },
+        { score: 'poor', reason: 'too_slow' },
+        { score: 'poor', reason: 'other' },
+        { score: 'poor', reason: 'other' },
+        { score: null, reason: null },
+      ],
+      error: null,
+    });
+    const from = vi.fn().mockReturnValue(query);
+    clientMock.mockReturnValue({ from } as never);
+
+    const result = await getWhatsAppSurveySummary();
+
+    expect(from).toHaveBeenCalledWith('whatsapp_survey_responses');
+    expect(query.gte).toHaveBeenCalledWith('asked_at', '2026-09-20T12:00:00.000Z');
+    expect(String(query.select.mock.calls[0][0])).toBe('score, reason');
+    expect(result.data).toEqual({
+      asked: 7,
+      byScore: { good: 2, okay: 1, poor: 3 },
+      byReason: { too_slow: 1, not_found: 0, wrong_information: 0, other: 2 },
+    });
+    vi.useRealTimers();
+  });
+
   it('lists failed sends and Chatmaid sends unconfirmed past 15 minutes, with the resident (#839)', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(Date.parse('2026-10-20T12:00:00.000Z'));
@@ -107,6 +146,48 @@ describe('WhatsApp operations console actions', () => {
     expect(String(problems.select.mock.calls[0][0])).toMatch(/inbound_message_id.*resident:residents\(/);
     expect(problems.or).toHaveBeenCalledWith('status.eq.failed,and(status.eq.pending,provider.eq.chatmaid,created_at.lt.2026-10-20T11:45:00.000Z)');
     vi.useRealTimers();
+  });
+
+  it('lists clearance certificate copies that failed, with the recipient and the certificate (#816)', async () => {
+    authMock.mockResolvedValue(authorized);
+    const query = chain({ data: [{ id: 'copy-1', error: 'not opted in', attempts: 1 }], error: null });
+    clientMock.mockReturnValue({ from: vi.fn().mockReturnValue(query) } as never);
+
+    const result = await getWhatsAppClearanceCopyFailures();
+
+    expect(result.data).toEqual([{ id: 'copy-1', error: 'not opted in', attempts: 1 }]);
+    expect(String(query.select.mock.calls[0][0])).toMatch(/recipient:residents\(.*document:documents\(title\)/);
+    expect(query.eq).toHaveBeenCalledWith('status', 'failed');
+  });
+
+  it('retries a failed clearance copy for a manager, and audits the retry', async () => {
+    authMock.mockResolvedValue(authorized);
+    vi.mocked(retryClearanceCopy).mockResolvedValue({ sent: true, documentId: 'doc-1' });
+
+    expect(await retryWhatsAppClearanceCopy('copy-1')).toEqual({ success: true, data: null, error: null });
+    expect(authMock).toHaveBeenCalledWith('whatsapp.manage');
+    expect(retryClearanceCopy).toHaveBeenCalledWith('copy-1');
+    expect(logAudit).toHaveBeenCalledWith(expect.objectContaining({ action: 'UPDATE', entityType: 'documents', entityId: 'doc-1', newValues: { retried: true, copyId: 'copy-1', sent: true } }));
+  });
+
+  it('reports why a retried copy still did not send, and refuses without whatsapp.manage', async () => {
+    authMock.mockResolvedValue(authorized);
+    vi.mocked(retryClearanceCopy).mockResolvedValue({ sent: false, reason: 'not opted in' });
+    expect(await retryWhatsAppClearanceCopy('copy-1')).toMatchObject({ success: false, error: 'Not sent: not opted in' });
+
+    vi.clearAllMocks();
+    authMock.mockResolvedValue(unauthorized);
+    expect(await retryWhatsAppClearanceCopy('copy-1')).toMatchObject({ success: false, error: 'Forbidden' });
+    expect(retryClearanceCopy).not.toHaveBeenCalled();
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+
+  it('does not throw when the retry itself fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    authMock.mockResolvedValue(authorized);
+    vi.mocked(retryClearanceCopy).mockRejectedValue(new Error('storage down'));
+    expect(await retryWhatsAppClearanceCopy('copy-1')).toMatchObject({ success: false });
+    expect(logAudit).not.toHaveBeenCalled();
   });
 
   it('filters opt-ins and disclosures by admin-visible fields', () => {
