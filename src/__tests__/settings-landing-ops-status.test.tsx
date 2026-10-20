@@ -7,6 +7,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 vi.mock('next/navigation', () => ({ usePathname: () => '/settings' }));
 vi.mock('next/link', () => ({
@@ -19,12 +20,18 @@ vi.mock('next/link', () => ({
 vi.mock('@/lib/auth/auth-provider', () => ({
   useAuth: () => ({ isLoading: false, hasPermission: () => true, hasAnyPermission: () => true }),
 }));
-vi.mock('@/hooks/use-notifications', () => ({
-  useNotificationTemplates: () => ({ data: [] }),
-  useNotificationSchedules: () => ({ data: [] }),
+vi.mock('@/actions/settings/get-setup-status', () => ({
+  getSetupStatus: async () => ({ data: null, error: null }),
 }));
 
 import SettingsPage from '@/app/(dashboard)/settings/page';
+
+const renderPage = () =>
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <SettingsPage />
+    </QueryClientProvider>
+  );
 
 const card = (href: string) => screen.getAllByRole('link').find((a) => a.getAttribute('href') === href)!;
 
@@ -36,7 +43,7 @@ afterEach(() => {
 describe('Settings landing ops status (#789)', () => {
   it('marks each card ON only while its own state is on', () => {
     document.cookie = 'residio_ops_status=10; path=/';
-    render(<SettingsPage />);
+    renderPage();
     expect(card('/settings/maintenance')).toHaveTextContent('ON');
     expect(card('/settings/comms-override')).not.toHaveTextContent('ON');
     expect(card('/settings/data-retention')).not.toHaveTextContent('ON');
@@ -44,7 +51,7 @@ describe('Settings landing ops status (#789)', () => {
 
   it('marks the override card when the override is on', () => {
     document.cookie = 'residio_ops_status=01; path=/';
-    render(<SettingsPage />);
+    renderPage();
     expect(card('/settings/comms-override')).toHaveTextContent('ON');
     expect(card('/settings/maintenance')).not.toHaveTextContent('ON');
   });
