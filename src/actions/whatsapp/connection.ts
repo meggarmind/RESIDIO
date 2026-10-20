@@ -29,6 +29,9 @@ import { isApprovedWhatsAppTemplateName } from '@/lib/whatsapp/templates';
 import { CHATMAID_DEFAULT_BASE_URL } from '@/lib/whatsapp/config-db';
 import { fetchChatmaidConnectionStatus, lookupChatmaidPhone } from '@/lib/whatsapp/providers/chatmaid';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
+import { getRawSettingsAsService } from '@/lib/settings/service';
+import { OVERRIDE_SETTING_KEYS, parseOverrideSettings } from '@/lib/comms-override/settings';
+import { fromNumberConflict, type OverrideNumbers } from '@/lib/comms-override/number-conflict';
 
 type ActionResult<T> = {
   success: boolean;
@@ -188,6 +191,34 @@ const saveWhatsAppCredentialsSchema = z.discriminatedUnion('provider', [
   chatmaidCredentialsSchema,
 ]);
 
+async function readOverrideNumbers(): Promise<OverrideNumbers | null> {
+  const read = await getRawSettingsAsService([OVERRIDE_SETTING_KEYS.phone, OVERRIDE_SETTING_KEYS.whatsappPhone]);
+  if (read.status === 'error') return null;
+  const { phone, whatsappPhone } = parseOverrideSettings(read.values);
+  return { phone, whatsappPhone };
+}
+
+/**
+ * Admin-form read of the override numbers, so the connection form can show a
+ * from-number conflict as the admin types (#904). The save stays the authority.
+ */
+export async function getWhatsAppOverrideNumbers(): Promise<ActionResult<OverrideNumbers>> {
+  const authorization = await authorizePermission(PERMISSIONS.WHATSAPP_MANAGE);
+  if (!authorization.authorized) {
+    return { success: false, data: null, error: authorization.error || 'Unauthorized' };
+  }
+  const numbers = await readOverrideNumbers();
+  if (!numbers) return { success: false, data: null, error: 'Failed to load the override numbers' };
+  return { success: true, data: numbers, error: null };
+}
+
+/** Rejects a from-number that is where the communications override redirects WhatsApp to (#904). */
+async function validateFromNumberAgainstOverride(fromNumber: string): Promise<string | null> {
+  const numbers = await readOverrideNumbers();
+  if (!numbers) return 'Could not verify the from number against the communications override; try again.';
+  return fromNumberConflict(fromNumber, numbers);
+}
+
 function describePairedPhones(pairedNumbers: string[]): string {
   return pairedNumbers.length === 0
     ? 'This Chatmaid account has no paired phones.'
@@ -203,6 +234,9 @@ async function validateChatmaidFromNumber(
   adminClient: ReturnType<typeof createAdminClient>,
   value: { apiKey: string; fromNumber: string }
 ): Promise<string | null> {
+  const overrideConflict = await validateFromNumberAgainstOverride(value.fromNumber);
+  if (overrideConflict) return overrideConflict;
+
   const { data: optins, error: optinError } = await adminClient
     .from('whatsapp_optins')
     .select('id')
@@ -302,6 +336,9 @@ export async function saveWhatsAppCredentials(
       apiVersion: value.apiVersion || 'v23.0',
     };
   } else if (value.provider === 'twilio') {
+    const overrideConflict = await validateFromNumberAgainstOverride(value.fromNumber);
+    if (overrideConflict) return { success: false, data: null, error: overrideConflict };
+
     rpcParams = {
       p_provider: 'twilio',
       p_account_sid_encrypted: encrypt(value.accountSid),

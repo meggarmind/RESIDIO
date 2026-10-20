@@ -6,6 +6,8 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { getRawSettingsAsService } from '@/lib/settings/service';
 import { updateSetting } from './update-setting';
+import { createAdminClient } from '@/lib/supabase/server';
+import { overrideNumberConflict } from '@/lib/comms-override/number-conflict';
 import { getCommsEnvironment } from '@/lib/comms-override/environment';
 import {
   DEBUG_DURATION_KEY,
@@ -27,6 +29,8 @@ export interface CommsOverrideState {
   email: string;
   phone: string;
   whatsappPhone: string;
+  /** The active WhatsApp provider's from-number (non-secret), or '' when none (#904). */
+  whatsappFromNumber: string;
   /** Debug Mode as stored. */
   debugMode: boolean;
   /** Stored expiry (ISO), or null when blank. */
@@ -50,6 +54,23 @@ const UpdateSchema = z.object({
 
 export type UpdateCommsOverrideInput = z.input<typeof UpdateSchema>;
 
+/**
+ * The active WhatsApp credential's from-number, '' when there is none, null when
+ * unreadable. Selects the one non-secret column only (#904).
+ */
+async function readActiveFromNumber(): Promise<string | null> {
+  const { data, error } = await createAdminClient()
+    .from('whatsapp_provider_credentials')
+    .select('whatsapp_from_number')
+    .eq('is_active', true)
+    .maybeSingle();
+  if (error) {
+    console.error('Failed to read the active WhatsApp from number:', error);
+    return null;
+  }
+  return data?.whatsapp_from_number ?? '';
+}
+
 /** Effective state of the communications override, for the settings page. */
 export async function getCommsOverrideState(): Promise<{ data: CommsOverrideState | null; error: string | null }> {
   const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
@@ -59,6 +80,8 @@ export async function getCommsOverrideState(): Promise<{ data: CommsOverrideStat
   if (read.status === 'error') return { data: null, error: 'Failed to load override settings' };
 
   const settings = parseOverrideSettings(read.values);
+  const fromNumber = await readActiveFromNumber();
+  if (fromNumber === null) return { data: null, error: 'Failed to load the WhatsApp from number' };
   const environment = getCommsEnvironment();
   const expiryUnparseable =
     settings.debugMode && settings.debugExpiresAt !== null && Number.isNaN(Date.parse(settings.debugExpiresAt));
@@ -71,6 +94,7 @@ export async function getCommsOverrideState(): Promise<{ data: CommsOverrideStat
       email: settings.email,
       phone: settings.phone,
       whatsappPhone: settings.whatsappPhone,
+      whatsappFromNumber: fromNumber,
       debugMode: settings.debugMode,
       debugExpiresAt: settings.debugExpiresAt,
       debugEffective: isDebugEffective(settings.debugMode, settings.debugExpiresAt, new Date()),
@@ -99,6 +123,11 @@ export async function updateCommsOverrideSettings(
   }
   const values = parsed.data;
   const { isProduction } = getCommsEnvironment();
+
+  const fromNumber = await readActiveFromNumber();
+  if (fromNumber === null) return { success: false, error: 'Could not verify the override numbers against the WhatsApp from number; try again.' };
+  const conflict = overrideNumberConflict(values, fromNumber);
+  if (conflict) return { success: false, error: conflict.message };
 
   const writes: Array<[string, string | boolean]> = [
     [OVERRIDE_SETTING_KEYS.email, values.email],
