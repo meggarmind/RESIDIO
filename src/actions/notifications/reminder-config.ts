@@ -7,7 +7,7 @@
  * Uses system_settings to store reminder schedule configurations.
  */
 
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
 // `getReminderSettings` below reads via the RLS-bound `getSettingValue`
 // deliberately: it is only reached from authenticated dashboard pages
 // (settings/notifications/reminders), never from the cron path -- see #139.
@@ -455,9 +455,11 @@ export async function getReminderSettings(): Promise<{
   };
 }
 
-// The cron records each run in the System Action Log (#846); RLS limits this read to
-// holders of system.view_system_log, as on the log page itself.
+// The cron records each run in the System Action Log (#846). Reminder managers lack
+// system.view_system_log, so only this one timestamp is read with the service role.
 async function getLastReminderRun(): Promise<string | null> {
+  const auth = await authorizePermission(REMINDER_PERMISSION);
+  if (!auth.authorized) return null;
   type UntypedClient = {
     from: (table: string) => {
       select: (columns: string) => {
@@ -469,7 +471,7 @@ async function getLastReminderRun(): Promise<string | null> {
       };
     };
   };
-  const supabase = (await createServerSupabaseClient()) as unknown as UntypedClient;
+  const supabase = createAdminClient() as unknown as UntypedClient;
   const { data } = await supabase
     .from('system_action_log')
     .select('occurred_at')
