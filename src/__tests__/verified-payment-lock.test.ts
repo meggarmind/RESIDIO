@@ -193,3 +193,19 @@ describe('unverifyPayment', () => {
     expect((await updatePayment(A, { amount: 6000 })).success).toBe(true);
   });
 });
+
+describe('payment verification audit display (#893)', () => {
+  it('manuallyVerifyPayment names the payment by its reference number', async () => {
+    const { manuallyVerifyPayment } = await import('@/actions/finance/manual-verification');
+    results['payment_records'] = { data: stored({ is_verified: false }), error: null };
+    expect((await manuallyVerifyPayment(A)).success).toBe(true);
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({ entityDisplay: 'Payment: R1' }));
+  });
+
+  it('unverifyPayment names the payment by its reference number', async () => {
+    const { unverifyPayment } = await import('@/actions/finance/manual-verification');
+    results['payment_records'] = { data: stored(), error: null };
+    expect((await unverifyPayment(A)).success).toBe(true);
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({ entityDisplay: 'Payment: R1' }));
+  });
+});
