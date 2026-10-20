@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   canPerformWhatsAppFinancialLookup,
   composeStatementAnswer,
@@ -478,5 +478,81 @@ describe('WhatsApp PIN lockout and hashing (#850)', () => {
     vi.mocked(createAdminClient).mockReturnValue({ from: vi.fn().mockReturnValue(chain) } as unknown as ReturnType<typeof createAdminClient>);
 
     await expect(createSupabaseWhatsAppFinancialRepository().getForcePin()).resolves.toBe(expected);
+  });
+});
+
+describe('WhatsApp next-due answer (#811)', () => {
+  type InvoiceRow = { invoice_number: string; amount_due: number; amount_paid: number; due_date: string };
+
+  function mockInvoices(rows: InvoiceRow[]) {
+    // Behaves like PostgREST: awaitable as is, and .limit(n) returns only the first n rows.
+    const ordered = {
+      limit: (n: number) => Promise.resolve({ data: rows.slice(0, n), error: null }),
+      then: (resolve: (value: { data: InvoiceRow[]; error: null }) => unknown) => resolve({ data: rows, error: null }),
+    };
+    const chain = { select: vi.fn(), eq: vi.fn(), neq: vi.fn(), order: vi.fn().mockReturnValue(ordered) };
+    chain.select.mockReturnValue(chain);
+    chain.eq.mockReturnValue(chain);
+    chain.neq.mockReturnValue(chain);
+    vi.mocked(createAdminClient).mockReturnValue({ from: vi.fn().mockReturnValue(chain) } as unknown as ReturnType<typeof createAdminClient>);
+  }
+
+  function paidMonthly(count: number): InvoiceRow[] {
+    return Array.from({ length: count }, (_, i) => ({
+      invoice_number: `INV-${i}`,
+      amount_due: 5000,
+      amount_paid: 5000,
+      due_date: `${2020 + Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, '0')}-01`,
+    }));
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-20T10:00:00Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('finds an unpaid invoice newer than more than 20 fully paid ones', async () => {
+    mockInvoices([...paidMonthly(25), { invoice_number: 'INV-NEW', amount_due: 5000, amount_paid: 0, due_date: '2026-11-01' }]);
+
+    const answer = await createSupabaseWhatsAppFinancialRepository().getNextDue('resident-1', 'house-1');
+
+    expect(answer.body).not.toContain('no outstanding');
+    expect(answer.body).toBe('Next due: ₦5,000.00 on 01/11/2026 (invoice INV-NEW).');
+  });
+
+  it('reports overdue invoices separately from the next one due', async () => {
+    mockInvoices([
+      ...paidMonthly(22),
+      { invoice_number: 'INV-A', amount_due: 5000, amount_paid: 2000, due_date: '2026-08-01' },
+      { invoice_number: 'INV-B', amount_due: 5000, amount_paid: 0, due_date: '2026-09-01' },
+      { invoice_number: 'INV-C', amount_due: 6000, amount_paid: 0, due_date: '2026-11-01' },
+      { invoice_number: 'INV-D', amount_due: 7000, amount_paid: 0, due_date: '2026-12-01' },
+    ]);
+
+    const answer = await createSupabaseWhatsAppFinancialRepository().getNextDue('resident-1', 'house-1');
+
+    expect(answer.body).toBe(
+      'Overdue: ₦8,000.00 across 2 invoices (oldest due 01/08/2026).\nNext due: ₦6,000.00 on 01/11/2026 (invoice INV-C).'
+    );
+  });
+
+  it('omits the next-due line when nothing is due in the future', async () => {
+    mockInvoices([{ invoice_number: 'INV-A', amount_due: 5000, amount_paid: 0, due_date: '2026-09-01' }]);
+
+    const answer = await createSupabaseWhatsAppFinancialRepository().getNextDue('resident-1', 'house-1');
+
+    expect(answer.body).toBe('Overdue: ₦5,000.00 across 1 invoice (oldest due 01/09/2026).');
+  });
+
+  it('says nothing is outstanding when every invoice is paid', async () => {
+    mockInvoices(paidMonthly(30));
+
+    const answer = await createSupabaseWhatsAppFinancialRepository().getNextDue('resident-1', 'house-1');
+
+    expect(answer.body).toBe('There is no outstanding due invoice for this property.');
   });
 });
