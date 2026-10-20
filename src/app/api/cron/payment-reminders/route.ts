@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { processInvoiceReminders } from '@/actions/notifications/invoice-reminders';
+import { processInvoiceReminders } from '@/lib/notifications/invoice-reminders';
 import { verifyCronAuth } from '@/lib/auth/cron-auth';
 import { withSystemLog, type SystemLogRun } from '@/lib/system-log/with-system-log';
 

@@ -1,10 +1,10 @@
 import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GET } from '../route';
-import { refreshPaymentCadenceSummary } from '@/actions/analytics/refresh-payment-cadence-summary';
+import { refreshPaymentCadenceSummary } from '@/lib/analytics/refresh-payment-cadence-summary';
 import { recordSystemAction } from '@/lib/system-log/recorder';
 
-vi.mock('@/actions/analytics/refresh-payment-cadence-summary', () => ({
+vi.mock('@/lib/analytics/refresh-payment-cadence-summary', () => ({
   refreshPaymentCadenceSummary: vi.fn(),
 }));
 vi.mock('@/lib/system-log/recorder', () => ({ recordSystemAction: vi.fn() }));

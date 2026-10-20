@@ -77,9 +77,6 @@ const PERMISSION_ALLOWLIST = [
   'paystack/verify-payment.ts',
   // Unauthenticated Paystack webhook: auth is the webhook signature.
   'paystack/webhook-handler.ts',
-  // Vercel cron (CRON_SECRET bearer auth, no user session) as well as manual
-  // triggers; a hard permission check would break the automated path.
-  'analytics/refresh-payment-cadence-summary.ts',
   // Pre-auth: runs before the caller has a session.
   'auth/register-resident-portal.ts',
   'two-factor/verify.ts',
@@ -124,9 +121,6 @@ const AUDIT_ALLOWLIST = [
   'auth/register-resident-portal.ts',
   // Pre-auth 2FA login flow: writes its own two_factor_audit_log instead.
   'two-factor/verify.ts',
-  // Vercel cron (CRON_SECRET bearer auth, no user session): recomputes an
-  // analytics cache table with no admin-attributable actor.
-  'analytics/refresh-payment-cadence-summary.ts',
 
   // ---- Reads that the write-pattern scan sees as writes.
   //
