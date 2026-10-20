@@ -268,7 +268,7 @@ export function HousePaymentStatus({ houseId, className }: HousePaymentStatusPro
             <CollapsibleTrigger asChild>
               <Button
                 variant="ghost"
-                className="w-full justify-between hover:bg-muted/50"
+                className="w-full justify-between hover:bg-muted/50 min-h-11 md:min-h-0"
               >
                 <div className="flex items-center gap-2">
                   <User className="h-4 w-4" />
@@ -336,7 +336,7 @@ export function HousePaymentStatus({ houseId, className }: HousePaymentStatusPro
         )}
 
         {/* View All Invoices Link */}
-        <Button variant="outline" size="sm" className="w-full" asChild>
+        <Button variant="outline" size="sm" className="w-full min-h-11 md:min-h-0" asChild>
           <Link href={`/billing?house_id=${houseId}`}>
             View All Invoices
             <ExternalLink className="h-3 w-3 ml-2" />

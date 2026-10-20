@@ -107,7 +107,7 @@ export function HouseHeader({ house, activeResidentCount }: HouseHeaderProps) {
           {canDeleteHouse && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className={headerButtonClass} aria-label="More house actions">
+                <Button variant="outline" className={`${headerButtonClass} min-w-11 md:min-w-0`} aria-label="More house actions">
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
