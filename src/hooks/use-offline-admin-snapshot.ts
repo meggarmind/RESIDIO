@@ -57,8 +57,10 @@ export function useOfflineAdminSnapshot<T>({
 
     void readAdminReadSnapshot<T>(scope, cacheKey).then((cached) => {
       if (cancelled || !cached) return;
+      const state = queryClient.getQueryState<T>(stableQueryKey);
+      if (state?.data !== undefined && state.dataUpdatedAt >= cached.savedAt) return;
       setSnapshot(cached);
-      if (queryClient.getQueryData<T>(stableQueryKey) === undefined) {
+      if (state?.data === undefined) {
         queryClient.setQueryData(stableQueryKey, cached.data);
       }
     });

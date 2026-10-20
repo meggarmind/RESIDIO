@@ -60,7 +60,7 @@ export function CommandRecentActivity({ activities, isLoading = false, isUnavail
                   <span className="text-muted-foreground">{`. ${a.description}`}</span>
                 </span>
                 {isValid(at) ? (
-                  <time dateTime={a.timestamp} className="shrink-0 text-xs text-muted-foreground">
+                  <time dateTime={a.timestamp} className="shrink-0 text-xs text-muted-foreground" suppressHydrationWarning>
                     {formatDistanceToNow(at, { addSuffix: true })}
                   </time>
                 ) : null}

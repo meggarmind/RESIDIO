@@ -131,9 +131,9 @@ export function CommandStrip({
       className="col-span-12 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
     >
       <div className="min-w-0">
-        <h1 className="text-2xl font-semibold tracking-tight">{greeting}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight" suppressHydrationWarning>{greeting}</h1>
         {asOfText ? (
-          <p data-testid="command-strip-asof" className="text-xs text-muted-foreground">
+          <p data-testid="command-strip-asof" className="text-xs text-muted-foreground" suppressHydrationWarning>
             As of {asOfText}
           </p>
         ) : null}
