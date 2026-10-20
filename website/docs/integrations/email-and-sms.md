@@ -10,7 +10,7 @@ residio_sources:
   - src/actions/notifications/**
   - src/app/(dashboard)/settings/email/**
   - src/app/(dashboard)/settings/notifications/**
-residio_verified_commit: 385fd3e1
+residio_verified_commit: ed58e759
 residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
@@ -69,7 +69,7 @@ Before saving a template change:
 
 **Settings → Messages & Reminders → Reminders** turns automatic reminders on or off, and **Reminder Schedule** defines the steps. Reminders are dispatched by a scheduled job rather than at the moment you save them, so a saved reminder that has not arrived yet is usually waiting for its next run, not broken. The Billing reminder days and the Email **Payment Reminders** switch also limit what it sends; see [Billing and notifications](../settings/billing-and-notifications.md).
 
-Invoice reminders go out by email and WhatsApp only. SMS is switched off for reminders until the SMS provider (Termii) is connected, so an SMS step in a reminder schedule is skipped without an error. The default schedule is email only, and the schedule editor offers Email only: it does not offer SMS, and WhatsApp cannot be selected for a step yet.
+Invoice reminders go out by email and WhatsApp only. SMS is switched off for reminders until the SMS provider (Termii) is connected, so an SMS step in a reminder schedule is skipped without an error. The default schedule is email only. The schedule editor offers Email and WhatsApp for each step; it does not offer SMS. A WhatsApp step reaches only residents who have opted in to WhatsApp.
 
 ## The notification queue
 
