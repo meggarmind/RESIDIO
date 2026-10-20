@@ -58,6 +58,11 @@ describe('inbound WhatsApp Assistant replies are exempt from the redirect (decis
       rememberPendingContact: vi.fn(),
       consumeLinkToken: vi.fn().mockResolvedValue(null),
       attachPendingContact: vi.fn(),
+      // #871: the first message gets the identity read-back.
+      isDisputed: vi.fn().mockResolvedValue(false),
+      getConsentState: vi.fn().mockResolvedValue({ confirmedFingerprint: null, privacy: null, step: null, pendingRequest: null }),
+      getStreetName: vi.fn().mockResolvedValue('Palm Avenue'),
+      saveConsentStep: vi.fn(),
     };
     await handleResidentMessage(inbound, { repository: repository as never });
 
