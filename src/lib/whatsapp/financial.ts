@@ -133,9 +133,12 @@ function pinRefusalText(claim: PinAttemptClaim): string {
   if (claim.status === 'locked' || claim.lockedUntil) {
     return `For security, your PIN is locked until ${lockTime(claim.lockedUntil!)}. Nothing was shown.`;
   }
-  // Never overstate: the 24-hour limit can arrive before the in-a-row one.
-  const left = Math.min(PIN_TRIES_IN_A_ROW - claim.triesInARow, PIN_TRIES_PER_WINDOW - claim.triesInWindow);
-  return `That PIN isn't correct. You have ${left} ${left === 1 ? 'try' : 'tries'} left before it locks for ${PIN_LOCK_MINUTES} minutes.`;
+  // The 24-hour limit can arrive before (or with) the in-a-row one; then the next lock is the hard one.
+  const rowLeft = PIN_TRIES_IN_A_ROW - claim.triesInARow;
+  const windowLeft = PIN_TRIES_PER_WINDOW - claim.triesInWindow;
+  const left = Math.min(rowLeft, windowLeft);
+  const lock = windowLeft <= rowLeft ? 'until the estate office resets it' : `for ${PIN_LOCK_MINUTES} minutes`;
+  return `That PIN isn't correct. You have ${left} ${left === 1 ? 'try' : 'tries'} left before it locks ${lock}.`;
 }
 
 function parseMenuItem(text: string): FinancialMenuItem | null {

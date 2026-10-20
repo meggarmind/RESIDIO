@@ -424,7 +424,7 @@ describe('WhatsApp PIN lockout and hashing (#850)', () => {
     expect(send.mock.calls[0]?.[0].body).toContain('You have 1 try left before it locks for 15 minutes.');
   });
 
-  it('never states more tries than the 24-hour limit leaves', async () => {
+  it('names the estate-office lock when the 24-hour limit comes first', async () => {
     const repo = repository();
     vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
     vi.mocked(repo.claimPinAttempt).mockResolvedValue(counted({ triesInARow: 1, triesInWindow: 5 }));
@@ -432,7 +432,22 @@ describe('WhatsApp PIN lockout and hashing (#850)', () => {
 
     await handleFinancialMessage(message('PIN 000000'), identity, { repository: repo, optedIn: true, send });
 
-    expect(send.mock.calls[0]?.[0].body).toContain('You have 1 try left');
+    expect(send.mock.calls[0]?.[0].body).toBe(
+      "That PIN isn't correct. You have 1 try left before it locks until the estate office resets it.\n" + CONTACT_LINE
+    );
+  });
+
+  it('names the estate-office lock when both limits arrive on the same try', async () => {
+    const repo = repository();
+    vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
+    vi.mocked(repo.claimPinAttempt).mockResolvedValue(counted({ triesInARow: 1, triesInWindow: 4 }));
+    const send = vi.fn().mockResolvedValue({ success: true });
+
+    await handleFinancialMessage(message('PIN 000000'), identity, { repository: repo, optedIn: true, send });
+
+    expect(send.mock.calls[0]?.[0].body).toBe(
+      "That PIN isn't correct. You have 2 tries left before it locks until the estate office resets it.\n" + CONTACT_LINE
+    );
   });
 
   it('locks for 15 minutes on the third wrong PIN in a row and shows the Lagos time', async () => {
