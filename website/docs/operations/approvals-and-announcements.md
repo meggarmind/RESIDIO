@@ -8,8 +8,8 @@ residio_sources:
   - src/app/(dashboard)/announcements/**
   - src/actions/approvals/**
   - src/actions/announcements/**
-residio_verified_commit: 7f6feef
-residio_verified_at: '2026-10-16'
+residio_verified_commit: 270ccb64
+residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
 
@@ -19,7 +19,7 @@ residio_app_version: '0.4.0'
 
 ![Residio approvals queue](../assets/admin/approvals-queue.png)
 
-Open **Approvals** from the dashboard or sidebar. Review the source record, evidence, submitter, amount, and history before approving or rejecting an item.
+Open **Approvals** from the dashboard or sidebar. Review the source record, evidence, submitter, amount, and history before approving or rejecting an item. On a phone, each request is shown as a card with the same status, details and **Approve** / **Reject** buttons as the table row.
 
 Use the approval decision that matches the evidence. If the record is incomplete, reject it with a useful reason or leave it pending according to the estate process.
 

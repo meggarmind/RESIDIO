@@ -10,7 +10,7 @@ residio_sources:
   - src/actions/system/cron-status.ts
   - src/lib/system/cron-status.ts
   - src/app/(dashboard)/system/cron-status/**
-residio_verified_commit: f164993a
+residio_verified_commit: 15bb8dd6
 residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
@@ -44,6 +44,10 @@ These schedules run as scheduled tasks on both the production and the staging se
 
 The override does not reach three kinds of message, which staging can still send to real people: WhatsApp Assistant replies (they go to whoever messaged the number), sign-in emails such as password resets and invites (sent by Supabase), and Paystack payment receipts (sent by Paystack).
 
+Invoice generation also has an off-server safety net: it checks production and staging and runs invoice generation only when the status page reports that job as Critical, so it normally does nothing.
+
+Each scheduled run is also recorded in **System → Action Log** with its outcome, duration and any error. See [Access and system health](../settings/access-and-system-health).
+
 A late fee job also exists as an endpoint but has never been on the schedule. If your estate charges late fees, confirm with an engineer how that run is triggered before assuming it is automatic.
 
 ## Reading the status page
@@ -59,14 +63,13 @@ A late fee job also exists as an endpoint but has never been on the schedule. If
 
 A warning is a prompt to look, not a reason to act. Check the status page before manually generating invoices or resending notifications — a job that is merely late will otherwise run afterwards and duplicate your manual work.
 
-### Two jobs report against the wrong expectation
+### One job reports against the wrong expectation
 
-The status page judges each job against a frequency it declares internally, and for two jobs that frequency does not match the schedule the platform actually runs.
+The status page judges each job against a frequency it declares internally, and for notification processing that frequency does not match the schedule the platform actually runs.
 
 | Job | Status page expects | Actually scheduled |
 |---|---|---|
-| Notification processing | Every 5 minutes | Every 15 minutes |
-| Invoice generation | Monthly, from a set day | Daily, 06:00 |
+| Notification processing | Every 5 minutes (Warning after 10 minutes, Critical after 30) | Every 15 minutes |
 
 The practical effect is that **notification processing often reports Warning or Critical**: the card measures the time since the last message was sent, so it goes Critical whenever 30 minutes pass with nothing to send. Read that particular card against the queue itself rather than the badge: if **System → Notification Queue** is draining, the job is working.
 

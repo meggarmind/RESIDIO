@@ -7,8 +7,8 @@ residio_sources:
   - src/lib/paystack/**
   - src/actions/paystack/**
   - src/app/api/payments/paystack/**
-residio_verified_commit: 93ed5d0
-residio_verified_at: '2026-08-29'
+residio_verified_commit: e24b7386
+residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
 
@@ -33,7 +33,9 @@ Residio acts on two outcomes: a successful charge and a failed charge. Anything 
 
 ## Verifying a payment
 
-Every gateway notification is cryptographically signed, and Residio rejects any notification whose signature does not verify. A payment that never appears was therefore either never completed at the gateway, or was sent to the wrong destination — it was not silently dropped.
+Every gateway notification is cryptographically signed, and Residio rejects any notification whose signature does not verify. A payment that never appears was therefore either never completed at the gateway, or was sent to the wrong destination — it was not silently dropped. If the webhook secret is not configured on the server, Residio refuses every notification rather than accepting unverified ones, so no gateway payment is recorded until an engineer sets it.
+
+Each notification that changes a payment, and each signed notification that fails to process, is recorded in **System → Action Log** with the source *webhook:paystack*. Ignored events and repeat deliveries of an already-processed payment are not recorded.
 
 To confirm a specific payment:
 
@@ -70,4 +72,5 @@ Administrators cannot see which key is in use from the dashboard. If real paymen
 | Payer says they paid, no transaction in Residio | Gateway dashboard for the reference — confirm the charge actually succeeded |
 | Transaction present but not applied | **Approvals** for a pending verification |
 | All card payments failing | Gateway credentials or account status — escalate to an engineer |
+| Charges succeed at the gateway but none reach Residio | **System → Action Log** for *webhook:paystack* entries; none at all can mean the webhook secret is not set — escalate to an engineer |
 | Payment recorded twice | One arrived from the gateway and one was entered manually — correct, do not delete |
