@@ -181,6 +181,25 @@ export const PERMISSIONS = {
   TWO_FACTOR_MANAGE_POLICIES: 'two_factor.manage_policies',
   TWO_FACTOR_VIEW_AUDIT_LOG: 'two_factor.view_audit_log',
   TWO_FACTOR_RESET_USER: 'two_factor.reset_user',
+
+  // Database-level (RLS) permissions (#63). Policies check these in place of hard-coded
+  // role-name lists; each was seeded to exactly the roles its literal named. No server
+  // action checks them, so the app's own checks above still decide what the UI allows.
+  HOUSES_MANAGE_RECORDS: 'houses.manage_records',
+  RESIDENTS_MANAGE_RECORDS: 'residents.manage_records',
+  RESIDENTS_DELETE_RECORDS: 'residents.delete_records',
+  SECURITY_VIEW_ACTIVE_RESIDENTS: 'security.view_active_residents',
+  SECURITY_MANAGE_RECORDS: 'security.manage_records',
+  SECURITY_OPERATE_RECORDS: 'security.operate_records',
+  SECURITY_WRITE_CONTACT_CATEGORIES: 'security.write_contact_categories',
+  BILLING_WRITE_PROFILES: 'billing.write_profiles',
+  NOTIFICATIONS_MANAGE_DELIVERY: 'notifications.manage_delivery',
+  PAYMENTS_MANAGE_REFERENCE_RECORDS: 'payments.manage_reference_records',
+  PAYMENTS_WRITE_TRANSACTION_TAGS: 'payments.write_transaction_tags',
+  SETTINGS_WRITE_PROPERTY_REFERENCE: 'settings.write_property_reference',
+  SETTINGS_WRITE_SYSTEM: 'settings.write_system',
+  SYSTEM_VIEW_ALL_PROFILES: 'system.view_all_profiles',
+  DOCUMENTS_VIEW_ALL: 'documents.view_all',
 } as const;
 
 export type Permission = typeof PERMISSIONS[keyof typeof PERMISSIONS];
