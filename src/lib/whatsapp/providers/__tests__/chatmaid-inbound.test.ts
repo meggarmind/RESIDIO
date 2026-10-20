@@ -166,19 +166,22 @@ describe('extractChatmaidMessages', () => {
   it('gives group messages a null text so the Assistant never answers in a group', () => {
     const [group, direct] = extractChatmaidMessages({
       data: [
-        { messageId: 'g', from: '+2348000000000', content: 'balance', type: 'text', isGroup: true },
+        { messageId: 'g', from: '+2348000000000', content: 'balance', type: 'image', isGroup: true },
         { messageId: 'd', from: '+2348000000000', content: 'balance', type: 'text', isGroup: false },
       ],
     });
     expect(group.text).toBeNull();
+    // Typed 'group' so even group media is ignored, not given the text-only reply (#804).
+    expect(group.type).toBe('group');
     expect(direct.text).toBe('balance');
   });
 
-  it('gives non-text messages a null text so they are ignored, not answered', () => {
+  it('gives 1:1 non-text messages a null text and keeps their type for the text-only reply', () => {
     const [message] = extractChatmaidMessages({
       data: { messageId: 'img', from: '+2348000000000', content: 'caption', type: 'image' },
     });
     expect(message.text).toBeNull();
+    expect(message.type).toBe('image');
   });
 });
 

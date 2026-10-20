@@ -92,9 +92,6 @@ export async function POST(request: NextRequest) {
       await handleResidentMessage(message, {
         repository: createSupabaseWhatsAppIdentityRepository(),
         onIdentified: async (identifiedMessage, identity) => {
-          if (!identity.financialEligible) {
-            return;
-          }
             await handleFinancialMessage(identifiedMessage, identity, {
               repository: createSupabaseWhatsAppFinancialRepository(),
               optedIn: true,

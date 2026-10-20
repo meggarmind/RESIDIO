@@ -68,7 +68,7 @@ export async function getWhatsAppPilotSettings(): Promise<{
       outboundDailyCap: parseNumber(values.whatsapp_outbound_daily_cap, 100),
       outboundBurstCap: parseNumber(values.whatsapp_outbound_burst_cap, 20),
       outboundBurstWindowMinutes: parseNumber(values.whatsapp_outbound_burst_window_minutes, 10),
-      financialLookupDailyCap: parseNumber(values.whatsapp_daily_financial_lookup_cap, 50),
+      financialLookupDailyCap: parseNumber(values.whatsapp_daily_financial_lookup_cap, 500),
       // Defaults match the compiled-in fallbacks in
       // src/app/api/cron/whatsapp-retention/route.ts (1 / 2 days) so the
       // settings page shows the value that is actually in effect when the

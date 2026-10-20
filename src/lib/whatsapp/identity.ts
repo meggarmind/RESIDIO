@@ -382,7 +382,7 @@ export async function handleResidentMessage(
     await options.repository.rememberPendingContact(phoneNumber);
     await sendReply(
       message,
-      'Welcome to the Residio WhatsApp Assistant. We could not safely match this number to one Resident. Ask an estate admin for a link code, or reply STOP.',
+      'Welcome to the Residio Assistant. We could not safely match this number to one Resident. Ask an estate admin for a link code, or reply STOP.',
       options.send
     );
     return { status: rosterMatches.length > 1 ? 'ambiguous' : 'pending', residentId: null, optedIn: false, financialEligible: false, accessTier: 'community' };
@@ -396,7 +396,8 @@ export async function handleResidentMessage(
   const optedIn = await options.repository.getOptIn(matchedIdentity.id, phoneNumber);
   if (isStartCommand(text)) {
     await options.repository.setOptIn(matchedIdentity.id, phoneNumber, true, 'in_chat');
-    if (options.onIdentified && matchedIdentity.financialEligible) {
+    // YES, opted in already or not, opens the Assistant's main menu for either tier (#804).
+    if (options.onIdentified) {
       await options.onIdentified(message, matchedIdentity);
       return { status: 'identified', residentId: matchedIdentity.id, optedIn: true, financialEligible: matchedIdentity.financialEligible, accessTier: matchedIdentity.financialEligible ? 'financial' : 'community' };
     }
@@ -419,7 +420,8 @@ export async function handleResidentMessage(
     return { status: 'identified', residentId: matchedIdentity.id, optedIn: false, financialEligible: matchedIdentity.financialEligible, accessTier: matchedIdentity.financialEligible ? 'financial' : 'community' };
   }
 
-  if (options.onIdentified && matchedIdentity.financialEligible) {
+  // Community-tier residents get the Assistant's menu too, without Financial standing (#804).
+  if (options.onIdentified) {
     await options.onIdentified(message, matchedIdentity);
   } else {
     await sendReply(

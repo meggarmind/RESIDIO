@@ -128,6 +128,24 @@ describe('WhatsApp identity and consent', () => {
     expect(send.mock.calls[0]?.[0].body).toContain('announcements and notices');
     expect(send.mock.calls[0]?.[0].body).not.toContain('balance');
   });
+
+  it.each([
+    ['an opted-in community-tier resident', false, 'hello', true],
+    ['YES from a resident already opted in', true, 'YES', true],
+    ['YES from a community-tier resident opting in', false, 'YES', false],
+  ])('hands %s to the Assistant menu (#804)', async (_label, financialEligible, text, optedIn) => {
+    const repo = repository({
+      findRosterMatches: vi.fn().mockResolvedValue([{ ...resident, financialEligible }]),
+      getOptIn: vi.fn().mockResolvedValue(optedIn),
+    });
+    const send = vi.fn().mockResolvedValue({ success: true });
+    const onIdentified = vi.fn().mockResolvedValue(undefined);
+
+    await handleResidentMessage(message(text), { repository: repo, send, onIdentified });
+
+    expect(onIdentified).toHaveBeenCalledWith(expect.objectContaining({ text }), expect.objectContaining({ financialEligible }));
+    expect(send).not.toHaveBeenCalled();
+  });
 });
 
 describe('WhatsApp Assistant master switch (#547)', () => {

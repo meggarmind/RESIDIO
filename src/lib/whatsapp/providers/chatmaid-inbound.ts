@@ -227,11 +227,12 @@ export function extractChatmaidMessages(payload: unknown): WhatsAppInboundMessag
       id,
       from,
       timestamp: toUnixSecondsString(data.timestamp ?? root.timestamp),
-      type,
-      // Only 1:1 text is answered. Media is out of scope for #401, and the
-      // Assistant must never answer in a group (it would disclose one
-      // resident's finances to everyone in it). A null text means
-      // `processInboundMessages` claims the message and counts it as ignored.
+      // The Assistant must never answer in a group (it would disclose one
+      // resident's finances to everyone in it): a group message is typed
+      // 'group' with no text, which `processInboundMessages` claims and
+      // counts as ignored. 1:1 media keeps its type and gets the text-only
+      // reply (#804).
+      type: data.isGroup === true ? 'group' : type,
       text: type === 'text' && data.isGroup !== true ? content : null,
     });
   }
