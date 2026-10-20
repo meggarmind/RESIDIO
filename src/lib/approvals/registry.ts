@@ -20,6 +20,11 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ApprovalRequest, ApprovalRequestType, AuditEntityType } from '@/types/database';
 import { logAudit } from '@/lib/audit/logger';
 import { getChangedValues } from '@/lib/audit/helpers';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { formatNaira } from '@/lib/whatsapp/assistant-format';
+import { settleReportedPayment } from '@/lib/whatsapp/payment-report-settlement';
+import { issueApprovedClearance } from '@/lib/whatsapp/clearance-approval';
 
 export interface ApprovalApplyResult {
   success: boolean;
@@ -141,11 +146,72 @@ const housePlotsChange: ApprovalHandler<z.infer<typeof housePlotsChanges>> = {
   },
 };
 
+const whatsappPaymentReportChanges = z.object({
+  amount: z.number().positive(),
+  payment_date: z.string().min(1),
+  property: z.string().min(1),
+  reference: z.string().min(1),
+});
+
+/**
+ * A payment a resident reported over WhatsApp (#816). Approving it verifies the payment and credits
+ * the wallet, which is what payments.verify guards, so the approver needs that permission too.
+ */
+const whatsappPaymentReport: ApprovalHandler<z.infer<typeof whatsappPaymentReportChanges>> = {
+  schema: whatsappPaymentReportChanges,
+  auditEntityType: 'payment_records',
+  apply: async (request, changes) => {
+    const auth = await authorizePermission(PERMISSIONS.PAYMENTS_VERIFY);
+    if (!auth.authorized || !auth.userId) {
+      return { success: false, error: 'Confirming a reported payment needs the payments.verify permission' };
+    }
+
+    const settled = await settleReportedPayment(request.entity_id, auth.userId);
+    if (!settled.success) return { success: false, error: settled.error };
+
+    await logAudit({
+      action: 'VERIFY',
+      entityType: 'payment_records',
+      entityId: request.entity_id,
+      entityDisplay: `Reported payment ${formatNaira(changes.amount)} for ${changes.property}`,
+      oldValues: { status: 'pending', is_verified: false },
+      newValues: { status: 'paid', is_verified: true, verified_by: auth.userId, verification_type: 'whatsapp_report_approval' },
+      description: `Applied via approval request ${request.id}`,
+      metadata: { approval_request_id: request.id },
+    });
+    return { success: true, error: null };
+  },
+};
+
+const clearanceRequestChanges = z.object({
+  property: z.string().min(1),
+  resident: z.string().min(1),
+});
+
+/**
+ * A clearance certificate a resident asked for over WhatsApp (#816). Approving it issues the certificate:
+ * it is saved to the documents store, copied to the recipient group and sent to the resident in chat.
+ */
+const clearanceCertificateRequest: ApprovalHandler<z.infer<typeof clearanceRequestChanges>> = {
+  schema: clearanceRequestChanges,
+  auditEntityType: 'clearance_certificate',
+  apply: async (request) => {
+    const auth = await authorizePermission(PERMISSIONS.APPROVALS_APPROVE_REJECT);
+    if (!auth.authorized || !auth.userId) {
+      return { success: false, error: auth.error || 'Unauthorized' };
+    }
+    const issued = await issueApprovedClearance(request, auth.userId);
+    return issued.success ? { success: true, error: null } : { success: false, error: issued.error };
+  },
+};
+
 // Handled types only. `late_fee_waiver` is intentionally absent (see file header).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const REGISTRY: Partial<Record<ApprovalRequestType, ApprovalHandler<any>>> = {
   billing_profile_effective_date: billingProfileEffectiveDate,
   house_plots_change: housePlotsChange,
+  whatsapp_payment_report: whatsappPaymentReport,
+  clearance_certificate_request: clearanceCertificateRequest,
 };
 
 /** The handler for a request type, or undefined when the approvals flow does not handle it. */

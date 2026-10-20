@@ -84,7 +84,8 @@ export function statementRange(period: StatementPeriod, now: Date): { from: Date
   return { from, to: now };
 }
 
-function lagosDateString(date: Date): string {
+/** The Lagos calendar day of an instant, as `YYYY-MM-DD`. */
+export function lagosDateString(date: Date): string {
   const { year, month, day } = lagosParts(date);
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
@@ -233,7 +234,7 @@ export function answerFooter(hasContact: boolean): string {
 // ---------------------------------------------------------------------------
 // Keywords (#804 harmonised: numbers and fixed keywords only, no free-text parsing)
 
-export type AssistantIntent = 'owe' | 'payments' | 'statement' | 'wallet' | 'pay' | 'notices' | 'contact';
+export type AssistantIntent = 'owe' | 'payments' | 'statement' | 'wallet' | 'pay' | 'notices' | 'contact' | 'email' | 'reminders' | 'report' | 'receipt' | 'clearance';
 
 export const DEFAULT_KEYWORDS: Record<string, AssistantIntent> = {
   owe: 'owe',
@@ -242,7 +243,7 @@ export const DEFAULT_KEYWORDS: Record<string, AssistantIntent> = {
   debt: 'owe',
   payments: 'payments',
   paid: 'payments',
-  receipt: 'payments',
+  receipt: 'receipt',
   statement: 'statement',
   history: 'statement',
   wallet: 'wallet',
@@ -254,13 +255,17 @@ export const DEFAULT_KEYWORDS: Record<string, AssistantIntent> = {
   notice: 'notices',
   notices: 'notices',
   contact: 'contact',
+  email: 'email',
+  reminders: 'reminders',
+  report: 'report',
+  clearance: 'clearance',
 };
 
-const INTENTS = new Set<AssistantIntent>(['owe', 'payments', 'statement', 'wallet', 'pay', 'notices', 'contact']);
+const INTENTS = new Set<AssistantIntent>(['owe', 'payments', 'statement', 'wallet', 'pay', 'notices', 'contact', 'email', 'reminders', 'report', 'receipt', 'clearance']);
 
 /**
  * The office's extra phrasing, one `phrase = item` per line (item is one of
- * owe, payments, statement, wallet, pay, notices, contact). Bad lines are skipped.
+ * owe, payments, statement, wallet, pay, notices, contact, email, reminders, report, receipt, clearance). Bad lines are skipped.
  */
 export function parseKeywordSynonyms(value: unknown): Record<string, AssistantIntent> {
   const text = typeof value === 'string' ? value : '';

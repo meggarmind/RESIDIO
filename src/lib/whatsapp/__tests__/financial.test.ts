@@ -132,6 +132,15 @@ function repository(houses: FinancialHouse[] = [PALM], overrides: Partial<WhatsA
     getWalletBalance: vi.fn().mockResolvedValue(15000),
     getStatementRows: vi.fn().mockResolvedValue({ invoices: [], payments: [] }),
     setAlertsOn: vi.fn().mockResolvedValue(undefined),
+    getRemindersOn: vi.fn().mockResolvedValue(true),
+    setRemindersOn: vi.fn().mockResolvedValue(undefined),
+    startEmailChange: vi.fn().mockResolvedValue({ status: 'sent', email: 'new.name@example.com' }),
+    confirmEmailChange: vi.fn().mockResolvedValue({ status: 'saved', email: 'new.name@example.com', statementsQueued: 0 }),
+    createPaymentReport: vi.fn().mockResolvedValue({ status: 'created', paymentId: 'payment-1', requestId: 'request-1' }),
+    getReceiptPayments: vi.fn().mockResolvedValue([]),
+    loadReceipt: vi.fn().mockResolvedValue(null),
+    storeReceiptPdf: vi.fn().mockResolvedValue('https://storage.test/signed/receipt.pdf'),
+    requestClearance: vi.fn().mockResolvedValue({ status: 'requested', requestId: 'request-1' }),
     loadStatement: vi.fn().mockResolvedValue({ fromDate: '2026-10-01', toDate: '2026-10-20', statement: statementData(3) }),
     storeStatementPdf: vi.fn().mockResolvedValue('https://storage.test/signed/statement.pdf'),
     getResidentEmail: vi.fn().mockResolvedValue('ada.example@gmail.com'),
@@ -168,6 +177,7 @@ const MAIN_MENU = [
   '1. Financial standing',
   '3. How to pay',
   '4. Alert settings',
+  '5. Update email',
   '9. Contact the estate office',
   'Reply with a number.',
 ].join('\n');
@@ -178,6 +188,9 @@ const FINANCIAL_MENU = [
   '2. Recent payments',
   '3. Statement',
   '4. Wallet',
+  '5. Receipt',
+  '6. Report a payment',
+  '7. Clearance certificate',
   FOOTER,
 ].join('\n');
 
@@ -252,7 +265,7 @@ describe('WhatsApp Assistant menus (#804 harmonised)', () => {
     });
     const replies = await chat(repo, ['hi', '3', 'banana', '1', '1']);
 
-    expect(replies[0]).toBe(['Hi Ada, what would you like to do?', '1. Financial standing', '4. Alert settings', 'Reply with a number.'].join('\n'));
+    expect(replies[0]).toBe(['Hi Ada, what would you like to do?', '1. Financial standing', '4. Alert settings', '5. Update email', 'Reply with a number.'].join('\n'));
     expect(replies[1]).toBe(UNRECOGNISED);
     // No contact line to add on the 2nd miss.
     expect(replies[2]).toBe(UNRECOGNISED);
@@ -290,7 +303,7 @@ describe('WhatsApp Assistant menus (#804 harmonised)', () => {
     const repo = repository();
     const replies = await chat(repo, ['4', '1']);
 
-    expect(replies[0]).toBe(['Alert settings', '1. All estate WhatsApp messages: ON', 'Reply 1 to turn them off.', FOOTER].join('\n'));
+    expect(replies[0]).toBe(['Alert settings', '1. All estate WhatsApp messages: ON', '2. Payment reminders: ON', 'Reply 1 or 2 to change one.', FOOTER].join('\n'));
     expect(repo.setAlertsOn).toHaveBeenCalledWith('resident-1', '+2348000000000', false);
     expect(replies[1]).toContain('unsubscribed');
   });
@@ -334,6 +347,7 @@ describe('WhatsApp Assistant community tier (#804 decision 15)', () => {
       '2. Latest estate notices',
       '3. How to pay',
       '4. Alert settings',
+      '5. Update email',
       '9. Contact the estate office',
       'Reply with a number.',
     ].join('\n'));
@@ -896,6 +910,26 @@ describe('WhatsApp What I owe figures (#811, #804 decision 20)', () => {
     vi.useRealTimers();
   });
 
+  it('counts a payment reported on WhatsApp (pending, unverified) as awaiting verification (#816 decision 11)', async () => {
+    const statusFilters: Array<{ table: string; values: string[] }> = [];
+    const from = vi.fn((table: string) => {
+      const chain: Record<string, unknown> = {};
+      for (const op of ['select', 'eq', 'neq', 'order']) chain[op] = vi.fn(() => chain);
+      chain.in = vi.fn((column: string, values: string[]) => {
+        if (column === 'status') statusFilters.push({ table, values });
+        return chain;
+      });
+      chain.then = (resolve: (value: unknown) => unknown) => resolve(table === 'payment_records' ? { data: [{ amount: 50000 }], error: null } : { data: [], count: 0, error: null });
+      return chain;
+    });
+    vi.mocked(createAdminClient).mockReturnValue({ from } as unknown as ReturnType<typeof createAdminClient>);
+
+    const owed = await createSupabaseWhatsAppFinancialRepository().getOwed('resident-1', 'house-1');
+
+    expect(owed.awaitingVerification).toBe(50000);
+    expect(statusFilters).toContainEqual({ table: 'payment_records', values: ['paid', 'pending'] });
+  });
+
   it('finds an unpaid invoice newer than more than 1000 fully paid ones', async () => {
     mockTables([...paidMonthly(1100), { invoice_number: 'INV-NEW', amount_due: 5000, amount_paid: 0, due_date: '2120-01-01' }]);
 
@@ -1038,5 +1072,526 @@ describe('WhatsApp statement PDF delivery (#804 decision 24, amended by #863)', 
     const replies = await chat(repo, ['pdf']);
     expect(replies[0]).toContain('Enter your 4–6 digit PIN to view your financial standing (e.g. 4821).');
     expect(repo.storeStatementPdf).not.toHaveBeenCalled();
+  });
+});
+
+describe('WhatsApp Assistant payment reminders (#816 decisions 2-4)', () => {
+  it('shows the live state and asks before turning reminders off', async () => {
+    const repo = repository();
+    const replies = await chat(repo, ['4', '2', '1']);
+
+    expect(replies[0]).toContain('2. Payment reminders: ON');
+    expect(replies[1]).toBe('Turn off payment reminders on WhatsApp? Reply 1 Yes, 2 No.');
+    expect(repo.setRemindersOn).toHaveBeenCalledWith('resident-1', false);
+    expect(replies[2]).toBe(`Reminders off. Your bills still apply. Reply 4 then 2 to turn them back on.\n${FOOTER}`);
+  });
+
+  it('changes nothing when the resident answers No', async () => {
+    const repo = repository();
+    const replies = await chat(repo, ['reminders', '2']);
+
+    expect(replies[0]).toBe('Turn off payment reminders on WhatsApp? Reply 1 Yes, 2 No.');
+    expect(replies[1]).toBe(`Nothing was changed.\n${FOOTER}`);
+    expect(repo.setRemindersOn).not.toHaveBeenCalled();
+  });
+
+  it('turns reminders back on straight away and shows OFF while they are off', async () => {
+    const repo = repository([PALM], { getRemindersOn: vi.fn().mockResolvedValue(false) });
+    const replies = await chat(repo, ['4', '2']);
+
+    expect(replies[0]).toContain('2. Payment reminders: OFF');
+    expect(repo.setRemindersOn).toHaveBeenCalledWith('resident-1', true);
+    expect(replies[1]).toBe(`Reminders on. You will get payment reminders on WhatsApp again.\n${FOOTER}`);
+  });
+
+  it('offers reminders to billable residents only', async () => {
+    const repo = repository([]);
+    const replies = await chat(repo, ['4', '2', 'reminders'], community);
+
+    expect(replies[0]).toBe(['Alert settings', '1. All estate WhatsApp messages: ON', 'Reply 1 to turn them off.', FOOTER].join('\n'));
+    expect(replies[1]).toBe(UNRECOGNISED);
+    expect(replies[2]).toBe(replies[0]);
+    expect(repo.getRemindersOn).not.toHaveBeenCalled();
+    expect(repo.setRemindersOn).not.toHaveBeenCalled();
+  });
+
+  it('reads YES and NO as the answer to the confirmation', async () => {
+    const repo = repository();
+    const replies = await chat(repo, ['reminders', 'no', 'reminders', 'yes']);
+
+    expect(replies[1]).toBe(`Nothing was changed.\n${FOOTER}`);
+    expect(replies[3]).toContain('Reminders off.');
+    expect(repo.setRemindersOn).toHaveBeenCalledTimes(1);
+    expect(repo.setRemindersOn).toHaveBeenCalledWith('resident-1', false);
+  });
+
+  it('keeps the confirmation open on a miss and does not turn reminders off', async () => {
+    const repo = repository();
+    const replies = await chat(repo, ['reminders', 'maybe']);
+
+    expect(replies[1]).toBe(UNRECOGNISED);
+    expect(repo.setRemindersOn).not.toHaveBeenCalled();
+  });
+});
+
+describe('WhatsApp Assistant update email (#816 decisions 5-8)', () => {
+  it('sends the code to the new address, then saves it only when the code comes back', async () => {
+    const repo = repository();
+    const replies = await chat(repo, ['5', 'New.Name@Example.com', '482915']);
+
+    expect(replies[0]).toBe('What email address should we use? Reply with the address, or CANCEL.');
+    expect(repo.startEmailChange).toHaveBeenCalledWith('resident-1', 'New.Name@Example.com');
+    expect(replies[1]).toBe('We sent a 6-digit code to n***@example.com. It expires in 30 minutes. Reply with the code, or CANCEL.');
+    expect(repo.confirmEmailChange).toHaveBeenCalledWith('resident-1', '482915');
+    expect(replies[2]).toBe(`Your email is now n***@example.com.\n${FOOTER}`);
+  });
+
+  it('works for the community tier and from the EMAIL keyword', async () => {
+    const repo = repository([]);
+    const replies = await chat(repo, ['email'], community);
+    expect(replies[0]).toBe('What email address should we use? Reply with the address, or CANCEL.');
+  });
+
+  it('says a queued statement will arrive once the address is verified', async () => {
+    const repo = repository([PALM], { confirmEmailChange: vi.fn().mockResolvedValue({ status: 'saved', email: 'ada@example.com', statementsQueued: 1 }) });
+    const replies = await chat(repo, ['email', 'ada@example.com', '123456']);
+    expect(replies[2]).toBe(`Your email is now a***@example.com. Your statement will arrive within 15 minutes.\n${FOOTER}`);
+  });
+
+  it('asks for the address again when it is not one', async () => {
+    const repo = repository([PALM], { startEmailChange: vi.fn().mockResolvedValue({ status: 'invalid' }) });
+    const replies = await chat(repo, ['email', 'not an address', 'cancel']);
+
+    expect(replies[1]).toBe("That doesn't look like an email address. Reply with it again, for example name@example.com, or CANCEL.");
+    expect(repo.confirmEmailChange).not.toHaveBeenCalled();
+    expect(replies[2]).toMatch(/^Cancelled\. Nothing was changed\./);
+  });
+
+  it.each([
+    ['same', 'That is already your verified email. Nothing was changed.'],
+    ['rate_limited', 'Too many codes were sent. Please try again in an hour. Nothing was changed.'],
+    ['failed', "I couldn't do that right now. Nothing was changed. Please try again in a few minutes."],
+  ] as const)('answers a %s start without saving anything', async (status, text) => {
+    const repo = repository([PALM], { startEmailChange: vi.fn().mockResolvedValue({ status }) });
+    const replies = await chat(repo, ['email', 'ada@example.com']);
+    expect(replies[1]).toBe(`${text}\n${FOOTER}`);
+    expect(repo.confirmEmailChange).not.toHaveBeenCalled();
+  });
+
+  it('asks for six digits and does not check anything else as a code', async () => {
+    const repo = repository();
+    const replies = await chat(repo, ['email', 'ada@example.com', 'abc', '12345']);
+
+    expect(replies[2]).toBe('Reply with the 6-digit code from the email, or CANCEL.');
+    expect(replies[3]).toBe('Reply with the 6-digit code from the email, or CANCEL.');
+    expect(repo.confirmEmailChange).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['wrong', "That code isn't correct. Check the email and reply with the code again, or CANCEL."],
+    ['locked', `Too many wrong codes. Reply EMAIL to start again.\n${FOOTER}`],
+    ['expired', `That code has expired. Reply EMAIL to start again.\n${FOOTER}`],
+  ] as const)('answers a %s code', async (status, text) => {
+    const repo = repository([PALM], { confirmEmailChange: vi.fn().mockResolvedValue({ status }) });
+    const replies = await chat(repo, ['email', 'ada@example.com', '123456']);
+    expect(replies[2]).toBe(text);
+  });
+
+  it('needs the PIN first when one is set, then asks for the address', async () => {
+    const repo = repository();
+    vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
+    const replies = await chat(repo, ['5', 'PIN 482915']);
+
+    expect(replies[0]).toBe(`Enter your 4–6 digit PIN before changing your email (e.g. 4821).\n${FOOTER}`);
+    expect(repo.startEmailChange).not.toHaveBeenCalled();
+    expect(replies[1]).toBe('PIN verified.\n\nWhat email address should we use? Reply with the address, or CANCEL.');
+  });
+
+  it('does not ask a community-tier resident with no PIN for one, even when the PIN is forced, because they cannot set it', async () => {
+    const repo = repository([], { getForcePin: vi.fn().mockResolvedValue(true) });
+    const replies = await chat(repo, ['email'], community);
+    expect(replies[0]).toBe('What email address should we use? Reply with the address, or CANCEL.');
+  });
+
+  it('asks the community tier for the PIN too, and takes no address before it', async () => {
+    const repo = repository([]);
+    vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
+    const replies = await chat(repo, ['email', 'ada@example.com', 'email', 'PIN 482915'], community);
+
+    expect(replies[0]).toContain('before changing your email');
+    expect(replies[1]).toBe(UNRECOGNISED);
+    expect(repo.startEmailChange).not.toHaveBeenCalled();
+    expect(replies[3]).toBe('PIN verified.\n\nWhat email address should we use? Reply with the address, or CANCEL.');
+  });
+});
+
+describe('WhatsApp Assistant report a payment (#816 decisions 10-12)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-20T10:00:00Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const CONFIRM = [
+    '*Report a payment*',
+    'Property: 12 Palm Close',
+    'Amount: ₦50,000.00',
+    'Date: 12 Oct 2026',
+    'Reference: GTB TRF FROM ADA',
+    'Reply 1 to send it to the estate office, 2 to cancel.',
+  ].join('\n');
+
+  it('asks for amount, date and reference, confirms, then files the report', async () => {
+    const repo = repository();
+    const replies = await chat(repo, ['report', '50,000', '12 Oct 2026', 'GTB TRF FROM ADA', '1']);
+
+    expect(replies[0]).toBe('*Report a payment, 12 Palm Close*\nHow much did you pay? Reply with the amount in naira, for example 50000, or CANCEL.');
+    expect(replies[1]).toBe('₦50,000.00. When did you pay? Reply with the date, for example 12 Oct 2026, or TODAY or YESTERDAY.');
+    expect(replies[2]).toContain('12 Oct 2026. Reply with the bank narration or reference');
+    expect(replies[3]).toBe(CONFIRM);
+    expect(repo.createPaymentReport).toHaveBeenCalledTimes(1);
+    expect(repo.createPaymentReport).toHaveBeenCalledWith({
+      residentId: 'resident-1',
+      houseId: 'house-1',
+      houseLabel: '12 Palm Close',
+      amount: 50000,
+      paymentDate: '2026-10-12',
+      reference: 'GTB TRF FROM ADA',
+      screenshotAt: null,
+    });
+    expect(replies[4]).toBe(`Reported. The estate office will check it against the bank statement. It shows as awaiting verification until then.\n${FOOTER}`);
+  });
+
+  it('files nothing until the resident confirms, and cancels on 2', async () => {
+    const repo = repository();
+    const replies = await chat(repo, ['report', '50000', 'yesterday', 'GTB TRF FROM ADA', '2']);
+
+    expect(replies[2]).toContain('19 Oct 2026. Reply with the bank narration');
+    expect(replies[4]).toMatch(/^Cancelled\. Nothing was changed\./);
+    expect(repo.createPaymentReport).not.toHaveBeenCalled();
+  });
+
+  it('asks which property first when the resident has several', async () => {
+    const repo = repository([PALM, CEDAR]);
+    const replies = await chat(repo, ['report', '2', '75000']);
+
+    expect(replies[0]).toBe('Which property?\n1. 12 Palm Close\n2. 4 Cedar Way\nReply with the property number.');
+    expect(replies[1]).toContain('*Report a payment, 4 Cedar Way*');
+    expect(replies[2]).toContain('₦75,000.00. When did you pay?');
+  });
+
+  it.each([
+    ['abc', "That doesn't look like an amount. Reply with the amount in naira, for example 50000, or CANCEL."],
+    ['0.00', 'The amount must be more than ₦0. Reply with the amount in naira, or CANCEL.'],
+    ['5 million', "That doesn't look like an amount. Reply with the amount in naira, for example 50000, or CANCEL."],
+    ['99999999999', 'That amount is too large. Check it and reply with the amount in naira, or CANCEL.'],
+  ])('refuses the amount %s and asks again', async (amount, reply) => {
+    const repo = repository();
+    const replies = await chat(repo, ['report', amount]);
+    expect(replies[1]).toBe(reply);
+  });
+
+  it.each([
+    ['soon', "That doesn't look like a date. Reply with it like 12 Oct 2026, or TODAY or YESTERDAY, or CANCEL."],
+    ['31 Feb 2026', "That doesn't look like a date. Reply with it like 12 Oct 2026, or TODAY or YESTERDAY, or CANCEL."],
+    ['21 Oct 2026', 'That date is in the future. Reply with the date you paid, or CANCEL.'],
+    ['20 Jul 2026', `Payments from more than 90 days ago cannot be reported here. Reply with a later date, or CANCEL.\n${CONTACT}`],
+  ])('refuses the date %s', async (date, reply) => {
+    const repo = repository();
+    const replies = await chat(repo, ['report', '50000', date]);
+    expect(replies[2]).toBe(reply);
+  });
+
+  it('accepts today, the oldest allowed day, and a long month name', async () => {
+    const repo = repository();
+    const replies = await chat(repo, ['report', '50000', 'today', 'cancel', 'report', '50000', '22 July 2026']);
+    expect(replies[2]).toContain('20 Oct 2026. Reply with the bank narration');
+    expect(replies[6]).toContain('22 Jul 2026. Reply with the bank narration');
+  });
+
+  it('keeps a reference such as MENU as the reference, not a keyword', async () => {
+    const repo = repository();
+    const replies = await chat(repo, ['report', '50000', '12 Oct 2026', 'menu']);
+    expect(replies[3]).toContain('Reference: menu');
+  });
+
+  it('asks for a shorter reference and keeps the report open', async () => {
+    const repo = repository();
+    const replies = await chat(repo, ['report', '50000', '12 Oct 2026', 'x'.repeat(101), 'GTB TRF FROM ADA']);
+    expect(replies[3]).toBe('Reply with the narration or reference in under 100 characters, or CANCEL.');
+    expect(replies[4]).toBe(CONFIRM);
+  });
+
+  it.each([
+    ['duplicate', 'A payment of ₦50,000.00 on 12 Oct 2026 for 12 Palm Close has already been reported. Nothing was sent.'],
+    ['limit', `You've reported 3 payments today, which is the limit. Please try again tomorrow.\n${CONTACT}`],
+    ['invalid', `That payment could not be reported. Nothing was sent.\n${CONTACT}`],
+    ['not_your_property', `That payment could not be reported. Nothing was sent.\n${CONTACT}`],
+  ] as const)('tells the resident when the report is %s', async (status, reply) => {
+    const repo = repository([PALM], { createPaymentReport: vi.fn().mockResolvedValue({ status }) });
+    const replies = await chat(repo, ['report', '50000', '12 Oct 2026', 'GTB TRF FROM ADA', '1']);
+    expect(replies[4]).toBe(`${reply}\n${FOOTER}`);
+  });
+
+  it('acknowledges a screenshot, notes when it came, and carries on', async () => {
+    const repo = repository();
+    const send = vi.fn().mockResolvedValue({ success: true });
+    const opts = { repository: repo, optedIn: true, send };
+    await handleFinancialMessage(message('report'), identity, opts);
+    await handleFinancialMessage(message('50000'), identity, opts);
+    // 1760000000 is 2025-10-09 08:53:20 UTC, so 09:53 in Lagos.
+    await handleFinancialMessage({ ...message(''), type: 'image', text: null }, identity, opts);
+    await handleFinancialMessage(message('12 Oct 2026'), identity, opts);
+    await handleFinancialMessage(message('GTB TRF FROM ADA'), identity, opts);
+    await handleFinancialMessage(message('1'), identity, opts);
+
+    expect(send.mock.calls[2][0].body).toBe('Screenshot received. The estate office will see it on the estate phone.\nContinue with your report, or reply CANCEL.');
+    expect(send.mock.calls[3][0].body).toContain('12 Oct 2026. Reply with the bank narration');
+    expect(repo.createPaymentReport).toHaveBeenCalledWith(expect.objectContaining({ screenshotAt: '09:53 on 9 Oct 2025' }));
+  });
+
+  it('still answers an image outside a report with the text-only reply', async () => {
+    const repo = repository();
+    const send = vi.fn().mockResolvedValue({ success: true });
+    await handleFinancialMessage({ ...message(''), type: 'image', text: null }, identity, { repository: repo, optedIn: true, send });
+    expect(send.mock.calls[0][0].body).toBe('I can only read text messages here. Please type your request.');
+  });
+
+  it('goes back to Financial standing on 0 and forgets the draft', async () => {
+    const repo = repository();
+    const replies = await chat(repo, ['report', '50000', '0', '6', '1']);
+    expect(replies[2]).toBe(FINANCIAL_MENU);
+    // A fresh report starts from the amount, not the date.
+    expect(replies[3]).toContain('How much did you pay?');
+  });
+
+  it('asks for the PIN before any report step when a PIN is set', async () => {
+    const repo = repository();
+    vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
+    const replies = await chat(repo, ['report', 'PIN 482915']);
+
+    expect(replies[0]).toContain('to view your financial standing');
+    expect(replies[1]).toBe('PIN verified.\n\n*Report a payment, 12 Palm Close*\nHow much did you pay? Reply with the amount in naira, for example 50000, or CANCEL.');
+  });
+
+  it('does not offer reports to a community-tier resident', async () => {
+    const repo = repository([]);
+    const replies = await chat(repo, ['report'], community);
+    expect(replies[0]).toMatch(/^Financial standing is only available to residents billed for a property\./);
+    expect(repo.createPaymentReport).not.toHaveBeenCalled();
+  });
+});
+
+describe('WhatsApp Assistant receipts (#816 decision 14)', () => {
+  const PAYMENTS = [
+    { id: 'payment-1', amount: 50000, payment_date: '2026-10-12T11:00:00+00:00', method: 'bank_transfer', is_verified: true },
+    { id: 'payment-2', amount: 25000, payment_date: '2026-10-03T11:00:00+00:00', method: null, is_verified: false },
+  ];
+  const RECEIPT = {
+    receiptNumber: 'RCP-PAYMENT1',
+    residentName: 'Ada Example',
+    residentCode: 'RES001',
+    propertyLabel: '12 Palm Close',
+    amount: 50000,
+    paymentDate: '2026-10-12T11:00:00+00:00',
+    method: 'bank_transfer',
+    reference: 'GTB TRF',
+    verifiedAt: '2026-10-13T09:00:00+00:00',
+  };
+
+  function receiptRepo(overrides: Partial<WhatsAppFinancialRepository> = {}) {
+    return repository([PALM], {
+      getReceiptPayments: vi.fn().mockResolvedValue(PAYMENTS),
+      loadReceipt: vi.fn().mockResolvedValue(RECEIPT),
+      ...overrides,
+    });
+  }
+
+  it('lists the latest payments, marking the unverified, and sends the PDF of a verified one', async () => {
+    const repo = receiptRepo();
+    const send = vi.fn().mockResolvedValue({ success: true });
+    const opts = { repository: repo, optedIn: true, send };
+    await handleFinancialMessage(message('receipt'), identity, opts);
+    await handleFinancialMessage(message('1'), identity, opts);
+
+    expect(repo.getReceiptPayments).toHaveBeenCalledWith('resident-1', 'house-1', 5);
+    expect(send.mock.calls[0][0].body).toBe([
+      '*Receipts, 12 Palm Close*',
+      '1.  12 Oct 2026  ₦50,000.00  bank transfer',
+      '2.  3 Oct 2026  ₦25,000.00  payment  (awaiting verification)',
+      'Reply 1–2 to get a receipt.',
+      FOOTER,
+    ].join('\n'));
+    expect(repo.loadReceipt).toHaveBeenCalledWith('resident-1', 'house-1', 'payment-1');
+    const body = ['*Receipt, 12 Palm Close*', '₦50,000.00 on 12 Oct 2026. Your PDF is attached.', FOOTER].join('\n');
+    expect(repo.storeReceiptPdf).toHaveBeenCalledWith({ residentId: 'resident-1', phoneNumber: '+2348000000000', houseId: 'house-1', inboundMessageId: expect.any(String), replyText: body }, RECEIPT);
+    expect(send.mock.calls[1][0]).toMatchObject({ body, mediaUrls: ['https://storage.test/signed/receipt.pdf'] });
+  });
+
+  it('logs the list and the PDF as disclosures, the PDF before the file exists', async () => {
+    const repo = receiptRepo();
+    await chat(repo, ['1', '5', '1']);
+
+    expect(repo.logDisclosure).toHaveBeenCalledWith(expect.objectContaining({ menuItem: 'receipt', metadata: { step: 'list', row_count: 2 } }));
+    expect(repo.logDisclosure).toHaveBeenCalledWith(expect.objectContaining({ menuItem: 'receipt', channel: 'pdf', metadata: { step: 'pdf', payment_id: 'payment-1' } }));
+    const pdfLog = vi.mocked(repo.logDisclosure).mock.calls.findIndex(([entry]) => entry.channel === 'pdf');
+    expect(vi.mocked(repo.logDisclosure).mock.invocationCallOrder[pdfLog]).toBeLessThan(vi.mocked(repo.storeReceiptPdf).mock.invocationCallOrder[0]);
+  });
+
+  it('says a receipt is available once an unverified payment is verified, and makes no file', async () => {
+    const repo = receiptRepo();
+    const replies = await chat(repo, ['receipt', '2']);
+
+    expect(replies[1]).toBe(`A receipt is available once this payment is verified.\n${FOOTER}`);
+    expect(repo.loadReceipt).not.toHaveBeenCalled();
+    expect(repo.storeReceiptPdf).not.toHaveBeenCalled();
+  });
+
+  it('gives the same answer when a payment listed as verified is no longer verified', async () => {
+    const repo = receiptRepo({ loadReceipt: vi.fn().mockResolvedValue(null) });
+    const replies = await chat(repo, ['receipt', '1']);
+    expect(replies[1]).toBe(`A receipt is available once this payment is verified.\n${FOOTER}`);
+    expect(repo.storeReceiptPdf).not.toHaveBeenCalled();
+  });
+
+  it('asks again for a number that is not on the list', async () => {
+    const repo = receiptRepo();
+    const replies = await chat(repo, ['receipt', '3', 'two']);
+    expect(replies[1]).toBe(UNRECOGNISED);
+    expect(repo.loadReceipt).not.toHaveBeenCalled();
+  });
+
+  it('says so when there are no payments', async () => {
+    const replies = await chat(repository(), ['receipt']);
+    expect(replies[0]).toBe(`*Receipts, 12 Palm Close*\nNo payments recorded for 12 Palm Close.\n${FOOTER}`);
+  });
+
+  it('counts toward the daily caps: no list and no file when the resident is capped', async () => {
+    const repo = receiptRepo();
+    const replies = await chat(repo, ['receipt'], identity, { canLookup: vi.fn().mockResolvedValue('resident_cap') });
+    expect(replies[0]).toContain("You've reached today's limit of 20 financial lookups.");
+    expect(repo.getReceiptPayments).not.toHaveBeenCalled();
+    expect(repo.logDisclosure).not.toHaveBeenCalled();
+
+    const capAfterList = vi.fn().mockResolvedValueOnce('ok').mockResolvedValueOnce('estate_cap');
+    const repo2 = receiptRepo();
+    const replies2 = await chat(repo2, ['receipt', '1'], identity, { canLookup: capAfterList });
+    expect(replies2[1]).toContain('Financial lookups are paused for everyone until midnight.');
+    expect(repo2.storeReceiptPdf).not.toHaveBeenCalled();
+  });
+
+  it('needs the PIN first, and is not offered to a community-tier resident', async () => {
+    const repo = receiptRepo();
+    vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
+    const replies = await chat(repo, ['receipt', 'PIN 482915', '1']);
+    expect(replies[0]).toContain('to view your financial standing');
+    expect(replies[1]).toContain('PIN verified.\n\n*Receipts, 12 Palm Close*');
+    expect(repo.getReceiptPayments).toHaveBeenCalledTimes(1);
+    expect(repo.storeReceiptPdf).toHaveBeenCalledTimes(1);
+
+    const community_ = receiptRepo();
+    const blocked = await chat(community_, ['receipt'], community);
+    expect(blocked[0]).toMatch(/^Financial standing is only available/);
+    expect(community_.getReceiptPayments).not.toHaveBeenCalled();
+  });
+
+  it('is item 5 of Financial standing, and 0 goes back to the menu', async () => {
+    const repo = receiptRepo();
+    const replies = await chat(repo, ['1', '5', '0']);
+    expect(replies[0]).toContain('5. Receipt');
+    expect(replies[1]).toContain('*Receipts, 12 Palm Close*');
+    expect(replies[2]).toBe(FINANCIAL_MENU);
+  });
+});
+
+describe('WhatsApp Assistant clearance certificate (#816 decision 15)', () => {
+  const PAID_UP: OwedFigures = { invoiceCount: 3, outstanding: 0, overdue: null, next: null, awaitingVerification: 0 };
+
+  it('tells a resident who owes money how much, and files no request', async () => {
+    const repo = repository();
+    const replies = await chat(repo, ['clearance']);
+
+    expect(replies[0]).toBe([
+      '*Clearance certificate, 12 Palm Close*',
+      'You owe ₦125,000.00 on 12 Palm Close, so a certificate cannot be requested yet.',
+      'Reply PAY for how to pay',
+      FOOTER,
+    ].join('\n'));
+    expect(repo.requestClearance).not.toHaveBeenCalled();
+  });
+
+  it('files an approval request for a resident who owes nothing, naming the property', async () => {
+    const repo = repository([PALM], { getOwed: vi.fn().mockResolvedValue(PAID_UP) });
+    const replies = await chat(repo, ['1', '7']);
+
+    expect(repo.requestClearance).toHaveBeenCalledWith({ residentId: 'resident-1', residentName: 'Ada Example', houseId: 'house-1', houseLabel: '12 Palm Close' });
+    expect(replies[1]).toBe([
+      '*Clearance certificate, 12 Palm Close*',
+      'Your clearance certificate request for 12 Palm Close was sent to the estate office. The certificate will be sent here once it is approved.',
+      FOOTER,
+    ].join('\n'));
+  });
+
+  it('says so when a request for the property is already waiting', async () => {
+    const repo = repository([PALM], { getOwed: vi.fn().mockResolvedValue(PAID_UP), requestClearance: vi.fn().mockResolvedValue({ status: 'duplicate' }) });
+    const replies = await chat(repo, ['clearance']);
+    expect(replies[0]).toContain(`A clearance certificate request for 12 Palm Close is already waiting for approval. Nothing new was sent.\n${CONTACT}`);
+  });
+
+  it('gives a second resident on the same property the neutral reply with the contact line', async () => {
+    const tenant = { ...identity, id: 'resident-2', firstName: 'Bola', lastName: 'Tenant' };
+    const repo = repository([PALM], { getOwed: vi.fn().mockResolvedValue(PAID_UP), requestClearance: vi.fn().mockResolvedValue({ status: 'duplicate' }) });
+    const replies = await chat(repo, ['clearance'], tenant);
+
+    expect(repo.requestClearance).toHaveBeenCalledWith(expect.objectContaining({ residentId: 'resident-2', houseId: 'house-1' }));
+    expect(replies[0]).toBe([
+      '*Clearance certificate, 12 Palm Close*',
+      'A clearance certificate request for 12 Palm Close is already waiting for approval. Nothing new was sent.',
+      CONTACT,
+      FOOTER,
+    ].join('\n'));
+    expect(replies[0]).not.toMatch(/your (clearance|request)/i);
+  });
+
+  it('asks per property, and uses the property the resident picked', async () => {
+    const repo = repository([PALM, CEDAR], { getOwed: vi.fn().mockResolvedValue(PAID_UP) });
+    const replies = await chat(repo, ['clearance', '2']);
+
+    expect(replies[0]).toContain('Which property?');
+    expect(repo.getOwed).toHaveBeenCalledWith('resident-1', 'house-2');
+    expect(repo.requestClearance).toHaveBeenCalledWith(expect.objectContaining({ houseId: 'house-2', houseLabel: '4 Cedar Way' }));
+  });
+
+  it('logs the check as a disclosure without any amount, and counts toward the caps', async () => {
+    const repo = repository();
+    await chat(repo, ['clearance']);
+    expect(repo.logDisclosure).toHaveBeenCalledWith(expect.objectContaining({ menuItem: 'clearance', metadata: { owes: true } }));
+
+    const capped = repository();
+    const replies = await chat(capped, ['clearance'], identity, { canLookup: vi.fn().mockResolvedValue('estate_cap') });
+    expect(replies[0]).toContain('Financial lookups are paused for everyone until midnight.');
+    expect(capped.getOwed).not.toHaveBeenCalled();
+    expect(capped.requestClearance).not.toHaveBeenCalled();
+  });
+
+  it('needs the PIN and is not offered to a community-tier resident', async () => {
+    const repo = repository([PALM], { getOwed: vi.fn().mockResolvedValue(PAID_UP) });
+    vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
+    const replies = await chat(repo, ['clearance']);
+    expect(replies[0]).toContain('to view your financial standing');
+    expect(repo.requestClearance).not.toHaveBeenCalled();
+
+    const blocked = repository([]);
+    expect((await chat(blocked, ['clearance'], community))[0]).toMatch(/^Financial standing is only available/);
+    expect(blocked.requestClearance).not.toHaveBeenCalled();
+  });
+
+  it('is item 7 of Financial standing', async () => {
+    const repo = repository([PALM], { getOwed: vi.fn().mockResolvedValue(PAID_UP) });
+    const replies = await chat(repo, ['1', '7']);
+    expect(replies[0]).toContain('7. Clearance certificate');
+    expect(repo.requestClearance).toHaveBeenCalledTimes(1);
   });
 });

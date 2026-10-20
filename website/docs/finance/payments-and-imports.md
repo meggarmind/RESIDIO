@@ -56,6 +56,8 @@ On the **Import History** page, click anywhere on a row to open that import. To 
 
 Open **Approvals** for transactions awaiting maker-checker verification. The reviewer should compare the submitted evidence with the transaction before approving or rejecting it.
 
+A payment a resident reports through the WhatsApp assistant arrives the same way, as an unverified payment with a request in Approvals. See [WhatsApp operations](../integrations/whatsapp-operations).
+
 Payments created by a bank statement or email import are verified automatically. To verify payments entered by hand, select them on **Transactions** and choose **Mark Verified** in the bar that appears. The confirmation states how many payments are selected. Payments that are already verified are skipped, and the result says how many. Each verified payment gets its own audit entry. This needs the `payments.verify` permission, which also governs **Un-verify** on a payment's page.
 
 A verified payment's amount, resident, property and status are locked. To correct one, open it and choose **Un-verify**, then edit it and verify it again.

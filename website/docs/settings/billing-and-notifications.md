@@ -6,7 +6,7 @@ residio_sources:
   - src/app/(dashboard)/settings/billing/**
   - src/app/(dashboard)/settings/notifications/**
   - src/app/(dashboard)/settings/message-templates/**
-residio_verified_commit: 8bb1e242
+residio_verified_commit: abb408bf
 residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
@@ -20,6 +20,8 @@ Review billing settings before changing rates or periods. For a rate change, con
 Each billing profile carries a **rate schedule**: a list of versions, each with the month its rates started applying. A billing period is priced by the newest version effective on or before it, so a period earlier than every version is priced by the earliest one — invoice generation reports that as a warning in its preview rather than failing. Open **Rate versions** on a profile in **Settings → Money → Rate Cards** to see the schedule, and to add a version for a past month when a historical rate needs recording. A version that is locked or approved cannot be edited; record a rate change by adding a new version with a later effective month.
 
 Two separate permissions govern this. **Manage Billing Profiles** shows the **Rate versions** control and the schedule inside it — a Secretary has neither. **Manage Billing Rate Versions** is what allows a version to be added or edited, and is held by the Super Admin, Chairman, Vice Chairman and Financial Officer only; a Project Manager can read the schedule but not write it, because a version with a past effective month decides what a backfilled invoice charges and those invoice numbers are permanent.
+
+**Clearance Certificate Copies** at the bottom of **Billing Settings** chooses which recipient group receives a WhatsApp copy of every issued clearance certificate: the move-out screens and approved WhatsApp requests alike. The default is *Estate officials*, and *No copies* turns copies off. Members are managed in **Settings → Groups**; the card lists the chosen group's members and warns for anyone who cannot receive a copy (no WhatsApp number, or not opted in). Changing it needs the manage billing settings or manage billing profiles permission and is written to the audit log; it affects certificates issued afterwards.
 
 Use **Late Fees** for grace periods, fee rules, and waivers. Use **Invoices & Due Dates** for recurring generation controls and run history.
 

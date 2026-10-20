@@ -41,6 +41,7 @@ vi.mock('@/actions/notifications/reminder-config', () => ({
 }));
 vi.mock('@/hooks/use-settings', () => ({
   useBillingSettings: () => query([]),
+  useClearanceCopyOptions: () => query([]),
   useUpdateSetting: () => mutation(),
 }));
 vi.mock('@/hooks/use-security', () => ({

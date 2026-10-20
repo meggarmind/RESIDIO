@@ -43,6 +43,9 @@ export function isValidAuditLogRetentionDays(n: unknown): n is number {
   return typeof n === 'number' && Number.isInteger(n) && n >= AUDIT_LOG_RETENTION_MIN_DAYS && n <= AUDIT_LOG_RETENTION_MAX_DAYS;
 }
 
+export const CLEARANCE_COPY_GROUP_KEY = 'clearance_copy_recipient_group_id';
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** Clock slack allowed on top of the longest Debug Mode duration when checking an expiry. */
 const DEBUG_EXPIRY_SLACK_MINUTES = 5;
 
@@ -104,6 +107,11 @@ export function settingValueError(key: string, value: unknown, now: Date = new D
     return isValidAuditLogRetentionDays(toNumber(value))
       ? null
       : `Setting "${key}" must be a whole number of days from ${AUDIT_LOG_RETENTION_MIN_DAYS} to ${AUDIT_LOG_RETENTION_MAX_DAYS}`;
+  }
+
+  if (key === CLEARANCE_COPY_GROUP_KEY) {
+    // Blank means no copies; otherwise the id of a recipient group (whether it exists is for the write to find out).
+    return value === '' || (typeof value === 'string' && UUID.test(value)) ? null : `Setting "${key}" must be blank or a recipient group id`;
   }
 
   if (typeof value === 'number' && !Number.isFinite(value)) {

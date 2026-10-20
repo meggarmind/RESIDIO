@@ -1,4 +1,5 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/server';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
@@ -8,7 +9,6 @@ import { isWhatsAppRecipientAllowed } from '@/lib/whatsapp/rollout';
 import type { WhatsAppInboundMessage, WhatsAppTextMessage } from '@/lib/whatsapp/types';
 import { hashWhatsAppLinkCode, type WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
 import { sendWhatsAppPinAlert } from '@/lib/whatsapp/pin-alert';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AccountStatementData } from '@/lib/billing/account-statement-data';
 import {
   STATEMENT_CHAT_ROW_LIMIT,
@@ -18,6 +18,29 @@ import {
   storeStatementPdf,
   type StatementRequestInput,
 } from '@/lib/whatsapp/statement-delivery';
+import { getReceiptPayments, loadReceipt, storeReceiptPdf, type ReceiptPayment } from '@/lib/whatsapp/receipts';
+import { requestClearanceCertificate, type ClearanceRequestResult } from '@/lib/whatsapp/clearance-request';
+import type { PaymentReceiptData } from '@/lib/pdf/payment-receipt';
+import {
+  REPORTS_PER_DAY,
+  REPORT_WINDOW_DAYS,
+  MAX_REPORT_AMOUNT,
+  cleanReference,
+  checkReportDate,
+  createPaymentReport,
+  parseReportAmount,
+  parseReportDate,
+  type PaymentReportInput,
+  type PaymentReportResult,
+} from '@/lib/whatsapp/payment-reports';
+import {
+  confirmEmailChange,
+  getRemindersOn,
+  setRemindersOn,
+  startEmailChange,
+  type EmailChangeConfirm,
+  type EmailChangeStart,
+} from '@/lib/whatsapp/account-actions';
 import {
   DEFAULT_KEYWORDS,
   answerFooter,
@@ -73,6 +96,7 @@ export const RESIDENT_DAILY_LOOKUP_CAP = 20;
 /** Estate-wide cap when the setting is absent (#804 decision 26 raised it from 50). */
 export const DEFAULT_ESTATE_DAILY_LOOKUP_CAP = 500;
 const RECENT_PAYMENT_COUNT = 5;
+const RECEIPT_COUNT = 5;
 const NOTICE_COUNT = 3;
 const STATEMENT_ROW_CAP = 12;
 
@@ -84,7 +108,7 @@ const TEXT_ONLY_REPLY = 'I can only read text messages here. Please type your re
 const UNSUBSCRIBED_REPLY = "You've been unsubscribed from estate WhatsApp alerts. Reply START any time to re-subscribe.";
 
 /** Values written to whatsapp_disclosure_logs.menu_item (shown as-is in the operations console). */
-export type FinancialMenuItem = 'what_i_owe' | 'recent_payments' | 'statement' | 'wallet';
+export type FinancialMenuItem = 'what_i_owe' | 'recent_payments' | 'statement' | 'wallet' | 'receipt' | 'clearance';
 export type LookupAllowance = 'ok' | 'resident_cap' | 'estate_cap';
 /** How a disclosure left the estate (#804 decision 25). */
 export type DisclosureChannel = 'chat' | 'pdf' | 'email';
@@ -101,6 +125,8 @@ export interface WhatsAppFinancialSession {
   selectedHouseId: string | null;
   pinAuthenticated: boolean;
   expiresAt: string;
+  /** Answers collected so far in a multi-step flow (a payment report); dropped when the flow ends. */
+  draft?: Record<string, unknown> | null;
   /** Salted hash of a chosen PIN awaiting confirmation (#892); never the PIN itself. */
   pendingPinHash?: string | null;
 }
@@ -192,6 +218,22 @@ export interface WhatsAppFinancialRepository {
   getWalletBalance(residentId: string): Promise<number>;
   getStatementRows(residentId: string, houseId: string, from: string | null, to: string): Promise<StatementRows>;
   setAlertsOn(residentId: string, phoneNumber: string, on: boolean): Promise<void>;
+  /** WhatsApp payment and invoice reminders (#816 decisions 2-4). */
+  getRemindersOn(residentId: string): Promise<boolean>;
+  setRemindersOn(residentId: string, on: boolean): Promise<void>;
+  /** Sends the verification code to the new address; nothing is saved until confirmEmailChange (#816 decision 5). */
+  startEmailChange(residentId: string, email: string): Promise<EmailChangeStart>;
+  confirmEmailChange(residentId: string, code: string): Promise<EmailChangeConfirm>;
+  /** Files a pending, unverified payment and its approval request (#816 decisions 10-12). */
+  createPaymentReport(input: PaymentReportInput): Promise<PaymentReportResult>;
+  /** The latest payments to pick a receipt from (#816 decision 14). */
+  getReceiptPayments(residentId: string, houseId: string, limit: number): Promise<ReceiptPayment[]>;
+  /** The receipt of a verified payment of this resident and property; null when there is none. */
+  loadReceipt(residentId: string, houseId: string, paymentId: string): Promise<PaymentReceiptData | null>;
+  /** Stores the receipt PDF privately and returns a 1-hour signed URL for the reply. */
+  storeReceiptPdf(input: Parameters<typeof storeReceiptPdf>[0], receipt: PaymentReceiptData): Promise<string>;
+  /** Files an approval request for a clearance certificate on this property (#816 decision 15). */
+  requestClearance(input: Parameters<typeof requestClearanceCertificate>[0]): Promise<ClearanceRequestResult>;
   /** The statement PDF for a period: the admin account statement, with its Lagos dates. */
   loadStatement(residentId: string, houseId: string, period: StatementPeriod, now: Date): Promise<{ fromDate: string; toDate: string; statement: AccountStatementData }>;
   /** Stores the PDF privately and returns a 1-hour signed URL for the reply. */
@@ -387,9 +429,10 @@ function untypedAdminClient(): SupabaseClient {
 function createSupabaseRepository(): WhatsAppFinancialRepository {
   return {
     async getSession(phoneNumber) {
+      // whatsapp_sessions.draft (#816) is not in the generated types until its migration is applied.
       const { data, error } = await untypedAdminClient()
         .from('whatsapp_sessions')
-        .select('phone_number, resident_id, current_node, selected_house_id, pin_authenticated, expires_at, pending_pin_hash')
+        .select('phone_number, resident_id, current_node, selected_house_id, pin_authenticated, expires_at, pending_pin_hash, draft')
         .eq('phone_number', phoneNumber)
         .maybeSingle();
       if (error) throw error;
@@ -401,6 +444,7 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
         selectedHouseId: data.selected_house_id,
         pinAuthenticated: data.pin_authenticated,
         expiresAt: data.expires_at,
+        draft: data.draft ?? null,
         pendingPinHash: data.pending_pin_hash,
       };
     },
@@ -415,6 +459,7 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
           pin_authenticated: session.pinAuthenticated,
           pending_pin_hash: session.pendingPinHash ?? null,
           expires_at: session.expiresAt,
+          draft: session.draft ?? null,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'phone_number' }
@@ -615,7 +660,8 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
           .select('amount')
           .eq('resident_id', residentId)
           .eq('house_id', houseId)
-          .eq('status', 'paid')
+          // A payment a resident reported over WhatsApp is pending until an admin verifies it (#816 decision 11).
+          .in('status', ['paid', 'pending'])
           .eq('is_verified', false),
       ]);
       if (unpaidResult.error) throw unpaidResult.error;
@@ -707,6 +753,15 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
       if (error) throw error;
     },
 
+    getRemindersOn,
+    setRemindersOn,
+    startEmailChange,
+    confirmEmailChange,
+    createPaymentReport,
+    getReceiptPayments,
+    loadReceipt,
+    storeReceiptPdf,
+    requestClearance: requestClearanceCertificate,
     loadStatement: loadWhatsAppStatementForPeriod,
     storeStatementPdf,
     createStatementRequest,
@@ -806,17 +861,20 @@ async function sendFinancialReply(
 // answer), more, alerts, notices, disambiguate, statement_period,
 // property:<target> and pin:<target>, where target is menu, switch or an item.
 
-type Target = 'menu' | 'switch' | FinancialMenuItem;
+type Target = 'menu' | 'switch' | 'report' | FinancialMenuItem;
 
 const GREETINGS = new Set(['menu', 'hi', 'hello', 'yes', 'start']);
 const CONTACT_WORDS = new Set(['9', 'help', 'agent', 'contact']);
-const ITEM_FOR_INTENT: Partial<Record<AssistantIntent, FinancialMenuItem>> = {
+const ITEM_FOR_INTENT: Partial<Record<AssistantIntent, Target>> = {
   owe: 'what_i_owe',
   payments: 'recent_payments',
   statement: 'statement',
   wallet: 'wallet',
+  receipt: 'receipt',
+  report: 'report',
+  clearance: 'clearance',
 };
-const FINANCIAL_ITEM_NUMBERS: Record<string, FinancialMenuItem> = { '1': 'what_i_owe', '2': 'recent_payments', '3': 'statement', '4': 'wallet' };
+const FINANCIAL_ITEM_NUMBERS: Record<string, Target> = { '1': 'what_i_owe', '2': 'recent_payments', '3': 'statement', '4': 'wallet', '5': 'receipt', '6': 'report', '7': 'clearance' };
 
 interface Turn {
   message: WhatsAppInboundMessage;
@@ -844,6 +902,7 @@ function readNode(raw: string): { node: string; misses: number } {
 async function respond(turn: Turn, body: string, node: string, misses = 0, mediaUrls?: string[]): Promise<void> {
   await sendFinancialReply(turn.message, body, turn.options.send, turn.identity.id, mediaUrls);
   turn.session.currentNode = misses ? `${node}~${misses}` : node;
+  if (!/^(report|receipt)_/.test(node)) turn.session.draft = null;
   turn.session.expiresAt = expiry();
   await turn.options.repository.saveSession(turn.session);
 }
@@ -879,6 +938,7 @@ async function mainMenu(turn: Turn): Promise<string> {
   if ((await loadNotices(turn)).length > 0) lines.push('2. Latest estate notices');
   if (turn.settings?.paymentInstructions) lines.push('3. How to pay');
   lines.push('4. Alert settings');
+  lines.push('5. Update email');
   if (turn.contact) lines.push('9. Contact the estate office');
   lines.push('Reply with a number.');
   return lines.join('\n');
@@ -909,6 +969,9 @@ function financialMenu(turn: Turn): string {
     '2. Recent payments',
     '3. Statement',
     '4. Wallet',
+    '5. Receipt',
+    '6. Report a payment',
+    '7. Clearance certificate',
     ...(multiple ? ['8. More'] : []),
     lastLine,
   ].join('\n');
@@ -930,6 +993,13 @@ async function miss(turn: Turn, node: string): Promise<void> {
 
 function withContact(turn: Turn, body: string): string {
   return turn.contact ? `${body}\n${turn.contact}` : body;
+}
+
+/** The PIN request shown before changing an email; a resident with no PIN yet is told how to set one. */
+function emailPinPrompt(turn: Turn): string {
+  return turn.pinHash
+    ? 'Enter your 4–6 digit PIN before changing your email (e.g. 4821).'
+    : `A security PIN is required before changing your email. To set one, ${SET_PIN_HINT}.`;
 }
 
 /** Enter Financial standing (or one of its items), passing the PIN gate and property choice first. */
@@ -963,6 +1033,9 @@ async function enterFinancial(turn: Turn, target: Target, prefix?: string): Prom
     await respond(turn, `${lead}${statementPeriodPrompt()}`, 'statement_period');
     return;
   }
+  if (target === 'report') return startReport(turn, lead);
+  if (target === 'receipt') return showReceipts(turn, lead);
+  if (target === 'clearance') return askForClearance(turn, lead);
   await answerItem(turn, target, 'this_month', prefix);
 }
 
@@ -1120,11 +1193,300 @@ async function showContact(turn: Turn): Promise<void> {
   await respond(turn, `${turn.contact}\nReply 0 for menu.`, 'main');
 }
 
+// ---------------------------------------------------------------------------
+// Receipt (#816 decision 14): pick one of the latest payments, get a PDF of a verified one.
+
+interface ReceiptDraft {
+  payments: Array<{ id: string; verified: boolean }>;
+}
+
+async function showReceipts(turn: Turn, lead: string): Promise<void> {
+  const house = selectedHouse(turn);
+  if (!house) return;
+  const capped = await capReply(turn);
+  if (capped) return respond(turn, capped, 'financial');
+
+  const repository = turn.options.repository;
+  const payments = await repository.getReceiptPayments(turn.identity.id, house.id, RECEIPT_COUNT);
+  // The list shows amounts and dates, so it is a disclosure like Recent payments (#795).
+  await repository.logDisclosure({
+    residentId: turn.identity.id,
+    phoneNumber: turn.phoneNumber,
+    houseId: house.id,
+    menuItem: 'receipt',
+    pinAuthenticated: turn.session.pinAuthenticated,
+    metadata: { step: 'list', row_count: payments.length },
+  });
+  if (payments.length === 0) return respond(turn, `${lead}*Receipts, ${house.label}*\nNo payments recorded for ${house.label}.\n${footer(turn)}`, 'answer');
+
+  turn.session.draft = { payments: payments.map((payment) => ({ id: payment.id, verified: payment.is_verified })) } satisfies ReceiptDraft;
+  const lines = payments.map((payment, index) =>
+    [`${index + 1}.`, formatDay(payment.payment_date), formatNaira(payment.amount), payment.method ? payment.method.replaceAll('_', ' ') : 'payment', ...(payment.is_verified ? [] : ['(awaiting verification)'])].join('  ')
+  );
+  await respond(turn, [`${lead}*Receipts, ${house.label}*`, ...lines, payments.length === 1 ? 'Reply 1 to get a receipt.' : `Reply 1–${payments.length} to get a receipt.`, footer(turn)].join('\n'), 'receipt_pick');
+}
+
+async function pickReceipt(turn: Turn, input: string): Promise<void> {
+  const draft = turn.session.draft as Partial<ReceiptDraft> | null | undefined;
+  const payment = /^\d+$/.test(input) ? draft?.payments?.[Number(input) - 1] : undefined;
+  if (!payment) return miss(turn, 'receipt_pick');
+
+  await loadHouses(turn);
+  const house = selectedHouse(turn);
+  // The node outlives a LOCK only in theory; check the gate again before any document leaves.
+  if (!house || ((await loadPinGate(turn)) && !turn.session.pinAuthenticated)) return enterFinancial(turn, 'receipt');
+  const capped = await capReply(turn);
+  if (capped) return respond(turn, capped, 'financial');
+
+  const repository = turn.options.repository;
+  const receipt = payment.verified ? await repository.loadReceipt(turn.identity.id, house.id, payment.id) : null;
+  if (!receipt) return respond(turn, `A receipt is available once this payment is verified.\n${footer(turn)}`, 'answer');
+
+  const body = [`*Receipt, ${house.label}*`, `${formatNaira(receipt.amount)} on ${formatDay(receipt.paymentDate)}. Your PDF is attached.`, footer(turn)].join('\n');
+  // Log before the file exists (#795): a failed log then discloses nothing.
+  await repository.logDisclosure({
+    residentId: turn.identity.id,
+    phoneNumber: turn.phoneNumber,
+    houseId: house.id,
+    menuItem: 'receipt',
+    pinAuthenticated: turn.session.pinAuthenticated,
+    channel: 'pdf',
+    metadata: { step: 'pdf', payment_id: payment.id },
+  });
+  const url = await repository.storeReceiptPdf({ residentId: turn.identity.id, phoneNumber: turn.phoneNumber, houseId: house.id, inboundMessageId: turn.message.id, replyText: body }, receipt);
+  await respond(turn, body, 'answer', 0, [url]);
+}
+
+// ---------------------------------------------------------------------------
+// Clearance certificate (#816 decision 15): owing anything means the amount owed; owing nothing files a
+// request for an admin to approve, and the certificate then arrives here.
+
+async function askForClearance(turn: Turn, lead: string): Promise<void> {
+  const house = selectedHouse(turn);
+  if (!house) return;
+  const capped = await capReply(turn);
+  if (capped) return respond(turn, capped, 'financial');
+
+  const repository = turn.options.repository;
+  const owed = await repository.getOwed(turn.identity.id, house.id);
+  // Log before any figure or request leaves (#795).
+  await repository.logDisclosure({
+    residentId: turn.identity.id,
+    phoneNumber: turn.phoneNumber,
+    houseId: house.id,
+    menuItem: 'clearance',
+    pinAuthenticated: turn.session.pinAuthenticated,
+    metadata: { owes: owed.outstanding > 0 },
+  });
+
+  const title = `${lead}*Clearance certificate, ${house.label}*`;
+  if (owed.outstanding > 0) {
+    const pay = turn.settings?.paymentInstructions ? '\nReply PAY for how to pay' : '';
+    return respond(turn, `${title}\nYou owe ${formatNaira(owed.outstanding)} on ${house.label}, so a certificate cannot be requested yet.${pay}\n${footer(turn)}`, 'answer');
+  }
+
+  const result = await repository.requestClearance({ residentId: turn.identity.id, residentName: `${turn.identity.firstName} ${turn.identity.lastName}`, houseId: house.id, houseLabel: house.label });
+  const reply = result.status === 'requested'
+    ? `Your clearance certificate request for ${house.label} was sent to the estate office. The certificate will be sent here once it is approved.`
+    : withContact(turn, `A clearance certificate request for ${house.label} is already waiting for approval. Nothing new was sent.`);
+  await respond(turn, `${title}\n${reply}\n${footer(turn)}`, 'answer');
+}
+
+// ---------------------------------------------------------------------------
+// Report a payment (#816 decisions 10-12): property, amount, date, reference, then a confirm screen.
+// The answers so far live in session.draft; every report_* node keeps them.
+
+interface ReportDraft {
+  houseId: string;
+  amount?: number;
+  paymentDate?: string;
+  reference?: string;
+  screenshotAt?: string;
+}
+
+function reportDraft(turn: Turn): ReportDraft | null {
+  const draft = turn.session.draft as Partial<ReportDraft> | null | undefined;
+  return draft?.houseId ? (draft as ReportDraft) : null;
+}
+
+async function startReport(turn: Turn, lead: string): Promise<void> {
+  const house = selectedHouse(turn);
+  if (!house) return;
+  turn.session.draft = { houseId: house.id } satisfies ReportDraft;
+  await respond(turn, `${lead}*Report a payment, ${house.label}*\nHow much did you pay? Reply with the amount in naira, for example 50000, or CANCEL.`, 'report_amount');
+}
+
+/** Reports are for a property the resident is billed for; a draft that lost its property starts over. */
+async function reportContext(turn: Turn): Promise<{ draft: ReportDraft; house: FinancialHouse } | null> {
+  const draft = reportDraft(turn);
+  const house = draft ? (await loadHouses(turn)).find((candidate) => candidate.id === draft.houseId) : undefined;
+  if (!draft || !house || ((await loadPinGate(turn)) && !turn.session.pinAuthenticated)) {
+    await showMain(turn, 'That report could not be continued. Nothing was sent.');
+    return null;
+  }
+  return { draft, house };
+}
+
+async function reportStep(turn: Turn, node: string): Promise<void> {
+  const context = await reportContext(turn);
+  if (!context) return;
+  const { draft, house } = context;
+  const again = (reply: string) => respond(turn, reply, node, turn.misses + 1);
+  const now = new Date();
+
+  if (node === 'report_amount') {
+    const amount = parseReportAmount(turn.text);
+    if (amount === null) return again("That doesn't look like an amount. Reply with the amount in naira, for example 50000, or CANCEL.");
+    if (amount <= 0) return again('The amount must be more than ₦0. Reply with the amount in naira, or CANCEL.');
+    if (amount > MAX_REPORT_AMOUNT) return again('That amount is too large. Check it and reply with the amount in naira, or CANCEL.');
+    turn.session.draft = { ...draft, amount };
+    return respond(turn, `${formatNaira(amount)}. When did you pay? Reply with the date, for example 12 Oct 2026, or TODAY or YESTERDAY.`, 'report_date');
+  }
+
+  if (node === 'report_date') {
+    const paymentDate = parseReportDate(turn.text, now);
+    if (!paymentDate) return again("That doesn't look like a date. Reply with it like 12 Oct 2026, or TODAY or YESTERDAY, or CANCEL.");
+    const check = checkReportDate(paymentDate, now);
+    if (check === 'future') return again('That date is in the future. Reply with the date you paid, or CANCEL.');
+    if (check === 'too_old') {
+      return again(withContact(turn, `Payments from more than ${REPORT_WINDOW_DAYS} days ago cannot be reported here. Reply with a later date, or CANCEL.`));
+    }
+    turn.session.draft = { ...draft, paymentDate };
+    return respond(turn, `${formatDay(paymentDate)}. Reply with the bank narration or reference shown on your transfer. You can also send a screenshot; the estate office will see it on the estate phone.`, 'report_reference');
+  }
+
+  if (node === 'report_reference') {
+    const reference = cleanReference(turn.text);
+    if (!reference) return again('Reply with the narration or reference in under 100 characters, or CANCEL.');
+    if (draft.amount === undefined || !draft.paymentDate) return showMain(turn, 'That report could not be continued. Nothing was sent.');
+    turn.session.draft = { ...draft, reference };
+    return respond(
+      turn,
+      ['*Report a payment*', `Property: ${house.label}`, `Amount: ${formatNaira(draft.amount)}`, `Date: ${formatDay(draft.paymentDate)}`, `Reference: ${reference}`, 'Reply 1 to send it to the estate office, 2 to cancel.'].join('\n'),
+      'report_confirm'
+    );
+  }
+
+  // report_confirm
+  if (turn.text !== '1' && turn.text !== '2') return miss(turn, node);
+  if (turn.text === '2') return showMain(turn, 'Cancelled. Nothing was changed.');
+  if (draft.amount === undefined || !draft.paymentDate || !draft.reference) return showMain(turn, 'That report could not be continued. Nothing was sent.');
+
+  const result = await turn.options.repository.createPaymentReport({
+    residentId: turn.identity.id,
+    houseId: house.id,
+    houseLabel: house.label,
+    amount: draft.amount,
+    paymentDate: draft.paymentDate,
+    reference: draft.reference,
+    screenshotAt: draft.screenshotAt ?? null,
+  });
+  const reply = result.status === 'created'
+    ? 'Reported. The estate office will check it against the bank statement. It shows as awaiting verification until then.'
+    : result.status === 'duplicate'
+      ? `A payment of ${formatNaira(draft.amount)} on ${formatDay(draft.paymentDate)} for ${house.label} has already been reported. Nothing was sent.`
+      : result.status === 'limit'
+        ? withContact(turn, `You've reported ${REPORTS_PER_DAY} payments today, which is the limit. Please try again tomorrow.`)
+        : withContact(turn, 'That payment could not be reported. Nothing was sent.');
+  await respond(turn, `${reply}\n${footer(turn)}`, 'main');
+}
+
+/** An image inside a report: Chatmaid does not pass the file on, so say where it went and note when it came (decision 10). */
+async function acknowledgeScreenshot(turn: Turn, node: string): Promise<void> {
+  const draft = reportDraft(turn);
+  if (draft) {
+    const sentAt = new Date(Number(turn.message.timestamp) * 1000);
+    if (!Number.isNaN(sentAt.getTime())) turn.session.draft = { ...draft, screenshotAt: `${lockTime(sentAt.toISOString())} on ${formatDay(sentAt)}` };
+  }
+  await respond(turn, 'Screenshot received. The estate office will see it on the estate phone.\nContinue with your report, or reply CANCEL.', node);
+}
+
+// ---------------------------------------------------------------------------
+// Account actions (#816): reminders and verified email
+
+async function showAlertSettings(turn: Turn): Promise<void> {
+  const lines = ['Alert settings', '1. All estate WhatsApp messages: ON'];
+  if (turn.identity.financialEligible) {
+    const on = await turn.options.repository.getRemindersOn(turn.identity.id);
+    lines.push(`2. Payment reminders: ${on ? 'ON' : 'OFF'}`, 'Reply 1 or 2 to change one.');
+  } else {
+    lines.push('Reply 1 to turn them off.');
+  }
+  lines.push(footer(turn));
+  await respond(turn, lines.join('\n'), 'alerts');
+}
+
+/** Payment reminders on WhatsApp: off asks first (decision 4), on is immediate. */
+async function toggleReminders(turn: Turn): Promise<void> {
+  if (!turn.identity.financialEligible) return showAlertSettings(turn);
+  if (await turn.options.repository.getRemindersOn(turn.identity.id)) {
+    return respond(turn, 'Turn off payment reminders on WhatsApp? Reply 1 Yes, 2 No.', 'reminders_confirm');
+  }
+  await turn.options.repository.setRemindersOn(turn.identity.id, true);
+  await respond(turn, `Reminders on. You will get payment reminders on WhatsApp again.\n${footer(turn)}`, 'main');
+}
+
+async function confirmReminders(turn: Turn, input: string): Promise<void> {
+  if (input === '2') return respond(turn, `Nothing was changed.\n${footer(turn)}`, 'main');
+  if (input !== '1') return miss(turn, 'reminders_confirm');
+  await turn.options.repository.setRemindersOn(turn.identity.id, false);
+  await respond(turn, `Reminders off. Your bills still apply. Reply 4 then 2 to turn them back on.\n${footer(turn)}`, 'main');
+}
+
+/** Update email (both tiers). A PIN-verified session is required when a PIN is set or forced (decision 6). */
+async function startEmail(turn: Turn, prefix?: string): Promise<void> {
+  // Only a financial-tier resident can set a PIN, so the community tier is asked only if they already have one.
+  const gated = (await loadPinGate(turn)) && (turn.identity.financialEligible || !!turn.pinHash);
+  if (gated && !turn.session.pinAuthenticated) {
+    return respond(turn, `${emailPinPrompt(turn)}\n${footer(turn)}`, 'pin:email');
+  }
+  const lead = prefix ? `${prefix}\n\n` : '';
+  await respond(turn, `${lead}What email address should we use? Reply with the address, or CANCEL.`, 'email_address');
+}
+
+const EMAIL_FAILED = "I couldn't do that right now. Nothing was changed. Please try again in a few minutes.";
+
+async function submitEmailAddress(turn: Turn): Promise<void> {
+  const result = await turn.options.repository.startEmailChange(turn.identity.id, turn.text);
+  if (result.status === 'sent') {
+    return respond(turn, `We sent a 6-digit code to ${maskEmail(result.email)}. It expires in 30 minutes. Reply with the code, or CANCEL.`, 'email_code');
+  }
+  if (result.status === 'invalid') {
+    return respond(turn, "That doesn't look like an email address. Reply with it again, for example name@example.com, or CANCEL.", 'email_address', turn.misses + 1);
+  }
+  const reply = result.status === 'same'
+    ? 'That is already your verified email. Nothing was changed.'
+    : result.status === 'rate_limited'
+      ? 'Too many codes were sent. Please try again in an hour. Nothing was changed.'
+      : EMAIL_FAILED;
+  await respond(turn, `${reply}\n${footer(turn)}`, 'main');
+}
+
+async function submitEmailCode(turn: Turn): Promise<void> {
+  if (!/^\d{6}$/.test(turn.text)) {
+    return respond(turn, 'Reply with the 6-digit code from the email, or CANCEL.', 'email_code', turn.misses + 1);
+  }
+  const result = await turn.options.repository.confirmEmailChange(turn.identity.id, turn.text);
+  if (result.status === 'saved') {
+    const queued = result.statementsQueued > 0 ? ' Your statement will arrive within 15 minutes.' : '';
+    return respond(turn, `Your email is now ${maskEmail(result.email)}.${queued}\n${footer(turn)}`, 'main');
+  }
+  if (result.status === 'wrong') return respond(turn, "That code isn't correct. Check the email and reply with the code again, or CANCEL.", 'email_code');
+  const reply = result.status === 'locked'
+    ? 'Too many wrong codes. Reply EMAIL to start again.'
+    : result.status === 'expired'
+      ? 'That code has expired. Reply EMAIL to start again.'
+      : EMAIL_FAILED;
+  await respond(turn, `${reply}\n${footer(turn)}`, 'main');
+}
+
 async function runIntent(turn: Turn, intent: AssistantIntent): Promise<void> {
   const item = ITEM_FOR_INTENT[intent];
   if (item) return enterFinancial(turn, item);
   if (intent === 'pay') return showHowToPay(turn);
   if (intent === 'notices') return showNotices(turn);
+  if (intent === 'email') return startEmail(turn);
+  if (intent === 'reminders') return toggleReminders(turn);
   return showContact(turn);
 }
 
@@ -1161,10 +1523,11 @@ async function handlePin(turn: Turn, pin: string, node: string): Promise<void> {
   turn.session.pinAuthenticated = true;
   turn.pinHash = pinHash;
   turn.pinGate = true;
-  const target = node.startsWith('pin:') ? (node.slice(4) as Target) : 'menu';
-  await enterFinancial(turn, target, PIN_VERIFIED_REPLY);
+  const target = node.startsWith('pin:') ? node.slice(4) : 'menu';
+  if (target === 'email') return startEmail(turn, 'PIN verified.');
+  const account = target === 'report' || target === 'receipt' || target === 'clearance';
+  await enterFinancial(turn, target as Target, account ? 'PIN verified.' : PIN_VERIFIED_REPLY);
 }
-
 /** `PIN`, `Set a security PIN` or `Change PIN` (#892). */
 async function handlePinCommand(turn: Turn, input: string): Promise<void> {
   const pinHash = await turn.options.repository.getPinHash(turn.identity.id);
@@ -1257,19 +1620,28 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
   if (pinStep && stepDigits !== null && turn.identity.financialEligible) return handlePinStep(turn, pinStep[1], pinStep[2], stepDigits);
   turn.session.pendingPinHash = null;
   // Bare digits are the PIN only when the bot has just asked for it.
-  if (node.startsWith('pin:') && stepDigits !== null && PIN_DIGITS.test(stepDigits) && turn.identity.financialEligible) {
+  // Update email asks for the PIN of every resident, so the community tier can answer it too (#816 decision 6).
+  if (node.startsWith('pin:') && stepDigits !== null && PIN_DIGITS.test(stepDigits) && (turn.identity.financialEligible || node === 'pin:email')) {
     return handlePin(turn, stepDigits, node);
   }
 
   const pinCommand = text.match(/^PIN\s+([0-9]{4,6})$/i);
-  if (pinCommand && turn.identity.financialEligible) return handlePin(turn, pinCommand[1], node);
+  // Update email asks for the PIN of every resident, so the community tier can answer it too (#816 decision 6).
+  if (pinCommand && (turn.identity.financialEligible || node === 'pin:email')) return handlePin(turn, pinCommand[1], node);
 
   if (expired) {
     const pinClause = turn.identity.financialEligible && (await loadPinGate(turn)) ? ', so your PIN is needed again' : '';
     return showMain(turn, `Your session ended after ${SESSION_MINUTES} minutes without activity${pinClause}. Nothing was changed.`);
   }
 
+  if (turn.message.type === 'image' && node.startsWith('report_')) return acknowledgeScreenshot(turn, node);
   if (turn.message.type !== 'text' || !text) return respond(turn, TEXT_ONLY_REPLY, node, turn.misses);
+
+  // A narration or reference is free text, so it cannot be read as a keyword.
+  if (node === 'report_reference' && input !== 'cancel' && input !== 'lock') return reportStep(turn, node);
+
+  // The prompt reads "Reply 1 Yes, 2 No", so YES and NO answer it rather than opening the menu.
+  if (node === 'reminders_confirm' && (input === 'yes' || input === 'no')) return confirmReminders(turn, input === 'yes' ? '1' : '2');
 
   if ((input === 'pin' || input === 'set a security pin' || input === 'change pin') && turn.identity.financialEligible) {
     return handlePinCommand(turn, input);
@@ -1283,9 +1655,15 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
   }
   if (CONTACT_WORDS.has(input)) return showContact(turn);
   if (input === '0') {
-    const backToFinancial = node === 'answer' || node === 'more' || node === 'statement_period' || node.startsWith('property:') || node.startsWith('statement:') || node.startsWith('statement_email:');
+    const backToFinancial = node === 'answer' || node === 'more' || node === 'statement_period' || node.startsWith('report_') || node.startsWith('receipt_') || node.startsWith('property:') || node.startsWith('statement:') || node.startsWith('statement_email:');
     return backToFinancial && turn.identity.financialEligible ? enterFinancial(turn, 'menu') : showMain(turn);
   }
+
+  // Free-text answers come before the keywords, which would otherwise read an address as a keyword.
+  if (node === 'report_amount' || node === 'report_date' || node === 'report_confirm') return reportStep(turn, node);
+  if (node === 'receipt_pick') return pickReceipt(turn, input);
+  if (node === 'email_address') return submitEmailAddress(turn);
+  if (node === 'email_code') return submitEmailCode(turn);
 
   const intent = turn.settings?.keywordSynonyms[input] ?? DEFAULT_KEYWORDS[input];
   if (intent) return runIntent(turn, intent);
@@ -1330,7 +1708,10 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
     return respond(turn, [`*${notice.title}*`, ...(notice.publishedAt ? [formatDay(notice.publishedAt)] : []), content, footer(turn)].join('\n'), 'main');
   }
 
+  if (node === 'reminders_confirm') return confirmReminders(turn, input);
+
   if (node === 'alerts') {
+    if (input === '2' && turn.identity.financialEligible) return toggleReminders(turn);
     if (input !== '1') return miss(turn, node);
     await turn.options.repository.setAlertsOn(turn.identity.id, turn.phoneNumber, false);
     return respond(turn, UNSUBSCRIBED_REPLY, 'main');
@@ -1355,9 +1736,8 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
   if (input === '1' && turn.identity.financialEligible) return enterFinancial(turn, 'menu');
   if (input === '2' && (await loadNotices(turn)).length > 0) return showNotices(turn);
   if (input === '3' && turn.settings?.paymentInstructions) return showHowToPay(turn);
-  if (input === '4') {
-    return respond(turn, ['Alert settings', '1. All estate WhatsApp messages: ON', 'Reply 1 to turn them off.', footer(turn)].join('\n'), 'alerts');
-  }
+  if (input === '4') return showAlertSettings(turn);
+  if (input === '5') return startEmail(turn);
   return miss(turn, 'main');
 }
 

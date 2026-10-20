@@ -12,17 +12,27 @@ import { Constants } from '@/types/database.generated';
  * These tests fail if the union, the label map and the database enum ever
  * disagree again. `Constants` is emitted by `npm run db:types` straight from the
  * database, so it is the runtime witness for what the enum actually holds.
+ *
+ * #816 adds two values in migration 20261022000000. Until it is applied and
+ * `npm run db:types` is re-run, `Constants` lacks them, so they are pinned below
+ * with the migration that declares them; each pending value must be added by a
+ * migration in this repository, never only in TypeScript.
  */
 describe('ApprovalRequestType agrees with the database enum', () => {
   const dbValues = Constants.public.Enums.approval_request_type;
 
-  // The three members the Postgres enum holds, pinned literally. Anything that
+  // The members the Postgres enum holds, pinned literally. Anything that
   // adds, removes or renames one has to change this line, which is the point.
   const ENUM_MEMBERS = [
     'billing_profile_effective_date',
     'house_plots_change',
     'late_fee_waiver',
+    'whatsapp_payment_report',
+    'clearance_certificate_request',
   ];
+
+  // Declared by a migration but not yet in the generated types; remove an entry once db:types carries it.
+  const PENDING_IN_GENERATED = ['whatsapp_payment_report', 'clearance_certificate_request'];
 
   it('is derived from the generated enum rather than retyped', () => {
     // A type alias leaves nothing behind at runtime, so an assignability
@@ -36,20 +46,25 @@ describe('ApprovalRequestType agrees with the database enum', () => {
       'utf-8'
     );
 
-    expect(source).toContain(
-      "export type ApprovalRequestType = GeneratedDatabase['public']['Enums']['approval_request_type'];"
-    );
+    expect(source).toContain("| GeneratedDatabase['public']['Enums']['approval_request_type']");
   });
 
-  it('holds exactly the three members the database enum declares', () => {
-    expect([...dbValues].sort()).toEqual([...ENUM_MEMBERS].sort());
+  it('holds exactly the members the database enum declares, counting the migration not yet in the generated types', () => {
+    expect([...dbValues, ...PENDING_IN_GENERATED.filter((value) => !(dbValues as readonly string[]).includes(value))].sort()).toEqual([...ENUM_MEMBERS].sort());
     expect(Object.keys(APPROVAL_REQUEST_TYPE_LABELS).sort()).toEqual(
       [...ENUM_MEMBERS].sort()
     );
   });
 
-  it('labels exactly the values the database enum holds', () => {
-    expect(Object.keys(APPROVAL_REQUEST_TYPE_LABELS).sort()).toEqual([...dbValues].sort());
+  it('labels every value the database enum holds', () => {
+    for (const value of dbValues) expect(APPROVAL_REQUEST_TYPE_LABELS).toHaveProperty(value);
+  });
+
+  it('adds each pending value in a migration', () => {
+    const sql = fs.readFileSync(path.join(process.cwd(), 'supabase/migrations/20261022000000_whatsapp_account_actions.sql'), 'utf-8');
+    for (const value of PENDING_IN_GENERATED) {
+      expect(sql).toContain(`ALTER TYPE public.approval_request_type ADD VALUE IF NOT EXISTS '${value}';`);
+    }
   });
 
   it('holds no phantom value that never existed in a migration', () => {

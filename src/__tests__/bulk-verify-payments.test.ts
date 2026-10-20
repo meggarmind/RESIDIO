@@ -67,6 +67,19 @@ describe('bulkVerifyPayments', () => {
     expect(supabase.from).not.toHaveBeenCalled();
   });
 
+  it('leaves payments reported over WhatsApp to Approvals (#816)', async () => {
+    results['payment_records:select'] = {
+      data: [{ id: A, is_verified: false, status: 'pending', approval_request_id: 'request-1' }, { id: C, is_verified: false, status: 'paid', approval_request_id: null }],
+      error: null,
+    };
+    results['payment_records:update'] = { data: [{ id: C, reference_number: null }], error: null };
+
+    const res = await bulkVerifyPayments([A, C]);
+
+    expect(res).toMatchObject({ success: true, verifiedCount: 1, skippedCount: 1 });
+    expect(updates[0].filters).toContainEqual(['in', 'id', [C]]);
+  });
+
   it('verifies only the unverified rows in one update and audits each one', async () => {
     results['payment_records:select'] = {
       data: [{ id: A, is_verified: false }, { id: B, is_verified: true }, { id: C, is_verified: false }],

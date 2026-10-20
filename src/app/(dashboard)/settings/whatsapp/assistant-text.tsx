@@ -19,7 +19,7 @@ const FIELDS: Array<{ field: keyof WhatsAppAssistantText; label: string; help: s
   {
     field: 'keywordSynonyms',
     label: 'Extra keywords',
-    help: 'One per line as "phrase = item". Items: owe, payments, statement, wallet, pay, notices, contact.',
+    help: 'One per line as "phrase = item". Items: owe, payments, statement, wallet, pay, notices, contact, email, reminders, report, receipt, clearance.',
     placeholder: 'service charge = owe\ndues = owe',
   },
 ];

@@ -37,6 +37,7 @@ If a tool changes many records, stop at the preview stage when the count or warn
 ## Evidence checklist
 
 - Who performed the action?
+  - Changes a resident makes through the WhatsApp assistant (reminders, email, reported payments, clearance requests) show no administrator; the resident is named in the entry's metadata.
 - What records were affected?
 - What was the old and new state?
 - What source document or approval authorized it?
