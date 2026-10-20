@@ -244,21 +244,23 @@ export async function bulkVerifyPayments(
     }
 
     const verifiedRows = verified ?? [];
-    for (const payment of verifiedRows) {
-        await logAudit({
-            action: 'VERIFY',
-            entityType: 'payment_records',
-            entityId: payment.id,
-            entityDisplay: `Payment: ${payment.reference_number || payment.id}`,
-            oldValues: { is_verified: false },
-            newValues: {
-                is_verified: true,
-                verified_by: user.id,
-                verification_type: 'manual_bulk',
-                ...(verificationNotes ? { notes: verificationNotes } : {}),
-            },
-        });
-    }
+    await Promise.all(
+        verifiedRows.map((payment) =>
+            logAudit({
+                action: 'VERIFY',
+                entityType: 'payment_records',
+                entityId: payment.id,
+                entityDisplay: `Payment: ${payment.reference_number || payment.id}`,
+                oldValues: { is_verified: false },
+                newValues: {
+                    is_verified: true,
+                    verified_by: user.id,
+                    verification_type: 'manual_bulk',
+                    ...(verificationNotes ? { notes: verificationNotes } : {}),
+                },
+            })
+        )
+    );
 
     revalidatePath('/payments');
     revalidatePath('/dashboard');
