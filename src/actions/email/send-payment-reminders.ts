@@ -7,6 +7,7 @@ import { sendEmail, getEstateEmailSettings } from '@/lib/email';
 import { embed } from '@/lib/utils';
 import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
 import { getSettingValue } from '@/actions/settings/get-settings';
+import { readPaymentReminderSettings } from '@/lib/notifications/payment-reminder-settings';
 import { updateSetting } from '@/actions/settings/update-setting';
 import { logAudit } from '@/lib/audit/logger';
 import { PaymentReminderEmail } from '@/emails';
@@ -40,18 +41,10 @@ export async function sendPaymentReminders(): Promise<ReminderResult> {
     errors: [],
   };
 
-  // Check if reminders are enabled
-  const remindersEnabled = await getSettingValue('email_payment_reminders_enabled');
-  if (remindersEnabled === false) {
+  // Same settings the daily cron applies (#846)
+  const { emailEnabled, reminderDays } = await readPaymentReminderSettings(getSettingValue);
+  if (!emailEnabled) {
     return { ...result, errors: ['Payment reminders are disabled'] };
-  }
-
-  // Get reminder days configuration (e.g., [7, 3, 1])
-  const reminderDaysRaw = await getSettingValue('payment_reminder_days');
-  let reminderDays: number[] = [7, 3, 1]; // Default
-
-  if (Array.isArray(reminderDaysRaw)) {
-    reminderDays = reminderDaysRaw.map((d) => Number(d)).filter((d) => !isNaN(d));
   }
 
   if (reminderDays.length === 0) {
@@ -206,13 +199,10 @@ export async function previewPaymentReminders(): Promise<{
   if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
 
   const empty = { recipients: 0, invoices: 0, skipped: 0 };
-  if ((await getSettingValue('email_payment_reminders_enabled')) === false) {
+  const { emailEnabled, reminderDays } = await readPaymentReminderSettings(getSettingValue);
+  if (!emailEnabled) {
     return { data: { ...empty, disabledReason: 'Payment reminders are disabled' }, error: null };
   }
-  const reminderDaysRaw = await getSettingValue('payment_reminder_days');
-  const reminderDays = Array.isArray(reminderDaysRaw)
-    ? reminderDaysRaw.map((d) => Number(d)).filter((d) => !isNaN(d))
-    : [7, 3, 1];
   if (reminderDays.length === 0) {
     return { data: { ...empty, disabledReason: 'No reminder days configured' }, error: null };
   }
