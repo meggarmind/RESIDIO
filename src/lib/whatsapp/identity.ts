@@ -707,8 +707,8 @@ export async function handleResidentMessage(
     }
   }
 
-  // START keeps its meaning (alerts opt-in), but only once the number's holder is confirmed.
-  const starting = state.step !== `identity:${fingerprint}` && isStartCommand(answer);
+  // START keeps its meaning (alerts opt-in), but not as an answer to a pending consent prompt.
+  const starting = !state.step && isStartCommand(answer);
   if (starting) {
     await repository.setOptIn(residentId, phoneNumber, true, 'in_chat');
     optedIn = true;

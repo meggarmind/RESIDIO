@@ -300,6 +300,18 @@ describe('privacy notice (#871 steps 3-7)', () => {
     expect(onIdentified).not.toHaveBeenCalled();
   });
 
+  it.each(['yes', 'START'])('does not read "%s" at the notice prompt as the alerts opt-in, and re-sends the notice', async (text) => {
+    const repo = repository(prompted());
+    const { result, bodies, send } = await run(text, repo);
+
+    expect(repo.setOptIn).not.toHaveBeenCalled();
+    expect(repo.recordConsentDecision).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ status: 'consent_pending', optedIn: false });
+    expect(bodies[0]).not.toContain('alerts are now enabled');
+    expect(bodies[0]).toContain('1. Accept\n2. Decline');
+    expect(send.mock.calls[0][0].mediaUrls).toEqual([NOTICE_URL]);
+  });
+
   it('records a decline, gives the office contact and uses no records', async () => {
     const repo = repository(prompted({ pendingRequest: 'OWE' }));
     const { result, bodies, onIdentified } = await run('2', repo);
