@@ -10,8 +10,8 @@ residio_sources:
   - src/actions/notifications/**
   - src/app/(dashboard)/settings/email/**
   - src/app/(dashboard)/settings/notifications/**
-residio_verified_commit: 223af6d
-residio_verified_at: '2026-10-13'
+residio_verified_commit: e24b7386
+residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
 
@@ -23,9 +23,9 @@ Residio sends resident communication over three channels: email, SMS, and in-app
 
 ## Email
 
-Open **Settings → Email**. The page reports whether email is configured on the server before it shows any toggles — read that banner first. If it says email is not configured, no toggle on the page will produce a delivered message, and the fix is a server credential change by an engineer.
+Open **Settings → Messages & Reminders → Email Delivery → Email Settings**. The page reports whether email is configured on the server before it shows any toggles — read that banner first. If it says email is not configured, no toggle on the page will produce a delivered message, and the fix is a server credential change by an engineer.
 
-The toggles control which categories of email Residio sends: notifications, invoices and receipts, and account or invitation mail. Turn a category off when you want to suppress a class of message without disabling the whole channel.
+**Enable Email Notifications** switches email on or off as a whole. Below it, **Invoice Notifications** and **Welcome Emails** turn off one class of message without disabling the channel. **Payment Reminders** on this page only allows the manual reminder run from **Send a Test**; the automatic daily reminders are switched on or off under **Reminders** (see below). Changing these switches needs the manage general settings permission; without it they are shown disabled.
 
 **Settings → Messages & Reminders → Redirect Messages (test mode)** holds Debug Mode. While it is on, every email, SMS and WhatsApp message goes to the override contacts instead of the real recipient, so you can watch the system work without messaging residents. Choose a duration from 5 to 480 minutes when you turn it on; it switches itself off when the time is up, and it cannot be turned on while the override email or phone is blank. It replaces the old email-only debug switch, which skipped sending altogether.
 
@@ -35,7 +35,7 @@ The toggles control which categories of email Residio sends: notifications, invo
 
 SMS is used for a narrower set of messages: two-factor codes, plus contact verification codes once the SMS provider is connected. SMS is currently switched off for emergency broadcasts, reminders, contact verification codes, and the WhatsApp fallback below until the SMS provider (Termii) is connected. It is more expensive and more intrusive than email, so it should not be the default channel for routine billing communication.
 
-Configure SMS behaviour from **Settings → Notifications**, alongside the other channels.
+Until then, SMS has no settings of its own: **Settings → Messages & Reminders → Notifications Overview** lists only email and WhatsApp as active channels.
 
 ### SMS fallback for urgent WhatsApp messages
 
@@ -78,11 +78,13 @@ Invoice reminders go out by email and WhatsApp only. SMS is switched off for rem
 | Queue state | Meaning |
 |---|---|
 | Small, draining | Normal |
-| Growing steadily | The processing job is not running — check **Settings → Cron Status** |
+| Growing steadily | The processing job is not running — check **System → Cron Status** |
 | Stuck with failures | The provider is rejecting sends — check **System → Notification History** for the error |
+
+The processing job runs every 15 minutes. A send that fails for a temporary reason, such as a provider timeout or rate limit, goes back into the queue and is tried again after 15 minutes, then 1 hour, 6 hours and 24 hours, up to 5 attempts in all. Each failed attempt is still written to history as failed. A failure that is not known to be temporary is not retried, so a message is never sent twice by mistake.
 
 Do not clear the queue to make a warning disappear. Clearing it discards messages residents were owed and destroys the evidence needed to diagnose the failure.
 
 ## History
 
-**Settings → Notifications → History** is the record of what was actually sent, to whom, and when. Use it to answer a resident who says they were never notified, before assuming a delivery fault.
+**System → Notification History** is the record of what was actually sent, to whom, and when. Use it to answer a resident who says they were never notified, before assuming a delivery fault.

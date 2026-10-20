@@ -7,8 +7,8 @@ residio_sources:
   - src/actions/residents/create-resident.ts
   - src/actions/residents/assign-house.ts
   - src/actions/residents/add-household-member.ts
-residio_verified_commit: 985dbd0
-residio_verified_at: '2026-10-16'
+residio_verified_commit: e24b7386
+residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
 

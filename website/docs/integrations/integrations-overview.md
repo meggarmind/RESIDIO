@@ -10,36 +10,36 @@ residio_sources:
   - src/lib/sms/index.ts
   - src/lib/paystack/index.ts
   - src/lib/email-imports/gmail-client.ts
-residio_verified_commit: 7bc84a4
-residio_verified_at: '2026-09-03'
+residio_verified_commit: e24b7386
+residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
 
 # Integrations overview
 
-Residio talks to a small set of external services. Each one is configured with server credentials by an engineer, then operated day to day from the dashboard. This section explains the operating side: what each connection does, where its controls live, and how to tell whether it is healthy.
+Residio talks to a small set of external services. Most are configured with server credentials by an engineer, then operated day to day from the dashboard; the WhatsApp provider is connected by an admin from **Settings → WhatsApp**. This section explains the operating side: what each connection does, where its controls live, and how to tell whether it is healthy.
 
 ## The connection map
 
 | Connection | What it does | Where you operate it |
 |---|---|---|
-| WhatsApp Cloud API | Resident messaging, identity checks, and balance lookups | **Settings → WhatsApp** |
-| Email (Resend) | Outbound notifications, reminders, receipts | **Settings → Email** |
+| WhatsApp (Meta, Twilio or Chatmaid) | Resident messaging, identity checks, and balance lookups | **Settings → WhatsApp** |
+| Email (Resend) | Outbound notifications, reminders, receipts | **Settings → Email Settings** |
 | SMS (Termii) | Emergency broadcasts, two-factor codes (contact verification SMS is switched off until Termii is connected) | **Settings → Notifications** |
-| Gmail import | Pulls bank alerts and statements into the payment queue | **Settings → Email Integration** |
+| Gmail import | Pulls bank alerts and statements into the payment queue | **Settings → Gmail Import** |
 | Bank statement files | CSV, Excel, and PDF statement parsing | **Transactions → Import Statement** |
 | Paystack | Online card payment collection and reconciliation | **Transactions**, **Approvals** |
-| Scheduled jobs | Invoice generation, reminders, report delivery, cleanups | **Settings → Cron Status** |
+| Scheduled jobs | Invoice generation, reminders, report delivery, cleanups | **System → Cron Status** |
 
 ## Two layers of configuration
 
 Every integration is configured in two places, and both must be right before it works.
 
-1. **Server credentials.** API keys, webhook secrets, and OAuth client details live in environment variables on the deployment. Admins do not see or edit these from the dashboard. If a page reports "not configured", this is the layer to escalate.
+1. **Server credentials.** API keys, webhook secrets, and OAuth client details live in environment variables on the deployment. Admins do not see or edit these from the dashboard, except the WhatsApp provider credentials, which are entered on the connection card on **Settings → WhatsApp**. If a page reports "not configured", this is the layer to escalate.
 2. **Operating settings.** Toggles, templates, rollout modes, caps, and schedules live in the database and are edited from **Settings**. These are yours to change, and changes are recorded in the audit log.
 
-:::warning[Credentials are never entered in the dashboard]
-No Residio settings page asks for an API key or secret. If a screen appears to request one, stop and report it to the security lead.
+:::warning[Credentials are entered in one place only]
+The WhatsApp connection card on **Settings → WhatsApp** is the only Residio page that asks for provider credentials. If any other screen appears to request an API key or secret, stop and report it to the security lead.
 :::
 
 ## Before enabling any outbound channel
@@ -58,10 +58,10 @@ Follow the same sequence for email, SMS, and WhatsApp alike.
 | Symptom | First place to look |
 |---|---|
 | Residents report no messages | The channel's settings page, then **System → Notification Queue** |
-| Messages queued but never sent | **Settings → Cron Status** for the notification job |
-| Bank alerts not appearing | **Settings → Email Integration** connection status and last sync time |
+| Messages queued but never sent | **System → Cron Status** for the notification job |
+| Bank alerts not appearing | **Settings → Gmail Import** connection status and last sync time |
 | Online payments missing | **Approvals** for unverified transactions, then the payment gateway logs |
-| A job has not run | **Settings → Cron Status** |
+| A job has not run | **System → Cron Status** |
 
 A failed integration is an investigation, not a cleanup. Do not delete queued messages, imported rows, or transactions to clear a warning — the record of the failure is what makes the fix verifiable.
 

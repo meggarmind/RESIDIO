@@ -5,8 +5,8 @@ sidebar_label: Streets and house types
 residio_sources:
   - src/app/(dashboard)/settings/streets/**
   - src/app/(dashboard)/settings/house-types/**
-residio_verified_commit: 93ed5d0
-residio_verified_at: '2026-08-29'
+residio_verified_commit: e24b7386
+residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
 
