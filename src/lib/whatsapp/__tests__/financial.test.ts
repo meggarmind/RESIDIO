@@ -130,6 +130,10 @@ function repository(houses: FinancialHouse[] = [PALM], overrides: Partial<WhatsA
     getWalletBalance: vi.fn().mockResolvedValue(15000),
     getStatementRows: vi.fn().mockResolvedValue({ invoices: [], payments: [] }),
     setAlertsOn: vi.fn().mockResolvedValue(undefined),
+    getRemindersOn: vi.fn().mockResolvedValue(true),
+    setRemindersOn: vi.fn().mockResolvedValue(undefined),
+    startEmailChange: vi.fn().mockResolvedValue({ status: 'sent', email: 'new.name@example.com' }),
+    confirmEmailChange: vi.fn().mockResolvedValue({ status: 'saved', email: 'new.name@example.com', statementsQueued: 0 }),
     loadStatement: vi.fn().mockResolvedValue({ fromDate: '2026-10-01', toDate: '2026-10-20', statement: statementData(3) }),
     storeStatementPdf: vi.fn().mockResolvedValue('https://storage.test/signed/statement.pdf'),
     getResidentEmail: vi.fn().mockResolvedValue('ada.example@gmail.com'),
@@ -166,6 +170,7 @@ const MAIN_MENU = [
   '1. Financial standing',
   '3. How to pay',
   '4. Alert settings',
+  '5. Update email',
   '9. Contact the estate office',
   'Reply with a number.',
 ].join('\n');
@@ -250,7 +255,7 @@ describe('WhatsApp Assistant menus (#804 harmonised)', () => {
     });
     const replies = await chat(repo, ['hi', '3', 'banana', '1', '1']);
 
-    expect(replies[0]).toBe(['Hi Ada, what would you like to do?', '1. Financial standing', '4. Alert settings', 'Reply with a number.'].join('\n'));
+    expect(replies[0]).toBe(['Hi Ada, what would you like to do?', '1. Financial standing', '4. Alert settings', '5. Update email', 'Reply with a number.'].join('\n'));
     expect(replies[1]).toBe(UNRECOGNISED);
     // No contact line to add on the 2nd miss.
     expect(replies[2]).toBe(UNRECOGNISED);
@@ -288,7 +293,7 @@ describe('WhatsApp Assistant menus (#804 harmonised)', () => {
     const repo = repository();
     const replies = await chat(repo, ['4', '1']);
 
-    expect(replies[0]).toBe(['Alert settings', '1. All estate WhatsApp messages: ON', 'Reply 1 to turn them off.', FOOTER].join('\n'));
+    expect(replies[0]).toBe(['Alert settings', '1. All estate WhatsApp messages: ON', '2. Payment reminders: ON', 'Reply 1 or 2 to change one.', FOOTER].join('\n'));
     expect(repo.setAlertsOn).toHaveBeenCalledWith('resident-1', '+2348000000000', false);
     expect(replies[1]).toContain('unsubscribed');
   });
@@ -332,6 +337,7 @@ describe('WhatsApp Assistant community tier (#804 decision 15)', () => {
       '2. Latest estate notices',
       '3. How to pay',
       '4. Alert settings',
+      '5. Update email',
       '9. Contact the estate office',
       'Reply with a number.',
     ].join('\n'));
@@ -1032,5 +1038,139 @@ describe('WhatsApp statement PDF delivery (#804 decision 24, amended by #863)', 
     const replies = await chat(repo, ['pdf']);
     expect(replies[0]).toContain('reply PIN followed by your 4–6 digit PIN');
     expect(repo.storeStatementPdf).not.toHaveBeenCalled();
+  });
+});
+
+describe('WhatsApp Assistant payment reminders (#816 decisions 2-4)', () => {
+  it('shows the live state and asks before turning reminders off', async () => {
+    const repo = repository();
+    const replies = await chat(repo, ['4', '2', '1']);
+
+    expect(replies[0]).toContain('2. Payment reminders: ON');
+    expect(replies[1]).toBe('Turn off payment reminders on WhatsApp? Reply 1 Yes, 2 No.');
+    expect(repo.setRemindersOn).toHaveBeenCalledWith('resident-1', false);
+    expect(replies[2]).toBe(`Reminders off. Your bills still apply. Reply 4 then 2 to turn them back on.\n${FOOTER}`);
+  });
+
+  it('changes nothing when the resident answers No', async () => {
+    const repo = repository();
+    const replies = await chat(repo, ['reminders', '2']);
+
+    expect(replies[0]).toBe('Turn off payment reminders on WhatsApp? Reply 1 Yes, 2 No.');
+    expect(replies[1]).toBe(`Nothing was changed.\n${FOOTER}`);
+    expect(repo.setRemindersOn).not.toHaveBeenCalled();
+  });
+
+  it('turns reminders back on straight away and shows OFF while they are off', async () => {
+    const repo = repository([PALM], { getRemindersOn: vi.fn().mockResolvedValue(false) });
+    const replies = await chat(repo, ['4', '2']);
+
+    expect(replies[0]).toContain('2. Payment reminders: OFF');
+    expect(repo.setRemindersOn).toHaveBeenCalledWith('resident-1', true);
+    expect(replies[1]).toBe(`Reminders on. You will get payment reminders on WhatsApp again.\n${FOOTER}`);
+  });
+
+  it('offers reminders to billable residents only', async () => {
+    const repo = repository([]);
+    const replies = await chat(repo, ['4', '2', 'reminders'], community);
+
+    expect(replies[0]).toBe(['Alert settings', '1. All estate WhatsApp messages: ON', 'Reply 1 to turn them off.', FOOTER].join('\n'));
+    expect(replies[1]).toBe(UNRECOGNISED);
+    expect(replies[2]).toBe(replies[0]);
+    expect(repo.getRemindersOn).not.toHaveBeenCalled();
+    expect(repo.setRemindersOn).not.toHaveBeenCalled();
+  });
+
+  it('keeps the confirmation open on a miss and does not turn reminders off', async () => {
+    const repo = repository();
+    const replies = await chat(repo, ['reminders', 'maybe']);
+
+    expect(replies[1]).toBe(UNRECOGNISED);
+    expect(repo.setRemindersOn).not.toHaveBeenCalled();
+  });
+});
+
+describe('WhatsApp Assistant update email (#816 decisions 5-8)', () => {
+  it('sends the code to the new address, then saves it only when the code comes back', async () => {
+    const repo = repository();
+    const replies = await chat(repo, ['5', 'New.Name@Example.com', '482915']);
+
+    expect(replies[0]).toBe('What email address should we use? Reply with the address, or CANCEL.');
+    expect(repo.startEmailChange).toHaveBeenCalledWith('resident-1', 'New.Name@Example.com');
+    expect(replies[1]).toBe('We sent a 6-digit code to n***@example.com. It expires in 30 minutes. Reply with the code, or CANCEL.');
+    expect(repo.confirmEmailChange).toHaveBeenCalledWith('resident-1', '482915');
+    expect(replies[2]).toBe(`Your email is now n***@example.com.\n${FOOTER}`);
+  });
+
+  it('works for the community tier and from the EMAIL keyword', async () => {
+    const repo = repository([]);
+    const replies = await chat(repo, ['email'], community);
+    expect(replies[0]).toBe('What email address should we use? Reply with the address, or CANCEL.');
+  });
+
+  it('says a queued statement will arrive once the address is verified', async () => {
+    const repo = repository([PALM], { confirmEmailChange: vi.fn().mockResolvedValue({ status: 'saved', email: 'ada@example.com', statementsQueued: 1 }) });
+    const replies = await chat(repo, ['email', 'ada@example.com', '123456']);
+    expect(replies[2]).toBe(`Your email is now a***@example.com. Your statement will arrive within 15 minutes.\n${FOOTER}`);
+  });
+
+  it('asks for the address again when it is not one', async () => {
+    const repo = repository([PALM], { startEmailChange: vi.fn().mockResolvedValue({ status: 'invalid' }) });
+    const replies = await chat(repo, ['email', 'not an address', 'cancel']);
+
+    expect(replies[1]).toBe("That doesn't look like an email address. Reply with it again, for example name@example.com, or CANCEL.");
+    expect(repo.confirmEmailChange).not.toHaveBeenCalled();
+    expect(replies[2]).toMatch(/^Cancelled\. Nothing was changed\./);
+  });
+
+  it.each([
+    ['same', 'That is already your verified email. Nothing was changed.'],
+    ['rate_limited', 'Too many codes were sent. Please try again in an hour. Nothing was changed.'],
+    ['failed', "I couldn't do that right now. Nothing was changed. Please try again in a few minutes."],
+  ] as const)('answers a %s start without saving anything', async (status, text) => {
+    const repo = repository([PALM], { startEmailChange: vi.fn().mockResolvedValue({ status }) });
+    const replies = await chat(repo, ['email', 'ada@example.com']);
+    expect(replies[1]).toBe(`${text}\n${FOOTER}`);
+    expect(repo.confirmEmailChange).not.toHaveBeenCalled();
+  });
+
+  it('asks for six digits and does not check anything else as a code', async () => {
+    const repo = repository();
+    const replies = await chat(repo, ['email', 'ada@example.com', 'abc', '12345']);
+
+    expect(replies[2]).toBe('Reply with the 6-digit code from the email, or CANCEL.');
+    expect(replies[3]).toBe('Reply with the 6-digit code from the email, or CANCEL.');
+    expect(repo.confirmEmailChange).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['wrong', "That code isn't correct. Check the email and reply with the code again, or CANCEL."],
+    ['locked', `Too many wrong codes. Reply EMAIL to start again.\n${FOOTER}`],
+    ['expired', `That code has expired. Reply EMAIL to start again.\n${FOOTER}`],
+  ] as const)('answers a %s code', async (status, text) => {
+    const repo = repository([PALM], { confirmEmailChange: vi.fn().mockResolvedValue({ status }) });
+    const replies = await chat(repo, ['email', 'ada@example.com', '123456']);
+    expect(replies[2]).toBe(text);
+  });
+
+  it('needs the PIN first when one is set, then asks for the address', async () => {
+    const repo = repository();
+    vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
+    const replies = await chat(repo, ['5', 'PIN 482915']);
+
+    expect(replies[0]).toBe(`Please reply PIN followed by your 4–6 digit PIN before changing your email.\n${FOOTER}`);
+    expect(repo.startEmailChange).not.toHaveBeenCalled();
+    expect(replies[1]).toBe('PIN verified.\n\nWhat email address should we use? Reply with the address, or CANCEL.');
+  });
+
+  it('asks the community tier for the PIN too, and takes no address before it', async () => {
+    const repo = repository([]);
+    vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
+    const replies = await chat(repo, ['email', 'ada@example.com', 'email', 'PIN 482915'], community);
+
+    expect(replies[0]).toContain('before changing your email');
+    expect(replies[1]).toBe(UNRECOGNISED);
+    expect(repo.startEmailChange).not.toHaveBeenCalled();
+    expect(replies[3]).toBe('PIN verified.\n\nWhat email address should we use? Reply with the address, or CANCEL.');
   });
 });

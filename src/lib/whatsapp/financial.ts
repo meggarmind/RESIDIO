@@ -1,4 +1,5 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/server';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
@@ -16,6 +17,14 @@ import {
   storeStatementPdf,
   type StatementRequestInput,
 } from '@/lib/whatsapp/statement-delivery';
+import {
+  confirmEmailChange,
+  getRemindersOn,
+  setRemindersOn,
+  startEmailChange,
+  type EmailChangeConfirm,
+  type EmailChangeStart,
+} from '@/lib/whatsapp/account-actions';
 import {
   DEFAULT_KEYWORDS,
   answerFooter,
@@ -80,6 +89,8 @@ export interface WhatsAppFinancialSession {
   selectedHouseId: string | null;
   pinAuthenticated: boolean;
   expiresAt: string;
+  /** Answers collected so far in a multi-step flow (a payment report); dropped when the flow ends. */
+  draft?: Record<string, unknown> | null;
 }
 
 /** A PIN try counted before the PIN is checked (claim_whatsapp_pin_try, #891). */
@@ -157,6 +168,12 @@ export interface WhatsAppFinancialRepository {
   getWalletBalance(residentId: string): Promise<number>;
   getStatementRows(residentId: string, houseId: string, from: string | null, to: string): Promise<StatementRows>;
   setAlertsOn(residentId: string, phoneNumber: string, on: boolean): Promise<void>;
+  /** WhatsApp payment and invoice reminders (#816 decisions 2-4). */
+  getRemindersOn(residentId: string): Promise<boolean>;
+  setRemindersOn(residentId: string, on: boolean): Promise<void>;
+  /** Sends the verification code to the new address; nothing is saved until confirmEmailChange (#816 decision 5). */
+  startEmailChange(residentId: string, email: string): Promise<EmailChangeStart>;
+  confirmEmailChange(residentId: string, code: string): Promise<EmailChangeConfirm>;
   /** The statement PDF for a period: the admin account statement, with its Lagos dates. */
   loadStatement(residentId: string, houseId: string, period: StatementPeriod, now: Date): Promise<{ fromDate: string; toDate: string; statement: AccountStatementData }>;
   /** Stores the PDF privately and returns a 1-hour signed URL for the reply. */
@@ -333,10 +350,11 @@ function settingText(value: unknown): string | null {
 function createSupabaseRepository(): WhatsAppFinancialRepository {
   return {
     async getSession(phoneNumber) {
-      const supabase = createAdminClient();
+      // whatsapp_sessions.draft is not in the generated types until the 20261022000000 migration is applied.
+      const supabase = createAdminClient() as unknown as SupabaseClient;
       const { data, error } = await supabase
         .from('whatsapp_sessions')
-        .select('phone_number, resident_id, current_node, selected_house_id, pin_authenticated, expires_at')
+        .select('phone_number, resident_id, current_node, selected_house_id, pin_authenticated, expires_at, draft')
         .eq('phone_number', phoneNumber)
         .maybeSingle();
       if (error) throw error;
@@ -348,11 +366,12 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
         selectedHouseId: data.selected_house_id,
         pinAuthenticated: data.pin_authenticated,
         expiresAt: data.expires_at,
+        draft: data.draft ?? null,
       };
     },
 
     async saveSession(session) {
-      const supabase = createAdminClient();
+      const supabase = createAdminClient() as unknown as SupabaseClient;
       const { error } = await supabase.from('whatsapp_sessions').upsert(
         {
           phone_number: session.phoneNumber,
@@ -361,6 +380,7 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
           selected_house_id: session.selectedHouseId,
           pin_authenticated: session.pinAuthenticated,
           expires_at: session.expiresAt,
+          draft: session.draft ?? null,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'phone_number' }
@@ -594,6 +614,10 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
       if (error) throw error;
     },
 
+    getRemindersOn,
+    setRemindersOn,
+    startEmailChange,
+    confirmEmailChange,
     loadStatement: loadWhatsAppStatementForPeriod,
     storeStatementPdf,
     createStatementRequest,
@@ -766,6 +790,7 @@ async function mainMenu(turn: Turn): Promise<string> {
   if ((await loadNotices(turn)).length > 0) lines.push('2. Latest estate notices');
   if (turn.settings?.paymentInstructions) lines.push('3. How to pay');
   lines.push('4. Alert settings');
+  lines.push('5. Update email');
   if (turn.contact) lines.push('9. Contact the estate office');
   lines.push('Reply with a number.');
   return lines.join('\n');
@@ -819,6 +844,13 @@ function withContact(turn: Turn, body: string): string {
   return turn.contact ? `${body}\n${turn.contact}` : body;
 }
 
+/** The PIN request shown before a PIN-protected action; `purpose` completes "before ...". */
+function pinPrompt(turn: Turn, purpose: string): string {
+  return turn.pinHash
+    ? `Please reply PIN followed by your 4–6 digit PIN before ${purpose}.`
+    : `A security PIN is required before ${purpose}. To set one, ${SET_PIN_HINT}.`;
+}
+
 /** Enter Financial standing (or one of its items), passing the PIN gate and property choice first. */
 async function enterFinancial(turn: Turn, target: Target, prefix?: string): Promise<void> {
   const houses = turn.identity.financialEligible ? await loadHouses(turn) : [];
@@ -828,10 +860,7 @@ async function enterFinancial(turn: Turn, target: Target, prefix?: string): Prom
   }
 
   if ((await loadPinGate(turn)) && !turn.session.pinAuthenticated) {
-    const prompt = turn.pinHash
-      ? 'Please reply PIN followed by your 4–6 digit PIN before viewing financial standing.'
-      : `A security PIN is required before viewing financial standing. To set one, ${SET_PIN_HINT}.`;
-    await respond(turn, `${prompt}\n${footer(turn)}`, `pin:${target}`);
+    await respond(turn, `${pinPrompt(turn, 'viewing financial standing')}\n${footer(turn)}`, `pin:${target}`);
     return;
   }
 
@@ -1006,11 +1035,90 @@ async function showContact(turn: Turn): Promise<void> {
   await respond(turn, `${turn.contact}\nReply 0 for menu.`, 'main');
 }
 
+// ---------------------------------------------------------------------------
+// Account actions (#816): reminders and verified email
+
+async function showAlertSettings(turn: Turn): Promise<void> {
+  const lines = ['Alert settings', '1. All estate WhatsApp messages: ON'];
+  if (turn.identity.financialEligible) {
+    const on = await turn.options.repository.getRemindersOn(turn.identity.id);
+    lines.push(`2. Payment reminders: ${on ? 'ON' : 'OFF'}`, 'Reply 1 or 2 to change one.');
+  } else {
+    lines.push('Reply 1 to turn them off.');
+  }
+  lines.push(footer(turn));
+  await respond(turn, lines.join('\n'), 'alerts');
+}
+
+/** Payment reminders on WhatsApp: off asks first (decision 4), on is immediate. */
+async function toggleReminders(turn: Turn): Promise<void> {
+  if (!turn.identity.financialEligible) return showAlertSettings(turn);
+  if (await turn.options.repository.getRemindersOn(turn.identity.id)) {
+    return respond(turn, 'Turn off payment reminders on WhatsApp? Reply 1 Yes, 2 No.', 'reminders_confirm');
+  }
+  await turn.options.repository.setRemindersOn(turn.identity.id, true);
+  await respond(turn, `Reminders on. You will get payment reminders on WhatsApp again.\n${footer(turn)}`, 'main');
+}
+
+async function confirmReminders(turn: Turn, input: string): Promise<void> {
+  if (input === '2') return respond(turn, `Nothing was changed.\n${footer(turn)}`, 'main');
+  if (input !== '1') return miss(turn, 'reminders_confirm');
+  await turn.options.repository.setRemindersOn(turn.identity.id, false);
+  await respond(turn, `Reminders off. Your bills still apply. Reply 4 then 2 to turn them back on.\n${footer(turn)}`, 'main');
+}
+
+/** Update email (both tiers). A PIN-verified session is required when a PIN is set or forced (decision 6). */
+async function startEmail(turn: Turn, prefix?: string): Promise<void> {
+  if ((await loadPinGate(turn)) && !turn.session.pinAuthenticated) {
+    return respond(turn, `${pinPrompt(turn, 'changing your email')}\n${footer(turn)}`, 'pin:email');
+  }
+  const lead = prefix ? `${prefix}\n\n` : '';
+  await respond(turn, `${lead}What email address should we use? Reply with the address, or CANCEL.`, 'email_address');
+}
+
+const EMAIL_FAILED = "I couldn't do that right now. Nothing was changed. Please try again in a few minutes.";
+
+async function submitEmailAddress(turn: Turn): Promise<void> {
+  const result = await turn.options.repository.startEmailChange(turn.identity.id, turn.text);
+  if (result.status === 'sent') {
+    return respond(turn, `We sent a 6-digit code to ${maskEmail(result.email)}. It expires in 30 minutes. Reply with the code, or CANCEL.`, 'email_code');
+  }
+  if (result.status === 'invalid') {
+    return respond(turn, "That doesn't look like an email address. Reply with it again, for example name@example.com, or CANCEL.", 'email_address', turn.misses + 1);
+  }
+  const reply = result.status === 'same'
+    ? 'That is already your verified email. Nothing was changed.'
+    : result.status === 'rate_limited'
+      ? 'Too many codes were sent. Please try again in an hour. Nothing was changed.'
+      : EMAIL_FAILED;
+  await respond(turn, `${reply}\n${footer(turn)}`, 'main');
+}
+
+async function submitEmailCode(turn: Turn): Promise<void> {
+  if (!/^\d{6}$/.test(turn.text)) {
+    return respond(turn, 'Reply with the 6-digit code from the email, or CANCEL.', 'email_code', turn.misses + 1);
+  }
+  const result = await turn.options.repository.confirmEmailChange(turn.identity.id, turn.text);
+  if (result.status === 'saved') {
+    const queued = result.statementsQueued > 0 ? ' Your statement will arrive within 15 minutes.' : '';
+    return respond(turn, `Your email is now ${maskEmail(result.email)}.${queued}\n${footer(turn)}`, 'main');
+  }
+  if (result.status === 'wrong') return respond(turn, "That code isn't correct. Check the email and reply with the code again, or CANCEL.", 'email_code');
+  const reply = result.status === 'locked'
+    ? 'Too many wrong codes. Reply EMAIL to start again.'
+    : result.status === 'expired'
+      ? 'That code has expired. Reply EMAIL to start again.'
+      : EMAIL_FAILED;
+  await respond(turn, `${reply}\n${footer(turn)}`, 'main');
+}
+
 async function runIntent(turn: Turn, intent: AssistantIntent): Promise<void> {
   const item = ITEM_FOR_INTENT[intent];
   if (item) return enterFinancial(turn, item);
   if (intent === 'pay') return showHowToPay(turn);
   if (intent === 'notices') return showNotices(turn);
+  if (intent === 'email') return startEmail(turn);
+  if (intent === 'reminders') return toggleReminders(turn);
   return showContact(turn);
 }
 
@@ -1033,8 +1141,10 @@ async function handlePin(turn: Turn, pin: string, node: string): Promise<void> {
   turn.session.pinAuthenticated = true;
   turn.pinHash = existingHash;
   turn.pinGate = true;
-  const target = node.startsWith('pin:') ? (node.slice(4) as Target) : 'menu';
-  await enterFinancial(turn, target, existingHash ? 'PIN verified.' : 'PIN set and verified for this session.');
+  const target = node.startsWith('pin:') ? node.slice(4) : 'menu';
+  const verified = existingHash ? 'PIN verified.' : 'PIN set and verified for this session.';
+  if (target === 'email') return startEmail(turn, verified);
+  await enterFinancial(turn, target as Target, verified);
 }
 
 async function chooseProperty(turn: Turn, target: Target): Promise<void> {
@@ -1051,7 +1161,8 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
   const { node } = readNode(turn.session.currentNode);
 
   const pinCommand = text.match(/^PIN\s+([0-9]{4,6})$/i);
-  if (pinCommand && turn.identity.financialEligible) return handlePin(turn, pinCommand[1], node);
+  // Update email asks for the PIN of every resident, so the community tier can answer it too (#816 decision 6).
+  if (pinCommand && (turn.identity.financialEligible || node === 'pin:email')) return handlePin(turn, pinCommand[1], node);
 
   if (expired) {
     const pinClause = turn.identity.financialEligible && (await loadPinGate(turn)) ? ', so your PIN is needed again' : '';
@@ -1072,6 +1183,10 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
     const backToFinancial = node === 'answer' || node === 'more' || node === 'statement_period' || node.startsWith('property:') || node.startsWith('statement:') || node.startsWith('statement_email:');
     return backToFinancial && turn.identity.financialEligible ? enterFinancial(turn, 'menu') : showMain(turn);
   }
+
+  // Free-text answers come before the keywords, which would otherwise read an address as a keyword.
+  if (node === 'email_address') return submitEmailAddress(turn);
+  if (node === 'email_code') return submitEmailCode(turn);
 
   const intent = turn.settings?.keywordSynonyms[input] ?? DEFAULT_KEYWORDS[input];
   if (intent) return runIntent(turn, intent);
@@ -1116,7 +1231,10 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
     return respond(turn, [`*${notice.title}*`, ...(notice.publishedAt ? [formatDay(notice.publishedAt)] : []), content, footer(turn)].join('\n'), 'main');
   }
 
+  if (node === 'reminders_confirm') return confirmReminders(turn, input);
+
   if (node === 'alerts') {
+    if (input === '2' && turn.identity.financialEligible) return toggleReminders(turn);
     if (input !== '1') return miss(turn, node);
     await turn.options.repository.setAlertsOn(turn.identity.id, turn.phoneNumber, false);
     return respond(turn, UNSUBSCRIBED_REPLY, 'main');
@@ -1141,9 +1259,8 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
   if (input === '1' && turn.identity.financialEligible) return enterFinancial(turn, 'menu');
   if (input === '2' && (await loadNotices(turn)).length > 0) return showNotices(turn);
   if (input === '3' && turn.settings?.paymentInstructions) return showHowToPay(turn);
-  if (input === '4') {
-    return respond(turn, ['Alert settings', '1. All estate WhatsApp messages: ON', 'Reply 1 to turn them off.', footer(turn)].join('\n'), 'alerts');
-  }
+  if (input === '4') return showAlertSettings(turn);
+  if (input === '5') return startEmail(turn);
   return miss(turn, 'main');
 }
 

@@ -183,6 +183,25 @@ describe('recordAudit', () => {
       expect(errorSpy).toHaveBeenCalledWith('[Audit] Cannot log audit: No authenticated user');
     });
 
+    it('records a resident acting over WhatsApp with no actor id and the resident in the metadata (#816)', async () => {
+      const { sink, rows } = fakeSink();
+
+      const result = await recordAudit(entry({ metadata: { reason: 'x' } }), { userId: null, residentId: 'resident-1' }, sink);
+
+      expect(result).toEqual({ recorded: true });
+      expect(rows[0].actor_id).toBeNull();
+      expect(rows[0].metadata).toEqual({ reason: 'x', actor_resident_id: 'resident-1', via: 'whatsapp' });
+    });
+
+    it('keeps an admin actor and the entry metadata untouched', async () => {
+      const { sink, rows } = fakeSink();
+
+      await recordAudit(entry({ metadata: { reason: 'x' } }), actor, sink);
+
+      expect(rows[0].actor_id).toBe('user-1');
+      expect(rows[0].metadata).toEqual({ reason: 'x' });
+    });
+
     it('reports not recorded and logs structured context when the sink returns an error', async () => {
       const { sink } = fakeSink({ error: { message: 'insert denied' } });
 
