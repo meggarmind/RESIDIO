@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { createAdminClient } from '@/lib/supabase/server';
-import { getWhatsAppDisclosureLogs, getWhatsAppHealth, getWhatsAppSessions } from '../admin-console';
+import { getWhatsAppDeliveryProblems, getWhatsAppDisclosureLogs, getWhatsAppHealth, getWhatsAppSessions } from '../admin-console';
 import { filterDisclosureLogs, filterOptIns } from '@/app/(dashboard)/settings/whatsapp/operations-console';
 
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: vi.fn() }));
@@ -48,6 +48,7 @@ describe('WhatsApp operations console actions', () => {
     expect((await getWhatsAppSessions()).error).toBe('Forbidden');
     expect((await getWhatsAppDisclosureLogs()).error).toBe('Forbidden');
     expect((await getWhatsAppHealth()).error).toBe('Forbidden');
+    expect((await getWhatsAppDeliveryProblems()).error).toBe('Forbidden');
     expect(clientMock).not.toHaveBeenCalled();
   });
 
@@ -75,6 +76,21 @@ describe('WhatsApp operations console actions', () => {
     clientMock.mockReturnValue({ from: vi.fn().mockImplementation(() => counts.shift()) } as never);
     const result = await getWhatsAppHealth();
     expect(result.data).toEqual({ inboundToday: 4, outboundToday: 6, deliveryFailuresToday: 1, templateErrorsToday: 3, capLimitEventsToday: 5 });
+  });
+
+  it('lists failed sends and Chatmaid sends unconfirmed past 15 minutes, with the resident (#839)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(Date.parse('2026-10-20T12:00:00.000Z'));
+    authMock.mockResolvedValue(authorized);
+    const problems = chain({ data: [{ id: 'send-1', status: 'failed' }], error: null });
+    clientMock.mockReturnValue({ from: vi.fn().mockReturnValue(problems) } as never);
+
+    const result = await getWhatsAppDeliveryProblems();
+
+    expect(result.data).toEqual([{ id: 'send-1', status: 'failed' }]);
+    expect(String(problems.select.mock.calls[0][0])).toMatch(/inbound_message_id.*resident:residents\(/);
+    expect(problems.or).toHaveBeenCalledWith('status.eq.failed,and(status.eq.pending,provider.eq.chatmaid,created_at.lt.2026-10-20T11:45:00.000Z)');
+    vi.useRealTimers();
   });
 
   it('filters opt-ins and disclosures by admin-visible fields', () => {
