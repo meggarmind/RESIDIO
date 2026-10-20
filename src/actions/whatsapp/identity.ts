@@ -574,10 +574,18 @@ export async function setWhatsAppPrivacyNotice(input: PrivacyNoticeSettings): Pr
   }
 
   const adminClient = createAdminClient();
-  const { data: oldRows } = await adminClient
+  const { data: oldRows, error: oldError } = await adminClient
     .from('system_settings')
     .select('key, value')
     .in('key', [PRIVACY_NOTICE_VERSION_KEY, PRIVACY_NOTICE_TEXT_KEY]);
+  if (oldError) {
+    return { success: false, data: null, error: 'Failed to load the WhatsApp privacy notice' };
+  }
+  const old = (key: string) => oldRows?.find((row) => row.key === key)?.value;
+  const storedText = old(PRIVACY_NOTICE_TEXT_KEY);
+  if (old(PRIVACY_NOTICE_VERSION_KEY) === version && typeof storedText === 'string' && storedText.trim() !== text) {
+    return { success: false, data: null, error: 'Change the version when you change the notice text, so residents are asked to accept the new wording.' };
+  }
   const { data: savedRows, error } = await adminClient
     .from('system_settings')
     .upsert(
@@ -593,7 +601,6 @@ export async function setWhatsAppPrivacyNotice(input: PrivacyNoticeSettings): Pr
     return { success: false, data: null, error: 'Failed to save the WhatsApp privacy notice' };
   }
 
-  const old = (key: string) => oldRows?.find((row) => row.key === key)?.value;
   // audit_logs.entity_id is a uuid: use the version row's id; both keys go in the values (#594).
   const versionRow = savedRows?.find((row) => row.key === PRIVACY_NOTICE_VERSION_KEY);
   if (versionRow?.id) {

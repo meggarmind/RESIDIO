@@ -487,6 +487,29 @@ describe('WhatsApp consent admin controls (#871)', () => {
     }));
   });
 
+  it('refuses a changed text under the same version, without a write or audit', async () => {
+    const old = query({ data: [{ key: 'whatsapp_privacy_notice_version', value: 'v1' }, { key: 'whatsapp_privacy_notice_text', value: 'Old' }], error: null });
+    const from = clientWith(old);
+
+    const result = await setWhatsAppPrivacyNotice({ version: 'v1', text: 'Reworded' });
+
+    expect(result).toEqual({ success: false, data: null, error: 'Change the version when you change the notice text, so residents are asked to accept the new wording.' });
+    expect(from).toHaveBeenCalledTimes(1);
+    expect(old.upsert).not.toHaveBeenCalled();
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+
+  it('re-saves the same text under the same version', async () => {
+    const old = query({ data: [{ key: 'whatsapp_privacy_notice_version', value: 'v1' }, { key: 'whatsapp_privacy_notice_text', value: 'Notice' }], error: null });
+    const saved = query({ data: [{ id: ROW_ID, key: 'whatsapp_privacy_notice_version' }], error: null });
+    clientWith(old, saved);
+
+    const result = await setWhatsAppPrivacyNotice({ version: 'v1', text: ' Notice ' });
+
+    expect(result.success).toBe(true);
+    expect(saved.upsert).toHaveBeenCalled();
+  });
+
   it.each([
     [{ version: ' ', text: 'Notice' }],
     [{ version: 'v1', text: '' }],

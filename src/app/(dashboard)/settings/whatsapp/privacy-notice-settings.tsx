@@ -30,7 +30,7 @@ export function PrivacyNoticeSettings({ initial }: { initial: { version: string;
       <div className="space-y-1">
         <Label htmlFor="privacy-notice-version">Version</Label>
         <Input id="privacy-notice-version" className="max-w-xs" value={version} disabled={!canManage || isPending} onChange={(event) => setVersion(event.target.value)} />
-        <p className="text-xs text-muted-foreground">Changing the version asks every resident to accept the notice again.</p>
+        <p className="text-xs text-muted-foreground">Changing the version asks every resident to accept the notice again. Change it whenever you change the text.</p>
       </div>
       <div className="space-y-1">
         <Label htmlFor="privacy-notice-text">Notice text</Label>

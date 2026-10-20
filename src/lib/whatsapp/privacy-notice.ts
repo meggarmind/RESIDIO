@@ -44,8 +44,8 @@ export async function loadEstateOfficeContactLine(): Promise<string> {
 
 /**
  * A 1-hour signed URL for the notice PDF in private storage. The file is keyed on a hash of the
- * version and text, so it is rendered once per wording and an edit without a version bump still
- * sends the current text.
+ * version and text, so it is rendered once per wording; the text cannot change without a new
+ * version, so each accepted version covers one wording.
  */
 export async function createWhatsAppPrivacyNoticeUrl(notice: WhatsAppPrivacyNotice): Promise<string> {
   const storage = createAdminClient().storage.from(MEDIA_BUCKET);
