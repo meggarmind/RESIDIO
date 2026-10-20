@@ -13,6 +13,7 @@ import {
   type WhatsAppConnectionStatus,
   type WhatsAppProviderName,
 } from '@/actions/whatsapp/connection';
+import { fromNumberConflict, type OverrideNumbers } from '@/lib/comms-override/number-conflict';
 import { TemplateContentSids } from '@/app/(dashboard)/settings/whatsapp/template-content-sids';
 
 const DISCONNECTED_STATUS: WhatsAppConnectionStatus = {
@@ -52,9 +53,12 @@ function formatSavedAt(status: WhatsAppConnectionStatus): string {
 export function ConnectionSettings({
   initial,
   siteUrl,
+  overrideNumbers,
 }: {
   initial: WhatsAppConnectionStatus;
   siteUrl: string;
+  /** The communications override numbers, to flag a from-number that would collide with them (#904). */
+  overrideNumbers?: OverrideNumbers | null;
 }) {
   const { hasPermission } = useAuth();
   const canManage = hasPermission(PERMISSIONS.WHATSAPP_MANAGE);
@@ -82,6 +86,9 @@ export function ConnectionSettings({
   // Held only in local component state -- never persisted, never re-fetched.
   const [savedVerifyToken, setSavedVerifyToken] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  const fromNumberError =
+    provider !== 'meta' && overrideNumbers ? fromNumberConflict(fromNumber, overrideNumbers) : null;
 
   const webhookUrl = `${siteUrl}${WEBHOOK_PATHS[provider]}`;
 
@@ -287,7 +294,8 @@ export function ConnectionSettings({
               </label>
               <label className="space-y-1 text-sm sm:col-span-2">
                 <span className="text-muted-foreground">From number</span>
-                <Input value={fromNumber} onChange={(event) => setFromNumber(event.target.value)} placeholder="+15551234567" />
+                <Input value={fromNumber} onChange={(event) => setFromNumber(event.target.value)} placeholder="+15551234567" aria-invalid={!!fromNumberError} aria-describedby={fromNumberError ? 'whatsapp-from-number-error' : undefined} />
+                {fromNumberError && <span id="whatsapp-from-number-error" role="alert" className="block text-xs text-destructive">{fromNumberError}</span>}
               </label>
             </div>
           ) : (
@@ -313,7 +321,8 @@ export function ConnectionSettings({
               </label>
               <label className="space-y-1 text-sm sm:col-span-2">
                 <span className="text-muted-foreground">From number (E.164)</span>
-                <Input value={fromNumber} onChange={(event) => setFromNumber(event.target.value)} placeholder="+2348031234567" />
+                <Input value={fromNumber} onChange={(event) => setFromNumber(event.target.value)} placeholder="+2348031234567" aria-invalid={!!fromNumberError} aria-describedby={fromNumberError ? 'whatsapp-from-number-error' : undefined} />
+                {fromNumberError && <span id="whatsapp-from-number-error" role="alert" className="block text-xs text-destructive">{fromNumberError}</span>}
                 <span className="block text-xs text-muted-foreground">
                   The paired handset&apos;s number, not the Chatmaid dashboard phone ID — that ID differs between test and live.
                 </span>
@@ -322,7 +331,7 @@ export function ConnectionSettings({
           )}
 
           <div className="flex items-center gap-3">
-            <Button type="button" size="sm" disabled={isPending} onClick={save}>
+            <Button type="button" size="sm" disabled={isPending || !!fromNumberError} onClick={save}>
               Save credentials
             </Button>
             {status.connected && (
