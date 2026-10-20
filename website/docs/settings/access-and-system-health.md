@@ -8,6 +8,8 @@ residio_sources:
   - src/app/(dashboard)/system/audit-logs/**
   - src/app/(dashboard)/system/action-log/**
   - src/app/(dashboard)/settings/roles/**
+  - src/app/(dashboard)/settings/groups/**
+  - src/actions/groups/**
   - src/app/(dashboard)/system/accounts/**
   - src/app/(dashboard)/system/page.tsx
   - src/components/system/**
@@ -43,6 +45,25 @@ Open **System → Accounts** for the day-to-day account work:
 | Role Assignments | Who currently holds an admin role |
 | Pending Accounts | Sign-ups waiting to be approved or rejected |
 | Orphaned Accounts | Logins that are not linked to any resident |
+
+## Recipient groups
+
+Open **Settings → Groups** to keep named lists of residents, such as the estate officials,
+that the estate sends copies to. Define a group once and select it wherever a copy is sent;
+after an election or handover, change the members in one place. Members are residents only:
+an admin login with no resident record cannot be added.
+
+- **Add members** searches residents by name. A member's badge shows a warning when they
+  cannot receive a WhatsApp copy (`no WhatsApp number`, `not opted in`), or when they have
+  `moved out` or are `deactivated`. Moved-out and deactivated members stay listed but are
+  skipped when sending.
+- **Estate officials** is created empty and is the default group for clearance certificate
+  copies.
+- A group in use cannot be deleted. The delete dialog names what uses it, for example
+  `Used by: Clearance certificate copies`; select another group there first.
+- Viewing needs the View recipient groups permission and changes need Manage recipient groups;
+  both are granted to Super Admin and Chairman. Every create, rename, member change and delete
+  is written to the audit log.
 
 The **Access** column on Role Definitions shows how many modules and privileges a role holds, and opens the picker where you grant or revoke them. [Roles and permissions](../getting-started/roles-and-permissions) covers creating a role.
 
