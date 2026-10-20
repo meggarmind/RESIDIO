@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { createAdminClient } from '@/lib/supabase/server';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
@@ -9,6 +9,10 @@ import type { WhatsAppInboundMessage, WhatsAppTextMessage } from '@/lib/whatsapp
 import type { WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
 
 const SESSION_MINUTES = 15;
+const MAX_PIN_ATTEMPTS = 5;
+const PIN_LOCK_MINUTES = 24 * 60;
+const PIN_LOCKED_REPLY = 'Too many wrong PINs. Financial answers are locked for 24 hours. Try again after that.';
+const SET_PIN_HINT = 'reply PIN followed by 4–6 digits of your choice';
 
 export type FinancialMenuItem = 'balance' | 'last_payment' | 'next_due' | 'wallet' | 'statement';
 export type StatementPeriod = 'this_month' | 'this_year' | 'last_six_months';
@@ -45,6 +49,9 @@ export interface WhatsAppFinancialRepository {
   getForcePin(): Promise<boolean>;
   getPinHash(residentId: string): Promise<string | null>;
   setPinHash(residentId: string, hash: string): Promise<void>;
+  /** Counts a PIN attempt before it is checked; null while the resident is locked out. */
+  claimPinAttempt(residentId: string): Promise<number | null>;
+  clearPinAttempts(residentId: string): Promise<void>;
   getBillableHouses(residentId: string): Promise<FinancialHouse[]>;
   getBalance(residentId: string, houseId: string): Promise<FinancialAnswer>;
   getLastPayment(residentId: string, houseId: string): Promise<FinancialAnswer>;
@@ -61,8 +68,26 @@ export interface WhatsAppFinancialRepository {
   }): Promise<void>;
 }
 
-function hashPin(pin: string): string {
-  return createHash('sha256').update(pin).digest('hex');
+const SALTED_PREFIX = 'scrypt:';
+
+export function hashPin(pin: string): string {
+  const salt = randomBytes(16);
+  return `${SALTED_PREFIX}${salt.toString('hex')}:${scryptSync(pin, salt, 32).toString('hex')}`;
+}
+
+/** Salted scrypt hashes, plus the unsalted SHA-256 hashes written before #850 (rehashed on next use). */
+export function verifyPin(pin: string, stored: string): boolean {
+  let expected: Buffer;
+  let actual: Buffer;
+  if (stored.startsWith(SALTED_PREFIX)) {
+    const [saltHex, hashHex] = stored.slice(SALTED_PREFIX.length).split(':');
+    expected = Buffer.from(hashHex || '', 'hex');
+    actual = scryptSync(pin, Buffer.from(saltHex || '', 'hex'), 32);
+  } else {
+    expected = Buffer.from(stored, 'hex');
+    actual = createHash('sha256').update(pin).digest();
+  }
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
 
 function formatNaira(amount: number): string {
@@ -82,7 +107,7 @@ function menuText(): string {
     '3. Next due',
     '4. Wallet',
     '5. Statement',
-    'Reply PIN 1234 to add an optional security PIN.',
+    `To set a security PIN, ${SET_PIN_HINT}.`,
   ].join('\n');
 }
 
@@ -163,6 +188,17 @@ export function composeStatementAnswer(input: StatementCompositionInput): Financ
   };
 }
 
+/**
+ * The generated types do not know claim_whatsapp_pin_attempt or the lockout columns until the
+ * #850 migration is applied and `npm run db:types` is re-run; remove these casts after that.
+ */
+interface PinAttemptRpcClient {
+  rpc(
+    name: 'claim_whatsapp_pin_attempt',
+    args: { p_resident_id: string; p_max_attempts: number; p_lock_minutes: number }
+  ): PromiseLike<{ data: number | null; error: unknown }>;
+}
+
 function createSupabaseRepository(): WhatsAppFinancialRepository {
   return {
     async getSession(phoneNumber) {
@@ -210,7 +246,8 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
         .eq('key', 'whatsapp_force_pin')
         .maybeSingle();
       if (error) throw error;
-      return data?.value === true || data?.value === 'true';
+      // Absent row means the default, which is on (#850).
+      return !data || data.value === true || data.value === 'true';
     },
 
     async getPinHash(residentId) {
@@ -229,6 +266,24 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
       const { error } = await supabase
         .from('residents')
         .update({ whatsapp_pin_hash: pinHash, whatsapp_pin_set_at: new Date().toISOString() })
+        .eq('id', residentId);
+      if (error) throw error;
+    },
+
+    async claimPinAttempt(residentId) {
+      const { data, error } = await (createAdminClient() as unknown as PinAttemptRpcClient).rpc('claim_whatsapp_pin_attempt', {
+        p_resident_id: residentId,
+        p_max_attempts: MAX_PIN_ATTEMPTS,
+        p_lock_minutes: PIN_LOCK_MINUTES,
+      });
+      if (error) throw error;
+      return typeof data === 'number' ? data : null;
+    },
+
+    async clearPinAttempts(residentId) {
+      const { error } = await createAdminClient()
+        .from('residents')
+        .update({ whatsapp_pin_failed_attempts: 0, whatsapp_pin_locked_until: null } as never)
         .eq('id', residentId);
       if (error) throw error;
     },
@@ -473,13 +528,29 @@ export async function handleFinancialMessage(
 
   const pinCommand = text.match(/^PIN\s+([0-9]{4,6})$/i);
   if (pinCommand) {
-    const pinHash = hashPin(pinCommand[1]);
+    const pin = pinCommand[1];
     const existingHash = await options.repository.getPinHash(identity.id);
-    if (existingHash && existingHash !== pinHash) {
-      await sendFinancialReply(message, 'That PIN is not correct. Try again or contact an estate admin.', options.send);
-      return;
+    if (existingHash) {
+      // Count the attempt before checking it (#850), so concurrent guesses cannot outrun the lock.
+      const attempt = await options.repository.claimPinAttempt(identity.id);
+      if (attempt === null) {
+        await sendFinancialReply(message, PIN_LOCKED_REPLY, options.send);
+        return;
+      }
+      if (!verifyPin(pin, existingHash)) {
+        const left = MAX_PIN_ATTEMPTS - attempt;
+        await sendFinancialReply(
+          message,
+          left > 0 ? `That PIN is not correct. ${left} attempt(s) left before a 24-hour lock.` : PIN_LOCKED_REPLY,
+          options.send
+        );
+        return;
+      }
+      await options.repository.clearPinAttempts(identity.id);
+      if (!existingHash.startsWith(SALTED_PREFIX)) await options.repository.setPinHash(identity.id, hashPin(pin));
+    } else {
+      await options.repository.setPinHash(identity.id, hashPin(pin));
     }
-    if (!existingHash) await options.repository.setPinHash(identity.id, pinHash);
     session.pinAuthenticated = true;
     session.expiresAt = expiry();
     await options.repository.saveSession(session);
@@ -490,7 +561,13 @@ export async function handleFinancialMessage(
   const pinHash = await options.repository.getPinHash(identity.id);
   const forcePin = await options.repository.getForcePin();
   if ((forcePin || pinHash) && !session.pinAuthenticated) {
-    await sendFinancialReply(message, 'Please reply PIN followed by your 4–6 digit PIN before viewing financial standing.', options.send);
+    await sendFinancialReply(
+      message,
+      pinHash
+        ? 'Please reply PIN followed by your 4–6 digit PIN before viewing financial standing.'
+        : `A security PIN is required before viewing financial standing. To set one, ${SET_PIN_HINT}.`,
+      options.send
+    );
     return;
   }
 
@@ -542,7 +619,7 @@ export async function handleFinancialMessage(
       pinAuthenticated: session.pinAuthenticated,
       metadata: answer.metadata,
     });
-    await sendFinancialReply(message, `${answer.body}${!pinHash ? '\nTip: reply PIN 1234 to lock financial answers.' : ''}`, options.send);
+    await sendFinancialReply(message, `${answer.body}${!pinHash ? `\nTip: to lock financial answers, ${SET_PIN_HINT}.` : ''}`, options.send);
     session.currentNode = 'menu';
     session.expiresAt = expiry();
     await options.repository.saveSession(session);
@@ -609,7 +686,7 @@ export async function handleFinancialMessage(
       : item === 'next_due'
         ? await options.repository.getNextDue(identity.id, houseId)
         : await options.repository.getWallet(identity.id);
-  const body = `${answer.body}${!pinHash ? '\nTip: reply PIN 1234 to lock financial answers.' : ''}`;
+  const body = `${answer.body}${!pinHash ? `\nTip: to lock financial answers, ${SET_PIN_HINT}.` : ''}`;
   // Log before sending (#795): see the statement branch above.
   await options.repository.logDisclosure({
     residentId: identity.id,
