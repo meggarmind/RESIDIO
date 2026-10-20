@@ -10,7 +10,7 @@ residio_sources:
   - src/lib/auth/action-roles.ts
   - src/config/navigation.ts
   - src/config/settings-nav.ts
-residio_verified_commit: 7647c136
+residio_verified_commit: d0047f87
 residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
