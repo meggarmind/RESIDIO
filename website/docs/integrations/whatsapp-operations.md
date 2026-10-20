@@ -140,7 +140,7 @@ Every decision (identity confirmed or disputed, notice accepted or declined) is 
 
 **Privacy notice** in the Resident bot section holds the notice text and version. Changing the version asks every resident to accept again. A text change is refused unless the version changes too, so each accepted version covers one wording. The text needs exco sign-off before launch.
 
-If a holder answers **No, not me**, the number is marked **disputed** in Pending contacts, admins are notified, and the assistant shows no details for it. After checking, an admin with WhatsApp manage permission clicks **Clear dispute**; the number then gets the identity read-back again on its next message.
+If a holder answers **No, not me**, the number is marked **disputed** in Pending contacts, admins are notified, and the assistant shows no details for it. After checking, an admin with WhatsApp manage permission clicks **Clear dispute**; the number then gets the identity read-back again on its next message. A link code does not lift a dispute; only clearing it does.
 
 ### Linked numbers
 
