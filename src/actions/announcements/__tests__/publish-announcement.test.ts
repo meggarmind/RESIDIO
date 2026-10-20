@@ -20,7 +20,7 @@ type ResolveWith = { data: unknown; error: unknown };
 
 function chain(resolveWith: ResolveWith) {
   const c: Record<string, unknown> = {};
-  for (const method of ['select', 'eq', 'in', 'update', 'order']) {
+  for (const method of ['select', 'eq', 'in', 'is', 'update', 'order']) {
     c[method] = vi.fn(() => c);
   }
   c.single = vi.fn().mockResolvedValue(resolveWith);
@@ -215,5 +215,6 @@ describe('publishAnnouncement', () => {
     expect(optInChains).toHaveLength(1);
     expect(optInChains[0].select).toHaveBeenCalledWith('resident_id, phone_number');
     expect(optInChains[0].eq).toHaveBeenCalledWith('opted_in', true);
+    expect(optInChains[0].is).toHaveBeenCalledWith('deactivated_at', null);
   });
 });

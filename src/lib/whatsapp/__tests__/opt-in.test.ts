@@ -14,6 +14,7 @@ function clientReturning(result: { data: unknown; error: unknown }) {
   const chain: Record<string, unknown> = {};
   chain.select = vi.fn(() => chain);
   chain.eq = eq.mockImplementation(() => chain);
+  chain.is = vi.fn(() => chain);
   chain.maybeSingle = vi.fn().mockResolvedValue(result);
   const from = vi.fn(() => chain);
   mocks.createAdminClient.mockReturnValue({ from });

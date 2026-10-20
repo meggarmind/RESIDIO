@@ -14,6 +14,7 @@ export async function isWhatsAppOptedIn(residentId: string, phone: string): Prom
     .eq('resident_id', residentId)
     .eq('phone_number', normalizePhoneNumber(phone))
     .eq('opted_in', true)
+    .is('deactivated_at', null)
     .maybeSingle();
 
   if (error) {

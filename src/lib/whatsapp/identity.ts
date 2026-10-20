@@ -30,7 +30,8 @@ export interface WhatsAppIdentityRepository {
     residentId: string,
     phoneNumber: string,
     optedIn: boolean,
-    source: 'in_chat' | 'admin_import' | 'admin'
+    source: 'in_chat' | 'admin_import' | 'admin',
+    linkVerified?: boolean
   ): Promise<void>;
   rememberPendingContact(phoneNumber: string): Promise<void>;
   consumeLinkToken(token: string): Promise<string | null>;
@@ -50,6 +51,15 @@ async function getFinancialEligibility(residentId: string): Promise<boolean> {
     .eq('is_active', true);
 
   return (data || []).some((assignment) => BILLABLE_ROLES.has(assignment.resident_role));
+}
+
+function isOnRoster(
+  resident: { phone_primary: string | null; phone_secondary: string | null },
+  normalized: string
+): boolean {
+  return [resident.phone_primary, resident.phone_secondary]
+    .filter(Boolean)
+    .some((phone) => normalizePhoneNumber(phone as string) === normalized);
 }
 
 function createIdentity(
@@ -88,11 +98,7 @@ export function createSupabaseWhatsAppIdentityRepository(): WhatsAppIdentityRepo
       }
 
       const normalized = normalizePhoneNumber(phoneNumber);
-      const matches = (data || []).filter((resident) =>
-        [resident.phone_primary, resident.phone_secondary]
-          .filter(Boolean)
-          .some((phone) => normalizePhoneNumber(phone as string) === normalized)
-      );
+      const matches = (data || []).filter((resident) => isOnRoster(resident, normalized));
 
       return Promise.all(
         matches.map(async (resident) =>
@@ -106,8 +112,9 @@ export function createSupabaseWhatsAppIdentityRepository(): WhatsAppIdentityRepo
       const normalized = normalizePhoneNumber(phoneNumber);
       const { data, error } = await supabase
         .from('whatsapp_optins')
-        .select('resident_id')
-        .eq('phone_number', normalized);
+        .select('resident_id, link_verified_at')
+        .eq('phone_number', normalized)
+        .is('deactivated_at', null);
 
       if (error) {
         throw error;
@@ -117,19 +124,27 @@ export function createSupabaseWhatsAppIdentityRepository(): WhatsAppIdentityRepo
       if (residentIds.length === 0) {
         return [];
       }
+      const codeVerified = new Set((data || []).filter((row) => row.link_verified_at).map((row) => row.resident_id));
 
       const { data: residents, error: residentError } = await supabase
         .from('residents')
         .select('id, first_name, last_name, resident_code, phone_primary, phone_secondary')
-        .in('id', residentIds);
+        .in('id', residentIds)
+        .in('account_status', ['active', 'inactive']);
 
       if (residentError) {
         throw residentError;
       }
 
+      // A link is verified by its number being on the resident's roster or by a LINK code (#849);
+      // an unverified link gets the community tier only.
       return Promise.all(
         (residents || []).map(async (resident) =>
-          createIdentity(resident, await getFinancialEligibility(resident.id))
+          createIdentity(
+            resident,
+            (isOnRoster(resident, normalized) || codeVerified.has(resident.id)) &&
+              (await getFinancialEligibility(resident.id))
+          )
         )
       );
     },
@@ -141,6 +156,7 @@ export function createSupabaseWhatsAppIdentityRepository(): WhatsAppIdentityRepo
         .select('opted_in')
         .eq('resident_id', residentId)
         .eq('phone_number', normalizePhoneNumber(phoneNumber))
+        .is('deactivated_at', null)
         .maybeSingle();
 
       if (error) {
@@ -150,7 +166,7 @@ export function createSupabaseWhatsAppIdentityRepository(): WhatsAppIdentityRepo
       return data?.opted_in === true;
     },
 
-    async setOptIn(residentId, phoneNumber, optedIn, source) {
+    async setOptIn(residentId, phoneNumber, optedIn, source, linkVerified = false) {
       const supabase = createAdminClient();
       const now = new Date().toISOString();
       const normalized = normalizePhoneNumber(phoneNumber);
@@ -162,6 +178,8 @@ export function createSupabaseWhatsAppIdentityRepository(): WhatsAppIdentityRepo
           source,
           opted_in_at: optedIn ? now : null,
           opted_out_at: optedIn ? null : now,
+          deactivated_at: null,
+          ...(linkVerified ? { link_verified_at: now } : {}),
           updated_at: now,
         },
         { onConflict: 'resident_id,phone_number' }
@@ -344,7 +362,7 @@ export async function handleResidentMessage(
       return { status: 'pending', residentId: null, optedIn: false, financialEligible: false, accessTier: 'community' };
     }
 
-    await options.repository.setOptIn(residentId, phoneNumber, false, 'in_chat');
+    await options.repository.setOptIn(residentId, phoneNumber, false, 'in_chat', true);
     await options.repository.attachPendingContact(phoneNumber, residentId);
     await sendReply(
       message,

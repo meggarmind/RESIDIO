@@ -39,7 +39,6 @@ vi.mock('@/hooks/use-dashboard', () => ({
   }),
   useEstateMapStatus: () => ({ data: null, isPending: false, error: null }),
 }));
-vi.mock('@/hooks/use-smart-suggestions', () => ({ useSmartSuggestions: () => ({ suggestions: [] }) }));
 vi.mock('@/components/dashboard/offline-admin-banner', () => ({ OfflineAdminBanner: () => null }));
 
 import { DashboardContent as DashboardPage } from '@/app/(dashboard)/dashboard/dashboard-content';

@@ -27,7 +27,7 @@ type Result = { data?: unknown; error?: unknown };
 /** Chainable, thenable query double; every builder method returns the same object. */
 function query(result: Result = { data: null, error: null }) {
   const chain = {} as Record<string, ReturnType<typeof vi.fn>>;
-  for (const m of ['select', 'eq', 'in', 'update', 'insert', 'delete', 'order']) {
+  for (const m of ['select', 'eq', 'in', 'is', 'update', 'insert', 'upsert', 'delete', 'order']) {
     chain[m] = vi.fn().mockReturnValue(chain);
   }
   chain.maybeSingle = vi.fn().mockResolvedValue(result);
@@ -83,8 +83,12 @@ describe('WhatsApp identity write actions', () => {
       expect(result.data).toMatchObject({ imported: 1, duplicates: 1 });
       expect(result.data?.errors).toContain('Unknown resident code: RES999');
       expect(from).toHaveBeenCalledTimes(3);
-      expect(insert.insert).toHaveBeenCalledTimes(1);
-      expect(insert.insert).toHaveBeenCalledWith(expect.objectContaining({ resident_id: 'r1', source: 'admin_import', opted_in: true }));
+      expect(existing.is).toHaveBeenCalledWith('deactivated_at', null);
+      expect(insert.upsert).toHaveBeenCalledTimes(1);
+      expect(insert.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({ resident_id: 'r1', source: 'admin_import', opted_in: true, deactivated_at: null }),
+        { onConflict: 'resident_id,phone_number' }
+      );
       expect(logAudit).toHaveBeenCalledWith(expect.objectContaining({
         action: 'CREATE',
         entityType: 'whatsapp_optins',
@@ -100,7 +104,7 @@ describe('WhatsApp identity write actions', () => {
       clientWith(residents, existing, insert);
       const result = await importWhatsAppOptIns(`${CSV}RES001,+2348000000001\nRES001,+2348000000009`);
       expect(result.data).toMatchObject({ imported: 1, duplicates: 1 });
-      expect(insert.insert).toHaveBeenCalledTimes(1);
+      expect(insert.upsert).toHaveBeenCalledTimes(1);
     });
 
     it('does not audit when nothing was imported (unknown code only)', async () => {

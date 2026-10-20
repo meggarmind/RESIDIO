@@ -65,6 +65,7 @@ function mockSupabaseChain(overrides: Record<string, unknown> = {}) {
     from: vi.fn().mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
+      is: vi.fn().mockReturnThis(),
       gte: vi.fn().mockReturnThis(),
       maybeSingle: vi.fn().mockResolvedValue({
         data: { id: 'optin-1' },
@@ -153,12 +154,14 @@ describe('WhatsApp outbound dispatch', () => {
           return {
             select: vi.fn().mockReturnThis(),
             eq: vi.fn().mockReturnThis(),
+            is: vi.fn().mockReturnThis(),
             gte: vi.fn().mockResolvedValue({ count: 1, error: null }),
           };
         }
         return {
           select: vi.fn().mockReturnThis(),
           eq: vi.fn().mockReturnThis(),
+          is: vi.fn().mockReturnThis(),
           maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'optin-1' }, error: null }),
         };
       }),
@@ -231,6 +234,7 @@ describe('WhatsApp outbound dispatch', () => {
       from: vi.fn().mockReturnValue({
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
+        is: vi.fn().mockReturnThis(),
         gte: vi.fn().mockReturnThis(),
         maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
       }),
@@ -383,6 +387,7 @@ describe('WhatsApp outbound dispatch', () => {
       from: vi.fn().mockReturnValue({
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
+        is: vi.fn().mockReturnThis(),
         gte: vi.fn().mockReturnThis(),
         maybeSingle: vi.fn().mockResolvedValue({ data: null, error: { message: 'db error' } }),
       }),
@@ -414,12 +419,14 @@ describe('WhatsApp outbound dispatch', () => {
           return {
             select: vi.fn().mockReturnThis(),
             eq: vi.fn().mockReturnThis(),
+            is: vi.fn().mockReturnThis(),
             gte: vi.fn().mockResolvedValue({ count: null, error: { message: 'db error' } }),
           };
         }
         return {
           select: vi.fn().mockReturnThis(),
           eq: vi.fn().mockReturnThis(),
+          is: vi.fn().mockReturnThis(),
           maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'optin-1' }, error: null }),
         };
       }),
@@ -511,12 +518,14 @@ describe('WhatsApp outbound dispatch', () => {
           return {
             select: vi.fn().mockReturnThis(),
             eq: vi.fn().mockReturnThis(),
+            is: vi.fn().mockReturnThis(),
             gte: vi.fn().mockResolvedValue({ count: 10, error: null }),
           };
         }
         return {
           select: vi.fn().mockReturnThis(),
           eq: vi.fn().mockReturnThis(),
+          is: vi.fn().mockReturnThis(),
           maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'optin-1' }, error: null }),
         };
       }),
@@ -567,12 +576,14 @@ describe('WhatsApp outbound dispatch', () => {
           return {
             select: vi.fn().mockReturnThis(),
             eq: vi.fn().mockReturnThis(),
+            is: vi.fn().mockReturnThis(),
             gte: vi.fn().mockResolvedValue({ count, error: null }),
           };
         }
         return {
           select: vi.fn().mockReturnThis(),
           eq: vi.fn().mockReturnThis(),
+          is: vi.fn().mockReturnThis(),
           maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'optin-1' }, error: null }),
         };
       }),
@@ -615,6 +626,7 @@ describe('settings read layer (issue #136)', () => {
       from: vi.fn().mockReturnValue({
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
+        is: vi.fn().mockReturnThis(),
         maybeSingle: vi.fn().mockResolvedValue({ data: null, error: { message: 'db unavailable' } }),
       }),
     } as unknown as ReturnType<typeof createAdminClient>);
@@ -626,6 +638,7 @@ describe('settings read layer (issue #136)', () => {
       from: vi.fn().mockReturnValue({
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
+        is: vi.fn().mockReturnThis(),
         maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
       }),
     } as unknown as ReturnType<typeof createAdminClient>);
@@ -645,6 +658,7 @@ describe('settings read layer (issue #136)', () => {
       from: vi.fn().mockReturnValue({
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
+        is: vi.fn().mockReturnThis(),
         maybeSingle: vi.fn().mockResolvedValue({ data: { value: 500 }, error: null }),
       }),
     } as unknown as ReturnType<typeof createAdminClient>);
