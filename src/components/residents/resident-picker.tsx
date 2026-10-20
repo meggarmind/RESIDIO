@@ -1,20 +1,26 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, UserPlus, X } from 'lucide-react';
+import { AlertTriangle, Check, UserPlus, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import type { PilotResidentOption } from '@/actions/whatsapp/pilot';
+import type { ResidentOption } from '@/lib/residents/resident-options';
 
-/** Multi-select over residents by name; the value stays a list of resident UUIDs (#801). Mirrors TagPicker. */
-export function PilotResidentPicker({ options, value, onChange, disabled, error }: {
-  options: PilotResidentOption[];
+/**
+ * Multi-select over residents by name; the value stays a list of resident UUIDs. Mirrors
+ * TagPicker. Shared by the WhatsApp pilot list (#801) and recipient groups (#819).
+ * `warnings` maps a resident ID to a short reason shown on its badge, e.g. `not opted in`.
+ */
+export function ResidentPicker({ options, value, onChange, disabled, error, triggerLabel = 'Choose residents', warnings }: {
+  options: ResidentOption[];
   value: string[];
   onChange: (residentIds: string[]) => void;
   disabled?: boolean;
   error?: string | null;
+  triggerLabel?: string;
+  warnings?: Record<string, string>;
 }) {
   const [open, setOpen] = useState(false);
   const byId = new Map(options.map((option) => [option.id, option]));
@@ -28,9 +34,11 @@ export function PilotResidentPicker({ options, value, onChange, disabled, error 
           {value.map((id) => {
             // A saved ID with no matching resident (deleted, or the list failed to load) stays visible and removable.
             const label = byId.get(id)?.name ?? `Unknown resident (${id.slice(0, 8)})`;
+            const warning = warnings?.[id];
             return (
-              <Badge key={id} variant="outline" className="gap-1 font-normal">
-                {label}
+              <Badge key={id} variant="outline" className={`gap-1 font-normal ${warning ? 'border-amber-500/60' : ''}`}>
+                {warning && <AlertTriangle className="h-3 w-3 text-amber-600" aria-hidden="true" />}
+                {warning ? `${label}: ${warning}` : label}
                 {!disabled && (
                   <button
                     type="button"
@@ -50,7 +58,7 @@ export function PilotResidentPicker({ options, value, onChange, disabled, error 
         <PopoverTrigger asChild>
           <Button type="button" variant="outline" size="sm" disabled={disabled || options.length === 0}>
             <UserPlus className="h-4 w-4 mr-2" />
-            {options.length === 0 ? 'No residents available' : 'Choose pilot residents'}
+            {options.length === 0 ? 'No residents available' : triggerLabel}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="p-0 w-80" align="start">

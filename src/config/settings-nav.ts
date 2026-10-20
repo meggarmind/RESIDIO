@@ -148,6 +148,7 @@ export const settingsConfig: SettingsGroup[] = [
             // rules governing what they may assign. Narrowing this to MANAGE_ROLES would
             // hide from them a page they are still allowed to open.
             { title: "Roles & Permissions", href: "/settings/roles", description: "Create roles and choose what each can do", permissions: [PERMISSIONS.SYSTEM_MANAGE_ROLES, PERMISSIONS.SYSTEM_ASSIGN_ROLES] },
+            { title: "Groups", href: "/settings/groups", description: "Named lists of residents that messages and copies are sent to", permissions: [PERMISSIONS.GROUPS_VIEW] },
             {
                 title: "Security Rules",
                 href: "/settings/security",

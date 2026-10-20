@@ -54,7 +54,8 @@ export type PermissionCategory =
   | 'email_imports' // Gmail bank statement integration
   | 'two_factor'   // Two-factor authentication
   | 'finance'       // Expenditure and Petty Cash
-  | 'projects';     // Capital Projects
+  | 'projects'      // Capital Projects
+  | 'groups';       // Recipient groups (#819)
 
 // Account approval lifecycle (profiles.account_status).
 // Only 'active' resolves a role, resident link or permissions — the auth helpers
@@ -345,6 +346,7 @@ export type AuditEntityType =
   | 'whatsapp_link_tokens'          // One-time WhatsApp linking tokens
   | 'whatsapp_sessions'             // WhatsApp conversation sessions
   | 'whatsapp_provider_credentials' // WhatsApp provider connection (Meta/Twilio)
+  | 'recipient_groups'             // Named lists of residents to send to (#819)
   | 'visitor_vehicles'             // Visitor Vehicle Registration
   // Unified Expenditure Engine
   | 'expenses'                     // Expense records
@@ -443,6 +445,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   whatsapp_link_tokens: 'WhatsApp Link Token',           // WhatsApp Assistant
   whatsapp_sessions: 'WhatsApp Session',                // WhatsApp Assistant
   whatsapp_provider_credentials: 'WhatsApp Connection', // WhatsApp Assistant
+  recipient_groups: 'Recipient Group',                  // Recipient groups (#819)
   visitor_vehicles: 'Visitor Vehicle',                  // Visitor Management Enhancement
   // Unified Expenditure Engine
   expenses: 'Expense',                                  // Expense Management
