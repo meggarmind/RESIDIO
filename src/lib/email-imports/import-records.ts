@@ -2,9 +2,10 @@
  * Email import session rows (library, NOT a server action)
  *
  * Deliberately has no server-action directive and no auth: the caller passes the client.
- * The session-bound actions in src/actions/email-imports/create-email-import.ts pass the
- * session client; the fetch pipeline (fetch, parse, match) passes the service-role client so
- * the CRON_SECRET cron route can run it without a user session (#879).
+ * The permission-checked control actions (cancel, retry) pass the session client; the fetch
+ * pipeline (fetch, parse, match, process) passes the service-role client so the CRON_SECRET
+ * cron route can run it without a user session (#879). Never re-export these from a
+ * server-action module: that makes them client-callable without authorization (#883).
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';

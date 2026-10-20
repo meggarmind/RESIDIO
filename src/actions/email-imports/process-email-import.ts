@@ -22,7 +22,7 @@ import {
   isValidEmailAutoProcessLimit,
 } from '@/lib/email-imports/utils';
 import { createExpense } from '@/actions/expenses/create-expense';
-import { updateEmailImportStatus } from './create-email-import';
+import { writeEmailImportStatus } from '@/lib/email-imports/import-records';
 import type {
   EmailTransaction,
   ProcessEmailTransactionsOptions,
@@ -336,7 +336,7 @@ export async function processEmailTransactions(
   }
 
   // Update import status
-  await updateEmailImportStatus({
+  await writeEmailImportStatus(adminClient, {
     importId,
     status: result.errored > 0 ? 'failed' : 'completed',
     transactionsAutoProcessed: result.autoProcessed,

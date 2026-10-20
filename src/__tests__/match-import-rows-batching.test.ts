@@ -7,7 +7,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { uid } from '@/__tests__/helpers/recording-supabase';
 import { matchImportRows } from '@/actions/imports/match-residents';
 import { checkDuplicate, checkDuplicatesBatch } from '@/actions/imports/process-import';
-import { autoMatchExpenseCategory } from '@/actions/expenses/get-expense-categories';
 import { findMatchingExpenseCategory } from '@/lib/expenses/category-matcher';
 import { pickBestDuplicate } from '@/lib/matching/duplicate-matcher';
 
@@ -340,12 +339,6 @@ describe('findMatchingExpenseCategory (#649)', () => {
     expect(findMatchingExpenseCategory(cats, 'office rent')).toEqual({ category: null, matchedKeyword: null });
     expect(findMatchingExpenseCategory([CATEGORIES[2]] as never, 'anything')).toEqual({ category: null, matchedKeyword: null });
     expect(findMatchingExpenseCategory(null, 'diesel')).toEqual({ category: null, matchedKeyword: null });
-  });
-
-  it('autoMatchExpenseCategory returns the same as the pure helper for the same data', async () => {
-    for (const d of ['Bought DiEsEl today', 'diesel and bank charge', 'monthly bank charge', 'office rent', '']) {
-      expect(await autoMatchExpenseCategory(d)).toEqual(findMatchingExpenseCategory(cats, d));
-    }
   });
 });
 

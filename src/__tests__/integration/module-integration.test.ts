@@ -79,7 +79,6 @@ const PERMISSION_ALLOWLIST = [
   'paystack/webhook-handler.ts',
   // Vercel cron (CRON_SECRET bearer auth, no user session) as well as manual
   // triggers; a hard permission check would break the automated path.
-  'email-imports/create-email-import.ts',
   'analytics/refresh-payment-cadence-summary.ts',
   // Pre-auth: runs before the caller has a session.
   'auth/register-resident-portal.ts',
@@ -137,18 +136,6 @@ const AUDIT_ALLOWLIST = [
   // Per-resident read tracking. Auditing every announcement view would flood
   // the audit log without recording an administrative decision.
   'announcements/read-receipts.ts',
-
-  // ---- Pipeline progress writes (#556).
-  // Internal status/counter updates of an email-import run (fetching, parsing,
-  // matching, completed, failed). Its callers are the pipeline stages in
-  // src/lib/email-imports/*, reached both from the CRON_SECRET route
-  // (api/cron/fetch-emails, no session, so logAudit would write nothing) and from
-  // admin-triggered runs (whose trigger action is permission-checked). The
-  // import row's creation is audited in createEmailImport, and the one
-  // admin decision that changes status, cancelImport, audits itself. Auditing every
-  // stage transition would add rows only for session runs. Sessionless runs are
-  // for the System Action Log (#538).
-  'email-imports/create-email-import.ts::updateEmailImportStatus',
 
   // ---- Own-rows self-service or self-trail (#390 triage, #556).
   'report-subscriptions/update-subscription.ts::updateMyReportSubscription',
