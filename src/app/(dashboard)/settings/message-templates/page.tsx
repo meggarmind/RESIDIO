@@ -1,5 +1,6 @@
 'use client';
 
+import { SettingsPageHeader } from '@/components/settings/settings-page-header';
 import { useState } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -214,19 +215,15 @@ export default function MessageTemplatesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Announcement Templates</h1>
-          <p className="text-muted-foreground">
-            Reusable text for announcements. These are not notification templates: notifications use the
-            system templates in Notification Templates.
-          </p>
-        </div>
-        <Button onClick={() => handleOpenDialog()}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Template
-        </Button>
-      </div>
+      <SettingsPageHeader
+        description="Reusable text for announcements. These are not notification templates: notifications use the system templates in Notification Templates."
+        actions={
+          <Button onClick={() => handleOpenDialog()}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Template
+          </Button>
+        }
+      />
 
       <Card>
         <CardHeader>

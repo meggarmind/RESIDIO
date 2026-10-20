@@ -19,10 +19,14 @@ vi.mock('@/lib/auth/auth-provider', () => ({
   useAuth: () => ({
     isLoading: false,
     hasPermission: (p: string) => mocks.permissions.includes(p),
+    hasAnyPermission: (ps: string[]) => ps.some((p) => mocks.permissions.includes(p)),
     profile: { role_name: mocks.roleName },
   }),
 }));
-vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }));
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => '/settings/email-integration',
+}));
 vi.mock('@/hooks/use-gmail-connection', () => ({
   useGmailConnectionStatus: () => ({ data: undefined, isLoading: false, refetch: vi.fn() }),
   useConnectGmail: () => ({ mutate: vi.fn(), isPending: false }),
