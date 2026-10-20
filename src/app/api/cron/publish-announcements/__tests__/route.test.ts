@@ -1,14 +1,14 @@
 import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GET } from '../route';
-import { publishAnnouncement } from '@/actions/announcements/publish-announcement';
-import { createBulkNotifications } from '@/actions/in-app-notifications/create-notification';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { publishAnnouncementCore } from '@/lib/announcements/publish';
+import { insertBulkNotifications } from '@/lib/notifications/in-app';
+import { createAdminClient } from '@/lib/supabase/server';
 import { recordSystemAction } from '@/lib/system-log/recorder';
 
-vi.mock('@/actions/announcements/publish-announcement', () => ({ publishAnnouncement: vi.fn() }));
-vi.mock('@/actions/in-app-notifications/create-notification', () => ({ createBulkNotifications: vi.fn() }));
-vi.mock('@/lib/supabase/server', () => ({ createServerSupabaseClient: vi.fn() }));
+vi.mock('@/lib/announcements/publish', () => ({ publishAnnouncementCore: vi.fn() }));
+vi.mock('@/lib/notifications/in-app', () => ({ insertBulkNotifications: vi.fn() }));
+vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
 vi.mock('@/lib/system-log/recorder', () => ({ recordSystemAction: vi.fn() }));
 
 const SECRET = 'cron-secret-for-tests';
@@ -39,7 +39,7 @@ function supabaseWith(announcements: unknown[] | null, queryError: { message: st
     q.then = (resolve: (v: unknown) => void) => resolve(result);
     return q;
   };
-  vi.mocked(createServerSupabaseClient).mockResolvedValue({
+  vi.mocked(createAdminClient).mockReturnValue({
     from: (table: string) =>
       table === 'announcements'
         ? chain({ data: announcements, error: queryError })
@@ -52,8 +52,8 @@ describe('GET /api/cron/publish-announcements system log', () => {
     vi.clearAllMocks();
     vi.stubEnv('CRON_SECRET', SECRET);
     supabaseWith([announcement('a-1'), announcement('a-2')]);
-    vi.mocked(publishAnnouncement).mockResolvedValue({ error: null } as never);
-    vi.mocked(createBulkNotifications).mockResolvedValue({ count: 2, error: null } as never);
+    vi.mocked(publishAnnouncementCore).mockResolvedValue({ error: null } as never);
+    vi.mocked(insertBulkNotifications).mockResolvedValue({ data: [{ id: 'n-1' }, { id: 'n-2' }], error: null } as never);
   });
   afterEach(() => vi.unstubAllEnvs());
 
@@ -86,7 +86,7 @@ describe('GET /api/cron/publish-announcements system log', () => {
   });
 
   it('records partial with the failed id when one announcement fails to publish (200)', async () => {
-    vi.mocked(publishAnnouncement)
+    vi.mocked(publishAnnouncementCore)
       .mockResolvedValueOnce({ error: null } as never)
       .mockResolvedValueOnce({ error: 'cannot publish' } as never);
     const response = await GET(request(`Bearer ${SECRET}`));
@@ -101,7 +101,7 @@ describe('GET /api/cron/publish-announcements system log', () => {
   });
 
   it('records failure when every announcement fails', async () => {
-    vi.mocked(publishAnnouncement).mockResolvedValue({ error: 'cannot publish' } as never);
+    vi.mocked(publishAnnouncementCore).mockResolvedValue({ error: 'cannot publish' } as never);
     await GET(request(`Bearer ${SECRET}`));
     expect(recordSystemAction).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'failure' }));
   });

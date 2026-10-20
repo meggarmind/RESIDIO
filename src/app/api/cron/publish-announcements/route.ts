@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { publishAnnouncement } from '@/actions/announcements/publish-announcement';
-import { createBulkNotifications } from '@/actions/in-app-notifications/create-notification';
+import { publishAnnouncementCore } from '@/lib/announcements/publish';
+import { insertBulkNotifications } from '@/lib/notifications/in-app';
 import { verifyCronAuth } from '@/lib/auth/cron-auth';
 import { withSystemLog, type SystemLogRun } from '@/lib/system-log/with-system-log';
 import { createLogger } from '@/lib/logger';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
 
 const log = createLogger('[Cron:PublishAnnouncements]');
 
@@ -22,6 +22,9 @@ export const maxDuration = 300; // 5 minutes max
  * 3. Creates in-app notifications for target residents
  *
  * Authentication: Bearer token matching CRON_SECRET env var (timing-safe)
+ *
+ * There is no user session here, so it uses the admin client and the session-free publish and
+ * notification cores; the System Action Log row records the run instead of an audit entry (#876).
  */
 export async function GET(request: NextRequest) {
   // Verify cron secret using timing-safe comparison
@@ -35,7 +38,7 @@ async function runAnnouncementPublishing(run: SystemLogRun) {
   try {
     log.info('Starting scheduled announcement publishing');
 
-    const supabase = await createServerSupabaseClient();
+    const supabase = createAdminClient();
     const now = new Date().toISOString();
 
     // Query scheduled announcements ready to be published
@@ -79,7 +82,7 @@ async function runAnnouncementPublishing(run: SystemLogRun) {
     for (const announcement of announcements) {
       try {
         // 1. Publish the announcement
-        const publishResult = await publishAnnouncement(announcement.id);
+        const publishResult = await publishAnnouncementCore(supabase, announcement.id, null);
 
         if (publishResult.error) {
           log.error(`Failed to publish announcement ${announcement.id}:`, publishResult.error);
@@ -134,14 +137,15 @@ async function runAnnouncementPublishing(run: SystemLogRun) {
           icon: 'megaphone',
         }));
 
-        const notifResult = await createBulkNotifications(notifications);
+        const notifResult = await insertBulkNotifications(supabase, notifications);
 
         if (notifResult.error) {
           log.error(`Failed to create notifications for announcement ${announcement.id}:`, notifResult.error);
           // Don't fail the whole process - announcement is already published
         } else {
-          log.info(`Created ${notifResult.count} notifications for announcement ${announcement.id}`);
-          results.notificationsSent += notifResult.count;
+          const count = notifResult.data?.length ?? 0;
+          log.info(`Created ${count} notifications for announcement ${announcement.id}`);
+          results.notificationsSent += count;
         }
 
         results.published++;
