@@ -6,6 +6,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import type { InAppNotification } from '@/types/database';
 import { logAudit } from '@/lib/audit/logger';
+import { insertBulkNotifications } from '@/lib/notifications/in-app';
 
 export interface NotificationCreateInput {
   recipient_id: string;
@@ -91,26 +92,7 @@ export async function createBulkNotifications(
   }
 
   const supabase = await createServerSupabaseClient();
-
-  const insertData = notifications.map((input) => ({
-    recipient_id: input.recipient_id,
-    title: input.title,
-    body: input.body,
-    icon: input.icon || null,
-    category: input.category,
-    entity_type: input.entity_type || null,
-    entity_id: input.entity_id || null,
-    action_url: input.action_url || null,
-    priority: input.priority || 'normal',
-    metadata: input.metadata || {},
-    expires_at: input.expires_at || null,
-    is_read: false,
-  }));
-
-  const { data, error } = await supabase
-    .from('in_app_notifications')
-    .insert(insertData)
-    .select();
+  const { data, error } = await insertBulkNotifications(supabase, notifications);
 
   if (error) {
     console.error('Error creating bulk notifications:', error);
