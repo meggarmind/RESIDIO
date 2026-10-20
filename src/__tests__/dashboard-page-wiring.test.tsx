@@ -2,7 +2,7 @@
 //
 // #758, #782: the real DashboardContent wires the snapshot into the strip and lanes and the
 // estate map hook into the EstateMap. Only auth and data hooks are mocked; every dashboard
-// component is real. The server page prefetches both reads for first paint.
+// component is real. The server page prefetches only the snapshot; the map loads on the client.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
@@ -61,7 +61,7 @@ import { isValidElement, type ReactElement } from 'react';
 import { HydrationBoundary, type DehydratedState } from '@tanstack/react-query';
 import DashboardPage from '@/app/(dashboard)/dashboard/page';
 import { DashboardContent } from '@/app/(dashboard)/dashboard/dashboard-content';
-import { ADMIN_DASHBOARD_SNAPSHOT_QUERY_KEY, ESTATE_MAP_STATUS_QUERY_KEY } from '@/hooks/dashboard-query-keys';
+import { ADMIN_DASHBOARD_SNAPSHOT_QUERY_KEY } from '@/hooks/dashboard-query-keys';
 
 const snapshot: EstateMapSnapshot = {
   houses: [
@@ -136,17 +136,15 @@ describe('DashboardPage server prefetch', () => {
     return state.queries.map((q) => q.queryKey);
   };
 
-  it('prefetches the snapshot and the map under the client hooks\' keys', async () => {
+  it('prefetches only the snapshot under the client hook\'s key and leaves the map to the client', async () => {
     mocks.getAdminDashboardSnapshot.mockResolvedValue({ data: { lastUpdated: 'x' }, error: null });
-    mocks.getEstateMapStatus.mockResolvedValue({ data: snapshot, error: null });
-    const keys = dehydratedKeys(await DashboardPage());
-    expect(keys).toEqual(expect.arrayContaining([[...ADMIN_DASHBOARD_SNAPSHOT_QUERY_KEY], [...ESTATE_MAP_STATUS_QUERY_KEY]]));
+    expect(dehydratedKeys(await DashboardPage())).toEqual([[...ADMIN_DASHBOARD_SNAPSHOT_QUERY_KEY]]);
+    expect(mocks.getEstateMapStatus).not.toHaveBeenCalled();
     expect(mocks.getSmartSuggestions).not.toHaveBeenCalled();
   });
 
   it('leaves a failed read out so the client fetches it and shows its own state', async () => {
-    mocks.getAdminDashboardSnapshot.mockResolvedValue({ data: { lastUpdated: 'x' }, error: null });
-    mocks.getEstateMapStatus.mockResolvedValue({ data: null, error: 'Unauthorized' });
-    expect(dehydratedKeys(await DashboardPage())).toEqual([[...ADMIN_DASHBOARD_SNAPSHOT_QUERY_KEY]]);
+    mocks.getAdminDashboardSnapshot.mockResolvedValue({ data: null, error: 'Unauthorized' });
+    expect(dehydratedKeys(await DashboardPage())).toEqual([]);
   });
 });

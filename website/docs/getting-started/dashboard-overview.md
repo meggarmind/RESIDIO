@@ -7,7 +7,7 @@ residio_sources:
   - src/app/(dashboard)/dashboard/**
   - src/components/dashboard/**
   - src/actions/dashboard/**
-residio_verified_commit: b1a94121
+residio_verified_commit: 453dc718
 residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
@@ -30,7 +30,7 @@ The dashboard is your operating picture for the estate. Start here before openin
 2. **Money lane:** the headline is "Outstanding on invoices", what is still owed. Under it, one line shows "Verified this month"; hover or focus that label to read what it counts: this month's payments that a person confirmed or that came in through a bank or email statement import. Three queue rows sit under it: Payments to verify, Overdue invoice balance (with the number of overdue Invoices), and Resident wallet credits. The link beside the title is **Verify payments**.
 3. **People and Houses lane:** the headline is Residents awaiting review. The queue rows show Active residents, Occupied houses, and Vacant houses. House payment counts are on the estate map's filter buttons, not here. The link beside the title is **Review residents**.
 4. **Security and Access lane:** the headline is Contacts expiring soon. The status line reads "N of M contacts active", followed by a summary of anything that needs attention. The queue rows show Expired access codes, Suspended contacts, and Recent flagged entries. The link beside the title is **Open security contacts**.
-5. **Estate map:** one cell for each House, grouped by street. Only the exceptions are marked: Overdue and Outstanding cells have a coloured border and their own icon. Paid up and No invoice cells are plain. The filter buttons (All, Overdue, Outstanding, Paid up, No invoice) are the legend and show the count for each status, and choosing one shows only the Houses in that state. Select a cell to open the House. It is gated on the same billing view permission as the Money lane.
+5. **Estate map:** one cell for each House, grouped by street. Only the exceptions are marked: Overdue and Outstanding cells have a coloured border and their own icon. Paid up and No invoice cells are plain. The filter buttons (All, Overdue, Outstanding, Paid up, No invoice) are the legend and show the count for each status, and choosing one shows only the Houses in that state. Select a cell to open the House. The map refreshes on its own schedule, so its header shows its own time ("Map as of ..."). It is gated on the same billing view permission as the Money lane.
 6. **Recent activity:** confirm recent changes are expected and traceable. It shows the latest five Payment, Resident, and security contact events; **View all** opens the audit logs. If your role cannot
    view audit logs, this card says so rather than showing an empty list. Ask an administrator
    for the "view audit logs" permission if you need it.

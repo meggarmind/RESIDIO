@@ -85,9 +85,9 @@ describe('EstateMap ready', () => {
     }
   });
 
-  it('shows the as-of time', () => {
+  it('labels its as-of time as the map\'s own', () => {
     renderMap();
-    expect(screen.getByText(/^As of /)).toBeInTheDocument();
+    expect(screen.getByText(/^Map as of /)).toBeInTheDocument();
   });
 
   it('groups by street in returned order, with null street under "No street"', () => {
