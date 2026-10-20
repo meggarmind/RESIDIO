@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, Check, Clock, Lock, Minus } from 'lucide-react';
+import { AlertTriangle, Clock, Lock } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { formatAsOf } from '@/components/dashboard/command-lane';
@@ -11,19 +11,22 @@ import type { EstateMapHouse, EstateMapSnapshot, EstateMapStatus } from '@/types
 
 type Filter = 'all' | EstateMapStatus;
 
-const meta = (label: string, icon: React.ElementType, state: StatusState) => ({
+type StatusMeta = { label: string; icon: React.ElementType | null; cell: string; cue: string };
+
+const flagged = (label: string, icon: React.ElementType, state: StatusState): StatusMeta => ({
   label,
   icon,
   cell: cn('border-2 bg-card text-foreground', STATUS_COLORS[state].border),
   cue: STATUS_COLORS[state].text,
 });
+const plain = (label: string): StatusMeta => ({ label, icon: null, cell: 'bg-muted text-foreground', cue: '' });
 
-/** Neutral cell, status-hue 2px border and icon, house number in foreground. Shape differs per status. */
-export const STATUS_META: Record<EstateMapStatus, { label: string; icon: React.ElementType; cell: string; cue: string }> = {
-  overdue: meta('Overdue', AlertTriangle, 'overdue'),
-  outstanding: meta('Outstanding', Clock, 'attention'),
-  paid_up: meta('Paid up', Check, 'ok'),
-  no_invoice: meta('No invoice', Minus, 'neutral'),
+/** Only exceptions are marked: a status-hue 2px border and icon. Paid up and No invoice are plain neutral cells (#782). */
+export const STATUS_META: Record<EstateMapStatus, StatusMeta> = {
+  overdue: flagged('Overdue', AlertTriangle, 'overdue'),
+  outstanding: flagged('Outstanding', Clock, 'attention'),
+  paid_up: plain('Paid up'),
+  no_invoice: plain('No invoice'),
 };
 
 const FILTERS: Filter[] = ['all', 'overdue', 'outstanding', 'paid_up', 'no_invoice'];
@@ -35,7 +38,8 @@ interface EstateMapProps {
   error: string | null;
 }
 
-const shell = 'col-span-12 rounded-xl border bg-card p-5';
+// On the page background under a rule; only the lanes are bordered cards.
+const shell = 'col-span-12 border-t pt-5';
 const GRID = 'grid grid-cols-[repeat(auto-fill,minmax(2.75rem,1fr))] gap-2';
 
 function groupByStreet(houses: EstateMapHouse[]): { name: string; houses: EstateMapHouse[] }[] {
@@ -47,6 +51,12 @@ function groupByStreet(houses: EstateMapHouse[]): { name: string; houses: Estate
     else groups.set(key, [h]);
   }
   return Array.from(groups, ([name, list]) => ({ name, houses: list }));
+}
+
+/** The chips double as the legend, so a flagged status shows its cell icon. */
+function ChipIcon({ status }: { status: EstateMapStatus }) {
+  const { icon: Icon, cue } = STATUS_META[status];
+  return Icon ? <Icon className={cn('h-3 w-3 shrink-0', cue)} aria-hidden="true" /> : null;
 }
 
 export function EstateMap({ snapshot, isLoading, error }: EstateMapProps) {
@@ -110,7 +120,7 @@ export function EstateMap({ snapshot, isLoading, error }: EstateMapProps) {
     <section aria-label="Estate map" data-testid="estate-map" className={shell}>
       <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h2 className="text-base font-semibold">Estate map</h2>
-        {asOf ? <span className="text-xs text-muted-foreground">As of {asOf}</span> : null}
+        {asOf ? <span className="text-xs text-muted-foreground">Map as of {asOf}</span> : null}
       </header>
 
       <div role="group" aria-label="Filter houses by status" className="mt-3 flex flex-wrap gap-2">
@@ -129,6 +139,7 @@ export function EstateMap({ snapshot, isLoading, error }: EstateMapProps) {
                 active ? 'border-foreground bg-foreground text-background' : 'bg-card text-foreground hover:bg-muted'
               )}
             >
+              {f !== 'all' ? <ChipIcon status={f} /> : null}
               {f === 'all' ? 'All' : STATUS_META[f].label}
               <span className="tabular-nums">{count}</span>
             </button>
@@ -158,7 +169,7 @@ export function EstateMap({ snapshot, isLoading, error }: EstateMapProps) {
                         m.cell
                       )}
                     >
-                      <Icon className={cn('h-3 w-3 shrink-0', m.cue)} aria-hidden="true" data-testid={`estate-map-cue-${h.status}`} />
+                      {Icon ? <Icon className={cn('h-3 w-3 shrink-0', m.cue)} aria-hidden="true" data-testid={`estate-map-cue-${h.status}`} /> : null}
                       <span className="max-w-full truncate text-foreground">{h.houseNumber}</span>
                     </Link>
                   );

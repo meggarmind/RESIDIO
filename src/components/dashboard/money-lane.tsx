@@ -3,18 +3,18 @@
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { CommandLane, type LaneState, type LaneTone } from '@/components/dashboard/command-lane';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { DashboardActionMetrics, FinancialHealthMetrics } from '@/actions/dashboard/get-enhanced-dashboard-stats';
-import type { SmartSuggestion } from '@/hooks/use-smart-suggestions';
 
 export const formatNaira = (value: number) => `₦${new Intl.NumberFormat('en-NG').format(Math.round(value))}`;
 
-const OVERDUE_SUGGESTION_ID = 'suggestion-severely-overdue-invoices';
+// get_dashboard_payment_metrics counts a payment as verified when is_verified or imported from a statement.
+export const VERIFIED_EXPLANATION =
+  'Payments made this month that a person confirmed or that came in through a bank or email statement import.';
 
 interface MoneyLaneProps {
   financialHealth: FinancialHealthMetrics | null;
   actionMetrics: DashboardActionMetrics | null;
-  suggestions?: SmartSuggestion[];
-  asOf?: string | null;
   isLoading?: boolean;
   isUnavailable?: boolean;
 }
@@ -22,8 +22,6 @@ interface MoneyLaneProps {
 export function MoneyLane({
   financialHealth,
   actionMetrics,
-  suggestions = [],
-  asOf,
   isLoading = false,
   isUnavailable = false,
 }: MoneyLaneProps) {
@@ -39,26 +37,24 @@ export function MoneyLane({
     else if (invoiced > 0) tone = 'ok';
   }
 
-  const overdueSuggestion = suggestions.find((s) => s.id === OVERDUE_SUGGESTION_ID);
-
   return (
     <CommandLane
       testId="lane-money"
       title="Money"
       state={state}
       tone={tone}
-      asOf={asOf}
-      heroLabel="Collected on invoices, all time"
-      heroValue={fh ? formatNaira(fh.totalCollected) : null}
+      heroLabel="Outstanding on invoices"
+      heroValue={fh ? formatNaira(fh.totalOutstanding) : null}
       status={
         fh ? (
-          <>
-            <span className="block text-foreground">
-              {invoiced > 0 ? `collected of ${formatNaira(invoiced)} invoiced, all time (${Math.round(fh.collectionRate)}%)` : 'No invoices raised yet'}
-            </span>
-            <span className="block text-foreground">Verified payments this month: {formatNaira(fh.monthlyRevenue)}</span>
-            <span className="block">Collected is everything paid against invoices, all time. Verified is this month&apos;s payments that a person confirmed or that came in through a bank or email statement import.</span>
-          </>
+          <span data-testid="lane-money-verified" className="block text-foreground">
+            {invoiced === 0 ? 'No invoices raised yet. ' : null}
+            <Tooltip>
+              <TooltipTrigger className="cursor-help underline decoration-dotted underline-offset-2">Verified this month</TooltipTrigger>
+              <TooltipContent className="max-w-64">{VERIFIED_EXPLANATION}</TooltipContent>
+            </Tooltip>
+            {`: ${formatNaira(fh.monthlyRevenue)}`}
+          </span>
         ) : null
       }
       rows={[
@@ -71,16 +67,11 @@ export function MoneyLane({
           key: 'overdue',
           label: 'Overdue invoice balance',
           value: fh ? formatNaira(fh.overdueAmount) : null,
-          hint: overdueSuggestion ? overdueSuggestion.title : fh ? `${fh.overdueCount} overdue ${fh.overdueCount === 1 ? 'invoice' : 'invoices'}` : undefined,
+          hint: fh ? `${fh.overdueCount} overdue ${fh.overdueCount === 1 ? 'invoice' : 'invoices'}` : undefined,
         },
         { key: 'wallet', label: 'Resident wallet credits', value: fh ? formatNaira(fh.walletCredits) : null },
       ]}
       primary={{ label: 'Verify payments', href: '/approvals', allowed: hasPermission(PERMISSIONS.APPROVALS_VIEW) }}
-      secondary={[
-        { label: 'Record payment', href: '/payments/new', allowed: hasPermission(PERMISSIONS.PAYMENTS_CREATE) },
-        { label: 'Generate invoices', href: '/billing/generate', allowed: hasPermission(PERMISSIONS.BILLING_CREATE_INVOICE) },
-        { label: 'Import statement', href: '/payments/import', allowed: hasPermission(PERMISSIONS.IMPORTS_CREATE) },
-      ]}
     />
   );
 }
