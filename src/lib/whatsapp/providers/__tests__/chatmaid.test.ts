@@ -90,6 +90,17 @@ describe('Chatmaid WhatsApp provider', () => {
     });
   });
 
+  it('attaches mediaUrls when the message carries files (#871)', async () => {
+    const config = makeConfig({ apiKey: 'sk_test_media_attachment' });
+    const fetchImpl = fetchWithConnection(config, undefined, jsonResponse({ data: { id: 'msg_pdf' } }, 201));
+    const provider = createChatmaidWhatsAppProvider(config, fetchImpl);
+
+    await provider.sendText({ to: '+2348000000000', body: 'Notice', mediaUrls: ['https://storage.test/notice.pdf'] });
+
+    const body = JSON.parse((fetchImpl.mock.calls[2][1] as RequestInit).body as string);
+    expect(body).toMatchObject({ content: 'Notice', mediaUrls: ['https://storage.test/notice.pdf'] });
+  });
+
   it('resolves the phone id from /v1/phone-numbers and checks /v1/phone-numbers/:id/status', async () => {
     const config = makeConfig();
     const fetchImpl = fetchWithConnection(
