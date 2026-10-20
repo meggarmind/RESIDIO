@@ -21,7 +21,8 @@ Signing up does **not** grant access. `handle_new_user()` provisions every new
 `auth.users` row with `approval_status = 'pending'`, no role and no resident link.
 
 `profiles.approval_status` is the single chokepoint: the SECURITY DEFINER helpers that
-`get_my_role_name()` (97 RLS policies across 36 tables), `get_my_resident_id()`,
+`get_my_role_name()` (the RLS policies that still compare role-name literals; #63 is moving
+them to `has_permission()`), `get_my_resident_id()`,
 `is_resident()`, `is_super_admin()`, `has_permission()` — all return NULL/false unless the
 status is `active`. A pending, rejected or suspended account is therefore denied at the
 database level, not merely redirected by middleware.
