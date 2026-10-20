@@ -85,6 +85,13 @@ describe('identity read-back (#871 step 1)', () => {
     expect(onIdentified).not.toHaveBeenCalled();
   });
 
+  it('does not keep a bare multi-digit reply as the pending request', async () => {
+    const repo = repository(state({ step: `identity:${FINGERPRINT}`, pendingRequest: 'OWE' }));
+    await run('482913', repo);
+
+    expect(repo.saveConsentStep).toHaveBeenCalledWith(PHONE, 'resident-1', `identity:${FINGERPRINT}`, 'OWE');
+  });
+
   it('omits the street when the resident has none on record', async () => {
     const repo = repository(state(), { getStreetName: vi.fn().mockResolvedValue(null) });
     const { bodies } = await run('hi', repo);

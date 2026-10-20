@@ -35,10 +35,16 @@ function navItems(): SettingsItem[] {
   return settingsConfig.flatMap((group) => flatten(group.items));
 }
 
+const systemDir = fileURLToPath(new URL('../app/(dashboard)/system', import.meta.url));
+const stripQuery = (href: string) => href.split('?')[0];
+
+// Hrefs as written in the nav config. Some point into /system (Roles & Permissions
+// opens a tab of Roles & Access, #912) and may carry a query string.
 const navHrefs = new Set(navItems().map((i) => i.href));
 
 /** The longest ROUTE_PERMISSIONS prefix matching a path — how middleware resolves. */
-function guardFor(href: string): string | undefined {
+function guardFor(rawHref: string): string | undefined {
+  const href = stripQuery(rawHref);
   return Object.keys(ROUTE_PERMISSIONS)
     .sort((a, b) => b.length - a.length)
     .find((route) => href === route || href.startsWith(route + '/'));
@@ -46,20 +52,19 @@ function guardFor(href: string): string | undefined {
 
 describe('settings navigation coverage', () => {
   it('links only to pages that exist', () => {
-    const onDisk = new Set(routesOnDisk());
-    const dangling = [...navHrefs].filter((href) => !onDisk.has(href)).sort();
+    const onDisk = new Set([...routesOnDisk(), ...routesOnDisk(systemDir, '/system')]);
+    const dangling = [...navHrefs].filter((href) => !onDisk.has(stripQuery(href))).sort();
 
     expect(dangling).toEqual([]);
   });
 
   it('lists every settings page that has one', () => {
-    // /settings/user-roles is a permanent redirect into /settings/roles, and
     // Every path here is a permanent redirect rather than a page of its own,
-    // so none should appear in the nav. All but one point into /system/*
-    // (ADR-0004: Settings is configuration-only); /settings/user-roles is an
-    // older redirect that now lands on /system/accounts too, since that is
-    // where role assignments moved.
+    // so none should appear in the nav. All point into /system/* (ADR-0004:
+    // Settings is configuration-only); /settings/roles and /settings/user-roles
+    // land on Roles & Access (#912). The nav links straight to the new tab.
     const REDIRECTS = new Set([
+      '/settings/roles',
       '/settings/user-roles',
       '/settings/audit-logs',
       '/settings/notification-queue',

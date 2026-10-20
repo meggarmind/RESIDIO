@@ -1,5 +1,4 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/server';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
@@ -7,7 +6,9 @@ import { getSettingResultAsService } from '@/lib/settings/service';
 import { isWhatsAppMasterSwitchOn } from '@/lib/whatsapp/master-switch';
 import { isWhatsAppRecipientAllowed } from '@/lib/whatsapp/rollout';
 import type { WhatsAppInboundMessage, WhatsAppTextMessage } from '@/lib/whatsapp/types';
-import type { WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
+import { hashWhatsAppLinkCode, type WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
+import { sendWhatsAppPinAlert } from '@/lib/whatsapp/pin-alert';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AccountStatementData } from '@/lib/billing/account-statement-data';
 import {
   STATEMENT_CHAT_ROW_LIMIT,
@@ -70,7 +71,26 @@ const PIN_LOCK_MINUTES = 15;
 const PIN_TRIES_PER_WINDOW = 6;
 const PIN_WINDOW_HOURS = 24;
 const PIN_HARD_LOCKED_REPLY = 'Your PIN is locked after several wrong tries. The estate office needs to reset it.';
-const SET_PIN_HINT = 'reply PIN followed by 4–6 digits of your choice';
+// #892: a setup code from the estate office allows 3 wrong tries, then pauses for an hour.
+const SETUP_CODE_TRIES = 3;
+const SETUP_CODE_PAUSE_MINUTES = 60;
+// #892: 3 mismatched confirmations cancel setting or changing a PIN.
+const PIN_CONFIRM_TRIES = 3;
+const SET_PIN_HINT = 'reply PIN';
+const PIN_DIGITS = /^\d{4,6}$/;
+const VERIFY_PIN_PROMPT = 'Enter your 4–6 digit PIN to view your financial standing (e.g. 4821).';
+const SETUP_CODE_PROMPT = 'Enter the 6-digit setup code from the estate office.';
+const CHOOSE_PIN_PROMPT = 'Choose a 4–6 digit PIN.';
+const CHOOSE_NEW_PIN_PROMPT = 'Choose a new 4–6 digit PIN.';
+const CURRENT_PIN_PROMPT = 'Enter your current PIN.';
+const CONFIRM_PIN_PROMPT = 'Enter the same PIN again to confirm.';
+const PIN_MISMATCH_REPLY = "That PIN doesn't match. Enter the same PIN again to confirm.";
+const WEAK_PIN_REPLY = 'That PIN is too easy to guess. Please choose another 4–6 digit PIN.';
+const NOTHING_CHANGED_REPLY = 'Nothing was changed.';
+const PIN_VERIFIED_REPLY = 'PIN verified. Your financial standing is unlocked for 15 minutes.';
+const PIN_SET_REPLY = 'Your PIN is set ✅ Your financial standing is unlocked for 15 minutes. For privacy, you can delete the messages with your PIN from this chat.';
+/** Easy PINs refused at setup besides one-digit, run and repeated-block PINs (#805 decision 3). */
+const WEAK_PIN_DENYLIST = new Set(['2580', '0852', '1004', '2000', '2001', '1122', '6969', '112233', '147258', '159753']);
 /** Per-resident daily cap on financial answers (#804 decision 26). */
 export const RESIDENT_DAILY_LOOKUP_CAP = 20;
 /** Estate-wide cap when the setting is absent (#804 decision 26 raised it from 50). */
@@ -107,7 +127,16 @@ export interface WhatsAppFinancialSession {
   expiresAt: string;
   /** Answers collected so far in a multi-step flow (a payment report); dropped when the flow ends. */
   draft?: Record<string, unknown> | null;
+  /** Salted hash of a chosen PIN awaiting confirmation (#892); never the PIN itself. */
+  pendingPinHash?: string | null;
 }
+
+/** A setup code checked against the resident's one live code, its try counted first (#892). */
+export type SetupCodeClaim =
+  | { status: 'accepted' }
+  | { status: 'wrong'; triesLeft: number }
+  | { status: 'paused'; pausedUntil: string }
+  | { status: 'none' };
 
 /** A PIN try counted before the PIN is checked (claim_whatsapp_pin_try, #891). */
 export type PinAttemptClaim =
@@ -171,7 +200,12 @@ export interface WhatsAppFinancialRepository {
   saveSession(session: WhatsAppFinancialSession): Promise<void>;
   getForcePin(): Promise<boolean>;
   getPinHash(residentId: string): Promise<string | null>;
-  setPinHash(residentId: string, hash: string): Promise<void>;
+  /** Stores the hash only while the stored one is still `expected` (null: no PIN yet); false when it was not. */
+  setPinHash(residentId: string, hash: string, expected: string | null): Promise<boolean>;
+  /** Checks a setup code against the resident's live `pin_setup` code, counting the try before the check. */
+  claimSetupCode(residentId: string, code: string): Promise<SetupCodeClaim>;
+  /** Emails the resident, when an email is on file, that their PIN was set or changed from this number. */
+  sendPinAlert(residentId: string, event: 'set' | 'change', phoneNumber: string): Promise<void>;
   /** Counts a PIN try as wrong before it is checked; refused while the resident is locked. */
   claimPinAttempt(residentId: string): Promise<PinAttemptClaim>;
   /** After a correct PIN: resets the in-a-row count and takes the claimed try back out of the window. */
@@ -238,6 +272,16 @@ export function verifyPin(pin: string, stored: string): boolean {
     actual = createHash('sha256').update(pin).digest();
   }
   return expected.length === actual.length && timingSafeEqual(expected, actual);
+}
+
+/** One digit repeated, a run up or down, a short block repeated (1212, 123123), or a denylisted PIN. */
+export function isWeakPin(pin: string): boolean {
+  return /^(\d)\1+$/.test(pin)
+    || '01234567890'.includes(pin)
+    || '09876543210'.includes(pin)
+    || /^(\d{2})\1+$/.test(pin)
+    || /^(\d{3})\1$/.test(pin)
+    || WEAK_PIN_DENYLIST.has(pin);
 }
 
 function expiry(): string {
@@ -373,14 +417,22 @@ function settingText(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
+/**
+ * The generated types do not know whatsapp_sessions.pending_pin_hash (#892) or the
+ * whatsapp_link_tokens purpose/failed_attempts/paused_until columns (#890) until those migrations
+ * are applied and `npm run db:types` is re-run; remove this after that.
+ */
+function untypedAdminClient(): SupabaseClient {
+  return createAdminClient() as unknown as SupabaseClient;
+}
+
 function createSupabaseRepository(): WhatsAppFinancialRepository {
   return {
     async getSession(phoneNumber) {
-      // whatsapp_sessions.draft is not in the generated types until the 20261022000000 migration is applied.
-      const supabase = createAdminClient() as unknown as SupabaseClient;
-      const { data, error } = await supabase
+      // whatsapp_sessions.draft (#816) is not in the generated types until its migration is applied.
+      const { data, error } = await untypedAdminClient()
         .from('whatsapp_sessions')
-        .select('phone_number, resident_id, current_node, selected_house_id, pin_authenticated, expires_at, draft')
+        .select('phone_number, resident_id, current_node, selected_house_id, pin_authenticated, expires_at, pending_pin_hash, draft')
         .eq('phone_number', phoneNumber)
         .maybeSingle();
       if (error) throw error;
@@ -393,18 +445,19 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
         pinAuthenticated: data.pin_authenticated,
         expiresAt: data.expires_at,
         draft: data.draft ?? null,
+        pendingPinHash: data.pending_pin_hash,
       };
     },
 
     async saveSession(session) {
-      const supabase = createAdminClient() as unknown as SupabaseClient;
-      const { error } = await supabase.from('whatsapp_sessions').upsert(
+      const { error } = await untypedAdminClient().from('whatsapp_sessions').upsert(
         {
           phone_number: session.phoneNumber,
           resident_id: session.residentId,
           current_node: session.currentNode,
           selected_house_id: session.selectedHouseId,
           pin_authenticated: session.pinAuthenticated,
+          pending_pin_hash: session.pendingPinHash ?? null,
           expires_at: session.expiresAt,
           draft: session.draft ?? null,
           updated_at: new Date().toISOString(),
@@ -437,13 +490,72 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
       return data?.whatsapp_pin_hash || null;
     },
 
-    async setPinHash(residentId, pinHash) {
+    async setPinHash(residentId, pinHash, expected) {
       const supabase = createAdminClient();
-      const { error } = await supabase
+      const update = supabase
         .from('residents')
         .update({ whatsapp_pin_hash: pinHash, whatsapp_pin_set_at: new Date().toISOString() })
         .eq('id', residentId);
+      const { data, error } = await (expected === null
+        ? update.is('whatsapp_pin_hash', null)
+        : update.eq('whatsapp_pin_hash', expected)
+      ).select('id');
       if (error) throw error;
+      return (data?.length ?? 0) > 0;
+    },
+
+    async claimSetupCode(residentId, code) {
+      const supabase = untypedAdminClient();
+      const now = new Date();
+      // One live setup code per resident (#890): a wrong code counts against it, whatever was typed.
+      const { data: token, error } = await supabase
+        .from('whatsapp_link_tokens')
+        .select('id, token_hash, failed_attempts, paused_until')
+        .eq('resident_id', residentId)
+        .eq('purpose', 'pin_setup')
+        .is('used_at', null)
+        .gt('expires_at', now.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      if (!token) return { status: 'none' };
+      const pausedUntil = token.paused_until ? Date.parse(token.paused_until) : null;
+      if (pausedUntil && pausedUntil > now.getTime()) return { status: 'paused', pausedUntil: token.paused_until };
+
+      // Count the try before checking it, as a compare-and-set on the count, so concurrent guesses
+      // cannot all be checked before the pause lands; a try that loses the race is refused.
+      const tries = pausedUntil ? 1 : token.failed_attempts + 1;
+      const pause = tries >= SETUP_CODE_TRIES ? new Date(now.getTime() + SETUP_CODE_PAUSE_MINUTES * 60 * 1000).toISOString() : null;
+      const { data: counted, error: countError } = await supabase
+        .from('whatsapp_link_tokens')
+        .update({ failed_attempts: tries, paused_until: pause })
+        .eq('id', token.id)
+        .eq('failed_attempts', token.failed_attempts)
+        .is('used_at', null)
+        .select('id');
+      if (countError) throw countError;
+      if (!counted?.length) return { status: 'none' };
+
+      const expected = Buffer.from(token.token_hash, 'hex');
+      const actual = Buffer.from(hashWhatsAppLinkCode(code), 'hex');
+      if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
+        return pause ? { status: 'paused', pausedUntil: pause } : { status: 'wrong', triesLeft: SETUP_CODE_TRIES - tries };
+      }
+
+      // Single use: of two requests carrying the right code, only the one that marks it used goes on.
+      const { data: used, error: useError } = await supabase
+        .from('whatsapp_link_tokens')
+        .update({ used_at: now.toISOString() })
+        .eq('id', token.id)
+        .is('used_at', null)
+        .select('id');
+      if (useError) throw useError;
+      return used?.length ? { status: 'accepted' } : { status: 'none' };
+    },
+
+    async sendPinAlert(residentId, event, phoneNumber) {
+      await sendWhatsAppPinAlert(residentId, event, [phoneNumber]);
     },
 
     async claimPinAttempt(residentId) {
@@ -883,11 +995,11 @@ function withContact(turn: Turn, body: string): string {
   return turn.contact ? `${body}\n${turn.contact}` : body;
 }
 
-/** The PIN request shown before a PIN-protected action; `purpose` completes "before ...". */
-function pinPrompt(turn: Turn, purpose: string): string {
+/** The PIN request shown before changing an email; a resident with no PIN yet is told how to set one. */
+function emailPinPrompt(turn: Turn): string {
   return turn.pinHash
-    ? `Please reply PIN followed by your 4–6 digit PIN before ${purpose}.`
-    : `A security PIN is required before ${purpose}. To set one, ${SET_PIN_HINT}.`;
+    ? 'Enter your 4–6 digit PIN before changing your email (e.g. 4821).'
+    : `A security PIN is required before changing your email. To set one, ${SET_PIN_HINT}.`;
 }
 
 /** Enter Financial standing (or one of its items), passing the PIN gate and property choice first. */
@@ -899,7 +1011,10 @@ async function enterFinancial(turn: Turn, target: Target, prefix?: string): Prom
   }
 
   if ((await loadPinGate(turn)) && !turn.session.pinAuthenticated) {
-    await respond(turn, `${pinPrompt(turn, 'viewing financial standing')}\n${footer(turn)}`, `pin:${target}`);
+    const prompt = turn.pinHash
+      ? VERIFY_PIN_PROMPT
+      : `A security PIN is required before viewing financial standing. To set one, ${SET_PIN_HINT}.`;
+    await respond(turn, `${prompt}\n${footer(turn)}`, `pin:${target}`);
     return;
   }
 
@@ -921,7 +1036,7 @@ async function enterFinancial(turn: Turn, target: Target, prefix?: string): Prom
   if (target === 'report') return startReport(turn, lead);
   if (target === 'receipt') return showReceipts(turn, lead);
   if (target === 'clearance') return askForClearance(turn, lead);
-  await answerItem(turn, target);
+  await answerItem(turn, target, 'this_month', prefix);
 }
 
 async function capReply(turn: Turn): Promise<string | null> {
@@ -932,12 +1047,13 @@ async function capReply(turn: Turn): Promise<string | null> {
   return null;
 }
 
-async function answerItem(turn: Turn, item: FinancialMenuItem, period: StatementPeriod = 'this_month'): Promise<void> {
+async function answerItem(turn: Turn, item: FinancialMenuItem, period: StatementPeriod = 'this_month', prefix?: string): Promise<void> {
   const house = selectedHouse(turn);
   if (!house) return;
+  const lead = prefix ? `${prefix}\n\n` : '';
   const capped = await capReply(turn);
   if (capped) {
-    await respond(turn, capped, 'financial');
+    await respond(turn, `${lead}${capped}`, 'financial');
     return;
   }
 
@@ -969,7 +1085,7 @@ async function answerItem(turn: Turn, item: FinancialMenuItem, period: Statement
     pinAuthenticated: turn.session.pinAuthenticated,
     metadata,
   });
-  await respond(turn, body, item === 'statement' ? `statement:${period}` : 'answer');
+  await respond(turn, `${lead}${body}`, item === 'statement' ? `statement:${period}` : 'answer');
 }
 
 function requestInput(turn: Turn, house: FinancialHouse, period: StatementPeriod, fromDate: string, toDate: string, rowCount: number): StatementRequestInput {
@@ -1319,8 +1435,10 @@ async function confirmReminders(turn: Turn, input: string): Promise<void> {
 
 /** Update email (both tiers). A PIN-verified session is required when a PIN is set or forced (decision 6). */
 async function startEmail(turn: Turn, prefix?: string): Promise<void> {
-  if ((await loadPinGate(turn)) && !turn.session.pinAuthenticated) {
-    return respond(turn, `${pinPrompt(turn, 'changing your email')}\n${footer(turn)}`, 'pin:email');
+  // Only a financial-tier resident can set a PIN, so the community tier is asked only if they already have one.
+  const gated = (await loadPinGate(turn)) && (turn.identity.financialEligible || !!turn.pinHash);
+  if (gated && !turn.session.pinAuthenticated) {
+    return respond(turn, `${emailPinPrompt(turn)}\n${footer(turn)}`, 'pin:email');
   }
   const lead = prefix ? `${prefix}\n\n` : '';
   await respond(turn, `${lead}What email address should we use? Reply with the address, or CANCEL.`, 'email_address');
@@ -1372,29 +1490,112 @@ async function runIntent(turn: Turn, intent: AssistantIntent): Promise<void> {
   return showContact(turn);
 }
 
-async function handlePin(turn: Turn, pin: string, node: string): Promise<void> {
+type PinCheck = { ok: true } | { ok: false; refusal: string; locked: boolean };
+
+/** Counts and checks a PIN try; on a wrong or locked try, the refusal with the estate office line. */
+async function checkPin(turn: Turn, pin: string, pinHash: string): Promise<PinCheck> {
   const repository = turn.options.repository;
-  const existingHash = await repository.getPinHash(turn.identity.id);
-  if (existingHash) {
-    // Count the attempt before checking it (#850), so concurrent guesses cannot outrun the lock.
-    const attempt = await repository.claimPinAttempt(turn.identity.id);
-    if (attempt.status !== 'counted' || !verifyPin(pin, existingHash)) {
-      // Every PIN refusal carries the estate office line (#891, #804 amendment 2).
-      await respond(turn, withContact(turn, pinRefusalText(attempt)), node);
-      return;
-    }
-    await repository.clearPinAttempts(turn.identity.id, attempt.claimedAt);
-    if (!existingHash.startsWith(SALTED_PREFIX)) await repository.setPinHash(turn.identity.id, hashPin(pin));
-  } else {
-    await repository.setPinHash(turn.identity.id, hashPin(pin));
+  // Count the attempt before checking it (#850), so concurrent guesses cannot outrun the lock.
+  const attempt = await repository.claimPinAttempt(turn.identity.id);
+  if (attempt.status !== 'counted' || !verifyPin(pin, pinHash)) {
+    // Every PIN refusal carries the estate office line (#891, #804 amendment 2).
+    return {
+      ok: false,
+      refusal: withContact(turn, pinRefusalText(attempt)),
+      locked: attempt.status !== 'counted' || !!attempt.lockedUntil || attempt.hardLocked,
+    };
   }
+  await repository.clearPinAttempts(turn.identity.id, attempt.claimedAt);
+  if (!pinHash.startsWith(SALTED_PREFIX)) await repository.setPinHash(turn.identity.id, hashPin(pin), pinHash);
+  return { ok: true };
+}
+
+/** A first PIN needs a setup code from the estate office (#805); holding the phone is not enough. */
+async function startPinSetup(turn: Turn): Promise<void> {
+  await respond(turn, SETUP_CODE_PROMPT, 'pin_setup_code');
+}
+
+async function handlePin(turn: Turn, pin: string, node: string): Promise<void> {
+  const pinHash = await turn.options.repository.getPinHash(turn.identity.id);
+  if (!pinHash) return startPinSetup(turn);
+  const check = await checkPin(turn, pin, pinHash);
+  if (!check.ok) return respond(turn, check.refusal, node);
   turn.session.pinAuthenticated = true;
-  turn.pinHash = existingHash;
+  turn.pinHash = pinHash;
   turn.pinGate = true;
   const target = node.startsWith('pin:') ? node.slice(4) : 'menu';
-  const verified = existingHash ? 'PIN verified.' : 'PIN set and verified for this session.';
-  if (target === 'email') return startEmail(turn, verified);
-  await enterFinancial(turn, target as Target, verified);
+  if (target === 'email') return startEmail(turn, PIN_VERIFIED_REPLY);
+  await enterFinancial(turn, target as Target, PIN_VERIFIED_REPLY);
+}
+/** `PIN`, `Set a security PIN` or `Change PIN` (#892). */
+async function handlePinCommand(turn: Turn, input: string): Promise<void> {
+  const pinHash = await turn.options.repository.getPinHash(turn.identity.id);
+  if (!pinHash) return startPinSetup(turn);
+  if (input === 'pin') return respond(turn, `${VERIFY_PIN_PROMPT}\n${footer(turn)}`, 'pin:menu');
+  return respond(turn, CURRENT_PIN_PROMPT, 'pin_change_current');
+}
+
+/** The setup-code, choose, confirm and current-PIN steps of setting or changing a PIN (#892). */
+async function handlePinStep(turn: Turn, step: string, arg: string | undefined, digits: string): Promise<void> {
+  const repository = turn.options.repository;
+  const residentId = turn.identity.id;
+
+  if (step === 'setup_code') {
+    if (!/^\d{6}$/.test(digits)) return respond(turn, SETUP_CODE_PROMPT, 'pin_setup_code');
+    const claim = await repository.claimSetupCode(residentId, digits);
+    if (claim.status === 'accepted') return respond(turn, CHOOSE_PIN_PROMPT, 'pin_setup_new');
+    if (claim.status === 'wrong') {
+      return respond(turn, `That setup code isn't correct. You have ${claim.triesLeft} ${claim.triesLeft === 1 ? 'try' : 'tries'} left.`, 'pin_setup_code');
+    }
+    const refusal = claim.status === 'paused'
+      ? `Too many wrong setup codes. Nothing was changed. Try again after ${lockTime(claim.pausedUntil)}, or ask the estate office for a new code.`
+      : 'That setup code is invalid or expired. Nothing was changed. Ask the estate office for a new code.';
+    return respond(turn, `${withContact(turn, refusal)}\n${footer(turn)}`, 'main');
+  }
+
+  const pinHash = await repository.getPinHash(residentId);
+  if (step === 'change_current') {
+    if (!pinHash) return showMain(turn, NOTHING_CHANGED_REPLY);
+    if (!PIN_DIGITS.test(digits)) return respond(turn, CURRENT_PIN_PROMPT, 'pin_change_current');
+    // Wrong current PINs count toward the lock (#891).
+    const check = await checkPin(turn, digits, pinHash);
+    if (!check.ok) return respond(turn, check.refusal, check.locked ? 'main' : 'pin_change_current');
+    turn.session.pinAuthenticated = true;
+    return respond(turn, CHOOSE_NEW_PIN_PROMPT, 'pin_change_new');
+  }
+
+  const mode = step.startsWith('setup') ? 'setup' : 'change';
+  if (step === 'setup_new' || step === 'change_new') {
+    if (!PIN_DIGITS.test(digits)) return respond(turn, mode === 'setup' ? CHOOSE_PIN_PROMPT : CHOOSE_NEW_PIN_PROMPT, `pin_${step}`);
+    if (isWeakPin(digits)) return respond(turn, WEAK_PIN_REPLY, `pin_${step}`);
+    turn.session.pendingPinHash = hashPin(digits);
+    return respond(turn, CONFIRM_PIN_PROMPT, `pin_${mode}_confirm:0`);
+  }
+
+  // setup_confirm / change_confirm
+  const pending = turn.session.pendingPinHash;
+  turn.session.pendingPinHash = null;
+  if (!pending || (mode === 'change' && !pinHash)) return showMain(turn, NOTHING_CHANGED_REPLY);
+  if (!PIN_DIGITS.test(digits) || !verifyPin(digits, pending)) {
+    const mismatches = (Number.parseInt(arg ?? '0', 10) || 0) + 1;
+    if (mismatches >= PIN_CONFIRM_TRIES) return showMain(turn, NOTHING_CHANGED_REPLY);
+    turn.session.pendingPinHash = pending;
+    return respond(turn, PIN_MISMATCH_REPLY, `pin_${mode}_confirm:${mismatches}`);
+  }
+  // Compare-and-set: a first PIN lands only where none exists, a change only over the current PIN.
+  if (!(await repository.setPinHash(residentId, pending, mode === 'setup' ? null : pinHash))) {
+    return showMain(turn, NOTHING_CHANGED_REPLY);
+  }
+  turn.session.pinAuthenticated = true;
+  turn.pinHash = pending;
+  turn.pinGate = true;
+  try {
+    await repository.sendPinAlert(residentId, mode === 'setup' ? 'set' : 'change', turn.phoneNumber);
+  } catch (error) {
+    // The PIN is already stored; a failed alert email must not undo or repeat that.
+    console.error('[whatsapp-financial] PIN alert email failed:', error instanceof Error ? error.message : 'unknown error');
+  }
+  return enterFinancial(turn, 'menu', PIN_SET_REPLY);
 }
 
 async function chooseProperty(turn: Turn, target: Target): Promise<void> {
@@ -1409,6 +1610,19 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
   const { text } = turn;
   const input = normalizeInput(text);
   const { node } = readNode(turn.session.currentNode);
+
+  // #892: in the PIN and setup-code steps the inbound text is a secret. It is never logged, stored
+  // or echoed; a chosen PIN is held only as a salted hash until it is confirmed. One digit stays a
+  // menu choice (0, 9), and anything else leaves the step and is handled as usual.
+  const stepDigits = text.replace(/\s+/g, '').match(/^(?:PIN)?(\d{2,})$/i)?.[1] ?? null;
+  const pinStep = node.match(/^pin_(setup_code|setup_new|setup_confirm|change_current|change_new|change_confirm)(?::(\d+))?$/);
+  if (pinStep && stepDigits !== null && turn.identity.financialEligible) return handlePinStep(turn, pinStep[1], pinStep[2], stepDigits);
+  turn.session.pendingPinHash = null;
+  // Bare digits are the PIN only when the bot has just asked for it.
+  // Update email asks for the PIN of every resident, so the community tier can answer it too (#816 decision 6).
+  if (node.startsWith('pin:') && stepDigits !== null && PIN_DIGITS.test(stepDigits) && (turn.identity.financialEligible || node === 'pin:email')) {
+    return handlePin(turn, stepDigits, node);
+  }
 
   const pinCommand = text.match(/^PIN\s+([0-9]{4,6})$/i);
   // Update email asks for the PIN of every resident, so the community tier can answer it too (#816 decision 6).
@@ -1428,6 +1642,9 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
   // The prompt reads "Reply 1 Yes, 2 No", so YES and NO answer it rather than opening the menu.
   if (node === 'reminders_confirm' && (input === 'yes' || input === 'no')) return confirmReminders(turn, input === 'yes' ? '1' : '2');
 
+  if ((input === 'pin' || input === 'set a security pin' || input === 'change pin') && turn.identity.financialEligible) {
+    return handlePinCommand(turn, input);
+  }
   if (GREETINGS.has(input)) return showMain(turn);
   if (input === 'cancel') return showMain(turn, 'Cancelled. Nothing was changed.');
   if (input === 'lock') {

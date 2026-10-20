@@ -24,10 +24,19 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { useOrphanedAuthAccounts } from '@/hooks/use-auth-accounts';
+import { useCurrentAdmins } from '@/hooks/use-roles';
 import type { OrphanedAuthAccount } from '@/actions/auth/link-account';
 
 export function OrphanedAccountsList() {
   const { data: accounts, isLoading, error, refetch, isRefetching } = useOrphanedAuthAccounts();
+  // Same query CurrentAdminsList runs, so react-query serves it from cache.
+  const { data: admins } = useCurrentAdmins();
+  const roleHeldBy = (account: OrphanedAuthAccount) =>
+    admins?.find(
+      (a) =>
+        a.profile_id === account.id ||
+        (!!a.email && a.email.toLowerCase() === account.email.toLowerCase())
+    )?.role_display_name;
   const [searchFilter, setSearchFilter] = useState('');
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<OrphanedAuthAccount | null>(null);
@@ -56,7 +65,7 @@ export function OrphanedAccountsList() {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-        <h3 className="font-semibold text-lg">Failed to Load Accounts</h3>
+        <h3 className="font-semibold text-lg">Failed to Load Logins</h3>
         <p className="text-sm text-muted-foreground mb-4">
           {error instanceof Error ? error.message : 'An error occurred'}
         </p>
@@ -100,7 +109,7 @@ export function OrphanedAccountsList() {
       {accounts && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Badge variant="outline">
-            {filteredAccounts?.length || 0} orphaned accounts
+            {filteredAccounts?.length || 0} unlinked logins
           </Badge>
           {searchFilter && (
             <span>
@@ -151,11 +160,11 @@ export function OrphanedAccountsList() {
                     <CheckCircle2 className="h-8 w-8" />
                     <p>
                       {searchFilter
-                        ? 'No accounts match your search'
-                        : 'No orphaned accounts found'}
+                        ? 'No logins match your search'
+                        : 'No unlinked logins found'}
                     </p>
                     <p className="text-xs">
-                      All authentication accounts are linked to residents
+                      Every login is linked to a resident
                     </p>
                   </div>
                 </TableCell>
@@ -169,6 +178,9 @@ export function OrphanedAccountsList() {
                         <User className="h-4 w-4 text-muted-foreground" />
                       </div>
                       <span className="font-medium">{account.email}</span>
+                      {roleHeldBy(account) && (
+                        <Badge variant="secondary">Holds role: {roleHeldBy(account)}</Badge>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>

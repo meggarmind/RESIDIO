@@ -527,7 +527,7 @@ const DISPUTE_IDENTITY = /^(2|no|no,? not me|not me)\.?$/i;
 const ACCEPT_NOTICE = /^(1|accept)\.?$/i;
 const DECLINE_NOTICE = /^(2|decline)\.?$/i;
 // Replies to a prompt, greetings and secrets are not a request worth resuming after consent (#871 step 7).
-const NOT_A_REQUEST = /^(?:[0-9]|hi|hello|hey|menu|accept|decline|yes|no|not me|start|subscribe|opt\s*in|(?:pin|link)\b.*)$/i;
+const NOT_A_REQUEST = /^(?:[\d\s]+|hi|hello|hey|menu|accept|decline|yes|no|not me|start|subscribe|opt\s*in|(?:pin|link)\b.*)$/i;
 const MAX_PENDING_REQUEST_LENGTH = 500;
 
 export const NOT_ME_REPLY = "Thanks for telling us. I won't show any details for this number.";

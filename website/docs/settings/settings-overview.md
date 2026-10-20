@@ -7,7 +7,7 @@ residio_sources:
   - src/app/(dashboard)/settings/page.tsx
   - src/app/(dashboard)/settings/estate-info/**
   - src/app/(dashboard)/settings/branding/**
-residio_verified_commit: d0e1566f
+residio_verified_commit: 8ee874c6
 residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
@@ -31,7 +31,7 @@ Settings are grouped by the decision they control.
 
 **States that affect everyone.** While maintenance mode or the communications override is on, a banner that cannot be dismissed sits above the header on every dashboard page, the **Settings** item in the main menu carries an amber dot, and the matching card on this page reads **ON**. Each banner links to its settings page. You see a state only if your role can open its page: the maintenance permission for maintenance mode, the general settings permission for the override. Debug Mode also counts as the override being on while it is running, since it redirects every message too. Outside production the override is always on, so on Stage the override banner is always shown.
 
-**Resident portal switch.** **Settings → Estate & Property → Estate Details** has a *Resident portal* card with one switch. It decides whether the resident portal links (*My Portal*, *Resident Portal* in the profile menu, and *View as Resident*) appear in the admin dashboard. It is off by default and needs the general settings permission to change. The switch only hides or shows links: it does not block the `/portal` address, so anyone who opens `/portal` directly still reaches it. An individual account can override the switch under **System → Accounts**.
+**Resident portal switch.** **Settings → Estate & Property → Estate Details** has a *Resident portal* card with one switch. It decides whether the resident portal links (*My Portal*, *Resident Portal* in the profile menu, and *View as Resident*) appear in the admin dashboard. It is off by default and needs the general settings permission to change. The switch only hides or shows links: it does not block the `/portal` address, so anyone who opens `/portal` directly still reaches it. An individual account can override the switch under **System → Roles & Access**.
 
 **Estate office hours.** The same page sets the estate office hours per day (closed, all day, or from and to times, in Lagos time). The WhatsApp Assistant shows them with the estate phone and email whenever it tells a resident to contact the estate office, and adds when the office is next open if it is closed. Leave every day closed to show no hours.
 
@@ -42,7 +42,7 @@ Day-to-day account work — assigning roles, watching cron jobs, the notificatio
 :::info[You see only what you can open]
 Both this page and the Settings sidebar show only the sections your role can actually reach, so two admins will see different menus. If a colleague cannot find a page described in this guide, their role does not hold the permission for it — see [Roles and permissions](../getting-started/roles-and-permissions.md). The Chairman role can open Settings and navigate to the areas their permissions allow — announcements, documents, billing profiles, email imports, notifications, security categories, and WhatsApp — but does not see configuration pages or system maintenance.
 
-Inside a page, each button and field is shown for the permission its save needs, not the permission that opened the page. An admin who can open a page without being allowed to change it sees the current values with the fields disabled, and no Add, Edit, Delete or Save buttons. For example, an admin who only assigns roles is pointed to **System → Accounts** from **Roles & Permissions**, because defining roles needs the Manage roles permission.
+Inside a page, each button and field is shown for the permission its save needs, not the permission that opened the page. An admin who can open a page without being allowed to change it sees the current values with the fields disabled, and no Add, Edit, Delete or Save buttons. For example, an admin who only assigns roles does not see the Roles tabs on **System → Roles & Access** (opened by **Roles & Permissions**), because defining roles needs the Manage roles permission.
 :::
 
 Change one setting at a time, save, and verify the affected workflow. Configuration changes can alter what other admins see or what automated jobs do.

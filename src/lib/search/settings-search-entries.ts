@@ -44,7 +44,7 @@ export interface SettingsSearchEntry {
  * shape `buildSearchShortcutIndex`'s doc comment describes these entries as
  * having (as opposed to Quick Actions' hand-picked ids). */
 function idFromHref(href: string): string {
-  return href.replace(/^\//, '').replace(/\//g, '-');
+  return href.replace(/^\//, '').replace(/[/?=&]/g, '-');
 }
 
 /**
@@ -57,7 +57,7 @@ function idFromHref(href: string): string {
 const SYSTEM_SUBTITLES: Record<string, string> = {
   '/system': 'System dashboard overview',
   '/system/audit-logs': 'System activity trail',
-  '/system/accounts': 'Role assignments and pending accounts',
+  '/system/accounts': 'Administrators, roles and pending sign-ups',
   '/system/notification-queue': 'Outgoing notification queue',
   '/system/notification-history': 'Sent notification records',
   '/system/data-tools': 'Export and bulk data utilities',

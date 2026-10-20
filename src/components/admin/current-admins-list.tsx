@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -9,8 +10,16 @@ import { usePortalAccessOverrides } from '@/hooks/use-portal-access';
 import { PortalAccessControl } from '@/components/admin/portal-access-control';
 import { Shield, User, Home, AlertCircle } from 'lucide-react';
 
-export function CurrentAdminsList() {
-  const { data: admins, isLoading, error } = useCurrentAdmins();
+export function CurrentAdminsList({
+  roleFilter,
+  clearFilterHref,
+}: {
+  /** `app_roles.name` to narrow the list to (from the Roles tab holder count). */
+  roleFilter?: string;
+  clearFilterHref?: string;
+} = {}) {
+  const { data: allAdmins, isLoading, error } = useCurrentAdmins();
+  const admins = roleFilter ? allAdmins?.filter((a) => a.role_name === roleFilter) : allAdmins;
   const { data: overrides } = usePortalAccessOverrides((admins ?? []).map((admin) => admin.profile_id));
   // Read via the session client (auth context), not a SETTINGS_VIEW-gated action.
   const { residentPortalEnabled: generalEnabled } = useAuth();
@@ -41,7 +50,29 @@ export function CurrentAdminsList() {
     );
   }
 
+  const filterLabel = roleFilter
+    ? (allAdmins?.find((a) => a.role_name === roleFilter)?.role_display_name ?? roleFilter)
+    : null;
+  const filterBar = filterLabel && (
+    <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+      <span>
+        Showing: <span className="font-medium">{filterLabel}</span>
+      </span>
+      <Link href={clearFilterHref ?? '#'} className="text-primary underline-offset-4 hover:underline">
+        (clear)
+      </Link>
+    </div>
+  );
+
   if (!admins || admins.length === 0) {
+    if (roleFilter) {
+      return (
+        <div>
+          {filterBar}
+          <p className="py-4 text-sm text-muted-foreground">No administrators hold this role.</p>
+        </div>
+      );
+    }
     return (
       <div className="text-center py-8 text-muted-foreground">
         <Shield className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -60,6 +91,7 @@ export function CurrentAdminsList() {
 
   return (
     <div className="space-y-2">
+      {filterBar}
       <div className="text-sm font-medium text-muted-foreground mb-3">
         {admins.length} administrator{admins.length !== 1 ? 's' : ''} assigned
       </div>
