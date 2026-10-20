@@ -29,6 +29,7 @@ vi.mock('@supabase/ssr', () => ({
       const builder: Record<string, unknown> = {
         select: () => builder,
         eq: () => builder,
+        in: () => builder,
         single: async () =>
           table === 'profiles'
             ? { data: state.profileError ? null : state.profile, error: state.profileError }
