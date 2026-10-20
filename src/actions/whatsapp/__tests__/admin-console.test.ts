@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { createAdminClient } from '@/lib/supabase/server';
-import { getWhatsAppClearanceCopyFailures, getWhatsAppDeliveryProblems, getWhatsAppDisclosureLogs, getWhatsAppHealth, getWhatsAppSessions, getWhatsAppStatementFlags, retryWhatsAppClearanceCopy } from '../admin-console';
+import { getWhatsAppClearanceCopyFailures, getWhatsAppDeliveryProblems, getWhatsAppDisclosureLogs, getWhatsAppHealth, getWhatsAppSessions, getWhatsAppStatementFlags, getWhatsAppSurveySummary, retryWhatsAppClearanceCopy } from '../admin-console';
 import { logAudit } from '@/lib/audit/logger';
 import { retryClearanceCopy } from '@/lib/clearance/issue-certificate';
 import { filterDisclosureLogs, filterOptIns } from '@/app/(dashboard)/settings/whatsapp/operations-console';
@@ -56,6 +56,7 @@ describe('WhatsApp operations console actions', () => {
     expect((await getWhatsAppDeliveryProblems()).error).toBe('Forbidden');
     expect((await getWhatsAppStatementFlags()).error).toBe('Forbidden');
     expect((await getWhatsAppClearanceCopyFailures()).error).toBe('Forbidden');
+    expect((await getWhatsAppSurveySummary()).error).toBe('Forbidden');
     expect(clientMock).not.toHaveBeenCalled();
   });
 
@@ -98,6 +99,38 @@ describe('WhatsApp operations console actions', () => {
     clientMock.mockReturnValue({ from: vi.fn().mockImplementation(() => counts.shift()) } as never);
     const result = await getWhatsAppHealth();
     expect(result.data).toEqual({ inboundToday: 4, outboundToday: 6, deliveryFailuresToday: 1, templateErrorsToday: 3, capLimitEventsToday: 5 });
+  });
+
+  it('counts the last 30 days of survey scores and reasons, with no comments or names (#872)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-20T12:00:00.000Z'));
+    authMock.mockResolvedValue(authorized);
+    const query = chain({
+      data: [
+        { score: 'good', reason: null },
+        { score: 'good', reason: null },
+        { score: 'okay', reason: null },
+        { score: 'poor', reason: 'too_slow' },
+        { score: 'poor', reason: 'other' },
+        { score: 'poor', reason: 'other' },
+        { score: null, reason: null },
+      ],
+      error: null,
+    });
+    const from = vi.fn().mockReturnValue(query);
+    clientMock.mockReturnValue({ from } as never);
+
+    const result = await getWhatsAppSurveySummary();
+
+    expect(from).toHaveBeenCalledWith('whatsapp_survey_responses');
+    expect(query.gte).toHaveBeenCalledWith('asked_at', '2026-09-20T12:00:00.000Z');
+    expect(String(query.select.mock.calls[0][0])).toBe('score, reason');
+    expect(result.data).toEqual({
+      asked: 7,
+      byScore: { good: 2, okay: 1, poor: 3 },
+      byReason: { too_slow: 1, not_found: 0, wrong_information: 0, other: 2 },
+    });
+    vi.useRealTimers();
   });
 
   it('lists failed sends and Chatmaid sends unconfirmed past 15 minutes, with the resident (#839)', async () => {

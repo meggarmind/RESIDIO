@@ -257,6 +257,15 @@ Beyond answers, a resident can make four changes from chat. Each is recorded in 
 - After 15 minutes without activity the session ends: the next message says so, and the chosen property and the PIN unlock are forgotten.
 - If a lookup fails, the resident is told nothing was shown or changed and to try again shortly, with the estate office line.
 
+### Feedback survey
+
+After a request goes well, the Assistant asks `How was Residio Assistant today?` with `1. Good / 2. Okay / 3. Poor`. It asks only when:
+
+- the resident replies `thanks` or `ok` right after a financial answer, or
+- a payment report or a clearance certificate request has just been accepted.
+
+It never asks after an error, a PIN lock, an expired session or inside a PIN step, and at most once every 30 days per resident, whether or not they answered. On `3. Poor` the Assistant asks what went wrong (`Too slow`, `Couldn't find what I needed`, `Information looked wrong`, `Something else`), then for one optional line (`SKIP` leaves it out), and closes with the estate office line. A resident who replies `STOP SURVEYS` is never asked again; plain `STOP` still only ends alerts. The **Resident feedback** card in the console shows the counts by score and by reason for the last 30 days. It shows no comments and no names.
+
 ### Assistant replies
 
 The **Assistant replies** card in the Resident bot section holds the text the Assistant sends:
@@ -283,7 +292,7 @@ When a cap is reached, further sends are blocked and the event is counted in the
 
 ## The operations console
 
-The console on the same page shows today's activity: inbound messages, outbound messages, delivery failures, template errors, and cap limit events. It also lists undelivered messages, active sessions and the disclosure log.
+The console on the same page shows today's activity: inbound messages, outbound messages, delivery failures, template errors, and cap limit events. It also lists undelivered messages, active sessions and the disclosure log, and the **Resident feedback** counts (see *Feedback survey* above).
 
 The **undelivered messages** list covers the last 7 days. It shows each WhatsApp message the provider reported as failed, or that Chatmaid accepted but never confirmed as sent within 15 minutes. Each row shows the time, the resident (when known), the masked number, whether it was a reply or a notification, the provider's reason, and the id of the resident message it answered. Those residents may not have received the message, so contact them another way. Residio does not resend these messages automatically.
 
