@@ -41,7 +41,7 @@ vi.mock('@/lib/notifications/types', async (importOriginal) => {
 vi.mock('@/actions/settings/get-settings', () => ({ getSettingValue: vi.fn() }));
 vi.mock('@/actions/settings/update-setting', () => ({ updateSetting: vi.fn().mockResolvedValue({ data: null, error: null }) }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit: vi.fn() }));
-vi.mock('../reminder-config', () => ({
+vi.mock('@/actions/notifications/reminder-config', () => ({
   areRemindersEnabled: vi.fn().mockResolvedValue(true),
   getActiveDays: vi.fn(),
   getReminderSchedule: mocks.getReminderSchedule,
@@ -65,7 +65,7 @@ vi.mock('@/lib/notifications/preferences', () => ({
   shouldSendToResident: mocks.shouldSendToResident,
 }));
 
-import { processInvoiceReminders } from '../invoice-reminders';
+import { processInvoiceReminders } from '@/lib/notifications/invoice-reminders';
 import { isChannelImplemented } from '@/lib/notifications/types';
 
 const INVOICE = {

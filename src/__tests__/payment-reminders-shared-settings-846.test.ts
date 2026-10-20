@@ -48,7 +48,7 @@ vi.mock('@/lib/email', () => ({ sendEmail: m.sendEmail, getEstateEmailSettings: 
 vi.mock('@/lib/system-log/recorder', () => ({ recordSystemAction: m.recordSystemAction }));
 vi.mock('@/lib/auth/cron-auth', () => ({ verifyCronAuth: () => null }));
 
-import { processInvoiceReminders } from '@/actions/notifications/invoice-reminders';
+import { processInvoiceReminders } from '@/lib/notifications/invoice-reminders';
 import { GET } from '@/app/api/cron/payment-reminders/route';
 
 function step(daysFromDue: number, channels: ReminderScheduleStep['channels'] = ['email']): ReminderScheduleStep {

@@ -1,13 +1,17 @@
-'use server';
-
 /**
  * Automated Invoice Reminder System
  *
  * Handles the scheduling and sending of invoice payment reminders
  * with escalation support and multi-channel delivery.
+ *
+ * Deliberately NOT a server-action module (no directive): the batch run sends
+ * reminders to every resident with a due invoice and must never be reachable as a
+ * client-callable server action. Sole caller of processInvoiceReminders is the
+ * CRON_SECRET-authenticated route `/api/cron/payment-reminders`, which is
+ * responsible for authentication. See #875.
  */
 
-import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
 import { sendEmail, getEstateEmailSettings } from '@/lib/email';
 import type { EstateEmailSettings } from '@/lib/email/types';
 import { sendSms } from '@/lib/sms/send-sms';
@@ -15,16 +19,14 @@ import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
 import { isWhatsAppOptedIn } from '@/lib/whatsapp/opt-in';
 import { isChannelImplemented } from '@/lib/notifications/types';
 import { getSettingValueAsService } from '@/lib/settings/service';
-import { logAudit } from '@/lib/audit/logger';
 import { readPaymentReminderSettings, applyPaymentReminderSettings } from '@/lib/notifications/payment-reminder-settings';
 import {
   getReminderSchedule,
   areRemindersEnabled,
-} from './reminder-config';
+} from '@/actions/notifications/reminder-config';
 import {
   PaymentReminderEscalatedEmail,
   getEscalatedReminderSubject,
-  determineEscalationLevel,
 } from '@/emails/payment-reminder-escalated';
 import type { ReminderEscalationLevel } from '@/emails/payment-reminder-escalated';
 import {
@@ -32,17 +34,14 @@ import {
   type SmsTemplateParams,
 } from '@/lib/sms/templates/payment-reminder';
 import type {
-  NotificationChannel,
   ReminderScheduleStep,
   ProcessRemindersResult,
-  InvoiceReminderState,
 } from '@/lib/notifications/types';
 import {
   getOrCreateEscalationState,
   advanceEscalation,
-  resolveAllEscalationsForEntity,
 } from '@/lib/notifications/escalation';
-import { addToQueue, PRIORITY } from '@/lib/notifications/queue';
+import { addToQueue } from '@/lib/notifications/queue';
 import { shouldSendToResident } from '@/lib/notifications/preferences';
 import { buildInvoiceReminderWhatsApp } from '@/lib/whatsapp/outbound';
 
@@ -484,175 +483,4 @@ async function sendSmsReminder(params: {
       error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
-}
-
-/**
- * Send a manual reminder for a specific invoice
- */
-export async function sendManualReminder(
-  invoiceId: string,
-  channels: NotificationChannel[] = ['email']
-): Promise<{
-  success: boolean;
-  sent: { email: boolean; sms: boolean; whatsapp: boolean };
-  error?: string;
-}> {
-  const supabase = await createServerSupabaseClient();
-
-  // Fetch invoice with related data
-  const { data: invoice, error } = await supabase
-    .from('invoices')
-    .select(`
-      id,
-      invoice_number,
-      amount_due,
-      amount_paid,
-      due_date,
-      status,
-      resident:residents!invoices_resident_id_fkey(
-        id,
-        first_name,
-        last_name,
-        email,
-        phone_primary
-      ),
-      house:houses!invoices_house_id_fkey(
-        house_number,
-        street:streets(name)
-      )
-    `)
-    .eq('id', invoiceId)
-    .single();
-
-  if (error || !invoice) {
-    return {
-      success: false,
-      sent: { email: false, sms: false, whatsapp: false },
-      error: 'Invoice not found',
-    };
-  }
-
-  const typedInvoice = invoice as unknown as InvoiceForReminder;
-
-  // Calculate days from due
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const dueDate = new Date(typedInvoice.due_date);
-  dueDate.setHours(0, 0, 0, 0);
-  const daysFromDue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-
-  // Determine escalation level based on days
-  const escalationLevel = determineEscalationLevel(-daysFromDue);
-
-  // Get estate settings
-  const estateSettings = await getEstateEmailSettings();
-
-  // Get escalation state for reminder count
-  const escalationState = await getOrCreateEscalationState({
-    entityType: 'invoice',
-    entityId: invoiceId,
-    residentId: typedInvoice.resident.id,
-  });
-
-  const amountRemaining = typedInvoice.amount_due - typedInvoice.amount_paid;
-
-  // Create a pseudo step with the specified channels
-  const step: ReminderScheduleStep = {
-    id: 'manual',
-    daysFromDue,
-    escalationLevel,
-    channels,
-    isActive: true,
-    priority: PRIORITY.HIGH,
-  };
-
-  const results = await sendReminderToChannels({
-    invoice: typedInvoice,
-    step,
-    amountRemaining,
-    estateSettings,
-    reminderCount: (escalationState?.current_level || 0) + 1,
-  });
-
-  // Audit log
-  await logAudit({
-    action: 'GENERATE',
-    entityType: 'invoices',
-    entityId: invoiceId,
-    entityDisplay: `Manual Reminder: ${typedInvoice.invoice_number}`,
-    description: `Manual reminder sent via ${channels.join(', ')}`,
-    metadata: {
-      channels,
-      escalationLevel,
-      results,
-    },
-  });
-
-  return {
-    success: results.email || results.sms || results.whatsapp,
-    sent: results,
-    error: results.errors.length > 0 ? results.errors.join('; ') : undefined,
-  };
-}
-
-/**
- * Resolve reminder escalation when invoice is paid
- */
-export async function resolveInvoiceReminders(
-  invoiceId: string,
-  reason: string = 'Invoice paid'
-): Promise<{ success: boolean; resolved: number }> {
-  return resolveAllEscalationsForEntity({
-    entityType: 'invoice',
-    entityId: invoiceId,
-    reason,
-  });
-}
-
-/**
- * Get reminder status for an invoice
- */
-export async function getInvoiceReminderStatus(
-  invoiceId: string
-): Promise<{
-  remindersSent: number;
-  lastReminderAt: string | null;
-  nextScheduledAt: string | null;
-  isResolved: boolean;
-} | null> {
-  const supabase = createAdminClient();
-
-  // Get invoice details
-  const { data: invoice } = await supabase
-    .from('invoices')
-    .select('resident_id')
-    .eq('id', invoiceId)
-    .single();
-
-  if (!invoice) return null;
-
-  // Get escalation state
-  const { data: state } = await supabase
-    .from('escalation_states')
-    .select('*')
-    .eq('entity_type', 'invoice')
-    .eq('entity_id', invoiceId)
-    .eq('resident_id', invoice.resident_id)
-    .single();
-
-  if (!state) {
-    return {
-      remindersSent: 0,
-      lastReminderAt: null,
-      nextScheduledAt: null,
-      isResolved: false,
-    };
-  }
-
-  return {
-    remindersSent: state.current_level || 0,
-    lastReminderAt: state.last_notified_at,
-    nextScheduledAt: state.next_scheduled_at,
-    isResolved: state.is_resolved || false,
-  };
 }

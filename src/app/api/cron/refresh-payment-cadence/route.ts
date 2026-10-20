@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { refreshPaymentCadenceSummary } from '@/actions/analytics/refresh-payment-cadence-summary';
+import { refreshPaymentCadenceSummary } from '@/lib/analytics/refresh-payment-cadence-summary';
 import { verifyCronAuth } from '@/lib/auth/cron-auth';
 import { withSystemLog, type SystemLogRun } from '@/lib/system-log/with-system-log';
 import { createLogger } from '@/lib/logger';

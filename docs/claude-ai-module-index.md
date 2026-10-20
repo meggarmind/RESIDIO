@@ -103,7 +103,6 @@ Notification system - templates, schedules, queue, preferences
 - `history` - Notification history queries
 - `preferences` - Per-resident notification preferences
 - `send` - Send notifications
-- `invoice-reminders` - Invoice reminder logic
 - `reminder-config` - Reminder configuration
 
 #### in-app-notifications/

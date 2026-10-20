@@ -7,7 +7,7 @@ residio_sources:
   - src/actions/audit/**
   - src/app/(dashboard)/system/data-tools/**
   - src/app/(dashboard)/settings/data-retention/**
-residio_verified_commit: e24b7386
+residio_verified_commit: b59d58f5
 residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
