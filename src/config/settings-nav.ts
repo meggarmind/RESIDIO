@@ -109,7 +109,7 @@ export const settingsConfig: SettingsGroup[] = [
                 // No permissions of its own: the two children need different ones, and
                 // the parent is dropped when neither is visible.
                 children: [
-                    { title: "Notification Messages", href: "/settings/notifications/templates", description: "System message templates, read-only", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
+                    { title: "Email Wording", href: "/settings/notifications/templates", description: "Edit the wording of resident emails", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
                     { title: "Announcement Templates", href: "/settings/message-templates", description: "Reusable announcement text", permissions: [PERMISSIONS.ANNOUNCEMENTS_MANAGE_TEMPLATES] },
                 ]
             },

@@ -34,7 +34,6 @@ export default function NotificationsSettingsPage() {
   const { data: queueStats, isLoading: queueLoading } = useQueueStatistics();
   const { data: historyStats, isLoading: historyLoading } = useNotificationStats();
 
-  const activeTemplates = templates?.filter(t => t.is_active).length || 0;
   const totalTemplates = templates?.length || 0;
 
   return (
@@ -42,7 +41,7 @@ export default function NotificationsSettingsPage() {
       <div>
         <h3 className="text-lg font-medium">Notifications</h3>
         <p className="text-sm text-muted-foreground">
-          Manage notification templates and reminders, and view notification history.
+          Edit email wording, manage reminders, and view notification history.
         </p>
       </div>
       <Separator />
@@ -80,15 +79,15 @@ export default function NotificationsSettingsPage() {
         {/* Templates */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Templates</CardTitle>
+            <CardTitle className="text-sm font-medium">Resident Emails</CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {templatesLoading ? '...' : activeTemplates}
+              {templatesLoading ? '...' : totalTemplates}
             </div>
             <p className="text-xs text-muted-foreground">
-              {totalTemplates - activeTemplates} inactive
+              with editable wording
             </p>
           </CardContent>
         </Card>
@@ -168,20 +167,19 @@ export default function NotificationsSettingsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
-              Templates
+              Email Wording
             </CardTitle>
             <CardDescription>
-              System message templates, sent by name
+              Wording of the emails residents receive
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex gap-2">
-              <Badge variant="secondary">{totalTemplates} total</Badge>
-              <Badge variant="default">{activeTemplates} active</Badge>
+              <Badge variant="secondary">{totalTemplates} emails</Badge>
             </div>
             <Button asChild className="w-full">
               <Link href="/settings/notifications/templates">
-                Manage Templates
+                Edit Wording
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
