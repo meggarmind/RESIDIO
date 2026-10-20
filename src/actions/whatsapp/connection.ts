@@ -26,6 +26,9 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { encrypt, isEncryptionConfigured } from '@/lib/encryption';
 import { resolveWhatsAppConfig, invalidateWhatsAppConfigCache } from '@/lib/whatsapp/config';
 import { isApprovedWhatsAppTemplateName } from '@/lib/whatsapp/templates';
+import { CHATMAID_DEFAULT_BASE_URL } from '@/lib/whatsapp/config-db';
+import { fetchChatmaidConnectionStatus, lookupChatmaidPhone } from '@/lib/whatsapp/providers/chatmaid';
+import { normalizePhoneNumber } from '@/lib/sms/termii';
 
 type ActionResult<T> = {
   success: boolean;
@@ -185,6 +188,51 @@ const saveWhatsAppCredentialsSchema = z.discriminatedUnion('provider', [
   chatmaidCredentialsSchema,
 ]);
 
+function describePairedPhones(pairedNumbers: string[]): string {
+  return pairedNumbers.length === 0
+    ? 'This Chatmaid account has no paired phones.'
+    : `Paired phones on this account: ${pairedNumbers.join(', ')}.`;
+}
+
+/**
+ * A from-number Chatmaid does not list as paired is accepted by nothing but
+ * this form: every reply then fails at send time as "bridge is disconnected"
+ * (#843). Returns the rejection message, or null when the number is usable.
+ */
+async function validateChatmaidFromNumber(
+  adminClient: ReturnType<typeof createAdminClient>,
+  value: { apiKey: string; fromNumber: string }
+): Promise<string | null> {
+  const { data: optins, error: optinError } = await adminClient
+    .from('whatsapp_optins')
+    .select('id')
+    .eq('phone_number', normalizePhoneNumber(value.fromNumber))
+    .eq('opted_in', true)
+    .limit(1);
+
+  if (optinError) {
+    console.error('Failed to check the Chatmaid from number against WhatsApp opt-ins:', optinError);
+    return 'Could not verify the from number; try again.';
+  }
+  if (optins && optins.length > 0) {
+    return 'From number belongs to an opted-in resident. Enter the phone paired to the Chatmaid bridge.';
+  }
+
+  try {
+    const lookup = await lookupChatmaidPhone({ baseUrl: CHATMAID_DEFAULT_BASE_URL, ...value });
+    if (!lookup.ok) {
+      return `Chatmaid rejected the request (HTTP ${lookup.httpStatus}). Check the API key.`;
+    }
+    if (!lookup.match) {
+      return `From number ${value.fromNumber} is not paired to this Chatmaid account. ${describePairedPhones(lookup.pairedNumbers)}`;
+    }
+    return null;
+  } catch (fetchError) {
+    console.error('Chatmaid from-number lookup failed:', fetchError);
+    return 'Could not reach Chatmaid to verify the from number. Check server network access and try again.';
+  }
+}
+
 export type SaveWhatsAppCredentialsInput = z.infer<typeof saveWhatsAppCredentialsSchema>;
 
 export type SaveWhatsAppCredentialsResult = {
@@ -264,6 +312,11 @@ export async function saveWhatsAppCredentials(
     };
     auditValues = { provider: 'twilio', fromNumber: value.fromNumber };
   } else {
+    const fromNumberError = await validateChatmaidFromNumber(adminClient, value);
+    if (fromNumberError) {
+      return { success: false, data: null, error: fromNumberError };
+    }
+
     rpcParams = {
       p_provider: 'chatmaid',
       p_chatmaid_api_key_encrypted: encrypt(value.apiKey),
@@ -433,28 +486,42 @@ export async function testWhatsAppConnection(): Promise<ActionResult<TestWhatsAp
     }
 
     if (config.provider === 'chatmaid') {
-      // Lists the key's phone numbers: an authenticated read that sends
-      // nothing. It proves the API key is valid; it does NOT prove the
-      // handset's bridge session is connected (that is a per-send check).
-      const response = await fetch(`${config.baseUrl}/v1/phone-numbers`, {
-        headers: { Authorization: `Bearer ${config.apiKey}` },
-        cache: 'no-store',
-      });
+      // Authenticated reads only, never a send: the key's paired phones, then
+      // the matched phone's bridge status (#843).
+      const lookup = await lookupChatmaidPhone(config);
 
-      if (!response.ok) {
-        const body = await response.text().catch(() => '');
-        console.error(`WhatsApp Chatmaid connection test failed (HTTP ${response.status}): ${body}`);
+      if (!lookup.ok) {
+        console.error(`WhatsApp Chatmaid connection test failed (HTTP ${lookup.httpStatus})`);
         return {
           success: true,
           data: {
             ok: false,
-            message: `Chatmaid rejected the request (HTTP ${response.status}). Check the API key.`,
+            message: `Chatmaid rejected the request (HTTP ${lookup.httpStatus}). Check the API key.`,
           },
           error: null,
         };
       }
 
-      return { success: true, data: { ok: true, message: 'Connected to the Chatmaid API.' }, error: null };
+      if (!lookup.match) {
+        return {
+          success: true,
+          data: {
+            ok: false,
+            message: `From number ${config.fromNumber} is not paired to this Chatmaid account. ${describePairedPhones(lookup.pairedNumbers)}`,
+          },
+          error: null,
+        };
+      }
+
+      const connectionStatus = await fetchChatmaidConnectionStatus(config, lookup.match.id);
+      return {
+        success: true,
+        data: {
+          ok: connectionStatus === 'connected',
+          message: `Connected to the Chatmaid API. ${config.fromNumber} is paired; bridge status: ${connectionStatus}.`,
+        },
+        error: null,
+      };
     }
 
     const url = `https://api.twilio.com/2010-04-01/Accounts/${config.accountSid}.json`;
