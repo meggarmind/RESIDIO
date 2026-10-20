@@ -45,6 +45,8 @@ import {
 import { usePendingAccounts, useApproveAccount, useRejectAccount } from '@/hooks/use-pending-accounts';
 import { useRolesWithPermissions } from '@/hooks/use-roles';
 import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import Link from 'next/link';
 import type { PendingAccount } from '@/actions/auth/account-approval';
 
 /**
@@ -57,7 +59,8 @@ import type { PendingAccount } from '@/actions/auth/account-approval';
 export function PendingAccountsList() {
   const { data: accounts, isLoading, error, refetch, isRefetching } = usePendingAccounts();
   const { data: roles } = useRolesWithPermissions();
-  const { profile } = useAuth();
+  const { profile, hasPermission } = useAuth();
+  const canManageRoles = hasPermission(PERMISSIONS.SYSTEM_MANAGE_ROLES);
   const approve = useApproveAccount();
   const reject = useRejectAccount();
 
@@ -188,6 +191,15 @@ export function PendingAccountsList() {
               ? 'No pending account matches that filter.'
               : 'New sign-ups appear here for approval before they get any access.'}
           </p>
+          {!searchFilter && canManageRoles && (
+            <p className="mt-1 text-sm text-muted-foreground">
+              Approving one assigns a role defined under{' '}
+              <Link href="/system/accounts?tab=roles" className="font-medium text-primary underline-offset-4 hover:underline">
+                Roles
+              </Link>
+              .
+            </p>
+          )}
         </div>
       ) : (
         <Table>

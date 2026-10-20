@@ -276,13 +276,13 @@ const NAV_AUDIT_LOGS: NavItem = {
   permissions: [PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS],
 };
 
-// Role Assignments, Pending Accounts and Orphaned Accounts moved here from
-// /settings/roles (#172, ADR-0004). A flat item alongside NAV_AUDIT_LOGS and
+// Administrators, Pending sign-ups, Unlinked logins, Roles and Who can hold each
+// role live on this one page (#172, ADR-0004; Roles merged in by #912). A flat item alongside NAV_AUDIT_LOGS and
 // NAV_SYSTEM, not nested under NAV_SYSTEM — see the comment on NAV_SYSTEM
 // for why.
 const NAV_ACCOUNTS: NavItem = {
   id: 'system-accounts',
-  title: 'Accounts',
+  title: 'Roles & Access',
   href: '/system/accounts',
   icon: UserCog,
   permissions: [PERMISSIONS.SYSTEM_ASSIGN_ROLES],

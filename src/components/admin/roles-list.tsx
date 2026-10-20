@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import {
   useRolesWithPermissions,
   useCreateRoleWithPermissions,
@@ -247,6 +248,22 @@ export function RolesList() {
       </span>
     </Button>
   );
+
+  // Resident-category roles are not administrators, so the Administrators tab would list nobody.
+  const holders = (role: AppRoleWithPermissions) =>
+    role.user_count == null ? (
+      <span className="text-sm text-muted-foreground">—</span>
+    ) : role.user_count > 0 && role.category !== 'resident' ? (
+      <Link
+        href={`/system/accounts?tab=administrators&role=${encodeURIComponent(role.name)}`}
+        className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+        aria-label={`${role.user_count} ${role.user_count === 1 ? 'holder' : 'holders'} of ${role.display_name}`}
+      >
+        {role.user_count}
+      </Link>
+    ) : (
+      <span className="text-sm">{role.user_count}</span>
+    );
 
   const roleActions = (role: AppRoleWithPermissions) => {
     if (!canManage || role.name === 'super_admin') {
@@ -514,6 +531,7 @@ export function RolesList() {
                   </div>
                   <ActiveStatusBadge active={role.is_active} />
                 </div>
+                <p className="mt-2 text-xs text-muted-foreground">Holders: {holders(role)}</p>
                 <div className="mt-3 flex items-center justify-between gap-2">
                   {accessButton(role)}
                   {roleActions(role)}
@@ -527,6 +545,7 @@ export function RolesList() {
                 <TableRow>
                   <TableHead>Role</TableHead>
                   <TableHead className="text-center">Access</TableHead>
+                  <TableHead className="w-[80px] text-center">Holders</TableHead>
                   <TableHead className="w-[100px]">Status</TableHead>
                   {canManage && <TableHead className="w-[100px] text-right">Actions</TableHead>}
                 </TableRow>
@@ -550,6 +569,7 @@ export function RolesList() {
                       </div>
                     </TableCell>
                     <TableCell className="text-center">{accessButton(role)}</TableCell>
+                    <TableCell className="text-center">{holders(role)}</TableCell>
                     <TableCell>
                       <ActiveStatusBadge active={role.is_active} />
                     </TableCell>
