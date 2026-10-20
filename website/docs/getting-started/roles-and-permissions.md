@@ -54,7 +54,7 @@ Two-factor authentication is optional: it applies only to accounts that have tur
 | Resident | Self-service portal only, no admin dashboard | — |
 
 :::info[Resident portal links]
-Whether an admin sees *My Portal*, *Resident Portal* and *View as Resident* depends on the estate-wide **Resident portal** switch (Settings → Estate Information) and a per-account override (System → Accounts: Inherit, Enabled or Disabled). The links are hidden by default. An account with no linked resident never sees *My Portal* or *Resident Portal*, whatever its role, including the Super Administrator. Hiding the links does not block the `/portal` address.
+Whether an admin sees *My Portal*, *Resident Portal* and *View as Resident* depends on the estate-wide **Resident portal** switch (Settings → Estate & Property → Estate Details) and a per-account override (System → Accounts: Inherit, Enabled or Disabled). The links are hidden by default. An account with no linked resident never sees *My Portal* or *Resident Portal*, whatever its role, including the Super Administrator. Hiding the links does not block the `/portal` address.
 :::
 
 :::info[Chairman and the Settings module]

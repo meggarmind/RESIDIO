@@ -131,7 +131,7 @@ describe('Settings/System search entry matching', () => {
 
   it('finds /settings/email-integration for "email import" -- the issue\'s own acceptance criterion (#179)', () => {
     // The page is titled "Gmail Import"; neither its title, its subtitle,
-    // nor its "Integrations" group name contains the word "email" on their
+    // nor its "Connections" group name contains the word "email" on their
     // own. Only the hand-picked keyword alias closes that gap.
     expect(hrefsFor('email import')).toContain('/settings/email-integration');
   });
@@ -147,11 +147,10 @@ describe('Settings/System search entry matching', () => {
     expect(hrefs).toContain('/settings/email-integration');
   });
 
-  it('"estate overview" finds /settings -- group/parent context recovers a generic child title', () => {
-    // The winning `/settings` entry is titled just "Overview" (see the
-    // dedupe rationale above); it is only findable by "estate" because its
-    // group title ("Estate") is folded into `searchText`.
-    expect(hrefsFor('estate overview')).toContain('/settings');
+  it('"setup overview" finds /settings -- group context recovers a generic title', () => {
+    // The `/settings` entry is titled just "Overview"; it is only findable
+    // by "setup" because its group title ("Setup") is folded into `searchText`.
+    expect(hrefsFor('setup overview')).toContain('/settings');
   });
 
   it('a query matching nothing returns no entries', () => {
@@ -160,7 +159,7 @@ describe('Settings/System search entry matching', () => {
 
   it('matching is case-insensitive', () => {
     expect(hrefsFor('EMAIL IMPORT')).toEqual(hrefsFor('email import'));
-    expect(hrefsFor('Estate Overview')).toEqual(hrefsFor('estate overview'));
+    expect(hrefsFor('Setup Overview')).toEqual(hrefsFor('setup overview'));
   });
 
   it('an empty (or all-whitespace) query matches nothing', () => {

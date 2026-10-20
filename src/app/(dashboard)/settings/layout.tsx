@@ -1,6 +1,7 @@
 import { Separator } from '@/components/ui/separator';
 import { SettingsSidebar } from '@/components/dashboard/settings/settings-sidebar';
 import { SettingsMobileNav } from '@/components/dashboard/settings/settings-mobile-nav';
+import { PageTransition } from '@/components/ui/page-transition';
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
     return (
@@ -8,7 +9,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
             <div className="space-y-0.5">
                 <h2 className="text-2xl font-bold tracking-tight">Settings</h2>
                 <p className="text-muted-foreground">
-                    Manage your estate settings and billing preferences.
+                    Set up your estate, billing, messages and who can do what.
                 </p>
             </div>
             <Separator className="my-6" />
@@ -16,7 +17,10 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
                 <SettingsMobileNav />
                 <SettingsSidebar className="hidden lg:block lg:w-1/5" />
                 {/* min-w-0: a wide table must scroll inside its own container, not widen the page (#788). */}
-                <div className="min-w-0 flex-1 lg:max-w-4xl" data-testid="settings-content">{children}</div>
+                <div className="min-w-0 flex-1 lg:max-w-4xl" data-testid="settings-content">
+                    {/* The root template keeps one key for all of Settings, so only this area animates. */}
+                    <PageTransition>{children}</PageTransition>
+                </div>
             </div>
         </div>
     );

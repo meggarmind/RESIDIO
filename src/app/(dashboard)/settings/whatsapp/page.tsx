@@ -1,4 +1,5 @@
 import { getWhatsAppForcePin, getWhatsAppOptIns, getWhatsAppPendingContacts } from '@/actions/whatsapp/identity';
+import { SettingsPageHeader } from '@/components/settings/settings-page-header';
 import { getWhatsAppEnabled, getWhatsAppPilotResidentOptions, getWhatsAppPilotSettings } from '@/actions/whatsapp/pilot';
 import { getWhatsAppDisclosureLogs, getWhatsAppHealth, getWhatsAppSessions } from '@/actions/whatsapp/admin-console';
 import { getWhatsAppConnectionStatus, type WhatsAppConnectionStatus } from '@/actions/whatsapp/connection';
@@ -49,10 +50,7 @@ export default async function WhatsAppOperationsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">WhatsApp Operations</h1>
-        <p className="text-sm text-muted-foreground">Admin-only consent, identity, session, disclosure, and bot health controls.</p>
-      </div>
+      <SettingsPageHeader description="Admin-only consent, identity, session, disclosure, and bot health controls." />
       <Card>
         <CardHeader>
           <CardTitle>WhatsApp connection</CardTitle>
