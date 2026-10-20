@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Plus, Minus, Send, X } from 'lucide-react';
 import { useAiAssistant } from '@/hooks/use-ai-assistant';
@@ -9,6 +10,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
+
+const AUTH_SCREEN_PREFIXES = ['/login', '/register', '/forgot-password', '/reset-password', '/pending-approval', '/auth'];
+
+function isAuthScreen(pathname: string | null) {
+    return !!pathname && AUTH_SCREEN_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
 
 export function EstateAiAssistant() {
     const {
@@ -25,6 +32,7 @@ export function EstateAiAssistant() {
         assistantName,
     } = useAiAssistant();
     const { user } = useAuth();
+    const pathname = usePathname();
 
     const [inputValue, setInputValue] = useState('');
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -47,8 +55,8 @@ export function EstateAiAssistant() {
         }
     }, [messages, isTyping]);
 
-    // #772: the root layout renders this on every route, so keep it off login and other signed-out screens.
-    if (!user || isSettingsLoading || isDismissed || disabledByAdmin) return null;
+    // #772: the root layout renders this on every route; a session can exist on auth screens (post-login redirect, 2FA, pending approval).
+    if (!user || isAuthScreen(pathname) || isSettingsLoading || isDismissed || disabledByAdmin) return null;
 
     return (
         <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">

@@ -4,6 +4,11 @@ import { cleanup, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 
 const auth = vi.hoisted(() => ({ user: null as { id: string } | null }));
+const nav = vi.hoisted(() => ({ pathname: '/dashboard' }));
+
+vi.mock('next/navigation', () => ({
+  usePathname: () => nav.pathname,
+}));
 
 vi.mock('@/lib/auth/auth-provider', () => ({
   useAuth: () => ({ user: auth.user }),
@@ -29,6 +34,7 @@ import { EstateAiAssistant } from '@/components/layout/estate-ai-assistant';
 
 beforeEach(() => {
   auth.user = null;
+  nav.pathname = '/dashboard';
 });
 afterEach(() => cleanup());
 
@@ -40,6 +46,28 @@ describe('EstateAiAssistant visibility (#772)', () => {
 
   it('renders the assistant pill for a signed-in user', () => {
     auth.user = { id: 'user-1' };
+    render(<EstateAiAssistant />);
+    expect(screen.getByText('Estate Assistant')).toBeInTheDocument();
+  });
+
+  it.each([
+    '/login',
+    '/register',
+    '/forgot-password',
+    '/reset-password',
+    '/pending-approval',
+    '/auth/verify-2fa',
+    '/auth/callback',
+  ])('renders nothing on %s even with a session present', (pathname) => {
+    auth.user = { id: 'user-1' };
+    nav.pathname = pathname;
+    render(<EstateAiAssistant />);
+    expect(screen.queryByText('Estate Assistant')).not.toBeInTheDocument();
+  });
+
+  it('still renders on routes that only share an auth prefix', () => {
+    auth.user = { id: 'user-1' };
+    nav.pathname = '/authorizations';
     render(<EstateAiAssistant />);
     expect(screen.getByText('Estate Assistant')).toBeInTheDocument();
   });
