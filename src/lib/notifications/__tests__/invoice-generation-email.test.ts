@@ -12,6 +12,11 @@ vi.mock('@/emails', () => ({ InvoiceGeneratedEmail: vi.fn(() => null) }));
 vi.mock('@/lib/settings/service', () => ({ getSettingValueAsService: vi.fn() }));
 vi.mock('@/lib/email', () => ({ getEstateEmailSettings: vi.fn().mockResolvedValue({ estateName: 'Estate' }) }));
 vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
+// #907: the wording read is its own admin-client query; keep it out of this test's call counts.
+vi.mock('@/lib/notifications/event-content', async (importActual) => {
+  const actual = await importActual<typeof import('@/lib/notifications/event-content')>();
+  return { ...actual, getEventContent: vi.fn(async () => actual.getEventDefaults('invoice_generated')) };
+});
 vi.mock('@/lib/notifications/queue', () => ({
   addToQueue: vi.fn(),
   PRIORITY: { NORMAL: 5 },

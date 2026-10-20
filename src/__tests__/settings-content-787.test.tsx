@@ -52,8 +52,7 @@ vi.mock('@/hooks/use-notifications', () => ({
   useNotificationTemplates: () => query([]),
   useQueueStatistics: () => query({ pending: 0, processing: 0, failed: 0, sent: 0 }),
   useNotificationStats: () => query({ sent: 0, failed: 0, total: 0, delivered: 0 }),
-  useCreateTemplate: () => mutation(),
-  useUpdateTemplate: () => mutation(),
+  useUpdateEventContent: () => mutation(),
 }));
 // Radix Select only renders its items once opened; render them inline so the list is readable.
 vi.mock('@/components/ui/select', () => {
@@ -158,13 +157,17 @@ describe('notification channels follow IMPLEMENTED_CHANNELS', () => {
     expect(screen.queryByRole('link', { name: /manage schedules/i })).not.toBeInTheDocument();
   });
 
-  it('the template form offers only implemented channels', () => {
-    render(<TemplateForm onSuccess={vi.fn()} onCancel={vi.fn()} />);
-    const channelOptions = screen
-      .getAllByRole('option')
-      .map((o) => o.getAttribute('data-value'))
-      .filter((v) => ['email', 'sms', 'whatsapp'].includes(v ?? ''));
-    expect(channelOptions).toEqual(IMPLEMENTED_CHANNELS);
+  // #907: the wording form edits one event's email copy; it no longer offers a channel picker.
+  it('the wording form offers no SMS', () => {
+    const template = {
+      id: 't1', name: 'welcome_resident', display_name: 'Welcome email', category: 'system',
+      channel: 'email', event: 'welcome_resident', overrides: {}, subject_template: null,
+      body_template: '', html_template: null, variables: [], is_system: true, is_active: true,
+      created_at: '', updated_at: '', created_by: null,
+    } as unknown as Parameters<typeof TemplateForm>[0]['template'];
+    const { container } = render(<TemplateForm template={template} onSuccess={vi.fn()} onCancel={vi.fn()} />);
+    expect(container).not.toHaveTextContent(/SMS|coming soon/i);
+    expect(screen.queryAllByRole('option').filter((o) => o.getAttribute('data-value') === 'sms')).toEqual([]);
   });
 
   // #848: the step editors filtered a hard-coded ['email', 'sms'], so WhatsApp was never offered.
