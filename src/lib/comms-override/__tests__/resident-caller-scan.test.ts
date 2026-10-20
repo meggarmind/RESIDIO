@@ -251,7 +251,7 @@ describe('every send-seam call site passes the resident stored flag (#716)', () 
       'actions/email/send-welcome-email.ts',
       'actions/email/send-payment-receipt-email.ts',
       'actions/email/send-payment-reminders.ts',
-      'actions/notifications/invoice-reminders.ts',
+      'lib/notifications/invoice-reminders.ts',
       'actions/announcements/send-multi-channel-emergency.ts',
       'actions/residents/move-out-owner.ts',
       'actions/residents/move-out-renter.ts',

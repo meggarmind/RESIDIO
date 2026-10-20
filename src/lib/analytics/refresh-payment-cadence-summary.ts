@@ -1,4 +1,9 @@
-'use server';
+/**
+ * Deliberately NOT a server-action module (no directive): this recomputes a cache
+ * table with the admin (service-role) client and must never be reachable as a
+ * client-callable server action. Sole caller is the CRON_SECRET-authenticated route
+ * `/api/cron/refresh-payment-cadence`, which is responsible for authentication. See #875.
+ */
 
 import { createAdminSupabaseClient } from '@/lib/supabase/admin';
 import { classifyPaymentCadence } from '@/lib/analytics/classify-payment-cadence';
