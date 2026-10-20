@@ -338,7 +338,7 @@ shadcn/ui components - button, card, form, table, dialog, sheet, tabs, badge, al
 - `/settings/appearance` - Theme settings
 - `/settings/billing` - Billing configuration
 - `/settings/security` - Security settings
-- `/settings/roles`, `/settings/user-roles` - Role management
+- `/system/accounts` - Roles & Access (administrators, pending sign-ups, unlinked logins, roles, who can hold each role; `?tab=`). `/settings/roles` and `/settings/user-roles` redirect here
 - `/settings/notifications/*` - Notification settings (templates, schedules, history, reminders)
 - `/system/audit-logs` - Audit trail viewer
 - `/settings/maintenance` - Maintenance mode and messages

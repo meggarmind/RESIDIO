@@ -99,7 +99,6 @@ import { HouseTypesList } from '@/components/admin/house-types-list';
 import { TransactionTagsList } from '@/components/admin/transaction-tags-list';
 import { BankAccountsList } from '@/components/admin/bank-accounts-list';
 import { RolesList } from '@/components/admin/roles-list';
-import RolesSettingsPage from '@/app/(dashboard)/settings/roles/page';
 import SecuritySettingsPage from '@/app/(dashboard)/settings/security/page';
 import CategoriesPage from '@/app/(dashboard)/settings/security/categories/page';
 import BillingSettingsPage from '@/app/(dashboard)/settings/billing/page';
@@ -244,14 +243,7 @@ describe.each(CASES)('$name (#788)', ({ ui, permission, buttons, fields = [] }) 
   });
 });
 
-describe('roles page for an assign-only admin (#788)', () => {
-  it('points to Accounts instead of rendering role definitions it cannot load', () => {
-    mocks.permissions = [PERMISSIONS.SYSTEM_ASSIGN_ROLES];
-    render(<RolesSettingsPage />);
-    expect(screen.getByRole('link', { name: 'Accounts' })).toHaveAttribute('href', '/system/accounts');
-    expect(screen.queryByRole('tab', { name: /Role Definitions/ })).not.toBeInTheDocument();
-  });
-});
+// The assign-only admin's view of the Roles tab moved to roles-access-912.test.tsx (#912).
 
 describe('role delete dialog (#788)', () => {
   it('says how many users hold the role and blocks the delete', async () => {
