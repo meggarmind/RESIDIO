@@ -17,6 +17,8 @@ import {
   storeStatementPdf,
   type StatementRequestInput,
 } from '@/lib/whatsapp/statement-delivery';
+import { getReceiptPayments, loadReceipt, storeReceiptPdf, type ReceiptPayment } from '@/lib/whatsapp/receipts';
+import type { PaymentReceiptData } from '@/lib/pdf/payment-receipt';
 import {
   REPORTS_PER_DAY,
   REPORT_WINDOW_DAYS,
@@ -73,6 +75,7 @@ export const RESIDENT_DAILY_LOOKUP_CAP = 20;
 /** Estate-wide cap when the setting is absent (#804 decision 26 raised it from 50). */
 export const DEFAULT_ESTATE_DAILY_LOOKUP_CAP = 500;
 const RECENT_PAYMENT_COUNT = 5;
+const RECEIPT_COUNT = 5;
 const NOTICE_COUNT = 3;
 const STATEMENT_ROW_CAP = 12;
 
@@ -84,7 +87,7 @@ const TEXT_ONLY_REPLY = 'I can only read text messages here. Please type your re
 const UNSUBSCRIBED_REPLY = "You've been unsubscribed from estate WhatsApp alerts. Reply START any time to re-subscribe.";
 
 /** Values written to whatsapp_disclosure_logs.menu_item (shown as-is in the operations console). */
-export type FinancialMenuItem = 'what_i_owe' | 'recent_payments' | 'statement' | 'wallet';
+export type FinancialMenuItem = 'what_i_owe' | 'recent_payments' | 'statement' | 'wallet' | 'receipt';
 export type LookupAllowance = 'ok' | 'resident_cap' | 'estate_cap';
 /** How a disclosure left the estate (#804 decision 25). */
 export type DisclosureChannel = 'chat' | 'pdf' | 'email';
@@ -188,6 +191,12 @@ export interface WhatsAppFinancialRepository {
   confirmEmailChange(residentId: string, code: string): Promise<EmailChangeConfirm>;
   /** Files a pending, unverified payment and its approval request (#816 decisions 10-12). */
   createPaymentReport(input: PaymentReportInput): Promise<PaymentReportResult>;
+  /** The latest payments to pick a receipt from (#816 decision 14). */
+  getReceiptPayments(residentId: string, houseId: string, limit: number): Promise<ReceiptPayment[]>;
+  /** The receipt of a verified payment of this resident and property; null when there is none. */
+  loadReceipt(residentId: string, houseId: string, paymentId: string): Promise<PaymentReceiptData | null>;
+  /** Stores the receipt PDF privately and returns a 1-hour signed URL for the reply. */
+  storeReceiptPdf(input: Parameters<typeof storeReceiptPdf>[0], receipt: PaymentReceiptData): Promise<string>;
   /** The statement PDF for a period: the admin account statement, with its Lagos dates. */
   loadStatement(residentId: string, houseId: string, period: StatementPeriod, now: Date): Promise<{ fromDate: string; toDate: string; statement: AccountStatementData }>;
   /** Stores the PDF privately and returns a 1-hour signed URL for the reply. */
@@ -634,6 +643,9 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
     startEmailChange,
     confirmEmailChange,
     createPaymentReport,
+    getReceiptPayments,
+    loadReceipt,
+    storeReceiptPdf,
     loadStatement: loadWhatsAppStatementForPeriod,
     storeStatementPdf,
     createStatementRequest,
@@ -742,9 +754,10 @@ const ITEM_FOR_INTENT: Partial<Record<AssistantIntent, Target>> = {
   payments: 'recent_payments',
   statement: 'statement',
   wallet: 'wallet',
+  receipt: 'receipt',
   report: 'report',
 };
-const FINANCIAL_ITEM_NUMBERS: Record<string, Target> = { '1': 'what_i_owe', '2': 'recent_payments', '3': 'statement', '4': 'wallet', '6': 'report' };
+const FINANCIAL_ITEM_NUMBERS: Record<string, Target> = { '1': 'what_i_owe', '2': 'recent_payments', '3': 'statement', '4': 'wallet', '5': 'receipt', '6': 'report' };
 
 interface Turn {
   message: WhatsAppInboundMessage;
@@ -772,7 +785,7 @@ function readNode(raw: string): { node: string; misses: number } {
 async function respond(turn: Turn, body: string, node: string, misses = 0, mediaUrls?: string[]): Promise<void> {
   await sendFinancialReply(turn.message, body, turn.options.send, turn.identity.id, mediaUrls);
   turn.session.currentNode = misses ? `${node}~${misses}` : node;
-  if (!node.startsWith('report_')) turn.session.draft = null;
+  if (!/^(report|receipt)_/.test(node)) turn.session.draft = null;
   turn.session.expiresAt = expiry();
   await turn.options.repository.saveSession(turn.session);
 }
@@ -839,6 +852,7 @@ function financialMenu(turn: Turn): string {
     '2. Recent payments',
     '3. Statement',
     '4. Wallet',
+    '5. Receipt',
     '6. Report a payment',
     ...(multiple ? ['8. More'] : []),
     lastLine,
@@ -899,6 +913,7 @@ async function enterFinancial(turn: Turn, target: Target, prefix?: string): Prom
     return;
   }
   if (target === 'report') return startReport(turn, lead);
+  if (target === 'receipt') return showReceipts(turn, lead);
   await answerItem(turn, target);
 }
 
@@ -1053,6 +1068,70 @@ async function showContact(turn: Turn): Promise<void> {
     return;
   }
   await respond(turn, `${turn.contact}\nReply 0 for menu.`, 'main');
+}
+
+// ---------------------------------------------------------------------------
+// Receipt (#816 decision 14): pick one of the latest payments, get a PDF of a verified one.
+
+interface ReceiptDraft {
+  payments: Array<{ id: string; verified: boolean }>;
+}
+
+async function showReceipts(turn: Turn, lead: string): Promise<void> {
+  const house = selectedHouse(turn);
+  if (!house) return;
+  const capped = await capReply(turn);
+  if (capped) return respond(turn, capped, 'financial');
+
+  const repository = turn.options.repository;
+  const payments = await repository.getReceiptPayments(turn.identity.id, house.id, RECEIPT_COUNT);
+  // The list shows amounts and dates, so it is a disclosure like Recent payments (#795).
+  await repository.logDisclosure({
+    residentId: turn.identity.id,
+    phoneNumber: turn.phoneNumber,
+    houseId: house.id,
+    menuItem: 'receipt',
+    pinAuthenticated: turn.session.pinAuthenticated,
+    metadata: { step: 'list', row_count: payments.length },
+  });
+  if (payments.length === 0) return respond(turn, `${lead}*Receipts, ${house.label}*\nNo payments recorded for ${house.label}.\n${footer(turn)}`, 'answer');
+
+  turn.session.draft = { payments: payments.map((payment) => ({ id: payment.id, verified: payment.is_verified })) } satisfies ReceiptDraft;
+  const lines = payments.map((payment, index) =>
+    [`${index + 1}.`, formatDay(payment.payment_date), formatNaira(payment.amount), payment.method ? payment.method.replaceAll('_', ' ') : 'payment', ...(payment.is_verified ? [] : ['(awaiting verification)'])].join('  ')
+  );
+  await respond(turn, [`${lead}*Receipts, ${house.label}*`, ...lines, payments.length === 1 ? 'Reply 1 to get a receipt.' : `Reply 1–${payments.length} to get a receipt.`, footer(turn)].join('\n'), 'receipt_pick');
+}
+
+async function pickReceipt(turn: Turn, input: string): Promise<void> {
+  const draft = turn.session.draft as Partial<ReceiptDraft> | null | undefined;
+  const payment = /^\d+$/.test(input) ? draft?.payments?.[Number(input) - 1] : undefined;
+  if (!payment) return miss(turn, 'receipt_pick');
+
+  await loadHouses(turn);
+  const house = selectedHouse(turn);
+  // The node outlives a LOCK only in theory; check the gate again before any document leaves.
+  if (!house || ((await loadPinGate(turn)) && !turn.session.pinAuthenticated)) return enterFinancial(turn, 'receipt');
+  const capped = await capReply(turn);
+  if (capped) return respond(turn, capped, 'financial');
+
+  const repository = turn.options.repository;
+  const receipt = payment.verified ? await repository.loadReceipt(turn.identity.id, house.id, payment.id) : null;
+  if (!receipt) return respond(turn, `A receipt is available once this payment is verified.\n${footer(turn)}`, 'answer');
+
+  const body = [`*Receipt, ${house.label}*`, `${formatNaira(receipt.amount)} on ${formatDay(receipt.paymentDate)}. Your PDF is attached.`, footer(turn)].join('\n');
+  // Log before the file exists (#795): a failed log then discloses nothing.
+  await repository.logDisclosure({
+    residentId: turn.identity.id,
+    phoneNumber: turn.phoneNumber,
+    houseId: house.id,
+    menuItem: 'receipt',
+    pinAuthenticated: turn.session.pinAuthenticated,
+    channel: 'pdf',
+    metadata: { step: 'pdf', payment_id: payment.id },
+  });
+  const url = await repository.storeReceiptPdf({ residentId: turn.identity.id, phoneNumber: turn.phoneNumber, houseId: house.id, inboundMessageId: turn.message.id, replyText: body }, receipt);
+  await respond(turn, body, 'answer', 0, [url]);
 }
 
 // ---------------------------------------------------------------------------
@@ -1313,12 +1392,13 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
   }
   if (CONTACT_WORDS.has(input)) return showContact(turn);
   if (input === '0') {
-    const backToFinancial = node === 'answer' || node === 'more' || node === 'statement_period' || node.startsWith('report_') || node.startsWith('property:') || node.startsWith('statement:') || node.startsWith('statement_email:');
+    const backToFinancial = node === 'answer' || node === 'more' || node === 'statement_period' || node.startsWith('report_') || node.startsWith('receipt_') || node.startsWith('property:') || node.startsWith('statement:') || node.startsWith('statement_email:');
     return backToFinancial && turn.identity.financialEligible ? enterFinancial(turn, 'menu') : showMain(turn);
   }
 
   // Free-text answers come before the keywords, which would otherwise read an address as a keyword.
   if (node === 'report_amount' || node === 'report_date' || node === 'report_confirm') return reportStep(turn, node);
+  if (node === 'receipt_pick') return pickReceipt(turn, input);
   if (node === 'email_address') return submitEmailAddress(turn);
   if (node === 'email_code') return submitEmailCode(turn);
 

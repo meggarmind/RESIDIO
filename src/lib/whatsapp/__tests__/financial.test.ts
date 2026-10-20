@@ -135,6 +135,9 @@ function repository(houses: FinancialHouse[] = [PALM], overrides: Partial<WhatsA
     startEmailChange: vi.fn().mockResolvedValue({ status: 'sent', email: 'new.name@example.com' }),
     confirmEmailChange: vi.fn().mockResolvedValue({ status: 'saved', email: 'new.name@example.com', statementsQueued: 0 }),
     createPaymentReport: vi.fn().mockResolvedValue({ status: 'created', paymentId: 'payment-1', requestId: 'request-1' }),
+    getReceiptPayments: vi.fn().mockResolvedValue([]),
+    loadReceipt: vi.fn().mockResolvedValue(null),
+    storeReceiptPdf: vi.fn().mockResolvedValue('https://storage.test/signed/receipt.pdf'),
     loadStatement: vi.fn().mockResolvedValue({ fromDate: '2026-10-01', toDate: '2026-10-20', statement: statementData(3) }),
     storeStatementPdf: vi.fn().mockResolvedValue('https://storage.test/signed/statement.pdf'),
     getResidentEmail: vi.fn().mockResolvedValue('ada.example@gmail.com'),
@@ -182,6 +185,7 @@ const FINANCIAL_MENU = [
   '2. Recent payments',
   '3. Statement',
   '4. Wallet',
+  '5. Receipt',
   '6. Report a payment',
   FOOTER,
 ].join('\n');
@@ -1353,5 +1357,127 @@ describe('WhatsApp Assistant report a payment (#816 decisions 10-12)', () => {
     const replies = await chat(repo, ['report'], community);
     expect(replies[0]).toMatch(/^Financial standing is only available to residents billed for a property\./);
     expect(repo.createPaymentReport).not.toHaveBeenCalled();
+  });
+});
+
+describe('WhatsApp Assistant receipts (#816 decision 14)', () => {
+  const PAYMENTS = [
+    { id: 'payment-1', amount: 50000, payment_date: '2026-10-12T11:00:00+00:00', method: 'bank_transfer', is_verified: true },
+    { id: 'payment-2', amount: 25000, payment_date: '2026-10-03T11:00:00+00:00', method: null, is_verified: false },
+  ];
+  const RECEIPT = {
+    receiptNumber: 'RCP-PAYMENT1',
+    residentName: 'Ada Example',
+    residentCode: 'RES001',
+    propertyLabel: '12 Palm Close',
+    amount: 50000,
+    paymentDate: '2026-10-12T11:00:00+00:00',
+    method: 'bank_transfer',
+    reference: 'GTB TRF',
+    verifiedAt: '2026-10-13T09:00:00+00:00',
+  };
+
+  function receiptRepo(overrides: Partial<WhatsAppFinancialRepository> = {}) {
+    return repository([PALM], {
+      getReceiptPayments: vi.fn().mockResolvedValue(PAYMENTS),
+      loadReceipt: vi.fn().mockResolvedValue(RECEIPT),
+      ...overrides,
+    });
+  }
+
+  it('lists the latest payments, marking the unverified, and sends the PDF of a verified one', async () => {
+    const repo = receiptRepo();
+    const send = vi.fn().mockResolvedValue({ success: true });
+    const opts = { repository: repo, optedIn: true, send };
+    await handleFinancialMessage(message('receipt'), identity, opts);
+    await handleFinancialMessage(message('1'), identity, opts);
+
+    expect(repo.getReceiptPayments).toHaveBeenCalledWith('resident-1', 'house-1', 5);
+    expect(send.mock.calls[0][0].body).toBe([
+      '*Receipts, 12 Palm Close*',
+      '1.  12 Oct 2026  ₦50,000.00  bank transfer',
+      '2.  3 Oct 2026  ₦25,000.00  payment  (awaiting verification)',
+      'Reply 1–2 to get a receipt.',
+      FOOTER,
+    ].join('\n'));
+    expect(repo.loadReceipt).toHaveBeenCalledWith('resident-1', 'house-1', 'payment-1');
+    const body = ['*Receipt, 12 Palm Close*', '₦50,000.00 on 12 Oct 2026. Your PDF is attached.', FOOTER].join('\n');
+    expect(repo.storeReceiptPdf).toHaveBeenCalledWith({ residentId: 'resident-1', phoneNumber: '+2348000000000', houseId: 'house-1', inboundMessageId: expect.any(String), replyText: body }, RECEIPT);
+    expect(send.mock.calls[1][0]).toMatchObject({ body, mediaUrls: ['https://storage.test/signed/receipt.pdf'] });
+  });
+
+  it('logs the list and the PDF as disclosures, the PDF before the file exists', async () => {
+    const repo = receiptRepo();
+    await chat(repo, ['1', '5', '1']);
+
+    expect(repo.logDisclosure).toHaveBeenCalledWith(expect.objectContaining({ menuItem: 'receipt', metadata: { step: 'list', row_count: 2 } }));
+    expect(repo.logDisclosure).toHaveBeenCalledWith(expect.objectContaining({ menuItem: 'receipt', channel: 'pdf', metadata: { step: 'pdf', payment_id: 'payment-1' } }));
+    const pdfLog = vi.mocked(repo.logDisclosure).mock.calls.findIndex(([entry]) => entry.channel === 'pdf');
+    expect(vi.mocked(repo.logDisclosure).mock.invocationCallOrder[pdfLog]).toBeLessThan(vi.mocked(repo.storeReceiptPdf).mock.invocationCallOrder[0]);
+  });
+
+  it('says a receipt is available once an unverified payment is verified, and makes no file', async () => {
+    const repo = receiptRepo();
+    const replies = await chat(repo, ['receipt', '2']);
+
+    expect(replies[1]).toBe(`A receipt is available once this payment is verified.\n${FOOTER}`);
+    expect(repo.loadReceipt).not.toHaveBeenCalled();
+    expect(repo.storeReceiptPdf).not.toHaveBeenCalled();
+  });
+
+  it('gives the same answer when a payment listed as verified is no longer verified', async () => {
+    const repo = receiptRepo({ loadReceipt: vi.fn().mockResolvedValue(null) });
+    const replies = await chat(repo, ['receipt', '1']);
+    expect(replies[1]).toBe(`A receipt is available once this payment is verified.\n${FOOTER}`);
+    expect(repo.storeReceiptPdf).not.toHaveBeenCalled();
+  });
+
+  it('asks again for a number that is not on the list', async () => {
+    const repo = receiptRepo();
+    const replies = await chat(repo, ['receipt', '3', 'two']);
+    expect(replies[1]).toBe(UNRECOGNISED);
+    expect(repo.loadReceipt).not.toHaveBeenCalled();
+  });
+
+  it('says so when there are no payments', async () => {
+    const replies = await chat(repository(), ['receipt']);
+    expect(replies[0]).toBe(`*Receipts, 12 Palm Close*\nNo payments recorded for 12 Palm Close.\n${FOOTER}`);
+  });
+
+  it('counts toward the daily caps: no list and no file when the resident is capped', async () => {
+    const repo = receiptRepo();
+    const replies = await chat(repo, ['receipt'], identity, { canLookup: vi.fn().mockResolvedValue('resident_cap') });
+    expect(replies[0]).toContain("You've reached today's limit of 20 financial lookups.");
+    expect(repo.getReceiptPayments).not.toHaveBeenCalled();
+    expect(repo.logDisclosure).not.toHaveBeenCalled();
+
+    const capAfterList = vi.fn().mockResolvedValueOnce('ok').mockResolvedValueOnce('estate_cap');
+    const repo2 = receiptRepo();
+    const replies2 = await chat(repo2, ['receipt', '1'], identity, { canLookup: capAfterList });
+    expect(replies2[1]).toContain('Financial lookups are paused for everyone until midnight.');
+    expect(repo2.storeReceiptPdf).not.toHaveBeenCalled();
+  });
+
+  it('needs the PIN first, and is not offered to a community-tier resident', async () => {
+    const repo = receiptRepo();
+    vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
+    const replies = await chat(repo, ['receipt', 'PIN 482915', '1']);
+    expect(replies[0]).toContain('before viewing financial standing');
+    expect(replies[1]).toContain('PIN verified.\n\n*Receipts, 12 Palm Close*');
+    expect(repo.getReceiptPayments).toHaveBeenCalledTimes(1);
+    expect(repo.storeReceiptPdf).toHaveBeenCalledTimes(1);
+
+    const community_ = receiptRepo();
+    const blocked = await chat(community_, ['receipt'], community);
+    expect(blocked[0]).toMatch(/^Financial standing is only available/);
+    expect(community_.getReceiptPayments).not.toHaveBeenCalled();
+  });
+
+  it('is item 5 of Financial standing, and 0 goes back to the menu', async () => {
+    const repo = receiptRepo();
+    const replies = await chat(repo, ['1', '5', '0']);
+    expect(replies[0]).toContain('5. Receipt');
+    expect(replies[1]).toContain('*Receipts, 12 Palm Close*');
+    expect(replies[2]).toBe(FINANCIAL_MENU);
   });
 });

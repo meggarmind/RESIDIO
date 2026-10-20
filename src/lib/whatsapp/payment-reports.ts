@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/server';
 import { recordAudit } from '@/lib/audit/recorder';
 import { createResidentApprovalRequest } from '@/lib/approvals/create-resident-approval-request';
-import { formatNaira, lagosMidnight, lagosParts } from '@/lib/whatsapp/assistant-format';
+import { formatNaira, lagosDateString, lagosMidnight, lagosParts } from '@/lib/whatsapp/assistant-format';
 
 /**
  * "Report a payment" in the WhatsApp Assistant (#816 decisions 10-12): a resident tells the estate
@@ -41,19 +41,13 @@ function addDays(day: string, days: number): string {
   return dayString(shifted.getUTCFullYear(), shifted.getUTCMonth() + 1, shifted.getUTCDate())!;
 }
 
-/** The Lagos calendar day of an instant, as `YYYY-MM-DD`. */
-export function lagosDay(now: Date): string {
-  const { year, month, day } = lagosParts(now);
-  return dayString(year, month, day)!;
-}
-
 /**
  * `12 Oct 2026`, `12 October 2026`, `2026-10-12`, `today` or `yesterday`, as a Lagos calendar day.
  * No numeric day-first or month-first forms: they read differently to different residents.
  */
 export function parseReportDate(text: string, now: Date): string | null {
   const input = text.trim().toLowerCase().replace(/\s+/g, ' ');
-  const today = lagosDay(now);
+  const today = lagosDateString(now);
   if (input === 'today') return today;
   if (input === 'yesterday') return addDays(today, -1);
   const iso = input.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -69,7 +63,7 @@ export type ReportDateCheck = 'ok' | 'future' | 'too_old';
 
 /** Not in the future, and within the last 90 days (decision 12). */
 export function checkReportDate(day: string, now: Date): ReportDateCheck {
-  const today = lagosDay(now);
+  const today = lagosDateString(now);
   if (day > today) return 'future';
   return day < addDays(today, -REPORT_WINDOW_DAYS) ? 'too_old' : 'ok';
 }
