@@ -150,7 +150,7 @@ describe('unverifyPayment', () => {
     results['payment_records'] = { data: stored({ verified_by: 'u9' }), error: null };
     const res = await unverifyPayment(A, 'wrong amount');
     expect(res.success).toBe(true);
-    expect(authorize).toHaveBeenCalledWith('manage_expenditure');
+    expect(authorize).toHaveBeenCalledWith('payments.verify');
     expect(paymentUpdates()[0]).toMatchObject({ is_verified: false, verified_at: null, verified_by: null });
     expect(audit).toHaveBeenCalledWith(expect.objectContaining({
       entityType: 'payment_records', entityId: A, newValues: expect.objectContaining({ is_verified: false }),

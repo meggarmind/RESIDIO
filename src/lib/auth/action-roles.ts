@@ -50,6 +50,7 @@ export const PERMISSIONS = {
   PAYMENTS_DELETE: 'payments.delete',
   PAYMENTS_BULK_UPDATE: 'payments.bulk_update',
   PAYMENTS_EXPORT: 'payments.export',
+  PAYMENTS_VERIFY: 'payments.verify',
 
   // Billing Module
   BILLING_VIEW: 'billing.view',
