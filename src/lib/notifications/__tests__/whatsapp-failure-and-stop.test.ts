@@ -197,6 +197,7 @@ describe('STOP then send round trip (#6)', () => {
           resident_code: 'R-1',
           phone_primary: PHONE,
           phone_secondary: null,
+          account_status: 'active',
         },
       ],
       resident_houses: [],
@@ -240,5 +241,18 @@ describe('STOP then send round trip (#6)', () => {
 
     await expect(isWhatsAppOptedIn('resident-1', PHONE)).resolves.toBe(false);
     await expect(sendNotification(item)).resolves.toMatchObject({ success: false });
+  });
+
+  it('a deactivated link (#849) refuses at enqueue and at send, though opted_in stays true', async () => {
+    useFake({
+      whatsapp_optins: [
+        { resident_id: 'resident-1', phone_number: PHONE, opted_in: true, deactivated_at: '2026-10-20T00:00:00Z' },
+      ],
+      notification_history: [],
+    });
+    const item = queueRow() as unknown as NotificationQueueItem;
+
+    await expect(isWhatsAppOptedIn('resident-1', PHONE)).resolves.toBe(false);
+    await expect(sendNotification(item)).resolves.toEqual({ success: false, error: 'WhatsApp recipient has not opted in' });
   });
 });
