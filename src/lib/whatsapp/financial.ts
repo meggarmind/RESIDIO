@@ -2,7 +2,7 @@ import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypt
 import { createAdminClient } from '@/lib/supabase/server';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
-import { getSettingResultAsService } from '@/lib/settings/service';
+import { getRawSettingsAsService, getSettingResultAsService } from '@/lib/settings/service';
 import { isWhatsAppMasterSwitchOn } from '@/lib/whatsapp/master-switch';
 import { isWhatsAppRecipientAllowed } from '@/lib/whatsapp/rollout';
 import type { WhatsAppInboundMessage, WhatsAppTextMessage } from '@/lib/whatsapp/types';
@@ -10,9 +10,12 @@ import type { WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
 import { formatCalendarDate } from '@/lib/utils/calendar-date';
 
 const SESSION_MINUTES = 15;
-const MAX_PIN_ATTEMPTS = 5;
-const PIN_LOCK_MINUTES = 24 * 60;
-const PIN_LOCKED_REPLY = 'Too many wrong PINs. Financial answers are locked for 24 hours. Try again after that.';
+// #891: 3 wrong in a row locks for 15 minutes; 6 wrong within 24 hours locks until the estate office resets it.
+const PIN_TRIES_IN_A_ROW = 3;
+const PIN_LOCK_MINUTES = 15;
+const PIN_TRIES_PER_WINDOW = 6;
+const PIN_WINDOW_HOURS = 24;
+const PIN_HARD_LOCKED_REPLY = 'Your PIN is locked after several wrong tries. The estate office needs to reset it.';
 const SET_PIN_HINT = 'reply PIN followed by 4–6 digits of your choice';
 
 export type FinancialMenuItem = 'balance' | 'last_payment' | 'next_due' | 'wallet' | 'statement';
@@ -32,6 +35,12 @@ export interface WhatsAppFinancialSession {
   expiresAt: string;
 }
 
+/** A PIN try counted before the PIN is checked (claim_whatsapp_pin_try, #891). */
+export type PinAttemptClaim =
+  | { status: 'counted'; triesInARow: number; triesInWindow: number; lockedUntil: string | null; hardLocked: boolean; claimedAt: string }
+  | { status: 'locked'; lockedUntil: string }
+  | { status: 'hard_locked' };
+
 export interface FinancialAnswer {
   body: string;
   metadata?: Record<string, unknown>;
@@ -50,9 +59,12 @@ export interface WhatsAppFinancialRepository {
   getForcePin(): Promise<boolean>;
   getPinHash(residentId: string): Promise<string | null>;
   setPinHash(residentId: string, hash: string): Promise<void>;
-  /** Counts a PIN attempt before it is checked; null while the resident is locked out. */
-  claimPinAttempt(residentId: string): Promise<number | null>;
-  clearPinAttempts(residentId: string): Promise<void>;
+  /** Counts a PIN try as wrong before it is checked; refused while the resident is locked. */
+  claimPinAttempt(residentId: string): Promise<PinAttemptClaim>;
+  /** After a correct PIN: resets the in-a-row count and takes the claimed try back out of the window. */
+  clearPinAttempts(residentId: string, claimedAt: string): Promise<void>;
+  /** The estate office contact line, or null when no phone or email is configured. */
+  getEstateContactLine(): Promise<string | null>;
   getBillableHouses(residentId: string): Promise<FinancialHouse[]>;
   getBalance(residentId: string, houseId: string): Promise<FinancialAnswer>;
   getLastPayment(residentId: string, houseId: string): Promise<FinancialAnswer>;
@@ -110,6 +122,23 @@ function menuText(): string {
     '5. Statement',
     `To set a security PIN, ${SET_PIN_HINT}.`,
   ].join('\n');
+}
+
+function lockTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Africa/Lagos' });
+}
+
+function pinRefusalText(claim: PinAttemptClaim): string {
+  if (claim.status === 'hard_locked' || (claim.status === 'counted' && claim.hardLocked)) return PIN_HARD_LOCKED_REPLY;
+  if (claim.status === 'locked' || claim.lockedUntil) {
+    return `For security, your PIN is locked until ${lockTime(claim.lockedUntil!)}. Nothing was shown.`;
+  }
+  // The 24-hour limit can arrive before (or with) the in-a-row one; then the next lock is the hard one.
+  const rowLeft = PIN_TRIES_IN_A_ROW - claim.triesInARow;
+  const windowLeft = PIN_TRIES_PER_WINDOW - claim.triesInWindow;
+  const left = Math.min(rowLeft, windowLeft);
+  const lock = windowLeft <= rowLeft ? 'until the estate office resets it' : `for ${PIN_LOCK_MINUTES} minutes`;
+  return `That PIN isn't correct. You have ${left} ${left === 1 ? 'try' : 'tries'} left before it locks ${lock}.`;
 }
 
 function parseMenuItem(text: string): FinancialMenuItem | null {
@@ -189,15 +218,28 @@ export function composeStatementAnswer(input: StatementCompositionInput): Financ
   };
 }
 
+interface PinTryRow {
+  status: 'counted' | 'locked' | 'hard_locked';
+  tries_in_a_row: number;
+  tries_in_window: number;
+  locked_until: string | null;
+  hard_locked: boolean;
+  claimed_at: string | null;
+}
+
 /**
- * The generated types do not know claim_whatsapp_pin_attempt or the lockout columns until the
- * #850 migration is applied and `npm run db:types` is re-run; remove these casts after that.
+ * The generated types do not know the #891 lock functions until that migration is applied and
+ * `npm run db:types` is re-run; remove these casts after that.
  */
 interface PinAttemptRpcClient {
   rpc(
-    name: 'claim_whatsapp_pin_attempt',
-    args: { p_resident_id: string; p_max_attempts: number; p_lock_minutes: number }
-  ): PromiseLike<{ data: number | null; error: unknown }>;
+    name: 'claim_whatsapp_pin_try',
+    args: { p_resident_id: string; p_soft_limit: number; p_soft_lock_minutes: number; p_hard_limit: number; p_window_hours: number }
+  ): PromiseLike<{ data: PinTryRow[] | null; error: unknown }>;
+  rpc(
+    name: 'clear_whatsapp_pin_try',
+    args: { p_resident_id: string; p_claimed_at: string }
+  ): PromiseLike<{ data: null; error: unknown }>;
 }
 
 function createSupabaseRepository(): WhatsAppFinancialRepository {
@@ -272,21 +314,47 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
     },
 
     async claimPinAttempt(residentId) {
-      const { data, error } = await (createAdminClient() as unknown as PinAttemptRpcClient).rpc('claim_whatsapp_pin_attempt', {
+      const { data, error } = await (createAdminClient() as unknown as PinAttemptRpcClient).rpc('claim_whatsapp_pin_try', {
         p_resident_id: residentId,
-        p_max_attempts: MAX_PIN_ATTEMPTS,
-        p_lock_minutes: PIN_LOCK_MINUTES,
+        p_soft_limit: PIN_TRIES_IN_A_ROW,
+        p_soft_lock_minutes: PIN_LOCK_MINUTES,
+        p_hard_limit: PIN_TRIES_PER_WINDOW,
+        p_window_hours: PIN_WINDOW_HOURS,
       });
       if (error) throw error;
-      return typeof data === 'number' ? data : null;
+      const row = data?.[0];
+      if (!row) throw new Error('WhatsApp PIN try was not counted: resident not found');
+      if (row.status === 'hard_locked') return { status: 'hard_locked' };
+      if (row.status === 'locked' && row.locked_until) return { status: 'locked', lockedUntil: row.locked_until };
+      if (row.status !== 'counted' || !row.claimed_at) throw new Error(`Unexpected WhatsApp PIN try status: ${row.status}`);
+      return {
+        status: 'counted',
+        triesInARow: row.tries_in_a_row,
+        triesInWindow: row.tries_in_window,
+        lockedUntil: row.locked_until,
+        hardLocked: row.hard_locked,
+        claimedAt: row.claimed_at,
+      };
     },
 
-    async clearPinAttempts(residentId) {
-      const { error } = await createAdminClient()
-        .from('residents')
-        .update({ whatsapp_pin_failed_attempts: 0, whatsapp_pin_locked_until: null } as never)
-        .eq('id', residentId);
+    async clearPinAttempts(residentId, claimedAt) {
+      const { error } = await (createAdminClient() as unknown as PinAttemptRpcClient).rpc('clear_whatsapp_pin_try', {
+        p_resident_id: residentId,
+        p_claimed_at: claimedAt,
+      });
       if (error) throw error;
+    },
+
+    async getEstateContactLine() {
+      const result = await getRawSettingsAsService(['estate_phone', 'estate_email']);
+      // A settings error drops the line rather than the lock reply.
+      if (result.status === 'error') return null;
+      const [phone, email] = ['estate_phone', 'estate_email'].map((key) => {
+        const value = result.values.get(key);
+        return typeof value === 'string' ? value.trim() : '';
+      });
+      const contacts = [phone, email].filter(Boolean);
+      return contacts.length ? `Contact the estate office on ${contacts.join(' or ')}.` : null;
     },
 
     async getBillableHouses(residentId) {
@@ -547,20 +615,12 @@ export async function handleFinancialMessage(
     if (existingHash) {
       // Count the attempt before checking it (#850), so concurrent guesses cannot outrun the lock.
       const attempt = await options.repository.claimPinAttempt(identity.id);
-      if (attempt === null) {
-        await sendFinancialReply(message, PIN_LOCKED_REPLY, options.send, identity.id);
+      if (attempt.status !== 'counted' || !verifyPin(pin, existingHash)) {
+        const contactLine = await options.repository.getEstateContactLine();
+        await sendFinancialReply(message, [pinRefusalText(attempt), contactLine].filter(Boolean).join('\n'), options.send, identity.id);
         return;
       }
-      if (!verifyPin(pin, existingHash)) {
-        const left = MAX_PIN_ATTEMPTS - attempt;
-        await sendFinancialReply(
-          message,
-          left > 0 ? `That PIN is not correct. ${left} attempt(s) left before a 24-hour lock.` : PIN_LOCKED_REPLY,
-          options.send, identity.id
-        );
-        return;
-      }
-      await options.repository.clearPinAttempts(identity.id);
+      await options.repository.clearPinAttempts(identity.id, attempt.claimedAt);
       if (!existingHash.startsWith(SALTED_PREFIX)) await options.repository.setPinHash(identity.id, hashPin(pin));
     } else {
       await options.repository.setPinHash(identity.id, hashPin(pin));

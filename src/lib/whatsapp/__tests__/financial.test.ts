@@ -11,11 +11,12 @@ import {
 import type {
   FinancialAnswer,
   FinancialHouse,
+  PinAttemptClaim,
   WhatsAppFinancialRepository,
 } from '@/lib/whatsapp/financial';
 import type { WhatsAppInboundMessage } from '@/lib/whatsapp/types';
 import type { WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
-import { getSettingResultAsService } from '@/lib/settings/service';
+import { getRawSettingsAsService, getSettingResultAsService } from '@/lib/settings/service';
 import { isWhatsAppMasterSwitchOn } from '@/lib/whatsapp/master-switch';
 import { createAdminClient } from '@/lib/supabase/server';
 
@@ -37,6 +38,7 @@ vi.mock('@/lib/whatsapp/rollout', () => ({
 
 vi.mock('@/lib/settings/service', () => ({
   getSettingResultAsService: vi.fn(),
+  getRawSettingsAsService: vi.fn(),
 }));
 
 const identity: WhatsAppResidentIdentity = {
@@ -48,6 +50,13 @@ const identity: WhatsAppResidentIdentity = {
   phoneSecondary: null,
   financialEligible: true,
 };
+
+const CLAIMED_AT = '2026-10-20T09:30:00.123456+00:00';
+const CONTACT_LINE = 'Contact the estate office on 0803 699 6725 or office@example.test.';
+
+function counted(fields: Partial<Extract<PinAttemptClaim, { status: 'counted' }>> = {}): PinAttemptClaim {
+  return { status: 'counted', triesInARow: 1, triesInWindow: 1, lockedUntil: null, hardLocked: false, claimedAt: CLAIMED_AT, ...fields };
+}
 
 const answer: FinancialAnswer = { body: 'Outstanding balance: ₦10,000.00.' };
 
@@ -62,8 +71,9 @@ function repository(houses: FinancialHouse[] = [{ id: 'house-1', label: 'OAK-1' 
     getForcePin: vi.fn().mockResolvedValue(false),
     getPinHash: vi.fn().mockResolvedValue(null),
     setPinHash: vi.fn().mockResolvedValue(undefined),
-    claimPinAttempt: vi.fn().mockResolvedValue(1),
+    claimPinAttempt: vi.fn().mockResolvedValue(counted()),
     clearPinAttempts: vi.fn().mockResolvedValue(undefined),
+    getEstateContactLine: vi.fn().mockResolvedValue(CONTACT_LINE),
     getBillableHouses: vi.fn().mockResolvedValue(houses),
     getBalance: vi.fn().mockResolvedValue(answer),
     getLastPayment: vi.fn().mockResolvedValue({ body: 'Last payment: ₦5,000.00.' }),
@@ -387,10 +397,10 @@ describe('WhatsApp PIN lockout and hashing (#850)', () => {
     expect(repo.claimPinAttempt).not.toHaveBeenCalled();
   });
 
-  it('counts a wrong PIN, says how many attempts are left and does not authenticate', async () => {
+  it('counts the try before checking it and reports tries left in a row, with the contact line', async () => {
     const repo = repository();
     vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
-    vi.mocked(repo.claimPinAttempt).mockResolvedValue(3);
+    vi.mocked(repo.claimPinAttempt).mockResolvedValue(counted({ triesInARow: 1, triesInWindow: 1 }));
     const send = vi.fn().mockResolvedValue({ success: true });
 
     await handleFinancialMessage(message('PIN 000000'), identity, { repository: repo, optedIn: true, send });
@@ -398,43 +408,129 @@ describe('WhatsApp PIN lockout and hashing (#850)', () => {
     expect(repo.claimPinAttempt).toHaveBeenCalledWith('resident-1');
     expect(repo.clearPinAttempts).not.toHaveBeenCalled();
     expect(repo.saveSession).not.toHaveBeenCalled();
-    expect(send.mock.calls[0]?.[0].body).toContain('2 attempt(s) left');
+    expect(send.mock.calls[0]?.[0].body).toBe(
+      "That PIN isn't correct. You have 2 tries left before it locks for 15 minutes.\n" + CONTACT_LINE
+    );
   });
 
-  it('locks on the fifth wrong PIN', async () => {
+  it('says one try is left on the second wrong PIN in a row', async () => {
     const repo = repository();
     vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
-    vi.mocked(repo.claimPinAttempt).mockResolvedValue(5);
+    vi.mocked(repo.claimPinAttempt).mockResolvedValue(counted({ triesInARow: 2, triesInWindow: 2 }));
+    const send = vi.fn().mockResolvedValue({ success: true });
+
+    await handleFinancialMessage(message('PIN 000000'), identity, { repository: repo, optedIn: true, send });
+
+    expect(send.mock.calls[0]?.[0].body).toContain('You have 1 try left before it locks for 15 minutes.');
+  });
+
+  it('names the estate-office lock when the 24-hour limit comes first', async () => {
+    const repo = repository();
+    vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
+    vi.mocked(repo.claimPinAttempt).mockResolvedValue(counted({ triesInARow: 1, triesInWindow: 5 }));
+    const send = vi.fn().mockResolvedValue({ success: true });
+
+    await handleFinancialMessage(message('PIN 000000'), identity, { repository: repo, optedIn: true, send });
+
+    expect(send.mock.calls[0]?.[0].body).toBe(
+      "That PIN isn't correct. You have 1 try left before it locks until the estate office resets it.\n" + CONTACT_LINE
+    );
+  });
+
+  it('names the estate-office lock when both limits arrive on the same try', async () => {
+    const repo = repository();
+    vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
+    vi.mocked(repo.claimPinAttempt).mockResolvedValue(counted({ triesInARow: 1, triesInWindow: 4 }));
+    const send = vi.fn().mockResolvedValue({ success: true });
+
+    await handleFinancialMessage(message('PIN 000000'), identity, { repository: repo, optedIn: true, send });
+
+    expect(send.mock.calls[0]?.[0].body).toBe(
+      "That PIN isn't correct. You have 2 tries left before it locks until the estate office resets it.\n" + CONTACT_LINE
+    );
+  });
+
+  it('locks for 15 minutes on the third wrong PIN in a row and shows the Lagos time', async () => {
+    const repo = repository();
+    vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
+    vi.mocked(repo.claimPinAttempt).mockResolvedValue(
+      counted({ triesInARow: 3, triesInWindow: 3, lockedUntil: '2026-10-20T09:45:00.000Z' })
+    );
     const send = vi.fn().mockResolvedValue({ success: true });
 
     await handleFinancialMessage(message('PIN 000000'), identity, { repository: repo, optedIn: true, send });
 
     expect(repo.saveSession).not.toHaveBeenCalled();
-    expect(send.mock.calls[0]?.[0].body).toContain('locked for 24 hours');
+    expect(send.mock.calls[0]?.[0].body).toBe(
+      'For security, your PIN is locked until 10:45. Nothing was shown.\n' + CONTACT_LINE
+    );
   });
 
-  it('refuses even the correct PIN while locked', async () => {
+  it('refuses even the correct PIN inside the 15-minute lock', async () => {
     const repo = repository();
     vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
-    vi.mocked(repo.claimPinAttempt).mockResolvedValue(null);
+    vi.mocked(repo.claimPinAttempt).mockResolvedValue({ status: 'locked', lockedUntil: '2026-10-20T09:45:00.000Z' });
     const send = vi.fn().mockResolvedValue({ success: true });
 
     await handleFinancialMessage(message('PIN 482915'), identity, { repository: repo, optedIn: true, send });
 
     expect(repo.clearPinAttempts).not.toHaveBeenCalled();
     expect(repo.saveSession).not.toHaveBeenCalled();
-    expect(send.mock.calls[0]?.[0].body).toContain('locked for 24 hours');
+    expect(send.mock.calls[0]?.[0].body).toBe(
+      'For security, your PIN is locked until 10:45. Nothing was shown.\n' + CONTACT_LINE
+    );
   });
 
-  it('clears the counter and authenticates on a correct PIN, keeping a salted hash as is', async () => {
+  it('locks until the estate office resets it on the sixth wrong PIN in 24 hours', async () => {
     const repo = repository();
     vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
-    vi.mocked(repo.claimPinAttempt).mockResolvedValue(4);
+    vi.mocked(repo.claimPinAttempt).mockResolvedValue(
+      counted({ triesInARow: 3, triesInWindow: 6, lockedUntil: '2026-10-20T09:45:00.000Z', hardLocked: true })
+    );
+    const send = vi.fn().mockResolvedValue({ success: true });
+
+    await handleFinancialMessage(message('PIN 000000'), identity, { repository: repo, optedIn: true, send });
+
+    expect(repo.saveSession).not.toHaveBeenCalled();
+    expect(send.mock.calls[0]?.[0].body).toBe(
+      'Your PIN is locked after several wrong tries. The estate office needs to reset it.\n' + CONTACT_LINE
+    );
+  });
+
+  it('refuses even the correct PIN after the hard lock, however long ago it was set', async () => {
+    const repo = repository();
+    vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
+    vi.mocked(repo.claimPinAttempt).mockResolvedValue({ status: 'hard_locked' });
     const send = vi.fn().mockResolvedValue({ success: true });
 
     await handleFinancialMessage(message('PIN 482915'), identity, { repository: repo, optedIn: true, send });
 
-    expect(repo.clearPinAttempts).toHaveBeenCalledWith('resident-1');
+    expect(repo.clearPinAttempts).not.toHaveBeenCalled();
+    expect(repo.saveSession).not.toHaveBeenCalled();
+    expect(send.mock.calls[0]?.[0].body).toContain('The estate office needs to reset it.');
+  });
+
+  it('leaves the contact line out when none is configured', async () => {
+    const repo = repository();
+    vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
+    vi.mocked(repo.getEstateContactLine).mockResolvedValue(null);
+    vi.mocked(repo.claimPinAttempt).mockResolvedValue(counted({ triesInARow: 1, triesInWindow: 1 }));
+    const send = vi.fn().mockResolvedValue({ success: true });
+
+    await handleFinancialMessage(message('PIN 000000'), identity, { repository: repo, optedIn: true, send });
+
+    expect(send.mock.calls[0]?.[0].body).toBe("That PIN isn't correct. You have 2 tries left before it locks for 15 minutes.");
+  });
+
+  it('clears the claimed try and authenticates on a correct PIN, keeping a salted hash as is', async () => {
+    const repo = repository();
+    vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
+    vi.mocked(repo.claimPinAttempt).mockResolvedValue(counted({ triesInARow: 2, triesInWindow: 5 }));
+    const send = vi.fn().mockResolvedValue({ success: true });
+
+    await handleFinancialMessage(message('PIN 482915'), identity, { repository: repo, optedIn: true, send });
+
+    expect(repo.clearPinAttempts).toHaveBeenCalledWith('resident-1', CLAIMED_AT);
     expect(repo.setPinHash).not.toHaveBeenCalled();
     expect(repo.saveSession).toHaveBeenCalledWith(expect.objectContaining({ pinAuthenticated: true }));
     expect(send.mock.calls[0]?.[0].body).toBe('PIN verified.');
@@ -452,18 +548,48 @@ describe('WhatsApp PIN lockout and hashing (#850)', () => {
     expect(verifyPin('482915', stored!)).toBe(true);
   });
 
-  it('claims attempts through the claim_whatsapp_pin_attempt RPC and treats no row as locked', async () => {
-    const rpc = vi.fn().mockResolvedValueOnce({ data: 2, error: null }).mockResolvedValueOnce({ data: null, error: null });
+  it('claims tries through the claim_whatsapp_pin_try RPC with the #891 thresholds', async () => {
+    const row = { tries_in_a_row: 1, tries_in_window: 4, locked_until: null, hard_locked: false, claimed_at: CLAIMED_AT };
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: [{ ...row, status: 'counted' }], error: null })
+      .mockResolvedValueOnce({ data: [{ ...row, status: 'locked', locked_until: '2026-10-20T09:45:00.000Z', claimed_at: null }], error: null })
+      .mockResolvedValueOnce({ data: [{ ...row, status: 'hard_locked', hard_locked: true, claimed_at: null }], error: null })
+      .mockResolvedValueOnce({ data: [], error: null });
     vi.mocked(createAdminClient).mockReturnValue({ rpc } as unknown as ReturnType<typeof createAdminClient>);
     const repo = createSupabaseWhatsAppFinancialRepository();
 
-    await expect(repo.claimPinAttempt('resident-1')).resolves.toBe(2);
-    await expect(repo.claimPinAttempt('resident-1')).resolves.toBeNull();
-    expect(rpc).toHaveBeenCalledWith('claim_whatsapp_pin_attempt', {
+    await expect(repo.claimPinAttempt('resident-1')).resolves.toEqual(counted({ triesInARow: 1, triesInWindow: 4 }));
+    await expect(repo.claimPinAttempt('resident-1')).resolves.toEqual({ status: 'locked', lockedUntil: '2026-10-20T09:45:00.000Z' });
+    await expect(repo.claimPinAttempt('resident-1')).resolves.toEqual({ status: 'hard_locked' });
+    await expect(repo.claimPinAttempt('resident-1')).rejects.toThrow('not counted');
+    expect(rpc).toHaveBeenCalledWith('claim_whatsapp_pin_try', {
       p_resident_id: 'resident-1',
-      p_max_attempts: 5,
-      p_lock_minutes: 1440,
+      p_soft_limit: 3,
+      p_soft_lock_minutes: 15,
+      p_hard_limit: 6,
+      p_window_hours: 24,
     });
+  });
+
+  it('clears a claimed try through the clear_whatsapp_pin_try RPC', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: null });
+    vi.mocked(createAdminClient).mockReturnValue({ rpc } as unknown as ReturnType<typeof createAdminClient>);
+
+    await createSupabaseWhatsAppFinancialRepository().clearPinAttempts('resident-1', CLAIMED_AT);
+
+    expect(rpc).toHaveBeenCalledWith('clear_whatsapp_pin_try', { p_resident_id: 'resident-1', p_claimed_at: CLAIMED_AT });
+  });
+
+  it.each([
+    ['phone and email', { status: 'ok', values: new Map([['estate_phone', '0803 699 6725'], ['estate_email', 'office@example.test']]) }, CONTACT_LINE],
+    ['phone only', { status: 'ok', values: new Map([['estate_phone', '0803 699 6725'], ['estate_email', ' ']]) }, 'Contact the estate office on 0803 699 6725.'],
+    ['nothing set', { status: 'ok', values: new Map() }, null],
+    ['a settings error', { status: 'error', message: 'down' }, null],
+  ])('builds the estate contact line from Estate info (%s)', async (_label, result, expected) => {
+    vi.mocked(getRawSettingsAsService).mockResolvedValue(result as Awaited<ReturnType<typeof getRawSettingsAsService>>);
+
+    await expect(createSupabaseWhatsAppFinancialRepository().getEstateContactLine()).resolves.toBe(expected);
+    expect(getRawSettingsAsService).toHaveBeenCalledWith(['estate_phone', 'estate_email']);
   });
 
   it.each([

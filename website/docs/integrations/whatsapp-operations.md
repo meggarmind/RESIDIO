@@ -8,7 +8,7 @@ residio_sources:
   - src/actions/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp/**
   - src/app/api/whatsapp/**
-residio_verified_commit: 7cc40adf
+residio_verified_commit: 6edc29d2
 residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
@@ -145,7 +145,12 @@ A number linked to a resident (by matching their record or with a link code) kee
 
 The policy is **on** by default. Leave it on for estates where phones are commonly shared.
 
-After **5 wrong PINs** in a row, financial answers for that resident are locked for **24 hours**, even if the correct PIN is then entered. The lock lifts on its own, or earlier with **Reset PIN**, and the resident is told to try again after 24 hours; a correct PIN before the fifth wrong one resets the count.
+Wrong PINs lock financial answers in two steps. Both refuse even the correct PIN while they last:
+
+- **3 wrong PINs in a row** lock the PIN for **15 minutes**. The resident is told the time it unlocks, and the lock lifts on its own. A correct PIN before the third wrong one resets the count.
+- **6 wrong PINs within 24 hours** lock the PIN until the estate office resets it with **Reset PIN**. This lock never lifts on its own. A correct PIN does not reset this count.
+
+Every wrong-PIN and lock reply ends with the estate office phone and email from **Settings → Estate info**, or with nothing if neither is set.
 
 ### Setting a PIN
 
@@ -216,7 +221,8 @@ The cleanup runs automatically shortly after midnight, documented on the Schedul
 | One resident receives nothing | No approved opt-in record for that resident |
 | Sends stop partway through a day | A daily or burst cap has been reached |
 | Financial questions go unanswered | The resident has no PIN set while the PIN policy is on, or the number is linked but is neither on the resident's record nor linked with a link code |
-| Resident is told financial answers are locked | Five wrong PINs were entered; the lock lifts 24 hours after the fifth, or earlier with **Reset PIN** |
+| Resident is told their PIN is locked until a time | Three wrong PINs in a row; the lock lifts at that time, or earlier with **Reset PIN** |
+| Resident is told the estate office needs to reset their PIN | Six wrong PINs within 24 hours; only **Reset PIN** lifts it |
 | Resident forgot their PIN | Confirm identity, then use **Reset PIN** and give them the setup code |
 | A link or setup code is not accepted | It expired, was already used, or a newer setup code replaced it. Issue a new one |
 | Test connection fails | The provider rejected the saved credentials — recheck the access token or auth token against the provider's console. For Chatmaid, the from-number may not be a paired phone, or the paired phone is not connected to the bridge |
