@@ -113,7 +113,7 @@ describe('formatDaysFromDue', () => {
     expect(await screen.findByText('7 days before')).toBeInTheDocument();
     expect(screen.getByText('3 days after')).toBeInTheDocument();
     expect(screen.queryByText(/-\d/)).not.toBeInTheDocument();
-    expect(screen.getByText(/Reminder steps send by Email only/)).toBeInTheDocument();
+    expect(screen.getByText(/A WhatsApp step reaches only residents who have opted in to WhatsApp/)).toBeInTheDocument();
   });
 });
 
