@@ -177,7 +177,7 @@ export function passesStoredFlag(file: string, rawSource: string, site: CallSite
   }
   if (FORWARDERS.has(file)) {
     const args = site.args.trim();
-    return /\.\.\.context\b|\bcontext\??\.residentOverride\b/.test(args) || /,\s*context$/.test(args);
+    return /\.\.\.context\b|\bcontext\??\.residentOverride\b/.test(args) || /,\s*context\s*(,|$)/.test(args);
   }
   return false;
 }

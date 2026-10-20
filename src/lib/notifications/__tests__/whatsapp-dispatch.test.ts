@@ -188,7 +188,7 @@ describe('WhatsApp notification dispatch', () => {
       languageCode: 'en_US',
       parameters: ['Ada', 'INV-001', 'NGN 10,000', '1 Sep'],
       idempotencySeed: 'queue-1',
-    }, undefined, undefined);
+    }, undefined, undefined, expect.objectContaining({ purpose: 'notification', residentId: 'resident-1' }));
   });
 
   it('rejects WhatsApp sends when the configured daily cap is reached', async () => {

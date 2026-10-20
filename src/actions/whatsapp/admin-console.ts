@@ -3,6 +3,7 @@
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { createAdminClient } from '@/lib/supabase/server';
+import { OUTBOUND_PENDING_TIMEOUT_MINUTES } from '@/lib/whatsapp/outbound-sends';
 
 type Result<T> = { success: boolean; data: T | null; error: string | null };
 
@@ -27,6 +28,27 @@ export async function getWhatsAppDisclosureLogs(): Promise<Result<unknown[]>> {
     .select('id, resident_id, phone_number, house_id, menu_item, pin_authenticated, created_at, resident:residents(first_name, last_name, resident_code), house:houses(house_number, street:streets(name))')
     .order('created_at', { ascending: false })
     .limit(500);
+
+  return { success: !error, data: data || [], error: error?.message || null };
+}
+
+/**
+ * Recent sends residents may not have received (#839): failed by the provider,
+ * or Chatmaid sends still unconfirmed past the pending timeout.
+ */
+export async function getWhatsAppDeliveryProblems(): Promise<Result<unknown[]>> {
+  const authorization = await authorizePermission(PERMISSIONS.WHATSAPP_VIEW);
+  if (!authorization.authorized) return { success: false, data: null, error: authorization.error || 'Unauthorized' };
+
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const staleBefore = new Date(Date.now() - OUTBOUND_PENDING_TIMEOUT_MINUTES * 60 * 1000).toISOString();
+  const { data, error } = await createAdminClient()
+    .from('whatsapp_outbound_sends')
+    .select('id, provider, purpose, phone_number, inbound_message_id, status, error_code, error_message, created_at, status_updated_at, resident:residents(first_name, last_name, resident_code)')
+    .gte('created_at', since)
+    .or(`status.eq.failed,and(status.eq.pending,provider.eq.chatmaid,created_at.lt.${staleBefore})`)
+    .order('created_at', { ascending: false })
+    .limit(200);
 
   return { success: !error, data: data || [], error: error?.message || null };
 }

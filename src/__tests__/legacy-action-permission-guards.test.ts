@@ -372,7 +372,7 @@ describe('Part 5: legacy role queries migrated to RBAC vocabulary', () => {
 
   it('admin-notifier.ts default-recipient fallback filters by app_roles.name, and fallbackRoles is gone', () => {
     expect(adminNotifierSource).not.toMatch(/\.in\(\s*'role'/);
-    expect(adminNotifierSource).toContain("app_roles!inner(name)");
+    expect(adminNotifierSource).toContain("app_roles!profiles_role_id_fkey!inner(name)");
     expect(adminNotifierSource).toMatch(/\.in\(\s*'app_roles\.name',\s*\[\s*'super_admin',\s*'chairman'\s*\]\s*\)/);
     expect(adminNotifierSource).not.toContain('fallbackRoles');
   });
