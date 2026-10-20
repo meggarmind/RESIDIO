@@ -132,7 +132,8 @@ A number linked to a resident (by matching their record or with a link code) kee
 
 - **Changing a resident's phone deactivates the old number's link.** When a resident's primary or secondary phone is edited, the links for any number removed from their record stop working. Whoever holds the old number is treated as an unknown contact until it is linked again with a fresh link code.
 - **Archived and suspended residents are not answered** over a linked number.
-- **Financial answers need the number on the resident's record.** A linked number that is not the resident's primary or secondary phone — for example a spouse's phone linked with a link code — gets estate announcements and notices only. To give it balance and payment answers, add it to the resident's record as their primary or secondary phone.
+- **Financial answers need a verified link.** A link is verified when the number is the resident's primary or secondary phone, or when it was linked with a link code — for example a spouse's phone. Any other linked number gets estate announcements and notices only. Archived and suspended residents never get financial answers.
+- **Deactivated links get nothing.** A deactivated link receives no announcements or notices, and shows as **Deactivated** in the opt-in registry. A link code re-activates it.
 
 ## Financial PIN policy
 
@@ -180,7 +181,7 @@ The cleanup runs automatically shortly after midnight, documented on the Schedul
 | Nothing sends | No provider is connected, the master switch is off, rollout mode is `Disabled`, or the recipient is outside the pilot scope |
 | One resident receives nothing | No approved opt-in record for that resident |
 | Sends stop partway through a day | A daily or burst cap has been reached |
-| Financial questions go unanswered | The resident has no PIN set while the PIN policy is on, or the number is linked but is not the resident's primary or secondary phone |
+| Financial questions go unanswered | The resident has no PIN set while the PIN policy is on, or the number is linked but is neither on the resident's record nor linked with a link code |
 | Resident is told financial answers are locked | Five wrong PINs were entered; the lock lifts 24 hours after the fifth |
 | Test connection fails | The provider rejected the saved credentials — recheck the access token or auth token against the provider's console |
 | Chatmaid sends fail with "bridge is disconnected", or you received a WhatsApp disconnected alert | The paired phone has lost its connection — re-pair it in the Chatmaid dashboard |

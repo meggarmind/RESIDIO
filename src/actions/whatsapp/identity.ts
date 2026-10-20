@@ -112,7 +112,8 @@ export async function importWhatsAppOptIns(
     const { data: existing, error: existingError } = await adminClient
       .from('whatsapp_optins')
       .select('resident_id')
-      .in('resident_id', residentIds);
+      .in('resident_id', residentIds)
+      .is('deactivated_at', null);
     if (existingError) {
       return { success: false, data: null, error: 'Failed to check existing WhatsApp opt-ins.' };
     }
@@ -279,7 +280,7 @@ export async function getWhatsAppOptIns(): Promise<ActionResult<unknown[]>> {
   const adminClient = createAdminClient();
   const { data, error } = await adminClient
     .from('whatsapp_optins')
-    .select('id, resident_id, phone_number, opted_in, source, opted_in_at, opted_out_at, created_at, updated_at, resident:residents(first_name, last_name, resident_code)')
+    .select('id, resident_id, phone_number, opted_in, source, opted_in_at, opted_out_at, deactivated_at, link_verified_at, created_at, updated_at, resident:residents(first_name, last_name, resident_code)')
     .order('updated_at', { ascending: false });
 
   return {

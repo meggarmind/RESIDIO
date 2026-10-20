@@ -87,7 +87,7 @@ describe('updateResident: WhatsApp links on a phone change (#849)', () => {
     const result = await updateResident('res-1', { ...FORM, phone_primary: '08000000009' });
 
     expect(result.error).toBeNull();
-    expect(mocks.optinUpdate).toHaveBeenCalledWith('whatsapp_optins', { deactivated_at: expect.any(String) });
+    expect(mocks.optinUpdate).toHaveBeenCalledWith('whatsapp_optins', { deactivated_at: expect.any(String), link_verified_at: null });
     expect(mocks.optinFilters).toHaveBeenCalledWith([
       ['eq', 'resident_id', 'res-1'],
       ['in', 'phone_number', ['+2348000000001']],

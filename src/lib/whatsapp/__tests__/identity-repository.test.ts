@@ -98,6 +98,32 @@ describe('findLinkedResidents (#849)', () => {
     expect(linked[0].financialEligible).toBe(false);
   });
 
+  it('gives an off-roster link made with a LINK code (e.g. a spouse) the financial tier', async () => {
+    db.tables.residents = [resident({ phone_primary: '08000000009' })];
+    db.tables.whatsapp_optins = [];
+    const repository = createSupabaseWhatsAppIdentityRepository();
+
+    await repository.setOptIn('res-1', NUMBER, false, 'in_chat', true);
+    await repository.setOptIn('res-1', NUMBER, true, 'in_chat');
+
+    const linked = await repository.findLinkedResidents(NUMBER);
+    expect(linked).toHaveLength(1);
+    expect(linked[0].financialEligible).toBe(true);
+  });
+
+  it.each(['archived', 'suspended'])('skips a %s resident even with a LINK-code link', async (status) => {
+    db.tables.residents = [resident({ phone_primary: '08000000009', account_status: status })];
+    db.tables.whatsapp_optins = [link({ link_verified_at: '2026-10-20T00:00:00Z' })];
+
+    expect(await createSupabaseWhatsAppIdentityRepository().findLinkedResidents(NUMBER)).toEqual([]);
+  });
+
+  it('ignores a deactivated LINK-code link', async () => {
+    db.tables.whatsapp_optins = [link({ link_verified_at: '2026-10-20T00:00:00Z', deactivated_at: '2026-10-20T01:00:00Z' })];
+
+    expect(await createSupabaseWhatsAppIdentityRepository().findLinkedResidents(NUMBER)).toEqual([]);
+  });
+
   it('accepts a link on the secondary roster number', async () => {
     db.tables.residents = [resident({ phone_primary: '08000000009', phone_secondary: '08000000001' })];
 

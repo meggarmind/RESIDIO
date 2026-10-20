@@ -83,6 +83,9 @@ describe('WhatsApp operations console actions', () => {
     const disclosures = [{ phone_number: '+2348000000000', menu_item: 'balance', pin_authenticated: true, created_at: '2026-08-24T10:00:00Z', resident: person, house: null }];
     expect(filterOptIns(optIns, 'res001', 'opted_in')).toHaveLength(1);
     expect(filterOptIns(optIns, 'res001', 'opted_out')).toHaveLength(0);
+    const deactivated = [{ ...optIns[0], deactivated_at: '2026-10-20T00:00:00Z' }];
+    expect(filterOptIns(deactivated, 'res001', 'opted_in')).toHaveLength(0);
+    expect(filterOptIns(deactivated, 'res001', 'deactivated')).toHaveLength(1);
     expect(filterDisclosureLogs(disclosures, 'balance', '2026-08-24')).toHaveLength(1);
     expect(filterDisclosureLogs(disclosures, 'balance', '2026-08-23')).toHaveLength(0);
   });

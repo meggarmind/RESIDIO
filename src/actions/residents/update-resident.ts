@@ -126,7 +126,7 @@ export async function updateResident(id: string, formData: ResidentFormData): Pr
   if (removedNumbers.length > 0) {
     const { error: optinError } = await createAdminClient()
       .from('whatsapp_optins')
-      .update({ deactivated_at: new Date().toISOString() })
+      .update({ deactivated_at: new Date().toISOString(), link_verified_at: null })
       .eq('resident_id', id)
       .in('phone_number', removedNumbers)
       .is('deactivated_at', null);

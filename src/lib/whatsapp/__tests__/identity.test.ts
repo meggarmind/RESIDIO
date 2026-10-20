@@ -110,7 +110,7 @@ describe('WhatsApp identity and consent', () => {
     const result = await handleResidentMessage(message('LINK 123456', '2348111111111'), { repository: repo, send });
 
     expect(result).toMatchObject({ status: 'linked', residentId: 'resident-1', optedIn: false });
-    expect(repo.setOptIn).toHaveBeenCalledWith('resident-1', '+2348111111111', false, 'in_chat');
+    expect(repo.setOptIn).toHaveBeenCalledWith('resident-1', '+2348111111111', false, 'in_chat', true);
     expect(repo.attachPendingContact).toHaveBeenCalledWith('+2348111111111', 'resident-1');
     expect(send.mock.calls[0]?.[0].body).toContain('Reply YES');
   });
