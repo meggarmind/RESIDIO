@@ -8,7 +8,7 @@ residio_sources:
   - src/lib/parsers/**
   - src/actions/email-imports/**
   - src/app/(dashboard)/settings/email-integration/**
-residio_verified_commit: 32105e9e
+residio_verified_commit: 8d77e88a
 residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
@@ -51,7 +51,7 @@ Column names vary between statement types, so the parser accepts common variatio
 
 ## Password-protected statements
 
-Bank statement PDFs are often password protected. Residio stores a password per bank account so an admin-started fetch can open them without manual intervention. The hourly sync cannot read these passwords yet, so a protected statement it fetches is not parsed there. Manage them in the **PDF Statement Passwords** card on **Settings → Money → Bank Accounts**; changing them needs the manage statement passwords permission, and removing one asks first.
+Bank statement PDFs are often password protected. Residio stores a password per bank account so both an admin-started fetch and the hourly sync can open them without manual intervention. Each time the hourly sync reads a stored password it records the read in the system action log; the password itself is never logged. Manage them in the **PDF Statement Passwords** card on **Settings → Money → Bank Accounts**; changing them needs the manage statement passwords permission, and removing one asks first.
 
 Passwords are stored encrypted and are never displayed back. To change one, set a new value; to stop automated opening, remove it.
 

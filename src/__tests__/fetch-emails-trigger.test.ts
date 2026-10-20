@@ -104,4 +104,19 @@ describe('cron fetch-emails route (#488)', () => {
       mocks.runEmailFetch.mock.invocationCallOrder[0],
     );
   });
+
+  it('parses with the system password read, since the cron run has no session (#884)', async () => {
+    mocks.verifyCronAuth.mockReturnValue(null);
+    mocks.getActiveGmailAddress.mockResolvedValue('a@b.c');
+    mocks.runEmailFetch.mockResolvedValue({ ...okResult, emailsFetched: 1 });
+    mocks.parseAllPendingEmails.mockResolvedValue({
+      messagesParsed: 1, transactionsExtracted: 0, errored: 0, error: null,
+    });
+
+    await GET(request);
+
+    expect(mocks.parseAllPendingEmails).toHaveBeenCalledWith('imp-1', {
+      systemSource: 'cron:fetch-emails',
+    });
+  });
 });
