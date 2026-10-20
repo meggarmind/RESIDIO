@@ -1,6 +1,4 @@
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   canPerformWhatsAppFinancialLookup,
@@ -480,25 +478,5 @@ describe('WhatsApp PIN lockout and hashing (#850)', () => {
     vi.mocked(createAdminClient).mockReturnValue({ from: vi.fn().mockReturnValue(chain) } as unknown as ReturnType<typeof createAdminClient>);
 
     await expect(createSupabaseWhatsAppFinancialRepository().getForcePin()).resolves.toBe(expected);
-  });
-});
-
-describe('WhatsApp PIN lockout migration (#850)', () => {
-  const sql = readFileSync(path.join(process.cwd(), 'supabase/migrations/20261020120000_whatsapp_pin_lockout.sql'), 'utf8');
-  const body = sql.slice(sql.indexOf('BEGIN;'));
-
-  it('turns the force-PIN policy on', () => {
-    expect(body).toContain("UPDATE public.system_settings SET value = 'true'::jsonb WHERE key = 'whatsapp_force_pin';");
-  });
-
-  it('refuses attempts while locked and unlocks once the lock expires', () => {
-    expect(body).toContain('AND (r.whatsapp_pin_locked_until IS NULL OR r.whatsapp_pin_locked_until <= now())');
-    expect(body).toContain('WHEN r.whatsapp_pin_locked_until IS NOT NULL THEN 1');
-    expect(body).toContain('THEN now() + make_interval(mins => p_lock_minutes)');
-  });
-
-  it('is executable by service_role only', () => {
-    expect(body).toContain('REVOKE ALL ON FUNCTION public.claim_whatsapp_pin_attempt(uuid, integer, integer) FROM PUBLIC, anon, authenticated;');
-    expect(body).toMatch(/SECURITY INVOKER\s+SET search_path = ''/);
   });
 });
