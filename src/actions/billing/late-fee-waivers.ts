@@ -131,7 +131,7 @@ export async function requestLateFeeWaiver(params: {
   // Get the invoice to check if it has a late fee applied
   const { data: invoice, error: invoiceError } = await supabase
     .from('invoices')
-    .select('id, invoice_number, resident_id, status, amount_due, invoice_items(description, amount)')
+    .select('id, invoice_number, resident_id, status, amount_due, invoice_items(amount, late_fee_applied_at)')
     .eq('id', invoiceId)
     .single();
 

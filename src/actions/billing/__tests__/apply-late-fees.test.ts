@@ -83,7 +83,7 @@ const overdueInvoice = {
     amount_due: 10000,
     due_date: '2026-07-01',
     status: 'unpaid',
-    invoice_items: [{ description: 'Security Levy', amount: 10000 }],
+    invoice_items: [{ amount: 10000, late_fee_applied_at: null }],
 };
 
 /** The chain returned for each `.from(table)` call, in call order. */
@@ -157,6 +157,7 @@ describe('runLateFeeApplication (cron trigger) honours configured settings', () 
             invoice_id: 'invoice-1',
             amount: 1200,
             description: 'Late Fee (auto)',
+            late_fee_applied_at: expect.any(String),
         });
 
         // Uses the admin (service-role) client throughout the cron path, not
@@ -194,17 +195,17 @@ describe('runLateFeeApplication uses only columns the schema has (#806)', () => 
         const [selectChain, updateChain] = chainsFor(client, 'invoices');
         const selected = vi.mocked(selectChain.select).mock.calls[0][0] as string;
         expect(selected).not.toContain('metadata');
-        expect(selected).toContain('invoice_items(description, amount)');
+        expect(selected).toContain('invoice_items(amount, late_fee_applied_at)');
         expect(Object.keys(vi.mocked(updateChain.update).mock.calls[0][0] as object)).toEqual(['amount_due']);
         const [itemChain] = chainsFor(client, 'invoice_items');
-        expect(Object.keys(vi.mocked(itemChain.insert).mock.calls[0][0] as object).sort()).toEqual(['amount', 'description', 'invoice_id']);
+        expect(Object.keys(vi.mocked(itemChain.insert).mock.calls[0][0] as object).sort()).toEqual(['amount', 'description', 'invoice_id', 'late_fee_applied_at']);
     });
 
     it('skips an invoice that already carries a late-fee item, writing nothing to it', async () => {
         enableFees();
         const charged = {
             ...overdueInvoice,
-            invoice_items: [...overdueInvoice.invoice_items, { description: 'Late Fee (auto)', amount: 500 }],
+            invoice_items: [...overdueInvoice.invoice_items, { amount: 500, late_fee_applied_at: '2026-10-01T00:00:00Z' }],
         };
         const client = createMockClient([
             { data: [], error: null },
@@ -221,11 +222,11 @@ describe('runLateFeeApplication uses only columns the schema has (#806)', () => 
         expect(chainsFor(client, 'invoices')).toHaveLength(1);
     });
 
-    it('charges an invoice whose only late-fee-like line is an admin adjustment', async () => {
+    it('charges an invoice whose admin line is typed as the reserved description (#830)', async () => {
         enableFees();
         const adjusted = {
             ...overdueInvoice,
-            invoice_items: [...overdueInvoice.invoice_items, { description: 'Late Fee adjustment', amount: 200 }],
+            invoice_items: [...overdueInvoice.invoice_items, { description: 'Late Fee (auto)', amount: 200, late_fee_applied_at: null }],
         };
         const client = createMockClient([
             { data: [], error: null },

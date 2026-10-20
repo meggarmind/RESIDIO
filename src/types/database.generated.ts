@@ -2972,6 +2972,7 @@ export type Database = {
           description: string
           id: string
           invoice_id: string
+          late_fee_applied_at: string | null
         }
         Insert: {
           amount: number
@@ -2979,6 +2980,7 @@ export type Database = {
           description: string
           id?: string
           invoice_id: string
+          late_fee_applied_at?: string | null
         }
         Update: {
           amount?: number
@@ -2986,6 +2988,7 @@ export type Database = {
           description?: string
           id?: string
           invoice_id?: string
+          late_fee_applied_at?: string | null
         }
         Relationships: [
           {

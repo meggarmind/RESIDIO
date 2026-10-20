@@ -230,7 +230,7 @@ describe('requestLateFeeWaiver', () => {
       id: 'inv-1',
       invoice_number: 'INV-1',
       resident_id: 'r1',
-      invoice_items: [{ description: 'Late Fee (auto)', amount: 1000 }],
+      invoice_items: [{ amount: 1000, late_fee_applied_at: '2026-10-01T00:00:00Z' }],
     };
   });
 
@@ -296,7 +296,19 @@ describe('requestLateFeeWaiver', () => {
       id: 'inv-1',
       invoice_number: 'INV-1',
       resident_id: 'r1',
-      invoice_items: [{ description: 'Late Fee adjustment', amount: 1000 }],
+      invoice_items: [{ amount: 1000, late_fee_applied_at: null }],
+    };
+    const result = await requestLateFeeWaiver({ invoiceId: 'inv-1', reason: 'r', waiverType: 'full' });
+    expect(result).toEqual({ success: false, error: 'This invoice does not have a late fee applied' });
+    expect(state.writes).toEqual([]);
+  });
+
+  it('refuses a waiver on an admin line typed as the reserved late-fee description (#830)', async () => {
+    state.singles.invoices = {
+      id: 'inv-1',
+      invoice_number: 'INV-1',
+      resident_id: 'r1',
+      invoice_items: [{ description: 'Late Fee (auto)', amount: 1000, late_fee_applied_at: null }],
     };
     const result = await requestLateFeeWaiver({ invoiceId: 'inv-1', reason: 'r', waiverType: 'full' });
     expect(result).toEqual({ success: false, error: 'This invoice does not have a late fee applied' });
