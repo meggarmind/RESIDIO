@@ -1172,7 +1172,7 @@ async function askForClearance(turn: Turn, lead: string): Promise<void> {
   const result = await repository.requestClearance({ residentId: turn.identity.id, residentName: `${turn.identity.firstName} ${turn.identity.lastName}`, houseId: house.id, houseLabel: house.label });
   const reply = result.status === 'requested'
     ? `Your clearance certificate request for ${house.label} was sent to the estate office. The certificate will be sent here once it is approved.`
-    : `A clearance certificate request for ${house.label} is already waiting for approval. Nothing new was sent.`;
+    : withContact(turn, `A clearance certificate request for ${house.label} is already waiting for approval. Nothing new was sent.`);
   await respond(turn, `${title}\n${reply}\n${footer(turn)}`, 'answer');
 }
 

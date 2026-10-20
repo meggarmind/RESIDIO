@@ -1525,7 +1525,22 @@ describe('WhatsApp Assistant clearance certificate (#816 decision 15)', () => {
   it('says so when a request for the property is already waiting', async () => {
     const repo = repository([PALM], { getOwed: vi.fn().mockResolvedValue(PAID_UP), requestClearance: vi.fn().mockResolvedValue({ status: 'duplicate' }) });
     const replies = await chat(repo, ['clearance']);
-    expect(replies[0]).toContain('A clearance certificate request for 12 Palm Close is already waiting for approval. Nothing new was sent.');
+    expect(replies[0]).toContain(`A clearance certificate request for 12 Palm Close is already waiting for approval. Nothing new was sent.\n${CONTACT}`);
+  });
+
+  it('gives a second resident on the same property the neutral reply with the contact line', async () => {
+    const tenant = { ...identity, id: 'resident-2', firstName: 'Bola', lastName: 'Tenant' };
+    const repo = repository([PALM], { getOwed: vi.fn().mockResolvedValue(PAID_UP), requestClearance: vi.fn().mockResolvedValue({ status: 'duplicate' }) });
+    const replies = await chat(repo, ['clearance'], tenant);
+
+    expect(repo.requestClearance).toHaveBeenCalledWith(expect.objectContaining({ residentId: 'resident-2', houseId: 'house-1' }));
+    expect(replies[0]).toBe([
+      '*Clearance certificate, 12 Palm Close*',
+      'A clearance certificate request for 12 Palm Close is already waiting for approval. Nothing new was sent.',
+      CONTACT,
+      FOOTER,
+    ].join('\n'));
+    expect(replies[0]).not.toMatch(/your (clearance|request)/i);
   });
 
   it('asks per property, and uses the property the resident picked', async () => {
