@@ -52,6 +52,8 @@ interface Harness {
   getPausedUntil: ReturnType<typeof vi.fn>;
   pause: ReturnType<typeof vi.fn>;
   store: ProcessedMessageStore;
+  updateOutboundSendStatus: ReturnType<typeof vi.fn>;
+  countRecentOutboundFailures: ReturnType<typeof vi.fn>;
   POST: (request: NextRequest) => Promise<Response>;
 }
 
@@ -60,6 +62,8 @@ async function load(options: {
   pausedUntil?: Date | null;
   handleResidentMessage?: ReturnType<typeof vi.fn>;
   notifyResult?: { success: boolean; count: number; error?: string };
+  sendMatched?: boolean;
+  recentFailures?: number;
 } = {}): Promise<Harness> {
   vi.doMock('@/lib/whatsapp/config-db', () => ({
     loadWhatsAppConfigFromDb: vi
@@ -95,8 +99,16 @@ async function load(options: {
   vi.doMock('@/lib/notifications/admin-notifier', () => ({ notifyAdmins }));
   vi.doMock('@/lib/system-log/recorder', () => ({ recordSystemAction }));
 
+  const updateOutboundSendStatus = vi.fn().mockResolvedValue(options.sendMatched ?? true);
+  const countRecentOutboundFailures = vi.fn().mockResolvedValue(options.recentFailures ?? 1);
+  vi.doMock('@/lib/whatsapp/outbound-sends', async () => ({
+    ...(await vi.importActual<typeof import('@/lib/whatsapp/outbound-sends')>('@/lib/whatsapp/outbound-sends')),
+    updateOutboundSendStatus,
+    countRecentOutboundFailures,
+  }));
+
   const { POST } = await import('@/app/api/whatsapp/webhook/chatmaid/route');
-  return { handleResidentMessage, notifyAdmins, getPausedUntil, pause, store, POST };
+  return { handleResidentMessage, notifyAdmins, getPausedUntil, pause, store, updateOutboundSendStatus, countRecentOutboundFailures, POST };
 }
 
 describe('Chatmaid WhatsApp webhook route', () => {
@@ -114,6 +126,7 @@ describe('Chatmaid WhatsApp webhook route', () => {
     vi.doUnmock('@/lib/whatsapp/providers/chatmaid-inbound');
     vi.doUnmock('@/lib/notifications/admin-notifier');
     vi.doUnmock('@/lib/system-log/recorder');
+    vi.doUnmock('@/lib/whatsapp/outbound-sends');
   });
 
   it('returns 503 with the reason when stored credentials are unusable', async () => {
@@ -393,7 +406,7 @@ describe('Chatmaid WhatsApp webhook route', () => {
     expect(h.notifyAdmins.mock.calls[0][0]).toMatchObject({ priority: 'normal', category: 'system' });
   });
 
-  it.each(['message.delivered', 'message.read', 'message.failed', 'something.new'])(
+  it.each(['message.read', 'something.new'])(
     'acknowledges %s with 200 and does nothing else',
     async (event) => {
       const h = await load();
@@ -404,8 +417,106 @@ describe('Chatmaid WhatsApp webhook route', () => {
       expect(h.notifyAdmins).not.toHaveBeenCalled();
       expect(h.handleResidentMessage).not.toHaveBeenCalled();
       expect(h.pause).not.toHaveBeenCalled();
+      expect(h.updateOutboundSendStatus).not.toHaveBeenCalled();
     }
   );
+
+  describe('outbound delivery status (#839)', () => {
+    const failedBody = JSON.stringify({
+      event: 'message.failed',
+      timestamp: '2026-09-22T11:59:59.000Z',
+      data: {
+        messageId: 'outmsg_1',
+        to: '+2348000000000',
+        errorCode: 'NOT_ON_WHATSAPP',
+        errorMessage: 'Recipient +234 800 000 0000 is not on WhatsApp',
+      },
+    });
+
+    it.each(['message.sent', 'message.delivered'])('moves the stored send to %s without a log row', async (event) => {
+      const h = await load();
+      const body = JSON.stringify({ event, data: { messageId: 'outmsg_1' } });
+
+      expect((await h.POST(post(event, body))).status).toBe(200);
+      expect(h.updateOutboundSendStatus).toHaveBeenCalledWith('chatmaid', 'outmsg_1', event.slice(8), { code: null, message: null });
+      expect(recordSystemAction).not.toHaveBeenCalled();
+      expect(h.notifyAdmins).not.toHaveBeenCalled();
+    });
+
+    it('marks the send failed and records one outbound_failed row, and nothing for the retry', async () => {
+      const h = await load();
+
+      expect((await h.POST(post('message.failed', failedBody))).status).toBe(200);
+      expect((await h.POST(post('message.failed', failedBody))).status).toBe(200);
+
+      expect(h.updateOutboundSendStatus).toHaveBeenCalledTimes(1);
+      expect(h.updateOutboundSendStatus).toHaveBeenCalledWith('chatmaid', 'outmsg_1', 'failed', {
+        code: 'NOT_ON_WHATSAPP',
+        message: 'Recipient [number] is not on WhatsApp',
+      });
+      expect(recordSystemAction).toHaveBeenCalledTimes(1);
+      expect(recordSystemAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source: 'webhook:whatsapp-chatmaid',
+          action: 'outbound_failed',
+          outcome: 'failure',
+          summary: expect.objectContaining({ messageId: 'outmsg_1', errorCode: 'NOT_ON_WHATSAPP', matchedSend: true }),
+        })
+      );
+    });
+
+    it('keeps phone numbers out of the log row and the console', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const h = await load();
+      await h.POST(post('message.failed', failedBody));
+
+      const logged = JSON.stringify([recordSystemAction.mock.calls, warn.mock.calls]);
+      expect(logged).toContain('outmsg_1');
+      expect(logged).not.toMatch(/800\D?000\D?0000|2348000000000/);
+      warn.mockRestore();
+    });
+
+    it('still records a failure for a send Residio has no record of', async () => {
+      const h = await load({ sendMatched: false });
+      expect((await h.POST(post('message.failed', failedBody))).status).toBe(200);
+      expect(recordSystemAction).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'outbound_failed', summary: expect.objectContaining({ matchedSend: false }) })
+      );
+      expect(h.countRecentOutboundFailures).not.toHaveBeenCalled();
+    });
+
+    it('alerts admins when the failure is the third in the window', async () => {
+      const h = await load({ recentFailures: 3 });
+      await h.POST(post('message.failed', failedBody));
+      expect(h.notifyAdmins).toHaveBeenCalledTimes(1);
+      expect(h.notifyAdmins.mock.calls[0][0]).toMatchObject({ category: 'system', actionUrl: '/settings/whatsapp' });
+    });
+
+    it.each([2, 4])('does not alert at %i failures in the window', async (recentFailures) => {
+      const h = await load({ recentFailures });
+      await h.POST(post('message.failed', failedBody));
+      expect(h.notifyAdmins).not.toHaveBeenCalled();
+    });
+
+    it('returns 500 and releases the claim when the status cannot be stored, so the retry applies it', async () => {
+      const h = await load();
+      h.updateOutboundSendStatus.mockRejectedValueOnce(new Error('db down'));
+
+      expect((await h.POST(post('message.failed', failedBody))).status).toBe(500);
+      expect(recordSystemAction).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'outbound_status', outcome: 'failure' })
+      );
+      expect((await h.POST(post('message.failed', failedBody))).status).toBe(200);
+      expect(h.updateOutboundSendStatus).toHaveBeenCalledTimes(2);
+    });
+
+    it('ignores a status event without a messageId', async () => {
+      const h = await load();
+      const body = JSON.stringify({ event: 'message.failed', data: {} });
+      expect(await (await h.POST(post('message.failed', body))).json()).toMatchObject({ ignored: 'no_message_id' });
+      expect(h.updateOutboundSendStatus).not.toHaveBeenCalled();
+    });
+  });
 
   describe('event type comes from the signed body, not the unsigned header', () => {
     const connectedBody = JSON.stringify({

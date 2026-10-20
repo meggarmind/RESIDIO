@@ -20,6 +20,14 @@ import {
   isChatmaidManualOutgoing,
   verifyChatmaidSignature,
 } from '@/lib/whatsapp/providers/chatmaid-inbound';
+import {
+  OUTBOUND_FAILURE_ALERT_THRESHOLD,
+  OUTBOUND_FAILURE_ALERT_WINDOW_MINUTES,
+  countRecentOutboundFailures,
+  stripPhoneNumbers,
+  updateOutboundSendStatus,
+  type OutboundDeliveryStatus,
+} from '@/lib/whatsapp/outbound-sends';
 
 /**
  * Chatmaid inbound webhook (#401).
@@ -219,6 +227,76 @@ async function handlePhoneHealth(event: 'phone.disconnected' | 'phone.connected'
   }
 }
 
+function optionalText(value: unknown): string | null {
+  if (value === null || value === undefined || value === '') return null;
+  return stripPhoneNumbers(String(value)).slice(0, 500);
+}
+
+/**
+ * Delivery status for a send Residio made (#839). `sent` and `delivered` only
+ * move the stored send forward, so the log is not flooded; `failed` also
+ * writes a log row and, on repeated failures, alerts admins. Deduplicated per
+ * event body because Chatmaid retries webhooks.
+ */
+async function handleDeliveryStatus(event: 'message.sent' | 'message.delivered' | 'message.failed', payload: unknown, rawBody: string) {
+  const data = (payload as { data?: Record<string, unknown> } | null)?.data;
+  const messageId = typeof data?.messageId === 'string' && data.messageId.length > 0 ? data.messageId : null;
+  if (!messageId) {
+    console.warn('[chatmaid-webhook] Status event without a messageId; ignored', { event });
+    return NextResponse.json({ received: true, processed: false, ignored: 'no_message_id' });
+  }
+
+  const status = event.slice('message.'.length) as OutboundDeliveryStatus;
+  // Error text from the provider can quote the recipient, so numbers are stripped.
+  const errorCode = optionalText(data?.errorCode);
+  const errorMessage = optionalText(data?.errorMessage);
+
+  try {
+    let matched = false;
+    const outcome = await runOnce(chatmaidEventDedupeKey(event, rawBody), async () => {
+      matched = await updateOutboundSendStatus('chatmaid', messageId, status, { code: errorCode, message: errorMessage });
+      // Equality, not >=, so a burst raises one alert rather than one per further failure.
+      if (status === 'failed' && matched && (await countRecentOutboundFailures()) === OUTBOUND_FAILURE_ALERT_THRESHOLD) {
+        await notifyOrThrow({
+          title: 'WhatsApp replies are failing to deliver',
+          body:
+            `${OUTBOUND_FAILURE_ALERT_THRESHOLD} WhatsApp messages failed to deliver in the last ` +
+            `${OUTBOUND_FAILURE_ALERT_WINDOW_MINUTES} minutes. Residents are not receiving the Assistant's replies. ` +
+            'Check the failed sends in the WhatsApp operations console and the handset in the Chatmaid dashboard.',
+          category: 'system',
+          priority: 'high',
+          actionUrl: '/settings/whatsapp',
+          metadata: { source: 'chatmaid_webhook', event },
+        });
+      }
+    });
+
+    if (status === 'failed' && outcome !== 'duplicate') {
+      // Ids and error fields only: the payload also carries phone numbers.
+      console.warn('[chatmaid-webhook] Outbound message failed:', { messageId, errorCode, errorMessage });
+      await recordWebhookDelivery({
+        provider: 'whatsapp-chatmaid',
+        action: 'outbound_failed',
+        outcome: 'failure',
+        summary: { messageId, errorCode, errorMessage, matchedSend: matched },
+        error: errorMessage ?? errorCode ?? 'Outbound message failed',
+      });
+    }
+
+    return NextResponse.json({ received: true, processed: true, duplicate: outcome === 'duplicate' });
+  } catch (error) {
+    console.error(`[chatmaid-webhook] Failed to handle ${event}:`, error);
+    await recordWebhookDelivery({
+      provider: 'whatsapp-chatmaid',
+      action: 'outbound_status',
+      outcome: 'failure',
+      summary: { event, messageId },
+      error: `${event} could not be processed`,
+    });
+    return processingFailed(`${event} could not be processed`);
+  }
+}
+
 export async function POST(request: NextRequest) {
   const resolved = await resolveWhatsAppConfig();
 
@@ -307,20 +385,10 @@ export async function POST(request: NextRequest) {
       return handlePhoneHealth(event, rawBody);
     case 'message.sent':
     case 'message.delivered':
-    case 'message.read':
     case 'message.failed':
-      // No provider updates delivery status on notification_history today
-      // (Meta and Twilio do not either), so there is nothing to mirror.
+      return handleDeliveryStatus(event, payload, rawBody);
+    case 'message.read':
       // `delivered` is terminal success; `read` is never waited on.
-      if (event === 'message.failed') {
-        // Ids and error fields only: the payload also carries phone numbers.
-        const data = (payload as { data?: Record<string, unknown> } | null)?.data;
-        console.warn('[chatmaid-webhook] Outbound message failed:', {
-          messageId: data?.messageId,
-          errorCode: data?.errorCode,
-          errorMessage: data?.errorMessage,
-        });
-      }
       return NextResponse.json({ received: true, processed: false, ignored: event });
     default:
       return NextResponse.json({ received: true, processed: false, ignored: event });
