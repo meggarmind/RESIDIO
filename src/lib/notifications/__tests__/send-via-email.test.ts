@@ -29,7 +29,8 @@ vi.mock('@/lib/whatsapp/config', () => ({ resolveWhatsAppConfig: vi.fn() }));
 vi.mock('@/lib/whatsapp/rollout', () => ({ isWhatsAppRecipientAllowed: vi.fn() }));
 vi.mock('@/lib/sms/send-sms', () => ({ sendSms: vi.fn() }));
 const buildStatementEmail = vi.hoisted(() => vi.fn());
-vi.mock('@/lib/whatsapp/statement-delivery', () => ({ buildStatementEmail }));
+const markStatementEmailSent = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/whatsapp/statement-delivery', () => ({ buildStatementEmail, markStatementEmailSent }));
 
 import { sendNotification } from '@/lib/notifications/send';
 import { PRIORITY } from '@/lib/notifications/queue';
@@ -96,6 +97,20 @@ describe('sendViaEmail (through sendNotification)', () => {
     expect(buildStatementEmail).toHaveBeenCalledWith('request-1');
     expect(mocks.send.mock.calls[0][0]).toMatchObject({ react: 'statement-email', attachments: [attachment] });
     expect(mocks.send.mock.calls[0][0]).not.toHaveProperty('text');
+    expect(markStatementEmailSent).toHaveBeenCalledWith('request-1');
+  });
+
+  it('marks the statement request sent only after the email is out, and a failed mark does not fail the send (#917)', async () => {
+    buildStatementEmail.mockResolvedValue({ react: 'statement-email', attachments: [] });
+    mocks.send.mockResolvedValueOnce({ data: null, error: { message: 'rejected' } });
+    const failed = await sendNotification(buildEmailItem({ metadata: { whatsapp_statement_request_id: 'request-1' } }));
+    expect(failed).toMatchObject({ success: false });
+    expect(markStatementEmailSent).not.toHaveBeenCalled();
+
+    markStatementEmailSent.mockRejectedValueOnce(new Error('db down'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const sent = await sendNotification(buildEmailItem({ metadata: { whatsapp_statement_request_id: 'request-1' } }));
+    expect(sent).toEqual({ success: true, externalId: 'rid-9' });
   });
 
   it('leaves other emails alone, and retries when the statement cannot be built', async () => {

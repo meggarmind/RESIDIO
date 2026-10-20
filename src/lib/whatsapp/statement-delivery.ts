@@ -13,8 +13,8 @@ import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
 import { formatDay, formatNaira, PERIOD_LABELS, statementDates, type StatementPeriod } from '@/lib/whatsapp/assistant-format';
 
 /**
- * Statement PDF delivery for the WhatsApp Assistant (#804 decision 24): up to
- * 40 rows go to chat through a 1-hour signed URL to private storage (Chatmaid
+ * Statement PDF delivery for the WhatsApp Assistant (#804 decision 24, #917): every statement is a
+ * PDF, never chat text. Up to 40 rows go to chat through a 1-hour signed URL to private storage (Chatmaid
  * fetches files only from a public HTTPS URL), longer ones are queued as an
  * email with the PDF attached. Files are deleted 12 hours after they are made.
  */
@@ -163,6 +163,16 @@ export async function queueStatementEmail(requestId: string, residentId: string,
     .from('whatsapp_statement_requests')
     .update({ status: 'queued', notification_queue_id: queued.queueId ?? null, updated_at: new Date().toISOString() })
     .eq('id', requestId);
+  if (error) throw error;
+}
+
+/** Moves a statement request from `queued` to `sent` once its email has left; a cancelled request stays cancelled. */
+export async function markStatementEmailSent(requestId: string): Promise<void> {
+  const { error } = await db()
+    .from('whatsapp_statement_requests')
+    .update({ status: 'sent', updated_at: new Date().toISOString() })
+    .eq('id', requestId)
+    .eq('status', 'queued');
   if (error) throw error;
 }
 
