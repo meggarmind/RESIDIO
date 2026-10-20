@@ -8,6 +8,8 @@ import { isSharedTransitionActive } from '@/lib/navigation/shared-element-transi
 interface PageTransitionProps {
     children: ReactNode;
     className?: string;
+    /** Remount (and re-animate) when this changes; defaults to the pathname. */
+    transitionKey?: string;
 }
 
 const variants = {
@@ -16,7 +18,7 @@ const variants = {
     exit: { opacity: 0, y: -10 },
 };
 
-export function PageTransition({ children, className }: PageTransitionProps) {
+export function PageTransition({ children, className, transitionKey }: PageTransitionProps) {
     const pathname = usePathname();
     // During a shared-element transition the new page must be fully visible in
     // the view-transition's new snapshot, so skip the opacity/y enter.
@@ -24,7 +26,7 @@ export function PageTransition({ children, className }: PageTransitionProps) {
 
     return (
         <motion.div
-            key={pathname}
+            key={transitionKey ?? pathname}
             initial={skipEnter ? false : 'hidden'}
             animate="enter"
             exit="exit"

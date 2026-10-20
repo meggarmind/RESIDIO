@@ -43,10 +43,9 @@ export type SettingsGroup = {
  * Nesting (a parent item with `children`) is kept only where it already
  * existed and where it does real work: several routes share a path prefix
  * with a sibling (e.g. `/settings/billing` and `/settings/billing/late-fees`,
- * or `/settings` and every other settings route), and `isItemActive` in
- * `settings-sidebar.tsx` highlights on a prefix match when an item has no
- * parent. Flattening those into plain siblings would make the shorter route
- * light up on every page under it. See `isIndexChild` below.
+ * or `/settings` and every other settings route). The parent groups them
+ * visually; which entry is highlighted is decided by `activeSettingsHref`
+ * below, by longest match.
  */
 export const settingsConfig: SettingsGroup[] = [
     {
@@ -186,17 +185,47 @@ export const settingsConfig: SettingsGroup[] = [
     }
 ];
 
+/** Every entry in the nav, parents and their children alike, in display order. */
+export function flattenSettingsNav(groups: SettingsGroup[]): SettingsItem[] {
+    const flatten = (items: SettingsItem[]): SettingsItem[] =>
+        items.flatMap((item) => (item.children ? [item, ...flatten(item.children)] : [item]));
+    return groups.flatMap((group) => flatten(group.items));
+}
+
 /**
- * True when a child entry is its parent's index page — its href is the parent's.
+ * The href of the one nav entry the current page belongs to: the longest href
+ * that is the pathname or a path prefix of it.
  *
- * These need exact matching. Prefix matching lit them up on every descendant
- * page: on /settings/security/categories both "Security Settings" and "Contact
- * Categories" appeared selected, and "Overview" (/settings) was highlighted on
- * every settings page in the app.
- *
- * Derived from the hrefs rather than declared as a flag, so it cannot drift
- * from the thing it describes.
+ * Longest match is what keeps a single item highlighted. Plain prefix matching
+ * lit up every ancestor: "Overview" (/settings) on every settings page, and
+ * both "Reminders" and "Reminder Schedule" on
+ * /settings/notifications/reminders/schedule. A page with no entry of its own
+ * (a hidden route) highlights the nearest entry above it.
  */
-export function isIndexChild(parent: SettingsItem, child: SettingsItem): boolean {
-    return parent.href === child.href;
+export function activeSettingsHref(pathname: string, groups: SettingsGroup[]): string | null {
+    let best: string | null = null;
+    for (const { href } of flattenSettingsNav(groups)) {
+        const matches = pathname === href || pathname.startsWith(href + '/');
+        if (matches && (best === null || href.length > best.length)) best = href;
+    }
+    return best;
+}
+
+/**
+ * The entry for `href`, with the group it sits in and its parent if nested.
+ * A parent shares its href with its index child; the child wins, because it
+ * carries the page's own title and description.
+ */
+export function findSettingsEntry(
+    href: string,
+    groups: SettingsGroup[]
+): { group: SettingsGroup; parent?: SettingsItem; item: SettingsItem } | null {
+    for (const group of groups) {
+        for (const item of group.items) {
+            const child = item.children?.find((c) => c.href === href);
+            if (child) return { group, parent: item, item: child };
+            if (item.href === href) return { group, item };
+        }
+    }
+    return null;
 }
