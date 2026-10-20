@@ -54,7 +54,8 @@
 --   -- permissions", which compares it with the row's confidential_roles column, not a literal]
 --   SELECT tablename, policyname FROM pg_policies WHERE schemaname = 'public'
 --     AND (coalesce(qual, '') || ' ' || coalesce(with_check, '')) ~ 'ar\.name';
---   -- the 15 permissions and their grants [15 rows; role counts 4,4,1,1,4,5,1,4,4,4,1,3,3,3,7]
+--   -- the 15 permissions and their grants [15 rows; role counts 4,4,1,1,4,5,1,4,4,4,1,3,3,3, and
+--   -- documents.view_all = the number of non-resident roles, 7 today]
 --   SELECT p.name, count(rp.role_id) FROM app_permissions p
 --     LEFT JOIN role_permissions rp ON rp.permission_id = p.id
 --     WHERE p.name IN ('houses.manage_records', 'residents.manage_records',
@@ -516,7 +517,7 @@ ON CONFLICT (role_id, permission_id) DO NOTHING;
 INSERT INTO public.role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM public.app_roles r CROSS JOIN public.app_permissions p
 WHERE p.name = 'documents.view_all'
-  AND r.name IN ('super_admin', 'chairman', 'vice_chairman', 'financial_officer', 'secretary', 'project_manager', 'security_officer')
+  AND r.name <> 'resident'
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 ALTER POLICY "access_codes_insert_policy" ON public.access_codes

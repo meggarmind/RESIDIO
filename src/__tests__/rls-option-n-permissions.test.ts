@@ -38,7 +38,7 @@ const C = ['chairman', 'financial_officer', 'super_admin', 'vice_chairman'];
 const B = ['chairman', 'super_admin', 'vice_chairman'];
 
 /** The role set each new permission is seeded to; it must equal every literal it replaces. */
-const ROLES_FOR: Record<string, string[]> = {
+const ROLES_FOR: Record<string, string[] | string> = {
   'houses.manage_records': C,
   'residents.manage_records': C,
   'residents.delete_records': ['super_admin'],
@@ -53,8 +53,8 @@ const ROLES_FOR: Record<string, string[]> = {
   'settings.write_property_reference': B,
   'settings.write_system': B,
   'system.view_all_profiles': B,
-  // every role except resident: the old documents policy's "role <> 'resident'" test
-  'documents.view_all': [...C, 'project_manager', 'secretary', 'security_officer'].sort(),
+  // every role except resident, custom roles included: the old documents policy's "role <> 'resident'" test
+  'documents.view_all': "<> 'resident'",
 };
 
 /** The 62 role-literal policies and the permission each now checks. */
@@ -197,12 +197,12 @@ for (const s of statements.filter((s) => s.startsWith('INSERT INTO public.app_pe
 }
 
 /** Permission name -> roles granted, from the role_permissions seeds. */
-const granted = new Map<string, string[]>();
+const granted = new Map<string, string[] | string>();
 for (const s of statements.filter((s) => s.startsWith('INSERT INTO public.role_permissions'))) {
-  const m = /WHERE p\.name = '([a-z_.]+)'\n {2}AND r\.name IN \(([^)]*)\)\nON CONFLICT \(role_id, permission_id\) DO NOTHING$/.exec(s);
+  const m = /WHERE p\.name = '([a-z_.]+)'\n {2}AND r\.name (IN \(([^)]*)\)|<> 'resident')\nON CONFLICT \(role_id, permission_id\) DO NOTHING$/.exec(s);
   if (!m) throw new Error(`Unrecognised grant:\n${s}`);
   if (granted.has(m[1])) throw new Error(`Granted twice: ${m[1]}`);
-  granted.set(m[1], [...m[2].matchAll(/'([a-z_]+)'/g)].map((r) => r[1]).sort());
+  granted.set(m[1], m[3] === undefined ? m[2] : [...m[3].matchAll(/'([a-z_]+)'/g)].map((r) => r[1]).sort());
 }
 
 const find = (list: Altered[], p: { table: string; policy: string }) =>
