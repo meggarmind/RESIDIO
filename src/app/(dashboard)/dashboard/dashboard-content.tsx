@@ -25,7 +25,8 @@ export function DashboardContent() {
     const { profile, isLoading: authLoading } = useAuth();
     const navigationState = useDashboardNavigationState();
     const { data: snapshot, isLoading, isError, isStaleSnapshot, snapshotSavedAt } = useAdminDashboardSnapshot();
-    const { data: estateMap, isLoading: estateMapLoading, error: estateMapError } = useEstateMapStatus();
+    // isPending, not isLoading: the map query is disabled until auth resolves, and that is not an error.
+    const { data: estateMap, isPending: estateMapLoading, error: estateMapError } = useEstateMapStatus();
 
     // A server-prefetched snapshot renders at once; the skeleton waits on auth only when there is nothing to show.
     if (authLoading && !snapshot) {

@@ -10,7 +10,7 @@ import '@testing-library/jest-dom/vitest';
 import type { EstateMapSnapshot } from '@/types/estate-map';
 
 const mocks = vi.hoisted(() => ({
-  map: { data: null as unknown, isLoading: false, error: null as Error | null },
+  map: { data: null as unknown, isPending: false, error: null as Error | null },
   useSmartSuggestions: vi.fn(() => ({ suggestions: [] })),
   getSmartSuggestions: vi.fn(),
   getAdminDashboardSnapshot: vi.fn(),
@@ -76,7 +76,7 @@ const snapshot: EstateMapSnapshot = {
 };
 
 beforeEach(() => {
-  mocks.map = { data: snapshot, isLoading: false, error: null };
+  mocks.map = { data: snapshot, isPending: false, error: null };
   mocks.useSmartSuggestions.mockClear();
   mocks.getSmartSuggestions.mockClear();
 });
@@ -100,13 +100,21 @@ describe('DashboardPage estate map wiring', () => {
   });
 
   it('shows the map loading state while the read is pending', () => {
-    mocks.map = { data: null, isLoading: true, error: null };
+    mocks.map = { data: null, isPending: true, error: null };
     render(<DashboardContent />);
     expect(screen.getByTestId('estate-map-loading')).toBeInTheDocument();
   });
 
+  it('shows loading, not unavailable, while the map query waits for auth', () => {
+    // A query disabled until auth resolves is pending but not loading.
+    mocks.map = { data: undefined, isPending: true, isLoading: false, error: null } as typeof mocks.map;
+    render(<DashboardContent />);
+    expect(screen.getByTestId('estate-map-loading')).toBeInTheDocument();
+    expect(screen.queryByTestId('estate-map-unavailable')).not.toBeInTheDocument();
+  });
+
   it('shows the locked state for Unauthorized while the lanes still render', () => {
-    mocks.map = { data: null, isLoading: false, error: new Error('Unauthorized') };
+    mocks.map = { data: null, isPending: false, error: new Error('Unauthorized') };
     render(<DashboardContent />);
     expect(screen.getByTestId('estate-map-locked')).toBeInTheDocument();
     for (const id of ['lane-money', 'lane-people', 'lane-security']) {
@@ -115,7 +123,7 @@ describe('DashboardPage estate map wiring', () => {
   });
 
   it('shows the unavailable state for any other map error', () => {
-    mocks.map = { data: null, isLoading: false, error: new Error('boom') };
+    mocks.map = { data: null, isPending: false, error: new Error('boom') };
     render(<DashboardContent />);
     expect(screen.getByTestId('estate-map-unavailable')).toBeInTheDocument();
     expect(screen.queryByTestId('estate-map-locked')).not.toBeInTheDocument();

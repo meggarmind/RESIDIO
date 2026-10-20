@@ -37,7 +37,7 @@ vi.mock('@/hooks/use-dashboard', () => ({
     isStaleSnapshot: false,
     snapshotSavedAt: null,
   }),
-  useEstateMapStatus: () => ({ data: null, isLoading: false, error: null }),
+  useEstateMapStatus: () => ({ data: null, isPending: false, error: null }),
 }));
 vi.mock('@/hooks/use-smart-suggestions', () => ({ useSmartSuggestions: () => ({ suggestions: [] }) }));
 vi.mock('@/components/dashboard/offline-admin-banner', () => ({ OfflineAdminBanner: () => null }));
