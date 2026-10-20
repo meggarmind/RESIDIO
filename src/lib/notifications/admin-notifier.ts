@@ -54,7 +54,7 @@ export async function notifyAdmins(params: AdminNotificationParams): Promise<{ s
         if (recipientIds.length === 0 && !params.requiredPermission) {
             const { data: profiles } = await adminClient
                 .from('profiles')
-                .select('id, app_roles!inner(name)')
+                .select('id, app_roles!profiles_role_id_fkey!inner(name)')
                 .in('app_roles.name', ['super_admin', 'chairman']);
 
             if (profiles) {
