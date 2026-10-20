@@ -33,8 +33,8 @@ export interface SettingsSearchEntry {
    * tokens against: group title + parent item title (if nested) + this
    * entry's title + subtitle + keywords. Deliberately WIDER than what the
    * palette displays (title + subtitle only) -- a row titled just
-   * "Configuration" is only findable by "email" because its parent item's
-   * title, "Email Notifications", carries the meaning the row's own text
+   * "Levies" is only findable by "billing" because its parent item's
+   * title, "Billing Rules", carries the meaning the row's own text
    * doesn't. Never render this field.
    */
   searchText: string;
@@ -70,7 +70,7 @@ const SYSTEM_SUBTITLES: Record<string, string> = {
  * only where the gap is real, not bulk-annotated across all 37 entries.
  *
  * `/settings/email-integration` is the motivating case (the issue's own
- * acceptance criterion): its group is "Integrations", not "Communications",
+ * acceptance criterion): its group is "Connections", not "Messages & Reminders",
  * and every label on the page says "Gmail", never "email" or "import" as a
  * literal pair a user would type for an inbox-import feature -- "Gmail
  * Import" contains "import" but not "email", so a token match still misses
@@ -110,8 +110,8 @@ function buildSearchText(parts: Array<string | undefined | string[]>): string {
  *
  * `groupTitle` and `parentTitle` are carried down so a child's `searchText`
  * still contains the context that gives its own title meaning -- e.g.
- * "Configuration" (a child of "Email Notifications", in the "Communications"
- * group) is only findable by "email" because that group/parent context is
+ * "Levies" (a child of "Billing Rules", in the "Money" group) is only
+ * findable by "billing" because that group/parent context is
  * folded in; its own title and description say nothing of the kind.
  */
 function flattenSettingsItems(

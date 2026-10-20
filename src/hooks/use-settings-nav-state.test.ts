@@ -11,7 +11,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const STORAGE_KEY = 'residio-settings-nav-open-groups';
-const LAST_ACTIVE_GROUP_KEY = 'residio-settings-nav-last-active-group';
 
 /** Minimal sessionStorage stand-in; the node test environment has none. */
 function installStorage(initial: Record<string, string> = {}) {
@@ -134,10 +133,9 @@ describe('settings nav state store', () => {
         expect(getSnapshot()).toEqual({ 'System Health': true });
     });
 
-    it('survives the remount that app/template.tsx forces on every navigation', async () => {
-        // The bug this store exists to fix: the sidebar is torn down and rebuilt
-        // on each page change, so the choice has to be readable by a brand new
-        // instance. Simulated by writing, then loading the module fresh.
+    it('survives a full page load within the session', async () => {
+        // The choice has to be readable by a brand new module instance.
+        // Simulated by writing, then loading the module fresh.
         const store = installStorage();
         const first = await loadModule();
         first.setGroupOpen('Estate Configuration', true);
@@ -200,45 +198,27 @@ describe('reopen-on-entry (noteActiveGroup)', () => {
         expect(getSnapshot()).toEqual({});
     });
 
-    it('keeps a deliberate collapse across a full reload while still inside the group', async () => {
-        // A `useRef`-only "previous group" would not survive a full page
-        // load: a fresh module has no in-memory history, so this exercises
-        // that `lastActiveGroup` is read back from sessionStorage instead.
-        const store = installStorage();
-        const before = await loadModule();
-        before.noteActiveGroup('Estate Configuration'); // reader is already inside the group
-        before.setGroupOpen('Estate Configuration', false); // ...and collapses it deliberately
-        before.noteActiveGroup('Estate Configuration'); // navigates to another page, still inside
-        expect(before.getSnapshot()).toHaveProperty('Estate Configuration', false);
-
-        // Full page load: a brand new module instance, but the same
-        // sessionStorage-backed tab.
-        vi.stubGlobal('sessionStorage', {
-            getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
-            setItem: (k: string, v: string) => void store.set(k, v),
-            removeItem: (k: string) => void store.delete(k),
-        });
-        const reloaded = await loadModule();
-        reloaded.noteActiveGroup('Estate Configuration'); // reader reloads on a page still in the group
-
-        expect(reloaded.getSnapshot()).toHaveProperty('Estate Configuration', false);
-    });
-
-    it('reopens a collapsed group entered via a full page load (external link) from another group', async () => {
-        // Simulates the reader having been inside "Access & Security" and
-        // having collapsed "Estate Configuration" earlier, then closing the
-        // tab or following a link that lands directly on a page inside
-        // "Estate Configuration" — a full page load, so there is no
-        // client-side navigation history, only sessionStorage.
-        installStorage({
-            [LAST_ACTIVE_GROUP_KEY]: JSON.stringify('Access & Security'),
-            [STORAGE_KEY]: JSON.stringify({ 'Estate Configuration': false }),
-        });
+    it('reopens a collapsed group entered by a full page load', async () => {
+        // A reload, bookmark or external link starts a fresh module with no
+        // previous group, so the first observation counts as entering the
+        // group: the page being viewed is never hidden behind a collapse.
+        installStorage({ [STORAGE_KEY]: JSON.stringify({ 'Estate Configuration': false }) });
         const { getSnapshot, noteActiveGroup } = await loadModule();
 
         noteActiveGroup('Estate Configuration');
 
         expect(getSnapshot()).not.toHaveProperty('Estate Configuration');
+    });
+
+    it('two nav surfaces noting the same group in one commit act once', async () => {
+        const { getSnapshot, setGroupOpen, noteActiveGroup } = await loadModule();
+
+        noteActiveGroup('Estate Configuration'); // desktop
+        noteActiveGroup('Estate Configuration'); // mobile, same render
+        setGroupOpen('Estate Configuration', false);
+        noteActiveGroup('Estate Configuration');
+
+        expect(getSnapshot()).toHaveProperty('Estate Configuration', false);
     });
 
     it('leaves a true override alone when re-entering the group', async () => {

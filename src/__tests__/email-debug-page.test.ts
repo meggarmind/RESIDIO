@@ -60,11 +60,11 @@ describe('/settings/email/debug (Debug & Testing)', () => {
 });
 
 describe('settings nav', () => {
-  it('still lists Debug & Testing under Email Notifications with the same permission', () => {
+  it('lists the page as Send a Test under Email Delivery with the same permission (#786)', () => {
     const items = allItems(settingsConfig.flatMap((group) => group.items));
     const entry = items.find((i) => i.href === '/settings/email/debug');
     expect(entry).toBeDefined();
-    expect(entry?.title).toBe('Debug & Testing');
+    expect(entry?.title).toBe('Send a Test');
     expect(entry?.permissions).toEqual([PERMISSIONS.SETTINGS_MANAGE_GENERAL]);
     const parent = items.find((i) => i.href === '/settings/email' && i.children);
     expect(parent?.children?.map((c) => c.href)).toContain('/settings/email/debug');

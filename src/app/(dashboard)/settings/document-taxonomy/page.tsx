@@ -1,5 +1,6 @@
 'use client';
 
+import { SettingsPageHeader } from '@/components/settings/settings-page-header';
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -81,12 +82,7 @@ export default function DocumentTaxonomyPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Document Tags &amp; Fields</h1>
-        <p className="text-muted-foreground">
-          Classify documents with nested tags and record structured details with custom fields.
-        </p>
-      </div>
+      <SettingsPageHeader description="Classify documents with nested tags and record structured details with custom fields." />
       {canManageTags && <TagsSection />}
       {canManageFields && <CustomFieldsSection />}
     </div>

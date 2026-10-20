@@ -92,14 +92,14 @@ test.describe('Phase 4: Enhancements', () => {
             await page.waitForLoadState('networkidle');
             await expect(page.locator('main, [role="main"]')).toBeVisible({ timeout: 10000 });
 
-            // Settings nav groups are collapsible and start closed; open "Financial" first
-            const billingGroup = page.getByRole('button', { name: /financial/i });
+            // Settings nav groups are collapsible and start closed; open "Money" first
+            const billingGroup = page.getByRole('button', { name: /^money$/i });
             await billingGroup.first().waitFor({ timeout: 10000 });
             if (await billingGroup.first().getAttribute('aria-expanded') !== 'true') {
                 await billingGroup.first().click();
             }
 
-            // Look for billing link in settings nav (not the main sidebar) - link text is "Billing Profiles"
+            // Look for billing link in settings nav (not the main sidebar) - link text is "General", under "Billing Rules"
             await expect(
                 page.locator('a[href="/settings/billing"]')
             ).toBeVisible({ timeout: 10000 });
@@ -109,8 +109,8 @@ test.describe('Phase 4: Enhancements', () => {
             await page.goto('/settings');
             await page.waitForLoadState('networkidle');
 
-            // Settings nav groups are collapsible and start closed; open "Estate" first
-            const estateGroup = page.getByRole('button', { name: /^estate$/i });
+            // Settings nav groups are collapsible and start closed; open "Estate & Property" first
+            const estateGroup = page.getByRole('button', { name: /^estate & property$/i });
             await estateGroup.first().waitFor({ timeout: 10000 });
             if (await estateGroup.first().getAttribute('aria-expanded') !== 'true') {
                 await estateGroup.first().click();

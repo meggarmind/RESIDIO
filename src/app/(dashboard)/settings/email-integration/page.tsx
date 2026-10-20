@@ -1,5 +1,6 @@
 'use client';
 
+import { SettingsPageHeader } from '@/components/settings/settings-page-header';
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -98,12 +99,7 @@ function EmailIntegrationContent() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Gmail Import</h1>
-        <p className="text-muted-foreground mt-1">
-          Connect your Gmail account to automatically import bank statements and transaction alerts.
-        </p>
-      </div>
+      <SettingsPageHeader description="Connect your Gmail account to automatically import bank statements and transaction alerts." />
 
       <Card>
         <CardHeader>

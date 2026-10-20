@@ -1,5 +1,6 @@
 'use client';
 
+import { SettingsPageHeader } from '@/components/settings/settings-page-header';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -234,18 +235,15 @@ export default function AnnouncementCategoriesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Announcement Categories</h1>
-          <p className="text-muted-foreground">
-            Organize announcements into categories for better filtering.
-          </p>
-        </div>
-        <Button onClick={() => handleOpenDialog()}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Category
-        </Button>
-      </div>
+      <SettingsPageHeader
+        description="Organize announcements into categories for better filtering."
+        actions={
+          <Button onClick={() => handleOpenDialog()}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Category
+          </Button>
+        }
+      />
 
       <Card>
         <CardHeader>
