@@ -7,6 +7,7 @@ import { isWhatsAppMasterSwitchOn } from '@/lib/whatsapp/master-switch';
 import { isWhatsAppRecipientAllowed } from '@/lib/whatsapp/rollout';
 import type { WhatsAppInboundMessage, WhatsAppTextMessage } from '@/lib/whatsapp/types';
 import type { WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
+import { formatCalendarDate } from '@/lib/utils/calendar-date';
 
 const SESSION_MINUTES = 15;
 const MAX_PIN_ATTEMPTS = 5;
@@ -339,19 +340,28 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
 
     async getNextDue(residentId, houseId) {
       const supabase = createAdminClient();
+      // Unpaid invoices only, filtered in the database: a page of all invoices hides newer unpaid ones (#811).
       const { data, error } = await supabase
         .from('invoices')
         .select('invoice_number, amount_due, amount_paid, due_date')
         .eq('resident_id', residentId)
         .eq('house_id', houseId)
-        .neq('status', 'void')
-        .order('due_date', { ascending: true })
-        .limit(20);
+        .in('status', ['unpaid', 'partially_paid'])
+        .order('due_date', { ascending: true });
       if (error) throw error;
-      const next = (data || []).find((invoice) => Number(invoice.amount_paid) < Number(invoice.amount_due));
-      if (!next) return { body: 'There is no outstanding due invoice for this property.' };
-      const remaining = Number(next.amount_due) - Number(next.amount_paid);
-      return { body: `Next due: ${formatNaira(remaining)} on ${new Date(next.due_date).toLocaleDateString('en-NG')} (invoice ${next.invoice_number}).` };
+      const unpaid = (data || []).filter((invoice) => Number(invoice.amount_paid) < Number(invoice.amount_due));
+      if (unpaid.length === 0) return { body: 'There is no outstanding due invoice for this property.' };
+      const remaining = (invoice: (typeof unpaid)[number]) => Number(invoice.amount_due) - Number(invoice.amount_paid);
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });
+      const overdue = unpaid.filter((invoice) => invoice.due_date.slice(0, 10) < today);
+      const next = unpaid.find((invoice) => invoice.due_date.slice(0, 10) >= today);
+      const lines: string[] = [];
+      if (overdue.length > 0) {
+        const total = overdue.reduce((sum, invoice) => sum + remaining(invoice), 0);
+        lines.push(`Overdue: ${formatNaira(total)} across ${overdue.length} invoice${overdue.length === 1 ? '' : 's'} (oldest due ${formatCalendarDate(overdue[0].due_date, 'en-NG')}).`);
+      }
+      if (next) lines.push(`Next due: ${formatNaira(remaining(next))} on ${formatCalendarDate(next.due_date, 'en-NG')} (invoice ${next.invoice_number}).`);
+      return { body: lines.join('\n') };
     },
 
     async getWallet(residentId) {

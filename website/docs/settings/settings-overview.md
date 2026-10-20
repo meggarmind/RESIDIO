@@ -7,7 +7,7 @@ residio_sources:
   - src/app/(dashboard)/settings/page.tsx
   - src/app/(dashboard)/settings/estate-info/**
   - src/app/(dashboard)/settings/branding/**
-residio_verified_commit: e24b7386
+residio_verified_commit: 99be618b
 residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
@@ -23,7 +23,7 @@ Settings are grouped by the decision they control.
 - **Money:** billing rules (general, late fees, invoices and due dates, levies), rate cards (billing profiles), bank accounts, and transaction tags.
 - **Messages & Reminders:** the notifications overview, reminders (when to send, and the reminder schedule), message wording (notification messages and announcement templates), email delivery (email settings, and sending a test), redirecting messages in test mode, and announcement categories.
 - **Documents:** document categories, and tags and custom fields.
-- **People & Access:** role and permission definitions, and security rules (security settings and contact categories).
+- **People & Access:** role and permission definitions, recipient groups (named lists of residents the estate sends copies to), and security rules (security settings and contact categories).
 - **Connections:** external services — WhatsApp and Gmail import today, with Paystack and SMS planned. Each keeps its credentials and its day-to-day console (consent, sync status, manual actions) together, rather than splitting configuration from operations the way the other groups do.
 - **System:** maintenance mode (with session timeout and duplicate matching) and data retention.
 

@@ -50,6 +50,7 @@ export const PERMISSIONS = {
   PAYMENTS_DELETE: 'payments.delete',
   PAYMENTS_BULK_UPDATE: 'payments.bulk_update',
   PAYMENTS_EXPORT: 'payments.export',
+  PAYMENTS_VERIFY: 'payments.verify',
 
   // Billing Module
   BILLING_VIEW: 'billing.view',
@@ -149,6 +150,10 @@ export const PERMISSIONS = {
   // WhatsApp Assistant operations
   WHATSAPP_VIEW: 'whatsapp.view',
   WHATSAPP_MANAGE: 'whatsapp.manage',
+
+  // Recipient groups: named lists of residents to send to (#819)
+  GROUPS_VIEW: 'groups.view',
+  GROUPS_MANAGE: 'groups.manage',
 
   // Report Subscriptions Module (Phase 16)
   REPORT_SUBSCRIPTIONS_VIEW: 'report_subscriptions.view',
@@ -304,6 +309,7 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
 
   // Access & security
   '/settings/roles': [PERMISSIONS.SYSTEM_MANAGE_ROLES, PERMISSIONS.SYSTEM_ASSIGN_ROLES],
+  '/settings/groups': [PERMISSIONS.GROUPS_VIEW],
   '/settings/user-roles': [PERMISSIONS.SYSTEM_MANAGE_ROLES, PERMISSIONS.SYSTEM_ASSIGN_ROLES],
   '/settings/security': [PERMISSIONS.SETTINGS_MANAGE_SECURITY, PERMISSIONS.SECURITY_MANAGE_CATEGORIES],
   '/settings/security/categories': [PERMISSIONS.SECURITY_MANAGE_CATEGORIES],

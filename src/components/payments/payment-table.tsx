@@ -24,9 +24,9 @@ import {
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Trash2, Eye, CheckCircle, Download, X, Receipt, Plus, ChevronDown, ChevronUp, ChevronsUpDown, Clock, AlertCircle } from 'lucide-react';
+import { Trash2, Eye, CheckCircle, Download, X, Receipt, Plus, ChevronDown, ChevronUp, ChevronsUpDown, Clock, AlertCircle, ShieldCheck } from 'lucide-react';
 import { PaymentStatusBadge } from './payment-status-badge';
-import { useDeletePayment, useBulkUpdatePayments } from '@/hooks/use-payments';
+import { useDeletePayment, useBulkUpdatePayments, useBulkVerifyPayments } from '@/hooks/use-payments';
 import { formatCurrency } from '@/lib/utils';
 import type { PaymentRecord } from '@/types/database';
 import { toast } from 'sonner';
@@ -230,10 +230,12 @@ export function PaymentTable({ data, showResident = true, residentId, clickableR
     const router = useRouter();
     const deleteMutation = useDeletePayment();
     const bulkUpdateMutation = useBulkUpdatePayments();
+    const bulkVerifyMutation = useBulkVerifyPayments();
 
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
 
     const handleNavigate = useCallback((id: string) => {
         router.push(`/payments/${id}`);
@@ -331,6 +333,17 @@ export function PaymentTable({ data, showResident = true, residentId, clickableR
             setSelectedIds(new Set());
         } catch (error) {
             // Error handled by mutation
+        }
+    };
+
+    // Bulk verify handler (#812)
+    const handleBulkVerify = async () => {
+        try {
+            await bulkVerifyMutation.mutateAsync({ ids: Array.from(selectedIds) });
+            setSelectedIds(new Set());
+            setVerifyDialogOpen(false);
+        } catch {
+            // Error handled by mutation; keep the dialog open
         }
     };
 
@@ -524,6 +537,18 @@ export function PaymentTable({ data, showResident = true, residentId, clickableR
                                     </DropdownMenuContent>
                                 </DropdownMenu>
                                 </Can>
+                                <Can permission={PERMISSIONS.PAYMENTS_VERIFY}>
+                                <Button
+                                    variant="default"
+                                    size="sm"
+                                    className="bg-primary-foreground text-primary hover:bg-primary-foreground/90"
+                                    onClick={() => setVerifyDialogOpen(true)}
+                                    disabled={bulkVerifyMutation.isPending}
+                                >
+                                    <ShieldCheck className="h-4 w-4 mr-2" />
+                                    Mark Verified
+                                </Button>
+                                </Can>
                                 <Button
                                     variant="outline"
                                     size="sm"
@@ -580,6 +605,18 @@ export function PaymentTable({ data, showResident = true, residentId, clickableR
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
+                                </Can>
+                                <Can permission={PERMISSIONS.PAYMENTS_VERIFY}>
+                                <Button
+                                    variant="default"
+                                    size="icon"
+                                    className="bg-primary-foreground text-primary"
+                                    aria-label="Mark selected payments verified"
+                                    onClick={() => setVerifyDialogOpen(true)}
+                                    disabled={bulkVerifyMutation.isPending}
+                                >
+                                    <ShieldCheck className="h-4 w-4" />
+                                </Button>
                                 </Can>
                                 <Button
                                     variant="outline"
@@ -639,6 +676,35 @@ export function PaymentTable({ data, showResident = true, residentId, clickableR
                             disabled={isDeleting}
                         >
                             {isDeleting ? 'Deleting...' : 'Delete'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Verify Confirmation Dialog (#812) */}
+            <Dialog open={verifyDialogOpen} onOpenChange={setVerifyDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Mark Payments Verified</DialogTitle>
+                        <DialogDescription>
+                            Mark {selectedIds.size} payment{selectedIds.size !== 1 ? 's' : ''} as verified?
+                            A verified payment&apos;s amount, resident, property and status are locked until
+                            it is un-verified. Payments that are already verified are skipped.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setVerifyDialogOpen(false)}
+                            disabled={bulkVerifyMutation.isPending}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleBulkVerify}
+                            disabled={bulkVerifyMutation.isPending}
+                        >
+                            {bulkVerifyMutation.isPending ? 'Verifying...' : `Verify ${selectedIds.size}`}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

@@ -150,7 +150,7 @@ describe('unverifyPayment', () => {
     results['payment_records'] = { data: stored({ verified_by: 'u9' }), error: null };
     const res = await unverifyPayment(A, 'wrong amount');
     expect(res.success).toBe(true);
-    expect(authorize).toHaveBeenCalledWith('manage_expenditure');
+    expect(authorize).toHaveBeenCalledWith('payments.verify');
     expect(paymentUpdates()[0]).toMatchObject({ is_verified: false, verified_at: null, verified_by: null });
     expect(audit).toHaveBeenCalledWith(expect.objectContaining({
       entityType: 'payment_records', entityId: A, newValues: expect.objectContaining({ is_verified: false }),
@@ -191,5 +191,21 @@ describe('unverifyPayment', () => {
     await unverifyPayment(A);
     results['payment_records'] = { data: stored({ is_verified: false }), error: null };
     expect((await updatePayment(A, { amount: 6000 })).success).toBe(true);
+  });
+});
+
+describe('payment verification audit display (#893)', () => {
+  it('manuallyVerifyPayment names the payment by its reference number', async () => {
+    const { manuallyVerifyPayment } = await import('@/actions/finance/manual-verification');
+    results['payment_records'] = { data: stored({ is_verified: false }), error: null };
+    expect((await manuallyVerifyPayment(A)).success).toBe(true);
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({ entityDisplay: 'Payment: R1' }));
+  });
+
+  it('unverifyPayment names the payment by its reference number', async () => {
+    const { unverifyPayment } = await import('@/actions/finance/manual-verification');
+    results['payment_records'] = { data: stored(), error: null };
+    expect((await unverifyPayment(A)).success).toBe(true);
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({ entityDisplay: 'Payment: R1' }));
   });
 });

@@ -5,6 +5,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { revalidatePath } from 'next/cache';
 import { logAudit } from '@/lib/audit/logger';
+import { z } from 'zod';
 
 // ============================================================
 // Manual Verification Actions for Payments and Expenses
@@ -25,7 +26,7 @@ export async function manuallyVerifyPayment(
     paymentId: string,
     notes?: string
 ): Promise<ManualVerifyResult> {
-    const { authorized } = await authorizePermission(PERMISSIONS.EXPENDITURE_MANAGE);
+    const { authorized } = await authorizePermission(PERMISSIONS.PAYMENTS_VERIFY);
     if (!authorized) {
         return { success: false, error: 'Unauthorized' };
     }
@@ -75,7 +76,7 @@ export async function manuallyVerifyPayment(
         action: 'UPDATE',
         entityType: 'payment_records',
         entityId: paymentId,
-        entityDisplay: `Payment: ${existingPayment.reference || paymentId}`,
+        entityDisplay: `Payment: ${existingPayment.reference_number || paymentId}`,
         oldValues: { is_verified: false },
         newValues: {
             is_verified: true,
@@ -93,13 +94,13 @@ export async function manuallyVerifyPayment(
 /**
  * Un-verify a payment record (#502). A verified payment's amount, payer, property and
  * status are locked; this is the audited route to correct one. Uses the same permission
- * as manuallyVerifyPayment.
+ * as manuallyVerifyPayment (payments.verify, #812).
  */
 export async function unverifyPayment(
     paymentId: string,
     reason?: string
 ): Promise<ManualVerifyResult> {
-    const { authorized } = await authorizePermission(PERMISSIONS.EXPENDITURE_MANAGE);
+    const { authorized } = await authorizePermission(PERMISSIONS.PAYMENTS_VERIFY);
     if (!authorized) {
         return { success: false, error: 'Unauthorized' };
     }
@@ -146,7 +147,7 @@ export async function unverifyPayment(
         action: 'UPDATE',
         entityType: 'payment_records',
         entityId: paymentId,
-        entityDisplay: `Payment: ${existingPayment.reference || paymentId}`,
+        entityDisplay: `Payment: ${existingPayment.reference_number || paymentId}`,
         oldValues: {
             is_verified: true,
             verified_by: existingPayment.verified_by,
@@ -164,6 +165,116 @@ export async function unverifyPayment(
     revalidatePath('/dashboard');
 
     return { success: true };
+}
+
+const bulkVerifySchema = z.object({
+    ids: z
+        .array(z.string().uuid())
+        .min(1, 'At least one payment ID is required')
+        .max(500, 'At most 500 payments can be verified at once'),
+    notes: z.string().optional(),
+});
+
+interface BulkVerifyResult {
+    success: boolean;
+    error?: string;
+    verifiedCount?: number;
+    skippedCount?: number;
+    message?: string;
+}
+
+/**
+ * Verify several payments at once (#812). Payments that are already verified are skipped and
+ * counted. Each verified payment gets its own audit entry. Verification locks the payment (#502).
+ */
+export async function bulkVerifyPayments(
+    ids: string[],
+    notes?: string
+): Promise<BulkVerifyResult> {
+    const { authorized } = await authorizePermission(PERMISSIONS.PAYMENTS_VERIFY);
+    if (!authorized) {
+        return { success: false, error: 'Unauthorized' };
+    }
+
+    const validation = bulkVerifySchema.safeParse({ ids, notes });
+    if (!validation.success) {
+        return { success: false, error: validation.error.issues[0].message };
+    }
+
+    const requestedIds = [...new Set(validation.data.ids)];
+    const verificationNotes = validation.data.notes?.trim() || undefined;
+    const supabase = await createServerSupabaseClient();
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+        return { success: false, error: 'Unauthorized' };
+    }
+
+    const { data: existing, error: fetchError } = await supabase
+        .from('payment_records')
+        .select('id, is_verified')
+        .in('id', requestedIds);
+
+    if (fetchError || !existing) {
+        console.error('Error loading payments to verify:', fetchError);
+        return { success: false, error: 'Could not load the selected payments' };
+    }
+
+    const toVerify = existing.filter((p) => !p.is_verified).map((p) => p.id);
+    const skippedCount = requestedIds.length - toVerify.length;
+    if (toVerify.length === 0) {
+        return { success: false, error: `All ${skippedCount} selected payment(s) are already verified or no longer exist` };
+    }
+
+    // The is_verified filter keeps a payment verified concurrently from being re-stamped
+    const { data: verified, error: updateError } = await supabase
+        .from('payment_records')
+        .update({
+            is_verified: true,
+            verified_at: new Date().toISOString(),
+            verified_by: user.id,
+        })
+        .in('id', toVerify)
+        .eq('is_verified', false)
+        .select('id, reference_number');
+
+    if (updateError) {
+        console.error('Error bulk verifying payments:', updateError);
+        return { success: false, error: 'Failed to verify payments' };
+    }
+
+    const verifiedRows = verified ?? [];
+    await Promise.all(
+        verifiedRows.map((payment) =>
+            logAudit({
+                action: 'VERIFY',
+                entityType: 'payment_records',
+                entityId: payment.id,
+                entityDisplay: `Payment: ${payment.reference_number || payment.id}`,
+                oldValues: { is_verified: false },
+                newValues: {
+                    is_verified: true,
+                    verified_by: user.id,
+                    verification_type: 'manual_bulk',
+                    ...(verificationNotes ? { notes: verificationNotes } : {}),
+                },
+            })
+        )
+    );
+
+    revalidatePath('/payments');
+    revalidatePath('/dashboard');
+
+    const verifiedCount = verifiedRows.length;
+    const totalSkipped = requestedIds.length - verifiedCount;
+    return {
+        success: true,
+        verifiedCount,
+        skippedCount: totalSkipped,
+        message:
+            `Verified ${verifiedCount} payment(s)` +
+            (totalSkipped > 0 ? `; skipped ${totalSkipped} already verified or missing` : ''),
+    };
 }
 
 /**

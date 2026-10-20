@@ -278,6 +278,24 @@ describe('Module Integration Compliance', () => {
     }, SCAN_TIMEOUT_MS);
   });
 
+  describe('Bulk payment verification (#812)', () => {
+    it('scans bulkVerifyPayments as a guarded, audited write action with no allowlist entry', async () => {
+      const id = 'finance/manual-verification.ts::bulkVerifyPayments';
+      const { project } = await scanActions();
+      const fn = project
+        .get('finance/manual-verification.ts')
+        ?.functions.find((f) => f.name === 'bulkVerifyPayments');
+
+      expect(fn, `${id} was not found by the action scan`).toBeDefined();
+      expect(fn!.exported && fn!.isAsync && fn!.isWrite).toBe(true);
+      expect(fn!.guardPos).not.toBeNull();
+      expect(fn!.guardPos!).toBeLessThan(fn!.firstDbOpPos!);
+      expect(fn!.hasAudit).toBe(true);
+      expect(PERMISSION_ALLOWLIST).not.toContain(id);
+      expect(AUDIT_ALLOWLIST).not.toContain(id);
+    }, SCAN_TIMEOUT_MS);
+  });
+
   describe('Server Action Surface', () => {
     it("no file outside src/actions should carry a 'use server' directive (module or function level)", async () => {
       const srcFiles = await glob('**/*.{ts,tsx}', {
