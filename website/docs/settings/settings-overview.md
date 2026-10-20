@@ -18,20 +18,22 @@ Settings are grouped by the decision they control.
 
 ![Residio settings hub](../assets/admin/settings-overview.png)
 
-- **Estate:** estate identity, branding, appearance, streets, house types, document categories, and document tags and custom fields.
-- **Financial:** billing rules, late fees, invoice generation, levies, billing profiles, bank accounts, and transaction tags.
-- **Communications:** the notifications dashboard, reminders and their schedule, notification templates, email notifications, announcement templates, and announcement categories.
-- **Access & Security:** role and permission definitions, security settings, and security contact categories.
-- **Integrations:** external services — WhatsApp and Gmail import today, with Paystack and SMS planned. Each keeps its credentials and its day-to-day console (consent, sync status, manual actions) together, rather than splitting configuration from operations the way the other groups do.
-- **Maintenance & Data:** system behaviour (maintenance mode, session timeout and duplicate matching) and data retention.
+- **Setup:** this overview page, with the setup checklist.
+- **Estate & Property:** estate details, logo and branding, theme, streets, and house types.
+- **Money:** billing rules (general, late fees, invoices and due dates, levies), rate cards (billing profiles), bank accounts, and transaction tags.
+- **Messages & Reminders:** the notifications overview, reminders (when to send, and the reminder schedule), message wording (notification messages and announcement templates), email delivery (email settings, and sending a test), redirecting messages in test mode, and announcement categories.
+- **Documents:** document categories, and tags and custom fields.
+- **People & Access:** role and permission definitions, and security rules (security settings and contact categories).
+- **Connections:** external services — WhatsApp and Gmail import today, with Paystack and SMS planned. Each keeps its credentials and its day-to-day console (consent, sync status, manual actions) together, rather than splitting configuration from operations the way the other groups do.
+- **System:** maintenance mode (with session timeout and duplicate matching) and data retention.
 
 **This page.** Every settings page your role can open has a card here, grouped as in the sidebar. Type in the search box to narrow the cards to matching pages, for example `late fee` or `logo`. A card for a setup step reads **Set up** or **Not set up**. Until the estate is fully set up, a **Setup checklist** above the cards shows how many of the nine first-time steps are done (estate name and address, a street, a house type, a bank account, a billing profile, saved billing settings, a notification channel, payment reminders, and a custom role given to someone); each step links to its page, and the checklist disappears once every step is done.
 
 **States that affect everyone.** While maintenance mode or the communications override is on, a banner that cannot be dismissed sits above the header on every dashboard page, the **Settings** item in the main menu carries an amber dot, and the matching card on this page reads **ON**. Each banner links to its settings page. You see a state only if your role can open its page: the maintenance permission for maintenance mode, the general settings permission for the override. Debug Mode also counts as the override being on while it is running, since it redirects every message too. Outside production the override is always on, so on Stage the override banner is always shown.
 
-**Resident portal switch.** **Settings → Estate Information** has a *Resident portal* card with one switch. It decides whether the resident portal links (*My Portal*, *Resident Portal* in the profile menu, and *View as Resident*) appear in the admin dashboard. It is off by default and needs the general settings permission to change. The switch only hides or shows links: it does not block the `/portal` address, so anyone who opens `/portal` directly still reaches it. An individual account can override the switch under **System → Accounts**.
+**Resident portal switch.** **Settings → Estate & Property → Estate Details** has a *Resident portal* card with one switch. It decides whether the resident portal links (*My Portal*, *Resident Portal* in the profile menu, and *View as Resident*) appear in the admin dashboard. It is off by default and needs the general settings permission to change. The switch only hides or shows links: it does not block the `/portal` address, so anyone who opens `/portal` directly still reaches it. An individual account can override the switch under **System → Accounts**.
 
-The rest of **Settings → Estate Information**, including the AI assistant switches, saves together from the save bar that appears when something has changed; email and web addresses must be valid before it saves, and the page warns before you leave with unsaved changes. Removing the logo under **Branding** asks first.
+The rest of **Settings → Estate & Property → Estate Details**, including the AI assistant switches, saves together from the save bar that appears when something has changed; email and web addresses must be valid before it saves, and the page warns before you leave with unsaved changes. Removing the logo under **Branding** asks first.
 
 Day-to-day account work — assigning roles, watching cron jobs, the notification queue and history, audit logs — lives under **System** in the main sidebar, not Settings: Settings holds configuration, System holds live state and account operations.
 
