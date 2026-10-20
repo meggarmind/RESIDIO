@@ -216,7 +216,7 @@ export default function MessageTemplatesPage() {
   return (
     <div className="space-y-6">
       <SettingsPageHeader
-        description="Reusable text for announcements. These are not notification templates: notifications use the system templates in Notification Templates."
+        description="Reusable text for announcements. These are not notification templates: notifications use the system templates in Notification Messages."
         actions={
           <Button onClick={() => handleOpenDialog()}>
             <Plus className="h-4 w-4 mr-2" />

@@ -17,9 +17,9 @@ const SETTING_KEYS = [
 
 const isFilled = (value: unknown) => typeof value === 'string' && value.trim() !== '';
 
-/** Active schedule with at least one active step; an unsaved schedule falls back to the default, which has them. */
+/** Active schedule with at least one active step. */
 function hasActiveSchedule(value: unknown): boolean {
-  if (value === null || value === undefined) return true;
+  if (value === null || value === undefined) return false;
   try {
     const schedule = typeof value === 'string' ? JSON.parse(value) : value;
     return (
@@ -50,7 +50,7 @@ export async function getSetupStatus(): Promise<{ data: SetupStatus | null; erro
   const [settings, streets, houseTypes, bankAccounts, billingProfiles, customRoles] = await Promise.all([
     supabase
       .from('system_settings')
-      .select('key, value, category')
+      .select('key, value, category, created_at, updated_at')
       .or(`category.eq.billing,key.in.(${SETTING_KEYS.join(',')})`),
     count('streets'),
     count('house_types'),
@@ -69,7 +69,11 @@ export async function getSetupStatus(): Promise<{ data: SetupStatus | null; erro
   }
 
   const rows = settings.data ?? [];
-  const value = (key: string) => rows.find((row) => row.key === key)?.value;
+  const row = (key: string) => rows.find((r) => r.key === key);
+  const value = (key: string) => row(key)?.value;
+  // Seeded rows only count once an admin has saved them; the update trigger moves updated_at past created_at.
+  const savedAfterSeed = (r?: (typeof rows)[number]) =>
+    !!r?.created_at && !!r.updated_at && new Date(r.updated_at) > new Date(r.created_at);
 
   return {
     data: {
@@ -78,10 +82,9 @@ export async function getSetupStatus(): Promise<{ data: SetupStatus | null; erro
       houseType: (houseTypes.count ?? 0) > 0,
       bankAccount: (bankAccounts.count ?? 0) > 0,
       billingProfile: (billingProfiles.count ?? 0) > 0,
-      billingSettings: rows.some((row) => row.category === 'billing'),
-      // Same defaults the email and reminder pages read: email is on unless switched off, SMS and WhatsApp only when switched on.
+      billingSettings: rows.some((r) => r.category === 'billing' && savedAfterSeed(r)),
       notificationChannel:
-        value('email_enabled') !== false ||
+        (savedAfterSeed(row('email_enabled')) && value('email_enabled') === true) ||
         value('invoice_reminder_sms_enabled') === true ||
         value('invoice_reminder_whatsapp_enabled') === true,
       reminderSchedule:

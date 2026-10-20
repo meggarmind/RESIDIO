@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   authorizePermission: vi.fn(),
-  settings: [] as Array<{ key: string; value: unknown; category: string }>,
+  settings: [] as Array<{ key: string; value: unknown; category: string; created_at?: string; updated_at?: string }>,
   counts: {} as Record<string, number>,
   from: vi.fn(),
 }));
@@ -30,6 +30,22 @@ vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: mocks.authorizePer
 import { getSetupStatus } from '@/actions/settings/get-setup-status';
 import { summarizeSetup } from '@/lib/settings/setup-checklist';
 
+const SEEDED = '2025-12-12T00:00:00Z';
+const LATER = '2026-10-20T00:00:00Z';
+/** What the migrations leave behind on a fresh database: seeded rows never saved by an admin. */
+const seededRows = () => [
+  { key: 'bill_vacant_houses', value: false, category: 'billing', created_at: SEEDED, updated_at: SEEDED },
+  { key: 'invoice_due_day', value: 7, category: 'billing', created_at: SEEDED, updated_at: SEEDED },
+  { key: 'email_enabled', value: 'true', category: 'email', created_at: SEEDED, updated_at: SEEDED },
+];
+const saved = (key: string, value: unknown, category: string) => ({
+  key,
+  value,
+  category,
+  created_at: SEEDED,
+  updated_at: LATER,
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.authorizePermission.mockResolvedValue({ authorized: true });
@@ -47,25 +63,48 @@ describe('getSetupStatus (#786)', () => {
     expect(mocks.from).not.toHaveBeenCalled();
   });
 
-  it('reports an empty estate as having done only the defaults', async () => {
-    mocks.settings = [
-      { key: 'email_enabled', value: false, category: 'email' },
-      { key: 'invoice_reminders_enabled', value: false, category: 'notifications' },
-    ];
+  it('reports a freshly migrated estate as 0 of N done', async () => {
+    mocks.settings = seededRows();
     const { data } = await getSetupStatus();
-    expect(summarizeSetup(data!).done).toBe(0);
+    const summary = summarizeSetup(data!);
+    expect(summary.done).toBe(0);
+    expect(summary.total).toBeGreaterThan(0);
+  });
+
+  it('marks billing done once a seeded billing row is saved', async () => {
+    mocks.settings = [...seededRows().filter((r) => r.key !== 'invoice_due_day'), saved('invoice_due_day', 5, 'billing')];
+    const { data } = await getSetupStatus();
+    expect(data!.billingSettings).toBe(true);
+    expect(data!.notificationChannel).toBe(false);
+  });
+
+  it('marks a channel done once email is saved on, or SMS or WhatsApp is switched on', async () => {
+    mocks.settings = [...seededRows().filter((r) => r.key !== 'email_enabled'), saved('email_enabled', true, 'email')];
+    expect((await getSetupStatus()).data!.notificationChannel).toBe(true);
+
+    mocks.settings = [...seededRows().filter((r) => r.key !== 'email_enabled'), saved('email_enabled', false, 'email')];
+    expect((await getSetupStatus()).data!.notificationChannel).toBe(false);
+
+    mocks.settings = [...seededRows(), saved('invoice_reminder_sms_enabled', true, 'notifications')];
+    expect((await getSetupStatus()).data!.notificationChannel).toBe(true);
+  });
+
+  it('marks reminders done once an active schedule is saved', async () => {
+    const schedule = saved('invoice_reminder_schedule', { isActive: true, steps: [{ isActive: true }] }, 'notifications');
+    mocks.settings = [...seededRows(), schedule];
+    expect((await getSetupStatus()).data!.reminderSchedule).toBe(true);
+
+    mocks.settings = [...seededRows(), schedule, saved('invoice_reminders_enabled', false, 'notifications')];
+    expect((await getSetupStatus()).data!.reminderSchedule).toBe(false);
   });
 
   it('reports a complete estate as complete', async () => {
     mocks.settings = [
       { key: 'estate_name', value: 'Palm Grove', category: 'general' },
       { key: 'estate_address', value: '1 Palm Way', category: 'general' },
-      { key: 'billing_due_day', value: 5, category: 'billing' },
-      {
-        key: 'invoice_reminder_schedule',
-        value: { isActive: true, steps: [{ isActive: true }] },
-        category: 'notifications',
-      },
+      saved('invoice_due_day', 5, 'billing'),
+      saved('email_enabled', true, 'email'),
+      saved('invoice_reminder_schedule', { isActive: true, steps: [{ isActive: true }] }, 'notifications'),
     ];
     mocks.counts = { streets: 2, house_types: 1, estate_bank_accounts: 1, billing_profiles: 3, profiles: 1 };
     const { data } = await getSetupStatus();
