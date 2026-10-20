@@ -30,6 +30,25 @@ beforeEach(() => {
   });
 });
 
+describe('notifyResidentOfApprovalOutcome for a clearance request (#816)', () => {
+  const clearance = { id: 'request-3', request_type: 'clearance_certificate_request' };
+
+  beforeEach(() => {
+    mockDb({ approval_requests: [{ data: { entity_id: 'house-1', requested_by_resident_id: 'resident-1', requested_changes: { property: '12 Palm Close' } }, error: null }] });
+  });
+
+  it.each(['rejected', 'expired'] as const)('tells the resident the request was not approved when %s', async (outcome) => {
+    await notifyResidentOfApprovalOutcome(clearance, outcome);
+    expect(sendWhatsAppToResident).toHaveBeenCalledWith('resident-1', 'Your clearance certificate request for 12 Palm Close was not approved. Contact the estate office.', { seed: `approval:request-3:${outcome}` });
+    expect(closeReportedPayment).not.toHaveBeenCalled();
+  });
+
+  it('says nothing on approval: the certificate itself is the message', async () => {
+    await notifyResidentOfApprovalOutcome(clearance, 'approved');
+    expect(sendWhatsAppToResident).not.toHaveBeenCalled();
+  });
+});
+
 describe('notifyResidentOfApprovalOutcome (#816 decision 13)', () => {
   it('tells the resident the payment was confirmed', async () => {
     await notifyResidentOfApprovalOutcome(request, 'approved');

@@ -14,7 +14,7 @@ export type ResidentSendResult = { sent: true } | { sent: false; reason: string 
 export async function sendWhatsAppToResident(
   residentId: string,
   body: string,
-  options: { seed: string; mediaUrls?: string[] }
+  options: { seed: string; mediaUrls?: string[]; trackingId?: string }
 ): Promise<ResidentSendResult> {
   try {
     const { data: resident, error } = await createAdminClient().from('residents').select('phone_primary').eq('id', residentId).single();
@@ -30,7 +30,8 @@ export async function sendWhatsAppToResident(
       { to: phone, body, idempotencySeed: options.seed, ...(options.mediaUrls ? { mediaUrls: options.mediaUrls } : {}) },
       undefined,
       { residentOverride: override.residentOverride },
-      { purpose: 'notification', residentId }
+      // trackingId ties a failed send back to its stored file, so the one-retry with a fresh URL finds it (#804).
+      { purpose: 'notification', residentId, ...(options.trackingId ? { inboundMessageId: options.trackingId } : {}) }
     );
     return result.success ? { sent: true } : { sent: false, reason: result.error || 'send failed' };
   } catch (error) {

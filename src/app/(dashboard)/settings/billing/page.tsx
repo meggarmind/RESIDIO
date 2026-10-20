@@ -13,6 +13,7 @@ import { Bell, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { SettingsSkeleton } from '@/components/settings/settings-states';
+import { ClearanceCopyCard } from '@/components/settings/clearance-copy-card';
 
 export default function BillingSettingsPage() {
     const { hasAnyPermission } = useAuth();
@@ -247,6 +248,13 @@ export default function BillingSettingsPage() {
                     </CardContent>
                 </Card>
             </div>
+
+            <ClearanceCopyCard
+                groupId={typeof settingsMap.clearance_copy_recipient_group_id === 'string' ? settingsMap.clearance_copy_recipient_group_id : ''}
+                canEdit={canEdit}
+                pending={updateSettingMutation.isPending}
+                onChange={(groupId) => updateSettingMutation.mutate({ key: 'clearance_copy_recipient_group_id', value: groupId })}
+            />
         </div>
     );
 }

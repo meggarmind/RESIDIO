@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSettings, getBillingSettings, getCurrentDevelopmentLevyProfileId } from '@/actions/settings/get-settings';
 import { updateSetting, updateSettings, setCurrentDevelopmentLevyProfileId } from '@/actions/settings/update-setting';
 import { uploadEstateLogo, removeEstateLogo } from '@/actions/settings/upload-estate-logo';
+import { getClearanceCopyOptions } from '@/actions/groups/clearance-copy-options';
 import { generateRetroactiveLevies } from '@/actions/billing/generate-levies';
 import {
     getEffectiveSetting,
@@ -38,6 +39,18 @@ export function useBillingSettings() {
             return result.data;
         },
         staleTime: 5 * 60 * 1000, // 5 minutes - billing settings rarely change
+    });
+}
+
+/** The recipient groups the clearance certificate copies card offers, with their members' warnings (#816). */
+export function useClearanceCopyOptions() {
+    return useQuery({
+        queryKey: ['clearance-copy-options'],
+        queryFn: async () => {
+            const result = await getClearanceCopyOptions();
+            if (result.error) throw new Error(result.error);
+            return result.data ?? [];
+        },
     });
 }
 

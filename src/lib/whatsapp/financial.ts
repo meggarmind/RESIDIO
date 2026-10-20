@@ -18,6 +18,7 @@ import {
   type StatementRequestInput,
 } from '@/lib/whatsapp/statement-delivery';
 import { getReceiptPayments, loadReceipt, storeReceiptPdf, type ReceiptPayment } from '@/lib/whatsapp/receipts';
+import { requestClearanceCertificate, type ClearanceRequestResult } from '@/lib/whatsapp/clearance-request';
 import type { PaymentReceiptData } from '@/lib/pdf/payment-receipt';
 import {
   REPORTS_PER_DAY,
@@ -87,7 +88,7 @@ const TEXT_ONLY_REPLY = 'I can only read text messages here. Please type your re
 const UNSUBSCRIBED_REPLY = "You've been unsubscribed from estate WhatsApp alerts. Reply START any time to re-subscribe.";
 
 /** Values written to whatsapp_disclosure_logs.menu_item (shown as-is in the operations console). */
-export type FinancialMenuItem = 'what_i_owe' | 'recent_payments' | 'statement' | 'wallet' | 'receipt';
+export type FinancialMenuItem = 'what_i_owe' | 'recent_payments' | 'statement' | 'wallet' | 'receipt' | 'clearance';
 export type LookupAllowance = 'ok' | 'resident_cap' | 'estate_cap';
 /** How a disclosure left the estate (#804 decision 25). */
 export type DisclosureChannel = 'chat' | 'pdf' | 'email';
@@ -197,6 +198,8 @@ export interface WhatsAppFinancialRepository {
   loadReceipt(residentId: string, houseId: string, paymentId: string): Promise<PaymentReceiptData | null>;
   /** Stores the receipt PDF privately and returns a 1-hour signed URL for the reply. */
   storeReceiptPdf(input: Parameters<typeof storeReceiptPdf>[0], receipt: PaymentReceiptData): Promise<string>;
+  /** Files an approval request for a clearance certificate on this property (#816 decision 15). */
+  requestClearance(input: Parameters<typeof requestClearanceCertificate>[0]): Promise<ClearanceRequestResult>;
   /** The statement PDF for a period: the admin account statement, with its Lagos dates. */
   loadStatement(residentId: string, houseId: string, period: StatementPeriod, now: Date): Promise<{ fromDate: string; toDate: string; statement: AccountStatementData }>;
   /** Stores the PDF privately and returns a 1-hour signed URL for the reply. */
@@ -646,6 +649,7 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
     getReceiptPayments,
     loadReceipt,
     storeReceiptPdf,
+    requestClearance: requestClearanceCertificate,
     loadStatement: loadWhatsAppStatementForPeriod,
     storeStatementPdf,
     createStatementRequest,
@@ -756,8 +760,9 @@ const ITEM_FOR_INTENT: Partial<Record<AssistantIntent, Target>> = {
   wallet: 'wallet',
   receipt: 'receipt',
   report: 'report',
+  clearance: 'clearance',
 };
-const FINANCIAL_ITEM_NUMBERS: Record<string, Target> = { '1': 'what_i_owe', '2': 'recent_payments', '3': 'statement', '4': 'wallet', '5': 'receipt', '6': 'report' };
+const FINANCIAL_ITEM_NUMBERS: Record<string, Target> = { '1': 'what_i_owe', '2': 'recent_payments', '3': 'statement', '4': 'wallet', '5': 'receipt', '6': 'report', '7': 'clearance' };
 
 interface Turn {
   message: WhatsAppInboundMessage;
@@ -854,6 +859,7 @@ function financialMenu(turn: Turn): string {
     '4. Wallet',
     '5. Receipt',
     '6. Report a payment',
+    '7. Clearance certificate',
     ...(multiple ? ['8. More'] : []),
     lastLine,
   ].join('\n');
@@ -914,6 +920,7 @@ async function enterFinancial(turn: Turn, target: Target, prefix?: string): Prom
   }
   if (target === 'report') return startReport(turn, lead);
   if (target === 'receipt') return showReceipts(turn, lead);
+  if (target === 'clearance') return askForClearance(turn, lead);
   await answerItem(turn, target);
 }
 
@@ -1132,6 +1139,41 @@ async function pickReceipt(turn: Turn, input: string): Promise<void> {
   });
   const url = await repository.storeReceiptPdf({ residentId: turn.identity.id, phoneNumber: turn.phoneNumber, houseId: house.id, inboundMessageId: turn.message.id, replyText: body }, receipt);
   await respond(turn, body, 'answer', 0, [url]);
+}
+
+// ---------------------------------------------------------------------------
+// Clearance certificate (#816 decision 15): owing anything means the amount owed; owing nothing files a
+// request for an admin to approve, and the certificate then arrives here.
+
+async function askForClearance(turn: Turn, lead: string): Promise<void> {
+  const house = selectedHouse(turn);
+  if (!house) return;
+  const capped = await capReply(turn);
+  if (capped) return respond(turn, capped, 'financial');
+
+  const repository = turn.options.repository;
+  const owed = await repository.getOwed(turn.identity.id, house.id);
+  // Log before any figure or request leaves (#795).
+  await repository.logDisclosure({
+    residentId: turn.identity.id,
+    phoneNumber: turn.phoneNumber,
+    houseId: house.id,
+    menuItem: 'clearance',
+    pinAuthenticated: turn.session.pinAuthenticated,
+    metadata: { owes: owed.outstanding > 0 },
+  });
+
+  const title = `${lead}*Clearance certificate, ${house.label}*`;
+  if (owed.outstanding > 0) {
+    const pay = turn.settings?.paymentInstructions ? '\nReply PAY for how to pay' : '';
+    return respond(turn, `${title}\nYou owe ${formatNaira(owed.outstanding)} on ${house.label}, so a certificate cannot be requested yet.${pay}\n${footer(turn)}`, 'answer');
+  }
+
+  const result = await repository.requestClearance({ residentId: turn.identity.id, residentName: `${turn.identity.firstName} ${turn.identity.lastName}`, houseId: house.id, houseLabel: house.label });
+  const reply = result.status === 'requested'
+    ? `Your clearance certificate request for ${house.label} was sent to the estate office. The certificate will be sent here once it is approved.`
+    : `A clearance certificate request for ${house.label} is already waiting for approval. Nothing new was sent.`;
+  await respond(turn, `${title}\n${reply}\n${footer(turn)}`, 'answer');
 }
 
 // ---------------------------------------------------------------------------

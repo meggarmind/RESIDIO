@@ -24,6 +24,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { formatNaira } from '@/lib/whatsapp/assistant-format';
 import { settleReportedPayment } from '@/lib/whatsapp/payment-report-settlement';
+import { issueApprovedClearance } from '@/lib/whatsapp/clearance-approval';
 
 export interface ApprovalApplyResult {
   success: boolean;
@@ -182,12 +183,35 @@ const whatsappPaymentReport: ApprovalHandler<z.infer<typeof whatsappPaymentRepor
   },
 };
 
+const clearanceRequestChanges = z.object({
+  property: z.string().min(1),
+  resident: z.string().min(1),
+});
+
+/**
+ * A clearance certificate a resident asked for over WhatsApp (#816). Approving it issues the certificate:
+ * it is saved to the documents store, copied to the recipient group and sent to the resident in chat.
+ */
+const clearanceCertificateRequest: ApprovalHandler<z.infer<typeof clearanceRequestChanges>> = {
+  schema: clearanceRequestChanges,
+  auditEntityType: 'clearance_certificate',
+  apply: async (request) => {
+    const auth = await authorizePermission(PERMISSIONS.APPROVALS_APPROVE_REJECT);
+    if (!auth.authorized || !auth.userId) {
+      return { success: false, error: auth.error || 'Unauthorized' };
+    }
+    const issued = await issueApprovedClearance(request, auth.userId);
+    return issued.success ? { success: true, error: null } : { success: false, error: issued.error };
+  },
+};
+
 // Handled types only. `late_fee_waiver` is intentionally absent (see file header).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const REGISTRY: Partial<Record<ApprovalRequestType, ApprovalHandler<any>>> = {
   billing_profile_effective_date: billingProfileEffectiveDate,
   house_plots_change: housePlotsChange,
   whatsapp_payment_report: whatsappPaymentReport,
+  clearance_certificate_request: clearanceCertificateRequest,
 };
 
 /** The handler for a request type, or undefined when the approvals flow does not handle it. */

@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getApprovalHandler } from '@/lib/approvals/registry';
 import { settleReportedPayment } from '@/lib/whatsapp/payment-report-settlement';
+import { issueApprovedClearance } from '@/lib/whatsapp/clearance-approval';
 
 const { authorizePermission, logAudit } = vi.hoisted(() => ({ authorizePermission: vi.fn(), logAudit: vi.fn() }));
 
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit }));
 vi.mock('@/lib/whatsapp/payment-report-settlement', () => ({ settleReportedPayment: vi.fn() }));
+vi.mock('@/lib/whatsapp/clearance-approval', () => ({ issueApprovedClearance: vi.fn() }));
 
 const handler = getApprovalHandler('whatsapp_payment_report')!;
 const request = { id: 'request-1', entity_id: 'payment-1' } as never;
@@ -53,5 +55,39 @@ describe('whatsapp_payment_report approval handler (#816)', () => {
 
     expect(result).toEqual({ success: false, error: 'The wallet could not be credited: rpc failed' });
     expect(logAudit).not.toHaveBeenCalled();
+  });
+});
+
+describe('clearance_certificate_request approval handler (#816)', () => {
+  const clearanceHandler = getApprovalHandler('clearance_certificate_request')!;
+  const clearanceRequest = { id: 'request-9', entity_id: 'house-1', requested_by_resident_id: 'resident-1' } as never;
+
+  beforeEach(() => {
+    vi.mocked(issueApprovedClearance).mockReset().mockResolvedValue({ success: true });
+  });
+
+  it('is registered and validates its payload', () => {
+    expect(clearanceHandler.auditEntityType).toBe('clearance_certificate');
+    expect(clearanceHandler.schema.safeParse({ property: '12 Palm Close', resident: 'Ada Example' }).success).toBe(true);
+    expect(clearanceHandler.schema.safeParse({ property: '' }).success).toBe(false);
+  });
+
+  it('issues the certificate as the approver', async () => {
+    const result = await clearanceHandler.apply(clearanceRequest, { property: 'x', resident: 'y' }, {} as never);
+
+    expect(result).toEqual({ success: true, error: null });
+    expect(authorizePermission).toHaveBeenCalledWith('approvals.approve_reject');
+    expect(issueApprovedClearance).toHaveBeenCalledWith(clearanceRequest, 'admin-1');
+  });
+
+  it('passes the reason up when the certificate cannot be issued, so the approval is released', async () => {
+    vi.mocked(issueApprovedClearance).mockResolvedValue({ success: false, error: 'Ada Example now owes ₦5,000.00 on 12 Palm Close.' });
+    expect(await clearanceHandler.apply(clearanceRequest, { property: 'x', resident: 'y' }, {} as never)).toEqual({ success: false, error: 'Ada Example now owes ₦5,000.00 on 12 Palm Close.' });
+  });
+
+  it('issues nothing for an approver it cannot identify', async () => {
+    authorizePermission.mockResolvedValue({ authorized: false, userId: null, error: 'Unauthorized' });
+    expect(await clearanceHandler.apply(clearanceRequest, { property: 'x', resident: 'y' }, {} as never)).toEqual({ success: false, error: 'Unauthorized' });
+    expect(issueApprovedClearance).not.toHaveBeenCalled();
   });
 });

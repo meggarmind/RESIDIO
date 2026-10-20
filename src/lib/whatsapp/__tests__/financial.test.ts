@@ -138,6 +138,7 @@ function repository(houses: FinancialHouse[] = [PALM], overrides: Partial<WhatsA
     getReceiptPayments: vi.fn().mockResolvedValue([]),
     loadReceipt: vi.fn().mockResolvedValue(null),
     storeReceiptPdf: vi.fn().mockResolvedValue('https://storage.test/signed/receipt.pdf'),
+    requestClearance: vi.fn().mockResolvedValue({ status: 'requested', requestId: 'request-1' }),
     loadStatement: vi.fn().mockResolvedValue({ fromDate: '2026-10-01', toDate: '2026-10-20', statement: statementData(3) }),
     storeStatementPdf: vi.fn().mockResolvedValue('https://storage.test/signed/statement.pdf'),
     getResidentEmail: vi.fn().mockResolvedValue('ada.example@gmail.com'),
@@ -187,6 +188,7 @@ const FINANCIAL_MENU = [
   '4. Wallet',
   '5. Receipt',
   '6. Report a payment',
+  '7. Clearance certificate',
   FOOTER,
 ].join('\n');
 
@@ -1479,5 +1481,80 @@ describe('WhatsApp Assistant receipts (#816 decision 14)', () => {
     expect(replies[0]).toContain('5. Receipt');
     expect(replies[1]).toContain('*Receipts, 12 Palm Close*');
     expect(replies[2]).toBe(FINANCIAL_MENU);
+  });
+});
+
+describe('WhatsApp Assistant clearance certificate (#816 decision 15)', () => {
+  const PAID_UP: OwedFigures = { invoiceCount: 3, outstanding: 0, overdue: null, next: null, awaitingVerification: 0 };
+
+  it('tells a resident who owes money how much, and files no request', async () => {
+    const repo = repository();
+    const replies = await chat(repo, ['clearance']);
+
+    expect(replies[0]).toBe([
+      '*Clearance certificate, 12 Palm Close*',
+      'You owe ₦125,000.00 on 12 Palm Close, so a certificate cannot be requested yet.',
+      'Reply PAY for how to pay',
+      FOOTER,
+    ].join('\n'));
+    expect(repo.requestClearance).not.toHaveBeenCalled();
+  });
+
+  it('files an approval request for a resident who owes nothing, naming the property', async () => {
+    const repo = repository([PALM], { getOwed: vi.fn().mockResolvedValue(PAID_UP) });
+    const replies = await chat(repo, ['1', '7']);
+
+    expect(repo.requestClearance).toHaveBeenCalledWith({ residentId: 'resident-1', residentName: 'Ada Example', houseId: 'house-1', houseLabel: '12 Palm Close' });
+    expect(replies[1]).toBe([
+      '*Clearance certificate, 12 Palm Close*',
+      'Your clearance certificate request for 12 Palm Close was sent to the estate office. The certificate will be sent here once it is approved.',
+      FOOTER,
+    ].join('\n'));
+  });
+
+  it('says so when a request for the property is already waiting', async () => {
+    const repo = repository([PALM], { getOwed: vi.fn().mockResolvedValue(PAID_UP), requestClearance: vi.fn().mockResolvedValue({ status: 'duplicate' }) });
+    const replies = await chat(repo, ['clearance']);
+    expect(replies[0]).toContain('A clearance certificate request for 12 Palm Close is already waiting for approval. Nothing new was sent.');
+  });
+
+  it('asks per property, and uses the property the resident picked', async () => {
+    const repo = repository([PALM, CEDAR], { getOwed: vi.fn().mockResolvedValue(PAID_UP) });
+    const replies = await chat(repo, ['clearance', '2']);
+
+    expect(replies[0]).toContain('Which property?');
+    expect(repo.getOwed).toHaveBeenCalledWith('resident-1', 'house-2');
+    expect(repo.requestClearance).toHaveBeenCalledWith(expect.objectContaining({ houseId: 'house-2', houseLabel: '4 Cedar Way' }));
+  });
+
+  it('logs the check as a disclosure without any amount, and counts toward the caps', async () => {
+    const repo = repository();
+    await chat(repo, ['clearance']);
+    expect(repo.logDisclosure).toHaveBeenCalledWith(expect.objectContaining({ menuItem: 'clearance', metadata: { owes: true } }));
+
+    const capped = repository();
+    const replies = await chat(capped, ['clearance'], identity, { canLookup: vi.fn().mockResolvedValue('estate_cap') });
+    expect(replies[0]).toContain('Financial lookups are paused for everyone until midnight.');
+    expect(capped.getOwed).not.toHaveBeenCalled();
+    expect(capped.requestClearance).not.toHaveBeenCalled();
+  });
+
+  it('needs the PIN and is not offered to a community-tier resident', async () => {
+    const repo = repository([PALM], { getOwed: vi.fn().mockResolvedValue(PAID_UP) });
+    vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
+    const replies = await chat(repo, ['clearance']);
+    expect(replies[0]).toContain('before viewing financial standing');
+    expect(repo.requestClearance).not.toHaveBeenCalled();
+
+    const blocked = repository([]);
+    expect((await chat(blocked, ['clearance'], community))[0]).toMatch(/^Financial standing is only available/);
+    expect(blocked.requestClearance).not.toHaveBeenCalled();
+  });
+
+  it('is item 7 of Financial standing', async () => {
+    const repo = repository([PALM], { getOwed: vi.fn().mockResolvedValue(PAID_UP) });
+    const replies = await chat(repo, ['1', '7']);
+    expect(replies[0]).toContain('7. Clearance certificate');
+    expect(repo.requestClearance).toHaveBeenCalledTimes(1);
   });
 });
