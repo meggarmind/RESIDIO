@@ -186,13 +186,38 @@ describe('a failed send is retried as the same inbound', () => {
     expect(repo.saveConsentStep).not.toHaveBeenCalled();
   });
 
-  it('records no acceptance when the thanks was not delivered', async () => {
+  it('keeps the held request when the resume after acceptance fails, and resumes it on the retry', async () => {
     const repo = repository(confirmed({ step: 'privacy:resident-1:v1', pendingRequest: 'OWE' }));
-    const { onIdentified } = await run('1', repo, failing()).catch(() => ({ onIdentified: null }));
-
-    expect(repo.recordConsentDecision).not.toHaveBeenCalled();
+    const onIdentified = vi.fn().mockRejectedValue(new Error('handler send failed'));
+    await expect(handleResidentMessage(message('1'), {
+      repository: repo, send: vi.fn().mockResolvedValue({ success: true }), onIdentified,
+    })).rejects.toThrow('handler send failed');
+    expect(repo.recordConsentDecision).toHaveBeenCalledWith(expect.objectContaining({ decision: 'privacy_accepted' }));
     expect(repo.saveConsentStep).not.toHaveBeenCalled();
-    expect(onIdentified).toBeNull();
+
+    const retry = repository(confirmed({
+      step: 'privacy:resident-1:v1', pendingRequest: 'OWE', privacy: { decision: 'privacy_accepted', version: 'v1' },
+    }));
+    const again = await run('1', retry);
+    expect(again.onIdentified).toHaveBeenCalledWith(expect.objectContaining({ text: 'OWE' }), resident);
+    expect(retry.saveConsentStep).toHaveBeenCalledWith(PHONE, 'resident-1', null, null);
+  });
+
+  it('keeps the held request when a re-confirmation resume fails, and a retried "yes" is not START', async () => {
+    const changed = identityFingerprint(resident, 'Oak Avenue');
+    const leftover = { privacy: { decision: 'privacy_accepted' as const, version: 'v1' }, step: `identity:${changed}`, pendingRequest: 'OWE' };
+    const oak = { getStreetName: vi.fn().mockResolvedValue('Oak Avenue') };
+    const repo = repository(state({ confirmedFingerprint: FINGERPRINT, ...leftover }), oak);
+    await expect(handleResidentMessage(message('yes'), {
+      repository: repo, send: vi.fn().mockResolvedValue({ success: true }), onIdentified: vi.fn().mockRejectedValue(new Error('down')),
+    })).rejects.toThrow('down');
+    expect(repo.saveConsentStep).not.toHaveBeenCalled();
+
+    const retry = repository(state({ confirmedFingerprint: changed, ...leftover }), oak);
+    const again = await run('yes', retry);
+    expect(again.onIdentified).toHaveBeenCalledWith(expect.objectContaining({ text: 'OWE' }), resident);
+    expect(retry.setOptIn).not.toHaveBeenCalled();
+    expect(retry.recordConsentDecision).not.toHaveBeenCalled();
   });
 
   it('alerts admins of a dispute even when the reply fails', async () => {

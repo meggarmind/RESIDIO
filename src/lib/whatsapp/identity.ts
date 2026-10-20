@@ -689,12 +689,10 @@ export async function handleResidentMessage(
   // Step 1: identity read-back, once per number and again when the roster record changes.
   const street = await repository.getStreetName(residentId);
   const fingerprint = identityFingerprint(matchedIdentity, street);
-  let justConfirmed = false;
   if (state.confirmedFingerprint !== fingerprint) {
     const identityStep = `identity:${fingerprint}`;
     if (state.step === identityStep && CONFIRM_IDENTITY.test(answer)) {
       await decide('identity_confirmed', { identityFingerprint: fingerprint });
-      justConfirmed = true;
     } else if (state.step === identityStep && DISPUTE_IDENTITY.test(answer)) {
       await decide('identity_disputed', { identityFingerprint: fingerprint });
       await repository.markDisputed(phoneNumber, residentId);
@@ -710,7 +708,7 @@ export async function handleResidentMessage(
   }
 
   // START keeps its meaning (alerts opt-in), but only once the number's holder is confirmed.
-  const starting = !justConfirmed && isStartCommand(answer);
+  const starting = state.step !== `identity:${fingerprint}` && isStartCommand(answer);
   if (starting) {
     await repository.setOptIn(residentId, phoneNumber, true, 'in_chat');
     optedIn = true;
@@ -730,22 +728,22 @@ export async function handleResidentMessage(
   const accepted = state.privacy?.decision === 'privacy_accepted' && state.privacy.version === notice.version;
   if (!accepted) {
     const privacyStep = `privacy:${residentId}:${notice.version}`;
-    const promptShown = !justConfirmed && state.step === privacyStep;
+    const promptShown = state.step === privacyStep;
     const declined = state.privacy?.decision === 'privacy_declined' && state.privacy.version === notice.version;
 
     if ((promptShown && ACCEPT_NOTICE.test(answer)) || (declined && /^accept\.?$/i.test(answer))) {
+      await decide('privacy_accepted', { noticeVersion: notice.version });
       const thanks = `Thanks, your acceptance of privacy notice ${notice.version} is recorded.`;
       await reply(financial ? thanks : withLines(
         thanks,
         'Estate announcements and notices will be sent here.',
         optedIn ? '' : 'Reply YES to receive estate WhatsApp alerts, or STOP to decline them.'
       ));
-      await decide('privacy_accepted', { noticeVersion: notice.version });
-      await repository.saveConsentStep(phoneNumber, residentId, null, null);
       if (financial) {
         // Step 7: answer the request that started the conversation, through the financial handler's PIN gate.
         await options.onIdentified!({ ...message, text: state.pendingRequest || 'MENU' }, matchedIdentity);
       }
+      await repository.saveConsentStep(phoneNumber, residentId, null, null);
       return result('identified', optedIn);
     }
 
@@ -771,15 +769,15 @@ export async function handleResidentMessage(
     return result('consent_pending', optedIn);
   }
 
-  if (justConfirmed) {
-    // A re-confirmation after a roster change with the notice already accepted: the "1" answered the
-    // read-back, so resume the held request instead of reading it as a menu choice.
-    await repository.saveConsentStep(phoneNumber, residentId, null, null);
+  if (state.step) {
+    // A consent step still set here was just answered (a re-confirmation, or a retry after the decision
+    // was recorded): resume the held request instead of reading the answer as a menu choice.
     if (financial) {
       await options.onIdentified!({ ...message, text: state.pendingRequest || 'MENU' }, matchedIdentity);
     } else {
       await reply(`Thanks, ${matchedIdentity.firstName}. Estate announcements and notices will be sent here.`);
     }
+    await repository.saveConsentStep(phoneNumber, residentId, null, null);
     return result('identified', optedIn);
   }
 
