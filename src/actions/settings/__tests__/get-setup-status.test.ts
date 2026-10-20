@@ -34,8 +34,9 @@ vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: mocks.authorizePer
 import { getSetupStatus } from '@/actions/settings/get-setup-status';
 import { summarizeSetup } from '@/lib/settings/setup-checklist';
 
-/** Billing rows as the migrations leave them, in the JSON shapes they were seeded with. */
+/** Rows as the migrations leave them, in the JSON shapes they were seeded with; email is seeded on. */
 const seededBilling = () => [
+  { key: 'email_enabled', value: 'true' },
   { key: 'bill_vacant_houses', value: false },
   { key: 'auto_generate_levies', value: true },
   { key: 'invoice_due_window_days', value: '30' },
@@ -63,12 +64,19 @@ describe('getSetupStatus (#786)', () => {
     expect(mocks.from).not.toHaveBeenCalled();
   });
 
-  it('reports an empty estate with only seeded billing defaults as 0 of N done', async () => {
+  it('reports a freshly migrated estate as 1 of N done: only the notification channel, because email is seeded on', async () => {
     mocks.settings = seededBilling();
     const { data } = await getSetupStatus();
     const summary = summarizeSetup(data!);
-    expect(summary.done).toBe(0);
-    expect(summary.total).toBeGreaterThan(0);
+    expect(summary.done).toBe(1);
+    expect(summary.total).toBeGreaterThan(1);
+    expect(data!.notificationChannel).toBe(true);
+    expect(data!.billingSettings).toBe(false);
+  });
+
+  it('reports an estate with no settings rows at all as 0 of N done', async () => {
+    const { data } = await getSetupStatus();
+    expect(summarizeSetup(data!).done).toBe(0);
   });
 
   it('marks billing done once a billing setting differs from its seeded default', async () => {
@@ -88,10 +96,10 @@ describe('getSetupStatus (#786)', () => {
   });
 
   it('marks a channel done when email, SMS or WhatsApp is on', async () => {
-    mocks.settings = [...seededBilling(), { key: 'email_enabled', value: 'true' }];
+    mocks.settings = seededBilling();
     expect((await getSetupStatus()).data!.notificationChannel).toBe(true);
 
-    mocks.settings = [...seededBilling(), { key: 'email_enabled', value: 'false' }];
+    mocks.settings = withSetting('email_enabled', 'false');
     expect((await getSetupStatus()).data!.notificationChannel).toBe(false);
 
     mocks.settings = [{ key: 'email_enabled', value: false }, { key: 'invoice_reminder_whatsapp_enabled', value: 'true' }];
