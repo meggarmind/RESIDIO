@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ConfirmAction } from '@/components/ui/confirm-action';
 import { useAssignHouse, useUnassignHouse, useResidents } from '@/hooks/use-residents';
 import { useHousesWithRoles } from '@/hooks/use-houses';
 import { useAuth } from '@/lib/auth/auth-provider';
@@ -38,6 +39,14 @@ import {
 import { requiresSponsor } from '@/lib/validators/resident';
 import { ResidentRoleBadge } from './status-badge';
 import { formatPropertyDisplay, getPropertyShortname, cn } from '@/lib/utils';
+
+type UnassignAction = 'move-out' | 'transfer' | 'remove';
+
+interface PendingUnassign {
+    house: ResidentWithHouses['resident_houses'][number]['house'];
+    role: ResidentRole;
+    action: UnassignAction;
+}
 
 interface LinkedHousesProps {
     resident: ResidentWithHouses;
@@ -65,6 +74,7 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
     );
     const assignMutation = useAssignHouse();
     const unassignMutation = useUnassignHouse();
+    const [pendingUnassign, setPendingUnassign] = useState<PendingUnassign | null>(null);
 
     const activeHouses = resident.resident_houses?.filter((rh) => rh.is_active) ?? [];
 
@@ -201,26 +211,48 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
         }
     };
 
-    const handleUnassign = async (houseId: string, role: ResidentRole, action: 'move-out' | 'transfer' | 'remove') => {
-        const actionCopy: Record<typeof action, string> = {
-            'move-out': role === 'resident_landlord'
-                ? 'mark this owner-occupier as moved out (they will become a property owner)'
-                : 'process this move-out',
-            'transfer': 'transfer this property (give up ownership)',
-            'remove': 'remove this house assignment',
-        };
-        if (!confirm(`Are you sure you want to ${actionCopy[action]}?`)) return;
-
+    const handleUnassign = async () => {
+        if (!pendingUnassign) return;
         try {
             await unassignMutation.mutateAsync({
                 residentId: resident.id,
-                houseId,
+                houseId: pendingUnassign.house.id,
             });
             toast.success('House updated successfully');
         } catch (error) {
             toast.error('Failed to update house assignment');
+            throw error;
         }
     };
+
+    const unassignCopy = (() => {
+        if (!pendingUnassign) return null;
+        const { house, role, action } = pendingUnassign;
+        const residentName = `${resident.first_name} ${resident.last_name}`.trim();
+        const houseName = formatPropertyDisplay(house, 'full');
+        switch (action) {
+            case 'move-out':
+                return {
+                    title: 'Move out?',
+                    confirmLabel: 'Move out',
+                    description: role === 'resident_landlord'
+                        ? `${residentName} will be marked as moved out of ${houseName} and will become a non-resident property owner.`
+                        : `${residentName} will be marked as moved out of ${houseName}.`,
+                };
+            case 'transfer':
+                return {
+                    title: 'Transfer property?',
+                    confirmLabel: 'Transfer',
+                    description: `${residentName} will give up ownership of ${houseName}.`,
+                };
+            case 'remove':
+                return {
+                    title: 'Remove house assignment?',
+                    confirmLabel: 'Remove',
+                    description: `${residentName} will be removed from ${houseName}.`,
+                };
+        }
+    })();
 
     return (
         <Card variant="compact">
@@ -388,7 +420,7 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
-                                                onClick={() => handleUnassign(rh.house.id, rh.resident_role, 'move-out')}
+                                                onClick={() => setPendingUnassign({ house: rh.house, role: rh.resident_role, action: 'move-out' })}
                                                 className="text-muted-foreground hover:text-orange-600 min-h-11 text-xs md:min-h-0 md:h-7"
                                                 disabled={unassignMutation.isPending}
                                                 aria-label={rh.resident_role === 'resident_landlord' ? 'Move out (become property owner)' : 'Move out'}
@@ -401,7 +433,7 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
-                                                onClick={() => handleUnassign(rh.house.id, rh.resident_role, 'transfer')}
+                                                onClick={() => setPendingUnassign({ house: rh.house, role: rh.resident_role, action: 'transfer' })}
                                                 className="text-muted-foreground hover:text-amber-600 min-h-11 text-xs md:min-h-0 md:h-7"
                                                 disabled={unassignMutation.isPending}
                                                 aria-label="Transfer property"
@@ -414,7 +446,7 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                onClick={() => handleUnassign(rh.house.id, rh.resident_role, 'remove')}
+                                                onClick={() => setPendingUnassign({ house: rh.house, role: rh.resident_role, action: 'remove' })}
                                                 className="text-muted-foreground hover:text-destructive size-11 md:size-9"
                                                 disabled={unassignMutation.isPending}
                                                 aria-label="Remove assignment"
@@ -431,6 +463,17 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
             </CardContent>
             </CollapsibleContent>
             </Collapsible>
+            {unassignCopy && (
+                <ConfirmAction
+                    open
+                    onOpenChange={(open) => !open && setPendingUnassign(null)}
+                    title={unassignCopy.title}
+                    description={unassignCopy.description}
+                    confirmLabel={unassignCopy.confirmLabel}
+                    destructive
+                    onConfirm={handleUnassign}
+                />
+            )}
         </Card>
     );
 }
