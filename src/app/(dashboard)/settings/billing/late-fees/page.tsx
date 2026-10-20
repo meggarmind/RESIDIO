@@ -26,9 +26,9 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { SettingsSkeleton } from '@/components/settings/settings-states';
 
 export default function LateFeesPage() {
-    const { hasPermission } = useAuth();
+    const { hasPermission, hasAnyPermission } = useAuth();
     // Each control is gated on the permission its action enforces.
-    const canEdit = hasPermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
+    const canEdit = hasAnyPermission([PERMISSIONS.SETTINGS_MANAGE_BILLING, PERMISSIONS.BILLING_MANAGE_PROFILES]);
     const canApply = hasPermission(PERMISSIONS.BILLING_APPLY_LATE_FEES);
     const canReview = hasPermission(PERMISSIONS.BILLING_APPROVE_LATE_FEE_WAIVER);
     const { data: settings, isLoading: settingsLoading } = useBillingSettings();

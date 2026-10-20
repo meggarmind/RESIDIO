@@ -15,9 +15,9 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { SettingsSkeleton } from '@/components/settings/settings-states';
 
 export default function BillingSettingsPage() {
-    const { hasPermission } = useAuth();
-    // updateSetting enforces settings.manage_general, whatever the route admits.
-    const canEdit = hasPermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
+    const { hasAnyPermission } = useAuth();
+    // updateSetting enforces the billing area permissions for these keys, as the route does.
+    const canEdit = hasAnyPermission([PERMISSIONS.SETTINGS_MANAGE_BILLING, PERMISSIONS.BILLING_MANAGE_PROFILES]);
     const { data: settings, isLoading: settingsLoading } = useBillingSettings();
     const updateSettingMutation = useUpdateSetting();
 

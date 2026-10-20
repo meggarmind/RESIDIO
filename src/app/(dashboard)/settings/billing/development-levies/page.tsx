@@ -17,9 +17,9 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 const NONE_VALUE = '_none';
 
 export default function DevelopmentLeviesPage() {
-    const { hasPermission } = useAuth();
+    const { hasPermission, hasAnyPermission } = useAuth();
     // Each control is gated on the permission its action enforces.
-    const canSetProfile = hasPermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
+    const canSetProfile = hasAnyPermission([PERMISSIONS.SETTINGS_MANAGE_BILLING, PERMISSIONS.BILLING_MANAGE_PROFILES]);
     const canGenerate = hasPermission(PERMISSIONS.BILLING_CREATE_INVOICE);
     const { data: developmentLevyProfiles } = useDevelopmentLevyProfiles();
     const { data: currentDevLevyId } = useCurrentDevelopmentLevyProfileId();

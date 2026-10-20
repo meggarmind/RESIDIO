@@ -18,7 +18,11 @@ const { authorizePermission, createServerSupabaseClient, logAudit, calls, result
   results: {} as Record<string, QueryResult>,
 }));
 
-vi.mock('@/lib/auth/authorize', () => ({ authorizePermission }));
+// This key needs settings.manage_general alone, so the any-of check forwards to the single one.
+vi.mock('@/lib/auth/authorize', () => ({
+  authorizePermission,
+  authorizeAnyPermission: (permissions: string[]) => authorizePermission(permissions[0]),
+}));
 vi.mock('@/lib/supabase/server', () => ({ createServerSupabaseClient, createAdminClient: vi.fn() }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
