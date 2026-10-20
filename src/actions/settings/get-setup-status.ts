@@ -16,6 +16,9 @@ const SETTING_KEYS = [
 ];
 
 const isFilled = (value: unknown) => typeof value === 'string' && value.trim() !== '';
+/** updateSetting stores booleans as the strings 'true' and 'false'. */
+const isOn = (value: unknown) => value === true || value === 'true';
+const isOff = (value: unknown) => value === false || value === 'false';
 
 /** Active schedule with at least one active step. */
 function hasActiveSchedule(value: unknown): boolean {
@@ -50,7 +53,7 @@ export async function getSetupStatus(): Promise<{ data: SetupStatus | null; erro
   const [settings, streets, houseTypes, bankAccounts, billingProfiles, customRoles] = await Promise.all([
     supabase
       .from('system_settings')
-      .select('key, value, category, created_at, updated_at')
+      .select('id, key, value, category')
       .or(`category.eq.billing,key.in.(${SETTING_KEYS.join(',')})`),
     count('streets'),
     count('house_types'),
@@ -71,9 +74,22 @@ export async function getSetupStatus(): Promise<{ data: SetupStatus | null; erro
   const rows = settings.data ?? [];
   const row = (key: string) => rows.find((r) => r.key === key);
   const value = (key: string) => row(key)?.value;
-  // Seeded rows only count once an admin has saved them; the update trigger moves updated_at past created_at.
-  const savedAfterSeed = (r?: (typeof rows)[number]) =>
-    !!r?.created_at && !!r.updated_at && new Date(r.updated_at) > new Date(r.created_at);
+
+  // Migrations seed and later update billing and email rows, so only an admin write (which is audited) counts as saved.
+  const seeded = rows.filter((r) => r.category === 'billing' || r.key === 'email_enabled');
+  const audits = seeded.length
+    ? await supabase
+        .from('audit_logs')
+        .select('entity_id')
+        .eq('entity_type', 'system_settings')
+        .in('entity_id', seeded.map((r) => r.id))
+    : { data: [], error: null };
+  if (audits.error) {
+    console.error('[getSetupStatus] Failed to read setup status:', audits.error);
+    return { data: null, error: 'Failed to load setup status' };
+  }
+  const savedIds = new Set((audits.data ?? []).map((a) => a.entity_id));
+  const saved = (r?: (typeof rows)[number]) => !!r && savedIds.has(r.id);
 
   return {
     data: {
@@ -82,13 +98,13 @@ export async function getSetupStatus(): Promise<{ data: SetupStatus | null; erro
       houseType: (houseTypes.count ?? 0) > 0,
       bankAccount: (bankAccounts.count ?? 0) > 0,
       billingProfile: (billingProfiles.count ?? 0) > 0,
-      billingSettings: rows.some((r) => r.category === 'billing' && savedAfterSeed(r)),
+      billingSettings: rows.some((r) => r.category === 'billing' && saved(r)),
       notificationChannel:
-        (savedAfterSeed(row('email_enabled')) && value('email_enabled') === true) ||
-        value('invoice_reminder_sms_enabled') === true ||
-        value('invoice_reminder_whatsapp_enabled') === true,
+        (saved(row('email_enabled')) && isOn(value('email_enabled'))) ||
+        isOn(value('invoice_reminder_sms_enabled')) ||
+        isOn(value('invoice_reminder_whatsapp_enabled')),
       reminderSchedule:
-        value('invoice_reminders_enabled') !== false && hasActiveSchedule(value('invoice_reminder_schedule')),
+        !isOff(value('invoice_reminders_enabled')) && hasActiveSchedule(value('invoice_reminder_schedule')),
       customRole: (customRoles.count ?? 0) > 0,
     },
     error: null,
