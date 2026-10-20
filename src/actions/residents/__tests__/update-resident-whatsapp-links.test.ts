@@ -111,7 +111,7 @@ describe('updateResident: WhatsApp links on a phone change (#849)', () => {
     expect(mocks.logAudit.mock.calls[0][0].newValues).not.toHaveProperty('whatsapp_links_deactivated_for');
   });
 
-  it('still saves the resident, and audits no deactivation, when the deactivation fails', async () => {
+  it('still saves the resident, and audits the failed deactivation, when the deactivation fails', async () => {
     mocks.optinError = { message: 'db down' };
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
@@ -120,6 +120,9 @@ describe('updateResident: WhatsApp links on a phone change (#849)', () => {
     expect(result.error).toBeNull();
     expect(consoleError).toHaveBeenCalled();
     expect(mocks.logAudit.mock.calls[0][0].newValues).not.toHaveProperty('whatsapp_links_deactivated_for');
+    expect(mocks.logAudit.mock.calls[0][0].newValues).toMatchObject({
+      whatsapp_links_deactivation_failed_for: ['+2348000000001'],
+    });
     consoleError.mockRestore();
   });
 });

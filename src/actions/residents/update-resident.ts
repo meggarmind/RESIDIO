@@ -123,6 +123,7 @@ export async function updateResident(id: string, formData: ResidentFormData): Pr
     .map((phone) => normalizePhoneNumber(phone as string))
     .filter((phone) => !keptNumbers.includes(phone));
   let deactivatedNumbers: string[] = [];
+  let failedNumbers: string[] = [];
   if (removedNumbers.length > 0) {
     const { error: optinError } = await createAdminClient()
       .from('whatsapp_optins')
@@ -131,8 +132,9 @@ export async function updateResident(id: string, formData: ResidentFormData): Pr
       .in('phone_number', removedNumbers)
       .is('deactivated_at', null);
     if (optinError) {
-      // The roster check in findLinkedResidents still withholds financial answers from these numbers.
-      console.error('[updateResident] failed to deactivate WhatsApp links for removed numbers', { residentId: id, error: optinError });
+      // These links stay active; a code-verified one keeps the financial tier, so record the failure for follow-up.
+      console.error('[updateResident] failed to deactivate WhatsApp links for removed numbers', { residentId: id, removedNumbers, error: optinError });
+      failedNumbers = removedNumbers;
     } else {
       deactivatedNumbers = removedNumbers;
     }
@@ -159,6 +161,7 @@ export async function updateResident(id: string, formData: ResidentFormData): Pr
       phone_verified_at: phoneChanged ? null : currentResident.phone_verified_at,
       ...(flagChanged ? { use_override_comms: submittedFlag } : {}),
       ...(deactivatedNumbers.length > 0 ? { whatsapp_links_deactivated_for: deactivatedNumbers } : {}),
+      ...(failedNumbers.length > 0 ? { whatsapp_links_deactivation_failed_for: failedNumbers } : {}),
     },
     description: 'Updated resident profile',
   });
