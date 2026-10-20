@@ -107,6 +107,8 @@ function adminClientReturning(invoices: unknown[]) {
   const result = { data: invoices, error: null };
   const chain: Record<string, unknown> = {};
   for (const m of ['select', 'in', 'eq']) chain[m] = vi.fn(() => chain);
+  // Reminder settings (#846) read as absent, so their defaults apply.
+  chain.maybeSingle = vi.fn(() => Promise.resolve({ data: null, error: null }));
   chain.then = (resolve: (v: unknown) => unknown) => Promise.resolve(result).then(resolve);
   return { from: vi.fn(() => chain) };
 }

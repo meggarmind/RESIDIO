@@ -14,13 +14,12 @@ import { sendSms } from '@/lib/sms/send-sms';
 import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
 import { isWhatsAppOptedIn } from '@/lib/whatsapp/opt-in';
 import { isChannelImplemented } from '@/lib/notifications/types';
-import { getSettingValue } from '@/actions/settings/get-settings';
-import { updateSetting } from '@/actions/settings/update-setting';
+import { getSettingValueAsService } from '@/lib/settings/service';
 import { logAudit } from '@/lib/audit/logger';
+import { readPaymentReminderSettings, applyPaymentReminderSettings } from '@/lib/notifications/payment-reminder-settings';
 import {
   getReminderSchedule,
   areRemindersEnabled,
-  getActiveDays,
 } from './reminder-config';
 import {
   PaymentReminderEscalatedEmail,
@@ -103,6 +102,11 @@ export async function processInvoiceReminders(): Promise<ProcessRemindersResult>
     return result;
   }
 
+  // The reminder days and email switch the manual run uses apply here too (#846).
+  // Service-role read: the cron runs without a session.
+  const paymentSettings = await readPaymentReminderSettings(getSettingValueAsService);
+  const steps = applyPaymentReminderSettings(schedule.steps, paymentSettings);
+
   // Get estate settings for email template
   const estateSettings = await getEstateEmailSettings();
 
@@ -111,7 +115,7 @@ export async function processInvoiceReminders(): Promise<ProcessRemindersResult>
   today.setHours(0, 0, 0, 0);
 
   // Process each active step in the schedule
-  for (const step of schedule.steps) {
+  for (const step of steps) {
     if (!step.isActive) continue;
 
     // Calculate the target due date for this step
@@ -186,26 +190,8 @@ export async function processInvoiceReminders(): Promise<ProcessRemindersResult>
     }
   }
 
-  // Update last run timestamp
-  const { data: lastRunSetting } = await updateSetting('invoice_reminder_last_run', new Date().toISOString());
-
-  // Audit log. audit_logs.entity_id is a uuid: use the system_settings row id that
-  // was just written; the label stays in entityDisplay/metadata (#594).
-  if (lastRunSetting?.id) {
-    await logAudit({
-      action: 'GENERATE',
-      entityType: 'system_settings',
-      entityId: lastRunSetting.id,
-      entityDisplay: 'Invoice Reminder Batch',
-      description: `Processed ${result.processed} invoices, sent ${result.sent.email} emails, ${result.sent.sms} SMS`,
-      metadata: {
-        batch: 'invoice_reminders',
-        setting_key: 'invoice_reminder_last_run',
-        ...JSON.parse(JSON.stringify(result)),
-      },
-    });
-  }
-
+  // The run is recorded by the cron route's System Action Log row (withSystemLog). There is no
+  // session here, so updateSetting and logAudit could never write (#846).
   return result;
 }
 

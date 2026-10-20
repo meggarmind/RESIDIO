@@ -5,7 +5,7 @@
  * Not covered here (too large to mock sensibly; the ratchet in
  * integration/audit-entity-id-uuid.test.ts guards them): generateRetroactiveLevies,
  * sendBulkNotification, backfillOwnershipHistory, importWhatsAppOptIns,
- * sendPaymentReminders, processInvoiceReminders.
+ * sendPaymentReminders.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeRecordingSupabase, expectUuidEntityId, uid, type QueryResult } from '@/__tests__/helpers/recording-supabase';
