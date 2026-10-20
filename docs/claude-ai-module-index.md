@@ -97,7 +97,7 @@ Community announcements, scheduling, read receipts
 
 #### notifications/
 Notification system - templates, schedules, queue, preferences
-- `templates` - CRUD for notification templates
+- `templates` - read and edit the wording overrides for the five resident emails (#907)
 - `schedules` - Notification trigger schedules
 - `queue` - Queue operations (the former `queue-management` module was retired in #173; `queue.ts` is the single backend)
 - `history` - Notification history queries

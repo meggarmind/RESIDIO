@@ -3,11 +3,12 @@
 -- notification_templates becomes the store for per-event wording overrides.
 -- `event` links a row to the code-side registry (src/lib/notifications/event-content-registry.ts);
 -- `overrides` holds only the fields an admin changed, so an empty object means "use the code default".
--- Rows that no email sender ever read are removed. Those rows came from the fixture
--- supabase/fixtures/14-notifications.sql, not from a migration. Their FK dependants are safe:
+-- Rows that no email sender ever read are removed: on Residio_Stage and Residio_Prod they came from the
+-- fixture supabase/fixtures/14-notifications.sql; on a fresh database they are the seed rows from
+-- 20251223000000_create_notification_system.sql that no sender uses. Their FK dependants are safe:
 -- notification_schedules (CASCADE) and notification_queue (SET NULL) have no rows on either database;
 -- notification_history.template_id is SET NULL, so old history rows simply lose the link.
--- A fresh database has no fixture rows, so the final INSERT creates the five (event, 'email') rows.
+-- The final INSERT adds whichever of the five (event, 'email') rows the UPDATEs did not tag.
 
 ALTER TABLE notification_templates
   ADD COLUMN IF NOT EXISTS event text,
