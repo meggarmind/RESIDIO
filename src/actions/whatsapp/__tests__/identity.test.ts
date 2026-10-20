@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { logAudit } from '@/lib/audit/logger';
 import { createAdminClient } from '@/lib/supabase/server';
+import { sendWhatsAppPinAlert } from '@/lib/whatsapp/pin-alert';
 import {
   clearWhatsAppDisputedContact,
   createWhatsAppLinkToken,
@@ -18,6 +19,7 @@ vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: vi.fn() }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit: vi.fn() }));
 vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+vi.mock('@/lib/whatsapp/pin-alert', () => ({ sendWhatsAppPinAlert: vi.fn() }));
 vi.mock('@/lib/auth/action-roles', () => ({
   PERMISSIONS: { WHATSAPP_MANAGE: 'whatsapp.manage', WHATSAPP_VIEW: 'whatsapp.view' },
 }));
@@ -336,7 +338,8 @@ describe('WhatsApp identity write actions', () => {
         whatsapp_pin_hard_locked_at: null,
       });
       expect(pin.eq).toHaveBeenCalledWith('id', ROW_ID);
-      expect(sessions.update).toHaveBeenCalledWith({ pin_authenticated: false });
+      expect(sessions.update).toHaveBeenCalledWith({ pin_authenticated: false, current_node: 'menu', pending_pin_hash: null });
+      expect(sendWhatsAppPinAlert).toHaveBeenCalledWith(ROW_ID, 'reset');
       expect(sessions.eq).toHaveBeenCalledWith('resident_id', ROW_ID);
       expect(insert.insert.mock.calls[0]![0]).toMatchObject({ resident_id: ROW_ID, purpose: 'pin_setup' });
       expect(result.data?.code).toMatch(/^\d{6}$/);
@@ -350,6 +353,23 @@ describe('WhatsApp identity write actions', () => {
         expect(audit).not.toContain(result.data!.code);
         expect(audit).not.toContain(hash);
       }
+    });
+
+    it('still resets and issues the code when the reset alert email fails', async () => {
+      vi.mocked(sendWhatsAppPinAlert).mockRejectedValue(new Error('Resend down'));
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      clientWith(query({ data: resident, error: null }), query(), query(), query(), query({ data: { id: ROW_ID }, error: null }));
+
+      const result = await resetWhatsAppPin(ROW_ID);
+
+      expect(result.success).toBe(true);
+      expect(result.data?.code).toMatch(/^\d{6}$/);
+    });
+
+    it('sends no reset alert when clearing the PIN fails', async () => {
+      clientWith(query({ data: resident, error: null }), query({ data: null, error: { message: 'x' } }));
+      await resetWhatsAppPin(ROW_ID);
+      expect(sendWhatsAppPinAlert).not.toHaveBeenCalled();
     });
 
     it('does not write or audit when the resident is not found', async () => {
