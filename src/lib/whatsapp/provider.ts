@@ -6,6 +6,7 @@ import { decideSend } from '@/lib/comms-override/gate';
 import { prefixText } from '@/lib/comms-override/labels';
 import { blockedError, toLogRecord } from '@/lib/comms-override/resolver';
 import type { CommsSendContext, OverrideLogRecord } from '@/lib/comms-override/types';
+import { recordOutboundSend, type OutboundSendTracking } from '@/lib/whatsapp/outbound-sends';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
 import type {
   WhatsAppSendResult,
@@ -109,10 +110,24 @@ async function resolveWhatsAppRedirect(
   return { to: normalizePhoneNumber(result.to), redirected: true, envLabel, override };
 }
 
+/** Stores an accepted send for delivery tracking (#839); a stubbed provider (tests) has no config. */
+async function trackAcceptedSend(
+  result: WhatsAppSendResult,
+  config: WhatsAppConfig | null,
+  to: string,
+  context: CommsSendContext | undefined,
+  tracking: OutboundSendTracking | undefined
+): Promise<void> {
+  const purpose = context?.purpose ?? tracking?.purpose;
+  if (!result.success || !result.messageId || !config || !tracking || !purpose) return;
+  await recordOutboundSend({ ...tracking, purpose, provider: config.provider, providerMessageId: result.messageId, phoneNumber: to });
+}
+
 export async function sendWhatsAppMessage(
   message: WhatsAppTextMessage,
   provider?: WhatsAppProvider,
-  context?: CommsSendContext
+  context?: CommsSendContext,
+  tracking?: OutboundSendTracking
 ): Promise<WhatsAppSendResult> {
   const resolved = provider ? null : await resolveWhatsAppConfig();
 
@@ -142,6 +157,7 @@ export async function sendWhatsAppMessage(
 
   try {
     const result = await (provider || resolveProvider(config!)).sendText(outbound);
+    await trackAcceptedSend(result, config, message.to, context, tracking);
     return redirect.override ? { ...result, override: redirect.override } : result;
   } catch {
     return {
@@ -155,7 +171,8 @@ export async function sendWhatsAppMessage(
 export async function sendWhatsAppTemplate(
   message: WhatsAppTemplateMessage,
   provider?: WhatsAppProvider,
-  context?: CommsSendContext
+  context?: CommsSendContext,
+  tracking?: OutboundSendTracking
 ): Promise<WhatsAppSendResult> {
   const resolved = provider ? null : await resolveWhatsAppConfig();
 
@@ -185,6 +202,7 @@ export async function sendWhatsAppTemplate(
 
   try {
     const result = await (provider || resolveProvider(config!)).sendTemplate(outbound);
+    await trackAcceptedSend(result, config, message.to, context, tracking);
     return redirect.override ? { ...result, override: redirect.override } : result;
   } catch {
     return {

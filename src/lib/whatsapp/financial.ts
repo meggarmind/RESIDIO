@@ -472,11 +472,15 @@ export async function canPerformWhatsAppFinancialLookup(): Promise<boolean> {
 async function sendFinancialReply(
   message: WhatsAppInboundMessage,
   body: string,
-  send: WhatsAppFinancialHandlerOptions['send']
+  send: WhatsAppFinancialHandlerOptions['send'],
+  residentId: string
 ): Promise<void> {
   const result = await (send || ((outbound) =>
     // Reply to the person who just messaged us: exempt from the comms override (decision 8, #715).
-    sendWhatsAppMessage(outbound, undefined, { purpose: 'inbound_reply' })))({ to: message.from, body, idempotencySeed: message.id });
+    sendWhatsAppMessage(outbound, undefined, { purpose: 'inbound_reply' }, {
+      residentId,
+      inboundMessageId: message.id,
+    })))({ to: message.from, body, idempotencySeed: message.id });
   if (!result.success) throw new Error(result.error || 'WhatsApp financial reply failed');
 }
 
@@ -495,17 +499,17 @@ export async function handleFinancialMessage(
   }
 
   if (!identity.financialEligible) {
-    await sendFinancialReply(message, 'Your Resident record is connected to the community tier. Financial standing is not available for this role.', options.send);
+    await sendFinancialReply(message, 'Your Resident record is connected to the community tier. Financial standing is not available for this role.', options.send, identity.id);
     return;
   }
 
   if (!options.optedIn) {
-    await sendFinancialReply(message, 'Please reply YES first to enable WhatsApp access to financial standing.', options.send);
+    await sendFinancialReply(message, 'Please reply YES first to enable WhatsApp access to financial standing.', options.send, identity.id);
     return;
   }
 
   if (!(await isWhatsAppRecipientAllowed(identity.id))) {
-    await sendFinancialReply(message, 'WhatsApp access is not currently enabled for your pilot audience.', options.send);
+    await sendFinancialReply(message, 'WhatsApp access is not currently enabled for your pilot audience.', options.send, identity.id);
     return;
   }
 
@@ -534,7 +538,7 @@ export async function handleFinancialMessage(
       // Count the attempt before checking it (#850), so concurrent guesses cannot outrun the lock.
       const attempt = await options.repository.claimPinAttempt(identity.id);
       if (attempt === null) {
-        await sendFinancialReply(message, PIN_LOCKED_REPLY, options.send);
+        await sendFinancialReply(message, PIN_LOCKED_REPLY, options.send, identity.id);
         return;
       }
       if (!verifyPin(pin, existingHash)) {
@@ -542,7 +546,7 @@ export async function handleFinancialMessage(
         await sendFinancialReply(
           message,
           left > 0 ? `That PIN is not correct. ${left} attempt(s) left before a 24-hour lock.` : PIN_LOCKED_REPLY,
-          options.send
+          options.send, identity.id
         );
         return;
       }
@@ -554,7 +558,7 @@ export async function handleFinancialMessage(
     session.pinAuthenticated = true;
     session.expiresAt = expiry();
     await options.repository.saveSession(session);
-    await sendFinancialReply(message, existingHash ? 'PIN verified.' : 'PIN set and verified for this session.', options.send);
+    await sendFinancialReply(message, existingHash ? 'PIN verified.' : 'PIN set and verified for this session.', options.send, identity.id);
     return;
   }
 
@@ -566,7 +570,7 @@ export async function handleFinancialMessage(
       pinHash
         ? 'Please reply PIN followed by your 4–6 digit PIN before viewing financial standing.'
         : `A security PIN is required before viewing financial standing. To set one, ${SET_PIN_HINT}.`,
-      options.send
+      options.send, identity.id
     );
     return;
   }
@@ -580,19 +584,19 @@ export async function handleFinancialMessage(
     session.currentNode = 'menu';
     session.expiresAt = expiry();
     await options.repository.saveSession(session);
-    await sendFinancialReply(message, menuText(), options.send);
+    await sendFinancialReply(message, menuText(), options.send, identity.id);
     return;
   }
 
   const houses = await options.repository.getBillableHouses(identity.id);
   if (houses.length === 0) {
-    await sendFinancialReply(message, 'Your Resident record is connected to the community tier. Financial standing is not available for this role.', options.send);
+    await sendFinancialReply(message, 'Your Resident record is connected to the community tier. Financial standing is not available for this role.', options.send, identity.id);
     return;
   }
 
   if (statementStep) {
     if (!statementPeriod) {
-      await sendFinancialReply(message, statementPeriodText(), options.send);
+      await sendFinancialReply(message, statementPeriodText(), options.send, identity.id);
       return;
     }
     const statementHouseId = statementStep[1] === 'all' ? null : statementStep[1];
@@ -601,12 +605,12 @@ export async function handleFinancialMessage(
       session.selectedHouseId = null;
       session.expiresAt = expiry();
       await options.repository.saveSession(session);
-      await sendFinancialReply(message, 'That property is no longer available for this Resident. Reply 5 to choose a property again.', options.send);
+      await sendFinancialReply(message, 'That property is no longer available for this Resident. Reply 5 to choose a property again.', options.send, identity.id);
       return;
     }
     const allowedHouseIds = houses.map((house) => house.id);
     if (options.canLookup && !(await options.canLookup())) {
-      await sendFinancialReply(message, 'Daily financial lookup limit reached. Please try again tomorrow.', options.send);
+      await sendFinancialReply(message, 'Daily financial lookup limit reached. Please try again tomorrow.', options.send, identity.id);
       return;
     }
     const answer = await options.repository.getStatement(identity.id, statementHouseId, statementPeriod, allowedHouseIds);
@@ -619,7 +623,7 @@ export async function handleFinancialMessage(
       pinAuthenticated: session.pinAuthenticated,
       metadata: answer.metadata,
     });
-    await sendFinancialReply(message, `${answer.body}${!pinHash ? `\nTip: to lock financial answers, ${SET_PIN_HINT}.` : ''}`, options.send);
+    await sendFinancialReply(message, `${answer.body}${!pinHash ? `\nTip: to lock financial answers, ${SET_PIN_HINT}.` : ''}`, options.send, identity.id);
     session.currentNode = 'menu';
     session.expiresAt = expiry();
     await options.repository.saveSession(session);
@@ -631,13 +635,13 @@ export async function handleFinancialMessage(
       session.currentNode = 'property_selection:statement';
       session.expiresAt = expiry();
       await options.repository.saveSession(session);
-      await sendFinancialReply(message, propertyText(houses, 'statement'), options.send);
+      await sendFinancialReply(message, propertyText(houses, 'statement'), options.send, identity.id);
       return;
     }
     session.currentNode = `statement_period:${houses[0]?.id || 'all'}`;
     session.expiresAt = expiry();
     await options.repository.saveSession(session);
-    await sendFinancialReply(message, statementPeriodText(), options.send);
+    await sendFinancialReply(message, statementPeriodText(), options.send, identity.id);
     return;
   }
 
@@ -645,20 +649,20 @@ export async function handleFinancialMessage(
     const selectedIndex = Number.parseInt(text, 10) - 1;
     const selectedHouseId = text === '0' ? 'all' : houses[selectedIndex]?.id;
     if (!selectedHouseId) {
-      await sendFinancialReply(message, propertyText(houses, 'statement'), options.send);
+      await sendFinancialReply(message, propertyText(houses, 'statement'), options.send, identity.id);
       return;
     }
     session.currentNode = `statement_period:${selectedHouseId}`;
     session.expiresAt = expiry();
     await options.repository.saveSession(session);
-    await sendFinancialReply(message, statementPeriodText(), options.send);
+    await sendFinancialReply(message, statementPeriodText(), options.send, identity.id);
     return;
   }
 
   if (propertyStep) {
     const selectedIndex = Number.parseInt(text, 10) - 1;
     if (!Number.isInteger(selectedIndex) || !houses[selectedIndex]) {
-      await sendFinancialReply(message, propertyText(houses, item), options.send);
+      await sendFinancialReply(message, propertyText(houses, item), options.send, identity.id);
       return;
     }
     session.selectedHouseId = houses[selectedIndex].id;
@@ -667,7 +671,7 @@ export async function handleFinancialMessage(
       session.currentNode = `property_selection:${item}`;
       session.expiresAt = expiry();
       await options.repository.saveSession(session);
-      await sendFinancialReply(message, propertyText(houses, item), options.send);
+      await sendFinancialReply(message, propertyText(houses, item), options.send, identity.id);
       return;
     }
     session.selectedHouseId = houses[0].id;
@@ -676,7 +680,7 @@ export async function handleFinancialMessage(
   const houseId = session.selectedHouseId;
   if (!houseId) return;
   if (options.canLookup && !(await options.canLookup())) {
-    await sendFinancialReply(message, 'Daily financial lookup limit reached. Please try again tomorrow.', options.send);
+    await sendFinancialReply(message, 'Daily financial lookup limit reached. Please try again tomorrow.', options.send, identity.id);
     return;
   }
   const answer = item === 'balance'
@@ -696,7 +700,7 @@ export async function handleFinancialMessage(
     pinAuthenticated: session.pinAuthenticated,
     metadata: answer.metadata,
   });
-  await sendFinancialReply(message, body, options.send);
+  await sendFinancialReply(message, body, options.send, identity.id);
   session.currentNode = 'menu';
   session.expiresAt = expiry();
   await options.repository.saveSession(session);

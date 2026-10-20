@@ -38,6 +38,17 @@ beforeEach(() => {
 });
 
 describe('inbound WhatsApp Assistant replies are exempt from the redirect (decision 8)', () => {
+  it('an unmatched sender\'s reply is tracked with no resident', async () => {
+    const repository = {
+      findRosterMatches: vi.fn().mockResolvedValue([]),
+      findLinkedResidents: vi.fn().mockResolvedValue([]),
+      rememberPendingContact: vi.fn(),
+    };
+    await handleResidentMessage(inbound, { repository: repository as never });
+
+    expect(mocks.sendWhatsAppMessage.mock.calls[0][3]).toEqual({ residentId: null, inboundMessageId: 'wamid-1' });
+  });
+
   it('identity replies to message.from with purpose inbound_reply', async () => {
     const repository = {
       findRosterMatches: vi.fn().mockResolvedValue([resident]),
@@ -51,19 +62,22 @@ describe('inbound WhatsApp Assistant replies are exempt from the redirect (decis
     await handleResidentMessage(inbound, { repository: repository as never });
 
     expect(mocks.sendWhatsAppMessage).toHaveBeenCalledTimes(1);
-    const [outbound, provider, context] = mocks.sendWhatsAppMessage.mock.calls[0];
+    const [outbound, provider, context, tracking] = mocks.sendWhatsAppMessage.mock.calls[0];
     expect(outbound.to).toBe('2348000000000');
     expect(provider).toBeUndefined();
     expect(context).toEqual({ purpose: 'inbound_reply' });
+    // #839: the send is tied to the resident and the message it answers.
+    expect(tracking).toEqual({ residentId: 'resident-1', inboundMessageId: 'wamid-1' });
   });
 
   it('financial replies to message.from with purpose inbound_reply', async () => {
     await handleFinancialMessage(inbound, resident, { repository: {} as never, optedIn: true });
 
     expect(mocks.sendWhatsAppMessage).toHaveBeenCalledTimes(1);
-    const [outbound, provider, context] = mocks.sendWhatsAppMessage.mock.calls[0];
+    const [outbound, provider, context, tracking] = mocks.sendWhatsAppMessage.mock.calls[0];
     expect(outbound.to).toBe('2348000000000');
     expect(provider).toBeUndefined();
     expect(context).toEqual({ purpose: 'inbound_reply' });
+    expect(tracking).toEqual({ residentId: 'resident-1', inboundMessageId: 'wamid-1' });
   });
 });

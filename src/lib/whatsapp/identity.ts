@@ -301,11 +301,15 @@ function isStartCommand(text: string): boolean {
 async function sendReply(
   message: WhatsAppInboundMessage,
   body: string,
-  send: WhatsAppIdentityHandlerOptions['send']
+  send: WhatsAppIdentityHandlerOptions['send'],
+  residentId: string | null = null
 ): Promise<void> {
   const result = await (send || ((outbound) =>
     // Reply to the person who just messaged us: exempt from the comms override (decision 8, #715).
-    sendWhatsAppMessage(outbound, undefined, { purpose: 'inbound_reply' })))(
+    sendWhatsAppMessage(outbound, undefined, { purpose: 'inbound_reply' }, {
+      residentId,
+      inboundMessageId: message.id,
+    })))(
     { to: message.from, body, idempotencySeed: message.id }
   );
 
@@ -343,7 +347,8 @@ export async function handleResidentMessage(
     await sendReply(
       message,
       "You've been unsubscribed from estate WhatsApp alerts. Reply START any time to re-subscribe.",
-      options.send
+      options.send,
+      identity?.id ?? null
     );
     return {
       status: 'opted_out',
@@ -367,7 +372,8 @@ export async function handleResidentMessage(
     await sendReply(
       message,
       'Your number is linked. Reply YES to receive estate WhatsApp alerts, or STOP to decline them.',
-      options.send
+      options.send,
+      residentId
     );
     return { status: 'linked', residentId, optedIn: false, financialEligible: false, accessTier: 'community' };
   }
@@ -397,7 +403,8 @@ export async function handleResidentMessage(
     await sendReply(
       message,
       `You're connected as ${matchedIdentity.firstName} ${matchedIdentity.lastName}. Estate WhatsApp alerts are now enabled.`,
-      options.send
+      options.send,
+      matchedIdentity.id
     );
     return { status: 'identified', residentId: matchedIdentity.id, optedIn: true, financialEligible: matchedIdentity.financialEligible, accessTier: matchedIdentity.financialEligible ? 'financial' : 'community' };
   }
@@ -406,7 +413,8 @@ export async function handleResidentMessage(
     await sendReply(
       message,
       `You're connected as ${matchedIdentity.firstName} ${matchedIdentity.lastName}. Reply YES to receive estate WhatsApp alerts, or STOP to decline them.`,
-      options.send
+      options.send,
+      matchedIdentity.id
     );
     return { status: 'identified', residentId: matchedIdentity.id, optedIn: false, financialEligible: matchedIdentity.financialEligible, accessTier: matchedIdentity.financialEligible ? 'financial' : 'community' };
   }
@@ -417,7 +425,8 @@ export async function handleResidentMessage(
     await sendReply(
       message,
       `You're connected as ${matchedIdentity.firstName} ${matchedIdentity.lastName}. Estate announcements and notices will be sent here.`,
-      options.send
+      options.send,
+      matchedIdentity.id
     );
   }
   return { status: 'identified', residentId: matchedIdentity.id, optedIn: true, financialEligible: matchedIdentity.financialEligible, accessTier: matchedIdentity.financialEligible ? 'financial' : 'community' };

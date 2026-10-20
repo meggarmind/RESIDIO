@@ -191,7 +191,11 @@ async function sendViaWhatsApp(
     ...(item.id === IMMEDIATE_ITEM_ID ? {} : { idempotencySeed: item.id }),
   };
   // Communications override (#716): forward the resident's flag when the caller looked it up.
-  const result = await sendWhatsAppTemplate(templateMessage, undefined, context);
+  const result = await sendWhatsAppTemplate(templateMessage, undefined, context, {
+    purpose: 'notification',
+    residentId: item.recipient_id,
+    ...(item.id === IMMEDIATE_ITEM_ID ? {} : { notificationQueueId: item.id }),
+  });
 
   if (!result.success) {
     // DORMANT while SMS is off (owner decision 2026-10-13): the fallback is
