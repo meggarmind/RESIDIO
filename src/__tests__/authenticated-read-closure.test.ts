@@ -215,8 +215,9 @@ describe('#237: the eight restricted tables', () => {
       );
       expect(policies.length, `${table}: no SELECT policy from ${RESTRICT_MIGRATION}`).toBe(1);
       for (const permission of permissions) {
+        // #63 rewrote these USING clauses to the InitPlan form.
         expect(policies[0].using, `${table}: missing ${permission}`).toContain(
-          `has_permission('${permission}')`
+          `(select has_permission('${permission}'::text))`
         );
       }
     }
@@ -226,7 +227,7 @@ describe('#237: the eight restricted tables', () => {
     const policy = [...live.values()].find(
       (p) => p.table === 'notification_preferences' && p.name === 'notification_preferences_select'
     );
-    expect(policy?.using).toContain('resident_id = public.get_my_resident_id()');
+    expect(policy?.using).toContain('resident_id = (select get_my_resident_id())');
   });
 
   it('every has_permission() name used by the migration exists in a seeding migration', () => {
@@ -278,7 +279,9 @@ describe('#237: system_settings key split', () => {
 
   it('allows exactly the declared public keys, OR has_permission(settings.view)', () => {
     const using = policies[0].using ?? '';
-    const array = using.match(/^key = ANY \(ARRAY\[([^\]]*)\]\) OR public\.has_permission\('settings\.view'\)$/);
+    const array = using.match(
+      /^\(\(key = ANY \(ARRAY\[([^\]]*)\]\)\) OR \(select has_permission\('settings\.view'::text\)\)\)$/
+    );
     expect(array, `unexpected predicate shape: ${using}`).not.toBeNull();
     const keys = [...array![1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
     expect([...keys].sort()).toEqual([...SYSTEM_SETTINGS_PUBLIC_KEYS].sort());

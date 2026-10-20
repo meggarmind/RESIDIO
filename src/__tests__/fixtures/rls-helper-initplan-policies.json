@@ -1,0 +1,940 @@
+[
+  {
+    "table": "access_codes",
+    "policy": "Residents can view own access codes",
+    "cmd": "SELECT",
+    "using": "(contact_id IN ( SELECT security_contacts.id\n   FROM security_contacts\n  WHERE (security_contacts.resident_id = get_my_resident_id())))",
+    "check": null
+  },
+  {
+    "table": "access_codes",
+    "policy": "access_codes_delete_policy",
+    "cmd": "DELETE",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text]))",
+    "check": null
+  },
+  {
+    "table": "access_logs",
+    "policy": "access_logs_delete_policy",
+    "cmd": "DELETE",
+    "using": "(get_my_role_name() = 'super_admin'::text)",
+    "check": null
+  },
+  {
+    "table": "ai_settings",
+    "policy": "Approved accounts only can read",
+    "cmd": "SELECT",
+    "using": "is_approved()",
+    "check": null
+  },
+  {
+    "table": "announcement_categories",
+    "policy": "announcement_categories_admin_all",
+    "cmd": "ALL",
+    "using": "has_permission('announcements.manage_categories'::text)",
+    "check": "has_permission('announcements.manage_categories'::text)"
+  },
+  {
+    "table": "announcement_read_receipts",
+    "policy": "read_receipts_admin_select",
+    "cmd": "SELECT",
+    "using": "has_permission('announcements.publish'::text)",
+    "check": null
+  },
+  {
+    "table": "announcements",
+    "policy": "announcements_admin_delete",
+    "cmd": "DELETE",
+    "using": "has_permission('announcements.delete'::text)",
+    "check": null
+  },
+  {
+    "table": "announcements",
+    "policy": "announcements_admin_insert",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "has_permission('announcements.create'::text)"
+  },
+  {
+    "table": "announcements",
+    "policy": "announcements_admin_select",
+    "cmd": "SELECT",
+    "using": "has_permission('announcements.view'::text)",
+    "check": null
+  },
+  {
+    "table": "announcements",
+    "policy": "announcements_admin_update",
+    "cmd": "UPDATE",
+    "using": "has_permission('announcements.update'::text)",
+    "check": "has_permission('announcements.update'::text)"
+  },
+  {
+    "table": "app_roles",
+    "policy": "Allow delete for role managers",
+    "cmd": "DELETE",
+    "using": "(has_permission('system.manage_roles'::text) OR is_super_admin())",
+    "check": null
+  },
+  {
+    "table": "app_roles",
+    "policy": "Allow insert for role managers",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "(has_permission('system.manage_roles'::text) OR is_super_admin())"
+  },
+  {
+    "table": "app_roles",
+    "policy": "Allow update for role managers",
+    "cmd": "UPDATE",
+    "using": "(has_permission('system.manage_roles'::text) OR is_super_admin())",
+    "check": "(has_permission('system.manage_roles'::text) OR is_super_admin())"
+  },
+  {
+    "table": "approval_requests",
+    "policy": "Admin and chairman can update approval requests",
+    "cmd": "UPDATE",
+    "using": "has_permission('approvals.approve_reject'::text)",
+    "check": "has_permission('approvals.approve_reject'::text)"
+  },
+  {
+    "table": "approval_requests",
+    "policy": "Admin and chairman can view all approval requests",
+    "cmd": "SELECT",
+    "using": "has_permission('approvals.view'::text)",
+    "check": null
+  },
+  {
+    "table": "audit_logs",
+    "policy": "Users with settings.view_audit_logs can view audit logs",
+    "cmd": "SELECT",
+    "using": "has_permission('settings.view_audit_logs'::text)",
+    "check": null
+  },
+  {
+    "table": "bank_statement_imports",
+    "policy": "Admin, Chairman, Financial Secretary can manage imports",
+    "cmd": "ALL",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "bank_statement_rows",
+    "policy": "Admin, Chairman, Financial Secretary can manage import rows",
+    "cmd": "ALL",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "billing_profile_version_items",
+    "policy": "Finance may read billing profile version items",
+    "cmd": "SELECT",
+    "using": "has_permission('billing.manage_profiles'::text)",
+    "check": null
+  },
+  {
+    "table": "billing_profile_versions",
+    "policy": "Finance may read billing profile versions",
+    "cmd": "SELECT",
+    "using": "has_permission('billing.manage_profiles'::text)",
+    "check": null
+  },
+  {
+    "table": "budgets",
+    "policy": "Manage Budgets - Authorized Roles",
+    "cmd": "ALL",
+    "using": "has_permission('manage_expenditure'::text)",
+    "check": "has_permission('manage_expenditure'::text)"
+  },
+  {
+    "table": "budgets",
+    "policy": "View Budgets - Authorized Roles",
+    "cmd": "SELECT",
+    "using": "has_permission('view_expenditure'::text)",
+    "check": null
+  },
+  {
+    "table": "document_custom_field_values",
+    "policy": "Editors can write custom field values",
+    "cmd": "ALL",
+    "using": "(has_permission('documents.update'::text) AND (EXISTS ( SELECT 1\n   FROM documents d\n  WHERE (d.id = document_custom_field_values.document_id))))",
+    "check": "(has_permission('documents.update'::text) AND (EXISTS ( SELECT 1\n   FROM documents d\n  WHERE (d.id = document_custom_field_values.document_id))))"
+  },
+  {
+    "table": "document_custom_fields",
+    "policy": "Custom field managers can manage custom fields",
+    "cmd": "ALL",
+    "using": "has_permission('documents.manage_custom_fields'::text)",
+    "check": "has_permission('documents.manage_custom_fields'::text)"
+  },
+  {
+    "table": "document_custom_fields",
+    "policy": "Document viewers can view active custom fields",
+    "cmd": "SELECT",
+    "using": "((is_active = true) AND has_permission('documents.view'::text))",
+    "check": null
+  },
+  {
+    "table": "document_tag_assignments",
+    "policy": "Editors can remove tags",
+    "cmd": "DELETE",
+    "using": "(has_permission('documents.update'::text) AND (EXISTS ( SELECT 1\n   FROM documents d\n  WHERE (d.id = document_tag_assignments.document_id))))",
+    "check": null
+  },
+  {
+    "table": "document_tag_assignments",
+    "policy": "Uploaders and editors can assign tags",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "((has_permission('documents.upload'::text) OR has_permission('documents.update'::text)) AND (EXISTS ( SELECT 1\n   FROM documents d\n  WHERE (d.id = document_tag_assignments.document_id))))"
+  },
+  {
+    "table": "document_tags",
+    "policy": "Document viewers can view active tags",
+    "cmd": "SELECT",
+    "using": "((is_active = true) AND has_permission('documents.view'::text))",
+    "check": null
+  },
+  {
+    "table": "document_tags",
+    "policy": "Tag managers can manage tags",
+    "cmd": "ALL",
+    "using": "has_permission('documents.manage_tags'::text)",
+    "check": "has_permission('documents.manage_tags'::text)"
+  },
+  {
+    "table": "email_imports",
+    "policy": "Admin access for email imports",
+    "cmd": "ALL",
+    "using": "has_permission('email_imports.view'::text)",
+    "check": "has_permission('email_imports.view'::text)"
+  },
+  {
+    "table": "email_messages",
+    "policy": "Admin access for email messages",
+    "cmd": "ALL",
+    "using": "has_permission('email_imports.view'::text)",
+    "check": "has_permission('email_imports.view'::text)"
+  },
+  {
+    "table": "email_transactions",
+    "policy": "Admin access for email transactions",
+    "cmd": "ALL",
+    "using": "has_permission('email_imports.view'::text)",
+    "check": "has_permission('email_imports.view'::text)"
+  },
+  {
+    "table": "escalation_states",
+    "policy": "escalation_states_delete",
+    "cmd": "DELETE",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text]))",
+    "check": null
+  },
+  {
+    "table": "estate_bank_account_passwords",
+    "policy": "Admin access for bank account passwords",
+    "cmd": "ALL",
+    "using": "has_permission('email_imports.manage_passwords'::text)",
+    "check": "has_permission('email_imports.manage_passwords'::text)"
+  },
+  {
+    "table": "estate_bank_accounts",
+    "policy": "Approved accounts only can read",
+    "cmd": "SELECT",
+    "using": "is_approved()",
+    "check": null
+  },
+  {
+    "table": "expense_categories",
+    "policy": "Manage Categories - Authorized Roles",
+    "cmd": "ALL",
+    "using": "has_permission('manage_expenditure'::text)",
+    "check": "has_permission('manage_expenditure'::text)"
+  },
+  {
+    "table": "expense_categories",
+    "policy": "View Categories - Authorized Roles",
+    "cmd": "SELECT",
+    "using": "has_permission('view_expenditure'::text)",
+    "check": null
+  },
+  {
+    "table": "expenses",
+    "policy": "Manage Expenditure - Authorized Roles",
+    "cmd": "ALL",
+    "using": "has_permission('manage_expenditure'::text)",
+    "check": "has_permission('manage_expenditure'::text)"
+  },
+  {
+    "table": "expenses",
+    "policy": "View Expenditure - Admins/Financial Secretary",
+    "cmd": "SELECT",
+    "using": "has_permission('view_expenditure'::text)",
+    "check": null
+  },
+  {
+    "table": "generated_reports",
+    "policy": "generated_reports_delete",
+    "cmd": "DELETE",
+    "using": "has_permission('reports.manage_schedules'::text)",
+    "check": null
+  },
+  {
+    "table": "generated_reports",
+    "policy": "generated_reports_insert",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "has_permission('reports.view_financial'::text)"
+  },
+  {
+    "table": "generated_reports",
+    "policy": "generated_reports_select",
+    "cmd": "SELECT",
+    "using": "has_permission('reports.view_financial'::text)",
+    "check": null
+  },
+  {
+    "table": "gmail_oauth_credentials",
+    "policy": "Admin access for gmail oauth credentials",
+    "cmd": "ALL",
+    "using": "has_permission('email_imports.configure'::text)",
+    "check": "has_permission('email_imports.configure'::text)"
+  },
+  {
+    "table": "house_levy_history",
+    "policy": "house_levy_history_delete_policy",
+    "cmd": "DELETE",
+    "using": "(get_my_role_name() = 'super_admin'::text)",
+    "check": null
+  },
+  {
+    "table": "house_levy_history",
+    "policy": "house_levy_history_insert_policy",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))"
+  },
+  {
+    "table": "house_levy_history",
+    "policy": "house_levy_history_select_policy",
+    "cmd": "SELECT",
+    "using": "(has_permission('billing.view'::text) OR has_permission('billing.create_invoice'::text) OR has_permission('houses.update'::text))",
+    "check": null
+  },
+  {
+    "table": "house_levy_history",
+    "policy": "house_levy_history_update_policy",
+    "cmd": "UPDATE",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "house_ownership_history",
+    "policy": "Only admins can update ownership history",
+    "cmd": "UPDATE",
+    "using": "(get_my_role_name() = 'super_admin'::text)",
+    "check": "(get_my_role_name() = 'super_admin'::text)"
+  },
+  {
+    "table": "house_ownership_history",
+    "policy": "house_ownership_history_select",
+    "cmd": "SELECT",
+    "using": "(has_permission('houses.view'::text) OR has_permission('houses.assign_resident'::text))",
+    "check": null
+  },
+  {
+    "table": "house_types",
+    "policy": "Approved accounts only can read",
+    "cmd": "SELECT",
+    "using": "is_approved()",
+    "check": null
+  },
+  {
+    "table": "houses",
+    "policy": "Approved accounts only can read",
+    "cmd": "SELECT",
+    "using": "is_approved()",
+    "check": null
+  },
+  {
+    "table": "houses",
+    "policy": "Residents can view assigned houses",
+    "cmd": "SELECT",
+    "using": "(id IN ( SELECT resident_houses.house_id\n   FROM resident_houses\n  WHERE ((resident_houses.resident_id = get_my_resident_id()) AND (resident_houses.is_active = true))))",
+    "check": null
+  },
+  {
+    "table": "impersonation_sessions",
+    "policy": "super_admin_read_all_impersonation_sessions",
+    "cmd": "SELECT",
+    "using": "has_permission('impersonation.view_sessions'::text)",
+    "check": null
+  },
+  {
+    "table": "in_app_notifications",
+    "policy": "in_app_notifications_admin_insert",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "has_permission('notifications.send'::text)"
+  },
+  {
+    "table": "invoice_generation_approvals",
+    "policy": "Finance may read invoice generation approvals",
+    "cmd": "SELECT",
+    "using": "has_permission('billing.create_invoice'::text)",
+    "check": null
+  },
+  {
+    "table": "invoice_generation_candidates",
+    "policy": "Finance may read invoice generation candidates",
+    "cmd": "SELECT",
+    "using": "has_permission('billing.create_invoice'::text)",
+    "check": null
+  },
+  {
+    "table": "invoice_generation_log",
+    "policy": "invoice_generation_log_select",
+    "cmd": "SELECT",
+    "using": "has_permission('billing.create_invoice'::text)",
+    "check": null
+  },
+  {
+    "table": "invoice_generation_runs",
+    "policy": "Finance may read invoice generation runs",
+    "cmd": "SELECT",
+    "using": "has_permission('billing.create_invoice'::text)",
+    "check": null
+  },
+  {
+    "table": "invoice_items",
+    "policy": "Admins chairmen fin sec can manage all invoice items",
+    "cmd": "ALL",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "invoice_items",
+    "policy": "Residents can view own invoice items",
+    "cmd": "SELECT",
+    "using": "(invoice_id IN ( SELECT invoices.id\n   FROM invoices\n  WHERE (invoices.resident_id = get_my_resident_id())))",
+    "check": null
+  },
+  {
+    "table": "invoices",
+    "policy": "Admins chairmen fin sec can manage all invoices",
+    "cmd": "ALL",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "invoices",
+    "policy": "Residents can view own invoices",
+    "cmd": "SELECT",
+    "using": "(resident_id = get_my_resident_id())",
+    "check": null
+  },
+  {
+    "table": "late_fee_log",
+    "policy": "Admins can view late fee log",
+    "cmd": "SELECT",
+    "using": "has_permission('billing.apply_late_fees'::text)",
+    "check": null
+  },
+  {
+    "table": "late_fee_waivers",
+    "policy": "Approvers can decide late fee waivers",
+    "cmd": "UPDATE",
+    "using": "has_permission('billing.approve_late_fee_waiver'::text)",
+    "check": "(has_permission('billing.approve_late_fee_waiver'::text) AND ((status <> 'approved'::text) OR (requested_by <> ( SELECT auth.uid() AS uid))))"
+  },
+  {
+    "table": "late_fee_waivers",
+    "policy": "Request holders can create late fee waivers",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "(has_permission('billing.request_late_fee_waiver'::text) AND (status = 'pending'::text) AND (requested_by = ( SELECT auth.uid() AS uid)))"
+  },
+  {
+    "table": "late_fee_waivers",
+    "policy": "Request holders can view late fee waivers",
+    "cmd": "SELECT",
+    "using": "has_permission('billing.request_late_fee_waiver'::text)",
+    "check": null
+  },
+  {
+    "table": "message_templates",
+    "policy": "message_templates_admin_all",
+    "cmd": "ALL",
+    "using": "has_permission('announcements.manage_templates'::text)",
+    "check": "has_permission('announcements.manage_templates'::text)"
+  },
+  {
+    "table": "notification_preferences",
+    "policy": "Residents can update own notification preferences",
+    "cmd": "UPDATE",
+    "using": "(resident_id = get_my_resident_id())",
+    "check": "(resident_id = get_my_resident_id())"
+  },
+  {
+    "table": "notification_preferences",
+    "policy": "Residents can view own notification preferences",
+    "cmd": "SELECT",
+    "using": "(resident_id = get_my_resident_id())",
+    "check": null
+  },
+  {
+    "table": "notification_preferences",
+    "policy": "notification_preferences_delete",
+    "cmd": "DELETE",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text]))",
+    "check": null
+  },
+  {
+    "table": "notification_preferences",
+    "policy": "notification_preferences_select",
+    "cmd": "SELECT",
+    "using": "(has_permission('notifications.view'::text) OR has_permission('residents.view'::text) OR (resident_id = get_my_resident_id()))",
+    "check": null
+  },
+  {
+    "table": "notification_queue",
+    "policy": "notification_queue_delete",
+    "cmd": "DELETE",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text]))",
+    "check": null
+  },
+  {
+    "table": "notification_queue",
+    "policy": "notification_queue_update",
+    "cmd": "UPDATE",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text]))",
+    "check": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text]))"
+  },
+  {
+    "table": "notification_schedules",
+    "policy": "notification_schedules_delete",
+    "cmd": "DELETE",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text]))",
+    "check": null
+  },
+  {
+    "table": "notification_schedules",
+    "policy": "notification_schedules_insert",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text]))"
+  },
+  {
+    "table": "notification_schedules",
+    "policy": "notification_schedules_update",
+    "cmd": "UPDATE",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text]))",
+    "check": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text]))"
+  },
+  {
+    "table": "notification_templates",
+    "policy": "notification_templates_delete",
+    "cmd": "DELETE",
+    "using": "((get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text])) AND (is_system = false))",
+    "check": null
+  },
+  {
+    "table": "notification_templates",
+    "policy": "notification_templates_insert",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text]))"
+  },
+  {
+    "table": "notification_templates",
+    "policy": "notification_templates_update",
+    "cmd": "UPDATE",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text]))",
+    "check": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text]))"
+  },
+  {
+    "table": "payment_records",
+    "policy": "Admins and FinSec can manage all payments",
+    "cmd": "ALL",
+    "using": "has_permission('payments.update'::text)",
+    "check": "has_permission('payments.update'::text)"
+  },
+  {
+    "table": "payment_records",
+    "policy": "Residents can view own payments",
+    "cmd": "SELECT",
+    "using": "(resident_id = get_my_resident_id())",
+    "check": null
+  },
+  {
+    "table": "paystack_transactions",
+    "policy": "paystack_transactions_admin_all",
+    "cmd": "ALL",
+    "using": "has_permission('payments.update'::text)",
+    "check": "has_permission('payments.update'::text)"
+  },
+  {
+    "table": "personnel_engagements",
+    "policy": "Manage Personnel Engagements - Authorized Roles",
+    "cmd": "ALL",
+    "using": "has_permission('manage_expenditure'::text)",
+    "check": "has_permission('manage_expenditure'::text)"
+  },
+  {
+    "table": "petty_cash_accounts",
+    "policy": "Admins can manage petty cash accounts",
+    "cmd": "ALL",
+    "using": "has_permission('manage_expenditure'::text)",
+    "check": "has_permission('manage_expenditure'::text)"
+  },
+  {
+    "table": "petty_cash_accounts",
+    "policy": "petty_cash_accounts_select",
+    "cmd": "SELECT",
+    "using": "(has_permission('view_expenditure'::text) OR has_permission('billing.view'::text))",
+    "check": null
+  },
+  {
+    "table": "profiles",
+    "policy": "Admins can delete profiles",
+    "cmd": "DELETE",
+    "using": "(get_my_role_name() = 'super_admin'::text)",
+    "check": null
+  },
+  {
+    "table": "profiles",
+    "policy": "Admins can insert profiles",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "(get_my_role_name() = 'super_admin'::text)"
+  },
+  {
+    "table": "project_milestones",
+    "policy": "Manage Milestones - Admins/Project Manager",
+    "cmd": "ALL",
+    "using": "has_permission('manage_projects'::text)",
+    "check": "has_permission('manage_projects'::text)"
+  },
+  {
+    "table": "project_milestones",
+    "policy": "View Milestones - Admins/EXCO",
+    "cmd": "SELECT",
+    "using": "has_permission('view_projects'::text)",
+    "check": null
+  },
+  {
+    "table": "projects",
+    "policy": "Manage Projects - Admins/Project Manager",
+    "cmd": "ALL",
+    "using": "has_permission('manage_projects'::text)",
+    "check": "has_permission('manage_projects'::text)"
+  },
+  {
+    "table": "projects",
+    "policy": "View Projects - Admins/EXCO",
+    "cmd": "SELECT",
+    "using": "has_permission('view_projects'::text)",
+    "check": null
+  },
+  {
+    "table": "report_archive",
+    "policy": "report_archive_select",
+    "cmd": "SELECT",
+    "using": "has_permission('reports.view_financial'::text)",
+    "check": null
+  },
+  {
+    "table": "report_schedules",
+    "policy": "Approved accounts only can read",
+    "cmd": "SELECT",
+    "using": "is_approved()",
+    "check": null
+  },
+  {
+    "table": "report_schedules",
+    "policy": "report_schedules_delete",
+    "cmd": "DELETE",
+    "using": "has_permission('reports.manage_schedules'::text)",
+    "check": null
+  },
+  {
+    "table": "report_schedules",
+    "policy": "report_schedules_insert",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "has_permission('reports.manage_schedules'::text)"
+  },
+  {
+    "table": "report_schedules",
+    "policy": "report_schedules_select",
+    "cmd": "SELECT",
+    "using": "has_permission('reports.manage_schedules'::text)",
+    "check": null
+  },
+  {
+    "table": "report_schedules",
+    "policy": "report_schedules_update",
+    "cmd": "UPDATE",
+    "using": "has_permission('reports.manage_schedules'::text)",
+    "check": "has_permission('reports.manage_schedules'::text)"
+  },
+  {
+    "table": "report_subscriptions",
+    "policy": "report_subscriptions_admin_insert",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "has_permission('report_subscriptions.manage'::text)"
+  },
+  {
+    "table": "report_subscriptions",
+    "policy": "report_subscriptions_admin_select",
+    "cmd": "SELECT",
+    "using": "has_permission('report_subscriptions.view'::text)",
+    "check": null
+  },
+  {
+    "table": "report_subscriptions",
+    "policy": "report_subscriptions_admin_update",
+    "cmd": "UPDATE",
+    "using": "has_permission('report_subscriptions.manage'::text)",
+    "check": "has_permission('report_subscriptions.manage'::text)"
+  },
+  {
+    "table": "resident_houses",
+    "policy": "Residents can view own house assignments",
+    "cmd": "SELECT",
+    "using": "(resident_id = get_my_resident_id())",
+    "check": null
+  },
+  {
+    "table": "resident_payment_cadence_summary",
+    "policy": "resident_payment_cadence_summary_select",
+    "cmd": "SELECT",
+    "using": "has_permission('reports.view_financial'::text)",
+    "check": null
+  },
+  {
+    "table": "resident_wallets",
+    "policy": "Admins chairmen fin sec can manage wallets",
+    "cmd": "ALL",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "resident_wallets",
+    "policy": "Residents can view own wallet",
+    "cmd": "SELECT",
+    "using": "(resident_id = get_my_resident_id())",
+    "check": null
+  },
+  {
+    "table": "residents",
+    "policy": "Residents can update own contact info",
+    "cmd": "UPDATE",
+    "using": "(id = get_my_resident_id())",
+    "check": "(id = get_my_resident_id())"
+  },
+  {
+    "table": "residents",
+    "policy": "Residents can view housemates",
+    "cmd": "SELECT",
+    "using": "(id IN ( SELECT rh2.resident_id\n   FROM resident_houses rh2\n  WHERE ((rh2.house_id IN ( SELECT rh1.house_id\n           FROM resident_houses rh1\n          WHERE ((rh1.resident_id = get_my_resident_id()) AND (rh1.is_active = true)))) AND (rh2.is_active = true))))",
+    "check": null
+  },
+  {
+    "table": "residents",
+    "policy": "Residents can view own record",
+    "cmd": "SELECT",
+    "using": "(id = get_my_resident_id())",
+    "check": null
+  },
+  {
+    "table": "role_assignment_rules",
+    "policy": "role_assignment_rules_select",
+    "cmd": "SELECT",
+    "using": "(has_permission('system.manage_roles'::text) OR has_permission('system.assign_roles'::text))",
+    "check": null
+  },
+  {
+    "table": "role_permissions",
+    "policy": "Allow delete for role managers",
+    "cmd": "DELETE",
+    "using": "(has_permission('system.manage_roles'::text) OR is_super_admin())",
+    "check": null
+  },
+  {
+    "table": "role_permissions",
+    "policy": "Allow insert for role managers",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "(has_permission('system.manage_roles'::text) OR is_super_admin())"
+  },
+  {
+    "table": "role_permissions",
+    "policy": "Allow update for role managers",
+    "cmd": "UPDATE",
+    "using": "(has_permission('system.manage_roles'::text) OR is_super_admin())",
+    "check": "(has_permission('system.manage_roles'::text) OR is_super_admin())"
+  },
+  {
+    "table": "search_logs",
+    "policy": "Admins can view search logs",
+    "cmd": "SELECT",
+    "using": "has_permission('settings.view_audit_logs'::text)",
+    "check": null
+  },
+  {
+    "table": "security_contacts",
+    "policy": "Residents can create own security contacts",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "(resident_id = get_my_resident_id())"
+  },
+  {
+    "table": "security_contacts",
+    "policy": "Residents can delete own security contacts",
+    "cmd": "DELETE",
+    "using": "(resident_id = get_my_resident_id())",
+    "check": null
+  },
+  {
+    "table": "security_contacts",
+    "policy": "Residents can update own security contacts",
+    "cmd": "UPDATE",
+    "using": "(resident_id = get_my_resident_id())",
+    "check": "(resident_id = get_my_resident_id())"
+  },
+  {
+    "table": "security_contacts",
+    "policy": "Residents can view own security contacts",
+    "cmd": "SELECT",
+    "using": "(resident_id = get_my_resident_id())",
+    "check": null
+  },
+  {
+    "table": "security_contacts",
+    "policy": "security_contacts_delete_policy",
+    "cmd": "DELETE",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text]))",
+    "check": null
+  },
+  {
+    "table": "streets",
+    "policy": "Approved accounts only can read",
+    "cmd": "SELECT",
+    "using": "is_approved()",
+    "check": null
+  },
+  {
+    "table": "system_action_log",
+    "policy": "Super admins can view the system action log",
+    "cmd": "SELECT",
+    "using": "has_permission('system.view_system_log'::text)",
+    "check": null
+  },
+  {
+    "table": "system_settings",
+    "policy": "system_settings_delete_policy",
+    "cmd": "DELETE",
+    "using": "(get_my_role_name() = 'super_admin'::text)",
+    "check": null
+  },
+  {
+    "table": "system_settings",
+    "policy": "system_settings_select_policy",
+    "cmd": "SELECT",
+    "using": "((key = ANY (ARRAY['maintenance_mode'::text, 'maintenance_message'::text, 'resident_portal_enabled'::text, 'dashboard_theme'::text, 'portal_theme'::text, 'estate_name'::text, 'estate_logo_url'::text, 'estate_address'::text, 'estate_email'::text, 'estate_phone'::text, 'estate_facebook_url'::text, 'estate_instagram_url'::text, 'estate_twitter_url'::text, 'estate_website_url'::text, 'security_gate_phone'::text, 'estate_manager_phone'::text, 'estate_manager_name'::text, 'disable_ai_assistant'::text, 'ai_assistant_greeting_enabled'::text, 'assistant_name'::text])) OR has_permission('settings.view'::text))",
+    "check": null
+  },
+  {
+    "table": "two_factor_audit_log",
+    "policy": "Admins can view all audit logs",
+    "cmd": "SELECT",
+    "using": "has_permission('two_factor.view_audit_log'::text)",
+    "check": null
+  },
+  {
+    "table": "two_factor_policies",
+    "policy": "Approved accounts only can read",
+    "cmd": "SELECT",
+    "using": "is_approved()",
+    "check": null
+  },
+  {
+    "table": "two_factor_policies",
+    "policy": "two_factor_policies_select",
+    "cmd": "SELECT",
+    "using": "has_permission('two_factor.manage_policies'::text)",
+    "check": null
+  },
+  {
+    "table": "vendors",
+    "policy": "Manage Vendors - Authorized Roles",
+    "cmd": "ALL",
+    "using": "has_permission('manage_vendors'::text)",
+    "check": "has_permission('manage_vendors'::text)"
+  },
+  {
+    "table": "vendors",
+    "policy": "View Vendors - Authorized Roles",
+    "cmd": "SELECT",
+    "using": "has_permission('view_vendors'::text)",
+    "check": null
+  },
+  {
+    "table": "visitor_vehicles",
+    "policy": "visitor_vehicles_delete_policy",
+    "cmd": "DELETE",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text]))",
+    "check": null
+  },
+  {
+    "table": "wallet_payment_batch_items",
+    "policy": "Admin finance can manage wallet payment batch items",
+    "cmd": "ALL",
+    "using": "has_permission('billing.manage_wallets'::text)",
+    "check": "has_permission('billing.manage_wallets'::text)"
+  },
+  {
+    "table": "wallet_payment_batches",
+    "policy": "Admin finance can manage wallet payment batches",
+    "cmd": "ALL",
+    "using": "has_permission('billing.manage_wallets'::text)",
+    "check": "has_permission('billing.manage_wallets'::text)"
+  },
+  {
+    "table": "wallet_settlement_requests",
+    "policy": "Finance can create wallet settlement requests",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))"
+  },
+  {
+    "table": "wallet_settlement_requests",
+    "policy": "Finance can view wallet settlement requests",
+    "cmd": "SELECT",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "wallet_transactions",
+    "policy": "Admins chairmen fin sec can view all transactions",
+    "cmd": "ALL",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "wallet_transactions",
+    "policy": "Residents can view own wallet transactions",
+    "cmd": "SELECT",
+    "using": "(wallet_id IN ( SELECT resident_wallets.id\n   FROM resident_wallets\n  WHERE (resident_wallets.resident_id = get_my_resident_id())))",
+    "check": null
+  },
+  {
+    "table": "whatsapp_provider_credentials",
+    "policy": "Admin access for whatsapp provider credentials",
+    "cmd": "ALL",
+    "using": "has_permission('whatsapp.manage'::text)",
+    "check": "has_permission('whatsapp.manage'::text)"
+  }
+]
