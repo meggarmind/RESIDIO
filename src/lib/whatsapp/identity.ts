@@ -230,6 +230,8 @@ export function createSupabaseWhatsAppIdentityRepository(): WhatsAppIdentityRepo
         .from('whatsapp_link_tokens')
         .select('id, resident_id')
         .eq('token_hash', hashLinkToken(token))
+        // A PIN setup code (#890) shares this table but must never link a number.
+        .filter('purpose', 'eq', 'link')
         .is('used_at', null)
         .gt('expires_at', now)
         .maybeSingle();
