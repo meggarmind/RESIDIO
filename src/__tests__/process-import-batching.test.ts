@@ -164,7 +164,7 @@ beforeEach(() => {
   createPaymentCore.mockImplementation(async (input: { amount: number }) =>
     input.amount === 666 ? { data: null, error: 'Payment write failed' } : { data: { id: uid(5000 + ++paymentSeq) }, error: null }
   );
-  createExpense.mockImplementation(async () => ({ id: uid(6000 + ++paymentSeq) }));
+  createExpense.mockImplementation(async () => ({ data: { id: uid(6000 + ++paymentSeq) }, error: null }));
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
