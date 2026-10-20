@@ -67,7 +67,7 @@ Before saving a template change:
 
 ## Reminders and schedules
 
-**Settings → Messages & Reminders → Reminders** turns automatic reminders on or off, and **Reminder Schedule** defines the steps. Reminders are dispatched by a scheduled job rather than at the moment you save them, so a saved reminder that has not arrived yet is usually waiting for its next run, not broken.
+**Settings → Messages & Reminders → Reminders** turns automatic reminders on or off, and **Reminder Schedule** defines the steps. Reminders are dispatched by a scheduled job rather than at the moment you save them, so a saved reminder that has not arrived yet is usually waiting for its next run, not broken. The Billing reminder days and the Email **Payment Reminders** switch also limit what it sends; see [Billing and notifications](../settings/billing-and-notifications.md).
 
 Invoice reminders go out by email and WhatsApp only. SMS is switched off for reminders until the SMS provider (Termii) is connected, so an SMS step in a reminder schedule is skipped without an error. The default schedule is email only, and the schedule editor offers Email only: it does not offer SMS, and WhatsApp cannot be selected for a step yet.
 
