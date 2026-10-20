@@ -8,14 +8,14 @@ residio_sources:
   - src/lib/parsers/**
   - src/actions/email-imports/**
   - src/app/(dashboard)/settings/email-integration/**
-residio_verified_commit: e24b7386
+residio_verified_commit: f892d4bb
 residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
 
 # Gmail import and bank feeds
 
-Residio gets bank data into the system through two routes: an automated Gmail connection that reads bank alerts and statement attachments, and manual file upload from **Transactions → Import Statement**. Gmail items land in the email review queue, apart from high-confidence credits at or below the auto-process limit (₦60,000 by default), which are posted automatically (see [The review queue](#the-review-queue)). An uploaded statement is submitted for approval and processed from its own import page under **Transactions → Import History**.
+Residio gets bank data into the system through two routes: an automated Gmail connection that reads bank alerts and statement attachments, and manual file upload from **Transactions → Import Statement**. Gmail items from the hourly sync always land in the email review queue. A fetch an admin starts by hand can also post high-confidence credits at or below the auto-process limit (₦60,000 by default) automatically (see [The review queue](#the-review-queue)). An uploaded statement is submitted for approval and processed from its own import page under **Transactions → Import History**.
 
 For the day-to-day payment workflow, see [Payments and statement imports](../finance/payments-and-imports). This page covers the connection itself.
 
@@ -51,13 +51,13 @@ Column names vary between statement types, so the parser accepts common variatio
 
 ## Password-protected statements
 
-Bank statement PDFs are often password protected. Residio stores a password per bank account so scheduled imports can open them without manual intervention. Manage them in the **PDF Statement Passwords** card on **Settings → Money → Bank Accounts**; changing them needs the manage statement passwords permission, and removing one asks first.
+Bank statement PDFs are often password protected. Residio stores a password per bank account so an admin-started fetch can open them without manual intervention. The hourly sync cannot read these passwords yet, so a protected statement it fetches is not parsed there. Manage them in the **PDF Statement Passwords** card on **Settings → Money → Bank Accounts**; changing them needs the manage statement passwords permission, and removing one asks first.
 
 Passwords are stored encrypted and are never displayed back. To change one, set a new value; to stop automated opening, remove it.
 
 ## The review queue
 
-Imported rows are matched against residents, houses, and outstanding invoices. The hourly sync posts a credit automatically only when it matched a resident with high confidence (by alias or phone number) and is at or below the auto-process limit. Every other credit is queued for review.
+Imported rows are matched against residents, houses, and outstanding invoices. The hourly sync never posts money: it queues every row it imports for review, whatever the match. A fetch an admin starts by hand posts a credit automatically only when it matched a resident with high confidence (by alias or phone number) and is at or below the auto-process limit. Every other credit is queued for review.
 
 A credit above the limit is always queued, however confident the match, and is marked **Needs approval: over ₦60,000** (the label shows the current limit). Releasing it needs the import approval permission or the super admin role; without it the Process button is disabled. Anyone who can process email imports can still skip it. Debits (expenses) are not limited.
 
@@ -65,7 +65,7 @@ A credit above the limit is always queued, however confident the match, and is m
 
 The limit is set on **Settings → Connections → Gmail Import** under **Approval Limit**, in the **Auto-process limit (NGN)** field. It defaults to ₦60,000. Anyone with the settings view permission can see it; only a super admin can change it, because a very large value would switch the approval control off. Every change is recorded in the audit log. The value must be a whole naira amount from 1 to 100,000,000.
 
-If Residio cannot read the limit, or the stored value is invalid, it fails safe: that sync posts no credit automatically and queues every credit for review, marked **Needs approval: approval limit unavailable**. Only an approver can release them until the limit is readable again.
+If Residio cannot read the limit, or the stored value is invalid, it fails safe: that fetch posts no credit automatically and queues every credit for review, marked **Needs approval: approval limit unavailable**. Only an approver can release them until the limit is readable again.
 
 For each queued row you can:
 
@@ -86,7 +86,7 @@ Both actions require the email import permission and are written to the audit lo
 
 ## Automatic syncing
 
-Residio checks the connected mailbox on an hourly schedule. If imports stop appearing, confirm the job is running under **Settings → Cron Status** before assuming the Gmail connection has failed. See [Scheduled jobs](./scheduled-jobs).
+Residio checks the connected mailbox on an hourly schedule. Each run fetches, parses and matches new mail, then queues every transaction for review; it posts no payment, expense or petty-cash entry, so nothing is written to the books until an admin processes a queued row. Each run is recorded in the system action log. If imports stop appearing, confirm the job is running under **Settings → Cron Status** before assuming the Gmail connection has failed. See [Scheduled jobs](./scheduled-jobs).
 
 ## Troubleshooting
 

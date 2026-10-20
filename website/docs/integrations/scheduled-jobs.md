@@ -10,7 +10,7 @@ residio_sources:
   - src/actions/system/cron-status.ts
   - src/lib/system/cron-status.ts
   - src/app/(dashboard)/system/cron-status/**
-residio_verified_commit: 385fd3e1
+residio_verified_commit: 32105e9e
 residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
@@ -37,7 +37,7 @@ Times are in UTC. Adjust for your estate's local time when reasoning about when 
 | Payment reminders | Daily, 08:00 | Queues reminder messages for outstanding balances |
 | Notification processing | Every 15 minutes | Sends what is waiting in the notification queue, retrying failed sends with a backoff |
 | Announcement publishing | Hourly | Publishes announcements whose scheduled time has arrived |
-| Email import | Hourly | Reads the connected mailbox for bank alerts and statements |
+| Email import | Hourly | Reads the connected mailbox for bank alerts and statements, and queues every transaction it finds for admin review (it posts no money) |
 | Approval expiry | Hourly | Rejects approval requests left pending past their 72-hour expiry and notifies the requester |
 
 These schedules run as scheduled tasks on both the production and the staging server. On staging, every email, SMS and WhatsApp message a job sends goes to the contacts set on **Settings → Messages & Reminders → Redirect Messages (test mode)**, never to the real resident, staff member or report recipient; if the needed override contact is blank the message is blocked instead. See [Email and SMS channels](./email-and-sms) for how the override works.
