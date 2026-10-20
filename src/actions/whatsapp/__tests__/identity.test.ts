@@ -328,6 +328,8 @@ describe('WhatsApp identity write actions', () => {
         whatsapp_pin_set_at: null,
         whatsapp_pin_failed_attempts: 0,
         whatsapp_pin_locked_until: null,
+        whatsapp_pin_failed_at: [],
+        whatsapp_pin_hard_locked_at: null,
       });
       expect(pin.eq).toHaveBeenCalledWith('id', ROW_ID);
       expect(sessions.update).toHaveBeenCalledWith({ pin_authenticated: false });

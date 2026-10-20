@@ -137,7 +137,7 @@ export async function resetWhatsAppPin(residentId: string): Promise<ActionResult
     return { success: false, data: null, error: 'Resident not found' };
   }
 
-  // The generated types do not know the #850 lock columns until that migration is applied.
+  // The generated types do not know the #850 and #891 lock columns until those migrations are applied.
   const { error: pinError } = await adminClient
     .from('residents')
     .update({
@@ -145,6 +145,8 @@ export async function resetWhatsAppPin(residentId: string): Promise<ActionResult
       whatsapp_pin_set_at: null,
       whatsapp_pin_failed_attempts: 0,
       whatsapp_pin_locked_until: null,
+      whatsapp_pin_failed_at: [],
+      whatsapp_pin_hard_locked_at: null,
     } as never)
     .eq('id', residentId);
 
@@ -168,6 +170,8 @@ export async function resetWhatsAppPin(residentId: string): Promise<ActionResult
       whatsapp_pin: 'cleared',
       whatsapp_pin_failed_attempts: 0,
       whatsapp_pin_locked_until: null,
+      whatsapp_pin_failed_at: [],
+      whatsapp_pin_hard_locked_at: null,
       whatsapp_sessions_pin_authenticated: sessionError ? 'not cleared' : false,
     },
   });
