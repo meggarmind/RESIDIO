@@ -8,7 +8,7 @@ residio_sources:
   - src/actions/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp/**
   - src/app/api/whatsapp/**
-residio_verified_commit: e894b4d4
+residio_verified_commit: 7f0ac22b
 residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
@@ -152,7 +152,7 @@ Wrong PINs lock financial answers in two steps. Both refuse even the correct PIN
 - **3 wrong PINs in a row** lock the PIN for **15 minutes**. The resident is told the time it unlocks, and the lock lifts on its own. A correct PIN before the third wrong one resets the count.
 - **6 wrong PINs within 24 hours** lock the PIN until the estate office resets it with **Reset PIN**. This lock never lifts on its own. A correct PIN does not reset this count.
 
-Every wrong-PIN and lock reply ends with the estate office phone and email from **Settings → Estate info**, or with nothing if neither is set.
+Every wrong-PIN and lock reply ends with the estate office phone, email and office hours from **Settings → Estate info**, or with nothing if neither phone nor email is set.
 
 ### Setting a PIN
 
@@ -185,6 +185,44 @@ The code is shown **once**, with its expiry, in a dialog with a **Copy** button.
 
 The reset is written to the audit log. The PIN and the code are never recorded.
 
+## What residents see
+
+Residents reply with numbers or fixed keywords; the Assistant does not interpret free text. Every reply that is an answer ends with `Reply 0 for menu or 9 to contact the estate office.`
+
+The main menu opens with `Hi <first name>, what would you like to do?` and lists:
+
+| Item | Shown when |
+|---|---|
+| 1. Financial standing | The resident is billed for a property. Marked *PIN protected*, or *unlocked* once the PIN is entered |
+| 2. Latest estate notices | A published estate-wide announcement exists. Shows the 3 latest; the resident replies with a number to read one in full |
+| 3. How to pay | **Payment instructions** is filled in (see below) |
+| 4. Alert settings | Always. Turning *All estate WhatsApp messages* off works like replying `STOP` |
+| 9. Contact the estate office | The estate phone or email is set on **Settings → Estate & Property → Estate Details** |
+
+**Financial standing** lists What I owe, Recent payments (the last 5), Statement (this month, this year, last 6 months, last 12 months or all time) and Wallet. Only this item asks for the PIN. A resident billed for more than one property is asked which one once per session, sees it in every heading, and can change it under **8. More**.
+
+A statement reply is a text summary ending `Reply PDF to download the full statement.` On `PDF`:
+
+- **Up to 40 rows:** the account statement PDF is attached in chat. It is stored privately, Chatmaid is given a link that works for 1 hour, and the file is deleted 12 hours later. If Chatmaid reports the send failed, it is sent once more with a fresh link.
+- **Over 40 rows:** the resident is offered email to their address on file, shown masked (`a***@gmail.com`). On `1` the email is queued and arrives with the PDF attached within 15 minutes, through the notification queue, so the communications override applies to it.
+- **No email on file:** the resident is told so, and the request appears under **Statement requested, no email** in the operations console until an email is added and the statement is sent.
+
+- `0` goes back one level; `MENU`, `HI` or `HELLO` show the main menu; `CANCEL` abandons the current step; `LOCK` ends an unlocked session.
+- `9`, `HELP`, `AGENT` and `CONTACT` give the estate office line: phone, email and office hours from Estate Details.
+- Keywords such as `OWE`, `PAYMENTS`, `STATEMENT`, `WALLET`, `PAY` and `NEWS` jump straight to an item. Add the estate's own phrasing under **Extra keywords**.
+- A reply the Assistant does not understand gets `I didn't catch that.`; from the second in a row it adds the estate office line. Voice notes, images and stickers get a request to type instead.
+- After 15 minutes without activity the session ends: the next message says so, and the chosen property and the PIN unlock are forgotten.
+- If a lookup fails, the resident is told nothing was shown or changed and to try again shortly, with the estate office line.
+
+### Assistant replies
+
+The **Assistant replies** card in the Resident bot section holds the text the Assistant sends:
+
+- **Payment instructions**: the bank, account number and narration wording sent for *How to pay*. While it is empty, *How to pay* is hidden.
+- **Extra keywords**: one `phrase = item` per line, for example `service charge = owe`. Items are `owe`, `payments`, `statement`, `wallet`, `pay`, `notices` and `contact`.
+
+Each saves on its own and is written to the audit log.
+
 ## Rate caps
 
 Caps protect residents from a runaway loop and protect the estate from provider throttling.
@@ -194,7 +232,9 @@ Caps protect residents from a runaway loop and protect the estate from provider 
 | Outbound daily cap | Maximum messages sent in a day |
 | Outbound burst cap | Maximum messages within the burst window |
 | Burst window (minutes) | The window the burst cap is measured over |
-| Financial lookup daily cap | Maximum financial answers returned in a day |
+| Financial lookup daily cap | Maximum financial answers returned in a day, across the whole estate (default 500) |
+
+Each resident is also limited to 20 financial answers a day. Only the four Financial standing items count toward either financial cap, including each statement PDF and email; How to pay, notices and the contact line do not. Both reset at midnight Lagos time, and the resident is told which limit was reached.
 
 When a cap is reached, further sends are blocked and the event is counted in the console as a cap limit event. Repeated cap events mean the cap is wrong for the estate size or something is sending in a loop — investigate before raising the number.
 
@@ -204,7 +244,9 @@ The console on the same page shows today's activity: inbound messages, outbound 
 
 The **undelivered messages** list covers the last 7 days. It shows each WhatsApp message the provider reported as failed, or that Chatmaid accepted but never confirmed as sent within 15 minutes. Each row shows the time, the resident (when known), the masked number, whether it was a reply or a notification, the provider's reason, and the id of the resident message it answered. Those residents may not have received the message, so contact them another way. Residio does not resend these messages automatically.
 
-The **disclosure log** records every occasion on which financial information was released over WhatsApp. Treat it as an audit surface: it is the evidence that a disclosure was authorised, and it should never be cleared to tidy a screen.
+The **Statement requested, no email** list shows residents who asked for a statement too long for chat and have no email on file. Add their email to clear it.
+
+The **disclosure log** records every occasion on which financial information was released over WhatsApp, with its channel: `chat` for an answer, `pdf` for a statement PDF sent in chat, and `email` for one sent by email. Treat it as an audit surface: it is the evidence that a disclosure was authorised, and it should never be cleared to tidy a screen.
 
 ## Data retention
 

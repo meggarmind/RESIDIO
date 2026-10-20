@@ -103,6 +103,30 @@ describe('WhatsApp identity and consent', () => {
     expect(send.mock.calls[0]?.[0].body).not.toContain('balance');
   });
 
+  it('adds the estate office contact line to the invalid link code reply', async () => {
+    const send = vi.fn().mockResolvedValue({ success: true });
+    const estateContactLine = vi.fn().mockResolvedValue('Contact the estate office on 0803 699 6725.');
+
+    await handleResidentMessage(message('LINK 123456', '2348111111111'), { repository: repository({ findRosterMatches: vi.fn().mockResolvedValue([]) }), send, estateContactLine });
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[0]?.[0].body).toBe(
+      'That link code is invalid or expired. Ask the estate office for a new code.\nContact the estate office on 0803 699 6725.'
+    );
+  });
+
+  it('adds the estate office contact line to the unmatched number reply', async () => {
+    const send = vi.fn().mockResolvedValue({ success: true });
+    const estateContactLine = vi.fn().mockResolvedValue('Contact the estate office on 0803 699 6725.');
+
+    await handleResidentMessage(message('hello', '2348111111111'), { repository: repository({ findRosterMatches: vi.fn().mockResolvedValue([]) }), send, estateContactLine });
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[0]?.[0].body).toBe(
+      'Welcome to the Residio Assistant. We could not safely match this number to one Resident. Ask the estate office for a link code, or reply STOP.\nContact the estate office on 0803 699 6725.'
+    );
+  });
+
   it('links an unrostered number with a one-time code but waits for consent', async () => {
     const repo = repository({ consumeLinkToken: vi.fn().mockResolvedValue('resident-1') });
     const send = vi.fn().mockResolvedValue({ success: true });
@@ -127,6 +151,24 @@ describe('WhatsApp identity and consent', () => {
     expect(result).toMatchObject({ financialEligible: false, accessTier: 'community' });
     expect(send.mock.calls[0]?.[0].body).toContain('announcements and notices');
     expect(send.mock.calls[0]?.[0].body).not.toContain('balance');
+  });
+
+  it.each([
+    ['an opted-in community-tier resident', false, 'hello', true],
+    ['YES from a resident already opted in', true, 'YES', true],
+    ['YES from a community-tier resident opting in', false, 'YES', false],
+  ])('hands %s to the Assistant menu (#804)', async (_label, financialEligible, text, optedIn) => {
+    const repo = repository({
+      findRosterMatches: vi.fn().mockResolvedValue([{ ...resident, financialEligible }]),
+      getOptIn: vi.fn().mockResolvedValue(optedIn),
+    });
+    const send = vi.fn().mockResolvedValue({ success: true });
+    const onIdentified = vi.fn().mockResolvedValue(undefined);
+
+    await handleResidentMessage(message(text), { repository: repo, send, onIdentified });
+
+    expect(onIdentified).toHaveBeenCalledWith(expect.objectContaining({ text }), expect.objectContaining({ financialEligible }));
+    expect(send).not.toHaveBeenCalled();
   });
 });
 

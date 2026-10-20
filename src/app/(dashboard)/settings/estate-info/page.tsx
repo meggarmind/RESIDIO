@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Globe, Facebook, Instagram, Twitter } from 'lucide-react';
 import { ResidentPortalCard } from './resident-portal-card';
+import { OfficeHoursEditor, officeHoursError } from './office-hours-editor';
 import { useGeneralSettings, useUpdateSettings } from '@/hooks/use-settings';
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
 import { StickySaveBar } from '@/components/settings/sticky-save-bar';
@@ -29,6 +30,7 @@ type EstateForm = {
   estate_address: string;
   estate_phone: string;
   estate_email: string;
+  estate_office_hours: string;
   estate_logo_url: string;
   estate_website_url: string;
   estate_facebook_url: string;
@@ -40,7 +42,7 @@ type EstateForm = {
 };
 
 const EMPTY_FORM: EstateForm = {
-  estate_name: '', estate_address: '', estate_phone: '', estate_email: '',
+  estate_name: '', estate_address: '', estate_phone: '', estate_email: '', estate_office_hours: '',
   estate_logo_url: '', estate_website_url: '', estate_facebook_url: '',
   estate_twitter_url: '', estate_instagram_url: '', assistant_name: '',
   disable_ai_assistant: false, ai_assistant_greeting_enabled: true,
@@ -62,8 +64,10 @@ const estateFormSchema = z.object({
 
 function fieldErrors(form: EstateForm): Partial<Record<keyof EstateForm, string>> {
   const result = estateFormSchema.safeParse(form);
-  if (result.success) return {};
   const errors: Partial<Record<keyof EstateForm, string>> = {};
+  const hoursError = officeHoursError(form.estate_office_hours);
+  if (hoursError) errors.estate_office_hours = hoursError;
+  if (result.success) return errors;
   for (const issue of result.error.issues) {
     const key = issue.path[0] as keyof EstateForm;
     errors[key] ??= issue.message;
@@ -88,6 +92,8 @@ export default function EstateInfoPage() {
     estate_address: settingsObj.estate_address || '',
     estate_phone: settingsObj.estate_phone || '',
     estate_email: settingsObj.estate_email || '',
+    // Stored as a JSON string; tolerate a value already decoded to an array.
+    estate_office_hours: typeof settingsObj.estate_office_hours === 'string' ? settingsObj.estate_office_hours : settingsObj.estate_office_hours ? JSON.stringify(settingsObj.estate_office_hours) : '',
     estate_logo_url: settingsObj.estate_logo_url || '',
     estate_website_url: settingsObj.estate_website_url || '',
     estate_facebook_url: settingsObj.estate_facebook_url || '',
@@ -213,6 +219,18 @@ export default function EstateInfoPage() {
                     </div>
                     <FieldError id="estate-website-error" message={errors.estate_website_url} />
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Estate office hours</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Shown with the phone and email in WhatsApp Assistant replies, in Lagos time. Leave every day closed to show no hours.
+                  </p>
+                  <OfficeHoursEditor
+                    value={estateForm.estate_office_hours}
+                    error={errors.estate_office_hours}
+                    onChange={(value) => handleInputChange('estate_office_hours', value)}
+                  />
                 </div>
               </>
             )}

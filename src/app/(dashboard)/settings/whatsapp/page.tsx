@@ -1,15 +1,17 @@
 import { getWhatsAppForcePin, getWhatsAppOptIns, getWhatsAppPendingContacts } from '@/actions/whatsapp/identity';
 import { SettingsPageHeader } from '@/components/settings/settings-page-header';
 import { getWhatsAppEnabled, getWhatsAppPilotResidentOptions, getWhatsAppPilotSettings } from '@/actions/whatsapp/pilot';
-import { getWhatsAppDeliveryProblems, getWhatsAppDisclosureLogs, getWhatsAppHealth, getWhatsAppSessions } from '@/actions/whatsapp/admin-console';
+import { getWhatsAppDeliveryProblems, getWhatsAppDisclosureLogs, getWhatsAppHealth, getWhatsAppSessions, getWhatsAppStatementFlags } from '@/actions/whatsapp/admin-console';
 import { getWhatsAppConnectionStatus, getWhatsAppOverrideNumbers, type WhatsAppConnectionStatus } from '@/actions/whatsapp/connection';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ForcePinToggle } from '@/app/(dashboard)/settings/whatsapp/force-pin-toggle';
+import { AssistantText } from '@/app/(dashboard)/settings/whatsapp/assistant-text';
+import { getWhatsAppAssistantText } from '@/actions/whatsapp/assistant-settings';
 import { OptInImport } from '@/app/(dashboard)/settings/whatsapp/opt-in-import';
 import { PilotControls } from '@/app/(dashboard)/settings/whatsapp/pilot-controls';
 import { ConnectionSettings } from '@/app/(dashboard)/settings/whatsapp/connection-settings';
 import { WhatsAppEnabledToggle } from '@/app/(dashboard)/settings/whatsapp/whatsapp-enabled-toggle';
-import { OperationsConsole, type DeliveryProblem, type Disclosure, type Health, type OptIn, type Pending, type Session } from '@/app/(dashboard)/settings/whatsapp/operations-console';
+import { OperationsConsole, type DeliveryProblem, type Disclosure, type Health, type OptIn, type Pending, type Session, type StatementFlag } from '@/app/(dashboard)/settings/whatsapp/operations-console';
 
 const DISCONNECTED_STATUS: WhatsAppConnectionStatus = {
   connected: false,
@@ -29,7 +31,7 @@ const DISCONNECTED_STATUS: WhatsAppConnectionStatus = {
 };
 
 export default async function WhatsAppOperationsPage() {
-  const [optInResult, pendingResult, forcePinResult, sessionsResult, disclosuresResult, healthResult, pilotResult, connectionResult, overrideNumbersResult, whatsappEnabledResult, pilotResidentsResult, deliveryProblemsResult] = await Promise.all([
+  const [optInResult, pendingResult, forcePinResult, sessionsResult, disclosuresResult, healthResult, pilotResult, connectionResult, overrideNumbersResult, whatsappEnabledResult, pilotResidentsResult, deliveryProblemsResult, assistantTextResult, statementFlagsResult] = await Promise.all([
     getWhatsAppOptIns(),
     getWhatsAppPendingContacts(),
     getWhatsAppForcePin(),
@@ -42,6 +44,8 @@ export default async function WhatsAppOperationsPage() {
     getWhatsAppEnabled(),
     getWhatsAppPilotResidentOptions(),
     getWhatsAppDeliveryProblems(),
+    getWhatsAppAssistantText(),
+    getWhatsAppStatementFlags(),
   ]);
 
   // Fallback idiom matches src/actions/system/cron-status.ts.
@@ -66,7 +70,7 @@ export default async function WhatsAppOperationsPage() {
         <CardHeader><CardTitle>WhatsApp channel</CardTitle><CardDescription>Master on/off switch. Distinct from rollout mode below, which chooses who receives messages once this is on.</CardDescription></CardHeader>
         <CardContent className="flex items-center justify-between gap-4"><p className="text-sm text-muted-foreground">When off, no WhatsApp message can be sent regardless of rollout mode.</p><WhatsAppEnabledToggle initialValue={whatsappEnabledResult.data === true} /></CardContent>
       </Card>
-      <Card><CardHeader><CardTitle>Rollout and pilot controls</CardTitle><CardDescription>Keep WhatsApp disabled until a defined pilot is verified. Promotion is audited.</CardDescription></CardHeader><CardContent><PilotControls initial={pilotResult.data || { mode: 'disabled', residentIds: [], streetId: '', outboundDailyCap: 100, outboundBurstCap: 20, outboundBurstWindowMinutes: 10, financialLookupDailyCap: 50, sessionRetentionDays: 1, processedMessageRetentionDays: 2 }} residentOptions={pilotResidentsResult.data} residentOptionsError={pilotResidentsResult.error} /></CardContent></Card>
+      <Card><CardHeader><CardTitle>Rollout and pilot controls</CardTitle><CardDescription>Keep WhatsApp disabled until a defined pilot is verified. Promotion is audited.</CardDescription></CardHeader><CardContent><PilotControls initial={pilotResult.data || { mode: 'disabled', residentIds: [], streetId: '', outboundDailyCap: 100, outboundBurstCap: 20, outboundBurstWindowMinutes: 10, financialLookupDailyCap: 500, sessionRetentionDays: 1, processedMessageRetentionDays: 2 }} residentOptions={pilotResidentsResult.data} residentOptionsError={pilotResidentsResult.error} /></CardContent></Card>
       <details open={residentBotActive} className="space-y-4 rounded-lg border p-4">
         <summary className="cursor-pointer text-lg font-semibold">
           Resident bot ({residentBotActive ? 'active' : 'inactive'})
@@ -82,12 +86,17 @@ export default async function WhatsAppOperationsPage() {
             <CardContent><OptInImport /></CardContent>
           </Card>
         </div>
+        <Card>
+          <CardHeader><CardTitle>Assistant replies</CardTitle><CardDescription>Text the resident bot sends. Estate phone, email and office hours come from Settings &gt; Estate info.</CardDescription></CardHeader>
+          <CardContent><AssistantText initial={assistantTextResult.data || { paymentInstructions: '', keywordSynonyms: '' }} /></CardContent>
+        </Card>
         <OperationsConsole
           optIns={(optInResult.data || []) as OptIn[]}
           pending={(pendingResult.data || []) as Pending[]}
           sessions={(sessionsResult.data || []) as Session[]}
           disclosures={(disclosuresResult.data || []) as Disclosure[]}
           deliveryProblems={(deliveryProblemsResult.data || []) as DeliveryProblem[]}
+          statementFlags={(statementFlagsResult.data || []) as StatementFlag[]}
           health={(healthResult.data || { inboundToday: 0, outboundToday: 0, deliveryFailuresToday: 0, templateErrorsToday: 0, capLimitEventsToday: 0 }) as Health}
         />
       </details>

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { createAdminClient } from '@/lib/supabase/server';
-import { getWhatsAppDeliveryProblems, getWhatsAppDisclosureLogs, getWhatsAppHealth, getWhatsAppSessions } from '../admin-console';
+import { getWhatsAppDeliveryProblems, getWhatsAppDisclosureLogs, getWhatsAppHealth, getWhatsAppSessions, getWhatsAppStatementFlags } from '../admin-console';
 import { filterDisclosureLogs, filterOptIns } from '@/app/(dashboard)/settings/whatsapp/operations-console';
 
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: vi.fn() }));
@@ -49,6 +49,7 @@ describe('WhatsApp operations console actions', () => {
     expect((await getWhatsAppDisclosureLogs()).error).toBe('Forbidden');
     expect((await getWhatsAppHealth()).error).toBe('Forbidden');
     expect((await getWhatsAppDeliveryProblems()).error).toBe('Forbidden');
+    expect((await getWhatsAppStatementFlags()).error).toBe('Forbidden');
     expect(clientMock).not.toHaveBeenCalled();
   });
 
@@ -68,6 +69,21 @@ describe('WhatsApp operations console actions', () => {
       expect(columns.length).toBeGreaterThan(5);
       expect(columns.filter((column) => financial.test(column))).toEqual([]);
     }
+  });
+
+  it('lists statements waiting for an email, with no financial fields (#804)', async () => {
+    authMock.mockResolvedValue(authorized);
+    const query = chain({ data: [{ id: 'r1', status: 'awaiting_email' }], error: null });
+    const from = vi.fn().mockReturnValue(query);
+    clientMock.mockReturnValue({ from } as never);
+
+    const flags = await getWhatsAppStatementFlags();
+
+    expect(flags.data).toEqual([{ id: 'r1', status: 'awaiting_email' }]);
+    expect(from).toHaveBeenCalledWith('whatsapp_statement_requests');
+    expect(query.eq).toHaveBeenCalledWith('status', 'awaiting_email');
+    const columns = topLevelColumns(String(query.select.mock.calls[0][0]));
+    expect(columns.filter((column) => /amount|balance|outstanding|paid|owed|wallet|invoice|total/i.test(column))).toEqual([]);
   });
 
   it('aggregates health counters from existing WhatsApp records', async () => {

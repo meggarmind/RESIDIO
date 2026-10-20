@@ -4,6 +4,7 @@ import {
   createMetaWhatsAppProvider,
   createWhatsAppSimulator,
   handleInboundMessage,
+  processInboundMessages,
   verifyWhatsAppSignature,
   verifyWhatsAppToken,
 } from '@/lib/whatsapp';
@@ -89,10 +90,14 @@ describe('WhatsApp channel foundation', () => {
     expect(onMessage).toHaveBeenCalledTimes(2);
   });
 
-  it('acknowledges unsupported message types without invoking text handling', async () => {
+  it('passes 1:1 media on for the text-only reply, and ignores empty text and group messages (#804)', async () => {
     const onMessage = vi.fn();
+    const base = inboundPayload.entry[0].changes[0].value.messages[0];
     const payload = {
-      entry: [{ changes: [{ value: { messages: [{ ...inboundPayload.entry[0].changes[0].value.messages[0], type: 'image', text: undefined }] } }] }],
+      entry: [{ changes: [{ value: { messages: [
+        { ...base, id: 'wamid.img', type: 'image', text: undefined },
+        { ...base, id: 'wamid.empty', type: 'text', text: undefined },
+      ] } }] }],
     };
 
     const result = await handleInboundMessage(payload, {
@@ -102,8 +107,16 @@ describe('WhatsApp channel foundation', () => {
       onMessage,
     });
 
-    expect(result).toMatchObject({ accepted: true, processedCount: 1, ignoredCount: 1 });
-    expect(onMessage).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ accepted: true, processedCount: 2, ignoredCount: 1 });
+    expect(onMessage).toHaveBeenCalledTimes(1);
+    expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({ id: 'wamid.img', type: 'image', text: null }));
+
+    const group = await processInboundMessages([{ id: 'g', from: '2348000000000', timestamp: '1', type: 'group', text: null }], {
+      store: { claim: vi.fn().mockResolvedValue('claimed') },
+      onMessage,
+    });
+    expect(group).toMatchObject({ processedCount: 1, ignoredCount: 1 });
+    expect(onMessage).toHaveBeenCalledTimes(1);
   });
 
   it('sends a text message through the Meta provider without exposing the token in the payload', async () => {

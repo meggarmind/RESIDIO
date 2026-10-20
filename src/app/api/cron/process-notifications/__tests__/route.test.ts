@@ -3,10 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GET } from '../route';
 import { processQueue, purgeOldItems } from '@/lib/notifications/queue';
 import { recordSystemAction } from '@/lib/system-log/recorder';
+import { purgeExpiredStatementFiles } from '@/lib/whatsapp/statement-delivery';
 
 vi.mock('@/lib/notifications/queue', () => ({ processQueue: vi.fn(), purgeOldItems: vi.fn() }));
 vi.mock('@/lib/system-log/recorder', () => ({ recordSystemAction: vi.fn() }));
 vi.mock('@/lib/whatsapp/outbound-sends', () => ({ alertStalePendingSends: vi.fn().mockResolvedValue(0) }));
+vi.mock('@/lib/whatsapp/statement-delivery', () => ({ purgeExpiredStatementFiles: vi.fn() }));
 
 const SECRET = 'cron-secret-for-tests';
 
@@ -26,6 +28,7 @@ describe('GET /api/cron/process-notifications system log', () => {
     vi.stubEnv('CRON_SECRET', SECRET);
     vi.mocked(processQueue).mockResolvedValue(queueResult());
     vi.mocked(purgeOldItems).mockResolvedValue({ deleted: 0 } as never);
+    vi.mocked(purgeExpiredStatementFiles).mockResolvedValue(2);
   });
   afterEach(() => vi.unstubAllEnvs());
 
@@ -45,9 +48,17 @@ describe('GET /api/cron/process-notifications system log', () => {
         source: 'cron:process-notifications',
         action: 'process',
         outcome: 'success',
-        summary: { processed: 5, sent: 4, failed: 0, skipped: 1, purged: 0, stalePendingSends: 0 },
+        summary: { processed: 5, sent: 4, failed: 0, skipped: 1, purged: 0, stalePendingSends: 0, statementFilesPurged: 2 },
       })
     );
+  });
+
+  it('still succeeds when the WhatsApp statement file purge fails (#804)', async () => {
+    vi.mocked(purgeExpiredStatementFiles).mockRejectedValue(new Error('storage down'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const response = await GET(request(`Bearer ${SECRET}`));
+    expect(response.status).toBe(200);
+    expect(recordSystemAction).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'success', summary: expect.objectContaining({ statementFilesPurged: 0 }) }));
   });
 
   it('records partial when some notifications failed but others were sent', async () => {

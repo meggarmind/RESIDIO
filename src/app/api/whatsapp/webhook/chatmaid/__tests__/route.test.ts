@@ -54,6 +54,7 @@ interface Harness {
   store: ProcessedMessageStore;
   updateOutboundSendStatus: ReturnType<typeof vi.fn>;
   countRecentOutboundFailures: ReturnType<typeof vi.fn>;
+  retryFailedStatementSend: ReturnType<typeof vi.fn>;
   POST: (request: NextRequest) => Promise<Response>;
 }
 
@@ -64,6 +65,7 @@ async function load(options: {
   notifyResult?: { success: boolean; count: number; error?: string };
   sendMatched?: boolean;
   recentFailures?: number;
+  retryFailedStatementSend?: ReturnType<typeof vi.fn>;
 } = {}): Promise<Harness> {
   vi.doMock('@/lib/whatsapp/config-db', () => ({
     loadWhatsAppConfigFromDb: vi
@@ -107,8 +109,11 @@ async function load(options: {
     countRecentOutboundFailures,
   }));
 
+  const retryFailedStatementSend = options.retryFailedStatementSend ?? vi.fn().mockResolvedValue(false);
+  vi.doMock('@/lib/whatsapp/statement-delivery', () => ({ retryFailedStatementSend }));
+
   const { POST } = await import('@/app/api/whatsapp/webhook/chatmaid/route');
-  return { handleResidentMessage, notifyAdmins, getPausedUntil, pause, store, updateOutboundSendStatus, countRecentOutboundFailures, POST };
+  return { handleResidentMessage, notifyAdmins, getPausedUntil, pause, store, updateOutboundSendStatus, countRecentOutboundFailures, retryFailedStatementSend, POST };
 }
 
 describe('Chatmaid WhatsApp webhook route', () => {
@@ -127,6 +132,7 @@ describe('Chatmaid WhatsApp webhook route', () => {
     vi.doUnmock('@/lib/notifications/admin-notifier');
     vi.doUnmock('@/lib/system-log/recorder');
     vi.doUnmock('@/lib/whatsapp/outbound-sends');
+    vi.doUnmock('@/lib/whatsapp/statement-delivery');
   });
 
   it('returns 503 with the reason when stored credentials are unusable', async () => {
@@ -463,6 +469,23 @@ describe('Chatmaid WhatsApp webhook route', () => {
           summary: expect.objectContaining({ messageId: 'outmsg_1', errorCode: 'NOT_ON_WHATSAPP', matchedSend: true }),
         })
       );
+    });
+
+    it('retries a failed statement PDF send once per event, and a retry error never fails the event (#804)', async () => {
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const h = await load({ retryFailedStatementSend: vi.fn().mockRejectedValue(new Error('storage down')) });
+
+      expect((await h.POST(post('message.failed', failedBody))).status).toBe(200);
+      expect(h.retryFailedStatementSend).toHaveBeenCalledWith('chatmaid', 'outmsg_1');
+      expect(error).toHaveBeenCalledWith('[chatmaid-webhook] Statement retry failed:', expect.objectContaining({ messageId: 'outmsg_1' }));
+
+      const sent = await load();
+      await sent.POST(post('message.sent', JSON.stringify({ event: 'message.sent', data: { messageId: 'outmsg_2' } })));
+      expect(sent.retryFailedStatementSend).not.toHaveBeenCalled();
+
+      const unmatched = await load({ sendMatched: false });
+      await unmatched.POST(post('message.failed', failedBody.replace('outmsg_1', 'outmsg_3')));
+      expect(unmatched.retryFailedStatementSend).not.toHaveBeenCalled();
     });
 
     it('keeps phone numbers out of the log row and the console', async () => {

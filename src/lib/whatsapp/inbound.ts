@@ -122,7 +122,8 @@ export async function processInboundMessages(
 
       processedCount += 1;
 
-      if (!message.text) {
+      // Empty text and group messages are ignored; 1:1 media is passed on for the text-only reply (#804).
+      if (!message.text && (message.type === 'text' || message.type === 'group')) {
         ignoredCount += 1;
         continue;
       }

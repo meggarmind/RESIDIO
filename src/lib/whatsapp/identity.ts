@@ -3,6 +3,8 @@ import { normalizePhoneNumber } from '@/lib/sms/termii';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isWhatsAppMasterSwitchOn } from '@/lib/whatsapp/master-switch';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
+import { contactLine } from '@/lib/whatsapp/assistant-format';
+import { createSupabaseWhatsAppFinancialRepository } from '@/lib/whatsapp/financial';
 import type { WhatsAppInboundMessage, WhatsAppTextMessage } from '@/lib/whatsapp/types';
 
 const BILLABLE_ROLES = new Set([
@@ -278,6 +280,7 @@ export function createSupabaseWhatsAppIdentityRepository(): WhatsAppIdentityRepo
 export interface WhatsAppIdentityHandlerOptions {
   repository: WhatsAppIdentityRepository;
   send?: (message: WhatsAppTextMessage) => Promise<{ success: boolean; error?: string }>;
+  estateContactLine?: () => Promise<string | null>;
   onIdentified?: (
     message: WhatsAppInboundMessage,
     identity: WhatsAppResidentIdentity
@@ -298,6 +301,22 @@ function isStopCommand(text: string): boolean {
 
 function isStartCommand(text: string): boolean {
   return /^(START|SUBSCRIBE|YES|OPT\s*IN)\b/i.test(text.trim());
+}
+
+async function readContactLine(options: WhatsAppIdentityHandlerOptions): Promise<string | null> {
+  try {
+    if (options.estateContactLine) return await options.estateContactLine();
+    const settings = await createSupabaseWhatsAppFinancialRepository().getAssistantSettings();
+    return contactLine({ phone: settings.estatePhone, email: settings.estateEmail, hours: settings.officeHours }, new Date());
+  } catch (error) {
+    console.error('WhatsApp Assistant could not read the estate contact details:', error);
+    return null;
+  }
+}
+
+async function withContact(body: string, options: WhatsAppIdentityHandlerOptions): Promise<string> {
+  const line = await readContactLine(options);
+  return line ? `${body}\n${line}` : body;
 }
 
 async function sendReply(
@@ -365,7 +384,7 @@ export async function handleResidentMessage(
   if (linkMatch) {
     const residentId = await options.repository.consumeLinkToken(linkMatch[1]);
     if (!residentId) {
-      await sendReply(message, 'That link code is invalid or expired. Ask an estate admin for a new code.', options.send);
+      await sendReply(message, await withContact('That link code is invalid or expired. Ask the estate office for a new code.', options), options.send);
       return { status: 'pending', residentId: null, optedIn: false, financialEligible: false, accessTier: 'community' };
     }
 
@@ -384,7 +403,7 @@ export async function handleResidentMessage(
     await options.repository.rememberPendingContact(phoneNumber);
     await sendReply(
       message,
-      'Welcome to the Residio WhatsApp Assistant. We could not safely match this number to one Resident. Ask an estate admin for a link code, or reply STOP.',
+      await withContact('Welcome to the Residio Assistant. We could not safely match this number to one Resident. Ask the estate office for a link code, or reply STOP.', options),
       options.send
     );
     return { status: rosterMatches.length > 1 ? 'ambiguous' : 'pending', residentId: null, optedIn: false, financialEligible: false, accessTier: 'community' };
@@ -398,7 +417,8 @@ export async function handleResidentMessage(
   const optedIn = await options.repository.getOptIn(matchedIdentity.id, phoneNumber);
   if (isStartCommand(text)) {
     await options.repository.setOptIn(matchedIdentity.id, phoneNumber, true, 'in_chat');
-    if (options.onIdentified && matchedIdentity.financialEligible) {
+    // YES, opted in already or not, opens the Assistant's main menu for either tier (#804).
+    if (options.onIdentified) {
       await options.onIdentified(message, matchedIdentity);
       return { status: 'identified', residentId: matchedIdentity.id, optedIn: true, financialEligible: matchedIdentity.financialEligible, accessTier: matchedIdentity.financialEligible ? 'financial' : 'community' };
     }
@@ -421,7 +441,8 @@ export async function handleResidentMessage(
     return { status: 'identified', residentId: matchedIdentity.id, optedIn: false, financialEligible: matchedIdentity.financialEligible, accessTier: matchedIdentity.financialEligible ? 'financial' : 'community' };
   }
 
-  if (options.onIdentified && matchedIdentity.financialEligible) {
+  // Community-tier residents get the Assistant's menu too, without Financial standing (#804).
+  if (options.onIdentified) {
     await options.onIdentified(message, matchedIdentity);
   } else {
     await sendReply(

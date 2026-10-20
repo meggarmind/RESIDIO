@@ -7,7 +7,7 @@ residio_sources:
   - src/app/(dashboard)/settings/page.tsx
   - src/app/(dashboard)/settings/estate-info/**
   - src/app/(dashboard)/settings/branding/**
-residio_verified_commit: 99be618b
+residio_verified_commit: d0e1566f
 residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
@@ -33,7 +33,9 @@ Settings are grouped by the decision they control.
 
 **Resident portal switch.** **Settings → Estate & Property → Estate Details** has a *Resident portal* card with one switch. It decides whether the resident portal links (*My Portal*, *Resident Portal* in the profile menu, and *View as Resident*) appear in the admin dashboard. It is off by default and needs the general settings permission to change. The switch only hides or shows links: it does not block the `/portal` address, so anyone who opens `/portal` directly still reaches it. An individual account can override the switch under **System → Accounts**.
 
-The rest of **Settings → Estate & Property → Estate Details**, including the AI assistant switches, saves together from the save bar that appears when something has changed; email and web addresses must be valid before it saves, and the page warns before you leave with unsaved changes. Removing the logo under **Branding** asks first.
+**Estate office hours.** The same page sets the estate office hours per day (closed, all day, or from and to times, in Lagos time). The WhatsApp Assistant shows them with the estate phone and email whenever it tells a resident to contact the estate office, and adds when the office is next open if it is closed. Leave every day closed to show no hours.
+
+The rest of **Settings → Estate & Property → Estate Details**, including the AI assistant switches and office hours, saves together from the save bar that appears when something has changed; email and web addresses must be valid before it saves, and the page warns before you leave with unsaved changes. Removing the logo under **Branding** asks first.
 
 Day-to-day account work — assigning roles, watching cron jobs, the notification queue and history, audit logs — lives under **System** in the main sidebar, not Settings: Settings holds configuration, System holds live state and account operations.
 
