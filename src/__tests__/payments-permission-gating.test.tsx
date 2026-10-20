@@ -5,6 +5,7 @@ import '@testing-library/jest-dom/vitest';
 
 const mocks = vi.hoisted(() => ({
   permissions: [] as string[],
+  bulkVerify: vi.fn(async () => ({ success: true })),
 }));
 
 vi.mock('@/lib/auth/auth-provider', () => ({
@@ -26,6 +27,7 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/hooks/use-payments', () => ({
   useDeletePayment: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useBulkUpdatePayments: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useBulkVerifyPayments: () => ({ mutateAsync: mocks.bulkVerify, isPending: false }),
   usePayments: () => ({ data: { data: [], count: 0 }, isLoading: false }),
   usePaymentStats: () => ({ data: undefined, isLoading: false }),
   usePayment: () => ({ data: undefined, isLoading: false, error: null }),
@@ -55,6 +57,7 @@ const PAYMENT = {
 
 beforeEach(() => {
   mocks.permissions = [];
+  mocks.bulkVerify.mockClear();
 });
 afterEach(() => cleanup());
 
@@ -107,6 +110,31 @@ describe('Payments permission gating (issue #462)', () => {
 
     expect(screen.getByText('Update Status')).toBeInTheDocument();
     expect(screen.getByText('Delete Selected')).toBeInTheDocument();
+  });
+
+  it('hides bulk Mark Verified from a user holding payments.bulk_update but not payments.verify', () => {
+    mocks.permissions = [PERMISSIONS.PAYMENTS_VIEW, PERMISSIONS.PAYMENTS_BULK_UPDATE];
+    render(<PaymentTable data={[PAYMENT]} />);
+    fireEvent.click(screen.getByLabelText('Select all'));
+
+    expect(screen.getByText('Update Status')).toBeInTheDocument();
+    expect(screen.queryByText('Mark Verified')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Mark selected payments verified')).not.toBeInTheDocument();
+  });
+
+  it('shows bulk Mark Verified at both breakpoints to a payments.verify holder and confirms with the count (#812)', () => {
+    mocks.permissions = [PERMISSIONS.PAYMENTS_VIEW, PERMISSIONS.PAYMENTS_VERIFY];
+    const second = { ...(PAYMENT as object), id: 'pay-2', reference_number: 'REF-2' } as never;
+    render(<PaymentTable data={[PAYMENT, second]} />);
+    fireEvent.click(screen.getByLabelText('Select all'));
+
+    expect(screen.getByLabelText('Mark selected payments verified')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Mark Verified'));
+
+    expect(screen.getByText(/Mark 2 payments as verified\?/)).toBeInTheDocument();
+    expect(mocks.bulkVerify).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Verify 2' }));
+    expect(mocks.bulkVerify).toHaveBeenCalledWith({ ids: ['pay-1', 'pay-2'] });
   });
 
   it('hides the empty-state Add Payment from a view-only user', () => {

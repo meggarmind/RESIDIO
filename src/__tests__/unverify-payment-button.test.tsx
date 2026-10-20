@@ -45,7 +45,7 @@ function renderButton(isVerified: boolean | null) {
 }
 
 beforeEach(() => {
-  mocks.permissions = [PERMISSIONS.EXPENDITURE_MANAGE];
+  mocks.permissions = [PERMISSIONS.PAYMENTS_VERIFY];
   mocks.unverify.mockClear();
   mocks.unverify.mockResolvedValue({ success: true });
 });
