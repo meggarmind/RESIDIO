@@ -6,7 +6,7 @@ description: Find, filter, and maintain resident records.
 residio_sources:
   - src/app/(dashboard)/residents/page.tsx
   - src/components/residents/**
-residio_verified_commit: e24b7386
+residio_verified_commit: ffcd7926
 residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---

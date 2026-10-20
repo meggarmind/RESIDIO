@@ -6,6 +6,7 @@ import { recordSystemAction } from '@/lib/system-log/recorder';
 
 vi.mock('@/lib/notifications/queue', () => ({ processQueue: vi.fn(), purgeOldItems: vi.fn() }));
 vi.mock('@/lib/system-log/recorder', () => ({ recordSystemAction: vi.fn() }));
+vi.mock('@/lib/whatsapp/outbound-sends', () => ({ alertStalePendingSends: vi.fn().mockResolvedValue(0) }));
 
 const SECRET = 'cron-secret-for-tests';
 
@@ -44,7 +45,7 @@ describe('GET /api/cron/process-notifications system log', () => {
         source: 'cron:process-notifications',
         action: 'process',
         outcome: 'success',
-        summary: { processed: 5, sent: 4, failed: 0, skipped: 1, purged: 0 },
+        summary: { processed: 5, sent: 4, failed: 0, skipped: 1, purged: 0, stalePendingSends: 0 },
       })
     );
   });

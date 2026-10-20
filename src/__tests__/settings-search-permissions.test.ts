@@ -101,6 +101,7 @@ describe('Settings/System search entry permissions', () => {
       '/settings/message-templates': ['announcements.manage_templates'],
       '/settings/announcement-categories': ['announcements.manage_categories'],
       '/settings/roles': ['system.assign_roles', 'system.manage_roles'],
+      '/settings/groups': ['groups.view'],
       '/settings/security': ['settings.manage_security'],
       '/settings/security/categories': ['security.manage_categories'],
       '/settings/whatsapp': ['whatsapp.view'],

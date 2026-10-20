@@ -140,7 +140,7 @@ describe('WhatsApp outbound dispatch', () => {
       languageCode: 'en_US',
       parameters: ['Ada', 'INV-001', 'NGN 10,000', '1 September 2026'],
       idempotencySeed: 'queue-1',
-    }, undefined, undefined);
+    }, undefined, undefined, expect.objectContaining({ purpose: 'notification', residentId: 'resident-1' }));
   });
 
   it('rejects WhatsApp sends when the daily cap is reached', async () => {
@@ -471,7 +471,7 @@ describe('WhatsApp outbound dispatch', () => {
       languageCode: 'en_US',
       parameters: ['Chidi Okonkwo', 'NGN 25,000', '15/08/2026', 'PAYSTACK-TXN-123'],
       idempotencySeed: 'queue-1',
-    }, undefined, undefined);
+    }, undefined, undefined, expect.objectContaining({ purpose: 'notification', residentId: 'resident-1' }));
   });
 
   it('passes announcement template parameters correctly', async () => {
@@ -498,7 +498,7 @@ describe('WhatsApp outbound dispatch', () => {
       languageCode: 'en_US',
       parameters: ['Gate Maintenance', 'The main gate will be closed on Saturday.'],
       idempotencySeed: 'queue-1',
-    }, undefined, undefined);
+    }, undefined, undefined, expect.objectContaining({ purpose: 'notification', residentId: 'resident-1' }));
   });
 
   // Issue #136: under cron, getSettingValue (RLS-bound) always returned
