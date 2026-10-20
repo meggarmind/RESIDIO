@@ -2,27 +2,26 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   authorizePermission: vi.fn(),
-  settings: [] as Array<{ id: string; key: string; value: unknown; category: string; updated_at?: string }>,
-  auditedIds: [] as string[],
+  settings: [] as Array<{ key: string; value: unknown }>,
   counts: {} as Record<string, number>,
   from: vi.fn(),
 }));
 
 /** Resolves whatever chain the action builds to the fixture for that table. */
 function query(table: string) {
-  let result: unknown =
+  let keys: string[] | null = null;
+  const result = () =>
     table === 'system_settings'
-      ? { data: mocks.settings, error: null }
+      ? { data: mocks.settings.filter((r) => !keys || keys.includes(r.key)), error: null }
       : { data: null, count: mocks.counts[table] ?? 0, error: null };
   const chain: Record<string, unknown> = {
     select: () => chain,
-    or: () => chain,
     eq: () => chain,
-    in: (_column: string, ids: string[]) => {
-      result = { data: mocks.auditedIds.filter((id) => ids.includes(id)).map((entity_id) => ({ entity_id })), error: null };
+    in: (_column: string, values: string[]) => {
+      keys = values;
       return chain;
     },
-    then: (resolve: (r: unknown) => unknown) => Promise.resolve(result).then(resolve),
+    then: (resolve: (r: unknown) => unknown) => Promise.resolve(result()).then(resolve),
   };
   return chain;
 }
@@ -35,29 +34,23 @@ vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: mocks.authorizePer
 import { getSetupStatus } from '@/actions/settings/get-setup-status';
 import { summarizeSetup } from '@/lib/settings/setup-checklist';
 
-/**
- * What the migrations leave behind on a fresh database: seeded rows no admin has saved.
- * invoice_due_window_days was renamed by a later migration, so its updated_at is past its created_at.
- */
-const seededRows = () => [
-  { id: 'row-vacant', key: 'bill_vacant_houses', value: false, category: 'billing' },
-  { id: 'row-window', key: 'invoice_due_window_days', value: 7, category: 'billing', updated_at: '2025-12-13T10:00:00Z' },
-  { id: 'row-email', key: 'email_enabled', value: 'true', category: 'email' },
+/** Billing rows as the migrations leave them, in the JSON shapes they were seeded with. */
+const seededBilling = () => [
+  { key: 'bill_vacant_houses', value: false },
+  { key: 'auto_generate_levies', value: true },
+  { key: 'invoice_due_window_days', value: '30' },
+  { key: 'late_fee_type', value: 'percentage' },
+  { key: 'grace_period_days', value: 7 },
+  { key: 'payment_reminder_days', value: [7, 3, 1] },
+  { key: 'current_development_levy_profile_id', value: '6b1f0c2e-0000-4000-8000-000000000000' },
 ];
-const row = (key: string, value: unknown, category: string) => ({ id: `row-${key}`, key, value, category });
-/** A row an admin saved through updateSetting: stored as a string and audited against its id. */
-const saved = (key: string, value: unknown, category: string) => {
-  mocks.auditedIds.push(`row-${key}`);
-  return row(key, typeof value === 'boolean' || typeof value === 'number' ? String(value) : value, category);
-};
-const without = (key: string) => seededRows().filter((r) => r.key !== key);
+const withSetting = (key: string, value: unknown) => [...seededBilling().filter((r) => r.key !== key), { key, value }];
 
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.authorizePermission.mockResolvedValue({ authorized: true });
   mocks.from.mockImplementation(query);
   mocks.settings = [];
-  mocks.auditedIds = [];
   mocks.counts = {};
 });
 
@@ -70,50 +63,60 @@ describe('getSetupStatus (#786)', () => {
     expect(mocks.from).not.toHaveBeenCalled();
   });
 
-  it('reports a freshly migrated estate as 0 of N done', async () => {
-    mocks.settings = seededRows();
+  it('reports an empty estate with only seeded billing defaults as 0 of N done', async () => {
+    mocks.settings = seededBilling();
     const { data } = await getSetupStatus();
     const summary = summarizeSetup(data!);
     expect(summary.done).toBe(0);
     expect(summary.total).toBeGreaterThan(0);
   });
 
-  it('marks billing done once an admin saves a seeded billing row', async () => {
-    mocks.settings = [...without('invoice_due_window_days'), saved('invoice_due_window_days', 5, 'billing')];
-    const { data } = await getSetupStatus();
-    expect(data!.billingSettings).toBe(true);
-    expect(data!.notificationChannel).toBe(false);
+  it('marks billing done once a billing setting differs from its seeded default', async () => {
+    mocks.settings = withSetting('invoice_due_window_days', '14');
+    expect((await getSetupStatus()).data!.billingSettings).toBe(true);
+
+    mocks.settings = withSetting('bill_vacant_houses', 'true');
+    expect((await getSetupStatus()).data!.billingSettings).toBe(true);
+
+    mocks.settings = withSetting('payment_reminder_days', [5, 1]);
+    expect((await getSetupStatus()).data!.billingSettings).toBe(true);
   });
 
-  it('marks a channel done once email is saved on, or SMS or WhatsApp is switched on', async () => {
-    mocks.settings = [...without('email_enabled'), saved('email_enabled', true, 'email')];
+  it('treats a default saved back as a string as unchanged', async () => {
+    mocks.settings = withSetting('grace_period_days', '7');
+    expect((await getSetupStatus()).data!.billingSettings).toBe(false);
+  });
+
+  it('marks a channel done when email, SMS or WhatsApp is on', async () => {
+    mocks.settings = [...seededBilling(), { key: 'email_enabled', value: 'true' }];
     expect((await getSetupStatus()).data!.notificationChannel).toBe(true);
 
-    mocks.auditedIds = [];
-    mocks.settings = [...without('email_enabled'), saved('email_enabled', false, 'email')];
+    mocks.settings = [...seededBilling(), { key: 'email_enabled', value: 'false' }];
     expect((await getSetupStatus()).data!.notificationChannel).toBe(false);
 
-    mocks.auditedIds = [];
-    mocks.settings = [...seededRows(), row('invoice_reminder_sms_enabled', 'true', 'notifications')];
+    mocks.settings = [{ key: 'email_enabled', value: false }, { key: 'invoice_reminder_whatsapp_enabled', value: 'true' }];
     expect((await getSetupStatus()).data!.notificationChannel).toBe(true);
   });
 
-  it('marks reminders done once an active schedule is saved', async () => {
-    const schedule = row('invoice_reminder_schedule', JSON.stringify({ isActive: true, steps: [{ isActive: true }] }), 'notifications');
-    mocks.settings = [...seededRows(), schedule];
+  it('marks reminders done only with an active schedule that is not switched off', async () => {
+    const schedule = { key: 'invoice_reminder_schedule', value: JSON.stringify({ isActive: true, steps: [{ isActive: true }] }) };
+    mocks.settings = [schedule];
     expect((await getSetupStatus()).data!.reminderSchedule).toBe(true);
 
-    mocks.settings = [...seededRows(), schedule, saved('invoice_reminders_enabled', false, 'notifications')];
+    mocks.settings = [schedule, { key: 'invoice_reminders_enabled', value: 'false' }];
+    expect((await getSetupStatus()).data!.reminderSchedule).toBe(false);
+
+    mocks.settings = [{ key: 'invoice_reminders_enabled', value: 'true' }];
     expect((await getSetupStatus()).data!.reminderSchedule).toBe(false);
   });
 
   it('reports a complete estate as complete', async () => {
     mocks.settings = [
-      row('estate_name', 'Palm Grove', 'general'),
-      row('estate_address', '1 Palm Way', 'general'),
-      saved('invoice_due_window_days', 5, 'billing'),
-      saved('email_enabled', true, 'email'),
-      row('invoice_reminder_schedule', { isActive: true, steps: [{ isActive: true }] }, 'notifications'),
+      ...withSetting('late_fee_type', 'fixed'),
+      { key: 'estate_name', value: 'Palm Grove' },
+      { key: 'estate_address', value: '1 Palm Way' },
+      { key: 'email_enabled', value: 'true' },
+      { key: 'invoice_reminder_schedule', value: { isActive: true, steps: [{ isActive: true }] } },
     ];
     mocks.counts = { streets: 2, house_types: 1, estate_bank_accounts: 1, billing_profiles: 3, profiles: 1 };
     const { data } = await getSetupStatus();
@@ -122,9 +125,9 @@ describe('getSetupStatus (#786)', () => {
 
   it('does not count a blank estate name or a schedule with every step off', async () => {
     mocks.settings = [
-      row('estate_name', '  ', 'general'),
-      row('estate_address', '1 Palm Way', 'general'),
-      row('invoice_reminder_schedule', JSON.stringify({ steps: [{ isActive: false }] }), 'x'),
+      { key: 'estate_name', value: '  ' },
+      { key: 'estate_address', value: '1 Palm Way' },
+      { key: 'invoice_reminder_schedule', value: JSON.stringify({ steps: [{ isActive: false }] }) },
     ];
     const { data } = await getSetupStatus();
     expect(data!.estate).toBe(false);

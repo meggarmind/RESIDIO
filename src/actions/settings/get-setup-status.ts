@@ -15,6 +15,29 @@ const SETTING_KEYS = [
   'invoice_reminder_schedule',
 ];
 
+/** Billing rows as the migrations seed them; billing counts as set up once any of them holds another value. */
+const SEEDED_BILLING_DEFAULTS: Record<string, unknown> = {
+  bill_vacant_houses: false,
+  bill_under_renovation_houses: false,
+  bill_under_construction_houses: false,
+  auto_generate_levies: true,
+  pro_rata_first_month: true,
+  invoice_due_window_days: 30,
+  late_fee_enabled: false,
+  late_fee_type: 'percentage',
+  late_fee_amount: 5,
+  grace_period_days: 7,
+  payment_reminder_days: [7, 3, 1],
+  late_fee_auto_apply: false,
+  late_fee_application_day: 5,
+  invoice_generation_dual_approval_enabled: false,
+  invoice_generation_high_value_threshold: 1000000,
+  invoice_generation_backfill_max_months: 12,
+};
+
+/** Compares stored values the way updateSetting writes them: booleans and numbers become strings. */
+const normalize = (value: unknown) => (typeof value === 'object' ? JSON.stringify(value) : String(value));
+
 const isFilled = (value: unknown) => typeof value === 'string' && value.trim() !== '';
 /** updateSetting stores booleans as the strings 'true' and 'false'. */
 const isOn = (value: unknown) => value === true || value === 'true';
@@ -53,8 +76,8 @@ export async function getSetupStatus(): Promise<{ data: SetupStatus | null; erro
   const [settings, streets, houseTypes, bankAccounts, billingProfiles, customRoles] = await Promise.all([
     supabase
       .from('system_settings')
-      .select('id, key, value, category')
-      .or(`category.eq.billing,key.in.(${SETTING_KEYS.join(',')})`),
+      .select('key, value')
+      .in('key', [...SETTING_KEYS, ...Object.keys(SEEDED_BILLING_DEFAULTS)]),
     count('streets'),
     count('house_types'),
     count('estate_bank_accounts'),
@@ -72,24 +95,7 @@ export async function getSetupStatus(): Promise<{ data: SetupStatus | null; erro
   }
 
   const rows = settings.data ?? [];
-  const row = (key: string) => rows.find((r) => r.key === key);
-  const value = (key: string) => row(key)?.value;
-
-  // Migrations seed and later update billing and email rows, so only an admin write (which is audited) counts as saved.
-  const seeded = rows.filter((r) => r.category === 'billing' || r.key === 'email_enabled');
-  const audits = seeded.length
-    ? await supabase
-        .from('audit_logs')
-        .select('entity_id')
-        .eq('entity_type', 'system_settings')
-        .in('entity_id', seeded.map((r) => r.id))
-    : { data: [], error: null };
-  if (audits.error) {
-    console.error('[getSetupStatus] Failed to read setup status:', audits.error);
-    return { data: null, error: 'Failed to load setup status' };
-  }
-  const savedIds = new Set((audits.data ?? []).map((a) => a.entity_id));
-  const saved = (r?: (typeof rows)[number]) => !!r && savedIds.has(r.id);
+  const value = (key: string) => rows.find((r) => r.key === key)?.value;
 
   return {
     data: {
@@ -98,9 +104,11 @@ export async function getSetupStatus(): Promise<{ data: SetupStatus | null; erro
       houseType: (houseTypes.count ?? 0) > 0,
       bankAccount: (bankAccounts.count ?? 0) > 0,
       billingProfile: (billingProfiles.count ?? 0) > 0,
-      billingSettings: rows.some((r) => r.category === 'billing' && saved(r)),
+      billingSettings: rows.some(
+        (r) => r.key in SEEDED_BILLING_DEFAULTS && normalize(r.value) !== normalize(SEEDED_BILLING_DEFAULTS[r.key])
+      ),
       notificationChannel:
-        (saved(row('email_enabled')) && isOn(value('email_enabled'))) ||
+        isOn(value('email_enabled')) ||
         isOn(value('invoice_reminder_sms_enabled')) ||
         isOn(value('invoice_reminder_whatsapp_enabled')),
       reminderSchedule:
