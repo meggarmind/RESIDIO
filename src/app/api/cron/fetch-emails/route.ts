@@ -108,7 +108,9 @@ async function runEmailImport(run: SystemLogRun) {
 
     // Step 3: Parse emails
     log.info(`Parsing ${fetchResult.emailsFetched} emails`);
-    const parseResult = await parseAllPendingEmails(importId);
+    // Protected statement PDFs need the stored password, which this sessionless run reads
+    // with the service role and records in the System Action Log (#884).
+    const parseResult = await parseAllPendingEmails(importId, { systemSource: 'cron:fetch-emails' });
 
     results.parsePhase = {
       messagesParsed: parseResult.messagesParsed,
