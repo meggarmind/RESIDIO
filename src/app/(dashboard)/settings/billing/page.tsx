@@ -239,7 +239,9 @@ export default function BillingSettingsPage() {
                         <Alert className="border-warning/20 bg-warning/10">
                             <AlertTriangle className="h-4 w-4 text-warning" />
                             <AlertDescription className="text-foreground">
-                                Email notifications will be implemented in Phase 9. For now, this configuration stores your preferences.
+                                These days are used only by Send Payment Reminders Now on the{' '}
+                                <a href="/settings/email/debug" className="underline">Email Debug</a> page. Automatic daily reminders follow the{' '}
+                                <a href="/settings/notifications/reminders/schedule" className="underline">Reminder Schedule</a>.
                             </AlertDescription>
                         </Alert>
                     </CardContent>

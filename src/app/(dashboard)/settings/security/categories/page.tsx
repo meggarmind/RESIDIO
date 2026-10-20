@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/table';
 import { Loader2, Edit } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatDayCount } from '@/lib/utils';
 import {
   useSecurityContactCategories,
   useUpdateSecurityContactCategory,
@@ -94,8 +95,8 @@ export default function CategoriesPage() {
                 {categories?.map((cat) => (
                   <TableRow key={cat.id}>
                     <TableCell className="font-medium">{cat.name}</TableCell>
-                    <TableCell>{cat.default_validity_days} days</TableCell>
-                    <TableCell>{cat.max_validity_days} days</TableCell>
+                    <TableCell>{formatDayCount(cat.default_validity_days)}</TableCell>
+                    <TableCell>{formatDayCount(cat.max_validity_days)}</TableCell>
                     <TableCell>
                       <Badge variant={cat.is_active ? 'default' : 'outline'}>
                         {cat.is_active ? 'Active' : 'Inactive'}

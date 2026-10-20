@@ -62,7 +62,7 @@ Open **System → Action Log** to see what automated processes, such as schedule
 
 ## System health
 
-Maintenance mode and data retention are configuration, so they stay under **Settings**. The things you only watch have moved to **System**: **System → Cron Status** for scheduled jobs, and **System → Notification Queue** for messages waiting to go out. A health warning is a prompt to investigate, not a reason to delete data.
+Maintenance mode (on the **Settings → System Behaviour** page, which also holds session timeout and the duplicate transaction threshold) and data retention are configuration, so they stay under **Settings**. The things you only watch have moved to **System**: **System → Cron Status** for scheduled jobs, and **System → Notification Queue** for messages waiting to go out. A health warning is a prompt to investigate, not a reason to delete data.
 
 Turning maintenance mode on asks first and lists how many active accounts, by role, would be sent to the maintenance page: everyone without the super admin role. It shows the saved maintenance message; unsaved edits to the message are not used until you save them. Turning it off takes effect at once. The other fields on the page (message, session timeout, duplicate threshold) are saved together from the save bar that appears when something has changed, and the page warns before you leave with unsaved changes.
 
