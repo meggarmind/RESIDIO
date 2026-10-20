@@ -66,7 +66,7 @@ function AppearanceSettingsForm({
             Global Theme
           </CardTitle>
           <CardDescription>
-            Choose the visual theme for the entire estate interface (Admin Dashboard & Resident Portal).
+            Choose the visual theme for the estate interface.
           </CardDescription>
         </CardHeader>
         <CardContent>

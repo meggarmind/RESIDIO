@@ -30,6 +30,10 @@ function settingsTable() {
             key = value;
             return builder;
         },
+        in: async (_column: string, keys: string[]) => ({
+            data: keys.flatMap((k) => (state.settings[k] ? [{ ...state.settings[k] }] : [])),
+            error: null,
+        }),
         single: async () => {
             const row = state.settings[key];
             if (!row) return { data: null, error: { code: 'PGRST116' } };
@@ -125,3 +129,33 @@ describe('maintenance mode set from the settings action (#808)', () => {
         expect(redirectsToMaintenance(await middleware(request('/dashboard')))).toBe(false);
     });
 });
+
+describe('admin banner state cookie (#789)', () => {
+    const opsCookie = (response: Response) =>
+        (response as import('next/server').NextResponse).cookies.get('residio_ops_status')?.value;
+
+    beforeEach(() => {
+        state.settings = { maintenance_mode: { id: 'setting-1', key: 'maintenance_mode', value: false } };
+        state.roleName = 'super_admin';
+    });
+
+    it('carries maintenance mode from the same settings read the lockout uses', async () => {
+        expect(opsCookie(await middleware(request('/dashboard')))?.[0]).toBe('0');
+        await updateMaintenanceMode(true);
+        expect(opsCookie(await middleware(request('/dashboard')))?.[0]).toBe('1');
+    });
+
+    it('carries the override switch read in that same query', async () => {
+        state.settings.comms_override_enabled = { id: 'setting-2', key: 'comms_override_enabled', value: 'true' };
+        expect(opsCookie(await middleware(request('/dashboard')))?.[1]).toBe('1');
+    });
+
+    it('does not rewrite a cookie that already matches', async () => {
+        const first = opsCookie(await middleware(request('/dashboard')));
+        const again = new NextRequest(new URL('http://localhost:3000/dashboard'), {
+            headers: { cookie: `residio_ops_status=${first}` },
+        });
+        expect(opsCookie(await middleware(again))).toBeUndefined();
+    });
+});
+

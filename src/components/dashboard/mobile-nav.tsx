@@ -14,6 +14,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { useSectionedNavigation } from '@/hooks/use-navigation';
+import { useOpsStatus } from '@/hooks/use-ops-status';
 
 interface MobileNavProps {
   open: boolean;
@@ -33,6 +34,7 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
   const { profile } = useAuth();
   const { sections } = useSectionedNavigation();
   const { logoUrl } = useEstateLogo();
+  const opsStatus = useOpsStatus();
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -90,6 +92,13 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
                       >
                         <item.icon className="h-4 w-4" />
                         <span className="truncate">{item.mobileLabel ?? item.title}</span>
+                        {item.href === '/settings' && (opsStatus.maintenance || opsStatus.commsOverride) && (
+                          <span
+                            role="img"
+                            aria-label="Maintenance mode or communications override is on"
+                            className="h-2 w-2 shrink-0 rounded-full bg-warning"
+                          />
+                        )}
                       </Link>
                       {children.length > 0 && (
                         <ul className="ml-5 mt-1 space-y-1 border-l pl-2">

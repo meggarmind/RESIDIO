@@ -104,9 +104,9 @@ export default function MaintenancePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium">Maintenance Mode</h3>
+        <h3 className="text-lg font-medium">System Behaviour</h3>
         <p className="text-sm text-muted-foreground">
-          Control maintenance mode and system access settings.
+          Maintenance mode, session timeout and duplicate transaction matching.
         </p>
       </div>
       <Separator />

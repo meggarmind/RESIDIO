@@ -27,16 +27,11 @@ import {
   setRemindersEnabled,
 } from '@/actions/notifications/reminder-config';
 import type { ReminderScheduleConfig } from '@/lib/notifications/types';
+import { formatDaysFromDue } from '@/lib/notifications/types';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { SettingsSkeleton } from '@/components/settings/settings-states';
-
-function formatDaysFromDue(days: number): string {
-  if (days === 0) return 'On due date';
-  if (days === 1) return '1 day before';
-  return `${days} days before`;
-}
 
 function getEscalationBadgeVariant(step: number): 'default' | 'secondary' | 'destructive' {
   if (step <= 2) return 'default';
@@ -241,8 +236,8 @@ export default function RemindersOverviewPage() {
           <div className="flex items-start gap-2 text-sm text-muted-foreground">
             <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
             <p>
-              Email and SMS delivery will be implemented in a future phase. For now, reminders are
-              configured and ready to send when the notification system is connected.
+              The scheduled reminder job runs once a day and sends each active step by email.
+              Reminder steps send by Email only; WhatsApp cannot be selected for a step yet.
             </p>
           </div>
         </CardContent>

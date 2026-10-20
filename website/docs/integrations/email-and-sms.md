@@ -56,7 +56,7 @@ A multi-channel emergency announcement bypasses the normal reminder cadence. Whi
 
 ## Templates
 
-**Settings → Message Templates** and **Settings → Notifications → Templates** hold the message bodies. A template change takes effect on the next send, including sends already sitting in the queue.
+**Settings → Notifications → Templates** holds the system notification templates, which are read-only and sent by name. **Settings → Announcement Templates** holds reusable announcement text. A template change takes effect on the next send, including sends already sitting in the queue.
 
 Before saving a template change:
 
@@ -67,9 +67,9 @@ Before saving a template change:
 
 ## Reminders and schedules
 
-**Settings → Notifications → Reminders** defines which billing events trigger a message, and **Schedules** defines when. Reminders are dispatched by a scheduled job rather than at the moment you save them, so a saved reminder that has not arrived yet is usually waiting for its next run, not broken.
+**Settings → Notifications → Reminders** turns automatic reminders on or off, and **Reminder Schedule** defines the steps. Reminders are dispatched by a scheduled job rather than at the moment you save them, so a saved reminder that has not arrived yet is usually waiting for its next run, not broken.
 
-Invoice reminders go out by email and WhatsApp only. SMS is switched off for reminders until the SMS provider (Termii) is connected, so an SMS step in a reminder schedule is skipped without an error. The default schedule is email only, and the schedule editor does not offer SMS.
+Invoice reminders go out by email and WhatsApp only. SMS is switched off for reminders until the SMS provider (Termii) is connected, so an SMS step in a reminder schedule is skipped without an error. The default schedule is email only, and the schedule editor offers Email only: it does not offer SMS, and WhatsApp cannot be selected for a step yet.
 
 ## The notification queue
 

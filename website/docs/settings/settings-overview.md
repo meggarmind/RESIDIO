@@ -20,10 +20,12 @@ Settings are grouped by the decision they control.
 
 - **Estate:** estate identity, branding, appearance, streets, house types, document categories, and document tags and custom fields.
 - **Financial:** billing rules, late fees, invoice generation, levies, billing profiles, bank accounts, and transaction tags.
-- **Communications:** the notifications dashboard, reminders and their schedule, notification templates and schedules, email notifications, message templates, and announcement categories.
+- **Communications:** the notifications dashboard, reminders and their schedule, notification templates, email notifications, announcement templates, and announcement categories.
 - **Access & Security:** role and permission definitions, security settings, and security contact categories.
 - **Integrations:** external services — WhatsApp and Gmail import today, with Paystack and SMS planned. Each keeps its credentials and its day-to-day console (consent, sync status, manual actions) together, rather than splitting configuration from operations the way the other groups do.
-- **Maintenance & Data:** maintenance mode and data retention.
+- **Maintenance & Data:** system behaviour (maintenance mode, session timeout and duplicate matching) and data retention.
+
+**States that affect everyone.** While maintenance mode or the communications override is on, a banner that cannot be dismissed sits above the header on every dashboard page, the **Settings** item in the main menu carries an amber dot, and the matching card on this page reads **ON**. Each banner links to its settings page. You see a state only if your role can open its page: the maintenance permission for maintenance mode, the general settings permission for the override. Debug Mode also counts as the override being on while it is running, since it redirects every message too. Outside production the override is always on, so on Stage the override banner is always shown.
 
 **Resident portal switch.** **Settings → Estate Information** has a *Resident portal* card with one switch. It decides whether the resident portal links (*My Portal*, *Resident Portal* in the profile menu, and *View as Resident*) appear in the admin dashboard. It is off by default and needs the general settings permission to change. The switch only hides or shows links: it does not block the `/portal` address, so anyone who opens `/portal` directly still reaches it. An individual account can override the switch under **System → Accounts**.
 

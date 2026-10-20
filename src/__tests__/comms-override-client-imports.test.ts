@@ -77,3 +77,16 @@ describe('comms override client page', () => {
     expect(names).not.toContain('lib/comms-override/settings.ts');
   });
 });
+
+// #789: the middleware reads the override switch for the admin banner and runs on the edge.
+describe.each(['middleware.ts', 'components/dashboard/ops-status-banner.tsx'])('banner path %s', (entry) => {
+  const { files, offenders } = closure(entry);
+
+  it('reaches the switch parser through the pure module', () => {
+    expect([...files].map(rel)).toContain('lib/comms-override/switch.ts');
+  });
+
+  it('never reaches server-only code', () => {
+    expect(offenders).toEqual([]);
+  });
+});

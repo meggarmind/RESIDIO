@@ -74,6 +74,8 @@ describe('settings navigation coverage', () => {
       // rendered the same Gmail connection card, and the child configured no
       // rule despite the nav calling it "Email import rules".
       '/settings/email-integration/config',
+      // Notification Schedules is hidden (#787): nothing consumed what it configured.
+      '/settings/notifications/schedules',
     ]);
 
     const unlisted = routesOnDisk()
