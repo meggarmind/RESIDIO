@@ -408,6 +408,8 @@ export async function parseFirstBankPdf(
   options?: {
     password?: string;
     accountLast4?: string;
+    /** Set by the sessionless cron path: stored passwords are read with the service role (#884). */
+    systemSource?: string;
   }
 ): Promise<{
   transactions: ParsedEmailTransaction[];
@@ -426,7 +428,8 @@ export async function parseFirstBankPdf(
       // Try to get password from database if account number provided
       if (!password && options?.accountLast4) {
         const { data: storedPassword } = await getPasswordByAccountLast4(
-          options.accountLast4
+          options.accountLast4,
+          { systemSource: options.systemSource }
         );
         if (storedPassword) {
           password = storedPassword;
@@ -446,7 +449,7 @@ export async function parseFirstBankPdf(
       // If no password found or primary failed, try ALL stored passwords
       if (!password) {
         const { getAllBankPasswords } = await import('@/lib/email-imports/bank-passwords');
-        const { data: allPasswords } = await getAllBankPasswords();
+        const { data: allPasswords } = await getAllBankPasswords({ systemSource: options?.systemSource });
 
         if (allPasswords && allPasswords.length > 0) {
           for (const p of allPasswords) {
