@@ -28,7 +28,7 @@ const CADENCE_LABELS: Record<PaymentCadence, string> = {
 /**
  * Reads the nightly-refreshed resident_payment_cadence_summary table instead of
  * reclassifying payment_records on every request. See /api/cron/refresh-payment-cadence
- * and src/actions/analytics/refresh-payment-cadence-summary.ts for how it's populated.
+ * and src/lib/analytics/refresh-payment-cadence-summary.ts for how it's populated.
  */
 export async function getPaymentCadenceAnalytics(): Promise<{ data: PaymentCadenceAnalytics | null; error: string | null }> {
   const supabase = await createServerSupabaseClient();
