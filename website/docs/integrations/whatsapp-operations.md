@@ -8,7 +8,7 @@ residio_sources:
   - src/actions/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp/**
   - src/app/api/whatsapp/**
-residio_verified_commit: e3e70eaf
+residio_verified_commit: 98a03b0b
 residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
@@ -155,8 +155,10 @@ A number linked to a resident (by matching their record or with a link code) kee
 
 **Financial PIN policy** controls whether a PIN is required before Residio answers any financial question over WhatsApp.
 
-- When the policy is **on**, every resident must enter a PIN before a balance, invoice, or payment answer is returned. A resident without a PIN is asked to set one by replying `PIN` followed by 4–6 digits of their choice.
-- When it is **off**, residents may still set a personal PIN for themselves.
+- When the policy is **on**, every resident must enter a PIN before a balance, invoice, or payment answer is returned. A resident without a PIN is told to reply `PIN` to set one, which needs a setup code from the estate office.
+- When it is **off**, residents may still set a personal PIN, with a setup code, and are then asked for it like everyone else.
+
+The PIN is asked for only when the resident opens Financial standing or one of its items. Greetings, notices, How to pay and the estate office line never ask for it. The prompt is `Enter your 4–6 digit PIN to view your financial standing (e.g. 4821).` The resident can reply with the digits alone, or with `PIN` and the digits. A correct PIN unlocks financial answers for 15 minutes and is answered in one message: `PIN verified. Your financial standing is unlocked for 15 minutes.` followed by the item they picked, or the Financial standing menu. Digits sent when the Assistant has not just asked for the PIN are menu choices, never a PIN try.
 
 The policy is **on** by default. Leave it on for estates where phones are commonly shared.
 
@@ -169,11 +171,27 @@ Every wrong-PIN and lock reply ends with the estate office phone, email and offi
 
 ### Setting a PIN
 
-A resident sets their first PIN with a 6-digit **setup code** from the estate office. Setup codes are issued from the opt-in registry with **Issue setup code**, usually in a batch as each street joins the pilot. Turn the PIN policy on for a street only after its codes are out.
+A resident sets their first PIN with a 6-digit **setup code** from the estate office. Setup codes are issued from the opt-in registry with **Issue setup code**, usually in a batch as each street joins the pilot. Turn the PIN policy on for a street only after its codes are out. Holding the phone is not enough: without a valid code, no PIN can be set.
 
-:::note[Rolling out]
-The dashboard issues setup codes now. Until the WhatsApp Assistant is updated to ask for them, a resident without a PIN can still set one by replying `PIN` followed by 4–6 digits. This includes a resident whose PIN you just reset, so reset a PIN only when the resident is ready to set the new one straight away.
-:::
+In the chat, the resident:
+
+1. replies `PIN` (or `Set a security PIN`) and is asked `Enter the 6-digit setup code from the estate office.`;
+2. sends the code. Each code allows **3 wrong tries**, then pauses for an hour; an expired, used or replaced code is refused and the resident is sent to the estate office;
+3. chooses a 4–6 digit PIN. Easy PINs are refused with `That PIN is too easy to guess. Please choose another 4–6 digit PIN.`: one digit repeated (`0000`), runs (`1234`, `4321`, `123456`), a short block repeated (`1212`, `123123`) and a short denylist such as `2580`;
+4. enters the PIN again to confirm. Three mismatches cancel with `Nothing was changed.`, and the code is used up;
+5. is told `Your PIN is set ✅ Your financial standing is unlocked for 15 minutes. For privacy, you can delete the messages with your PIN from this chat.`, followed by the Financial standing menu.
+
+`CANCEL`, `MENU`, `0` or any other non-numeric reply leaves these steps without changing anything.
+
+### Changing a PIN
+
+A resident who has a PIN replies `Change PIN` (or `Set a security PIN`), enters their current PIN, then chooses and confirms a new one as above. No setup code is needed. Wrong current PINs count toward the lock like any other wrong PIN.
+
+A resident who has a PIN is never shown a prompt to set one.
+
+### What is kept, and alerts
+
+The code and PINs typed in these steps are never written to a log, the audit log or a reply. A chosen PIN is held, only as a salted hash, until it is confirmed. Where the resident has an email address on their record, Residio emails them each time their PIN is set, changed or reset, naming the WhatsApp number masked. Nothing is sent to residents without an email address.
 
 ### Issuing codes
 
@@ -193,8 +211,9 @@ The code is shown **once**, with its expiry, in a dialog with a **Copy** button.
 **Reset PIN** on the opt-in row replaces a forgotten PIN or unlocks a resident early. Use it only after confirming identity as above, because whoever receives the new setup code can set the PIN. It asks for confirmation, then:
 
 1. clears the PIN, the wrong-PIN count and any lock;
-2. signs the resident's open WhatsApp chats out of the PIN, so the next financial question asks for a PIN again;
-3. issues a setup code, valid for 10 minutes and shown once.
+2. signs the resident's open WhatsApp chats out of the PIN, so the next financial question asks for a PIN again, and cancels any PIN change in progress;
+3. issues a setup code, valid for 10 minutes and shown once;
+4. emails the resident, when they have an email address, that their PIN was reset.
 
 The reset is written to the audit log. The PIN and the code are never recorded.
 
@@ -277,7 +296,7 @@ The cleanup runs automatically shortly after midnight, documented on the Schedul
 | Nothing sends | No provider is connected, the master switch is off, rollout mode is `Disabled`, or the recipient is outside the pilot scope |
 | One resident receives nothing | No approved opt-in record for that resident |
 | Sends stop partway through a day | A daily or burst cap has been reached |
-| Financial questions go unanswered | The resident has no PIN set while the PIN policy is on, or the number is linked but is neither on the resident's record nor linked with a link code |
+| Financial questions go unanswered | The resident has no PIN set while the PIN policy is on (issue a setup code), or the number is linked but is neither on the resident's record nor linked with a link code |
 | Resident is told their PIN is locked until a time | Three wrong PINs in a row; the lock lifts at that time, or earlier with **Reset PIN** |
 | Resident is told the estate office needs to reset their PIN | Six wrong PINs within 24 hours; only **Reset PIN** lifts it |
 | Resident forgot their PIN | Confirm identity, then use **Reset PIN** and give them the setup code |
