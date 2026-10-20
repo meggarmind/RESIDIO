@@ -55,8 +55,7 @@ type StatusFilter = 'all' | 'active' | 'inactive';
 export function BankAccountsList() {
   // Filter state
   const { hasPermission } = useAuth();
-  // The bank-account actions enforce imports.create, not the route's settings.manage_reference.
-  const canManage = hasPermission(PERMISSIONS.IMPORTS_CREATE);
+  const canManage = hasPermission(PERMISSIONS.SETTINGS_MANAGE_REFERENCE);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   const { data: canAutoApprove, isLoading: isLoadingPermission } = useCanAutoApprove();

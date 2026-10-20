@@ -41,7 +41,7 @@ function getEscalationBadgeVariant(step: number): 'default' | 'secondary' | 'des
 
 export default function RemindersOverviewPage() {
   const { hasPermission } = useAuth();
-  const canManage = hasPermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
+  const canManage = hasPermission(PERMISSIONS.NOTIFICATIONS_MANAGE);
   const [schedule, setSchedule] = useState<ReminderScheduleConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [lastRun, setLastRun] = useState<string | null>(null);

@@ -45,6 +45,7 @@ vi.mock('@/lib/supabase/server', () => ({
 }));
 vi.mock('@/lib/auth/authorize', () => ({
   authorizePermission: async () => ({ authorized: true, userId: 'user-1' }),
+  authorizeAnyPermission: async () => ({ authorized: true, userId: 'user-1' }),
 }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit: vi.fn(async () => undefined) }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));

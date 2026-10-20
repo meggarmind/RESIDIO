@@ -26,7 +26,10 @@ const { authorizePermission, createServerSupabaseClient, createAdminClient, logA
   results: {} as Record<string, QueryResult>,
 }));
 
-vi.mock('@/lib/auth/authorize', () => ({ authorizePermission }));
+vi.mock('@/lib/auth/authorize', () => ({
+  authorizePermission,
+  authorizeAnyPermission: (permissions: string[]) => authorizePermission(permissions[0]),
+}));
 vi.mock('@/lib/supabase/server', () => ({ createServerSupabaseClient, createAdminClient }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));

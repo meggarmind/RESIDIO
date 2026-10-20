@@ -30,10 +30,9 @@ function settingsToObject(settings: { key: string; value: unknown }[] | undefine
 
 export default function DataRetentionPage() {
   const { hasPermission } = useAuth();
-  // Each control is gated on the permission its action enforces: updateSettings
-  // checks settings.manage_general, the prune checks system.manage_data_retention.
-  const canEditRetention = hasPermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
-  const canPrune = hasPermission(PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION);
+  // Both the retention rule (updateSettings) and the prune enforce system.manage_data_retention.
+  const canEditRetention = hasPermission(PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION);
+  const canPrune = canEditRetention;
   const { data: systemSettings, isLoading } = useSystemSettings();
   const updateSettings = useUpdateSettings();
 

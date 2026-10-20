@@ -29,7 +29,7 @@ const mutation = (mutate: ReturnType<typeof vi.fn>) => ({ mutate, mutateAsync: m
 const query = (data: unknown) => ({ data, isLoading: false });
 
 // Every control renders: these tests are about behaviour, not permission gating (#788).
-vi.mock('@/lib/auth/auth-provider', () => ({ useAuth: () => ({ isLoading: false, hasPermission: () => true }) }));
+vi.mock('@/lib/auth/auth-provider', () => ({ useAuth: () => ({ isLoading: false, hasPermission: () => true, hasAnyPermission: () => true }) }));
 vi.mock('@/hooks/use-settings', () => ({
   useBillingSettings: () => query(m.settings),
   useSystemSettings: () => query(m.settings),
