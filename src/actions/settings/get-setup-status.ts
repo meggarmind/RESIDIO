@@ -84,8 +84,8 @@ export async function getSetupStatus(): Promise<{ data: SetupStatus | null; erro
     count('billing_profiles'),
     supabase
       .from('profiles')
-      .select('id, role:app_roles!profiles_role_id_fkey!inner(is_system_role)', { count: 'exact', head: true })
-      .eq('role.is_system_role', false),
+      .select('id, app_role:app_roles!profiles_role_id_fkey!inner(is_system_role)', { count: 'exact', head: true })
+      .eq('app_role.is_system_role', false),
   ]);
 
   const failed = [settings, streets, houseTypes, bankAccounts, billingProfiles, customRoles].find((r) => r.error);
