@@ -3,59 +3,12 @@
 /**
  * Email Import Session Management
  *
- * Creates and manages email import sessions for tracking fetch operations.
+ * Reads email import sessions. The session rows are written by the server-only
+ * library in src/lib/email-imports/import-records.ts, never by a client-callable action (#883).
  */
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { logAudit } from '@/lib/audit/logger';
-import {
-  insertEmailImport,
-  writeEmailImportStatus,
-  type EmailImportStatusUpdate,
-} from '@/lib/email-imports/import-records';
 import type { EmailImport, EmailImportStatus } from '@/types/database';
-
-// ============================================================
-// Create Email Import Session
-// ============================================================
-
-export async function createEmailImport(params: {
-  sourceEmail: string;
-  triggerType: 'manual' | 'cron';
-  createdBy?: string;
-}): Promise<{ data: EmailImport | null; error: string | null }> {
-  const supabase = await createServerSupabaseClient();
-
-  const { data, error } = await insertEmailImport(supabase, params);
-  if (error || !data) {
-    return { data: null, error };
-  }
-
-  // Audit log
-  await logAudit({
-    action: 'CREATE',
-    entityType: 'email_imports',
-    entityId: data.id,
-    entityDisplay: `Email Import: ${params.triggerType}`,
-    newValues: {
-      source_email: params.sourceEmail,
-      trigger_type: params.triggerType,
-    },
-  });
-
-  return { data, error: null };
-}
-
-// ============================================================
-// Update Email Import Status
-// ============================================================
-
-export async function updateEmailImportStatus(
-  params: EmailImportStatusUpdate
-): Promise<{ error: string | null }> {
-  const supabase = await createServerSupabaseClient();
-  return writeEmailImportStatus(supabase, params);
-}
 
 // ============================================================
 // Get Email Import

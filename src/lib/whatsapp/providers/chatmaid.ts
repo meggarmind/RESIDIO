@@ -164,6 +164,50 @@ function extractConnectionStatus(body: unknown): string {
   return 'unknown';
 }
 
+export type ChatmaidPhoneLookup =
+  | { ok: false; httpStatus: number }
+  | { ok: true; pairedNumbers: string[]; match: ChatmaidPhoneNumberEntry | null };
+
+/**
+ * The same `GET /v1/phone-numbers` lookup `resolveConnection` does at send
+ * time, exposed so the save path and the connection test can reject a
+ * from-number that is not paired to the account (#843) before it is stored.
+ * Network errors propagate; callers own the "could not reach" message.
+ */
+export async function lookupChatmaidPhone(
+  config: Pick<ChatmaidWhatsAppConfig, 'baseUrl' | 'apiKey' | 'fromNumber'>,
+  fetchImpl: typeof fetch = fetch
+): Promise<ChatmaidPhoneLookup> {
+  const response = await fetchImpl(`${config.baseUrl}/v1/phone-numbers`, {
+    headers: { Authorization: `Bearer ${config.apiKey}` },
+    cache: 'no-store',
+  });
+  if (!response.ok) {
+    return { ok: false, httpStatus: response.status };
+  }
+
+  const entries = extractPhoneNumberEntries(await safeJson(response));
+  const target = normalizePhoneForMatch(config.fromNumber);
+  return {
+    ok: true,
+    pairedNumbers: entries.map((entry) => entry.number),
+    match: entries.find((entry) => normalizePhoneForMatch(entry.number) === target) ?? null,
+  };
+}
+
+/** `connectionStatus` of one paired phone, or 'unknown' when Chatmaid does not say. */
+export async function fetchChatmaidConnectionStatus(
+  config: Pick<ChatmaidWhatsAppConfig, 'baseUrl' | 'apiKey'>,
+  phoneId: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<string> {
+  const response = await fetchImpl(`${config.baseUrl}/v1/phone-numbers/${phoneId}/status`, {
+    headers: { Authorization: `Bearer ${config.apiKey}` },
+    cache: 'no-store',
+  });
+  return response.ok ? extractConnectionStatus(await safeJson(response)) : 'unknown';
+}
+
 /**
  * Resolves whether `config.fromNumber` is currently connected, caching the
  * result (and the resolved dashboard phone id, needed only for the status

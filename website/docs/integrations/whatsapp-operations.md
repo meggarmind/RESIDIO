@@ -8,7 +8,7 @@ residio_sources:
   - src/actions/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp/**
   - src/app/api/whatsapp/**
-residio_verified_commit: 15bb8dd6
+residio_verified_commit: a2992f08
 residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
@@ -61,7 +61,7 @@ The Meta verify token is only ever shown once, right after saving. Navigate away
 
 Use the **Test connection** button to confirm the saved credentials actually work. Residio makes a lightweight call to the provider and reports back pass or fail. A failure means the provider rejected the stored credentials — double-check the values against the provider's console, particularly the access token, auth token or Chatmaid API key, and try again. It does not mean anything was sent to a resident.
 
-For Chatmaid, a pass proves only that the API key is valid. It does not prove the phone is currently connected to the bridge; that is checked each time a message is sent.
+For Chatmaid, the test also checks that the saved from-number is one of the phones paired to the Chatmaid account, and reports that phone's bridge status. It fails if the number is not paired, naming the phones that are, or if the paired phone is not connected to the bridge. Saving Chatmaid credentials runs the same paired-phone check and refuses a from-number that is not paired, or that belongs to a resident who has opted in to WhatsApp — the from-number must be the bridge phone itself.
 
 ### How credentials are kept
 
@@ -183,7 +183,7 @@ The cleanup runs automatically shortly after midnight, documented on the Schedul
 | Sends stop partway through a day | A daily or burst cap has been reached |
 | Financial questions go unanswered | The resident has no PIN set while the PIN policy is on, or the number is linked but is neither on the resident's record nor linked with a link code |
 | Resident is told financial answers are locked | Five wrong PINs were entered; the lock lifts 24 hours after the fifth |
-| Test connection fails | The provider rejected the saved credentials — recheck the access token or auth token against the provider's console |
+| Test connection fails | The provider rejected the saved credentials — recheck the access token or auth token against the provider's console. For Chatmaid, the from-number may not be a paired phone, or the paired phone is not connected to the bridge |
 | Chatmaid sends fail with "bridge is disconnected", or you received a WhatsApp disconnected alert | The paired phone has lost its connection — re-pair it in the Chatmaid dashboard |
 | Assistant stops replying in one conversation (Chatmaid) | A team member replied from the phone within the last 30 minutes; the Assistant resumes afterwards |
 | Twilio template fails to send | No Content SID mapped for that template name — map it on the connection card |

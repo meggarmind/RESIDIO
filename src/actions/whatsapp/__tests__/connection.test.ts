@@ -39,9 +39,28 @@ function query(result: { data?: unknown; error?: unknown }) {
   return chain;
 }
 
+function optinQuery(result: { data?: unknown; error?: unknown }) {
+  const chain = {} as Record<string, ReturnType<typeof vi.fn>>;
+  for (const method of ['select', 'eq']) chain[method] = vi.fn().mockReturnValue(chain);
+  chain.limit = vi.fn().mockResolvedValue(result);
+  return chain;
+}
+
+function chatmaidAdmin(rpc: ReturnType<typeof vi.fn>, optins: unknown[] = []) {
+  const optinChain = optinQuery({ data: optins, error: null });
+  return { rpc, from: vi.fn().mockReturnValue(optinChain), optinChain };
+}
+
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), { status });
+}
+
+const PAIRED_PHONES = { data: [{ id: 'phone-1', e164: '+2348031234567' }] };
+
 describe('WhatsApp connection actions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.unstubAllGlobals();
     vi.mocked(isEncryptionConfigured).mockReturnValue(true);
   });
 
@@ -187,7 +206,8 @@ describe('WhatsApp connection actions', () => {
     it('saves Chatmaid credentials encrypted through the Chatmaid RPC params', async () => {
       vi.mocked(authorizePermission).mockResolvedValue(manager as never);
       const rpc = vi.fn().mockResolvedValue({ data: { id: 'row-2' }, error: null });
-      vi.mocked(createAdminClient).mockReturnValue({ rpc } as never);
+      vi.mocked(createAdminClient).mockReturnValue(chatmaidAdmin(rpc) as never);
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(PAIRED_PHONES)));
 
       const result = await saveWhatsAppCredentials({
         provider: 'chatmaid',
@@ -209,7 +229,8 @@ describe('WhatsApp connection actions', () => {
     it('never writes a Chatmaid API key or webhook secret into the audit log', async () => {
       vi.mocked(authorizePermission).mockResolvedValue(manager as never);
       const rpc = vi.fn().mockResolvedValue({ data: { id: 'row-2' }, error: null });
-      vi.mocked(createAdminClient).mockReturnValue({ rpc } as never);
+      vi.mocked(createAdminClient).mockReturnValue(chatmaidAdmin(rpc) as never);
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(PAIRED_PHONES)));
 
       await saveWhatsAppCredentials({
         provider: 'chatmaid',
@@ -232,6 +253,87 @@ describe('WhatsApp connection actions', () => {
       const serialized = JSON.stringify(auditPayload);
       expect(serialized).not.toContain('sk_test_fake_key');
       expect(serialized).not.toContain('whsec_fake_secret');
+    });
+
+    it('rejects a Chatmaid from number that is not paired to the account, naming the paired phones', async () => {
+      vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+      const rpc = vi.fn();
+      vi.mocked(createAdminClient).mockReturnValue(chatmaidAdmin(rpc) as never);
+      const fetchMock = vi.fn().mockResolvedValue(jsonResponse(PAIRED_PHONES));
+      vi.stubGlobal('fetch', fetchMock);
+
+      // The 2026-10-19 typo: a 235 (Chad) country code for the 234 bridge phone.
+      const result = await saveWhatsAppCredentials({
+        provider: 'chatmaid',
+        apiKey: 'sk_test_fake_key',
+        webhookSecret: 'whsec_fake_secret',
+        fromNumber: '+2358031234567',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('+2358031234567 is not paired to this Chatmaid account');
+      expect(result.error).toContain('Paired phones on this account: +2348031234567.');
+      expect(fetchMock.mock.calls[0][0]).toBe('https://developers-api.chatmaid.net/v1/phone-numbers');
+      expect(fetchMock.mock.calls[0][1].headers).toEqual({ Authorization: 'Bearer sk_test_fake_key' });
+      expect(rpc).not.toHaveBeenCalled();
+      expect(logAudit).not.toHaveBeenCalled();
+    });
+
+    it('says so when the Chatmaid account has no paired phones', async () => {
+      vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+      const rpc = vi.fn();
+      vi.mocked(createAdminClient).mockReturnValue(chatmaidAdmin(rpc) as never);
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ data: [] })));
+
+      const result = await saveWhatsAppCredentials({
+        provider: 'chatmaid',
+        apiKey: 'sk_test_fake_key',
+        webhookSecret: 'whsec_fake_secret',
+        fromNumber: '+2348031234567',
+      });
+
+      expect(result.error).toContain('This Chatmaid account has no paired phones.');
+      expect(rpc).not.toHaveBeenCalled();
+    });
+
+    it('rejects a Chatmaid from number that belongs to an opted-in resident', async () => {
+      vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+      const rpc = vi.fn();
+      const admin = chatmaidAdmin(rpc, [{ id: 'optin-1' }]);
+      vi.mocked(createAdminClient).mockReturnValue(admin as never);
+      // Even when Chatmaid lists it: a resident's own number is never the bridge.
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ data: [{ id: 'p', e164: '+2348036996725' }] })));
+
+      const result = await saveWhatsAppCredentials({
+        provider: 'chatmaid',
+        apiKey: 'sk_test_fake_key',
+        webhookSecret: 'whsec_fake_secret',
+        fromNumber: '+2348036996725',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('belongs to an opted-in resident');
+      expect(admin.from).toHaveBeenCalledWith('whatsapp_optins');
+      expect(admin.optinChain.eq).toHaveBeenCalledWith('phone_number', '+2348036996725');
+      expect(admin.optinChain.eq).toHaveBeenCalledWith('opted_in', true);
+      expect(rpc).not.toHaveBeenCalled();
+    });
+
+    it('does not save Chatmaid credentials the API rejects', async () => {
+      vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+      const rpc = vi.fn();
+      vi.mocked(createAdminClient).mockReturnValue(chatmaidAdmin(rpc) as never);
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('nope', { status: 401 })));
+
+      const result = await saveWhatsAppCredentials({
+        provider: 'chatmaid',
+        apiKey: 'sk_test_fake_key',
+        webhookSecret: 'whsec_fake_secret',
+        fromNumber: '+2348031234567',
+      });
+
+      expect(result.error).toBe('Chatmaid rejected the request (HTTP 401). Check the API key.');
+      expect(rpc).not.toHaveBeenCalled();
     });
 
     it.each([
@@ -317,33 +419,79 @@ describe('WhatsApp connection actions', () => {
       expect(serialized).not.toContain('ciphertext-chatmaid-secret');
     });
 
-    it('tests a Chatmaid connection with an authenticated read, not a send', async () => {
+    const chatmaidConfig = {
+      status: 'ok' as const,
+      config: {
+        provider: 'chatmaid' as const,
+        apiKey: 'sk_test_fake_key',
+        webhookSecret: 'whsec_fake_secret',
+        fromNumber: '+2348031234567',
+        baseUrl: 'https://developers-api.chatmaid.net',
+      },
+    };
+
+    it('tests a Chatmaid connection with authenticated reads, not a send, and reports the bridge status', async () => {
       vi.mocked(authorizePermission).mockResolvedValue(manager as never);
-      vi.mocked(resolveWhatsAppConfig).mockResolvedValue({
-        status: 'ok',
-        config: {
-          provider: 'chatmaid',
-          apiKey: 'sk_test_fake_key',
-          webhookSecret: 'whsec_fake_secret',
-          fromNumber: '+2348031234567',
-          baseUrl: 'https://developers-api.chatmaid.net',
-        },
-      });
-      const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+      vi.mocked(resolveWhatsAppConfig).mockResolvedValue(chatmaidConfig);
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse(PAIRED_PHONES))
+        .mockResolvedValueOnce(jsonResponse({ data: { connectionStatus: 'connected' } }));
       vi.stubGlobal('fetch', fetchMock);
 
-      try {
-        const result = await testWhatsAppConnection();
+      const result = await testWhatsAppConnection();
 
-        expect(result.data).toEqual({ ok: true, message: 'Connected to the Chatmaid API.' });
-        expect(fetchMock).toHaveBeenCalledTimes(1);
-        const [url, init] = fetchMock.mock.calls[0];
-        expect(url).toBe('https://developers-api.chatmaid.net/v1/phone-numbers');
+      expect(result.data).toEqual({
+        ok: true,
+        message: 'Connected to the Chatmaid API. +2348031234567 is paired; bridge status: connected.',
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+        'https://developers-api.chatmaid.net/v1/phone-numbers',
+        'https://developers-api.chatmaid.net/v1/phone-numbers/phone-1/status',
+      ]);
+      for (const [, init] of fetchMock.mock.calls) {
         expect(init.method ?? 'GET').toBe('GET');
         expect(init.headers).toEqual({ Authorization: 'Bearer sk_test_fake_key' });
-      } finally {
-        vi.unstubAllGlobals();
       }
+    });
+
+    it('fails the Chatmaid test when the paired phone is not connected to the bridge', async () => {
+      vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+      vi.mocked(resolveWhatsAppConfig).mockResolvedValue(chatmaidConfig);
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockResolvedValueOnce(jsonResponse(PAIRED_PHONES))
+          .mockResolvedValueOnce(jsonResponse({ data: { connectionStatus: 'disconnected' } }))
+      );
+
+      const result = await testWhatsAppConnection();
+
+      expect(result.data).toEqual({
+        ok: false,
+        message: 'Connected to the Chatmaid API. +2348031234567 is paired; bridge status: disconnected.',
+      });
+    });
+
+    it('fails the Chatmaid test when the stored from number is not paired', async () => {
+      vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+      vi.mocked(resolveWhatsAppConfig).mockResolvedValue({
+        ...chatmaidConfig,
+        config: { ...chatmaidConfig.config, fromNumber: '+2358031234567' },
+      });
+      const fetchMock = vi.fn().mockResolvedValue(jsonResponse(PAIRED_PHONES));
+      vi.stubGlobal('fetch', fetchMock);
+
+      const result = await testWhatsAppConnection();
+
+      expect(result.data).toEqual({
+        ok: false,
+        message:
+          'From number +2358031234567 is not paired to this Chatmaid account. Paired phones on this account: +2348031234567.',
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
     it('reports a rejected Chatmaid key without returning the upstream body', async () => {

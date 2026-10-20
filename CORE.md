@@ -255,7 +255,7 @@ known ones, and their sizes change as entries are removed, so the counts are not
 the two arrays. Some entries are permanent and deliberate: recipient-facing, cron, webhook and
 pre-auth flows (`payments/submit-payment-proof`, `billing/pay-*-with-wallet`,
 `paystack/initialize-payment`, `paystack/verify-payment`, `paystack/webhook-handler`,
-`email-imports/create-email-import`, `reports/process-schedules`, `two-factor/verify`,
+`reports/process-schedules`, `two-factor/verify`,
 `auth/register-resident-portal`) cannot take an admin RBAC guard because they authenticate as a
 resident, via `CRON_SECRET`, or by signature verification. **Do not add hard permission checks
 there.** Entries marked "not yet fixed" in that file (#556) are gaps to close, not precedent.
