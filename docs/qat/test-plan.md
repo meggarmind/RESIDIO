@@ -194,12 +194,12 @@ Actor: super_admin. Route: `/dashboard`.
 
 | ID | Title | Steps | Expected result | Ref |
 |---|---|---|---|---|
-| QAT-NAV-01 | Dashboard loads with stat cards | Navigate to `/dashboard`. | Stat cards render with numeric values (not skeletons or `NaN`/`undefined`). | `dashboard.spec.ts` TC2.1 |
-| QAT-NAV-02 | Financial health widget | Inspect the financial-health section. | Renders collection-rate / outstanding figures; values are numeric and internally consistent. | `getDashboardFinancialHealth` |
-| QAT-NAV-03 | Pending payments widget | Inspect pending-payments section. | Lists pending items or an explicit empty state. No raw error text. | `getDashboardQuickStats` |
-| QAT-NAV-04 | Recent activity feed | Inspect the recent-activity section. | Shows recent audited actions with timestamps in a sane order (newest first). | AD-01 |
-| QAT-NAV-05 | Smart suggestions | Inspect the smart-suggestions panel. | Renders suggestions or an empty state; any action link resolves to a real route. | `getSmartSuggestions` |
-| QAT-NAV-06 | Invoice distribution chart | Inspect the invoice distribution widget. | Chart renders; the legend/segments match the underlying counts. | `getDashboardInvoiceDistribution` |
+| QAT-NAV-01 | Command strip | Navigate to `/dashboard`. | The strip greets the admin, shows an "As of" time and one "Most urgent" item (or an all-clear) whose link resolves to a real route. Quick actions list only actions the user may perform. | `dashboard.spec.ts` TC2.1 |
+| QAT-NAV-02 | Money lane | Inspect the Money lane. | Payments to verify, overdue invoice balance and resident wallet credits render as numbers, not skeletons or `NaN`/`undefined`. "Verify payments" opens `/approvals`. | `getAdminDashboardSnapshot` |
+| QAT-NAV-03 | People and Houses lane | Inspect the People and Houses lane. | Active residents, occupied houses and vacant houses render as numbers; occupied shows "N of total". "Review residents" opens `/residents`. | `getAdminDashboardSnapshot` |
+| QAT-NAV-04 | Security and Access lane | Inspect the Security and Access lane. | Expired access codes, suspended contacts and recent flagged entries render as numbers. "Open security contacts" opens `/security/contacts`. | `getAdminDashboardSnapshot` |
+| QAT-NAV-05 | Estate map | Inspect the estate map; click each status filter, then a house. | Houses are grouped by street; each filter count matches the houses it shows. A house opens `/houses/[id]`. | `getEstateMapStatus` |
+| QAT-NAV-06 | Recent activity feed | Inspect the recent-activity section. | Shows recent audited actions with timestamps, newest first, or an explicit empty state. | AD-01 |
 | QAT-NAV-07 | Sidebar navigation completeness | Hover the collapsed sidebar to expand; enumerate links. | Every module reachable; labels legible when expanded. | `expandSidebar` helper |
 | QAT-NAV-08 | Every sidebar link resolves | Click through each sidebar destination. | Each loads its page without 404 or error boundary. | EXPLORATORY |
 | QAT-NAV-09 | Global search | Use the global search control with a known resident name. | Returns matching results; selecting one navigates to that record. | `/api/search` |
