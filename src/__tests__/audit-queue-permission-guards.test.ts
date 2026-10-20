@@ -180,12 +180,11 @@ describe('get-audit-logs.ts permission guards', () => {
 });
 
 describe('notifications/queue.ts permission guards', () => {
-  it('pins which permission every export requires -- all nine, not just getQueueStatistics', () => {
+  it('pins which permission every export requires -- all eight, not just getQueueStatistics', () => {
     expect(extractPermissionGuards(queueSource)).toEqual({
       getNotificationQueue: 'NOTIFICATIONS_MANAGE',
       getQueueItem: 'NOTIFICATIONS_MANAGE',
       getQueueStatistics: 'NOTIFICATIONS_MANAGE',
-      queueNotificationFromTemplate: 'NOTIFICATIONS_MANAGE',
       queueDirectNotification: 'NOTIFICATIONS_MANAGE',
       cancelNotification: 'NOTIFICATIONS_MANAGE',
       retryNotification: 'NOTIFICATIONS_MANAGE',

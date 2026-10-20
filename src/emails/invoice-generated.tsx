@@ -1,5 +1,6 @@
 import { Button, Heading, Hr, Section, Text } from '@react-email/components';
 import { EmailLayout } from './components/email-layout';
+import { makeCopy, splitParagraphs } from '@/lib/notifications/event-content-registry';
 
 interface InvoiceItem {
   name: string;
@@ -21,6 +22,8 @@ interface InvoiceGeneratedEmailProps {
   estatePhone?: string;
   estateAddress?: string;
   invoiceUrl?: string;
+  /** Admin-edited wording (merged templates). Omitted means the built-in text. */
+  copy?: Record<string, string>;
 }
 
 export function InvoiceGeneratedEmail({
@@ -38,12 +41,22 @@ export function InvoiceGeneratedEmail({
   estatePhone,
   estateAddress,
   invoiceUrl,
+  copy,
 }: InvoiceGeneratedEmailProps) {
   const formattedAmount = new Intl.NumberFormat('en-NG', {
     style: 'currency',
     currency: 'NGN',
     minimumFractionDigits: 0,
   }).format(amountDue);
+
+  const text = makeCopy('invoice_generated', copy, {
+    resident_name: residentName,
+    invoice_number: invoiceNumber,
+    amount: formattedAmount,
+    due_date: dueDate,
+    property: streetName ? `${houseNumber}, ${streetName}` : houseNumber,
+    estate_name: estateName,
+  });
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('en-NG', {
@@ -60,7 +73,7 @@ export function InvoiceGeneratedEmail({
       estatePhone={estatePhone}
       estateAddress={estateAddress}
     >
-      <Heading style={heading}>New Invoice Generated</Heading>
+      <Heading style={heading}>{text('heading')}</Heading>
 
       <Text style={greeting}>Dear {residentName},</Text>
 
@@ -116,13 +129,14 @@ export function InvoiceGeneratedEmail({
 
       <Hr style={hr} />
 
-      <Text style={paragraph}>
-        Please ensure payment is made before the due date to avoid any late fees. For questions
-        about this invoice, please contact the estate management.
-      </Text>
+      {splitParagraphs(text('body')).map((p, i) => (
+        <Text key={i} style={paragraph}>
+          {p}
+        </Text>
+      ))}
 
       <Text style={signoff}>
-        Thank you,
+        {text('sign_off')}
         <br />
         {estateName} Management
       </Text>

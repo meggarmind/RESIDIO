@@ -7,6 +7,7 @@ import { sendEmail, getEstateEmailSettings } from '@/lib/email';
 import { embed } from '@/lib/utils';
 import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
 import { PaymentReceiptEmail } from '@/emails';
+import { formatEventCurrency, getEventContent, getEventDefaults, renderEventText } from '@/lib/notifications/event-content';
 import { format } from 'date-fns';
 
 interface SendPaymentReceiptEmailResult {
@@ -237,9 +238,19 @@ export async function sendPaymentReceiptEmail(
   // Determine subject based on verification status
   // If forced unverified, add pending notice
   const isPendingVerification = !isVerified && options?.forceUnverified;
-  const subject = isPendingVerification
-    ? `Payment Receipt (Pending Verification): ${receiptNumber}`
-    : `Payment Receipt: ${receiptNumber}`;
+  const copy = await getEventContent('payment_receipt');
+  const baseSubject = renderEventText(copy.subject, {
+    resident_name: `${resident.first_name} ${resident.last_name}`,
+    receipt_number: receiptNumber,
+    amount: formatEventCurrency(payment.amount),
+    estate_name: estateSettings.estateName,
+  });
+  // The default keeps its historical pending wording; an edited subject just gets a suffix.
+  const subject = !isPendingVerification
+    ? baseSubject
+    : copy.subject === getEventDefaults('payment_receipt').subject
+      ? `Payment Receipt (Pending Verification): ${receiptNumber}`
+      : `${baseSubject} (Pending Verification)`;
 
   // Add notes about pending verification if applicable
   const receiptNotes = isPendingVerification
@@ -250,6 +261,7 @@ export async function sendPaymentReceiptEmail(
     to: recipients,
     subject,
     react: PaymentReceiptEmail({
+      copy,
       residentName: `${resident.first_name} ${resident.last_name}`,
       receiptNumber,
       amount: payment.amount,
