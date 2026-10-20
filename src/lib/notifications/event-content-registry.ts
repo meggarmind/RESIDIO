@@ -224,7 +224,7 @@ export function mergeEventContent(event: EventKey, overrides: unknown): Record<s
   const merged = getEventDefaults(event);
   if (overrides && typeof overrides === 'object' && !Array.isArray(overrides)) {
     for (const [key, value] of Object.entries(overrides as Record<string, unknown>)) {
-      if (key in merged && typeof value === 'string' && value.trim() !== '') merged[key] = value;
+      if (Object.hasOwn(merged, key) && typeof value === 'string' && value.trim() !== '') merged[key] = value;
     }
   }
   return merged;
@@ -299,6 +299,12 @@ export function formatEventCurrency(amount: number): string {
     currency: 'NGN',
     minimumFractionDigits: 0,
   }).format(amount);
+}
+
+/** The `{{property}}` value: "house, street", the same string the email bodies show. */
+export function formatEventProperty(houseNumber: string | undefined, streetName?: string | null): string {
+  const house = houseNumber ?? '';
+  return streetName ? `${house}, ${streetName}` : house;
 }
 
 /** Paragraphs are separated by blank lines. */

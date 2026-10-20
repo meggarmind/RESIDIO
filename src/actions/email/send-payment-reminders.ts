@@ -11,7 +11,7 @@ import { readPaymentReminderSettings } from '@/lib/notifications/payment-reminde
 import { updateSetting } from '@/actions/settings/update-setting';
 import { logAudit } from '@/lib/audit/logger';
 import { PaymentReminderEmail } from '@/emails';
-import { formatEventCurrency, getEventContent, renderEventText } from '@/lib/notifications/event-content';
+import { formatEventCurrency, formatEventProperty, getEventContent, renderEventText } from '@/lib/notifications/event-content';
 
 interface ReminderResult {
   success: boolean;
@@ -139,7 +139,7 @@ export async function sendPaymentReminders(): Promise<ReminderResult> {
           invoice_number: invoice.invoice_number,
           amount: formatEventCurrency(amountRemaining),
           due_date: formattedDueDate,
-          property: house?.house_number || '',
+          property: formatEventProperty(house?.house_number, embed(house?.street)?.name),
           estate_name: estateSettings.estateName,
         }),
         react: PaymentReminderEmail({

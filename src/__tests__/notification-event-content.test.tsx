@@ -66,6 +66,12 @@ describe('registry merge and render', () => {
     expect(merged).not.toHaveProperty('nonsense');
   });
 
+  it('inherited object keys are not treated as fields', () => {
+    const merged = mergeEventContent('welcome_resident', { constructor: 'x', toString: 'y' });
+    expect(Object.hasOwn(merged, 'constructor')).toBe(false);
+    expect(typeof merged.toString).toBe('function');
+  });
+
   it('escalated reminders are keyed <level>.<field>', () => {
     const merged = mergeEventContent('payment_reminder_escalated', { 'final.closing': 'Call us.' });
     expect(merged['final.closing']).toBe('Call us.');
@@ -201,6 +207,13 @@ describe('updateEventContent', () => {
     const result = await updateEventContent('welcome_resident', 'email', { body: 'You owe {{amount}}' });
     expect(result.data).toBeNull();
     expect(result.error).toContain('{{amount}}');
+    expect(writes).toBe(0);
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+
+  it.each(['sms', 'whatsapp'])('rejects the %s channel (email only in this slice)', async (channel) => {
+    const result = await updateEventContent('welcome_resident', channel, { heading: 'x' });
+    expect(result.data).toBeNull();
     expect(writes).toBe(0);
     expect(logAudit).not.toHaveBeenCalled();
   });

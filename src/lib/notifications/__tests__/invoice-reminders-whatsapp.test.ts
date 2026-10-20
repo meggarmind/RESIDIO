@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   sendSms: vi.fn(),
   sendEmail: vi.fn(),
   getReminderSchedule: vi.fn(),
+  getEventContent: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -51,6 +52,11 @@ vi.mock('@/emails/payment-reminder-escalated', () => ({
   getEscalatedReminderSubject: vi.fn(),
   determineEscalationLevel: vi.fn(),
 }));
+// #907: the stored wording read is the seam; the real pure helpers (formatDueText etc.) stay.
+vi.mock('@/lib/notifications/event-content', async (importActual) => ({
+  ...(await importActual<typeof import('@/lib/notifications/event-content')>()),
+  getEventContent: mocks.getEventContent,
+}));
 vi.mock('@/lib/sms/templates/payment-reminder', () => ({ generatePaymentReminderSms: vi.fn() }));
 vi.mock('@/lib/notifications/escalation', () => ({
   getOrCreateEscalationState: vi.fn().mockResolvedValue({ is_resolved: false, current_level: 0 }),
@@ -67,6 +73,7 @@ vi.mock('@/lib/notifications/preferences', () => ({
 
 import { processInvoiceReminders } from '@/lib/notifications/invoice-reminders';
 import { isChannelImplemented } from '@/lib/notifications/types';
+import { PaymentReminderEscalatedEmail, getEscalatedReminderSubject } from '@/emails/payment-reminder-escalated';
 
 const INVOICE = {
   id: 'inv-1',
@@ -124,7 +131,31 @@ beforeEach(async () => {
   mocks.shouldSendToResident.mockResolvedValue({ shouldSend: true });
   mocks.isWhatsAppOptedIn.mockResolvedValue(true);
   mocks.sendEmail.mockResolvedValue({ success: true });
+  mocks.getEventContent.mockResolvedValue({});
   mocks.getReminderSchedule.mockResolvedValue(scheduleWithChannels(['whatsapp']));
+});
+
+describe('processInvoiceReminders escalated email wording (#907)', () => {
+  it('stored wording reaches the subject helper and the email component, with the shared property string', async () => {
+    const stored = { 'friendly.subject': 'Heads up {{property}}', 'friendly.body': 'Custom body' };
+    mocks.getEventContent.mockResolvedValue(stored);
+    mocks.getReminderSchedule.mockResolvedValue(scheduleWithChannels(['email']));
+    mocks.createAdminClient.mockReturnValue(
+      adminClientReturning([{ ...INVOICE, resident: { ...INVOICE.resident, email: 'ada@example.test' } }])
+    );
+
+    await processInvoiceReminders();
+
+    expect(mocks.getEventContent).toHaveBeenCalledWith('payment_reminder_escalated');
+    expect(getEscalatedReminderSubject).toHaveBeenCalledWith(
+      'INV-001',
+      'friendly',
+      stored,
+      expect.objectContaining({ property: '4, Palm Rd', resident_name: 'Ada Obi' })
+    );
+    expect(PaymentReminderEscalatedEmail).toHaveBeenCalledWith(expect.objectContaining({ copy: stored }));
+    expect(mocks.sendEmail).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('processInvoiceReminders WhatsApp trigger (#6)', () => {

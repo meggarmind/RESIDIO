@@ -435,6 +435,15 @@ ON CONFLICT (id) DO UPDATE SET
   variables = EXCLUDED.variables,
   updated_at = NOW();
 
+-- #907: tag the five rows that real senders use with their event key, as migration
+-- 20261022090000_notification_event_content.sql does. The other ten rows are kept here (not deleted)
+-- because the history fixtures below reference them by id; the migration deletes them on a real database.
+UPDATE notification_templates SET event = 'invoice_generated'          WHERE id = 'ca000001-0001-0001-0001-000000000001'::uuid AND name = 'invoice_generated';
+UPDATE notification_templates SET event = 'payment_reminder'           WHERE name = 'invoice_reminder' AND id::text LIKE 'ca000001%';
+UPDATE notification_templates SET event = 'payment_reminder_escalated' WHERE name = 'invoice_overdue'  AND id::text LIKE 'ca000001%';
+UPDATE notification_templates SET event = 'payment_receipt'            WHERE name = 'payment_received' AND id::text LIKE 'ca000001%';
+UPDATE notification_templates SET event = 'welcome_resident'           WHERE name = 'welcome_resident' AND id::text LIKE 'ca000001%';
+
 
 -- ============================================================================
 -- NOTIFICATION PREFERENCES (20 residents with custom preferences)

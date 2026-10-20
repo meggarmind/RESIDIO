@@ -10,7 +10,7 @@ residio_sources:
   - src/actions/notifications/**
   - src/app/(dashboard)/settings/email/**
   - src/app/(dashboard)/settings/notifications/**
-residio_verified_commit: 22636088
+residio_verified_commit: 4edd4ff7
 residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
@@ -64,13 +64,17 @@ A multi-channel emergency announcement bypasses the normal reminder cadence. Whi
 - Payment reminder (escalating), sent by the scheduled reminders, with separate wording for each stage from friendly to overdue
 - New invoice
 
-Choose **Edit** on an email to change its subject, heading, main message and sign-off. Each field shows the built-in wording as grey placeholder text. A field you leave empty uses the built-in wording, and **Reset to default** on a field clears your edit. Paragraphs are separated by a blank line. The layout and the details the email shows (amounts, dates, invoice numbers) cannot be edited. You need the notifications manage permission to edit; everyone else can only preview.
+Choose **Edit** on an email to change its wording. What you can edit depends on the email:
+
+- **Welcome email and payment receipt:** subject, heading, opening message and sign-off.
+- **Payment reminder (manual) and New invoice:** subject, heading, sign-off and a closing message. The closing message is the paragraph near the end of the email, not the first paragraph, which stays as written.
+- **Payment reminder (escalating):** for each stage (friendly, warning, urgent, final notice, overdue) a heading and subject, a message and a closing message.
+
+Each field shows the built-in wording as grey placeholder text. A field you leave empty uses the built-in wording, and **Reset to default** on a field clears your edit. Paragraphs are separated by a blank line. The layout and the details the email shows (amounts, dates, invoice numbers) cannot be edited. This page needs the notifications manage permission, so everyone who can open it can edit.
 
 Use variables such as `{{resident_name}}` or `{{amount}}` where the value should appear. The edit panel lists the variables each email allows, and a variable that is not on that list is rejected when you save. There is no way to add a new template, duplicate one or delete one.
 
 A change takes effect on the next send. Invoice emails already waiting in the queue were rendered when they were queued, so they keep their old wording.
-
-**Settings → Message Templates** is separate and holds reusable templates for common announcements. It does not change the resident emails above.
 
 Before saving a wording change:
 

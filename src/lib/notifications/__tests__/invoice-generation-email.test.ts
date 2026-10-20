@@ -4,6 +4,8 @@ import {
   queueInvoiceGeneratedEmail,
 } from '@/lib/notifications/invoice-generation-email';
 import { addToQueue } from '@/lib/notifications/queue';
+import { InvoiceGeneratedEmail } from '@/emails';
+import { getEventContent } from '@/lib/notifications/event-content';
 import { getSettingValueAsService } from '@/lib/settings/service';
 import { createAdminClient } from '@/lib/supabase/server';
 
@@ -73,6 +75,20 @@ describe('invoice generation email queue', () => {
       deduplication_key: 'invoice-generated:invoice-1',
       metadata: expect.objectContaining({ candidateId: 'candidate-1', invoiceId: 'invoice-1' }),
     }));
+  });
+
+  it('stored wording reaches the queued subject and the email component, property as "house, street" (#907)', async () => {
+    const stored = { subject: 'Bill {{invoice_number}} for {{property}}', heading: 'Custom' };
+    vi.mocked(getEventContent).mockResolvedValueOnce(stored);
+    adminClientMock.mockReturnValue(createClient() as unknown as ReturnType<typeof createAdminClient>);
+    addToQueueMock.mockResolvedValue({ success: true, queueId: 'queue-1' });
+
+    await queueInvoiceGeneratedEmail('invoice-1', 'candidate-1');
+
+    expect(addToQueueMock).toHaveBeenCalledWith(
+      expect.objectContaining({ subject: 'Bill INV-202608-A1 for A1, Main Street' })
+    );
+    expect(InvoiceGeneratedEmail).toHaveBeenCalledWith(expect.objectContaining({ copy: stored }));
   });
 
   it('reuses an existing queue item when a concurrent insert wins', async () => {

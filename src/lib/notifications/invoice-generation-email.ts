@@ -5,7 +5,7 @@ import { getEstateEmailSettings } from '@/lib/email';
 import { createAdminClient } from '@/lib/supabase/server';
 import { embed } from '@/lib/utils';
 import { addToQueue, PRIORITY } from './queue';
-import { formatEventCurrency, getEventContent, renderEventText } from './event-content';
+import { formatEventCurrency, formatEventProperty, getEventContent, renderEventText } from './event-content';
 
 export type InvoiceEmailQueueStatus = 'queued' | 'skipped' | 'failed';
 
@@ -90,7 +90,7 @@ export async function queueInvoiceGeneratedEmail(
       invoice_number: invoice.invoice_number,
       amount: formatEventCurrency(amountRemaining),
       due_date: formatDate(invoice.due_date),
-      property: house?.house_number || '',
+      property: formatEventProperty(house?.house_number, embed(house?.street)?.name),
       estate_name: estateSettings.estateName,
     }),
     body: `New invoice ${invoice.invoice_number} for ${amountRemaining}.`,
