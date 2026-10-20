@@ -151,7 +151,7 @@ After **5 wrong PINs** in a row, financial answers for that resident are locked 
 A resident sets their first PIN with a 6-digit **setup code** from the estate office. Setup codes are issued from the opt-in registry with **Issue setup code**, usually in a batch as each street joins the pilot. Turn the PIN policy on for a street only after its codes are out.
 
 :::note[Rolling out]
-The dashboard issues setup codes now. Until the WhatsApp Assistant is updated to ask for them, a resident without a PIN can still set one by replying `PIN` followed by 4–6 digits.
+The dashboard issues setup codes now. Until the WhatsApp Assistant is updated to ask for them, a resident without a PIN can still set one by replying `PIN` followed by 4–6 digits. This includes a resident whose PIN you just reset, so reset a PIN only when the resident is ready to set the new one straight away.
 :::
 
 ### Issuing codes
