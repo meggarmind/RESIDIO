@@ -8,8 +8,9 @@
 
 import { createAdminClient } from '@/lib/supabase/server';
 import { createMatcher } from '@/lib/matching/resident-matcher';
-import { updateEmailImportStatus } from '@/actions/email-imports/create-email-import';
-import type { EmailTransaction } from '@/types/database';
+import { findMatchingExpenseCategory } from '@/lib/expenses/category-matcher';
+import { writeEmailImportStatus } from '@/lib/email-imports/import-records';
+import type { EmailTransaction, ExpenseCategory } from '@/types/database';
 
 // ============================================================
 // Load Matching Data
@@ -43,6 +44,14 @@ async function loadMatchingData() {
     `)
     .eq('resident_houses.is_active', true);
 
+  // Load expense categories for debit keyword matching
+  const { data: expenseCategories } = await adminClient
+    .from('expense_categories')
+    .select('*')
+    .eq('is_active', true)
+    .order('sort_order')
+    .order('name');
+
   return {
     residents: residents || [],
     aliases: (aliases || []) as Array<{
@@ -54,7 +63,8 @@ async function loadMatchingData() {
       created_at: string;
       created_by: string | null;
     }>,
-    houses: houses || []
+    houses: houses || [],
+    expenseCategories: (expenseCategories || []) as ExpenseCategory[],
   };
 }
 
@@ -91,7 +101,7 @@ export async function matchEmailTransactions(
   }
 
   // Load matching data
-  const { residents, aliases, houses } = await loadMatchingData();
+  const { residents, aliases, houses, expenseCategories } = await loadMatchingData();
 
   // Create matcher
   const matcher = createMatcher(residents, aliases, houses);
@@ -131,8 +141,7 @@ export async function matchEmailTransactions(
       }
     } else if (emailTx.transaction_type === 'debit') {
       // Try to auto-match debits to expense category
-      const { autoMatchExpenseCategory } = await import('@/actions/expenses/get-expense-categories');
-      const categoryMatch = await autoMatchExpenseCategory(emailTx.description || '');
+      const categoryMatch = findMatchingExpenseCategory(expenseCategories, emailTx.description || '');
 
       if (categoryMatch.category) {
         await adminClient
@@ -161,7 +170,7 @@ export async function matchEmailTransactions(
   }
 
   // Update import counters
-  await updateEmailImportStatus({
+  await writeEmailImportStatus(adminClient, {
     importId,
     status: 'processing',
     transactionsMatched: matched,

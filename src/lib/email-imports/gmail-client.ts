@@ -3,12 +3,16 @@
  *
  * Wrapper around the Google APIs library for Gmail operations.
  * Uses OAuth 2.0 for authentication with refresh token support.
+ *
+ * Reads and refreshes the stored tokens with the service-role client so the CRON_SECRET
+ * fetch-emails cron can use them without a user session (#879). Not a server action:
+ * callers are the permission-guarded email-import actions and the cron route.
  */
 
 import { google, gmail_v1 } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 import { decrypt, encrypt } from './oauth-encryption';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
 
 // Gmail API scopes - read-only access
 export const GMAIL_SCOPES = [
@@ -110,7 +114,7 @@ export async function refreshAccessToken(
  * Automatically refreshes the token if expired.
  */
 export async function getGmailClient(): Promise<gmail_v1.Gmail | null> {
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createAdminClient();
 
   // Get active credentials
   const { data: credentials, error } = await supabase
@@ -166,6 +170,21 @@ export async function getGmailClient(): Promise<gmail_v1.Gmail | null> {
   oauth2Client.setCredentials({ access_token: accessToken });
 
   return google.gmail({ version: 'v1', auth: oauth2Client });
+}
+
+/**
+ * The address of the active Gmail connection, or null when none is connected.
+ */
+export async function getActiveGmailAddress(): Promise<string | null> {
+  const supabase = await createAdminClient();
+
+  const { data } = await supabase
+    .from('gmail_oauth_credentials')
+    .select('email_address')
+    .eq('is_active', true)
+    .maybeSingle();
+
+  return data?.email_address ?? null;
 }
 
 /**

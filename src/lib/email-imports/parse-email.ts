@@ -16,7 +16,7 @@ import {
   parseFirstBankPdf,
   extractAccountNumber,
 } from '@/lib/email-imports/parsers/first-bank-pdf';
-import { updateEmailImportStatus } from '@/actions/email-imports/create-email-import';
+import { writeEmailImportStatus } from '@/lib/email-imports/import-records';
 import type {
   EmailMessage,
   EmailTransaction,
@@ -412,7 +412,7 @@ export async function parseAllPendingEmails(
   }
 
   // Update import status
-  await updateEmailImportStatus({
+  await writeEmailImportStatus(adminClient, {
     importId,
     status: 'matching', // Ready for matching phase
     emailsParsed: messagesParsed,

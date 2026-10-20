@@ -7,14 +7,14 @@
  * would make it a public endpoint (#561).
  */
 
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
 
 export async function updateGmailSyncStatus(params: {
   status: 'success' | 'error' | 'partial';
   message?: string;
   emailsCount?: number;
 }): Promise<{ error: string | null }> {
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createAdminClient();
 
   const { error } = await supabase
     .from('gmail_oauth_credentials')

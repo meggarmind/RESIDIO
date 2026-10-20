@@ -22,7 +22,8 @@ import {
 } from '@/lib/email-imports/gmail-client';
 import { storeEmailAttachments } from '@/lib/email-imports/store-attachments';
 import { updateGmailSyncStatus } from '@/lib/email-imports/gmail-sync-status';
-import { createEmailImport, updateEmailImportStatus } from '@/actions/email-imports/create-email-import';
+import { insertEmailImport, writeEmailImportStatus } from '@/lib/email-imports/import-records';
+import { logAudit } from '@/lib/audit/logger';
 import { parseAllPendingEmails } from '@/lib/email-imports/parse-email';
 import { processEmailTransactions } from '@/actions/email-imports/process-email-import';
 import { matchEmailTransactions } from '@/lib/email-imports/process-email-matching';
@@ -238,12 +239,18 @@ export async function runEmailFetch(
     };
   }
 
-  // Get current user
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // A cron run has no user session; only a manual fetch has an actor
+  let createdBy: string | undefined;
+  if (trigger === 'manual') {
+    const supabase = await createServerSupabaseClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    createdBy = user?.id;
+  }
+
+  const adminClient = await createAdminClient();
 
   // Get connection details and criteria
-  const { data: credentials } = await supabase
+  const { data: credentials } = await adminClient
     .from('gmail_oauth_credentials')
     .select('email_address, sync_criteria')
     .eq('is_active', true)
@@ -253,10 +260,10 @@ export async function runEmailFetch(
   const criteria = credentials?.sync_criteria as Partial<GmailSyncCriteria> | null || {};
 
   // Create import session
-  const { data: importSession, error: importError } = await createEmailImport({
+  const { data: importSession, error: importError } = await insertEmailImport(adminClient, {
     sourceEmail,
     triggerType: trigger,
-    createdBy: user?.id,
+    createdBy,
   });
 
   if (importError || !importSession) {
@@ -272,8 +279,22 @@ export async function runEmailFetch(
 
   const importId = importSession.id;
 
+  // A cron run has no session actor; the cron route records it in the system log instead
+  if (trigger === 'manual') {
+    await logAudit({
+      action: 'CREATE',
+      entityType: 'email_imports',
+      entityId: importId,
+      entityDisplay: `Email Import: ${trigger}`,
+      newValues: {
+        source_email: sourceEmail,
+        trigger_type: trigger,
+      },
+    });
+  }
+
   // Update status to fetching
-  await updateEmailImportStatus({ importId, status: 'fetching' });
+  await writeEmailImportStatus(adminClient, { importId, status: 'fetching' });
 
   const result: FetchEmailsResult = {
     success: true,
@@ -298,7 +319,7 @@ export async function runEmailFetch(
     });
 
     if (!messages || messages.length === 0) {
-      await updateEmailImportStatus({
+      await writeEmailImportStatus(adminClient, {
         importId,
         status: 'completed',
         emailsFetched: 0,
@@ -391,7 +412,7 @@ export async function runEmailFetch(
     }
 
     // Update import status
-    await updateEmailImportStatus({
+    await writeEmailImportStatus(adminClient, {
       importId,
       status: 'parsing', // Ready for parsing phase
       emailsFetched: result.emailsFetched,
@@ -408,10 +429,12 @@ export async function runEmailFetch(
 
     // ============================================================
     // PIPELINE CHAINING
-    // Trigger subsequent stages immediately for manual fetches
+    // Trigger subsequent stages immediately for manual fetches. A cron fetch
+    // leaves them to the cron route, which queues every transaction for admin
+    // review and never posts money on schedule (#879).
     // ============================================================
 
-    if (result.emailsFetched > 0) {
+    if (result.emailsFetched > 0 && trigger === 'manual') {
       try {
         // 1. Parse
         await parseAllPendingEmails(importId);
@@ -426,9 +449,9 @@ export async function runEmailFetch(
         // We don't fail the whole fetch result, but the import status will reflect where it stopped
         // (the individual steps update status as they go)
       }
-    } else {
+    } else if (result.emailsFetched === 0) {
       // If no emails fetched, mark as completed immediately (was left as 'parsing' before)
-      await updateEmailImportStatus({
+      await writeEmailImportStatus(adminClient, {
         importId,
         status: 'completed',
       });
@@ -438,7 +461,7 @@ export async function runEmailFetch(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error during fetch';
 
-    await updateEmailImportStatus({
+    await writeEmailImportStatus(adminClient, {
       importId,
       status: 'failed',
       errorMessage,
