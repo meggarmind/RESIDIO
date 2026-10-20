@@ -1,0 +1,443 @@
+[
+  {
+    "table": "access_codes",
+    "policy": "access_codes_insert_policy",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))"
+  },
+  {
+    "table": "access_codes",
+    "policy": "access_codes_select_policy",
+    "cmd": "SELECT",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text, 'security_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "access_codes",
+    "policy": "access_codes_update_policy",
+    "cmd": "UPDATE",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text, 'security_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "access_logs",
+    "policy": "access_logs_insert_policy",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text, 'security_officer'::text]))"
+  },
+  {
+    "table": "access_logs",
+    "policy": "access_logs_select_policy",
+    "cmd": "SELECT",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text, 'security_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "access_logs",
+    "policy": "access_logs_update_policy",
+    "cmd": "UPDATE",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text, 'security_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "billing_items",
+    "policy": "Admins chairmen fin sec can manage billing items",
+    "cmd": "ALL",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "billing_profiles",
+    "policy": "Admins chairmen fin sec can manage billing profiles",
+    "cmd": "ALL",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "documents",
+    "policy": "Users can view documents based on permissions",
+    "cmd": "SELECT",
+    "using": "((is_archived = false) AND ((EXISTS ( SELECT 1\n   FROM (((profiles p\n     JOIN role_permissions rp ON ((rp.role_id = p.role_id)))\n     JOIN app_permissions ap ON ((ap.id = rp.permission_id)))\n     JOIN app_roles ar ON ((ar.id = p.role_id)))\n  WHERE ((p.id = auth.uid()) AND ((ap.name)::text = 'documents.view'::text) AND ((ar.name)::text <> 'resident'::text)))) OR (EXISTS ( SELECT 1\n   FROM (((profiles p\n     JOIN role_permissions rp ON ((rp.role_id = p.role_id)))\n     JOIN app_permissions ap ON ((ap.id = rp.permission_id)))\n     JOIN app_roles ar ON ((ar.id = p.role_id)))\n  WHERE ((p.id = auth.uid()) AND ((ap.name)::text = 'documents.view'::text) AND ((ar.name)::text = 'resident'::text) AND ((documents.category_id IS NULL) OR (EXISTS ( SELECT 1\n           FROM document_categories dc\n          WHERE ((dc.id = documents.category_id) AND (dc.is_resident_accessible = true))))))))))",
+    "check": null
+  },
+  {
+    "table": "email_logs",
+    "policy": "Admins can view email logs",
+    "cmd": "SELECT",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "escalation_states",
+    "policy": "escalation_states_insert",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))"
+  },
+  {
+    "table": "escalation_states",
+    "policy": "escalation_states_select",
+    "cmd": "SELECT",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "escalation_states",
+    "policy": "escalation_states_update",
+    "cmd": "UPDATE",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))",
+    "check": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))"
+  },
+  {
+    "table": "estate_bank_accounts",
+    "policy": "Admins chairmen fin sec can manage bank accounts",
+    "cmd": "ALL",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "estate_bank_accounts",
+    "policy": "All authenticated can view active bank accounts",
+    "cmd": "SELECT",
+    "using": "((is_active = true) OR (get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text])))",
+    "check": null
+  },
+  {
+    "table": "hierarchical_settings",
+    "policy": "hierarchical_settings_admin_all",
+    "cmd": "ALL",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text]))",
+    "check": null
+  },
+  {
+    "table": "house_ownership_history",
+    "policy": "Authorized users can insert ownership history",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))"
+  },
+  {
+    "table": "house_types",
+    "policy": "Admins and chairmen can delete house types",
+    "cmd": "DELETE",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text]))",
+    "check": null
+  },
+  {
+    "table": "house_types",
+    "policy": "Admins and chairmen can insert house types",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text]))"
+  },
+  {
+    "table": "house_types",
+    "policy": "Admins and chairmen can update house types",
+    "cmd": "UPDATE",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text]))",
+    "check": null
+  },
+  {
+    "table": "house_types",
+    "policy": "All authenticated users can view active house types",
+    "cmd": "SELECT",
+    "using": "((is_active = true) OR (get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text])))",
+    "check": null
+  },
+  {
+    "table": "houses",
+    "policy": "Admins chairmen and fin sec can delete houses",
+    "cmd": "DELETE",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "houses",
+    "policy": "Admins chairmen and fin sec can insert houses",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))"
+  },
+  {
+    "table": "houses",
+    "policy": "Admins chairmen and fin sec can update houses",
+    "cmd": "UPDATE",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "houses",
+    "policy": "All authenticated users can view active houses",
+    "cmd": "SELECT",
+    "using": "((is_active = true) OR (get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text])))",
+    "check": null
+  },
+  {
+    "table": "notification_history",
+    "policy": "notification_history_select",
+    "cmd": "SELECT",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "notification_preferences",
+    "policy": "notification_preferences_insert",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))"
+  },
+  {
+    "table": "notification_preferences",
+    "policy": "notification_preferences_update",
+    "cmd": "UPDATE",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))",
+    "check": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))"
+  },
+  {
+    "table": "notification_queue",
+    "policy": "notification_queue_insert",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))"
+  },
+  {
+    "table": "notification_queue",
+    "policy": "notification_queue_select",
+    "cmd": "SELECT",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "profiles",
+    "policy": "Admins and chairmen can view all profiles",
+    "cmd": "SELECT",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text]))",
+    "check": null
+  },
+  {
+    "table": "property_transition_requests",
+    "policy": "House managers can create property transition requests",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))"
+  },
+  {
+    "table": "property_transition_requests",
+    "policy": "House managers can view property transition requests",
+    "cmd": "SELECT",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "resident_houses",
+    "policy": "Admins chairmen fin sec can delete resident houses",
+    "cmd": "DELETE",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "resident_houses",
+    "policy": "Admins chairmen fin sec can insert resident houses",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))"
+  },
+  {
+    "table": "resident_houses",
+    "policy": "Admins chairmen fin sec can update resident houses",
+    "cmd": "UPDATE",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "resident_houses",
+    "policy": "Admins chairmen fin sec can view all resident houses",
+    "cmd": "SELECT",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "resident_houses",
+    "policy": "Security officers can view active resident houses",
+    "cmd": "SELECT",
+    "using": "((get_my_role_name() = 'security_officer'::text) AND (is_active = true))",
+    "check": null
+  },
+  {
+    "table": "resident_payment_aliases",
+    "policy": "Admin, Chairman, Financial Secretary can manage aliases",
+    "cmd": "ALL",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "residents",
+    "policy": "Admins chairmen fin sec can insert residents",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))"
+  },
+  {
+    "table": "residents",
+    "policy": "Admins chairmen fin sec can update residents",
+    "cmd": "UPDATE",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "residents",
+    "policy": "Admins chairmen fin sec can view all residents",
+    "cmd": "SELECT",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "residents",
+    "policy": "Only admins can delete residents",
+    "cmd": "DELETE",
+    "using": "(get_my_role_name() = 'super_admin'::text)",
+    "check": null
+  },
+  {
+    "table": "residents",
+    "policy": "Security officers can view active residents",
+    "cmd": "SELECT",
+    "using": "((get_my_role_name() = 'security_officer'::text) AND (account_status = 'active'::account_status))",
+    "check": null
+  },
+  {
+    "table": "security_contact_categories",
+    "policy": "security_contact_categories_delete_policy",
+    "cmd": "DELETE",
+    "using": "(get_my_role_name() = 'super_admin'::text)",
+    "check": null
+  },
+  {
+    "table": "security_contact_categories",
+    "policy": "security_contact_categories_insert_policy",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "(get_my_role_name() = 'super_admin'::text)"
+  },
+  {
+    "table": "security_contact_categories",
+    "policy": "security_contact_categories_update_policy",
+    "cmd": "UPDATE",
+    "using": "(get_my_role_name() = 'super_admin'::text)",
+    "check": null
+  },
+  {
+    "table": "security_contacts",
+    "policy": "security_contacts_insert_policy",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))"
+  },
+  {
+    "table": "security_contacts",
+    "policy": "security_contacts_select_policy",
+    "cmd": "SELECT",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text, 'security_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "security_contacts",
+    "policy": "security_contacts_update_policy",
+    "cmd": "UPDATE",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "streets",
+    "policy": "Admins and chairmen can delete streets",
+    "cmd": "DELETE",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text]))",
+    "check": null
+  },
+  {
+    "table": "streets",
+    "policy": "Admins and chairmen can insert streets",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text]))"
+  },
+  {
+    "table": "streets",
+    "policy": "Admins and chairmen can update streets",
+    "cmd": "UPDATE",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text]))",
+    "check": null
+  },
+  {
+    "table": "streets",
+    "policy": "All authenticated users can view active streets",
+    "cmd": "SELECT",
+    "using": "((is_active = true) OR (get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text])))",
+    "check": null
+  },
+  {
+    "table": "system_settings",
+    "policy": "system_settings_insert_policy",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text]))"
+  },
+  {
+    "table": "system_settings",
+    "policy": "system_settings_update_policy",
+    "cmd": "UPDATE",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text]))",
+    "check": null
+  },
+  {
+    "table": "transaction_tags",
+    "policy": "Authenticated users can view transaction tags",
+    "cmd": "SELECT",
+    "using": "((is_active = true) OR (get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text])))",
+    "check": null
+  },
+  {
+    "table": "transaction_tags",
+    "policy": "Only admin can create transaction tags",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "(get_my_role_name() = 'super_admin'::text)"
+  },
+  {
+    "table": "transaction_tags",
+    "policy": "Only admin can delete transaction tags",
+    "cmd": "DELETE",
+    "using": "(get_my_role_name() = 'super_admin'::text)",
+    "check": null
+  },
+  {
+    "table": "transaction_tags",
+    "policy": "Only admin can update transaction tags",
+    "cmd": "UPDATE",
+    "using": "(get_my_role_name() = 'super_admin'::text)",
+    "check": null
+  },
+  {
+    "table": "visitor_vehicles",
+    "policy": "visitor_vehicles_insert_policy",
+    "cmd": "INSERT",
+    "using": null,
+    "check": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))"
+  },
+  {
+    "table": "visitor_vehicles",
+    "policy": "visitor_vehicles_select_policy",
+    "cmd": "SELECT",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text, 'security_officer'::text]))",
+    "check": null
+  },
+  {
+    "table": "visitor_vehicles",
+    "policy": "visitor_vehicles_update_policy",
+    "cmd": "UPDATE",
+    "using": "(get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text]))",
+    "check": null
+  }
+]
