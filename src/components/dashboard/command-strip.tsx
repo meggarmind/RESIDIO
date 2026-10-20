@@ -1,5 +1,6 @@
 'use client';
 
+import { useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, CheckCircle2, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -74,6 +75,13 @@ export const QUICK_ACTIONS: ReadonlyArray<{ label: string; href: string; permiss
   { label: 'Add security contact', href: '/security/contacts/new', permission: PERMISSIONS.SECURITY_REGISTER_CONTACTS },
 ];
 
+const noopSubscribe = () => () => {};
+
+/** False on the server and while hydrating, true after mount: clock and timezone text waits for the browser. */
+function useMounted(): boolean {
+  return useSyncExternalStore(noopSubscribe, () => true, () => false);
+}
+
 function QuickActions() {
   const { hasPermission } = useAuth();
   const actions = QUICK_ACTIONS.filter((a) => hasPermission(a.permission));
@@ -119,10 +127,12 @@ export function CommandStrip({
   isUnavailable = false,
   now = new Date(),
 }: CommandStripProps) {
+  const mounted = useMounted();
   const first = name?.trim().split(/\s+/)[0];
-  const greeting = first ? `${getGreeting(now)}, ${first}` : getGreeting(now);
+  const salutation = mounted ? getGreeting(now) : 'Welcome';
+  const greeting = first ? `${salutation}, ${first}` : salutation;
   const urgent = isLoading || isUnavailable ? null : pickUrgentItem(financialHealth, actionMetrics);
-  const asOfText = isLoading || isUnavailable ? null : formatAsOf(asOf);
+  const asOfText = !mounted || isLoading || isUnavailable ? null : formatAsOf(asOf);
 
   return (
     <section
@@ -131,9 +141,9 @@ export function CommandStrip({
       className="col-span-12 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
     >
       <div className="min-w-0">
-        <h1 className="text-2xl font-semibold tracking-tight" suppressHydrationWarning>{greeting}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{greeting}</h1>
         {asOfText ? (
-          <p data-testid="command-strip-asof" className="text-xs text-muted-foreground" suppressHydrationWarning>
+          <p data-testid="command-strip-asof" className="text-xs text-muted-foreground">
             As of {asOfText}
           </p>
         ) : null}

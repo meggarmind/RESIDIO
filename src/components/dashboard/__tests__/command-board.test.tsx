@@ -4,7 +4,9 @@
 // no fake zeros for null data, permission-gated actions, one landmark structure per lane.
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { renderToString } from 'react-dom/server';
+import { hydrateRoot } from 'react-dom/client';
 import '@testing-library/jest-dom/vitest';
 import type {
   DashboardActionMetrics,
@@ -140,6 +142,24 @@ describe('CommandStrip', () => {
   it('carries the one board timestamp', () => {
     render(<CommandStrip financialHealth={fh()} actionMetrics={am()} asOf="2026-10-18T10:30:00Z" />);
     expect(screen.getByTestId('command-strip-asof')).toHaveTextContent(/^As of Oct 18, /);
+  });
+  it('server-renders no clock text and fills it in after hydration without a mismatch', async () => {
+    const strip = (
+      <CommandStrip name="Ada Obi" financialHealth={fh()} actionMetrics={am()} asOf="2026-10-18T10:30:00Z" now={new Date(2026, 0, 1, 9)} />
+    );
+    const container = document.createElement('div');
+    container.innerHTML = renderToString(strip);
+    document.body.appendChild(container);
+    expect(within(container).getByRole('heading', { level: 1 })).toHaveTextContent('Welcome, Ada');
+    expect(within(container).queryByTestId('command-strip-asof')).toBeNull();
+
+    const onRecoverableError = vi.fn();
+    const root = await act(async () => hydrateRoot(container, strip, { onRecoverableError }));
+    expect(onRecoverableError).not.toHaveBeenCalled();
+    expect(within(container).getByRole('heading', { level: 1 })).toHaveTextContent('Good morning, Ada');
+    expect(within(container).getByTestId('command-strip-asof')).toHaveTextContent(/^As of Oct 18, /);
+    act(() => root.unmount());
+    container.remove();
   });
 });
 
