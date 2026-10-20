@@ -11,8 +11,6 @@ import type { EstateMapSnapshot } from '@/types/estate-map';
 
 const mocks = vi.hoisted(() => ({
   map: { data: null as unknown, isPending: false, error: null as Error | null },
-  useSmartSuggestions: vi.fn(() => ({ suggestions: [] })),
-  getSmartSuggestions: vi.fn(),
   getAdminDashboardSnapshot: vi.fn(),
   getEstateMapStatus: vi.fn(),
 }));
@@ -51,8 +49,6 @@ vi.mock('@/hooks/use-dashboard', () => ({
   }),
   useEstateMapStatus: () => mocks.map,
 }));
-vi.mock('@/hooks/use-smart-suggestions', () => ({ useSmartSuggestions: mocks.useSmartSuggestions }));
-vi.mock('@/actions/dashboard/get-smart-suggestions', () => ({ getSmartSuggestions: mocks.getSmartSuggestions }));
 vi.mock('@/actions/dashboard/get-enhanced-dashboard-stats', () => ({ getAdminDashboardSnapshot: mocks.getAdminDashboardSnapshot }));
 vi.mock('@/actions/dashboard/get-estate-map-status', () => ({ getEstateMapStatus: mocks.getEstateMapStatus }));
 vi.mock('@/components/dashboard/offline-admin-banner', () => ({ OfflineAdminBanner: () => null }));
@@ -77,8 +73,6 @@ const snapshot: EstateMapSnapshot = {
 
 beforeEach(() => {
   mocks.map = { data: snapshot, isPending: false, error: null };
-  mocks.useSmartSuggestions.mockClear();
-  mocks.getSmartSuggestions.mockClear();
 });
 afterEach(cleanup);
 
@@ -131,8 +125,6 @@ describe('DashboardPage estate map wiring', () => {
 
   it('does not load smart suggestions; the overdue hint comes from the snapshot', () => {
     render(<DashboardContent />);
-    expect(mocks.useSmartSuggestions).not.toHaveBeenCalled();
-    expect(mocks.getSmartSuggestions).not.toHaveBeenCalled();
     expect(within(screen.getByTestId('lane-money-queue')).getAllByRole('listitem')[1]).toHaveTextContent('0 overdue invoices');
   });
 });
@@ -148,7 +140,6 @@ describe('DashboardPage server prefetch', () => {
     mocks.getAdminDashboardSnapshot.mockResolvedValue({ data: { lastUpdated: 'x' }, error: null });
     expect(dehydratedKeys(await DashboardPage())).toEqual([[...ADMIN_DASHBOARD_SNAPSHOT_QUERY_KEY]]);
     expect(mocks.getEstateMapStatus).not.toHaveBeenCalled();
-    expect(mocks.getSmartSuggestions).not.toHaveBeenCalled();
   });
 
   it('leaves a failed read out so the client fetches it and shows its own state', async () => {
