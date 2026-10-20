@@ -95,7 +95,7 @@ describe('WhatsApp operations console actions', () => {
 
   it('filters opt-ins and disclosures by admin-visible fields', () => {
     const person = { first_name: 'Ada', last_name: 'Okoro', resident_code: 'RES001' };
-    const optIns = [{ phone_number: '+2348000000000', opted_in: true, source: 'admin', opted_in_at: null, opted_out_at: null, updated_at: '2026-08-24T00:00:00Z', resident: person }];
+    const optIns = [{ resident_id: 'resident-1', phone_number: '+2348000000000', opted_in: true, source: 'admin', opted_in_at: null, opted_out_at: null, updated_at: '2026-08-24T00:00:00Z', resident: person }];
     const disclosures = [{ phone_number: '+2348000000000', menu_item: 'balance', pin_authenticated: true, created_at: '2026-08-24T10:00:00Z', resident: person, house: null }];
     expect(filterOptIns(optIns, 'res001', 'opted_in')).toHaveLength(1);
     expect(filterOptIns(optIns, 'res001', 'opted_out')).toHaveLength(0);

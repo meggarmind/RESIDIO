@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -17,6 +18,8 @@ function query(table: string) {
     eq: (column: string, value: unknown) => (filters.push((row) => row[column] === value), builder),
     in: (column: string, values: unknown[]) => (filters.push((row) => values.includes(row[column])), builder),
     is: (column: string, value: unknown) => (filters.push((row) => (row[column] ?? null) === value), builder),
+    gt: (column: string, value: string) => (filters.push((row) => String(row[column]) > value), builder),
+    filter: (column: string, _op: 'eq', value: unknown) => (filters.push((row) => row[column] === value), builder),
     update: (values: Row) => ((patch = values), builder),
     upsert: async (values: Row) => {
       const existing = (db.tables[table] ||= []).find(
@@ -148,5 +151,31 @@ describe('opt-in rows and deactivation (#849)', () => {
 
     expect(db.tables.whatsapp_optins[0].deactivated_at).toBeNull();
     expect(await repository.getOptIn('res-1', NUMBER)).toBe(true);
+  });
+});
+
+describe('consumeLinkToken purpose (#890)', () => {
+  const later = '2999-01-01T00:00:00.000Z';
+  const token = (purpose: string): Row => ({
+    id: `tok-${purpose}`,
+    resident_id: 'res-1',
+    token_hash: createHash('sha256').update('123456').digest('hex'),
+    purpose,
+    used_at: null,
+    expires_at: later,
+  });
+
+  it('consumes a link code', async () => {
+    db.tables.whatsapp_link_tokens = [token('link')];
+
+    expect(await createSupabaseWhatsAppIdentityRepository().consumeLinkToken('123456')).toBe('res-1');
+    expect(db.tables.whatsapp_link_tokens[0].used_at).not.toBeNull();
+  });
+
+  it('never links a number with a PIN setup code', async () => {
+    db.tables.whatsapp_link_tokens = [token('pin_setup')];
+
+    expect(await createSupabaseWhatsAppIdentityRepository().consumeLinkToken('123456')).toBeNull();
+    expect(db.tables.whatsapp_link_tokens[0].used_at).toBeNull();
   });
 });

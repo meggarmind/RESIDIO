@@ -8,7 +8,7 @@ residio_sources:
   - src/actions/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp/**
   - src/app/api/whatsapp/**
-residio_verified_commit: a2992f08
+residio_verified_commit: 7cc40adf
 residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
@@ -123,7 +123,7 @@ Moving straight from `Disabled` to `Estate` sends the first real message to ever
 A resident only receives WhatsApp messages after an approved consent record exists. Invoice reminders and payment confirmations check this when the message is created, so a resident without consent gets no queued message at all (an invoice reminder run reports it as "recipient has not opted in"). The check is repeated at send time.
 
 - **Import opt-ins** loads approved consent records from CSV in bulk.
-- The operations console lists current opt-ins and any pending contacts awaiting confirmation.
+- The operations console lists current opt-ins and any pending contacts awaiting confirmation. With the WhatsApp manage permission, each opt-in row has **Issue link code**, **Issue setup code** and **Reset PIN** (see [Issuing codes](#issuing-codes)).
 
 Pending contacts are people who have messaged the number but are not yet matched to a resident record. Resolve them by confirming identity against the resident directory — never by guessing from the phone number alone.
 
@@ -145,7 +145,38 @@ A number linked to a resident (by matching their record or with a link code) kee
 
 The policy is **on** by default. Leave it on for estates where phones are commonly shared.
 
-After **5 wrong PINs** in a row, financial answers for that resident are locked for **24 hours**, even if the correct PIN is then entered. The lock lifts on its own, and the resident is told to try again after 24 hours; a correct PIN before the fifth wrong one resets the count.
+After **5 wrong PINs** in a row, financial answers for that resident are locked for **24 hours**, even if the correct PIN is then entered. The lock lifts on its own, or earlier with **Reset PIN**, and the resident is told to try again after 24 hours; a correct PIN before the fifth wrong one resets the count.
+
+### Setting a PIN
+
+A resident sets their first PIN with a 6-digit **setup code** from the estate office. Setup codes are issued from the opt-in registry with **Issue setup code**, usually in a batch as each street joins the pilot. Turn the PIN policy on for a street only after its codes are out.
+
+:::note[Rolling out]
+The dashboard issues setup codes now. Until the WhatsApp Assistant is updated to ask for them, a resident without a PIN can still set one by replying `PIN` followed by 4–6 digits. This includes a resident whose PIN you just reset, so reset a PIN only when the resident is ready to set the new one straight away.
+:::
+
+### Issuing codes
+
+Each opt-in row has two code actions. Both need the WhatsApp manage permission and ask you to confirm the resident's identity first.
+
+| Action | What the code does | Valid for |
+|---|---|---|
+| **Issue link code** | The resident replies `LINK` followed by the code from a number, and that number is linked to them with financial answers | 15 minutes |
+| **Issue setup code** | Lets the resident set their first WhatsApp PIN. Issuing a new one cancels any earlier unused setup code | 10 minutes |
+
+The code is shown **once**, with its expiry, in a dialog with a **Copy** button. Residio stores only a one-way hash of it, so closing the dialog loses it for good: issue a new one if needed. Each code works once. A setup code cannot be used with `LINK`. Issuing a code is written to the audit log without the code.
+
+**Confirm identity before issuing any code.** Do it in person, or by calling the resident from the estate phone and checking two facts from their record (house number, resident code, last payment amount). A call-back to the WhatsApp number alone does not count.
+
+### Reset PIN
+
+**Reset PIN** on the opt-in row replaces a forgotten PIN or unlocks a resident early. Use it only after confirming identity as above, because whoever receives the new setup code can set the PIN. It asks for confirmation, then:
+
+1. clears the PIN, the wrong-PIN count and any lock;
+2. signs the resident's open WhatsApp chats out of the PIN, so the next financial question asks for a PIN again;
+3. issues a setup code, valid for 10 minutes and shown once.
+
+The reset is written to the audit log. The PIN and the code are never recorded.
 
 ## Rate caps
 
@@ -185,7 +216,9 @@ The cleanup runs automatically shortly after midnight, documented on the Schedul
 | One resident receives nothing | No approved opt-in record for that resident |
 | Sends stop partway through a day | A daily or burst cap has been reached |
 | Financial questions go unanswered | The resident has no PIN set while the PIN policy is on, or the number is linked but is neither on the resident's record nor linked with a link code |
-| Resident is told financial answers are locked | Five wrong PINs were entered; the lock lifts 24 hours after the fifth |
+| Resident is told financial answers are locked | Five wrong PINs were entered; the lock lifts 24 hours after the fifth, or earlier with **Reset PIN** |
+| Resident forgot their PIN | Confirm identity, then use **Reset PIN** and give them the setup code |
+| A link or setup code is not accepted | It expired, was already used, or a newer setup code replaced it. Issue a new one |
 | Test connection fails | The provider rejected the saved credentials — recheck the access token or auth token against the provider's console. For Chatmaid, the from-number may not be a paired phone, or the paired phone is not connected to the bridge |
 | Chatmaid sends fail with "bridge is disconnected", or you received a WhatsApp disconnected alert | The paired phone has lost its connection — re-pair it in the Chatmaid dashboard |
 | Assistant stops replying in one conversation (Chatmaid) | A team member replied from the phone within the last 30 minutes; the Assistant resumes afterwards |
