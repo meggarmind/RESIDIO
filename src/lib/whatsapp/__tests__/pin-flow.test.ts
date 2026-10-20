@@ -84,7 +84,6 @@ function statefulRepository(initialPinHash: string | null = null, allowance: Loo
     getOwed: vi.fn().mockResolvedValue({ invoiceCount: 1, outstanding: 10000, overdue: null, next: null, awaitingVerification: 0 }),
     getRecentPayments: vi.fn().mockResolvedValue([]),
     getWalletBalance: vi.fn().mockResolvedValue(0),
-    getStatementRows: vi.fn().mockResolvedValue({ invoices: [], payments: [] }),
     setAlertsOn: vi.fn().mockResolvedValue(undefined),
     getRemindersOn: vi.fn().mockResolvedValue(true),
     setRemindersOn: vi.fn().mockResolvedValue(undefined),

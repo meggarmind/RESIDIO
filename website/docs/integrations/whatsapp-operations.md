@@ -8,7 +8,7 @@ residio_sources:
   - src/actions/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp/**
   - src/app/api/whatsapp/**
-residio_verified_commit: abb408bf
+residio_verified_commit: bfa0c24b
 residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
@@ -234,10 +234,10 @@ The main menu opens with `Hi <first name>, what would you like to do?` and lists
 
 **Financial standing** lists What I owe, Recent payments (the last 5), Statement (this month, this year, last 6 months, last 12 months or all time), Wallet, Receipt, Report a payment and Clearance certificate. Only this item, and Update email, ask for the PIN. A resident billed for more than one property is asked which one once per session, sees it in every heading, and can change it under **8. More**.
 
-A statement reply is a text summary ending `Reply PDF to download the full statement.` On `PDF`:
+Every statement is a PDF, never chat text. Choosing a period sends one of these, and the reply names only the period, the property and where the PDF is going; it carries no statement rows. A statement that cannot be made gets the failure reply and the estate office line, not a text fallback.
 
 - **Up to 40 rows:** the account statement PDF is attached in chat. It is stored privately, Chatmaid is given a link that works for 1 hour, and the file is deleted 12 hours later. If Chatmaid reports the send failed, it is sent once more with a fresh link.
-- **Over 40 rows:** the resident is offered email to their address on file, shown masked (`a***@gmail.com`). On `1` the email is queued and arrives with the PDF attached within 15 minutes, through the notification queue, so the communications override applies to it.
+- **Over 40 rows:** the resident is offered email to their address on file, shown masked (`a***@gmail.com`). On `1` the email is queued and arrives with the PDF attached within 15 minutes, through the notification queue, so the communications override applies to it. The request moves from queued to sent once the email has gone.
 - **No email on file:** the resident is told so, and the request appears under **Statement requested, no email** in the operations console until an email is added and the statement is sent.
 
 ### Account actions

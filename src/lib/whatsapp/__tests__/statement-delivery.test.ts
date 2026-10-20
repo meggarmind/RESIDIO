@@ -5,6 +5,7 @@ import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { loadAccountStatement } from '@/lib/billing/account-statement-data';
 import {
   buildStatementEmail,
+  markStatementEmailSent,
   purgeExpiredStatementFiles,
   queueStatementEmail,
   releaseStatementsAwaitingEmail,
@@ -179,6 +180,20 @@ describe('WhatsApp statement by email (#804 decision 24)', () => {
     mockDb({});
     vi.mocked(addToQueue).mockResolvedValue({ success: false, error: 'queue full' });
     await expect(queueStatementEmail('request-1', 'resident-1', 'ada@gmail.com')).rejects.toThrow('queue full');
+  });
+
+  it('moves a queued request to sent once its email has left, and never revives a cancelled one (#917)', async () => {
+    const { calls } = mockDb({ whatsapp_statement_requests: [{ error: null }] });
+
+    await markStatementEmailSent('request-1');
+
+    expect(calls.find((call) => call.op === 'update')!.args[0]).toMatchObject({ status: 'sent' });
+    expect(calls.filter((call) => call.op === 'eq').map((call) => call.args)).toEqual([['id', 'request-1'], ['status', 'queued']]);
+  });
+
+  it('throws when the status update fails', async () => {
+    mockDb({ whatsapp_statement_requests: [{ error: { message: 'denied' } }] });
+    await expect(markStatementEmailSent('request-1')).rejects.toMatchObject({ message: 'denied' });
   });
 
   it('queues every statement waiting for an email once the address exists', async () => {

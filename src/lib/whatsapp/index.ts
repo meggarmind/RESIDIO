@@ -32,7 +32,6 @@ export {
 } from '@/lib/whatsapp/outbound';
 export {
   createSupabaseWhatsAppFinancialRepository,
-  composeStatementAnswer,
   canPerformWhatsAppFinancialLookup,
   handleFinancialMessage,
   type FinancialAnswer,
@@ -41,7 +40,6 @@ export {
   type WhatsAppFinancialHandlerOptions,
   type WhatsAppFinancialRepository,
   type WhatsAppFinancialSession,
-  type StatementCompositionInput,
 } from '@/lib/whatsapp/financial';
 export {
   createSupabaseWhatsAppIdentityRepository,

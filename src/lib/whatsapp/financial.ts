@@ -98,7 +98,6 @@ export const DEFAULT_ESTATE_DAILY_LOOKUP_CAP = 500;
 const RECENT_PAYMENT_COUNT = 5;
 const RECEIPT_COUNT = 5;
 const NOTICE_COUNT = 3;
-const STATEMENT_ROW_CAP = 12;
 
 const UNRECOGNISED = "I didn't catch that. Reply with a number from the menu, or MENU to see it again.";
 const LOOKUP_FAILED = "I can't load your records right now, so nothing was shown or changed. Please try again in a few minutes.";
@@ -181,19 +180,6 @@ export interface PaymentRow {
   is_verified: boolean | null;
 }
 
-export interface StatementRows {
-  invoices: Array<{ invoice_number: string; amount_due: number | null; created_at: string }>;
-  payments: Array<{ amount: number | null; payment_date: string; reference_number: string | null }>;
-}
-
-export interface StatementCompositionInput extends StatementRows {
-  period: StatementPeriod;
-  houseId: string;
-  houseLabel: string;
-  now: Date;
-  hasContact: boolean;
-}
-
 export interface WhatsAppFinancialRepository {
   /** The stored session for this number, expired or not, so the handler can announce an expiry. */
   getSession(phoneNumber: string): Promise<WhatsAppFinancialSession | null>;
@@ -216,7 +202,6 @@ export interface WhatsAppFinancialRepository {
   getOwed(residentId: string, houseId: string): Promise<OwedFigures>;
   getRecentPayments(residentId: string, houseId: string, limit: number): Promise<PaymentRow[]>;
   getWalletBalance(residentId: string): Promise<number>;
-  getStatementRows(residentId: string, houseId: string, from: string | null, to: string): Promise<StatementRows>;
   setAlertsOn(residentId: string, phoneNumber: string, on: boolean): Promise<void>;
   /** WhatsApp payment and invoice reminders (#816 decisions 2-4). */
   getRemindersOn(residentId: string): Promise<boolean>;
@@ -352,40 +337,6 @@ export function composeWalletAnswer(balance: number, hasContact: boolean): strin
 }
 
 
-
-export function composeStatementAnswer(input: StatementCompositionInput): FinancialAnswer {
-  const { from, to } = statementRange(input.period, input.now);
-  const charges = input.invoices.reduce((sum, invoice) => sum + Number(invoice.amount_due || 0), 0);
-  const payments = input.payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-  const rows = [
-    ...input.invoices.map((invoice) => ({
-      date: invoice.created_at,
-      text: `${formatDay(invoice.created_at)}  Invoice ${invoice.invoice_number}  +${formatNaira(Number(invoice.amount_due || 0))}`,
-    })),
-    ...input.payments.map((payment) => {
-      const reference = maskReference(payment.reference_number);
-      return {
-        date: payment.payment_date,
-        text: `${formatDay(payment.payment_date)}  Payment${reference ? ` ${reference}` : ''}  −${formatNaira(Number(payment.amount || 0))}`,
-      };
-    }),
-  ].sort((left, right) => right.date.localeCompare(left.date));
-  const omitted = Math.max(0, rows.length - STATEMENT_ROW_CAP);
-
-  return {
-    body: [
-      `*Statement, ${PERIOD_LABELS[input.period]}, ${input.houseLabel}*`,
-      from ? `${formatDay(from)} to ${formatDay(to)}` : `Up to ${formatDay(to)}`,
-      `Charges: ${formatNaira(charges)}`,
-      `Payments: ${formatNaira(payments)}`,
-      ...(rows.length ? rows.slice(0, STATEMENT_ROW_CAP).map((row) => row.text) : [`No activity for ${input.houseLabel} in this period.`]),
-      ...(omitted ? [`+ ${omitted} earlier entries`] : []),
-      'Reply PDF to download the full statement.',
-      answerFooter(input.hasContact),
-    ].join('\n'),
-    metadata: { period: input.period, house_id: input.houseId, row_count: rows.length, omitted },
-  };
-}
 
 interface PinTryRow {
   status: 'counted' | 'locked' | 'hard_locked';
@@ -709,38 +660,6 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
       return Number(data?.balance || 0);
     },
 
-    async getStatementRows(residentId, houseId, from, to) {
-      const supabase = createAdminClient();
-      let invoiceQuery = supabase
-        .from('invoices')
-        .select('invoice_number, amount_due, created_at')
-        .eq('resident_id', residentId)
-        .eq('house_id', houseId)
-        .neq('status', 'void')
-        .lte('created_at', to)
-        .order('created_at', { ascending: true });
-      let paymentQuery = supabase
-        .from('payment_records')
-        .select('amount, payment_date, reference_number')
-        .eq('resident_id', residentId)
-        .eq('house_id', houseId)
-        .eq('status', 'paid')
-        .lte('payment_date', to)
-        .order('payment_date', { ascending: true });
-      if (from) {
-        invoiceQuery = invoiceQuery.gte('created_at', from);
-        paymentQuery = paymentQuery.gte('payment_date', from);
-      }
-
-      const [{ data: invoices, error: invoiceError }, { data: payments, error: paymentError }] = await Promise.all([
-        invoiceQuery,
-        paymentQuery,
-      ]);
-      if (invoiceError) throw invoiceError;
-      if (paymentError) throw paymentError;
-      return { invoices: invoices || [], payments: payments || [] };
-    },
-
     async setAlertsOn(residentId, phoneNumber, on) {
       const now = new Date().toISOString();
       // Same effect as STOP / START (#804 harmonised: Alert settings item 1).
@@ -1036,7 +955,7 @@ async function enterFinancial(turn: Turn, target: Target, prefix?: string): Prom
   if (target === 'report') return startReport(turn, lead);
   if (target === 'receipt') return showReceipts(turn, lead);
   if (target === 'clearance') return askForClearance(turn, lead);
-  await answerItem(turn, target, 'this_month', prefix);
+  await answerItem(turn, target, prefix);
 }
 
 async function capReply(turn: Turn): Promise<string | null> {
@@ -1047,7 +966,7 @@ async function capReply(turn: Turn): Promise<string | null> {
   return null;
 }
 
-async function answerItem(turn: Turn, item: FinancialMenuItem, period: StatementPeriod = 'this_month', prefix?: string): Promise<void> {
+async function answerItem(turn: Turn, item: Exclude<FinancialMenuItem, 'statement'>, prefix?: string): Promise<void> {
   const house = selectedHouse(turn);
   if (!house) return;
   const lead = prefix ? `${prefix}\n\n` : '';
@@ -1060,20 +979,12 @@ async function answerItem(turn: Turn, item: FinancialMenuItem, period: Statement
   const repository = turn.options.repository;
   const hasContact = !!turn.contact;
   let body: string;
-  let metadata: Record<string, unknown> | undefined;
   if (item === 'what_i_owe') {
     body = composeOweAnswer(await repository.getOwed(turn.identity.id, house.id), house.label, !!turn.settings?.paymentInstructions, hasContact);
   } else if (item === 'recent_payments') {
     body = composeRecentPaymentsAnswer(await repository.getRecentPayments(turn.identity.id, house.id, RECENT_PAYMENT_COUNT), house.label, hasContact);
-  } else if (item === 'wallet') {
-    body = composeWalletAnswer(await repository.getWalletBalance(turn.identity.id), hasContact);
   } else {
-    const now = new Date();
-    const { from, to } = statementRange(period, now);
-    const rows = await repository.getStatementRows(turn.identity.id, house.id, from?.toISOString() ?? null, to.toISOString());
-    const answer = composeStatementAnswer({ ...rows, period, houseId: house.id, houseLabel: house.label, now, hasContact });
-    body = answer.body;
-    metadata = answer.metadata;
+    body = composeWalletAnswer(await repository.getWalletBalance(turn.identity.id), hasContact);
   }
 
   // Log before sending (#795): a failed log then discloses nothing, and a provider retry cannot repeat an answer.
@@ -1083,16 +994,23 @@ async function answerItem(turn: Turn, item: FinancialMenuItem, period: Statement
     houseId: house.id,
     menuItem: item,
     pinAuthenticated: turn.session.pinAuthenticated,
-    metadata,
   });
-  await respond(turn, `${lead}${body}`, item === 'statement' ? `statement:${period}` : 'answer');
+  await respond(turn, `${lead}${body}`, 'answer');
 }
 
 function requestInput(turn: Turn, house: FinancialHouse, period: StatementPeriod, fromDate: string, toDate: string, rowCount: number): StatementRequestInput {
   return { residentId: turn.identity.id, phoneNumber: turn.phoneNumber, houseId: house.id, period, fromDate, toDate, rowCount, inboundMessageId: turn.message.id };
 }
 
-/** `PDF` after a statement (#804 decision 24 as amended by #863): chat up to 40 rows, email beyond. */
+/** The period and property line that opens every statement reply; carries no statement rows (#917). */
+function statementHeading(period: StatementPeriod, house: FinancialHouse, fromDate: string, toDate: string): string {
+  return `*Statement, ${PERIOD_LABELS[period]}, ${house.label}*\n${formatDay(fromDate)} to ${formatDay(toDate)}`;
+}
+
+/**
+ * Every statement is a PDF, never chat text (#917, amending #804 decisions 22-24 and #863): in
+ * chat up to 40 rows, by email beyond. The reply only says where the PDF is going.
+ */
 async function deliverStatementPdf(turn: Turn, period: StatementPeriod): Promise<void> {
   const house = selectedHouse(turn);
   // The node outlives a LOCK only in theory; check the gate again before any document leaves.
@@ -1106,13 +1024,7 @@ async function deliverStatementPdf(turn: Turn, period: StatementPeriod): Promise
   const input = requestInput(turn, house, period, fromDate, toDate, rowCount);
 
   if (rowCount <= STATEMENT_CHAT_ROW_LIMIT) {
-    const body = [
-      `*Statement, ${PERIOD_LABELS[period]}, ${house.label}*`,
-      `Opening balance: ${formatNaira(statement.openingBalance)}`,
-      `Closing balance: ${formatNaira(statement.closingBalance)}`,
-      'Your PDF is attached.',
-      footer(turn),
-    ].join('\n');
+    const body = [statementHeading(period, house, fromDate, toDate), 'Your PDF is attached.', footer(turn)].join('\n');
     // Log before the file exists (#795): a failed log then discloses nothing.
     await repository.logDisclosure({
       residentId: turn.identity.id,
@@ -1132,7 +1044,7 @@ async function deliverStatementPdf(turn: Turn, period: StatementPeriod): Promise
     await repository.createStatementRequest({ ...input, status: 'awaiting_email' });
     return respond(turn, `${withContact(turn, "We don't have an email for you. Reply EMAIL to add one now.")}\n${footer(turn)}`, 'answer');
   }
-  return respond(turn, `This statement is too long for chat. Send it to ${maskEmail(email)}? Reply 1 Yes, 2 No.`, `statement_email:${period}`);
+  return respond(turn, `${statementHeading(period, house, fromDate, toDate)}\nThis statement is too long for chat. Send the PDF to ${maskEmail(email)}? Reply 1 Yes, 2 No.`, `statement_email:${period}`);
 }
 
 async function confirmStatementEmail(turn: Turn, period: StatementPeriod): Promise<void> {
@@ -1157,7 +1069,7 @@ async function confirmStatementEmail(turn: Turn, period: StatementPeriod): Promi
   });
   const requestId = await repository.createStatementRequest({ ...requestInput(turn, house, period, fromDate, toDate, statement.transactions.length), status: 'queued' });
   await repository.queueStatementEmail(requestId, turn.identity.id, email);
-  return respond(turn, `Queued. It will arrive within 15 minutes.\n${footer(turn)}`, 'answer');
+  return respond(turn, `${statementHeading(period, house, fromDate, toDate)}\nYour PDF is queued for ${maskEmail(email)}. It will arrive within 15 minutes.\n${footer(turn)}`, 'answer');
 }
 
 async function showNotices(turn: Turn): Promise<void> {
@@ -1655,7 +1567,7 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
   }
   if (CONTACT_WORDS.has(input)) return showContact(turn);
   if (input === '0') {
-    const backToFinancial = node === 'answer' || node === 'more' || node === 'statement_period' || node.startsWith('report_') || node.startsWith('receipt_') || node.startsWith('property:') || node.startsWith('statement:') || node.startsWith('statement_email:');
+    const backToFinancial = node === 'answer' || node === 'more' || node === 'statement_period' || node.startsWith('report_') || node.startsWith('receipt_') || node.startsWith('property:') || node.startsWith('statement_email:');
     return backToFinancial && turn.identity.financialEligible ? enterFinancial(turn, 'menu') : showMain(turn);
   }
 
@@ -1673,13 +1585,9 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
 
   if (node.startsWith('property:')) return chooseProperty(turn, node.slice('property:'.length) as Target);
 
-  const statementNode = node.match(/^statement(_email)?:(.+)$/);
-  const statementPeriod = statementNode && PERIODS.includes(statementNode[2] as StatementPeriod) ? (statementNode[2] as StatementPeriod) : null;
-  if (statementPeriod && !statementNode?.[1] && input === 'pdf') {
-    await loadHouses(turn);
-    return deliverStatementPdf(turn, statementPeriod);
-  }
-  if (statementPeriod && statementNode?.[1]) {
+  const statementNode = node.match(/^statement_email:(.+)$/);
+  const statementPeriod = statementNode && PERIODS.includes(statementNode[1] as StatementPeriod) ? (statementNode[1] as StatementPeriod) : null;
+  if (statementPeriod) {
     await loadHouses(turn);
     if (input === '1') return confirmStatementEmail(turn, statementPeriod);
     if (input === '2') return respond(turn, `Nothing was sent.\n${footer(turn)}`, 'answer');
@@ -1691,7 +1599,7 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
     if (!period) return miss(turn, node);
     await loadHouses(turn);
     if (!selectedHouse(turn)) return enterFinancial(turn, 'statement');
-    return answerItem(turn, 'statement', period);
+    return deliverStatementPdf(turn, period);
   }
 
   if (node === 'disambiguate') {
