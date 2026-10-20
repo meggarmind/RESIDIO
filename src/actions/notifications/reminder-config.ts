@@ -18,8 +18,8 @@ import { logAudit } from '@/lib/audit/logger';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 
-// Use SETTINGS_MANAGE_GENERAL for notification reminder settings
-const REMINDER_PERMISSION = PERMISSIONS.SETTINGS_MANAGE_GENERAL;
+// The reminder pages sit under /settings/notifications, gated by notifications.manage (#840)
+const REMINDER_PERMISSION = PERMISSIONS.NOTIFICATIONS_MANAGE;
 import type {
   ReminderScheduleConfig,
   ReminderScheduleStep,

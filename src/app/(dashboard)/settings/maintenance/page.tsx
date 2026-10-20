@@ -40,10 +40,9 @@ function settingsToObject(settings: { key: string; value: unknown }[] | undefine
 export default function MaintenancePage() {
   const queryClient = useQueryClient();
   const { hasPermission } = useAuth();
-  // The switch enforces system.manage_maintenance; the saved fields go through
-  // updateSettings, which enforces settings.manage_general.
+  // The switch and the saved fields (updateSettings) both enforce system.manage_maintenance.
   const canToggle = hasPermission(PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE);
-  const canEdit = hasPermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
+  const canEdit = canToggle;
   const { data: systemSettings, isLoading } = useSystemSettings();
   const updateSettings = useUpdateSettings();
 

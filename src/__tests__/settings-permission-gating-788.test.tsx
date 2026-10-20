@@ -16,6 +16,7 @@ vi.mock('@/lib/auth/auth-provider', () => ({
   useAuth: () => ({
     isLoading: false,
     hasPermission: (p: string) => mocks.permissions.includes(p),
+    hasAnyPermission: (ps: string[]) => ps.some((p) => mocks.permissions.includes(p)),
   }),
 }));
 vi.mock('next/navigation', () => ({
@@ -140,7 +141,7 @@ const CASES: Case[] = [
   {
     name: 'bank accounts list',
     ui: () => <BankAccountsList />,
-    permission: PERMISSIONS.IMPORTS_CREATE,
+    permission: PERMISSIONS.SETTINGS_MANAGE_REFERENCE,
     buttons: [/^Add Account$/, /Edit Estate Main/, /Delete Estate Main/],
   },
   {
@@ -165,14 +166,21 @@ const CASES: Case[] = [
   {
     name: 'billing settings',
     ui: () => <BillingSettingsPage />,
-    permission: PERMISSIONS.SETTINGS_MANAGE_GENERAL,
+    permission: PERMISSIONS.SETTINGS_MANAGE_BILLING,
     buttons: [],
     fields: [['switch', /Bill Vacant Houses/], ['checkbox', /7 days before/]],
   },
   {
+    name: 'billing settings: profiles permission (#840)',
+    ui: () => <BillingSettingsPage />,
+    permission: PERMISSIONS.BILLING_MANAGE_PROFILES,
+    buttons: [],
+    fields: [['switch', /Bill Vacant Houses/]],
+  },
+  {
     name: 'late fees: settings',
     ui: () => <LateFeesPage />,
-    permission: PERMISSIONS.SETTINGS_MANAGE_GENERAL,
+    permission: PERMISSIONS.SETTINGS_MANAGE_BILLING,
     buttons: [],
     fields: [['switch', /Enable Late Fees/]],
   },
@@ -203,7 +211,7 @@ const CASES: Case[] = [
   {
     name: 'data retention: retention days',
     ui: () => <DataRetentionPage />,
-    permission: PERMISSIONS.SETTINGS_MANAGE_GENERAL,
+    permission: PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION,
     buttons: [/^Save$/],
   },
 ];

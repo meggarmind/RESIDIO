@@ -83,6 +83,7 @@ vi.mock('@supabase/ssr', () => ({
 
 vi.mock('@/lib/auth/authorize', () => ({
     authorizePermission: async () => ({ authorized: true, roleName: 'super_admin' }),
+    authorizeAnyPermission: async () => ({ authorized: true, roleName: 'super_admin' }),
 }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit: async () => {} }));
 vi.mock('next/cache', () => ({ revalidatePath: () => {} }));

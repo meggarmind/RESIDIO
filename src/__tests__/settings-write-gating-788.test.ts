@@ -29,7 +29,7 @@ const ALLOWLIST: Record<string, string> = {};
 
 const WRITES =
   /\.mutate(Async)?\(|useMutation\(|\bawait (create|update|delete|set|save|remove|reset|toggle|add|import|promote|disconnect|prune|upload|send|test|approve|reject)[A-Z]\w*\(/;
-const GATE = /\bhasPermission\(|\buseCan\(|<Can\b/;
+const GATE = /\bhas(Any)?Permission\(|\buseCan\(|<Can\b/;
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
