@@ -52,6 +52,40 @@
 --          has_function_privilege('authenticated', 'public.claim_whatsapp_pin_attempt(uuid, integer, integer)', 'EXECUTE') AS authenticated,
 --          has_function_privilege('service_role', 'public.claim_whatsapp_pin_attempt(uuid, integer, integer)', 'EXECUTE') AS service_role;
 --     -- expect false, false, true
+--
+--   Lockout probe (lock, expiry and count restart; changes nothing, ends in ROLLBACK):
+--   BEGIN;
+--   DO $probe$
+--   DECLARE
+--     v_id uuid;
+--     v_n integer;
+--     v_until timestamptz;
+--   BEGIN
+--     SELECT id INTO v_id FROM public.residents LIMIT 1;
+--     UPDATE public.residents SET whatsapp_pin_failed_attempts = 0, whatsapp_pin_locked_until = NULL
+--      WHERE id = v_id;
+--     FOR i IN 1..5 LOOP
+--       v_n := public.claim_whatsapp_pin_attempt(v_id);
+--       IF v_n IS DISTINCT FROM i THEN RAISE EXCEPTION 'attempt %: got %', i, v_n; END IF;
+--     END LOOP;
+--     SELECT whatsapp_pin_locked_until INTO v_until FROM public.residents WHERE id = v_id;
+--     IF v_until IS NULL OR v_until <= now() + interval '1439 minutes' THEN
+--       RAISE EXCEPTION 'not locked for 24 hours after 5 attempts: %', v_until;
+--     END IF;
+--     v_n := public.claim_whatsapp_pin_attempt(v_id);
+--     IF v_n IS NOT NULL THEN RAISE EXCEPTION 'claim while locked returned %', v_n; END IF;
+--     UPDATE public.residents SET whatsapp_pin_locked_until = now() - interval '1 minute'
+--      WHERE id = v_id;
+--     v_n := public.claim_whatsapp_pin_attempt(v_id);
+--     SELECT whatsapp_pin_locked_until INTO v_until FROM public.residents WHERE id = v_id;
+--     IF v_n IS DISTINCT FROM 1 OR v_until IS NOT NULL THEN
+--       RAISE EXCEPTION 'after expiry: count %, locked_until %', v_n, v_until;
+--     END IF;
+--     RAISE NOTICE 'lockout probe passed';
+--   END
+--   $probe$;
+--   ROLLBACK;
+--     -- expect NOTICE 'lockout probe passed' and no exception
 
 BEGIN;
 

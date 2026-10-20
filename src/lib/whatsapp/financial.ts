@@ -11,7 +11,7 @@ import type { WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
 const SESSION_MINUTES = 15;
 const MAX_PIN_ATTEMPTS = 5;
 const PIN_LOCK_MINUTES = 24 * 60;
-const PIN_LOCKED_REPLY = 'Too many wrong PINs. Financial answers are locked for 24 hours. Contact an estate admin if you need help sooner.';
+const PIN_LOCKED_REPLY = 'Too many wrong PINs. Financial answers are locked for 24 hours. Try again after that.';
 const SET_PIN_HINT = 'reply PIN followed by 4–6 digits of your choice';
 
 export type FinancialMenuItem = 'balance' | 'last_payment' | 'next_due' | 'wallet' | 'statement';
