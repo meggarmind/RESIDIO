@@ -101,7 +101,7 @@ export default function EmailSettingsPage() {
               <div className="rounded-lg bg-warning/10 p-2"><Bell className="h-4 w-4 text-warning" /></div>
               <div>
                 <Label htmlFor="email_payment_reminders_enabled">Payment Reminders</Label>
-                <p className="text-xs text-muted-foreground">Allows Send Payment Reminders Now on the Email Debug page. Does not affect the automatic daily reminders.</p>
+                <p className="text-xs text-muted-foreground">Sends payment reminder emails, both automatic daily reminders and Send Payment Reminders Now on the Email Debug page. Off stops reminder emails only; WhatsApp reminders still send.</p>
               </div>
             </div>
             <Switch id="email_payment_reminders_enabled" checked={settingsMap.email_payment_reminders_enabled !== false} onCheckedChange={() => handleToggle('email_payment_reminders_enabled', settingsMap.email_payment_reminders_enabled !== false)} disabled={!canEdit || updateSetting.isPending} />
@@ -136,11 +136,12 @@ export default function EmailSettingsPage() {
         <AlertDescription>
           Three controls affect payment reminders. <strong>Enable Reminders</strong> on the{' '}
           <a href="/settings/notifications/reminders" className="text-primary underline">Reminders</a> page turns the automatic
-          daily reminders on or off; the scheduled job on the Coolify server runs them once a day by email only, with the steps set in{' '}
+          daily reminders on or off; the scheduled job on the Coolify server runs them once a day, with the steps set in{' '}
           <a href="/settings/notifications/reminders/schedule" className="text-primary underline">Reminder Schedule</a>.{' '}
-          <strong>Payment Reminders</strong> above only allows the manual run. <strong>Send Payment Reminders Now</strong> on{' '}
-          <a href="/settings/email/debug" className="text-primary underline">Email Debug</a> sends one email-only run, using the days set in{' '}
-          <a href="/settings/billing" className="text-primary underline">Billing Settings</a>.
+          <strong>Payment Reminders</strong> above turns reminder emails on or off for both the daily job and the manual run, and the days set in{' '}
+          <a href="/settings/billing" className="text-primary underline">Billing Settings</a> limit when either sends before the due date.{' '}
+          <strong>Send Payment Reminders Now</strong> on{' '}
+          <a href="/settings/email/debug" className="text-primary underline">Email Debug</a> sends one email-only run on those days.
         </AlertDescription>
       </Alert>
     </div>
