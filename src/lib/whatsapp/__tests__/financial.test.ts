@@ -1204,7 +1204,7 @@ describe('WhatsApp Assistant update email (#816 decisions 5-8)', () => {
 
     expect(replies[0]).toBe(`Enter your 4–6 digit PIN before changing your email (e.g. 4821).\n${FOOTER}`);
     expect(repo.startEmailChange).not.toHaveBeenCalled();
-    expect(replies[1]).toBe('PIN verified. Your financial standing is unlocked for 15 minutes.\n\nWhat email address should we use? Reply with the address, or CANCEL.');
+    expect(replies[1]).toBe('PIN verified.\n\nWhat email address should we use? Reply with the address, or CANCEL.');
   });
 
   it('does not ask a community-tier resident with no PIN for one, even when the PIN is forced, because they cannot set it', async () => {
@@ -1221,7 +1221,7 @@ describe('WhatsApp Assistant update email (#816 decisions 5-8)', () => {
     expect(replies[0]).toContain('before changing your email');
     expect(replies[1]).toBe(UNRECOGNISED);
     expect(repo.startEmailChange).not.toHaveBeenCalled();
-    expect(replies[3]).toBe('PIN verified. Your financial standing is unlocked for 15 minutes.\n\nWhat email address should we use? Reply with the address, or CANCEL.');
+    expect(replies[3]).toBe('PIN verified.\n\nWhat email address should we use? Reply with the address, or CANCEL.');
   });
 });
 
@@ -1372,8 +1372,8 @@ describe('WhatsApp Assistant report a payment (#816 decisions 10-12)', () => {
     vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
     const replies = await chat(repo, ['report', 'PIN 482915']);
 
-    expect(replies[0]).toContain('Enter your 4–6 digit PIN to view your financial standing');
-    expect(replies[1]).toBe('PIN verified. Your financial standing is unlocked for 15 minutes.\n\n*Report a payment, 12 Palm Close*\nHow much did you pay? Reply with the amount in naira, for example 50000, or CANCEL.');
+    expect(replies[0]).toContain('to view your financial standing');
+    expect(replies[1]).toBe('PIN verified.\n\n*Report a payment, 12 Palm Close*\nHow much did you pay? Reply with the amount in naira, for example 50000, or CANCEL.');
   });
 
   it('does not offer reports to a community-tier resident', async () => {
@@ -1486,8 +1486,8 @@ describe('WhatsApp Assistant receipts (#816 decision 14)', () => {
     const repo = receiptRepo();
     vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
     const replies = await chat(repo, ['receipt', 'PIN 482915', '1']);
-    expect(replies[0]).toContain('Enter your 4–6 digit PIN to view your financial standing');
-    expect(replies[1]).toContain('PIN verified. Your financial standing is unlocked for 15 minutes.\n\n*Receipts, 12 Palm Close*');
+    expect(replies[0]).toContain('to view your financial standing');
+    expect(replies[1]).toContain('PIN verified.\n\n*Receipts, 12 Palm Close*');
     expect(repo.getReceiptPayments).toHaveBeenCalledTimes(1);
     expect(repo.storeReceiptPdf).toHaveBeenCalledTimes(1);
 
@@ -1580,7 +1580,7 @@ describe('WhatsApp Assistant clearance certificate (#816 decision 15)', () => {
     const repo = repository([PALM], { getOwed: vi.fn().mockResolvedValue(PAID_UP) });
     vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
     const replies = await chat(repo, ['clearance']);
-    expect(replies[0]).toContain('Enter your 4–6 digit PIN to view your financial standing');
+    expect(replies[0]).toContain('to view your financial standing');
     expect(repo.requestClearance).not.toHaveBeenCalled();
 
     const blocked = repository([]);

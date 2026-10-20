@@ -1,4 +1,5 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/server';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
@@ -8,7 +9,6 @@ import { isWhatsAppRecipientAllowed } from '@/lib/whatsapp/rollout';
 import type { WhatsAppInboundMessage, WhatsAppTextMessage } from '@/lib/whatsapp/types';
 import { hashWhatsAppLinkCode, type WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
 import { sendWhatsAppPinAlert } from '@/lib/whatsapp/pin-alert';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AccountStatementData } from '@/lib/billing/account-statement-data';
 import {
   STATEMENT_CHAT_ROW_LIMIT,
@@ -1524,8 +1524,9 @@ async function handlePin(turn: Turn, pin: string, node: string): Promise<void> {
   turn.pinHash = pinHash;
   turn.pinGate = true;
   const target = node.startsWith('pin:') ? node.slice(4) : 'menu';
-  if (target === 'email') return startEmail(turn, PIN_VERIFIED_REPLY);
-  await enterFinancial(turn, target as Target, PIN_VERIFIED_REPLY);
+  if (target === 'email') return startEmail(turn, 'PIN verified.');
+  const account = target === 'report' || target === 'receipt' || target === 'clearance';
+  await enterFinancial(turn, target as Target, account ? 'PIN verified.' : PIN_VERIFIED_REPLY);
 }
 /** `PIN`, `Set a security PIN` or `Change PIN` (#892). */
 async function handlePinCommand(turn: Turn, input: string): Promise<void> {
