@@ -13,7 +13,6 @@ const mocks = vi.hoisted(() => ({
   logAudit: vi.fn(),
   createPayment: vi.fn(),
   createExpense: vi.fn(),
-  getGmailConnectionStatus: vi.fn(),
   runEmailFetch: vi.fn(),
   parseAllPendingEmails: vi.fn(),
   matchEmailTransactions: vi.fn(),
@@ -98,8 +97,11 @@ vi.mock('@/lib/system-log/with-system-log', () => ({
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn() }),
 }));
-vi.mock('@/actions/email-imports/gmail-oauth', () => ({
-  getGmailConnectionStatus: mocks.getGmailConnectionStatus,
+vi.mock('@/lib/email-imports/gmail-client', () => ({
+  getActiveGmailAddress: async () => 'a@b.c',
+}));
+vi.mock('@/lib/email-imports/queue-for-review', () => ({
+  queueEmailTransactionsForReview: vi.fn(async () => ({ queuedForReview: 2, error: null })),
 }));
 vi.mock('@/lib/email-imports/fetch-emails', () => ({ runEmailFetch: mocks.runEmailFetch }));
 vi.mock('@/lib/email-imports/parse-email', () => ({
@@ -323,39 +325,21 @@ describe('exceedsEmailAutoProcessLimit', () => {
   });
 });
 
-describe('cron fetch-emails route with an over-limit credit', () => {
-  it('reports the over-limit credit under queuedForReview, not autoProcessed', async () => {
+describe('cron fetch-emails route (#879: scheduled runs only queue for review)', () => {
+  it('posts no payment even for an under-limit high-confidence credit, and queues instead', async () => {
     mocks.rows = [credit('tx-small', 20000), credit('tx-big', 75000)];
-    mocks.getGmailConnectionStatus.mockResolvedValue({ data: { connected: true, email: 'a@b.c' }, error: null });
     mocks.runEmailFetch.mockResolvedValue({
       success: true, importId: 'import-1', emailsFetched: 2, emailsSkipped: 0, emailsErrored: 0,
     });
     mocks.parseAllPendingEmails.mockResolvedValue({ messagesParsed: 2, transactionsExtracted: 2, errored: 0 });
     mocks.matchEmailTransactions.mockResolvedValue({ matched: 2, unmatched: 0 });
 
-    const res = await GET({} as NextRequest);
-    const body = await res.json();
-
-    expect(body.processPhase).toEqual({ autoProcessed: 1, queuedForReview: 1, skipped: 0, errored: 0 });
-    expect(mocks.createPayment).toHaveBeenCalledTimes(1);
-    expect(mocks.createPayment).toHaveBeenCalledWith(expect.objectContaining({ amount: 20000 }));
-  });
-
-  it('reads the limit through the service reader, never the user-session reader', async () => {
-    limitSetTo(100000);
-    mocks.rows = [credit('tx-big', 75000)];
-    mocks.getGmailConnectionStatus.mockResolvedValue({ data: { connected: true, email: 'a@b.c' }, error: null });
-    mocks.runEmailFetch.mockResolvedValue({
-      success: true, importId: 'import-1', emailsFetched: 1, emailsSkipped: 0, emailsErrored: 0,
-    });
-    mocks.parseAllPendingEmails.mockResolvedValue({ messagesParsed: 1, transactionsExtracted: 1, errored: 0 });
-    mocks.matchEmailTransactions.mockResolvedValue({ matched: 1, unmatched: 0 });
-
     const body = await (await GET({} as NextRequest)).json();
 
-    expect(mocks.getSettingResultAsService).toHaveBeenCalledWith(EMAIL_AUTO_PROCESS_LIMIT_KEY);
-    expect(mocks.getSettingValue).not.toHaveBeenCalled();
-    expect(body.processPhase).toMatchObject({ autoProcessed: 1, queuedForReview: 0 });
+    expect(mocks.createPayment).not.toHaveBeenCalled();
+    expect(mocks.createExpense).not.toHaveBeenCalled();
+    expect(body.processPhase).toBeUndefined();
+    expect(body.queuePhase).toEqual({ queuedForReview: 2 });
   });
 });
 

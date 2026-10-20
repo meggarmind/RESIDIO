@@ -2,13 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyCronAuth } from '@/lib/auth/cron-auth';
 import { withSystemLog, type SystemLogRun } from '@/lib/system-log/with-system-log';
 import { createLogger } from '@/lib/logger';
-import { getGmailConnectionStatus } from '@/actions/email-imports/gmail-oauth';
+import { getActiveGmailAddress } from '@/lib/email-imports/gmail-client';
 import { runEmailFetch } from '@/lib/email-imports/fetch-emails';
 import { parseAllPendingEmails } from '@/lib/email-imports/parse-email';
-import {
-  processEmailTransactions,
-} from '@/actions/email-imports/process-email-import';
 import { matchEmailTransactions } from '@/lib/email-imports/process-email-matching';
+import { queueEmailTransactionsForReview } from '@/lib/email-imports/queue-for-review';
 
 const log = createLogger('[Cron:EmailFetch]');
 
@@ -25,7 +23,11 @@ export const maxDuration = 300; // 5 minutes max
  * 2. Fetch new emails from Gmail
  * 3. Parse emails to extract transactions
  * 4. Match transactions to residents
- * 5. Auto-process high-confidence matches
+ * 5. Queue every transaction for admin review
+ *
+ * Runs without a user session, so every step uses the service-role client. It
+ * never posts a payment, expense or petty-cash entry: money is written only when
+ * an admin processes a queued transaction (#879).
  *
  * Authentication: Bearer token matching CRON_SECRET env var
  */
@@ -47,9 +49,9 @@ async function runEmailImport(run: SystemLogRun) {
     log.info('Starting email import cron job');
 
     // Step 1: Check Gmail connection
-    const connectionStatus = await getGmailConnectionStatus();
+    const gmailEmail = await getActiveGmailAddress();
 
-    if (connectionStatus.error || !connectionStatus.data?.connected) {
+    if (!gmailEmail) {
       log.info('Gmail not connected, skipping');
       run.summary = { skipped: true, reason: 'gmail_not_connected' };
       return NextResponse.json({
@@ -59,7 +61,7 @@ async function runEmailImport(run: SystemLogRun) {
       });
     }
 
-    results.gmailEmail = connectionStatus.data.email;
+    results.gmailEmail = gmailEmail;
 
     // Step 2: Fetch new emails
     log.info('Fetching new emails from Gmail');
@@ -115,16 +117,6 @@ async function runEmailImport(run: SystemLogRun) {
     };
     run.summary.parsePhase = results.parsePhase;
 
-    if (parseResult.transactionsExtracted === 0) {
-      log.info('No transactions extracted from emails');
-      return NextResponse.json({
-        success: true,
-        message: 'No transactions found in emails',
-        ...results,
-        durationMs: Date.now() - startTime,
-      });
-    }
-
     // Step 4: Match transactions to residents
     log.info(`Matching ${parseResult.transactionsExtracted} transactions`);
     const matchResult = await matchEmailTransactions(importId);
@@ -135,31 +127,23 @@ async function runEmailImport(run: SystemLogRun) {
     };
     run.summary.matchPhase = results.matchPhase;
 
-    if (matchResult.matched === 0) {
-      log.info('No transactions matched to residents');
+    // Step 5: Queue every transaction for admin review (no money is written)
+    log.info(`Queueing ${parseResult.transactionsExtracted} transactions for review`);
+    const queueResult = await queueEmailTransactionsForReview(importId);
+
+    results.queuePhase = { queuedForReview: queueResult.queuedForReview };
+    run.summary.queuePhase = results.queuePhase;
+    if (queueResult.error) {
+      log.error('Queueing transactions for review failed:', queueResult.error);
+      run.outcome = 'failure';
+      run.error = queueResult.error;
       return NextResponse.json({
-        success: true,
-        message: 'No transactions matched to residents',
+        success: false,
+        error: queueResult.error,
         ...results,
         durationMs: Date.now() - startTime,
       });
     }
-
-    // Step 5: Process transactions (auto-process high-confidence)
-    log.info(`Processing ${matchResult.matched} matched transactions`);
-    const processResult = await processEmailTransactions(importId, {
-      autoProcessHighConfidence: true,
-      skipDuplicates: true,
-    });
-
-    results.processPhase = {
-      autoProcessed: processResult.autoProcessed,
-      queuedForReview: processResult.queuedForReview,
-      skipped: processResult.skipped,
-      errored: processResult.errored,
-    };
-    run.summary.processPhase = results.processPhase;
-    if (processResult.errored > 0) run.outcome = 'partial';
 
     const durationMs = Date.now() - startTime;
 
@@ -167,8 +151,7 @@ async function runEmailImport(run: SystemLogRun) {
       importId,
       fetched: fetchResult.emailsFetched,
       transactions: parseResult.transactionsExtracted,
-      autoProcessed: processResult.autoProcessed,
-      queued: processResult.queuedForReview,
+      queued: queueResult.queuedForReview,
       durationMs,
     });
 
@@ -179,9 +162,7 @@ async function runEmailImport(run: SystemLogRun) {
         emailsFetched: fetchResult.emailsFetched,
         transactionsExtracted: parseResult.transactionsExtracted,
         matched: matchResult.matched,
-        autoProcessed: processResult.autoProcessed,
-        queuedForReview: processResult.queuedForReview,
-        skipped: processResult.skipped,
+        queuedForReview: queueResult.queuedForReview,
       },
       ...results,
       durationMs,
