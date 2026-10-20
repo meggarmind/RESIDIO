@@ -124,6 +124,16 @@ Follow `DESIGN_AGENTS.md` for all UI work: OKLCH colors, `new-york` shadcn style
 in `IconBox` wrappers, tactile micro-animations. Wrap raw shadcn components in semantic layout
 components rather than using them directly in pages.
 
+### WhatsApp messages
+
+Write every month in a WhatsApp message as a name, never a number: `31 AUGUST 2026` or
+`31 AUG 2026`, not `31/08/2026`, `08/31/2026` or `2026-08-31`. Numeric dates read as day-first to
+some residents and month-first to others, and a month name cannot be misread. This covers every
+resident-facing text the assistant or the system sends: replies, reminders, receipts, statements,
+and template parameters (`dueDate`, `paymentDate`, period labels). Pick one of the two forms per
+message and keep it; do not mix them. Build dates through one shared formatter, not
+`toLocaleDateString` with a numeric locale.
+
 ### Testing
 
 - Unit/integration: Vitest under `src/__tests__`, no network.
