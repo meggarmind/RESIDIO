@@ -42,6 +42,19 @@ import {
   type EmailChangeStart,
 } from '@/lib/whatsapp/account-actions';
 import {
+  SURVEY_COMMENT_PROMPT,
+  SURVEY_PROMPT,
+  SURVEY_REASON_PROMPT,
+  SURVEY_RECORDED_REPLY,
+  SURVEY_THANKS_REPLY,
+  cleanSurveyComment,
+  isThanks,
+  parseSurveyReason,
+  parseSurveyScore,
+  type SurveyTrigger,
+} from '@/lib/whatsapp/survey';
+import { answerSurvey, askSurvey } from '@/lib/whatsapp/survey-db';
+import {
   DEFAULT_KEYWORDS,
   answerFooter,
   contactLine,
@@ -223,6 +236,9 @@ export interface WhatsAppFinancialRepository {
   loadStatement(residentId: string, houseId: string, period: StatementPeriod, now: Date): Promise<{ fromDate: string; toDate: string; statement: AccountStatementData }>;
   /** Stores the PDF privately and returns a 1-hour signed URL for the reply. */
   storeStatementPdf(input: StatementRequestInput & { replyText: string }, statement: AccountStatementData): Promise<string>;
+  /** Records that the resident is being asked for feedback (#872); null when they must not be: opted out, or asked in the last 30 days. */
+  askSurvey(input: { residentId: string; phoneNumber: string; trigger: SurveyTrigger }): Promise<string | null>;
+  answerSurvey(residentId: string, surveyId: string, answer: Parameters<typeof answerSurvey>[2]): Promise<void>;
   getResidentEmail(residentId: string): Promise<string | null>;
   createStatementRequest(input: StatementRequestInput & { status: 'awaiting_email' | 'queued' }): Promise<string>;
   queueStatementEmail(requestId: string, residentId: string, email: string): Promise<void>;
@@ -683,6 +699,8 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
     requestClearance: requestClearanceCertificate,
     loadStatement: loadWhatsAppStatementForPeriod,
     storeStatementPdf,
+    askSurvey,
+    answerSurvey,
     createStatementRequest,
     queueStatementEmail,
 
@@ -809,6 +827,8 @@ interface Turn {
   pinGate?: boolean;
   houses?: FinancialHouse[];
   notices?: AssistantAnnouncement[];
+  /** Set by a reply that delivered a financial answer, so a thank-you right after can open the survey (#872). */
+  answered?: boolean;
 }
 
 function readNode(raw: string): { node: string; misses: number } {
@@ -821,7 +841,7 @@ function readNode(raw: string): { node: string; misses: number } {
 async function respond(turn: Turn, body: string, node: string, misses = 0, mediaUrls?: string[]): Promise<void> {
   await sendFinancialReply(turn.message, body, turn.options.send, turn.identity.id, mediaUrls);
   turn.session.currentNode = misses ? `${node}~${misses}` : node;
-  if (!/^(report|receipt)_/.test(node)) turn.session.draft = null;
+  if (!/^(report|receipt|survey)_/.test(node)) turn.session.draft = turn.answered ? { answered: true } : null;
   turn.session.expiresAt = expiry();
   await turn.options.repository.saveSession(turn.session);
 }
@@ -995,6 +1015,7 @@ async function answerItem(turn: Turn, item: Exclude<FinancialMenuItem, 'statemen
     menuItem: item,
     pinAuthenticated: turn.session.pinAuthenticated,
   });
+  turn.answered = true;
   await respond(turn, `${lead}${body}`, 'answer');
 }
 
@@ -1036,6 +1057,7 @@ async function deliverStatementPdf(turn: Turn, period: StatementPeriod): Promise
       metadata: { period, row_count: rowCount },
     });
     const url = await repository.storeStatementPdf({ ...input, replyText: body }, statement);
+    turn.answered = true;
     return respond(turn, body, 'answer', 0, [url]);
   }
 
@@ -1069,6 +1091,7 @@ async function confirmStatementEmail(turn: Turn, period: StatementPeriod): Promi
   });
   const requestId = await repository.createStatementRequest({ ...requestInput(turn, house, period, fromDate, toDate, statement.transactions.length), status: 'queued' });
   await repository.queueStatementEmail(requestId, turn.identity.id, email);
+  turn.answered = true;
   return respond(turn, `${statementHeading(period, house, fromDate, toDate)}\nYour PDF is queued for ${maskEmail(email)}. It will arrive within 15 minutes.\n${footer(turn)}`, 'answer');
 }
 
@@ -1166,6 +1189,7 @@ async function pickReceipt(turn: Turn, input: string): Promise<void> {
     metadata: { step: 'pdf', payment_id: payment.id },
   });
   const url = await repository.storeReceiptPdf({ residentId: turn.identity.id, phoneNumber: turn.phoneNumber, houseId: house.id, inboundMessageId: turn.message.id, replyText: body }, receipt);
+  turn.answered = true;
   await respond(turn, body, 'answer', 0, [url]);
 }
 
@@ -1201,7 +1225,9 @@ async function askForClearance(turn: Turn, lead: string): Promise<void> {
   const reply = result.status === 'requested'
     ? `Your clearance certificate request for ${house.label} was sent to the estate office. The certificate will be sent here once it is approved.`
     : withContact(turn, `A clearance certificate request for ${house.label} is already waiting for approval. Nothing new was sent.`);
-  await respond(turn, `${title}\n${reply}\n${footer(turn)}`, 'answer');
+  const text = `${title}\n${reply}\n${footer(turn)}`;
+  const ask = result.status === 'requested' ? await surveyPrompt(turn, 'clearance_request') : null;
+  await respond(turn, ask ? `${text}\n\n${ask}` : text, ask ? 'survey_score' : 'answer');
 }
 
 // ---------------------------------------------------------------------------
@@ -1300,7 +1326,9 @@ async function reportStep(turn: Turn, node: string): Promise<void> {
       : result.status === 'limit'
         ? withContact(turn, `You've reported ${REPORTS_PER_DAY} payments today, which is the limit. Please try again tomorrow.`)
         : withContact(turn, 'That payment could not be reported. Nothing was sent.');
-  await respond(turn, `${reply}\n${footer(turn)}`, 'main');
+  const text = `${reply}\n${footer(turn)}`;
+  const ask = result.status === 'created' ? await surveyPrompt(turn, 'payment_report') : null;
+  await respond(turn, ask ? `${text}\n\n${ask}` : text, ask ? 'survey_score' : 'main');
 }
 
 /** An image inside a report: Chatmaid does not pass the file on, so say where it went and note when it came (decision 10). */
@@ -1390,6 +1418,55 @@ async function submitEmailCode(turn: Turn): Promise<void> {
       ? 'That code has expired. Reply EMAIL to start again.'
       : EMAIL_FAILED;
   await respond(turn, `${reply}\n${footer(turn)}`, 'main');
+}
+
+// ---------------------------------------------------------------------------
+// Satisfaction survey (#872): asked after a success only, never inside a PIN step. The row id rides in
+// session.draft through the survey_score, survey_reason and survey_comment nodes.
+
+/** The survey question when this resident is due one, its row recorded; null when not due or it cannot be recorded. */
+async function surveyPrompt(turn: Turn, trigger: SurveyTrigger): Promise<string | null> {
+  try {
+    const surveyId = await turn.options.repository.askSurvey({ residentId: turn.identity.id, phoneNumber: turn.phoneNumber, trigger });
+    if (!surveyId) return null;
+    turn.session.draft = { surveyId };
+    return SURVEY_PROMPT;
+  } catch (error) {
+    console.error('WhatsApp survey could not be started:', error);
+    return null;
+  }
+}
+
+/** Handles a reply inside the survey; false when it is not an answer, so it is read as an ordinary message. */
+async function surveyStep(turn: Turn, node: string, input: string): Promise<boolean> {
+  const surveyId = (turn.session.draft as { surveyId?: unknown } | null | undefined)?.surveyId;
+  if (typeof surveyId !== 'string') return false;
+  const repository = turn.options.repository;
+  const residentId = turn.identity.id;
+
+  if (node === 'survey_score') {
+    const score = parseSurveyScore(input);
+    if (!score) return false;
+    await repository.answerSurvey(residentId, surveyId, { score });
+    if (score === 'poor') await respond(turn, SURVEY_REASON_PROMPT, 'survey_reason');
+    else await respond(turn, `${SURVEY_THANKS_REPLY}\n${footer(turn)}`, 'main');
+    return true;
+  }
+
+  if (node === 'survey_reason') {
+    const reason = parseSurveyReason(input);
+    if (!reason) return false;
+    await repository.answerSurvey(residentId, surveyId, { reason });
+    await respond(turn, SURVEY_COMMENT_PROMPT, 'survey_comment');
+    return true;
+  }
+
+  // survey_comment: one optional line, then the estate office contact line.
+  if (input === 'lock') return false;
+  const comment = cleanSurveyComment(turn.text, input);
+  if (comment) await repository.answerSurvey(residentId, surveyId, { comment });
+  await respond(turn, `${withContact(turn, SURVEY_RECORDED_REPLY)}\n${answerFooter(false)}`, 'main');
+  return true;
 }
 
 async function runIntent(turn: Turn, intent: AssistantIntent): Promise<void> {
@@ -1522,7 +1599,7 @@ async function chooseProperty(turn: Turn, target: Target): Promise<void> {
 async function converse(turn: Turn, expired: boolean): Promise<void> {
   const { text } = turn;
   const input = normalizeInput(text);
-  const { node } = readNode(turn.session.currentNode);
+  let { node } = readNode(turn.session.currentNode);
 
   // #892: in the PIN and setup-code steps the inbound text is a secret. It is never logged, stored
   // or echoed; a chosen PIN is held only as a salted hash until it is confirmed. One digit stays a
@@ -1548,6 +1625,16 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
 
   if (turn.message.type === 'image' && node.startsWith('report_')) return acknowledgeScreenshot(turn, node);
   if (turn.message.type !== 'text' || !text) return respond(turn, TEXT_ONLY_REPLY, node, turn.misses);
+
+  if (node.startsWith('survey_')) {
+    if (await surveyStep(turn, node, input)) return;
+    node = 'main';
+  }
+  // A thank-you right after a financial answer opens the survey, when this resident is due one (#872).
+  if (isThanks(input) && (node === 'answer' || node.startsWith('statement:')) && (turn.session.draft as { answered?: boolean } | null | undefined)?.answered) {
+    const ask = await surveyPrompt(turn, 'answer');
+    if (ask) return respond(turn, ask, 'survey_score');
+  }
 
   // A narration or reference is free text, so it cannot be read as a keyword.
   if (node === 'report_reference' && input !== 'cancel' && input !== 'lock') return reportStep(turn, node);

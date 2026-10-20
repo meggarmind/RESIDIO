@@ -14,6 +14,8 @@ import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { contactLine } from '@/lib/whatsapp/assistant-format';
 import { createSupabaseWhatsAppFinancialRepository } from '@/lib/whatsapp/financial';
 import type { WhatsAppInboundMessage, WhatsAppTextMessage } from '@/lib/whatsapp/types';
+import { SURVEY_OPT_OUT_REPLY, isSurveyStopCommand } from '@/lib/whatsapp/survey';
+import { optOutOfSurveys } from '@/lib/whatsapp/survey-db';
 
 const BILLABLE_ROLES = new Set([
   'resident_landlord',
@@ -57,6 +59,8 @@ export interface WhatsAppIdentityRepository {
   getPrivacyNotice(): Promise<WhatsAppPrivacyNotice | null>;
   getPrivacyNoticeUrl(notice: WhatsAppPrivacyNotice): Promise<string>;
   getOfficeContactLine(): Promise<string>;
+  /** STOP SURVEYS (#872): the assistant never asks this resident for feedback again. */
+  optOutOfSurveys(residentId: string): Promise<void>;
 }
 
 export type WhatsAppConsentDecision = 'identity_confirmed' | 'identity_disputed' | 'privacy_accepted' | 'privacy_declined';
@@ -477,6 +481,7 @@ export function createSupabaseWhatsAppIdentityRepository(): WhatsAppIdentityRepo
     getPrivacyNotice: loadWhatsAppPrivacyNotice,
     getPrivacyNoticeUrl: createWhatsAppPrivacyNoticeUrl,
     getOfficeContactLine: loadEstateOfficeContactLine,
+    optOutOfSurveys,
   };
 }
 
@@ -499,7 +504,8 @@ export interface WhatsAppIdentityResult {
 }
 
 function isStopCommand(text: string): boolean {
-  return /^(STOP|UNSUBSCRIBE|OPT\s*OUT)\b/i.test(text.trim());
+  // STOP SURVEYS only ends the feedback questions; it is not an alerts opt-out.
+  return !isSurveyStopCommand(text) && /^(STOP|UNSUBSCRIBE|OPT\s*OUT)\b/i.test(text.trim());
 }
 
 function isStartCommand(text: string): boolean {
@@ -623,6 +629,18 @@ export async function handleResidentMessage(
       optedIn: false,
       financialEligible: identity?.financialEligible || false,
       accessTier: identity?.financialEligible ? 'financial' : 'community',
+    };
+  }
+
+  if (identity && isSurveyStopCommand(text)) {
+    await options.repository.optOutOfSurveys(identity.id);
+    await sendReply(message, SURVEY_OPT_OUT_REPLY, options.send, identity.id);
+    return {
+      status: 'identified',
+      residentId: identity.id,
+      optedIn: await options.repository.getOptIn(identity.id, phoneNumber),
+      financialEligible: identity.financialEligible,
+      accessTier: identity.financialEligible ? 'financial' : 'community',
     };
   }
 
