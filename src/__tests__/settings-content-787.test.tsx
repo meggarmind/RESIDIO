@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
@@ -33,6 +33,11 @@ vi.mock('@/actions/notifications/reminder-config', () => ({
     },
   }),
   setRemindersEnabled: vi.fn(),
+  addReminderStep: vi.fn(),
+  updateReminderStep: vi.fn(),
+  removeReminderStep: vi.fn(),
+  toggleReminderStep: vi.fn(),
+  resetToDefaultSchedule: vi.fn(),
 }));
 vi.mock('@/hooks/use-settings', () => ({
   useBillingSettings: () => query([]),
@@ -65,6 +70,7 @@ vi.mock('@/components/ui/select', () => {
 });
 
 import RemindersOverviewPage from '@/app/(dashboard)/settings/notifications/reminders/page';
+import ReminderSchedulePage from '@/app/(dashboard)/settings/notifications/reminders/schedule/page';
 import CategoriesPage from '@/app/(dashboard)/settings/security/categories/page';
 import NotificationsSettingsPage from '@/app/(dashboard)/settings/notifications/page';
 import { TemplateForm } from '@/components/notifications/template-form';
@@ -107,7 +113,7 @@ describe('formatDaysFromDue', () => {
     expect(await screen.findByText('7 days before')).toBeInTheDocument();
     expect(screen.getByText('3 days after')).toBeInTheDocument();
     expect(screen.queryByText(/-\d/)).not.toBeInTheDocument();
-    expect(screen.getByText(/Reminder steps send by Email only/)).toBeInTheDocument();
+    expect(screen.getByText(/A WhatsApp step reaches only residents who have opted in to WhatsApp/)).toBeInTheDocument();
   });
 });
 
@@ -159,6 +165,23 @@ describe('notification channels follow IMPLEMENTED_CHANNELS', () => {
       .map((o) => o.getAttribute('data-value'))
       .filter((v) => ['email', 'sms', 'whatsapp'].includes(v ?? ''));
     expect(channelOptions).toEqual(IMPLEMENTED_CHANNELS);
+  });
+
+  // #848: the step editors filtered a hard-coded ['email', 'sms'], so WhatsApp was never offered.
+  it.each([
+    ['add', () => screen.getAllByRole('button', { name: /add step/i })[0]],
+    ['edit', () => screen.getAllByRole('button', { name: /edit/i })[0]],
+  ])('the %s step dialog offers every implemented channel', async (_name, opener) => {
+    render(<ReminderSchedulePage />);
+    await screen.findAllByText(/7 days before/i);
+    fireEvent.click(opener());
+    const dialog = await screen.findByRole('dialog');
+    const channelButtons = within(dialog)
+      .getAllByRole('button')
+      .filter((b) => b.hasAttribute('aria-pressed'))
+      .map((b) => b.textContent);
+    expect(channelButtons).toEqual(implementedLabels);
+    expect(channelButtons).toContain(NOTIFICATION_CHANNEL_LABELS.whatsapp);
   });
 });
 

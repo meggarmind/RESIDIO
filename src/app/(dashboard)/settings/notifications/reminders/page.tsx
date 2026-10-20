@@ -236,8 +236,8 @@ export default function RemindersOverviewPage() {
           <div className="flex items-start gap-2 text-sm text-muted-foreground">
             <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
             <p>
-              The scheduled reminder job runs once a day and sends each active step by email.
-              Reminder steps send by Email only; WhatsApp cannot be selected for a step yet.
+              The scheduled reminder job runs once a day and sends each active step on its selected channels.
+              A WhatsApp step reaches only residents who have opted in to WhatsApp.
             </p>
           </div>
         </CardContent>

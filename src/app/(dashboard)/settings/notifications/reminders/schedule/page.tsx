@@ -59,7 +59,7 @@ import {
   resetToDefaultSchedule,
 } from '@/actions/notifications/reminder-config';
 import type { ReminderScheduleConfig, ReminderScheduleStep, NotificationChannel } from '@/lib/notifications/types';
-import { REMINDER_ESCALATION_LABELS, NOTIFICATION_CHANNEL_LABELS, isChannelImplemented, formatDaysFromDue } from '@/lib/notifications/types';
+import { REMINDER_ESCALATION_LABELS, NOTIFICATION_CHANNEL_LABELS, IMPLEMENTED_CHANNELS, formatDaysFromDue } from '@/lib/notifications/types';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { SettingsEmptyState, SettingsSkeleton } from '@/components/settings/settings-states';
@@ -385,7 +385,7 @@ export default function ReminderSchedulePage() {
             <div className="space-y-2">
               <Label>Channels</Label>
               <div className="flex gap-2">
-                {(['email', 'sms'] as NotificationChannel[]).filter((c) => isChannelImplemented(c)).map((ch) => (
+                {IMPLEMENTED_CHANNELS.map((ch) => (
                   <Button
                     key={ch}
                     type="button"
@@ -450,7 +450,7 @@ export default function ReminderSchedulePage() {
               <div className="space-y-2">
                 <Label>Channels</Label>
                 <div className="flex gap-2">
-                  {(['email', 'sms'] as NotificationChannel[]).filter((c) => isChannelImplemented(c)).map((ch) => (
+                  {IMPLEMENTED_CHANNELS.map((ch) => (
                     <Button
                       key={ch}
                       type="button"
