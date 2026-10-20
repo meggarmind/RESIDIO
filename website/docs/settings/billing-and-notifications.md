@@ -6,7 +6,7 @@ residio_sources:
   - src/app/(dashboard)/settings/billing/**
   - src/app/(dashboard)/settings/notifications/**
   - src/app/(dashboard)/settings/message-templates/**
-residio_verified_commit: 49018874
+residio_verified_commit: e24b7386
 residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
@@ -21,11 +21,11 @@ Each billing profile carries a **rate schedule**: a list of versions, each with 
 
 Two separate permissions govern this. **Manage Billing Profiles** shows the **Rate versions** control and the schedule inside it — a Secretary has neither. **Manage Billing Rate Versions** is what allows a version to be added or edited, and is held by the Super Admin, Chairman, Vice Chairman and Financial Officer only; a Project Manager can read the schedule but not write it, because a version with a past effective month decides what a backfilled invoice charges and those invoice numbers are permanent.
 
-Use **Late Fees** for grace periods, fee rules, and waivers. Use **Invoice Generation** for recurring generation controls and run history.
+Use **Late Fees** for grace periods, fee rules, and waivers. Use **Invoices & Due Dates** for recurring generation controls and run history.
 
-Set billing up in this order, which the note at the top of every billing page repeats: **Billing Profiles** (rate cards) first, then **Billing Settings** (rules), then **Development Levies**, which picks one of the rate cards.
+Set billing up in this order, which the note at the top of every billing page repeats: **Billing Profiles** (**Rate Cards** in the menu) first, then **Billing Settings** (**Billing Rules → General**), then **Development Levies** (**Levies**), which picks one of the rate cards.
 
-Number fields such as the grace period, the late fee amount and the invoice due window save when you leave the field or press Enter, not while you type. A value outside the allowed range shows a message and is not saved; clearing a field never saves a default. The grace period runs from 1 to 30 days, because the late fee run treats 0 as 7.
+Number fields such as the grace period, the late fee amount and the invoice due window save when you leave the field or press Enter, not while you type. A value outside the allowed range shows a message and is not saved; clearing a field never saves a default. The grace period runs from 1 to 30 days, because the late fee run treats 0 as 7. Changing the general billing rules needs the manage billing settings or manage billing profiles permission; without either, the fields are shown disabled.
 
 Each billing setting carries an **Affects** line saying whether a change reaches invoices already issued. Late fee rules (on or off, type, amount, grace period) reach existing overdue invoices at the next run, manual or automatic, unless an invoice already carries a late fee. Due window, vacant and under-renovation or under-construction billing, and the invoice generation controls reach future invoices only.
 
@@ -33,11 +33,11 @@ Each billing setting carries an **Affects** line saying whether a change reaches
 
 ## Notifications
 
-Use **Settings → Notifications** to review reminders and templates. Notification templates are system templates: they are read-only and sent by name. Announcement text lives in **Announcement Templates**. Notification Schedules is hidden, because nothing sent what it configured; automatic reminders follow **Reminder Schedule**.
+Use **Settings → Messages & Reminders → Notifications Overview** to review reminders and templates. Notification templates are system templates: they are read-only and sent by name. Announcement text lives in **Announcement Templates**. Notification Schedules is hidden, because nothing sent what it configured; automatic reminders follow **Reminder Schedule**.
 
-Three controls affect payment reminders. **Enable Reminders** on the Reminders page turns the automatic daily reminders on or off. **Payment Reminders** under **Email Notifications** turns reminder emails off for both the automatic reminders and the manual run; automatic WhatsApp reminders still send. The reminder days set in **Billing** apply to both: an automatic reminder before the due date sends only on a day that is ticked in **Billing** and is a step in **Reminder Schedule**. **Send Payment Reminders Now** under **Email → Debug & Testing** sends one email-only run on those days.
+Three controls affect payment reminders. **Enable Reminders** on the Reminders page turns the automatic daily reminders on or off. **Payment Reminders** under **Email Notifications** turns reminder emails off for both the automatic reminders and the manual run; automatic WhatsApp reminders still send. The reminder days set in **Billing** apply to both: an automatic reminder before the due date sends only on a day that is ticked in **Billing** and is a step in **Reminder Schedule**. **Send Payment Reminders Now** on **Email Delivery → Send a Test** (headed *Debug & Testing*) sends one email-only run on those days.
 
-The **Enable Reminders** switch saves the state you set it to. **Reset to Default** on the reminder schedule asks before it replaces your steps, and **Send Reminders** under **Email → Debug & Testing** shows how many reminders would go to how many residents before it sends.
+The **Enable Reminders** switch saves the state you set it to. **Reset to Default** on the reminder schedule asks before it replaces your steps, and **Send Reminders** on **Send a Test** shows how many reminders would go to how many residents before it sends.
 
 Sent-notification history and the outgoing queue are system state rather than configuration, so they live under **System → Notification History** and **System → Notification Queue** instead. From the queue you can cancel a pending item or retry one that failed.
 

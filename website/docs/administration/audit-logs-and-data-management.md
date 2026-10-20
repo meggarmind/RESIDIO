@@ -7,8 +7,8 @@ residio_sources:
   - src/actions/audit/**
   - src/app/(dashboard)/system/data-tools/**
   - src/app/(dashboard)/settings/data-retention/**
-residio_verified_commit: 66ded86
-residio_verified_at: '2026-09-04'
+residio_verified_commit: e24b7386
+residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
 
@@ -21,6 +21,10 @@ Audit Logs are open only to roles holding **View audit logs** — the super admi
 
 This is enforced in the database as well as the interface, so it holds however the data is reached. If you need evidence from the log and cannot open it, ask a super administrator rather than looking for another route to the same records.
 :::
+
+## How long entries are kept
+
+Audit log entries are kept until someone runs **Prune Data** under **Settings → System → Data Retention**, which deletes entries older than the saved **Audit Log Retention** setting (365 days if it was never saved). Nothing prunes them automatically. The prune shows how many entries it would delete and runs only after you type PRUNE; deleted entries remove the record of who changed what. See [Access and system health](../settings/access-and-system-health.md).
 
 ## Data management
 

@@ -8,8 +8,8 @@ residio_sources:
   - src/lib/parsers/**
   - src/actions/email-imports/**
   - src/app/(dashboard)/settings/email-integration/**
-residio_verified_commit: e96c4095
-residio_verified_at: '2026-10-18'
+residio_verified_commit: e24b7386
+residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
 
@@ -39,7 +39,9 @@ Connecting a personal Gmail account ties the estate's bank feed to one person's 
 
 ### Disconnect
 
-**Disconnect** revokes Residio's access and stops future syncs. Imports already created stay in the system. Disconnect before handing over a mailbox, and reconnect with the replacement account rather than sharing credentials.
+**Disconnect** asks for confirmation, then revokes Residio's access and stops future syncs; reconnecting needs a fresh Google sign-in. Imports already created stay in the system. Disconnect before handing over a mailbox, and reconnect with the replacement account rather than sharing credentials.
+
+Anyone who can view email imports can open the page. **Connect Gmail** and **Disconnect** need the configure email imports permission, and **Manual Fetch** needs the trigger email imports permission; without them the buttons are hidden.
 
 ## What gets imported
 
@@ -49,7 +51,7 @@ Column names vary between statement types, so the parser accepts common variatio
 
 ## Password-protected statements
 
-Bank statement PDFs are often password protected. Residio stores a password per bank account so scheduled imports can open them without manual intervention. Manage these under the bank account record.
+Bank statement PDFs are often password protected. Residio stores a password per bank account so scheduled imports can open them without manual intervention. Manage them in the **PDF Statement Passwords** card on **Settings → Money → Bank Accounts**; changing them needs the manage statement passwords permission, and removing one asks first.
 
 Passwords are stored encrypted and are never displayed back. To change one, set a new value; to stop automated opening, remove it.
 

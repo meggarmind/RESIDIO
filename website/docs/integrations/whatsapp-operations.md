@@ -8,7 +8,7 @@ residio_sources:
   - src/actions/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp/**
   - src/app/api/whatsapp/**
-residio_verified_commit: 8788cc08
+residio_verified_commit: 15bb8dd6
 residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
@@ -144,7 +144,7 @@ A number linked to a resident (by matching their record or with a link code) kee
 
 The policy is **on** by default. Leave it on for estates where phones are commonly shared.
 
-After **5 wrong PINs** in a row, financial answers for that resident are locked for **24 hours**, even if the correct PIN is then entered. The lock lifts on its own; a correct PIN before the fifth wrong one resets the count.
+After **5 wrong PINs** in a row, financial answers for that resident are locked for **24 hours**, even if the correct PIN is then entered. The lock lifts on its own, and the resident is told to try again after 24 hours; a correct PIN before the fifth wrong one resets the count.
 
 ## Rate caps
 

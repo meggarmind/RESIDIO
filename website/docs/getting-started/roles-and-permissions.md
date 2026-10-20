@@ -10,8 +10,8 @@ residio_sources:
   - src/app/(dashboard)/system/accounts/**
   - src/components/admin/role-assignment-section.tsx
   - src/components/admin/pending-accounts-list.tsx
-residio_verified_commit: 3e68aca
-residio_verified_at: '2026-10-12'
+residio_verified_commit: e24b7386
+residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
 
@@ -65,9 +65,9 @@ Your deployment may contain additional custom roles, created under **Role Defini
 
 ## Creating a role
 
-**Settings → Roles & Permissions → Role Definitions → Add Role**.
+**Settings → Roles & Permissions → Role Definitions → Add Role**. This page needs the Manage roles permission; an admin who can only assign roles is pointed to **System → Accounts** instead.
 
-Name the role, give it a display name, pick its category and level, then choose its access in the same dialog:
+Name the role, give it a display name, pick its category and level (a whole number from 0 to 10), then choose its access in the same dialog. Names reserved for the built-in roles, or that only look like them, are refused.
 
 - **Start from** copies another role's access as a starting point. This is usually the quickest route — "the same as the Secretary, plus finance" is one selection and a few ticks.
 - Tick a **module** to grant everything in it.
@@ -76,6 +76,8 @@ Name the role, give it a display name, pick its category and level, then choose 
 The footer counts what you have selected. A role created with nothing selected is created with no access at all and its holder will see an empty dashboard, so grant something before saving.
 
 If the privileges cannot be saved, the role is not created either — you will not be left with a half-made role to clean up.
+
+Only a Super Administrator can give a role a permission they do not hold themselves, or change a built-in system role. Nobody can change their own role or its permissions; ask another administrator.
 
 To change a role later, use the **Access** column in the roles table. It shows how many modules and privileges the role holds and opens the same picker.
 
@@ -93,6 +95,8 @@ The search has two modes, chosen with the **Residents / Accounts** switch above 
 - **Accounts** searches everyone who has a login, whether or not they live on the estate. This is how you reach staff such as a hired security officer or a treasurer after they have been approved.
 
 Select someone, choose a role, and confirm. If they already hold a role you are asked to confirm the replacement instead.
+
+Who can change whom follows rank: Super Administrator first, then Chairman, then every other role, custom roles included. You can change an account only if your role ranks at least as high as the role it holds now, and you cannot assign a role that outranks your own. Only a Super Administrator can assign the Super Administrator or Chairman role. The same rules apply to approving, rejecting and removing roles, and an Assignment Rule cannot allow a role you could not assign yourself.
 
 ### Accounts that are not yet approved
 
