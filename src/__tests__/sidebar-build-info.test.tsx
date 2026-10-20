@@ -37,6 +37,7 @@ vi.mock('@/hooks/use-navigation', () => ({
 }));
 vi.mock('@/hooks/use-approvals', () => ({ usePendingApprovalsCount: () => ({ data: 0 }) }));
 vi.mock('@/hooks/use-estate-logo', () => ({ useEstateLogo: () => ({ logoUrl: null }) }));
+vi.mock('@/hooks/use-ops-status', () => ({ useOpsStatus: () => ({ maintenance: false, commsOverride: false }) }));
 let sidebarState = { isCollapsed: false, isExpanded: true };
 vi.mock('@/hooks/use-sidebar-state', () => ({
   useSidebarState: () => ({

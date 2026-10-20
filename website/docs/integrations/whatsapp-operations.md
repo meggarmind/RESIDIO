@@ -8,8 +8,8 @@ residio_sources:
   - src/actions/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp/**
   - src/app/api/whatsapp/**
-residio_verified_commit: cb3c86b
-residio_verified_at: '2026-10-13'
+residio_verified_commit: 37eba330
+residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
 
@@ -130,10 +130,12 @@ Pending contacts are people who have messaged the number but are not yet matched
 
 **Financial PIN policy** controls whether a PIN is required before Residio answers any financial question over WhatsApp.
 
-- When the policy is **on**, every resident must enter a PIN before a balance, invoice, or payment answer is returned.
+- When the policy is **on**, every resident must enter a PIN before a balance, invoice, or payment answer is returned. A resident without a PIN is asked to set one by replying `PIN` followed by 4–6 digits of their choice.
 - When it is **off**, residents may still set a personal PIN for themselves.
 
-Leave the policy on for estates where phones are commonly shared.
+The policy is **on** by default. Leave it on for estates where phones are commonly shared.
+
+After **5 wrong PINs** in a row, financial answers for that resident are locked for **24 hours**, even if the correct PIN is then entered. The lock lifts on its own; a correct PIN before the fifth wrong one resets the count.
 
 ## Rate caps
 
@@ -171,6 +173,7 @@ The cleanup runs automatically shortly after midnight, documented on the Schedul
 | One resident receives nothing | No approved opt-in record for that resident |
 | Sends stop partway through a day | A daily or burst cap has been reached |
 | Financial questions go unanswered | The resident has no PIN set while the PIN policy is on |
+| Resident is told financial answers are locked | Five wrong PINs were entered; the lock lifts 24 hours after the fifth |
 | Test connection fails | The provider rejected the saved credentials — recheck the access token or auth token against the provider's console |
 | Chatmaid sends fail with "bridge is disconnected", or you received a WhatsApp disconnected alert | The paired phone has lost its connection — re-pair it in the Chatmaid dashboard |
 | Assistant stops replying in one conversation (Chatmaid) | A team member replied from the phone within the last 30 minutes; the Assistant resumes afterwards |

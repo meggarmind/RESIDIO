@@ -6,10 +6,10 @@ The Estate AI Assistant is a floating chatbot widget designed to provide residen
 
 ## Features
 
-- **Floating Widget**: Accessible from anywhere in the application via a floating action button (FAB).
+- **Floating Widget**: Accessible from any signed-in page via a floating action button (FAB). It is hidden when no user is signed in and on the login-flow screens (`/login`, `/register`, `/forgot-password`, `/reset-password`, `/pending-approval`, `/auth/*`), even if a session exists.
 - **Animated UI**: Uses `framer-motion` for smooth open/close and message animations.
 - **Typing Indicators**: Simulates "thinking" state for a more natural interaction.
-- **Context Awareness**: Greets the user by name (if logged in) and references the estate name.
+- **Context Awareness**: Greets the user by name and references the estate name.
 - **Customizable Name**: The assistant's name can be configured in the General Settings.
 
 ## Technical Implementation

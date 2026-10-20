@@ -25,6 +25,7 @@ vi.mock('@/lib/auth/auth-provider', () => ({
   useAuth: () => ({
     profile: { full_name: 'Test Admin', role_display_name: 'Admin' },
     isLoading: false,
+    hasPermission: (perm: string) => granted === 'all' || (granted as Set<string>).has(perm),
     hasAnyPermission: (perms: string[]) =>
       granted === 'all' ? true : perms.some((p) => (granted as Set<string>).has(p)),
   }),
@@ -91,5 +92,24 @@ describe('MobileNav nested children (#102)', () => {
     render(<MobileNav open onOpenChange={onOpenChange} />);
     fireEvent.click(link('Import Email'));
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+});
+
+describe('MobileNav Settings status dot (#789)', () => {
+  const dot = () => screen.queryByRole('img', { name: /maintenance mode or communications override is on/i });
+  afterEach(() => {
+    document.cookie = 'residio_ops_status=; max-age=0; path=/';
+  });
+
+  it('marks Settings when the middleware reports a state on', () => {
+    document.cookie = 'residio_ops_status=01; path=/';
+    render(<MobileNav open onOpenChange={() => {}} />);
+    expect(linksTo('/settings')[0]).toContainElement(dot());
+  });
+
+  it('shows no dot when both states are off', () => {
+    document.cookie = 'residio_ops_status=00; path=/';
+    render(<MobileNav open onOpenChange={() => {}} />);
+    expect(dot()).not.toBeInTheDocument();
   });
 });

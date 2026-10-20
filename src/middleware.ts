@@ -6,7 +6,7 @@ import { resolveAccess, toAccessClient } from '@/lib/auth/access';
 import { getPublicOrigin } from '@/lib/http/public-origin';
 import { TWO_FACTOR_COOKIE, getSessionIdFromAccessToken, verifyTwoFactorMarker } from '@/lib/auth/two-factor-marker';
 import type { ProfileApprovalStatus } from '@/types/database';
-import { isMaintenanceModeOn } from '@/lib/settings/maintenance-mode';
+import { OPS_STATUS_COOKIE, OPS_STATUS_KEYS, encodeOpsStatus, opsStatusFromRows, type OpsStatus } from '@/lib/settings/ops-status';
 
 /**
  * Routes the middleware guards, and what each requires.
@@ -151,6 +151,8 @@ export async function middleware(request: NextRequest) {
     // PERFORMANCE: getUser() first, then batch maintenance check and
     // profiles query into a single Promise.all round trip.
     let isMaintenanceMode = false;
+    // Null when the settings read was skipped or failed: the banner cookie is then left as it was.
+    let opsStatus: OpsStatus | null = null;
     let profileQueryFailed = false;
     let profile: {
         role_id: string | null;
@@ -166,7 +168,8 @@ export async function middleware(request: NextRequest) {
     if (user) {
         const [maintenanceData, profileData] = await Promise.all([
             !isExemptRoute
-                ? supabase.from('system_settings').select('value').eq('key', 'maintenance_mode').single()
+                // comms_override_enabled rides along for the admin banner (#789) rather than costing its own query.
+                ? supabase.from('system_settings').select('key, value').in('key', [...OPS_STATUS_KEYS])
                 : Promise.resolve({ data: null, error: null }),
             supabase
                 .from('profiles')
@@ -178,7 +181,10 @@ export async function middleware(request: NextRequest) {
         // PGRST116 is "no row" (a legitimately missing profile). Any other error
         // means we could not establish whether 2FA applies, so we must not guess.
         profileQueryFailed = !!profileData?.error && profileData.error.code !== 'PGRST116';
-        isMaintenanceMode = isMaintenanceModeOn(maintenanceData?.data?.value);
+        if (maintenanceData?.data && !maintenanceData.error) {
+            opsStatus = opsStatusFromRows(maintenanceData.data);
+            isMaintenanceMode = opsStatus.maintenance;
+        }
     }
 
     // Fail closed when the profile lookup itself errored (#455): without it the
@@ -321,6 +327,14 @@ export async function middleware(request: NextRequest) {
                 ? '/portal'
                 : '/pending-approval';
         return NextResponse.redirect(new URL(redirectPath, publicOrigin));
+    }
+
+    if (opsStatus) {
+        const encoded = encodeOpsStatus(opsStatus);
+        if (request.cookies.get(OPS_STATUS_COOKIE)?.value !== encoded) {
+            // Readable by the page on purpose: it only decides what the banner shows.
+            response.cookies.set({ name: OPS_STATUS_COOKIE, value: encoded, path: '/', sameSite: 'lax' });
+        }
     }
 
     return response;
