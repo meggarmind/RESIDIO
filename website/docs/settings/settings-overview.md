@@ -7,8 +7,8 @@ residio_sources:
   - src/app/(dashboard)/settings/page.tsx
   - src/app/(dashboard)/settings/estate-info/**
   - src/app/(dashboard)/settings/branding/**
-residio_verified_commit: c6a1556e
-residio_verified_at: '2026-10-19'
+residio_verified_commit: 7647c136
+residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
 
