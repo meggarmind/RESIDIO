@@ -43,5 +43,6 @@ Search also offers **Quick Actions**, and lists only those your role can both re
 
 - If a module is not visible, your role likely does not have its view permission. The same applies inside **Settings**: its sidebar lists only the pages your role can open, so two admins will see different menus there.
 - In Settings, the group holding the page you are on stays expanded, and exactly one entry is highlighted — the page itself, not its section.
+- On a phone, the Settings menu button shows the name of the page you are on; tap it to open the full menu. Each settings page names its section in a breadcrumb above its title.
 - A page can be reachable by a direct link but still deny actions without the required create, update, or delete permission.
 - Use the breadcrumb or module link to return to the list rather than using browser history after a successful write.
