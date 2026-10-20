@@ -9,7 +9,6 @@ const PHONE_PAGES = [
     '/settings/house-types',
     '/settings/transaction-tags',
     '/settings/bank-accounts',
-    '/settings/roles',
 ];
 
 // Tabs are navigation, out of scope here; inline text links are exempt from the target-size rule.
@@ -51,10 +50,11 @@ test.describe('Settings phone targets and layout (#788)', () => {
         });
     }
 
-    test('/settings/roles: no horizontal page scroll at 1440', async ({ page }) => {
+    // The roles page moved out of Settings into Roles & Access (#912), so it has no settings-content wrapper.
+    test('/system/accounts?tab=roles: no horizontal page scroll at 1440', async ({ page }) => {
         await page.setViewportSize({ width: 1440, height: 900 });
         await loginAs(page, 'admin');
-        await page.goto('/settings/roles');
+        await page.goto('/system/accounts?tab=roles');
         await expect(page.getByRole('button', { name: 'Add Role' })).toBeVisible({ timeout: 20000 });
         const overflow = await page.evaluate(() => {
             const main = document.querySelector('main') ?? document.documentElement;
@@ -68,7 +68,7 @@ test.describe('Settings phone targets and layout (#788)', () => {
         expect(addRole && addRole.x + addRole.width).toBeLessThanOrEqual(1440);
         await expect(page.getByRole('button', { name: /^Edit role/ }).first()).toBeVisible();
         // Row actions are visible without scrolling the table sideways ("Actions clipped").
-        const clipped = await page.getByTestId('settings-content').evaluate((root) => {
+        const clipped = await page.locator('main').first().evaluate((root) => {
             const right = root.getBoundingClientRect().right;
             return Array.from(root.querySelectorAll<HTMLElement>('button[aria-label^="Edit role"], button[aria-label^="Delete role"]'))
                 .filter((el) => el.getBoundingClientRect().width > 0 && el.getBoundingClientRect().right > right)
