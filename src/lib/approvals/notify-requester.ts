@@ -1,4 +1,5 @@
 import { notifyUser } from '@/lib/notifications/user-notifier';
+import { notifyResidentOfApprovalOutcome } from '@/lib/whatsapp/resident-outcomes';
 import { APPROVAL_REQUEST_TYPE_LABELS } from '@/types/database';
 import type { ApprovalRequest, ApprovalRequestType } from '@/types/database';
 
@@ -10,7 +11,7 @@ function requestLabel(requestType: string): string {
 }
 
 /**
- * Tells the requester of an approval request how it ended, in-app only. Never throws and never
+ * Tells the requester of an approval request how it ended, in-app only (a resident's WhatsApp request is told by WhatsApp). Never throws and never
  * notifies when the requester is the one who made the decision. Does not include requested_changes.
  */
 export async function notifyRequesterOfOutcome(params: {
@@ -20,6 +21,8 @@ export async function notifyRequesterOfOutcome(params: {
     reviewNotes?: string | null;
 }): Promise<void> {
     const { request, outcome, reviewerId, reviewNotes } = params;
+    // A request a resident made over WhatsApp has no admin requester: they hear by WhatsApp instead (#816).
+    await notifyResidentOfApprovalOutcome(request, outcome);
     try {
         if (!request.requested_by) return;
         if (reviewerId && reviewerId === request.requested_by) return;

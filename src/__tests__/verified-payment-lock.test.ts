@@ -194,6 +194,18 @@ describe('unverifyPayment', () => {
   });
 });
 
+describe('payments reported over WhatsApp are settled in Approvals (#816)', () => {
+  it('manuallyVerifyPayment refuses a pending payment that has an approval request', async () => {
+    const { manuallyVerifyPayment } = await import('@/actions/finance/manual-verification');
+    results['payment_records'] = { data: stored({ is_verified: false, status: 'pending', approval_request_id: 'request-1' }), error: null };
+
+    const res = await manuallyVerifyPayment(A);
+
+    expect(res).toEqual({ success: false, error: 'This payment was reported by the resident. Approve or reject it in Approvals.' });
+    expect(paymentUpdates()).toHaveLength(0);
+  });
+});
+
 describe('payment verification audit display (#893)', () => {
   it('manuallyVerifyPayment names the payment by its reference number', async () => {
     const { manuallyVerifyPayment } = await import('@/actions/finance/manual-verification');

@@ -18,6 +18,18 @@ import {
   type StatementRequestInput,
 } from '@/lib/whatsapp/statement-delivery';
 import {
+  REPORTS_PER_DAY,
+  REPORT_WINDOW_DAYS,
+  MAX_REPORT_AMOUNT,
+  cleanReference,
+  checkReportDate,
+  createPaymentReport,
+  parseReportAmount,
+  parseReportDate,
+  type PaymentReportInput,
+  type PaymentReportResult,
+} from '@/lib/whatsapp/payment-reports';
+import {
   confirmEmailChange,
   getRemindersOn,
   setRemindersOn,
@@ -174,6 +186,8 @@ export interface WhatsAppFinancialRepository {
   /** Sends the verification code to the new address; nothing is saved until confirmEmailChange (#816 decision 5). */
   startEmailChange(residentId: string, email: string): Promise<EmailChangeStart>;
   confirmEmailChange(residentId: string, code: string): Promise<EmailChangeConfirm>;
+  /** Files a pending, unverified payment and its approval request (#816 decisions 10-12). */
+  createPaymentReport(input: PaymentReportInput): Promise<PaymentReportResult>;
   /** The statement PDF for a period: the admin account statement, with its Lagos dates. */
   loadStatement(residentId: string, houseId: string, period: StatementPeriod, now: Date): Promise<{ fromDate: string; toDate: string; statement: AccountStatementData }>;
   /** Stores the PDF privately and returns a 1-hour signed URL for the reply. */
@@ -522,7 +536,8 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
           .select('amount')
           .eq('resident_id', residentId)
           .eq('house_id', houseId)
-          .eq('status', 'paid')
+          // A payment a resident reported over WhatsApp is pending until an admin verifies it (#816 decision 11).
+          .in('status', ['paid', 'pending'])
           .eq('is_verified', false),
       ]);
       if (unpaidResult.error) throw unpaidResult.error;
@@ -618,6 +633,7 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
     setRemindersOn,
     startEmailChange,
     confirmEmailChange,
+    createPaymentReport,
     loadStatement: loadWhatsAppStatementForPeriod,
     storeStatementPdf,
     createStatementRequest,
@@ -717,17 +733,18 @@ async function sendFinancialReply(
 // answer), more, alerts, notices, disambiguate, statement_period,
 // property:<target> and pin:<target>, where target is menu, switch or an item.
 
-type Target = 'menu' | 'switch' | FinancialMenuItem;
+type Target = 'menu' | 'switch' | 'report' | FinancialMenuItem;
 
 const GREETINGS = new Set(['menu', 'hi', 'hello', 'yes', 'start']);
 const CONTACT_WORDS = new Set(['9', 'help', 'agent', 'contact']);
-const ITEM_FOR_INTENT: Partial<Record<AssistantIntent, FinancialMenuItem>> = {
+const ITEM_FOR_INTENT: Partial<Record<AssistantIntent, Target>> = {
   owe: 'what_i_owe',
   payments: 'recent_payments',
   statement: 'statement',
   wallet: 'wallet',
+  report: 'report',
 };
-const FINANCIAL_ITEM_NUMBERS: Record<string, FinancialMenuItem> = { '1': 'what_i_owe', '2': 'recent_payments', '3': 'statement', '4': 'wallet' };
+const FINANCIAL_ITEM_NUMBERS: Record<string, Target> = { '1': 'what_i_owe', '2': 'recent_payments', '3': 'statement', '4': 'wallet', '6': 'report' };
 
 interface Turn {
   message: WhatsAppInboundMessage;
@@ -755,6 +772,7 @@ function readNode(raw: string): { node: string; misses: number } {
 async function respond(turn: Turn, body: string, node: string, misses = 0, mediaUrls?: string[]): Promise<void> {
   await sendFinancialReply(turn.message, body, turn.options.send, turn.identity.id, mediaUrls);
   turn.session.currentNode = misses ? `${node}~${misses}` : node;
+  if (!node.startsWith('report_')) turn.session.draft = null;
   turn.session.expiresAt = expiry();
   await turn.options.repository.saveSession(turn.session);
 }
@@ -821,6 +839,7 @@ function financialMenu(turn: Turn): string {
     '2. Recent payments',
     '3. Statement',
     '4. Wallet',
+    '6. Report a payment',
     ...(multiple ? ['8. More'] : []),
     lastLine,
   ].join('\n');
@@ -879,6 +898,7 @@ async function enterFinancial(turn: Turn, target: Target, prefix?: string): Prom
     await respond(turn, `${lead}${statementPeriodPrompt()}`, 'statement_period');
     return;
   }
+  if (target === 'report') return startReport(turn, lead);
   await answerItem(turn, target);
 }
 
@@ -1036,6 +1056,115 @@ async function showContact(turn: Turn): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Report a payment (#816 decisions 10-12): property, amount, date, reference, then a confirm screen.
+// The answers so far live in session.draft; every report_* node keeps them.
+
+interface ReportDraft {
+  houseId: string;
+  amount?: number;
+  paymentDate?: string;
+  reference?: string;
+  screenshotAt?: string;
+}
+
+function reportDraft(turn: Turn): ReportDraft | null {
+  const draft = turn.session.draft as Partial<ReportDraft> | null | undefined;
+  return draft?.houseId ? (draft as ReportDraft) : null;
+}
+
+async function startReport(turn: Turn, lead: string): Promise<void> {
+  const house = selectedHouse(turn);
+  if (!house) return;
+  turn.session.draft = { houseId: house.id } satisfies ReportDraft;
+  await respond(turn, `${lead}*Report a payment, ${house.label}*\nHow much did you pay? Reply with the amount in naira, for example 50000, or CANCEL.`, 'report_amount');
+}
+
+/** Reports are for a property the resident is billed for; a draft that lost its property starts over. */
+async function reportContext(turn: Turn): Promise<{ draft: ReportDraft; house: FinancialHouse } | null> {
+  const draft = reportDraft(turn);
+  const house = draft ? (await loadHouses(turn)).find((candidate) => candidate.id === draft.houseId) : undefined;
+  if (!draft || !house || ((await loadPinGate(turn)) && !turn.session.pinAuthenticated)) {
+    await showMain(turn, 'That report could not be continued. Nothing was sent.');
+    return null;
+  }
+  return { draft, house };
+}
+
+async function reportStep(turn: Turn, node: string): Promise<void> {
+  const context = await reportContext(turn);
+  if (!context) return;
+  const { draft, house } = context;
+  const again = (reply: string) => respond(turn, reply, node, turn.misses + 1);
+  const now = new Date();
+
+  if (node === 'report_amount') {
+    const amount = parseReportAmount(turn.text);
+    if (amount === null) return again("That doesn't look like an amount. Reply with the amount in naira, for example 50000, or CANCEL.");
+    if (amount <= 0) return again('The amount must be more than ₦0. Reply with the amount in naira, or CANCEL.');
+    if (amount > MAX_REPORT_AMOUNT) return again('That amount is too large. Check it and reply with the amount in naira, or CANCEL.');
+    turn.session.draft = { ...draft, amount };
+    return respond(turn, `${formatNaira(amount)}. When did you pay? Reply with the date, for example 12 Oct 2026, or TODAY or YESTERDAY.`, 'report_date');
+  }
+
+  if (node === 'report_date') {
+    const paymentDate = parseReportDate(turn.text, now);
+    if (!paymentDate) return again("That doesn't look like a date. Reply with it like 12 Oct 2026, or TODAY or YESTERDAY, or CANCEL.");
+    const check = checkReportDate(paymentDate, now);
+    if (check === 'future') return again('That date is in the future. Reply with the date you paid, or CANCEL.');
+    if (check === 'too_old') {
+      return again(withContact(turn, `Payments from more than ${REPORT_WINDOW_DAYS} days ago cannot be reported here. Reply with a later date, or CANCEL.`));
+    }
+    turn.session.draft = { ...draft, paymentDate };
+    return respond(turn, `${formatDay(paymentDate)}. Reply with the bank narration or reference shown on your transfer. You can also send a screenshot; the estate office will see it on the estate phone.`, 'report_reference');
+  }
+
+  if (node === 'report_reference') {
+    const reference = cleanReference(turn.text);
+    if (!reference) return again('Reply with the narration or reference in under 100 characters, or CANCEL.');
+    if (draft.amount === undefined || !draft.paymentDate) return showMain(turn, 'That report could not be continued. Nothing was sent.');
+    turn.session.draft = { ...draft, reference };
+    return respond(
+      turn,
+      ['*Report a payment*', `Property: ${house.label}`, `Amount: ${formatNaira(draft.amount)}`, `Date: ${formatDay(draft.paymentDate)}`, `Reference: ${reference}`, 'Reply 1 to send it to the estate office, 2 to cancel.'].join('\n'),
+      'report_confirm'
+    );
+  }
+
+  // report_confirm
+  if (turn.text !== '1' && turn.text !== '2') return miss(turn, node);
+  if (turn.text === '2') return showMain(turn, 'Cancelled. Nothing was changed.');
+  if (draft.amount === undefined || !draft.paymentDate || !draft.reference) return showMain(turn, 'That report could not be continued. Nothing was sent.');
+
+  const result = await turn.options.repository.createPaymentReport({
+    residentId: turn.identity.id,
+    houseId: house.id,
+    houseLabel: house.label,
+    amount: draft.amount,
+    paymentDate: draft.paymentDate,
+    reference: draft.reference,
+    screenshotAt: draft.screenshotAt ?? null,
+  });
+  const reply = result.status === 'created'
+    ? 'Reported. The estate office will check it against the bank statement. It shows as awaiting verification until then.'
+    : result.status === 'duplicate'
+      ? `A payment of ${formatNaira(draft.amount)} on ${formatDay(draft.paymentDate)} for ${house.label} has already been reported. Nothing was sent.`
+      : result.status === 'limit'
+        ? withContact(turn, `You've reported ${REPORTS_PER_DAY} payments today, which is the limit. Please try again tomorrow.`)
+        : withContact(turn, 'That payment could not be reported. Nothing was sent.');
+  await respond(turn, `${reply}\n${footer(turn)}`, 'main');
+}
+
+/** An image inside a report: Chatmaid does not pass the file on, so say where it went and note when it came (decision 10). */
+async function acknowledgeScreenshot(turn: Turn, node: string): Promise<void> {
+  const draft = reportDraft(turn);
+  if (draft) {
+    const sentAt = new Date(Number(turn.message.timestamp) * 1000);
+    if (!Number.isNaN(sentAt.getTime())) turn.session.draft = { ...draft, screenshotAt: `${lockTime(sentAt.toISOString())} on ${formatDay(sentAt)}` };
+  }
+  await respond(turn, 'Screenshot received. The estate office will see it on the estate phone.\nContinue with your report, or reply CANCEL.', node);
+}
+
+// ---------------------------------------------------------------------------
 // Account actions (#816): reminders and verified email
 
 async function showAlertSettings(turn: Turn): Promise<void> {
@@ -1169,7 +1298,11 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
     return showMain(turn, `Your session ended after ${SESSION_MINUTES} minutes without activity${pinClause}. Nothing was changed.`);
   }
 
+  if (turn.message.type === 'image' && node.startsWith('report_')) return acknowledgeScreenshot(turn, node);
   if (turn.message.type !== 'text' || !text) return respond(turn, TEXT_ONLY_REPLY, node, turn.misses);
+
+  // A narration or reference is free text, so it cannot be read as a keyword.
+  if (node === 'report_reference' && input !== 'cancel' && input !== 'lock') return reportStep(turn, node);
 
   if (GREETINGS.has(input)) return showMain(turn);
   if (input === 'cancel') return showMain(turn, 'Cancelled. Nothing was changed.');
@@ -1180,11 +1313,12 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
   }
   if (CONTACT_WORDS.has(input)) return showContact(turn);
   if (input === '0') {
-    const backToFinancial = node === 'answer' || node === 'more' || node === 'statement_period' || node.startsWith('property:') || node.startsWith('statement:') || node.startsWith('statement_email:');
+    const backToFinancial = node === 'answer' || node === 'more' || node === 'statement_period' || node.startsWith('report_') || node.startsWith('property:') || node.startsWith('statement:') || node.startsWith('statement_email:');
     return backToFinancial && turn.identity.financialEligible ? enterFinancial(turn, 'menu') : showMain(turn);
   }
 
   // Free-text answers come before the keywords, which would otherwise read an address as a keyword.
+  if (node === 'report_amount' || node === 'report_date' || node === 'report_confirm') return reportStep(turn, node);
   if (node === 'email_address') return submitEmailAddress(turn);
   if (node === 'email_code') return submitEmailCode(turn);
 

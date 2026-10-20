@@ -134,6 +134,7 @@ function repository(houses: FinancialHouse[] = [PALM], overrides: Partial<WhatsA
     setRemindersOn: vi.fn().mockResolvedValue(undefined),
     startEmailChange: vi.fn().mockResolvedValue({ status: 'sent', email: 'new.name@example.com' }),
     confirmEmailChange: vi.fn().mockResolvedValue({ status: 'saved', email: 'new.name@example.com', statementsQueued: 0 }),
+    createPaymentReport: vi.fn().mockResolvedValue({ status: 'created', paymentId: 'payment-1', requestId: 'request-1' }),
     loadStatement: vi.fn().mockResolvedValue({ fromDate: '2026-10-01', toDate: '2026-10-20', statement: statementData(3) }),
     storeStatementPdf: vi.fn().mockResolvedValue('https://storage.test/signed/statement.pdf'),
     getResidentEmail: vi.fn().mockResolvedValue('ada.example@gmail.com'),
@@ -181,6 +182,7 @@ const FINANCIAL_MENU = [
   '2. Recent payments',
   '3. Statement',
   '4. Wallet',
+  '6. Report a payment',
   FOOTER,
 ].join('\n');
 
@@ -896,6 +898,26 @@ describe('WhatsApp What I owe figures (#811, #804 decision 20)', () => {
     vi.useRealTimers();
   });
 
+  it('counts a payment reported on WhatsApp (pending, unverified) as awaiting verification (#816 decision 11)', async () => {
+    const statusFilters: Array<{ table: string; values: string[] }> = [];
+    const from = vi.fn((table: string) => {
+      const chain: Record<string, unknown> = {};
+      for (const op of ['select', 'eq', 'neq', 'order']) chain[op] = vi.fn(() => chain);
+      chain.in = vi.fn((column: string, values: string[]) => {
+        if (column === 'status') statusFilters.push({ table, values });
+        return chain;
+      });
+      chain.then = (resolve: (value: unknown) => unknown) => resolve(table === 'payment_records' ? { data: [{ amount: 50000 }], error: null } : { data: [], count: 0, error: null });
+      return chain;
+    });
+    vi.mocked(createAdminClient).mockReturnValue({ from } as unknown as ReturnType<typeof createAdminClient>);
+
+    const owed = await createSupabaseWhatsAppFinancialRepository().getOwed('resident-1', 'house-1');
+
+    expect(owed.awaitingVerification).toBe(50000);
+    expect(statusFilters).toContainEqual({ table: 'payment_records', values: ['paid', 'pending'] });
+  });
+
   it('finds an unpaid invoice newer than more than 1000 fully paid ones', async () => {
     mockTables([...paidMonthly(1100), { invoice_number: 'INV-NEW', amount_due: 5000, amount_paid: 0, due_date: '2120-01-01' }]);
 
@@ -1172,5 +1194,164 @@ describe('WhatsApp Assistant update email (#816 decisions 5-8)', () => {
     expect(replies[1]).toBe(UNRECOGNISED);
     expect(repo.startEmailChange).not.toHaveBeenCalled();
     expect(replies[3]).toBe('PIN verified.\n\nWhat email address should we use? Reply with the address, or CANCEL.');
+  });
+});
+
+describe('WhatsApp Assistant report a payment (#816 decisions 10-12)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-20T10:00:00Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const CONFIRM = [
+    '*Report a payment*',
+    'Property: 12 Palm Close',
+    'Amount: ₦50,000.00',
+    'Date: 12 Oct 2026',
+    'Reference: GTB TRF FROM ADA',
+    'Reply 1 to send it to the estate office, 2 to cancel.',
+  ].join('\n');
+
+  it('asks for amount, date and reference, confirms, then files the report', async () => {
+    const repo = repository();
+    const replies = await chat(repo, ['report', '50,000', '12 Oct 2026', 'GTB TRF FROM ADA', '1']);
+
+    expect(replies[0]).toBe('*Report a payment, 12 Palm Close*\nHow much did you pay? Reply with the amount in naira, for example 50000, or CANCEL.');
+    expect(replies[1]).toBe('₦50,000.00. When did you pay? Reply with the date, for example 12 Oct 2026, or TODAY or YESTERDAY.');
+    expect(replies[2]).toContain('12 Oct 2026. Reply with the bank narration or reference');
+    expect(replies[3]).toBe(CONFIRM);
+    expect(repo.createPaymentReport).toHaveBeenCalledTimes(1);
+    expect(repo.createPaymentReport).toHaveBeenCalledWith({
+      residentId: 'resident-1',
+      houseId: 'house-1',
+      houseLabel: '12 Palm Close',
+      amount: 50000,
+      paymentDate: '2026-10-12',
+      reference: 'GTB TRF FROM ADA',
+      screenshotAt: null,
+    });
+    expect(replies[4]).toBe(`Reported. The estate office will check it against the bank statement. It shows as awaiting verification until then.\n${FOOTER}`);
+  });
+
+  it('files nothing until the resident confirms, and cancels on 2', async () => {
+    const repo = repository();
+    const replies = await chat(repo, ['report', '50000', 'yesterday', 'GTB TRF FROM ADA', '2']);
+
+    expect(replies[2]).toContain('19 Oct 2026. Reply with the bank narration');
+    expect(replies[4]).toMatch(/^Cancelled\. Nothing was changed\./);
+    expect(repo.createPaymentReport).not.toHaveBeenCalled();
+  });
+
+  it('asks which property first when the resident has several', async () => {
+    const repo = repository([PALM, CEDAR]);
+    const replies = await chat(repo, ['report', '2', '75000']);
+
+    expect(replies[0]).toBe('Which property?\n1. 12 Palm Close\n2. 4 Cedar Way\nReply with the property number.');
+    expect(replies[1]).toContain('*Report a payment, 4 Cedar Way*');
+    expect(replies[2]).toContain('₦75,000.00. When did you pay?');
+  });
+
+  it.each([
+    ['abc', "That doesn't look like an amount. Reply with the amount in naira, for example 50000, or CANCEL."],
+    ['0.00', 'The amount must be more than ₦0. Reply with the amount in naira, or CANCEL.'],
+    ['5 million', "That doesn't look like an amount. Reply with the amount in naira, for example 50000, or CANCEL."],
+    ['99999999999', 'That amount is too large. Check it and reply with the amount in naira, or CANCEL.'],
+  ])('refuses the amount %s and asks again', async (amount, reply) => {
+    const repo = repository();
+    const replies = await chat(repo, ['report', amount]);
+    expect(replies[1]).toBe(reply);
+  });
+
+  it.each([
+    ['soon', "That doesn't look like a date. Reply with it like 12 Oct 2026, or TODAY or YESTERDAY, or CANCEL."],
+    ['31 Feb 2026', "That doesn't look like a date. Reply with it like 12 Oct 2026, or TODAY or YESTERDAY, or CANCEL."],
+    ['21 Oct 2026', 'That date is in the future. Reply with the date you paid, or CANCEL.'],
+    ['20 Jul 2026', `Payments from more than 90 days ago cannot be reported here. Reply with a later date, or CANCEL.\n${CONTACT}`],
+  ])('refuses the date %s', async (date, reply) => {
+    const repo = repository();
+    const replies = await chat(repo, ['report', '50000', date]);
+    expect(replies[2]).toBe(reply);
+  });
+
+  it('accepts today, the oldest allowed day, and a long month name', async () => {
+    const repo = repository();
+    const replies = await chat(repo, ['report', '50000', 'today', 'cancel', 'report', '50000', '22 July 2026']);
+    expect(replies[2]).toContain('20 Oct 2026. Reply with the bank narration');
+    expect(replies[6]).toContain('22 Jul 2026. Reply with the bank narration');
+  });
+
+  it('keeps a reference such as MENU as the reference, not a keyword', async () => {
+    const repo = repository();
+    const replies = await chat(repo, ['report', '50000', '12 Oct 2026', 'menu']);
+    expect(replies[3]).toContain('Reference: menu');
+  });
+
+  it('asks for a shorter reference and keeps the report open', async () => {
+    const repo = repository();
+    const replies = await chat(repo, ['report', '50000', '12 Oct 2026', 'x'.repeat(101), 'GTB TRF FROM ADA']);
+    expect(replies[3]).toBe('Reply with the narration or reference in under 100 characters, or CANCEL.');
+    expect(replies[4]).toBe(CONFIRM);
+  });
+
+  it.each([
+    ['duplicate', 'A payment of ₦50,000.00 on 12 Oct 2026 for 12 Palm Close has already been reported. Nothing was sent.'],
+    ['limit', `You've reported 3 payments today, which is the limit. Please try again tomorrow.\n${CONTACT}`],
+    ['invalid', `That payment could not be reported. Nothing was sent.\n${CONTACT}`],
+    ['not_your_property', `That payment could not be reported. Nothing was sent.\n${CONTACT}`],
+  ] as const)('tells the resident when the report is %s', async (status, reply) => {
+    const repo = repository([PALM], { createPaymentReport: vi.fn().mockResolvedValue({ status }) });
+    const replies = await chat(repo, ['report', '50000', '12 Oct 2026', 'GTB TRF FROM ADA', '1']);
+    expect(replies[4]).toBe(`${reply}\n${FOOTER}`);
+  });
+
+  it('acknowledges a screenshot, notes when it came, and carries on', async () => {
+    const repo = repository();
+    const send = vi.fn().mockResolvedValue({ success: true });
+    const opts = { repository: repo, optedIn: true, send };
+    await handleFinancialMessage(message('report'), identity, opts);
+    await handleFinancialMessage(message('50000'), identity, opts);
+    // 1760000000 is 2025-10-09 08:53:20 UTC, so 09:53 in Lagos.
+    await handleFinancialMessage({ ...message(''), type: 'image', text: null }, identity, opts);
+    await handleFinancialMessage(message('12 Oct 2026'), identity, opts);
+    await handleFinancialMessage(message('GTB TRF FROM ADA'), identity, opts);
+    await handleFinancialMessage(message('1'), identity, opts);
+
+    expect(send.mock.calls[2][0].body).toBe('Screenshot received. The estate office will see it on the estate phone.\nContinue with your report, or reply CANCEL.');
+    expect(send.mock.calls[3][0].body).toContain('12 Oct 2026. Reply with the bank narration');
+    expect(repo.createPaymentReport).toHaveBeenCalledWith(expect.objectContaining({ screenshotAt: '09:53 on 9 Oct 2025' }));
+  });
+
+  it('still answers an image outside a report with the text-only reply', async () => {
+    const repo = repository();
+    const send = vi.fn().mockResolvedValue({ success: true });
+    await handleFinancialMessage({ ...message(''), type: 'image', text: null }, identity, { repository: repo, optedIn: true, send });
+    expect(send.mock.calls[0][0].body).toBe('I can only read text messages here. Please type your request.');
+  });
+
+  it('goes back to Financial standing on 0 and forgets the draft', async () => {
+    const repo = repository();
+    const replies = await chat(repo, ['report', '50000', '0', '6', '1']);
+    expect(replies[2]).toBe(FINANCIAL_MENU);
+    // A fresh report starts from the amount, not the date.
+    expect(replies[3]).toContain('How much did you pay?');
+  });
+
+  it('asks for the PIN before any report step when a PIN is set', async () => {
+    const repo = repository();
+    vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
+    const replies = await chat(repo, ['report', 'PIN 482915']);
+
+    expect(replies[0]).toContain('before viewing financial standing');
+    expect(replies[1]).toBe('PIN verified.\n\n*Report a payment, 12 Palm Close*\nHow much did you pay? Reply with the amount in naira, for example 50000, or CANCEL.');
+  });
+
+  it('does not offer reports to a community-tier resident', async () => {
+    const repo = repository([]);
+    const replies = await chat(repo, ['report'], community);
+    expect(replies[0]).toMatch(/^Financial standing is only available to residents billed for a property\./);
+    expect(repo.createPaymentReport).not.toHaveBeenCalled();
   });
 });

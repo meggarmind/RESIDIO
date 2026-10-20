@@ -286,7 +286,7 @@ export default function ApprovalsPage() {
                                     badge={<ApprovalStatusBadge request={request} />}
                                     subtitle={[
                                         APPROVAL_REQUEST_TYPE_LABELS[request.request_type] || request.request_type,
-                                        request.requester?.full_name || 'Unknown',
+                                        request.requester?.full_name || (request.requested_by_resident_id ? 'Resident (WhatsApp)' : 'Unknown'),
                                         formatDistanceToNow(new Date(request.created_at), { addSuffix: true }),
                                     ].join(' · ')}
                                     actions={<ApprovalActions request={request} onAction={handleAction} />}
@@ -324,7 +324,7 @@ export default function ApprovalsPage() {
                                             <TableCell>{renderChangeDetails(request)}</TableCell>
                                             <TableCell>
                                                 <span className="text-sm">
-                                                    {request.requester?.full_name || 'Unknown'}
+                                                    {request.requester?.full_name || (request.requested_by_resident_id ? 'Resident (WhatsApp)' : 'Unknown')}
                                                 </span>
                                             </TableCell>
                                             <TableCell>

@@ -53,6 +53,12 @@ export async function manuallyVerifyPayment(
         return { success: false, error: 'Payment is already verified' };
     }
 
+    // A payment a resident reported over WhatsApp (#816) is still pending and only becomes a paid, credited
+    // payment when its approval is approved; verifying it here would leave it verified but never paid.
+    if (existingPayment.status === 'pending' && existingPayment.approval_request_id) {
+        return { success: false, error: 'This payment was reported by the resident. Approve or reject it in Approvals.' };
+    }
+
     // Update the payment to verified
     const { error: updateError } = await supabase
         .from('payment_records')
@@ -212,7 +218,7 @@ export async function bulkVerifyPayments(
 
     const { data: existing, error: fetchError } = await supabase
         .from('payment_records')
-        .select('id, is_verified')
+        .select('id, is_verified, status, approval_request_id')
         .in('id', requestedIds);
 
     if (fetchError || !existing) {
@@ -220,10 +226,11 @@ export async function bulkVerifyPayments(
         return { success: false, error: 'Could not load the selected payments' };
     }
 
-    const toVerify = existing.filter((p) => !p.is_verified).map((p) => p.id);
+    // Payments reported over WhatsApp (#816) are settled through Approvals, not verified in bulk.
+    const toVerify = existing.filter((p) => !p.is_verified && !(p.status === 'pending' && p.approval_request_id)).map((p) => p.id);
     const skippedCount = requestedIds.length - toVerify.length;
     if (toVerify.length === 0) {
-        return { success: false, error: `All ${skippedCount} selected payment(s) are already verified or no longer exist` };
+        return { success: false, error: `All ${skippedCount} selected payment(s) are already verified, awaiting approval or no longer exist` };
     }
 
     // The is_verified filter keeps a payment verified concurrently from being re-stamped

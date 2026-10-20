@@ -233,7 +233,7 @@ export function answerFooter(hasContact: boolean): string {
 // ---------------------------------------------------------------------------
 // Keywords (#804 harmonised: numbers and fixed keywords only, no free-text parsing)
 
-export type AssistantIntent = 'owe' | 'payments' | 'statement' | 'wallet' | 'pay' | 'notices' | 'contact' | 'email' | 'reminders';
+export type AssistantIntent = 'owe' | 'payments' | 'statement' | 'wallet' | 'pay' | 'notices' | 'contact' | 'email' | 'reminders' | 'report';
 
 export const DEFAULT_KEYWORDS: Record<string, AssistantIntent> = {
   owe: 'owe',
@@ -256,13 +256,14 @@ export const DEFAULT_KEYWORDS: Record<string, AssistantIntent> = {
   contact: 'contact',
   email: 'email',
   reminders: 'reminders',
+  report: 'report',
 };
 
-const INTENTS = new Set<AssistantIntent>(['owe', 'payments', 'statement', 'wallet', 'pay', 'notices', 'contact', 'email', 'reminders']);
+const INTENTS = new Set<AssistantIntent>(['owe', 'payments', 'statement', 'wallet', 'pay', 'notices', 'contact', 'email', 'reminders', 'report']);
 
 /**
  * The office's extra phrasing, one `phrase = item` per line (item is one of
- * owe, payments, statement, wallet, pay, notices, contact, email, reminders). Bad lines are skipped.
+ * owe, payments, statement, wallet, pay, notices, contact, email, reminders, report). Bad lines are skipped.
  */
 export function parseKeywordSynonyms(value: unknown): Record<string, AssistantIntent> {
   const text = typeof value === 'string' ? value : '';
