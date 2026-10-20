@@ -10,7 +10,7 @@ residio_sources:
   - src/actions/system/cron-status.ts
   - src/lib/system/cron-status.ts
   - src/app/(dashboard)/system/cron-status/**
-residio_verified_commit: 08dfbdff
+residio_verified_commit: 29e89ffa
 residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
@@ -35,7 +35,7 @@ Times are in UTC. Adjust for your estate's local time when reasoning about when 
 | Report generation | Daily, 06:00 | Builds scheduled reports |
 | Report schedule processing | Daily, 07:00 | Delivers reports to their subscribers |
 | Payment reminders | Daily, 08:00 | Queues reminder messages for outstanding balances |
-| Notification processing | Every 15 minutes | Sends what is waiting in the notification queue, retrying failed sends with a backoff, and alerts admins to Chatmaid WhatsApp messages still unconfirmed after 15 minutes |
+| Notification processing | Every 15 minutes | Sends what is waiting in the notification queue, retrying failed sends with a backoff, alerts admins to Chatmaid WhatsApp messages still unconfirmed after 15 minutes, and deletes WhatsApp statement PDFs 12 hours after they were made |
 | Announcement publishing | Hourly | Publishes announcements whose scheduled time has arrived |
 | Email import | Hourly | Reads the connected mailbox for bank alerts and statements, and queues every transaction it finds for admin review (it posts no money) |
 | Approval expiry | Hourly | Rejects approval requests left pending past their 72-hour expiry and notifies the requester |

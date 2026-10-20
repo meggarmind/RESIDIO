@@ -8,7 +8,7 @@ residio_sources:
   - src/actions/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp/**
   - src/app/api/whatsapp/**
-residio_verified_commit: d0e1566f
+residio_verified_commit: 29e89ffa
 residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
@@ -161,7 +161,13 @@ The main menu opens with `Hi <first name>, what would you like to do?` and lists
 | 4. Alert settings | Always. Turning *All estate WhatsApp messages* off works like replying `STOP` |
 | 9. Contact the estate office | The estate phone or email is set on **Settings → Estate & Property → Estate Details** |
 
-**Financial standing** lists What I owe, Recent payments (the last 5), Statement (this month, this year, last 6 months, last 12 months or all time) and Wallet. Only this item asks for the PIN. A resident billed for more than one property is asked which one once per session, sees it in every heading, and can change it under **8. More**.
+**Financial standing** lists What I owe, Recent payments (the last 5), Statement (this month, this year, last 6 months, last 12 months or all time) and Wallet.
+
+A statement reply is a text summary ending `Reply PDF to download the full statement.` On `PDF`:
+
+- **Up to 40 rows:** the account statement PDF is attached in chat. It is stored privately, Chatmaid is given a link that works for 1 hour, and the file is deleted 12 hours later. If Chatmaid reports the send failed, it is sent once more with a fresh link.
+- **Over 40 rows:** the resident is offered email to their address on file, shown masked (`a***@gmail.com`). On `1` the email is queued and arrives with the PDF attached within 15 minutes, through the notification queue, so the communications override applies to it.
+- **No email on file:** the resident is told so, and the request appears under **Statement requested, no email** in the operations console until an email is added and the statement is sent. Only this item asks for the PIN. A resident billed for more than one property is asked which one once per session, sees it in every heading, and can change it under **8. More**.
 
 - `0` goes back one level; `MENU`, `HI` or `HELLO` show the main menu; `CANCEL` abandons the current step; `LOCK` ends an unlocked session.
 - `9`, `HELP`, `AGENT` and `CONTACT` give the estate office line: phone, email and office hours from Estate Details.
@@ -190,7 +196,7 @@ Caps protect residents from a runaway loop and protect the estate from provider 
 | Burst window (minutes) | The window the burst cap is measured over |
 | Financial lookup daily cap | Maximum financial answers returned in a day, across the whole estate (default 500) |
 
-Each resident is also limited to 20 financial answers a day. Only the four Financial standing items count toward either financial cap; How to pay, notices and the contact line do not. Both reset at midnight Lagos time, and the resident is told which limit was reached.
+Each resident is also limited to 20 financial answers a day. Only the four Financial standing items count toward either financial cap, including each statement PDF and email; How to pay, notices and the contact line do not. Both reset at midnight Lagos time, and the resident is told which limit was reached.
 
 When a cap is reached, further sends are blocked and the event is counted in the console as a cap limit event. Repeated cap events mean the cap is wrong for the estate size or something is sending in a loop — investigate before raising the number.
 
@@ -200,7 +206,9 @@ The console on the same page shows today's activity: inbound messages, outbound 
 
 The **undelivered messages** list covers the last 7 days. It shows each WhatsApp message the provider reported as failed, or that Chatmaid accepted but never confirmed as sent within 15 minutes. Each row shows the time, the resident (when known), the masked number, whether it was a reply or a notification, the provider's reason, and the id of the resident message it answered. Those residents may not have received the message, so contact them another way. Residio does not resend these messages automatically.
 
-The **disclosure log** records every occasion on which financial information was released over WhatsApp. Treat it as an audit surface: it is the evidence that a disclosure was authorised, and it should never be cleared to tidy a screen.
+The **Statement requested, no email** list shows residents who asked for a statement too long for chat and have no email on file. Add their email to clear it.
+
+The **disclosure log** records every occasion on which financial information was released over WhatsApp, with its channel: `chat` for an answer, `pdf` for a statement PDF sent in chat, and `email` for one sent by email. Treat it as an audit surface: it is the evidence that a disclosure was authorised, and it should never be cleared to tidy a screen.
 
 ## Data retention
 
