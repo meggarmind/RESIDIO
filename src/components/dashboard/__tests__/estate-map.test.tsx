@@ -107,23 +107,53 @@ describe('EstateMap ready', () => {
     expect(screen.getByRole('link', { name: 'House 10, Ash Road, No invoice' })).toBeInTheDocument();
   });
 
-  it('carries a distinct icon shape per status', () => {
+  it('marks only overdue and outstanding cells, each with a distinct icon shape', () => {
     renderMap();
-    const shape = { overdue: 'lucide-triangle-alert', outstanding: 'lucide-clock', paid_up: 'lucide-check', no_invoice: 'lucide-minus' };
+    const shape = { overdue: 'lucide-triangle-alert', outstanding: 'lucide-clock' };
     for (const [status, cls] of Object.entries(shape)) {
-      const cues = screen.getAllByTestId(`estate-map-cue-${status}`);
-      expect(cues.length).toBeGreaterThan(0);
-      cues.forEach((c) => expect(c.getAttribute('class')).toContain(cls));
+      const cells = document.querySelectorAll(`a[data-status="${status}"]`);
+      expect(cells.length).toBeGreaterThan(0);
+      cells.forEach((a) => {
+        expect(a.querySelector('svg')?.getAttribute('class')).toContain(cls);
+        expect(a.className).toContain('border-2');
+      });
     }
   });
 
-  it('cells are neutral with the house number in foreground and no status-* tokens', () => {
+  it('paid up and no invoice are plain cells with no icon and no border', () => {
+    renderMap();
+    for (const status of ['paid_up', 'no_invoice']) {
+      expect(screen.queryAllByTestId(`estate-map-cue-${status}`)).toHaveLength(0);
+      const cells = document.querySelectorAll(`a[data-status="${status}"]`);
+      expect(cells.length).toBeGreaterThan(0);
+      cells.forEach((a) => {
+        expect(a.querySelector('svg')).toBeNull();
+        expect(a.className).not.toMatch(/\bborder/);
+      });
+    }
+  });
+
+  it('the overdue and outstanding chips show the cell icon as a legend', () => {
+    renderMap();
+    expect(screen.getByTestId('estate-map-filter-overdue').querySelector('svg')?.getAttribute('class')).toContain('lucide-triangle-alert');
+    expect(screen.getByTestId('estate-map-filter-outstanding').querySelector('svg')?.getAttribute('class')).toContain('lucide-clock');
+    expect(screen.getByTestId('estate-map-filter-paid_up').querySelector('svg')).toBeNull();
+    expect(screen.getByTestId('estate-map-filter-no_invoice').querySelector('svg')).toBeNull();
+  });
+
+  it('cells keep the house number in foreground and use no status-* tokens', () => {
     renderMap();
     document.querySelectorAll('a[data-status]').forEach((a) => {
-      expect(a.className).toContain('bg-card');
       expect(a.className).not.toMatch(/status-/);
       expect(a.querySelector('span')?.className).toContain('text-foreground');
     });
+  });
+
+  it('sits on the page background under a rule, not in a card', () => {
+    renderMap();
+    const map = screen.getByTestId('estate-map');
+    expect(map.className).toContain('border-t');
+    expect(map.className).not.toMatch(/bg-card|shadow|rounded/);
   });
 
   it('filters: one active button, hides non-matching cells and empty groups, keeps legend counts', () => {

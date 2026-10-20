@@ -24,12 +24,17 @@ vi.mock('next/link', () => ({
     </a>
   ),
 }));
+// Render the menu open so its items are queryable; Radix keeps closed content out of the DOM.
+vi.mock('@/components/ui/dropdown-menu', () => {
+  const Pass = ({ children }: { children: React.ReactNode }) => <>{children}</>;
+  return { DropdownMenu: Pass, DropdownMenuContent: Pass, DropdownMenuItem: Pass, DropdownMenuTrigger: Pass };
+});
 vi.mock('@/lib/auth/auth-provider', () => ({
   useAuth: () => ({ hasPermission: (p: string) => perms.all || perms.granted.has(p) }),
 }));
 
-import { CommandStrip } from '@/components/dashboard/command-strip';
-import { MoneyLane } from '@/components/dashboard/money-lane';
+import { CommandStrip, QUICK_ACTIONS } from '@/components/dashboard/command-strip';
+import { MoneyLane, VERIFIED_EXPLANATION } from '@/components/dashboard/money-lane';
 import { PeopleLane } from '@/components/dashboard/people-lane';
 import { SecurityLane } from '@/components/dashboard/security-lane';
 import { CommandRecentActivity } from '@/components/dashboard/command-recent-activity';
@@ -83,13 +88,6 @@ const sa = (over: Partial<SecurityAlerts> = {}): SecurityAlerts => ({
   expiringCodes: [],
   ...over,
 });
-const counts = (over: Partial<{ paid_up: number; outstanding: number; overdue: number; no_invoice: number }> = {}) => ({
-  paid_up: 5,
-  outstanding: 1,
-  overdue: 0,
-  no_invoice: 173,
-  ...over,
-});
 
 const tone = (id: string) => screen.getByTestId(id).getAttribute('data-tone');
 
@@ -127,28 +125,8 @@ describe('security lane tone reflects every figure shown', () => {
 });
 
 describe('people lane', () => {
-  it('overdue houses make it attention and are named in the status and a row', () => {
-    render(<PeopleLane actionMetrics={am()} quickStats={qs} estateMapCounts={counts({ overdue: 2 })} />);
-    expect(tone('lane-people')).toBe('attention');
-    expect(screen.getByTestId('lane-people-overdue')).toHaveTextContent('2 houses are overdue');
-    const rows = within(screen.getByTestId('lane-people-queue')).getAllByRole('listitem');
-    expect(rows).toHaveLength(3);
-    expect(rows[2]).toHaveTextContent('Overdue houses2');
-  });
-
-  it('one overdue house reads in the singular', () => {
-    render(<PeopleLane actionMetrics={am()} quickStats={qs} estateMapCounts={counts({ overdue: 1 })} />);
-    expect(screen.getByTestId('lane-people-overdue')).toHaveTextContent('1 house is overdue');
-  });
-
-  it('no overdue houses stays healthy and shows no overdue line', () => {
-    render(<PeopleLane actionMetrics={am()} quickStats={qs} estateMapCounts={counts()} />);
-    expect(tone('lane-people')).toBe('ok');
-    expect(screen.queryByTestId('lane-people-overdue')).toBeNull();
-  });
-
-  it('without map counts keeps the old behaviour and the vacant row', () => {
-    render(<PeopleLane actionMetrics={am()} quickStats={qs} estateMapCounts={null} />);
+  it('is healthy with nobody awaiting review and keeps the vacant row', () => {
+    render(<PeopleLane actionMetrics={am()} quickStats={qs} />);
     expect(tone('lane-people')).toBe('ok');
     expect(screen.getByTestId('lane-people-queue')).toHaveTextContent('Vacant houses59');
     expect(screen.queryByText('Overdue houses')).toBeNull();
@@ -171,11 +149,10 @@ describe('people lane', () => {
 describe('money lane', () => {
   it('names the real period of each figure and what verified counts', () => {
     render(<MoneyLane financialHealth={fh()} actionMetrics={am()} />);
-    const lane = screen.getByTestId('lane-money');
-    expect(screen.getByTestId('lane-money-hero')).toHaveTextContent('Collected on invoices, all time');
-    expect(lane).toHaveTextContent('Verified payments this month');
-    expect(lane).toHaveTextContent('confirmed or that came in through a bank or email statement import');
-    expect(lane).not.toHaveTextContent('bank-matched');
+    expect(screen.getByTestId('lane-money-hero')).toHaveTextContent('Outstanding on invoices');
+    expect(screen.getByTestId('lane-money-verified')).toHaveTextContent('Verified this month');
+    expect(VERIFIED_EXPLANATION).toContain('confirmed or that came in through a bank or email statement import');
+    expect(VERIFIED_EXPLANATION).not.toContain('bank-matched');
   });
 
   it('unverified payments make it attention when nothing is overdue', () => {
@@ -185,20 +162,18 @@ describe('money lane', () => {
 });
 
 describe('unavailable lane that still receives data', () => {
-  it('is neutral with no figures in rows and no as-of time', () => {
-    const asOf = '2026-10-18T10:30:00Z';
+  it('is neutral with no figures in rows', () => {
     render(
       <>
-        <MoneyLane financialHealth={fh()} actionMetrics={am({ unverifiedPayments: 4 })} asOf={asOf} isUnavailable />
-        <PeopleLane actionMetrics={am({ pendingResidentVerifications: 2 })} quickStats={qs} asOf={asOf} isUnavailable />
-        <SecurityLane actionMetrics={am({ expiringSecurityContacts: 2 })} securityAlerts={sa({ expiredCodesCount: 2 })} quickStats={qs} asOf={asOf} isUnavailable />
+        <MoneyLane financialHealth={fh()} actionMetrics={am({ unverifiedPayments: 4 })} isUnavailable />
+        <PeopleLane actionMetrics={am({ pendingResidentVerifications: 2 })} quickStats={qs} isUnavailable />
+        <SecurityLane actionMetrics={am({ expiringSecurityContacts: 2 })} securityAlerts={sa({ expiredCodesCount: 2 })} quickStats={qs} isUnavailable />
       </>,
     );
     for (const id of ['lane-money', 'lane-people', 'lane-security']) {
       expect(tone(id)).toBe('neutral');
       expect(screen.getByTestId(id)).toHaveAttribute('data-lane-state', 'unavailable');
       expect(screen.getByTestId(`${id}-state`)).toHaveTextContent('Unavailable');
-      expect(screen.queryByTestId(`${id}-asof`)).toBeNull();
       expect(screen.getByTestId(`${id}-queue`)).not.toHaveTextContent(/\d/);
       expect(screen.getByTestId(`${id}-queue`)).not.toHaveTextContent('₦');
       expect(screen.getByTestId(`${id}-queue`)).toHaveTextContent('Unavailable');
@@ -219,7 +194,7 @@ describe('command strip with isUnavailable and data present', () => {
   });
 });
 
-// Each button must be gated by its own permission and no other.
+// Each action must be gated by its own permission and no other.
 const ALL_PERMS = Object.values(PERMISSIONS) as string[];
 const without = (p: string) => new Set(ALL_PERMS.filter((x) => x !== p));
 
@@ -231,36 +206,62 @@ const allLanes = () => (
   </>
 );
 
-const CASES: Array<{ name: string; perm: string; lane: string; primary: boolean }> = [
-  { name: 'Verify payments', perm: PERMISSIONS.APPROVALS_VIEW, lane: 'lane-money', primary: true },
-  { name: 'Generate invoices', perm: PERMISSIONS.BILLING_CREATE_INVOICE, lane: 'lane-money', primary: false },
-  { name: 'Import statement', perm: PERMISSIONS.IMPORTS_CREATE, lane: 'lane-money', primary: false },
-  { name: 'Add house', perm: PERMISSIONS.HOUSES_CREATE, lane: 'lane-people', primary: false },
-  { name: 'Review residents', perm: PERMISSIONS.RESIDENTS_VIEW, lane: 'lane-people', primary: true },
-  { name: 'Open security contacts', perm: PERMISSIONS.SECURITY_VIEW, lane: 'lane-security', primary: true },
+const PRIMARY: Array<{ name: string; perm: string; lane: string }> = [
+  { name: 'Verify payments', perm: PERMISSIONS.APPROVALS_VIEW, lane: 'lane-money' },
+  { name: 'Review residents', perm: PERMISSIONS.RESIDENTS_VIEW, lane: 'lane-people' },
+  { name: 'Open security contacts', perm: PERMISSIONS.SECURITY_VIEW, lane: 'lane-security' },
 ];
 
-describe('action buttons are gated by their own permission', () => {
-  it.each(CASES)('$name is unavailable with every other permission but not $perm', ({ name, perm, lane, primary }) => {
+describe('lane header links are gated by their own permission', () => {
+  it.each(PRIMARY)('$name is hidden with every other permission but not $perm', ({ name, perm, lane }) => {
     perms.all = false;
     perms.granted = without(perm);
     render(allLanes());
-    const el = screen.getByTestId(lane);
-    expect(within(el).queryByRole('link', { name })).toBeNull();
-    if (primary) expect(within(el).getByRole('button', { name })).toBeDisabled();
-    else expect(within(el).queryByRole('button', { name })).toBeNull();
+    expect(within(screen.getByTestId(lane)).queryByRole('link', { name })).toBeNull();
   });
 
-  it.each(CASES)('$name is enabled with only $perm', ({ name, perm, lane }) => {
+  it.each(PRIMARY)('$name is a header link with only $perm', ({ name, perm, lane }) => {
     perms.all = false;
     perms.granted = new Set([perm]);
     render(allLanes());
-    expect(within(screen.getByTestId(lane)).getByRole('link', { name })).toBeInTheDocument();
+    const link = within(screen.getByTestId(lane)).getByRole('link', { name });
+    expect(link.closest('header')).not.toBeNull();
+  });
+});
+
+describe('Quick actions menu in the strip', () => {
+  const strip = () => <CommandStrip financialHealth={fh()} actionMetrics={am()} />;
+
+  it.each(QUICK_ACTIONS)('$label is hidden with every other permission but not $permission', ({ label, permission }) => {
+    perms.all = false;
+    perms.granted = without(permission);
+    render(strip());
+    expect(screen.queryByRole('link', { name: label })).toBeNull();
+  });
+
+  it.each(QUICK_ACTIONS)('$label is the only item with only $permission', ({ label, href, permission }) => {
+    perms.all = false;
+    perms.granted = new Set([permission]);
+    render(strip());
+    expect(screen.getByRole('link', { name: label })).toHaveAttribute('href', href);
+    const items = within(screen.getByTestId('command-strip')).getAllByRole('link').filter((a) => !a.hasAttribute('data-urgent-kind'));
+    expect(items).toHaveLength(1);
+  });
+
+  it('is absent when no quick action is allowed', () => {
+    perms.all = false;
+    render(strip());
+    expect(screen.queryByTestId('command-strip-quick-actions')).toBeNull();
+  });
+
+  it('is not duplicated in the lanes', () => {
+    render(allLanes());
+    for (const { label } of QUICK_ACTIONS) expect(screen.queryByRole('link', { name: label })).toBeNull();
   });
 });
 
 describe('CommandRecentActivity cap', () => {
-  it('renders at most 6 events', () => {
+  it('renders at most 5 events and a View all link', () => {
     const many: RecentActivityItem[] = Array.from({ length: 9 }, (_, i) => ({
       id: `e${i}`,
       type: 'payment',
@@ -270,7 +271,8 @@ describe('CommandRecentActivity cap', () => {
     }));
     render(<CommandRecentActivity activities={many} />);
     const list = within(screen.getByTestId('command-recent-activity')).getByRole('list');
-    expect(within(list).getAllByRole('listitem')).toHaveLength(6);
-    expect(screen.queryByText('Action e6')).toBeNull();
+    expect(within(list).getAllByRole('listitem')).toHaveLength(5);
+    expect(screen.queryByText('Action e5')).toBeNull();
+    expect(screen.getByRole('link', { name: /^View all/ })).toHaveAttribute('href', '/system/audit-logs');
   });
 });

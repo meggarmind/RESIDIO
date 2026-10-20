@@ -1,10 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronDown } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { STATUS_COLORS } from '@/components/dashboard/status-colors';
+import { formatAsOf } from '@/components/dashboard/command-lane';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import type { DashboardActionMetrics, FinancialHealthMetrics } from '@/actions/dashboard/get-enhanced-dashboard-stats';
 
 export interface UrgentItem {
@@ -59,8 +64,44 @@ export function getGreeting(now: Date): string {
   return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 }
 
+/** The lanes' former secondary buttons, each gated by its own write permission. */
+export const QUICK_ACTIONS: ReadonlyArray<{ label: string; href: string; permission: string }> = [
+  { label: 'Record payment', href: '/payments/new', permission: PERMISSIONS.PAYMENTS_CREATE },
+  { label: 'Generate invoices', href: '/billing/generate', permission: PERMISSIONS.BILLING_CREATE_INVOICE },
+  { label: 'Import statement', href: '/payments/import', permission: PERMISSIONS.IMPORTS_CREATE },
+  { label: 'Add resident', href: '/residents/new', permission: PERMISSIONS.RESIDENTS_CREATE },
+  { label: 'Add house', href: '/houses/new', permission: PERMISSIONS.HOUSES_CREATE },
+  { label: 'Add security contact', href: '/security/contacts/new', permission: PERMISSIONS.SECURITY_REGISTER_CONTACTS },
+];
+
+function QuickActions() {
+  const { hasPermission } = useAuth();
+  const actions = QUICK_ACTIONS.filter((a) => hasPermission(a.permission));
+  if (actions.length === 0) return null;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" data-testid="command-strip-quick-actions" className="min-h-11 md:min-h-8">
+          Quick actions
+          <ChevronDown className="h-4 w-4" aria-hidden="true" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {actions.map((a) => (
+          <DropdownMenuItem key={a.href} asChild>
+            <Link href={a.href}>{a.label}</Link>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 interface CommandStripProps {
   name?: string | null;
+  /** ISO time the snapshot was reconciled; the one timestamp on the board. */
+  asOf?: string | null;
   financialHealth: FinancialHealthMetrics | null;
   actionMetrics: DashboardActionMetrics | null;
   isLoading?: boolean;
@@ -71,6 +112,7 @@ interface CommandStripProps {
 
 export function CommandStrip({
   name,
+  asOf,
   financialHealth,
   actionMetrics,
   isLoading = false,
@@ -80,6 +122,7 @@ export function CommandStrip({
   const first = name?.trim().split(/\s+/)[0];
   const greeting = first ? `${getGreeting(now)}, ${first}` : getGreeting(now);
   const urgent = isLoading || isUnavailable ? null : pickUrgentItem(financialHealth, actionMetrics);
+  const asOfText = isLoading || isUnavailable ? null : formatAsOf(asOf);
 
   return (
     <section
@@ -87,30 +130,40 @@ export function CommandStrip({
       data-testid="command-strip"
       className="col-span-12 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
     >
-      <h1 className="text-2xl font-semibold tracking-tight">{greeting}</h1>
-      <div data-testid="command-strip-urgent" className="text-sm">
-        {isLoading ? (
-          <Skeleton className="h-5 w-56" aria-label="Loading status" />
-        ) : urgent === 'clear' ? (
-          <p className="flex items-center gap-2 text-muted-foreground">
-            <CheckCircle2 className={cn('h-4 w-4', STATUS_COLORS.ok.text)} aria-hidden="true" />
-            All clear. Nothing needs you right now.
+      <div className="min-w-0">
+        <h1 className="text-2xl font-semibold tracking-tight">{greeting}</h1>
+        {asOfText ? (
+          <p data-testid="command-strip-asof" className="text-xs text-muted-foreground">
+            As of {asOfText}
           </p>
-        ) : urgent ? (
-          <Link
-            href={urgent.href}
-            data-urgent-kind={urgent.kind}
-            className="flex items-center gap-2 font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <AlertTriangle
-              className={cn('h-4 w-4', STATUS_COLORS[urgent.kind === 'overdue_invoices' ? 'overdue' : 'attention'].text)}
-              aria-hidden="true"
-            />
-            <span>Most urgent: {urgent.label}</span>
-          </Link>
-        ) : (
-          <p className="text-muted-foreground">Attention status unavailable</p>
-        )}
+        ) : null}
+      </div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div data-testid="command-strip-urgent" className="text-sm">
+          {isLoading ? (
+            <Skeleton className="h-5 w-56" aria-label="Loading status" />
+          ) : urgent === 'clear' ? (
+            <p className="flex items-center gap-2 text-muted-foreground">
+              <CheckCircle2 className={cn('h-4 w-4', STATUS_COLORS.ok.text)} aria-hidden="true" />
+              All clear. Nothing needs you right now.
+            </p>
+          ) : urgent ? (
+            <Link
+              href={urgent.href}
+              data-urgent-kind={urgent.kind}
+              className="flex items-center gap-2 font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <AlertTriangle
+                className={cn('h-4 w-4', STATUS_COLORS[urgent.kind === 'overdue_invoices' ? 'overdue' : 'attention'].text)}
+                aria-hidden="true"
+              />
+              <span>Most urgent: {urgent.label}</span>
+            </Link>
+          ) : (
+            <p className="text-muted-foreground">Attention status unavailable</p>
+          )}
+        </div>
+        <QuickActions />
       </div>
     </section>
   );

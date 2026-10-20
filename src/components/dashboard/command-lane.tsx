@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { format, isValid } from 'date-fns';
 import { AlertTriangle, CheckCircle2, CircleDashed, Clock } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { STATUS_COLORS } from '@/components/dashboard/status-colors';
@@ -32,15 +31,13 @@ export interface CommandLaneProps {
   title: string;
   state: LaneState;
   tone: LaneTone;
-  /** ISO time the data was reconciled. Omitted when the snapshot carries none. */
-  asOf?: string | null;
   heroLabel: string;
   /** Pre-formatted hero figure. null renders "Unavailable". */
   heroValue: string | null;
   status?: React.ReactNode;
   rows: LaneRow[];
+  /** Text link beside the title. Hidden when not allowed. */
   primary: LaneAction;
-  secondary?: LaneAction[];
 }
 
 const TONE: Record<LaneTone, { label: string; text: string; icon: React.ElementType }> = {
@@ -56,49 +53,40 @@ export function formatAsOf(asOf?: string | null): string | null {
   return isValid(d) ? format(d, 'MMM d, h:mm a') : null;
 }
 
-export function CommandLane({
-  testId,
-  title,
-  state,
-  tone,
-  asOf,
-  heroLabel,
-  heroValue,
-  status,
-  rows,
-  primary,
-  secondary = [],
-}: CommandLaneProps) {
+export function CommandLane({ testId, title, state, tone, heroLabel, heroValue, status, rows, primary }: CommandLaneProps) {
   const effectiveTone: LaneTone = state === 'ready' ? tone : 'neutral';
   const t = TONE[effectiveTone];
   const Icon = t.icon;
   const headingId = `${testId}-title`;
-  const asOfText = state === 'ready' ? formatAsOf(asOf) : null;
-  const allowedSecondary = secondary.filter((a) => a.allowed);
 
-  // Six direct children, always, so the lg subgrid keeps header, hero, status,
-  // queue and buttons on shared rows across all three lanes.
+  // Four direct children, always, so the lg subgrid keeps header, hero, status
+  // and queue on shared rows across all three lanes.
   return (
     <section
       aria-labelledby={headingId}
       data-testid={testId}
       data-lane-state={state}
       data-tone={effectiveTone}
-      className="col-span-12 flex flex-col gap-4 rounded-xl border bg-card p-5 shadow-sm lg:col-span-4 lg:row-span-6 lg:grid lg:grid-rows-subgrid lg:gap-y-0"
+      className="col-span-12 flex flex-col gap-4 rounded-xl border bg-card p-5 lg:col-span-4 lg:row-span-4 lg:grid lg:grid-rows-subgrid lg:gap-y-0"
     >
-      <header className="flex items-start gap-3 lg:pb-4">
-        <Icon className={cn('mt-0.5 h-6 w-6 shrink-0', t.text)} aria-hidden="true" />
-        <div className="min-w-0 flex-1">
-          <h2 id={headingId} className="text-base font-semibold leading-6">
-            {title}
-          </h2>
-          <p className="text-xs leading-4 text-muted-foreground">
-            <span data-testid={`${testId}-state`} className={cn('font-medium', t.text)}>
-              {state === 'loading' ? 'Loading' : state === 'unavailable' ? 'Unavailable' : t.label}
-            </span>
-            {asOfText ? <span data-testid={`${testId}-asof`}>{` · as of ${asOfText}`}</span> : null}
-          </p>
-        </div>
+      <header className="flex items-center gap-3 lg:pb-4">
+        <Icon className={cn('h-6 w-6 shrink-0', t.text)} aria-hidden="true" />
+        <h2 id={headingId} className="min-w-0 flex-1 text-base font-semibold leading-6">
+          {title}
+        </h2>
+        {/* The icon colour carries the tone; screen readers get it as text. */}
+        <span data-testid={`${testId}-state`} className="sr-only">
+          {state === 'loading' ? 'Loading' : state === 'unavailable' ? 'Unavailable' : t.label}
+        </span>
+        {primary.allowed ? (
+          <Link
+            href={primary.href}
+            className="inline-flex min-h-11 shrink-0 items-center text-sm font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-0"
+          >
+            {primary.label}
+            <span aria-hidden="true">&nbsp;&rarr;</span>
+          </Link>
+        ) : null}
       </header>
 
       <div data-testid={`${testId}-hero`} className="lg:pb-2">
@@ -133,29 +121,6 @@ export function CommandLane({
           </li>
         ))}
       </ul>
-
-      <div className="lg:pt-4">
-        {primary.allowed ? (
-          <Button asChild className="h-auto min-h-9 w-full whitespace-normal py-2 text-center">
-            <Link href={primary.href}>{primary.label}</Link>
-          </Button>
-        ) : (
-          <div>
-            <Button disabled className="h-auto min-h-9 w-full whitespace-normal py-2 text-center">
-              {primary.label}
-            </Button>
-            <p className="mt-1 text-xs text-muted-foreground">Your role cannot open this.</p>
-          </div>
-        )}
-      </div>
-
-      <div className="flex flex-wrap content-start gap-2 lg:pt-3">
-        {allowedSecondary.map((a) => (
-          <Button key={a.href} asChild variant="ghost" size="sm" className="h-auto min-h-8 whitespace-normal px-2 py-1 text-xs">
-            <Link href={a.href}>{a.label}</Link>
-          </Button>
-        ))}
-      </div>
     </section>
   );
 }
