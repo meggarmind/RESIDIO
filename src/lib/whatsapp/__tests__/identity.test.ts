@@ -103,6 +103,18 @@ describe('WhatsApp identity and consent', () => {
     expect(send.mock.calls[0]?.[0].body).not.toContain('balance');
   });
 
+  it('adds the estate office contact line to the invalid link code and unmatched number replies', async () => {
+    const send = vi.fn().mockResolvedValue({ success: true });
+    const estateContactLine = vi.fn().mockResolvedValue('Contact the estate office on 0803 699 6725.');
+
+    await handleResidentMessage(message('LINK 123456', '2348111111111'), { repository: repository({ findRosterMatches: vi.fn().mockResolvedValue([]) }), send, estateContactLine });
+    await handleResidentMessage(message('hello', '2348111111111'), { repository: repository({ findRosterMatches: vi.fn().mockResolvedValue([]) }), send, estateContactLine });
+
+    for (const call of send.mock.calls) {
+      expect(call[0].body).toContain('Contact the estate office on 0803 699 6725.');
+    }
+  });
+
   it('links an unrostered number with a one-time code but waits for consent', async () => {
     const repo = repository({ consumeLinkToken: vi.fn().mockResolvedValue('resident-1') });
     const send = vi.fn().mockResolvedValue({ success: true });
