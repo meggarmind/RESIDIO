@@ -42,7 +42,7 @@ Hostinger KVM 2  (x86, 2 vCPU, 8 GB RAM, 100 GB NVMe)
 └── Coolify (Traefik terminates TLS)
     ├── residio-prod   -> app.<domain>    -> Supabase project Residio_Prod
     ├── residio-stage  -> stage.<domain>  -> Supabase project Residio_Stage
-    └── Scheduled tasks: the 9 cron routes (see "Scheduled tasks" below), prod only
+    └── Scheduled tasks: the 10 scheduled cron routes (see "Scheduled tasks" below), on prod and stage
 ```
 
 - Builds run on the VPS (8 GB covers Coolify ~1 GB, two app containers ~0.5-1 GB each, and a
@@ -57,13 +57,40 @@ Hostinger KVM 2  (x86, 2 vCPU, 8 GB RAM, 100 GB NVMe)
 ## Scheduled tasks (#399)
 
 `vercel.json` was the only definition of Residio's schedules and is inert off Vercel, so it has
-been removed. The nine schedules now live as **Coolify scheduled tasks on the `residio-prod`
-application**. Coolify configuration is not in the repo, so this section is the record; if a task
-is changed in Coolify, change it here in the same piece of work.
+been removed. The ten schedules now live as **Coolify scheduled tasks on both the `residio-prod`
+and the `residio-stage` application**, with the same container, frequency and command on each.
+Coolify configuration is not in the repo, so this section is the record; if a task is changed in
+Coolify, change it here in the same piece of work.
 
-**Prod only.** `residio-stage` runs no scheduled tasks. Do not create any there: stage has its own
-database, and a second set of jobs would email and message recipients from UAT data. To exercise a
-job against stage, trigger it by hand (below).
+### Stage runs the same tasks, behind the communications override (#713)
+
+Stage's database holds UAT data copied from the real roster, so its jobs would email and message
+real people. Stage still runs every task, because the **communications override** redirects what
+they send. This was verified on Stage on 2026-10-20 (#718) before any Stage task was created.
+
+- **What it does.** At send time, the email transport, SMS and WhatsApp seams send to the override
+  contacts instead of the real recipient (`src/lib/comms-override/`). Queue rows and UAT data keep
+  the real recipient. A redirected message names who it was meant for, and the log records both the
+  original and the actual recipient. If the override value the channel needs is blank, or the
+  settings cannot be read, the message is **blocked**, never sent to the real address. 2FA setup
+  and verify sends are exempt (they go to the signed-in user). In-app notifications are unchanged.
+- **Who it covers.** Every external recipient: residents, staff and admin alerts, report-schedule
+  recipients, security contacts and vendors. In a non-production environment the global switch is
+  on and cannot be turned off from the UI, so everyone is redirected except a resident an admin has
+  explicitly set to receive real messages.
+- **Where it is configured.** **Settings > Communications override** (needs the general settings
+  permission): one override email, one phone in E.164 (SMS and WhatsApp), and an optional separate
+  WhatsApp number. Set them to the owner's own contacts before a Stage task runs. The same page holds
+  Debug Mode, which redirects everything on Prod for a limited time.
+- **Environment.** Production versus non-production comes from `NEXT_PUBLIC_APP_ENV`, a build
+  variable. It must be set on **both** applications: `production` on `residio-prod`, `staging` on
+  `residio-stage` (see "Phase 5: the two applications" below). Unset or unrecognised counts as
+  non-production, so a Prod build missing it would redirect every message.
+- **Known limits** (#713 decision 8, deliberately not redirected): WhatsApp Assistant replies go to
+  whoever messaged the number; Supabase Auth emails (password reset, invites) are sent by Supabase,
+  not by the app; Paystack customer receipts are sent by Paystack.
+- **Stage's own secret.** The Stage tasks read Stage's runtime `CRON_SECRET` from the Stage
+  container, never Prod's. The commands below are identical on both applications.
 
 ### The tasks
 
@@ -153,13 +180,13 @@ the app logs and the run history before re-triggering anything that creates reco
 
 ### Not scheduled: `apply-late-fees`
 
-There are ten cron routes and **nine** schedules. `src/app/api/cron/apply-late-fees` exists and
+There are eleven cron routes and **ten** schedules. `src/app/api/cron/apply-late-fees` exists and
 authenticates like the others, but it has **never had a `vercel.json` entry** (its handler comment
 says "7 AM UTC daily (configured in vercel.json)"; that was never true), so late fees have never
-run on a schedule in any environment. It is left unscheduled because #399 lists nine schedules.
+run on a schedule in any environment. It was left unscheduled because #399 listed nine schedules.
 Whether to schedule it (the handler's comment suggests `0 7 * * *`) is an owner decision rather
-than an infrastructure one, because it starts charging residents. If the owner says yes, add a
-tenth task with the same command (300000 ms) and update this table.
+than an infrastructure one, because it starts charging residents. If the owner says yes, add an
+eleventh task with the same command (300000 ms) and update this table.
 
 ### Failure visibility (owner, in Coolify)
 
@@ -170,7 +197,8 @@ Tasks tab; check that after the first run.
 
 ### Triggering a job by hand against stage
 
-Stage runs no schedules. App hostnames are DNS-only (decision 14), so there is no Cloudflare 100 s
+To run a job outside its schedule (for example to check a change before the next run), trigger it
+by hand. App hostnames are DNS-only (decision 14), so there is no Cloudflare 100 s
 cut and `curl` from any machine reaches Traefik directly:
 
 ```sh
@@ -179,8 +207,8 @@ curl -fsS -m 300 -H "Authorization: Bearer $STAGE_CRON_SECRET" https://stage.<do
 
 `$STAGE_CRON_SECRET` is stage's own `CRON_SECRET`, never prod's. Alternatively open a terminal on
 the stage container in Coolify and run the command above with the route and timeout substituted.
-Stage's `generate-invoices`, `payment-reminders` and `process-notifications` send real messages if
-stage holds real contact details.
+What a hand-triggered job sends goes through the communications override (above), exactly as a
+scheduled run does.
 
 ### The GitHub Actions safety net
 
@@ -543,7 +571,8 @@ password manager first. **Never rotate `DATA_ENCRYPTION_KEY` once data exists.**
 18. Deploy stage; watch the build log (expect 3-6 min on 2 vCPU).
 19. Smoke test stage: login, dashboard, System, Cron Status.
 20. Deploy prod. It is unusable until #280 (configuration) and the owner's seeding task have run.
-21. Prod scheduled tasks (#399).
+21. Prod scheduled tasks (#399). Stage scheduled tasks too, once the communications override
+    contacts are set on Stage (#718).
 22. Coolify notifications (email) for failed deployments and scheduled tasks.
 23. Coolify's own database backup to the R2 bucket (separate prefix): it holds every secret above.
 
@@ -619,7 +648,8 @@ encrypts data at rest: losing it loses that data, so it belongs in the password 
 - Hostinger KVM 2 confirmed and the plan decided 2026-10-10; recorded on #269, #262 and #264.
 - Confirm current Hostinger pricing and what VPS snapshot/backup is included.
 - Backup workflow and stage keep-awake: #415.
-- Coolify scheduled tasks for the 9 crons: #399 (repurposed).
+- Coolify scheduled tasks for the 10 scheduled crons: #399 (repurposed); Stage tasks behind the
+  communications override: #713, #718.
 - Prod is one migration behind stage (`20260922100000_add_chatmaid_whatsapp_provider`) and holds
   no configuration or roster yet. #280 (configuration only), the owner's separate seeding task
   (houses, residents, financial history), then #282.
