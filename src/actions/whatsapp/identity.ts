@@ -8,6 +8,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { parseWhatsAppOptInImport } from '@/lib/whatsapp/admin-import';
 import { PRIVACY_NOTICE_TEXT_KEY, PRIVACY_NOTICE_VERSION_KEY } from '@/lib/whatsapp/privacy-notice';
+import { sendWhatsAppPinAlert } from '@/lib/whatsapp/pin-alert';
 
 type ActionResult<T> = {
   success: boolean;
@@ -155,10 +156,11 @@ export async function resetWhatsAppPin(residentId: string): Promise<ActionResult
     return { success: false, data: null, error: 'Failed to reset WhatsApp PIN.' };
   }
 
-  // A session verified with the old PIN must not stay unlocked.
+  // A session verified with the old PIN must not stay unlocked, nor finish a PIN change begun with it.
+  // The generated types do not know pending_pin_hash (#892) until that migration is applied.
   const { error: sessionError } = await adminClient
     .from('whatsapp_sessions')
-    .update({ pin_authenticated: false })
+    .update({ pin_authenticated: false, current_node: 'menu', pending_pin_hash: null } as never)
     .eq('resident_id', residentId);
 
   // Never record the hash: the audit says only that it was cleared.
@@ -177,6 +179,13 @@ export async function resetWhatsAppPin(residentId: string): Promise<ActionResult
     },
   });
   revalidatePath('/settings/whatsapp');
+
+  try {
+    await sendWhatsAppPinAlert(residentId, 'reset');
+  } catch (error) {
+    // The PIN is already cleared; a failed alert email must not fail the reset.
+    console.error('[whatsapp] PIN reset alert email failed:', error instanceof Error ? error.message : 'unknown error');
+  }
 
   if (sessionError) {
     return { success: false, data: null, error: 'PIN cleared, but open WhatsApp sessions could not be signed out. Try again.' };
