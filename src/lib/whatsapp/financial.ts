@@ -340,13 +340,13 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
 
     async getNextDue(residentId, houseId) {
       const supabase = createAdminClient();
-      // Every non-void invoice, unpaged: a page of the oldest ones hides newer unpaid invoices (#811).
+      // Unpaid invoices only, filtered in the database: a page of all invoices hides newer unpaid ones (#811).
       const { data, error } = await supabase
         .from('invoices')
         .select('invoice_number, amount_due, amount_paid, due_date')
         .eq('resident_id', residentId)
         .eq('house_id', houseId)
-        .neq('status', 'void')
+        .in('status', ['unpaid', 'partially_paid'])
         .order('due_date', { ascending: true });
       if (error) throw error;
       const unpaid = (data || []).filter((invoice) => Number(invoice.amount_paid) < Number(invoice.amount_due));
