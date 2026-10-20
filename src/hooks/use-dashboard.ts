@@ -7,8 +7,9 @@ import { getEstateMapStatus } from '@/actions/dashboard/get-estate-map-status';
 import { POLLING_INTERVALS } from '@/lib/config/polling';
 import { ADMIN_READ_CACHE_TTLS } from '@/lib/offline/admin-read-cache';
 import { useOfflineAdminSnapshot } from '@/hooks/use-offline-admin-snapshot';
+import { ADMIN_DASHBOARD_SNAPSHOT_QUERY_KEY, ESTATE_MAP_STATUS_QUERY_KEY } from '@/hooks/dashboard-query-keys';
 
-export const ADMIN_DASHBOARD_SNAPSHOT_QUERY_KEY = ['admin-dashboard-snapshot'] as const;
+export { ADMIN_DASHBOARD_SNAPSHOT_QUERY_KEY, ESTATE_MAP_STATUS_QUERY_KEY };
 
 export function useDashboardStats() {
     return useQuery({
@@ -41,8 +42,7 @@ export function useAdminDashboardSnapshot() {
     });
 }
 
-export const ESTATE_MAP_STATUS_QUERY_KEY = ['estate-map-status'] as const;
-
+// One object per house, so it does not poll: it refreshes when stale and the window regains focus.
 export function useEstateMapStatus() {
     return useOfflineAdminSnapshot({
         queryKey: ESTATE_MAP_STATUS_QUERY_KEY,
@@ -54,8 +54,8 @@ export function useEstateMapStatus() {
         },
         ttlMs: ADMIN_READ_CACHE_TTLS.dashboard,
         queryOptions: {
-            refetchInterval: POLLING_INTERVALS.SLOW,
-            staleTime: POLLING_INTERVALS.STANDARD,
+            staleTime: POLLING_INTERVALS.BACKGROUND,
+            refetchOnWindowFocus: true,
             refetchOnReconnect: true,
         },
     });

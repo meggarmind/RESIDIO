@@ -7,7 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import type { RecentActivityItem } from '@/actions/dashboard/get-enhanced-dashboard-stats';
 
 const SHOWN_TYPES: ReadonlySet<RecentActivityItem['type']> = new Set(['payment', 'resident', 'security']);
-const MAX_ITEMS = 6;
+const MAX_ITEMS = 5;
 
 /** Payment, resident and security-contact events only. System-setting and other changes are left out. */
 export function filterEstateActivity(items: RecentActivityItem[]): RecentActivityItem[] {
@@ -22,7 +22,8 @@ interface CommandRecentActivityProps {
 }
 
 export function CommandRecentActivity({ activities, isLoading = false, isUnavailable = false }: CommandRecentActivityProps) {
-  const shell = 'col-span-12 rounded-xl border bg-card p-5';
+  // On the page background under a rule; only the lanes are bordered cards.
+  const shell = 'col-span-12 border-t pt-5';
 
   if (isUnavailable) {
     return (
@@ -59,7 +60,7 @@ export function CommandRecentActivity({ activities, isLoading = false, isUnavail
                   <span className="text-muted-foreground">{`. ${a.description}`}</span>
                 </span>
                 {isValid(at) ? (
-                  <time dateTime={a.timestamp} className="shrink-0 text-xs text-muted-foreground">
+                  <time dateTime={a.timestamp} className="shrink-0 text-xs text-muted-foreground" suppressHydrationWarning>
                     {formatDistanceToNow(at, { addSuffix: true })}
                   </time>
                 ) : null}
@@ -69,8 +70,11 @@ export function CommandRecentActivity({ activities, isLoading = false, isUnavail
         </ul>
       )}
       <div className="mt-2">
-        <Link href="/system/audit-logs" className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline">
-          View audit logs
+        <Link
+          href="/system/audit-logs"
+          className="inline-flex min-h-11 items-center text-xs font-medium text-muted-foreground hover:text-foreground hover:underline md:min-h-0"
+        >
+          View all<span className="sr-only"> activity</span>
         </Link>
       </div>
     </section>
