@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { handleResidentMessage } from '@/lib/whatsapp/identity';
+import { handleResidentMessage, identityFingerprint } from '@/lib/whatsapp/identity';
 import type { WhatsAppIdentityRepository, WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
 import type { WhatsAppInboundMessage } from '@/lib/whatsapp/types';
 import { isWhatsAppMasterSwitchOn } from '@/lib/whatsapp/master-switch';
@@ -41,6 +41,22 @@ function repository(overrides: Partial<WhatsAppIdentityRepository> = {}): WhatsA
     rememberPendingContact: vi.fn().mockResolvedValue(undefined),
     consumeLinkToken: vi.fn().mockResolvedValue(null),
     attachPendingContact: vi.fn().mockResolvedValue(undefined),
+    // Identity confirmed and notice accepted: these tests cover what follows consent (#871 is in consent.test.ts).
+    getStreetName: vi.fn().mockResolvedValue('Palm Street'),
+    getConsentState: vi.fn().mockResolvedValue({
+      confirmedFingerprint: identityFingerprint(resident, 'Palm Street'),
+      privacy: { decision: 'privacy_accepted', version: 'v1' },
+      step: null,
+      pendingRequest: null,
+    }),
+    recordConsentDecision: vi.fn().mockResolvedValue(undefined),
+    saveConsentStep: vi.fn().mockResolvedValue(undefined),
+    isDisputed: vi.fn().mockResolvedValue(false),
+    markDisputed: vi.fn().mockResolvedValue(undefined),
+    notifyDisputed: vi.fn().mockResolvedValue(undefined),
+    getPrivacyNotice: vi.fn().mockResolvedValue({ version: 'v1', text: 'Notice' }),
+    getPrivacyNoticeUrl: vi.fn().mockResolvedValue('https://storage.test/notice.pdf'),
+    getOfficeContactLine: vi.fn().mockResolvedValue(''),
     ...overrides,
   };
 }
