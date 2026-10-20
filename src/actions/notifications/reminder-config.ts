@@ -35,7 +35,6 @@ const SETTINGS_KEYS = {
   SMS_ENABLED_FOR_REMINDERS: 'invoice_reminder_sms_enabled',
   WHATSAPP_ENABLED_FOR_REMINDERS: 'invoice_reminder_whatsapp_enabled',
   DEFAULT_CHANNELS: 'invoice_reminder_default_channels',
-  LAST_RUN: 'invoice_reminder_last_run',
 } as const;
 
 /**
@@ -444,7 +443,7 @@ export async function getReminderSettings(): Promise<{
     getSettingValue(SETTINGS_KEYS.SMS_ENABLED_FOR_REMINDERS),
     getSettingValue(SETTINGS_KEYS.WHATSAPP_ENABLED_FOR_REMINDERS),
     getReminderSchedule(),
-    getSettingValue(SETTINGS_KEYS.LAST_RUN),
+    getLastReminderRun(),
   ]);
 
   return {
@@ -452,8 +451,32 @@ export async function getReminderSettings(): Promise<{
     smsEnabled: smsEnabled === true,
     whatsappEnabled: whatsappEnabled === true,
     schedule: scheduleResult.data,
-    lastRun: typeof lastRun === 'string' ? lastRun : null,
+    lastRun,
   };
+}
+
+// The cron records each run in the System Action Log (#846); RLS limits this read to
+// holders of system.view_system_log, as on the log page itself.
+async function getLastReminderRun(): Promise<string | null> {
+  type UntypedClient = {
+    from: (table: string) => {
+      select: (columns: string) => {
+        eq: (column: string, value: string) => {
+          order: (column: string, opts: { ascending: boolean }) => {
+            limit: (n: number) => PromiseLike<{ data: { occurred_at: string }[] | null }>;
+          };
+        };
+      };
+    };
+  };
+  const supabase = (await createServerSupabaseClient()) as unknown as UntypedClient;
+  const { data } = await supabase
+    .from('system_action_log')
+    .select('occurred_at')
+    .eq('source', 'cron:payment-reminders')
+    .order('occurred_at', { ascending: false })
+    .limit(1);
+  return data?.[0]?.occurred_at ?? null;
 }
 
 /**
