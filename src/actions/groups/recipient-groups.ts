@@ -111,16 +111,20 @@ export async function setRecipientGroupMembers(id: string, residentIds: string[]
   const removed = [...before].filter((residentId) => !after.has(residentId));
   if (added.length === 0 && removed.length === 0) return { data: { id }, error: null };
 
-  if (removed.length > 0) {
-    const { error } = await client.from('recipient_group_members').delete().eq('group_id', id).in('resident_id', removed);
-    if (error) return { data: null, error: error.message };
-  }
   if (added.length > 0) {
     const { error } = await client
       .from('recipient_group_members')
       .insert(added.map((residentId) => ({ group_id: id, resident_id: residentId, created_by: auth.userId })));
     if (error) return { data: null, error: error.message };
   }
+  let removeError: string | null = null;
+  if (removed.length > 0) {
+    const { error } = await client.from('recipient_group_members').delete().eq('group_id', id).in('resident_id', removed);
+    if (error) removeError = error.message;
+  }
+  if (removeError && added.length === 0) return { data: null, error: removeError };
+  const applied = removeError ? [...before, ...added] : [...after];
+  const removedCount = removeError ? 0 : removed.length;
 
   await logAudit({
     action: 'UPDATE',
@@ -128,11 +132,11 @@ export async function setRecipientGroupMembers(id: string, residentIds: string[]
     entityId: id,
     entityDisplay: group.name,
     oldValues: { member_resident_ids: [...before] },
-    newValues: { member_resident_ids: [...after] },
-    description: `Members changed: ${added.length} added, ${removed.length} removed`,
+    newValues: { member_resident_ids: applied },
+    description: `Members changed: ${added.length} added, ${removedCount} removed`,
   });
   revalidatePath(PATH);
-  return { data: { id }, error: null };
+  return removeError ? { data: null, error: removeError } : { data: { id }, error: null };
 }
 
 /** Delete a group no setting selects. A group in use is refused with what uses it (#819 decision 4). */

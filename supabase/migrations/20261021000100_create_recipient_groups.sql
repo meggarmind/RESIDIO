@@ -14,7 +14,7 @@
 --   clearance certificate copies. The setting is what makes a group "in use": the delete
 --   action refuses a group a setting still points at.
 --
--- Depends on 20261021000000_add_groups_permission_category.sql.
+-- Depends on 20261021000050_add_groups_permission_category.sql.
 --
 -- Rollback:
 --   DELETE FROM public.system_settings WHERE key = 'clearance_copy_recipient_group_id';

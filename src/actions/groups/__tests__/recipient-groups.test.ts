@@ -111,12 +111,42 @@ describe('recipient group writes are audited (#819)', () => {
       ],
     });
     await expect(setRecipientGroupMembers(GROUP_ID, ['res-2', 'res-3'])).resolves.toEqual({ data: { id: GROUP_ID }, error: null });
-    const [, removal, addition] = chains.recipient_group_members;
-    expect(removal.in).toHaveBeenCalledWith('resident_id', ['res-1']);
+    const [, addition, removal] = chains.recipient_group_members;
     expect(addition.insert).toHaveBeenCalledWith([{ group_id: GROUP_ID, resident_id: 'res-3', created_by: 'admin-1' }]);
+    expect(removal.in).toHaveBeenCalledWith('resident_id', ['res-1']);
     expect(logAudit).toHaveBeenCalledWith(expect.objectContaining({
       action: 'UPDATE', entityType: 'recipient_groups', entityId: GROUP_ID,
       oldValues: { member_resident_ids: ['res-1', 'res-2'] }, newValues: { member_resident_ids: ['res-2', 'res-3'] },
+    }));
+  });
+
+  it('a failed addition writes nothing else and audits nothing', async () => {
+    const chains = client({
+      recipient_groups: [{ data: { id: GROUP_ID, name: 'Officials' }, error: null }],
+      recipient_group_members: [
+        { data: [{ resident_id: 'res-1' }], error: null },
+        { data: null, error: { message: 'fk violation' } },
+      ],
+    });
+    await expect(setRecipientGroupMembers(GROUP_ID, ['res-3'])).resolves.toEqual({ data: null, error: 'fk violation' });
+    expect(chains.recipient_group_members).toHaveLength(2);
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+
+  it('a failed removal after a committed addition still audits what was applied', async () => {
+    client({
+      recipient_groups: [{ data: { id: GROUP_ID, name: 'Officials' }, error: null }],
+      recipient_group_members: [
+        { data: [{ resident_id: 'res-1' }, { resident_id: 'res-2' }], error: null },
+        { data: null, error: null },
+        { data: null, error: { message: 'delete failed' } },
+      ],
+    });
+    await expect(setRecipientGroupMembers(GROUP_ID, ['res-2', 'res-3'])).resolves.toEqual({ data: null, error: 'delete failed' });
+    expect(logAudit).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'UPDATE', entityType: 'recipient_groups', entityId: GROUP_ID,
+      oldValues: { member_resident_ids: ['res-1', 'res-2'] }, newValues: { member_resident_ids: ['res-1', 'res-2', 'res-3'] },
+      description: 'Members changed: 1 added, 0 removed',
     }));
   });
 
