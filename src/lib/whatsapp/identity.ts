@@ -52,6 +52,15 @@ async function getFinancialEligibility(residentId: string): Promise<boolean> {
   return (data || []).some((assignment) => BILLABLE_ROLES.has(assignment.resident_role));
 }
 
+function isOnRoster(
+  resident: { phone_primary: string | null; phone_secondary: string | null },
+  normalized: string
+): boolean {
+  return [resident.phone_primary, resident.phone_secondary]
+    .filter(Boolean)
+    .some((phone) => normalizePhoneNumber(phone as string) === normalized);
+}
+
 function createIdentity(
   resident: {
     id: string;
@@ -88,11 +97,7 @@ export function createSupabaseWhatsAppIdentityRepository(): WhatsAppIdentityRepo
       }
 
       const normalized = normalizePhoneNumber(phoneNumber);
-      const matches = (data || []).filter((resident) =>
-        [resident.phone_primary, resident.phone_secondary]
-          .filter(Boolean)
-          .some((phone) => normalizePhoneNumber(phone as string) === normalized)
-      );
+      const matches = (data || []).filter((resident) => isOnRoster(resident, normalized));
 
       return Promise.all(
         matches.map(async (resident) =>
@@ -107,7 +112,8 @@ export function createSupabaseWhatsAppIdentityRepository(): WhatsAppIdentityRepo
       const { data, error } = await supabase
         .from('whatsapp_optins')
         .select('resident_id')
-        .eq('phone_number', normalized);
+        .eq('phone_number', normalized)
+        .is('deactivated_at', null);
 
       if (error) {
         throw error;
@@ -121,15 +127,20 @@ export function createSupabaseWhatsAppIdentityRepository(): WhatsAppIdentityRepo
       const { data: residents, error: residentError } = await supabase
         .from('residents')
         .select('id, first_name, last_name, resident_code, phone_primary, phone_secondary')
-        .in('id', residentIds);
+        .in('id', residentIds)
+        .in('account_status', ['active', 'inactive']);
 
       if (residentError) {
         throw residentError;
       }
 
+      // A link whose number is no longer on the resident's roster is unverified (#849): community tier only.
       return Promise.all(
         (residents || []).map(async (resident) =>
-          createIdentity(resident, await getFinancialEligibility(resident.id))
+          createIdentity(
+            resident,
+            isOnRoster(resident, normalized) && (await getFinancialEligibility(resident.id))
+          )
         )
       );
     },
@@ -141,6 +152,7 @@ export function createSupabaseWhatsAppIdentityRepository(): WhatsAppIdentityRepo
         .select('opted_in')
         .eq('resident_id', residentId)
         .eq('phone_number', normalizePhoneNumber(phoneNumber))
+        .is('deactivated_at', null)
         .maybeSingle();
 
       if (error) {
@@ -162,6 +174,7 @@ export function createSupabaseWhatsAppIdentityRepository(): WhatsAppIdentityRepo
           source,
           opted_in_at: optedIn ? now : null,
           opted_out_at: optedIn ? null : now,
+          deactivated_at: null,
           updated_at: now,
         },
         { onConflict: 'resident_id,phone_number' }

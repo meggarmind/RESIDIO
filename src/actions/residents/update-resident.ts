@@ -1,6 +1,7 @@
 'use server';
 
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createAdminClient, createServerSupabaseClient } from '@/lib/supabase/server';
+import { normalizePhoneNumber } from '@/lib/sms/termii';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
@@ -33,7 +34,7 @@ export async function updateResident(id: string, formData: ResidentFormData): Pr
   // Fetch current resident to check for contact changes
   const { data: currentResident, error: fetchError } = await supabase
     .from('residents')
-    .select('email, phone_primary, email_verified_at, phone_verified_at, first_name, last_name')
+    .select('email, phone_primary, phone_secondary, email_verified_at, phone_verified_at, first_name, last_name')
     .eq('id', id)
     .single();
 
@@ -113,6 +114,30 @@ export async function updateResident(id: string, formData: ResidentFormData): Pr
     return { data: null, error: error.code === '42501' && flagChanged ? OVERRIDE_DENIED : error.message };
   }
 
+  // A WhatsApp link for a number taken off the roster must not keep answering for this resident (#849).
+  const keptNumbers = [formData.phone_primary, formData.phone_secondary]
+    .filter(Boolean)
+    .map((phone) => normalizePhoneNumber(phone as string));
+  const removedNumbers = [currentResident.phone_primary, currentResident.phone_secondary]
+    .filter(Boolean)
+    .map((phone) => normalizePhoneNumber(phone as string))
+    .filter((phone) => !keptNumbers.includes(phone));
+  let deactivatedNumbers: string[] = [];
+  if (removedNumbers.length > 0) {
+    const { error: optinError } = await createAdminClient()
+      .from('whatsapp_optins')
+      .update({ deactivated_at: new Date().toISOString() })
+      .eq('resident_id', id)
+      .in('phone_number', removedNumbers)
+      .is('deactivated_at', null);
+    if (optinError) {
+      // The roster check in findLinkedResidents still withholds financial answers from these numbers.
+      console.error('[updateResident] failed to deactivate WhatsApp links for removed numbers', { residentId: id, error: optinError });
+    } else {
+      deactivatedNumbers = removedNumbers;
+    }
+  }
+
   await logAudit({
     action: 'UPDATE',
     entityType: 'residents',
@@ -121,6 +146,7 @@ export async function updateResident(id: string, formData: ResidentFormData): Pr
     oldValues: {
       email: currentResident.email,
       phone_primary: currentResident.phone_primary,
+      phone_secondary: currentResident.phone_secondary,
       email_verified_at: currentResident.email_verified_at,
       phone_verified_at: currentResident.phone_verified_at,
       ...(flagChanged ? { use_override_comms: currentFlag } : {}),
@@ -128,9 +154,11 @@ export async function updateResident(id: string, formData: ResidentFormData): Pr
     newValues: {
       email: formData.email || null,
       phone_primary: formData.phone_primary,
+      phone_secondary: formData.phone_secondary || null,
       email_verified_at: emailChanged ? null : currentResident.email_verified_at,
       phone_verified_at: phoneChanged ? null : currentResident.phone_verified_at,
       ...(flagChanged ? { use_override_comms: submittedFlag } : {}),
+      ...(deactivatedNumbers.length > 0 ? { whatsapp_links_deactivated_for: deactivatedNumbers } : {}),
     },
     description: 'Updated resident profile',
   });
