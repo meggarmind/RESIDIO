@@ -73,6 +73,8 @@ Name the role, give it a display name, pick its category and level (a whole numb
 - Tick a **module** to grant everything in it.
 - Open a module to grant **individual privileges** within it, when a role should read a module but not change it.
 
+Some privileges end in **(database)**, for example *Manage House Records (database)*. They control what the role can read and write directly in the database, underneath the screens. Ticking a whole module includes its database privileges; picking individual privileges does not, so a role that can open a page but lacks the matching database privilege may see the page refuse to save. **Start from** an existing role copies these along with everything else, which is the simplest way to get them right. **View All Document Categories** is the one that decides whether a role sees staff-only document categories; without it, the role sees only uncategorised documents and categories marked as visible to residents.
+
 The footer counts what you have selected. A role created with nothing selected is created with no access at all and its holder will see an empty dashboard, so grant something before saving.
 
 If the privileges cannot be saved, the role is not created either — you will not be left with a half-made role to clean up.
