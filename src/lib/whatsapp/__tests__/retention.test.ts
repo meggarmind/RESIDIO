@@ -6,7 +6,7 @@ vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const NOW = new Date('2026-10-13T12:00:00.000Z');
-const PURGEABLE = ['whatsapp_sessions', 'whatsapp_processed_messages'];
+const PURGEABLE = ['whatsapp_sessions', 'whatsapp_processed_messages', 'whatsapp_survey_responses'];
 
 type Result = { count: number | null; error: unknown };
 
@@ -38,20 +38,23 @@ describe('WhatsApp operational retention', () => {
     setup({
       whatsapp_sessions: { count: 2, error: null },
       whatsapp_processed_messages: { count: 3, error: null },
+      whatsapp_survey_responses: { count: 4, error: null },
     });
     await expect(purgeWhatsAppOperationalState({ sessionDays: 1, processedMessageDays: 2 })).resolves.toEqual({
       sessions: 2,
       processedMessages: 3,
+      surveyResponses: 4,
     });
   });
 
-  it('deletes only from whatsapp_sessions and whatsapp_processed_messages', async () => {
+  it('deletes only from the three purgeable tables, never the survey opt-outs', async () => {
     const { from } = setup();
     await purgeWhatsAppOperationalState();
     const tables = from.mock.calls.map((call) => call[0]).sort();
     expect(tables).toEqual([...PURGEABLE].sort());
     expect(tables).not.toContain('whatsapp_disclosure_logs');
     expect(tables).not.toContain('whatsapp_optins');
+    expect(tables).not.toContain('whatsapp_survey_opt_outs');
   });
 
   it('keys each delete on expires_at with a cutoff of now minus the configured days', async () => {
@@ -66,6 +69,23 @@ describe('WhatsApp operational retention', () => {
     await purgeWhatsAppOperationalState();
     expect(queries.whatsapp_sessions.lt).toHaveBeenCalledWith('expires_at', new Date(NOW.getTime() - 1 * DAY_MS).toISOString());
     expect(queries.whatsapp_processed_messages.lt).toHaveBeenCalledWith('expires_at', new Date(NOW.getTime() - 2 * DAY_MS).toISOString());
+  });
+
+  it('deletes survey responses asked before now minus 90 days by default, keyed on asked_at', async () => {
+    const { queries } = setup();
+    await purgeWhatsAppOperationalState();
+    expect(queries.whatsapp_survey_responses.lt).toHaveBeenCalledWith('asked_at', new Date(NOW.getTime() - 90 * DAY_MS).toISOString());
+  });
+
+  it('uses the configured survey retention days', async () => {
+    const { queries } = setup();
+    await purgeWhatsAppOperationalState({ surveyResponseDays: 30 });
+    expect(queries.whatsapp_survey_responses.lt).toHaveBeenCalledWith('asked_at', new Date(NOW.getTime() - 30 * DAY_MS).toISOString());
+  });
+
+  it('throws when the survey delete errors', async () => {
+    setup({ whatsapp_survey_responses: { count: null, error: new Error('survey failed') } });
+    await expect(purgeWhatsAppOperationalState()).rejects.toThrow('survey failed');
   });
 
   it('throws when the session delete errors', async () => {
