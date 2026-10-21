@@ -1965,7 +1965,6 @@ export interface AppRole {
   display_name: string;
   description: string | null;
   category: RoleCategory;
-  level: number;
   is_system_role: boolean;
   is_active: boolean;
   can_be_assigned_to_resident: boolean;
@@ -1979,7 +1978,6 @@ export interface AppRoleInsert {
   display_name: string;
   description?: string | null;
   category?: RoleCategory;
-  level?: number;
   is_system_role?: boolean;
   is_active?: boolean;
   can_be_assigned_to_resident?: boolean;
@@ -1989,7 +1987,6 @@ export interface AppRoleUpdate {
   display_name?: string;
   description?: string | null;
   category?: RoleCategory;
-  level?: number;
   is_active?: boolean;
   can_be_assigned_to_resident?: boolean;
 }

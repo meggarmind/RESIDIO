@@ -5,7 +5,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { isLastActiveSuperAdmin, LAST_SUPER_ADMIN_ERROR } from '@/lib/auth/super-admin-invariant';
-import { assertCanManageTarget, canGrantRole } from '@/lib/auth/role-rank';
+import { assertCanGrantRoles, assertCanManageTarget } from '@/lib/auth/account-guards';
 import { ilikeAny } from '@/lib/postgrest-filter';
 import type { ProfileApprovalStatus } from '@/types/database';
 
@@ -303,26 +303,21 @@ export async function assignRoleToProfile(
     return { success: false, error: 'Cannot assign an inactive role' };
   }
 
-  // Target guard (#475): the account being changed must not outrank the caller.
-  // Without this an assign_roles holder could demote a chairman or a non-last
-  // super_admin by "assigning" them an ordinary role.
+  // Target guard (#475, #826): changing an account that holds super_admin or
+  // chairman needs system.assign_board_roles. Without this an assign_roles holder
+  // could demote a chairman or a non-last super_admin by "assigning" them an
+  // ordinary role.
   const targetGuard = await assertCanManageTarget(auth.userId!, profileId);
   if (!targetGuard.ok) {
     return { success: false, error: targetGuard.error };
   }
 
-  // Escalation guards: the two highest roles may only be granted by a super
-  // admin. This is the real enforcement — the UI merely mirrors it.
-  if (!canGrantRole(auth.roleName, role.name)) {
-    return {
-      success: false,
-      error:
-        role.name === 'super_admin'
-          ? 'Only Super Administrator can assign the Super Administrator role'
-          : role.name === 'chairman'
-            ? 'Only Super Administrator can assign the Chairman role'
-            : 'You cannot assign a role that outranks your own',
-    };
+  // Grant guard (#826): super_admin, chairman and trustee need
+  // system.assign_board_roles. This is the real enforcement — the UI merely
+  // mirrors it.
+  const grantGuard = await assertCanGrantRoles(auth.userId!, [role.name]);
+  if (!grantGuard.ok) {
+    return { success: false, error: grantGuard.error };
   }
 
   // Bootstrap invariant (#184): moving the last active super_admin onto another
@@ -407,27 +402,16 @@ export async function removeRoleFromProfile(
     return { success: false, error: 'Account not found' };
   }
 
-  // Target guard (#503, same rule as #475): the account being changed must not
-  // outrank the caller. The name checks below only covered chairman/super_admin;
-  // this is the rank comparison against the target's CURRENT role.
+  // Target guard (#503, #826): removing the chairman role needs
+  // system.assign_board_roles, any other role (a trustee's included)
+  // system.assign_roles. The target's CURRENT role is read fresh by the guard.
   const targetGuard = await assertCanManageTarget(auth.userId!, profileId);
   if (!targetGuard.ok) {
     return { success: false, error: targetGuard.error };
   }
 
-  if (profile.role_id) {
-    const { data: currentRole } = await supabase
-      .from('app_roles')
-      .select('name')
-      .eq('id', profile.role_id)
-      .single();
-
-    if (currentRole?.name === 'chairman' && auth.roleName !== 'super_admin') {
-      return { success: false, error: 'Only Super Administrator can remove the Chairman role' };
-    }
-    if (currentRole?.name === 'super_admin') {
-      return { success: false, error: 'Cannot remove the Super Administrator role' };
-    }
+  if (targetGuard.targetRoleName === 'super_admin') {
+    return { success: false, error: 'Cannot remove the Super Administrator role' };
   }
 
   const newRoleId: string | null = null;

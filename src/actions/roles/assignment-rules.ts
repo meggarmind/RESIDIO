@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
-import { canGrantRole } from '@/lib/auth/role-rank';
+import { assertCanGrantRoles } from '@/lib/auth/account-guards';
 import type {
   RoleAssignmentRule,
   RoleAssignmentRuleWithRole,
@@ -102,14 +102,15 @@ export async function getRulesByResidentRole(): Promise<{
 // =====================================================
 
 /**
- * Rank guard (#503): a rule that ALLOWS a role is an automatic grant path, so it
- * may only allow a role the caller could grant themselves (canGrantRole: the two
- * top roles are super_admin-only, nothing above the caller's own rank). Rules
- * that disallow a role only narrow what can be granted and are not checked.
- * An unknown role id is refused rather than assumed harmless.
+ * Grant guard (#503, #826): a rule that ALLOWS a role is an automatic grant path,
+ * so it may only allow a role the caller could grant themselves
+ * (assertCanGrantRoles: super_admin, chairman and trustee need
+ * system.assign_board_roles, any other role system.assign_roles). Rules that
+ * disallow a role only narrow what can be granted and are not checked. An unknown
+ * role id is refused rather than assumed harmless.
  */
 async function assertCanAllowRoles(
-  callerRoleName: string | null | undefined,
+  callerProfileId: string,
   appRoleIds: string[]
 ): Promise<string | null> {
   if (appRoleIds.length === 0) return null;
@@ -127,12 +128,16 @@ async function assertCanAllowRoles(
   }
 
   const nameById = new Map((roles ?? []).map((r) => [r.id, r.name as string]));
+  const roleNames: string[] = [];
   for (const id of unique) {
     const roleName = nameById.get(id);
     if (!roleName) return 'Role not found';
-    if (!canGrantRole(callerRoleName, roleName)) {
-      return 'You cannot allow a rule to assign a role that you could not assign yourself';
-    }
+    roleNames.push(roleName);
+  }
+
+  const grantGuard = await assertCanGrantRoles(callerProfileId, roleNames);
+  if (!grantGuard.ok) {
+    return 'You cannot allow a rule to assign a role that you could not assign yourself';
   }
   return null;
 }
@@ -154,7 +159,7 @@ export async function updateRoleAssignmentRule(
   }
 
   if (isAllowed) {
-    const refusal = await assertCanAllowRoles(auth.roleName, [appRoleId]);
+    const refusal = await assertCanAllowRoles(auth.userId!, [appRoleId]);
     if (refusal) return { success: false, error: refusal };
   }
 
@@ -221,7 +226,7 @@ export async function batchUpdateRoleAssignmentRules(
   }
 
   const refusal = await assertCanAllowRoles(
-    auth.roleName,
+    auth.userId!,
     updates.filter((u) => u.isAllowed).map((u) => u.appRoleId)
   );
   if (refusal) return { success: false, error: refusal };

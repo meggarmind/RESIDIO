@@ -140,7 +140,7 @@ describe('super_admin invariant — the readable error', () => {
 
   it('removeRoleFromProfile still refuses to strip super_admin outright', () => {
     expect(assignRoleSource).toMatch(
-      /currentRole\?\.name === 'super_admin'[\s\S]{0,120}Cannot remove the Super Administrator role/
+      /targetGuard\.targetRoleName === 'super_admin'[\s\S]{0,120}Cannot remove the Super Administrator role/
     );
   });
 

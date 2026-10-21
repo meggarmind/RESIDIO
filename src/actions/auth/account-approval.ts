@@ -5,7 +5,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { isLastActiveSuperAdmin, LAST_SUPER_ADMIN_ERROR } from '@/lib/auth/super-admin-invariant';
-import { assertCanManageTarget } from '@/lib/auth/role-rank';
+import { assertCanManageTarget } from '@/lib/auth/account-guards';
 import { assignRoleToProfile } from '@/actions/roles/assign-role';
 
 /**
@@ -240,8 +240,8 @@ export async function rejectAccount(
     return { success: false, error: 'Account not found' };
   }
 
-  // Target guard (#475): rejecting clears role_id, so the target must not
-  // outrank the caller.
+  // Target guard (#475, #826): rejecting clears role_id, so an account holding
+  // super_admin or chairman needs system.assign_board_roles.
   const targetGuard = await assertCanManageTarget(auth.userId!, profileId);
   if (!targetGuard.ok) {
     return { success: false, error: targetGuard.error };

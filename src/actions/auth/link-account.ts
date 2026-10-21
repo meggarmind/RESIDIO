@@ -4,7 +4,7 @@ import { createAdminClient, createServerSupabaseClient } from '@/lib/supabase/se
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
-import { ACCOUNT_NOT_FOUND_ERROR, assertCanManageTarget } from '@/lib/auth/role-rank';
+import { ACCOUNT_NOT_FOUND_ERROR, assertCanManageTarget } from '@/lib/auth/account-guards';
 import { z } from 'zod';
 
 // Types for auth account search results
@@ -261,7 +261,8 @@ export async function linkAuthAccountToResident(
       .eq('id', authUserId)
       .single();
 
-    // Target guard (#475). Read through the service role so RLS hiding the row
+    // Target guard (#475, #826): an account holding super_admin or chairman needs
+    // system.assign_board_roles. Read through the service role so RLS hiding the row
     // from the caller cannot turn into a bypass. "Not found" is tolerated only
     // because the insert path below provisions accounts that predate the
     // handle_new_user() trigger.
@@ -460,6 +461,13 @@ export async function unlinkAuthAccount(
 
     if (!profile.resident_id) {
       return { success: false, error: 'Account is not linked to any resident' };
+    }
+
+    // Target guard (#826): unlinking changes the account as much as linking it
+    // does, so it carries the same guard as linkAuthAccountToResident.
+    const targetGuard = await assertCanManageTarget(auth.userId!, authUserId);
+    if (!targetGuard.ok) {
+      return { success: false, error: targetGuard.error };
     }
 
     // The join returns an array, but there's only one resident per profile
