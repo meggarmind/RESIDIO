@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Menu, ChevronRight, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { activeSettingsHref, findSettingsEntry, flattenSettingsNav, type SettingsGroup } from '@/config/settings-nav';
+import { activeSettingsHref, flattenSettingsNav, settingsPageLabel, type SettingsGroup } from '@/config/settings-nav';
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation';
 import { useSettingsNavState } from '@/hooks/use-settings-nav-state';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ import {
     SheetTrigger,
 } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { OpensSystemMark, SettingsSearchField, SettingsSearchResults, useSettingsSearch } from './settings-search';
 
 /** Does this group hold the page being viewed? See `activeSettingsHref`. */
 function isGroupActive(activeHref: string | null, group: SettingsGroup): boolean {
@@ -30,7 +31,8 @@ export function SettingsMobileNav() {
     const { groups } = useSettingsNavigation();
     const activeHref = activeSettingsHref(pathname, groups);
     const activeGroupTitle = groups.find((g) => isGroupActive(activeHref, g))?.title ?? null;
-    const currentTitle = activeHref ? findSettingsEntry(activeHref, groups)?.item.title : undefined;
+    const currentTitle = settingsPageLabel(activeHref, groups);
+    const search = useSettingsSearch();
 
     // Same store as the desktop sidebar (`settings-sidebar.tsx`), so opening
     // or collapsing a group on one surface is reflected on the other, and
@@ -63,7 +65,15 @@ export function SettingsMobileNav() {
                         Navigate between administration settings areas.
                     </SheetDescription>
                 </SheetHeader>
-                <ScrollArea className="h-[calc(100vh-5rem)]">
+                <div className="p-4 pb-0">
+                    <SettingsSearchField search={search} onNavigate={() => setOpen(false)} />
+                </div>
+                <ScrollArea className="h-[calc(100vh-9rem)]">
+                    {search.active ? (
+                        <div className="p-4">
+                            <SettingsSearchResults search={search} onNavigate={() => setOpen(false)} />
+                        </div>
+                    ) : (
                     <div className="flex flex-col p-4 space-y-4">
                         {groups.map((group) => {
                             const isActiveGroup = isGroupActive(activeHref, group);
@@ -111,6 +121,7 @@ export function SettingsMobileNav() {
                                                                 parentActive ? "text-primary" : "text-muted-foreground"
                                                             )}>
                                                                 {item.title}
+                                                                {item.opensSystem && <span className="ml-2 text-xs font-normal">Opens System</span>}
                                                             </span>
                                                             <div className="space-y-1">
                                                                 {item.children.map((child) => {
@@ -129,6 +140,7 @@ export function SettingsMobileNav() {
                                                                             )}
                                                                         >
                                                                             {child.title}
+                                                                            {child.opensSystem && <OpensSystemMark />}
                                                                         </Link>
                                                                     );
                                                                 })}
@@ -159,6 +171,7 @@ export function SettingsMobileNav() {
                             );
                         })}
                     </div>
+                    )}
                 </ScrollArea>
             </SheetContent>
         </Sheet>

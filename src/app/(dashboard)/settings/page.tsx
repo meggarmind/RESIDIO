@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, CheckCircle2, Circle, Search } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, CheckCircle2, Circle, Search } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -13,7 +13,8 @@ import { useSettingsNavigation } from '@/hooks/use-settings-navigation';
 import { useOpsStatus } from '@/hooks/use-ops-status';
 import { getSetupStatus } from '@/actions/settings/get-setup-status';
 import { summarizeSetup } from '@/lib/settings/setup-checklist';
-import { SETTINGS_SEARCH_ENTRIES, matchSettingsEntries } from '@/lib/search/settings-search-entries';
+import { matchVisibleSettingsEntries } from '@/lib/search/settings-search-entries';
+import { useAuth } from '@/lib/auth/auth-provider';
 import type { SettingsItem } from '@/config/settings-nav';
 
 /** Every page a group links to: parents are labels, so their children stand in for them. */
@@ -30,6 +31,7 @@ const linksFor = (items: SettingsItem[]): SettingsItem[] =>
  */
 export default function SettingsPage() {
   const { groups, isLoading } = useSettingsNavigation();
+  const { hasAnyPermission } = useAuth();
   const opsStatus = useOpsStatus();
   const [query, setQuery] = useState('');
   const { data: setupStatus } = useQuery({
@@ -46,10 +48,11 @@ export default function SettingsPage() {
     [groups]
   );
   const visibleHrefs = useMemo(() => new Set(visible.flatMap(({ links }) => links.map((l) => l.href))), [visible]);
-  const matches = useMemo(() => {
-    const entries = SETTINGS_SEARCH_ENTRIES.filter((entry) => visibleHrefs.has(entry.href));
-    return matchSettingsEntries(entries, query);
-  }, [visibleHrefs, query]);
+  // Page and setting-level hits, from the same registry the sidebar search reads.
+  const matches = useMemo(
+    () => matchVisibleSettingsEntries(groups, query, (permissions) => permissions.length === 0 || hasAnyPermission(permissions)),
+    [groups, query, hasAnyPermission]
+  );
 
   if (isLoading) return <SettingsSkeleton rows={6} />;
 
@@ -68,8 +71,8 @@ export default function SettingsPage() {
     return done ? <Badge variant="success">Set up</Badge> : <Badge variant="outline">Not set up</Badge>;
   };
 
-  const renderCard = (item: { href: string; title: string; description?: string }) => (
-    <Link key={item.href} href={item.href}>
+  const renderCard = (item: { id?: string; href: string; title: string; description?: string; opensSystem?: boolean }) => (
+    <Link key={item.id ?? item.href} href={item.href}>
       <Card className="h-full cursor-pointer transition-colors hover:bg-muted/50">
         <CardHeader>
           <CardTitle className="text-base">{item.title}</CardTitle>
@@ -77,8 +80,16 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between">
-            {statusChip(item.href) ?? <span />}
-            <ArrowRight className="h-4 w-4 text-muted-foreground" />
+            {item.opensSystem ? (
+              <Badge variant="outline">Opens System</Badge>
+            ) : (
+              (statusChip(item.href) ?? <span />)
+            )}
+            {item.opensSystem ? (
+              <ArrowUpRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            ) : (
+              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+            )}
           </div>
         </CardContent>
       </Card>
@@ -104,7 +115,9 @@ export default function SettingsPage() {
       {query.trim() ? (
         matches.length > 0 ? (
           <div className="grid gap-4 md:grid-cols-2">
-            {matches.map((entry) => renderCard({ href: entry.href, title: entry.title, description: entry.subtitle }))}
+            {matches.map((entry) =>
+              renderCard({ id: entry.id, href: entry.href, title: entry.title, description: entry.subtitle, opensSystem: entry.opensSystem })
+            )}
           </div>
         ) : (
           <SettingsEmptyState icon={Search} title="No settings match" description="Try a different word." />
@@ -157,7 +170,7 @@ export default function SettingsPage() {
                 <group.icon className="h-4 w-4" />
                 {group.title}
               </h4>
-              <div className="grid gap-4 md:grid-cols-2">{links.map(renderCard)}</div>
+              <div className="grid gap-4 md:grid-cols-2">{links.map((link) => renderCard(link))}</div>
             </section>
           ))}
         </>

@@ -7,8 +7,8 @@ residio_sources:
   - src/app/(dashboard)/settings/page.tsx
   - src/app/(dashboard)/settings/estate-info/**
   - src/app/(dashboard)/settings/branding/**
-residio_verified_commit: 544de726
-residio_verified_at: '2026-10-20'
+residio_verified_commit: 0291cc78
+residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---
 
@@ -25,7 +25,9 @@ Settings are grouped by the decision they control.
 - **Documents:** document categories, and tags and custom fields.
 - **People & Access:** role and permission definitions, recipient groups (named lists of residents the estate sends copies to), and security rules (security settings and contact categories).
 - **Connections:** external services — WhatsApp and Gmail import today, with Paystack and SMS planned. Each keeps its credentials and its day-to-day console (consent, sync status, manual actions) together, rather than splitting configuration from operations the way the other groups do.
-- **System:** maintenance mode (with session timeout and duplicate matching) and data retention.
+- **System:** maintenance mode (with session timeout and duplicate matching), data retention, and **Monitoring**, which links to the audit logs, scheduled jobs, notification queue and notification history. The Monitoring links are marked **Opens System** because those pages live under **System** in the main sidebar.
+
+**Search from any settings page.** The search box at the top of the Settings menu (the menu button on a phone) finds a page by name and lists matches in place of the menu. Press Enter to open the first match, or Escape to clear the box. It lists only pages your role can open.
 
 **This page.** Every settings page your role can open has a card here, grouped as in the sidebar. Type in the search box to narrow the cards to matching pages, for example `late fee` or `logo`. A card for a setup step reads **Set up** or **Not set up**. Until the estate is fully set up, a **Setup checklist** above the cards shows how many of the nine first-time steps are done (estate name and address, a street, a house type, a bank account, a billing profile, billing settings changed from their defaults, a notification channel, payment reminders, and a custom role given to someone). Email is switched on by default, so a new estate starts with the notification channel step already done. Each step links to its page, and the checklist disappears once every step is done.
 
