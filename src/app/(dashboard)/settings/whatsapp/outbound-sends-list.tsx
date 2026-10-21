@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getWhatsAppOutboundSends } from '@/actions/whatsapp/admin-console';
-import { OUTBOUND_SENDS_PAGE_SIZE } from '@/lib/whatsapp/outbound-send-list';
+import { OUTBOUND_SENDS_PAGE_SIZE, OUTBOUND_SEND_PURPOSES } from '@/lib/whatsapp/outbound-send-list';
 
 const STATUS_LABELS: Record<string, string> = { pending: 'Pending', sent: 'Sent', delivered: 'Delivered', failed: 'Failed' };
 
@@ -34,7 +34,7 @@ export function OutboundSendsList() {
         </select>
         <select aria-label="Purpose" className="h-9 rounded-md border bg-background px-2 text-sm" value={purpose} onChange={(event) => { setPurpose(event.target.value); setPage(0); }}>
           <option value="">Replies and notifications</option>
-          <option value="inbound_reply">Replies</option>
+          <option value={OUTBOUND_SEND_PURPOSES[0]}>Replies</option>
           <option value="notification">Notifications</option>
         </select>
       </div>

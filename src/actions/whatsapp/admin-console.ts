@@ -166,7 +166,7 @@ export async function getWhatsAppOutboundSends(
     .range(from, from + OUTBOUND_SENDS_PAGE_SIZE - 1);
   if (error) return { success: false, data: null, error: error.message };
 
-  const rows = (data || []).map(({ phone_number, ...row }) => ({ ...row, maskedPhone: maskLast4(phone_number) })) as WhatsAppOutboundSend[];
+  const rows = (data || []).map(({ phone_number, ...row }) => ({ ...row, maskedPhone: maskLast4(phone_number) })) as unknown as WhatsAppOutboundSend[];
   return { success: true, data: { rows, total: count ?? rows.length }, error: null };
 }
 
