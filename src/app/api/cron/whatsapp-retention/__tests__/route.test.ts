@@ -52,7 +52,10 @@ describe('GET /api/cron/whatsapp-retention', () => {
         source: 'cron:whatsapp-retention',
         action: 'purge',
         outcome: 'success',
-        summary: { sessions: 4, processedMessages: 5, surveyResponses: 6, outboundSends: 7 },
+        summary: {
+          sessions: 4, processedMessages: 5, surveyResponses: 6, outboundSends: 7,
+          retentionDays: { sessionDays: 1, processedMessageDays: 2, surveyResponseDays: 90, outboundSendDays: 90 },
+        },
       })
     );
   });
@@ -71,8 +74,38 @@ describe('GET /api/cron/whatsapp-retention', () => {
     expect(purgeWhatsAppOperationalState).toHaveBeenCalledWith({ sessionDays: 1, processedMessageDays: 2, surveyResponseDays: 90, outboundSendDays: 90 });
   });
 
-  // Defensive: getSettingValueAsService coerces numeric strings to numbers, so
-  // a non-numeric value should not reach the route in practice.
+  it('reads numeric strings, as the settings page saves them, for all four settings', async () => {
+    settings({
+      whatsapp_session_retention_days: '5',
+      whatsapp_processed_message_retention_days: '9',
+      whatsapp_survey_retention_days: '120',
+      whatsapp_outbound_send_retention_days: '14',
+    });
+    await GET(request(`Bearer ${SECRET}`));
+    expect(purgeWhatsAppOperationalState).toHaveBeenCalledWith({ sessionDays: 5, processedMessageDays: 9, surveyResponseDays: 120, outboundSendDays: 14 });
+    expect(recordSystemAction).toHaveBeenCalledWith(
+      expect.objectContaining({ summary: expect.objectContaining({ retentionDays: { sessionDays: 5, processedMessageDays: 9, surveyResponseDays: 120, outboundSendDays: 14 } }) })
+    );
+  });
+
+  it('falls back to the defaults for blank or non-numeric strings on all four settings', async () => {
+    settings({
+      whatsapp_session_retention_days: '',
+      whatsapp_processed_message_retention_days: 'abc',
+      whatsapp_survey_retention_days: '   ',
+      whatsapp_outbound_send_retention_days: 'NaN',
+    });
+    await GET(request(`Bearer ${SECRET}`));
+    expect(purgeWhatsAppOperationalState).toHaveBeenCalledWith({ sessionDays: 1, processedMessageDays: 2, surveyResponseDays: 90, outboundSendDays: 90 });
+  });
+
+  it('clamps numeric strings to the bounds', async () => {
+    settings({ whatsapp_session_retention_days: '400', whatsapp_survey_retention_days: '9999', whatsapp_outbound_send_retention_days: '0' });
+    await GET(request(`Bearer ${SECRET}`));
+    expect(purgeWhatsAppOperationalState).toHaveBeenCalledWith({ sessionDays: 30, processedMessageDays: 2, surveyResponseDays: 365, outboundSendDays: 1 });
+  });
+
+  // Non-number, non-string values must never reach the purge.
   it('defensively falls back to the defaults for a clearly non-numeric value', async () => {
     settings({ whatsapp_session_retention_days: {}, whatsapp_processed_message_retention_days: true });
     await GET(request(`Bearer ${SECRET}`));
