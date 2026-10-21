@@ -12,6 +12,9 @@ export type OverrideChannel = 'email' | 'sms' | 'whatsapp';
  * Only the 2FA call sites may pass this (a self-addressed code to the signed-in
  * user). A scan test fails if any other file does.
  */
+/** Values of `whatsapp_outbound_sends.purpose`; lives here because the scan test confines the reply literal to this module. */
+export const OUTBOUND_SEND_PURPOSES = ['inbound_reply', 'notification'] as const;
+
 export type CommsPurpose = 'self_auth_2fa' | 'inbound_reply';
 
 /**

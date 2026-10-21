@@ -296,6 +296,8 @@ The console on the same page shows today's activity: inbound messages, outbound 
 
 The **undelivered messages** list covers the last 7 days. It shows each WhatsApp message the provider reported as failed, or that Chatmaid accepted but never confirmed as sent within 15 minutes. Each row shows the time, the resident (when known), the masked number, whether it was a reply or a notification, the provider's reason, and the id of the resident message it answered. Those residents may not have received the message, so contact them another way. Residio does not resend these messages automatically.
 
+The **Sent messages** card on the same page lists every WhatsApp message the app sent, newest first, 25 to a page: the time, whether it was a reply or a notification, the resident, the masked number (last 4 digits), the status (pending, sent, delivered or failed), the error code, and the id of the resident message it answered. Filter by status or purpose. It shows no message text, because none is stored, and covers the 90-day retention window. Assistant replies appear here and not in **System → Notification queue**, which links to this card.
+
 The **Statement requested, no email** list shows residents who asked for a statement too long for chat and have no email on file. Add their email to clear it.
 
 The **Clearance certificate copies not sent** list shows each copy of an issued certificate that did not reach a member of the copy group (not opted in, no WhatsApp number, or the provider refused), with the reason and the number of tries. With the WhatsApp manage permission each row has a **Retry**, which sends it again with a fresh link. A failed copy never holds up the resident's own certificate.

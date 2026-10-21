@@ -12,6 +12,7 @@ import { PrivacyNoticeSettings } from '@/app/(dashboard)/settings/whatsapp/priva
 import { PilotControls } from '@/app/(dashboard)/settings/whatsapp/pilot-controls';
 import { ConnectionSettings } from '@/app/(dashboard)/settings/whatsapp/connection-settings';
 import { ClearanceCopyFailures, type ClearanceCopyFailure } from '@/app/(dashboard)/settings/whatsapp/clearance-copy-failures';
+import { OutboundSendsList } from '@/app/(dashboard)/settings/whatsapp/outbound-sends-list';
 import { WhatsAppEnabledToggle } from '@/app/(dashboard)/settings/whatsapp/whatsapp-enabled-toggle';
 import { OperationsConsole, type DeliveryProblem, type Disclosure, type Health, type OptIn, type Pending, type Session, type StatementFlag, type SurveySummary } from '@/app/(dashboard)/settings/whatsapp/operations-console';
 
@@ -76,6 +77,7 @@ export default async function WhatsAppOperationsPage() {
         <CardContent className="flex items-center justify-between gap-4"><p className="text-sm text-muted-foreground">When off, no WhatsApp message can be sent regardless of rollout mode.</p><WhatsAppEnabledToggle initialValue={whatsappEnabledResult.data === true} /></CardContent>
       </Card>
       <Card><CardHeader><CardTitle>Rollout and pilot controls</CardTitle><CardDescription>Keep WhatsApp disabled until a defined pilot is verified. Promotion is audited.</CardDescription></CardHeader><CardContent><PilotControls initial={pilotResult.data || { mode: 'disabled', residentIds: [], streetId: '', outboundDailyCap: 100, outboundBurstCap: 20, outboundBurstWindowMinutes: 10, financialLookupDailyCap: 500, sessionRetentionDays: 1, processedMessageRetentionDays: 2, surveyResponseRetentionDays: 90, outboundSendRetentionDays: 90 }} residentOptions={pilotResidentsResult.data} residentOptionsError={pilotResidentsResult.error} /></CardContent></Card>
+      <OutboundSendsList />
       <details open={residentBotActive} className="space-y-4 rounded-lg border p-4">
         <summary className="cursor-pointer text-lg font-semibold">
           Resident bot ({residentBotActive ? 'active' : 'inactive'})
