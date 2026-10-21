@@ -1,6 +1,7 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { getDebtStatuses, type DebtStatus } from '@/lib/billing/debt-status';
 
 export interface IndebtedResident {
   residentId: string;
@@ -9,6 +10,9 @@ export interface IndebtedResident {
   houseNumber: string | null;
   streetName: string | null;
   outstanding: number;
+  /** Shared debt status (#980) of the resident's house; null when the resident has no house. */
+  status: DebtStatus | null;
+  statusLabel: string | null;
 }
 
 export interface IndebtednessAnalytics {
@@ -52,6 +56,7 @@ export async function getIndebtednessAnalytics(): Promise<{ data: IndebtednessAn
     if (error) return { data: null, error: error.message };
 
     const residentMap = new Map<string, IndebtedResident>();
+    const residentHouse = new Map<string, string>();
     const streetOutstanding = new Map<string, { name: string; total: number }>();
     const houseTypeOutstanding = new Map<string, number>();
 
@@ -62,6 +67,7 @@ export async function getIndebtednessAnalytics(): Promise<{ data: IndebtednessAn
       const existing = residentMap.get(inv.resident_id);
       const houseNumber = inv.house?.house_number ?? null;
       const streetName = inv.house?.street?.name ?? null;
+      if (inv.house_id && !residentHouse.has(inv.resident_id)) residentHouse.set(inv.resident_id, inv.house_id);
       if (existing) {
         existing.outstanding += outstanding;
       } else {
@@ -72,6 +78,8 @@ export async function getIndebtednessAnalytics(): Promise<{ data: IndebtednessAn
           houseNumber,
           streetName,
           outstanding,
+          status: null,
+          statusLabel: null,
         });
       }
 
@@ -88,6 +96,15 @@ export async function getIndebtednessAnalytics(): Promise<{ data: IndebtednessAn
     const allResidents = Array.from(residentMap.values());
     const topIndebted = [...allResidents].sort((a, b) => b.outstanding - a.outstanding).slice(0, 10);
     const topNonIndebted = [...allResidents].sort((a, b) => a.outstanding - b.outstanding).slice(0, 10);
+
+    const statuses = new Map(
+      (await getDebtStatuses(supabase, { houseIds: [...new Set(residentHouse.values())] })).map((d) => [d.houseId, d]),
+    );
+    for (const r of [...topIndebted, ...topNonIndebted]) {
+      const d = statuses.get(residentHouse.get(r.residentId) ?? '');
+      r.status = d?.status ?? null;
+      r.statusLabel = d?.label ?? null;
+    }
 
     // House type names need a lookup; fetch alongside since invoices don't join house_types directly
     const { data: houseTypes } = await supabase.from('house_types').select('id, name');
