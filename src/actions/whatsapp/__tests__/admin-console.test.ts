@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { createAdminClient } from '@/lib/supabase/server';
-import { getWhatsAppClearanceCopyFailures, getWhatsAppDeliveryProblems, getWhatsAppDisclosureLogs, getWhatsAppHealth, getWhatsAppSessions, getWhatsAppStatementFlags, getWhatsAppSurveySummary, retryWhatsAppClearanceCopy } from '../admin-console';
+import { getWhatsAppClearanceCopyFailures, getWhatsAppDeliveryProblems, getWhatsAppDisclosureLogs, getWhatsAppHealth, getWhatsAppOutboundSends, getWhatsAppSessions, getWhatsAppStatementFlags, getWhatsAppSurveySummary, retryWhatsAppClearanceCopy } from '../admin-console';
 import { logAudit } from '@/lib/audit/logger';
 import { retryClearanceCopy } from '@/lib/clearance/issue-certificate';
 import { filterDisclosureLogs, filterOptIns } from '@/app/(dashboard)/settings/whatsapp/operations-console';
@@ -23,7 +23,7 @@ type QueryResult = { data: unknown; error: unknown; count?: number };
 function chain(result: QueryResult) {
   const value: QueryResult = { ...result };
   const query = {} as Record<string, ReturnType<typeof vi.fn>>;
-  for (const method of ['select', 'eq', 'gte', 'order', 'limit', 'ilike', 'or']) query[method] = vi.fn().mockReturnValue(query);
+  for (const method of ['select', 'eq', 'gte', 'order', 'limit', 'ilike', 'or', 'range']) query[method] = vi.fn().mockReturnValue(query);
   query.then = vi.fn((resolve: (result: QueryResult) => unknown) => Promise.resolve(resolve(value)));
   return query;
 }
@@ -57,6 +57,7 @@ describe('WhatsApp operations console actions', () => {
     expect((await getWhatsAppStatementFlags()).error).toBe('Forbidden');
     expect((await getWhatsAppClearanceCopyFailures()).error).toBe('Forbidden');
     expect((await getWhatsAppSurveySummary()).error).toBe('Forbidden');
+    expect((await getWhatsAppOutboundSends()).error).toBe('Forbidden');
     expect(clientMock).not.toHaveBeenCalled();
   });
 
@@ -146,6 +147,37 @@ describe('WhatsApp operations console actions', () => {
     expect(String(problems.select.mock.calls[0][0])).toMatch(/inbound_message_id.*resident:residents\(/);
     expect(problems.or).toHaveBeenCalledWith('status.eq.failed,and(status.eq.pending,provider.eq.chatmaid,created_at.lt.2026-10-20T11:45:00.000Z)');
     vi.useRealTimers();
+  });
+
+  it('lists every outbound send, replies and notifications, newest first, with only the last 4 digits (#923)', async () => {
+    authMock.mockResolvedValue(authorized);
+    const sends = chain({
+      data: [
+        { id: 's1', purpose: 'inbound_reply', phone_number: '+2348031234567', status: 'delivered', error_code: null, inbound_message_id: 'm1', created_at: '2026-10-21T10:00:00Z', resident: null },
+        { id: 's2', purpose: 'notification', phone_number: '+2348039876543', status: 'failed', error_code: '131026', inbound_message_id: null, created_at: '2026-10-21T09:00:00Z', resident: null },
+      ],
+      error: null,
+      count: 40,
+    });
+    clientMock.mockReturnValue({ from: vi.fn().mockReturnValue(sends) } as never);
+
+    const result = await getWhatsAppOutboundSends({ status: 'failed', purpose: 'notification', page: 1 });
+
+    expect(result.data?.total).toBe(40);
+    expect(result.data?.rows.map((row) => [row.purpose, row.maskedPhone])).toEqual([['inbound_reply', '****4567'], ['notification', '****6543']]);
+    expect(JSON.stringify(result.data)).not.toMatch(/803123|phone_number|message_text/);
+    expect(sends.order).toHaveBeenCalledWith('created_at', { ascending: false });
+    expect(sends.eq).toHaveBeenCalledWith('status', 'failed');
+    expect(sends.eq).toHaveBeenCalledWith('purpose', 'notification');
+    expect(sends.range).toHaveBeenCalledWith(25, 49);
+  });
+
+  it('ignores unknown outbound send filters instead of passing them to the query (#923)', async () => {
+    authMock.mockResolvedValue(authorized);
+    const sends = chain({ data: [], error: null, count: 0 });
+    clientMock.mockReturnValue({ from: vi.fn().mockReturnValue(sends) } as never);
+    await getWhatsAppOutboundSends({ status: 'x,or(1=1)', purpose: 'bogus' });
+    expect(sends.eq).not.toHaveBeenCalled();
   });
 
   it('lists clearance certificate copies that failed, with the recipient and the certificate (#816)', async () => {
