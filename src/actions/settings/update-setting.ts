@@ -77,9 +77,14 @@ function permissionSetsFor(keys: string[]): Permission[][] {
 }
 
 /**
- * Updates a system setting value
+ * Updates a system setting value. A key with no row fails, unless `createIfMissing` is given:
+ * then the row is inserted with that category (a setting no migration has seeded, #903).
  */
-export async function updateSetting(key: string, value: unknown): Promise<UpdateSettingResponse> {
+export async function updateSetting(
+    key: string,
+    value: unknown,
+    createIfMissing?: { category: string; description?: string }
+): Promise<UpdateSettingResponse> {
     const supabase = await createServerSupabaseClient();
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -116,14 +121,25 @@ export async function updateSetting(key: string, value: unknown): Promise<Update
         storageValue = value.toString();
     }
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
         .from('system_settings')
         .update({ value: storageValue })
         .eq('key', key)
         .select()
         .single();
 
-    if (error) {
+    let created = false;
+    // PGRST116: the update matched no row
+    if (error?.code === 'PGRST116' && createIfMissing) {
+        ({ data, error } = await supabase
+            .from('system_settings')
+            .insert({ key, value: storageValue, description: createIfMissing.description ?? null, category: createIfMissing.category })
+            .select()
+            .single());
+        created = true;
+    }
+
+    if (error || !data) {
         console.error(`Update setting "${key}" error:`, error);
         return { data: null, error: 'Failed to update setting' };
     }
@@ -131,13 +147,13 @@ export async function updateSetting(key: string, value: unknown): Promise<Update
     // Audit log (audit_logs.entity_id is a uuid: use the row id, keep the key as the label)
     if (data?.id) {
         await logAudit({
-            action: 'UPDATE',
+            action: created ? 'CREATE' : 'UPDATE',
             entityType: 'system_settings',
             entityId: data.id,
             entityDisplay: key,
             oldValues: { key, value: oldSetting?.value },
             newValues: { key, value: storageValue },
-            description: `Updated setting: ${key}`,
+            description: `${created ? 'Created' : 'Updated'} setting: ${key}`,
         });
     }
 
