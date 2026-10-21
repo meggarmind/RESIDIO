@@ -10,7 +10,7 @@
 
 Residio uses a modern, flexible RBAC system (implemented in Phase 10) with:
 - **47 granular permissions** across 11 functional categories
-- **8 system roles** with hierarchical levels
+- **8 roles** (see section 3 for the current set)
 - **Server-side authorization** via `authorizePermission()` function
 - **Middleware route protection** with permission checks
 - **Audit logging** for all RBAC operations
@@ -110,20 +110,75 @@ system.manage_roles     # Admin action with manage_ prefix
 
 ## 3. Role Hierarchy
 
-| Level | Role | Category | System Role | Permissions |
-|-------|------|----------|-------------|-------------|
-| 0 | `super_admin` | exco | Yes | ALL (47) |
-| 1 | `chairman` | exco | No | ALL except system.* (42) |
-| 2 | `vice_chairman` | exco | No | ALL except system.* (42) |
-| 3 | `financial_officer` | exco | No | Finance-focused (25) |
-| 3 | `security_officer` | exco | No | Security-focused (14) |
-| 3 | `secretary` | exco | No | Admin-focused (18) |
-| 3 | `project_manager` | exco | No | Project-focused (12) |
-| 10 | `resident` | resident | Yes | None (portal only) |
+Replaced in the RBAC redesign (#822, slice 3: `20261022160000_seed_rbac_role_model.sql`). The
+`vice_chairman`, `project_manager` and `resident` roles are deleted. Counts were measured on
+Residio_Stage after slice 3 (2026-10-21). The permission total is now 127 (the "47" in the
+summary and in section 1 is the December 2025 inventory). The matrix in section 4 predates the
+redesign and is superseded by the counts and changes below until it is regenerated.
+
+| Role | Category | System Role | Requires resident | Permissions |
+|------|----------|-------------|-------------------|-------------|
+| `super_admin` | exco | Yes | No | 127 (all) |
+| `chairman` | exco | No | Yes | 112 |
+| `financial_officer` | exco | No | Yes | 60 |
+| `secretary` | exco | No | Yes | 25 |
+| `security_officer` | exco | No | Yes | 26 |
+| `welfare_officer` | exco | Yes | Yes | 22 |
+| `trustee` | bot | Yes | Yes | 26 |
+| `security_guard_supervisor` | staff | Yes | No | 8 |
+
+The `level` column is no longer part of the model; account guards are being replaced in slice 4
+(#826).
+
+### Titles and seats
+
+| Role | Titles (seats) |
+|------|----------------|
+| `chairman` | Chairman (1), Vice Chairman (1) |
+| `financial_officer` | Treasurer (1), Financial Secretary (1) |
+| `secretary` | Secretary (1), Assistant Secretary (1) |
+| `security_officer` | Chief Security Officer (1), Assistant Chief Security Officer (1) |
+| `welfare_officer` | Welfare Officer (1) |
+| `trustee` | Trustee (unlimited) |
+| `security_guard_supervisor` | Security Guard Supervisor (1) |
+
+### Assignment matrix (allowed resident types)
+
+| Role | resident_landlord | non_resident_landlord | tenant | co_resident |
+|------|:-:|:-:|:-:|:-:|
+| `chairman`, `trustee` | ✅ | ✅ | ❌ | ❌ |
+| `security_officer` | ✅ | ✅ | ✅ | ❌ |
+| `financial_officer`, `secretary`, `welfare_officer` | ✅ | ✅ | ✅ | ✅ |
+
+`super_admin` and `security_guard_supervisor` have no rows (non-resident roles; no row means
+allowed).
+
+### Rules
+
+- One role per person.
+- An estate officer must be a resident: a `requires_resident` role is refused on a profile with
+  no linked resident, and the profile loses the role if its resident leaves `active`.
+- Only the Super Administrator grants Super Administrator, Chairman or Trustee
+  (`system.assign_board_roles`, held by `super_admin` only).
+- `impersonation.approve_requests` and `impersonation.manage_settings` are `super_admin` only.
+- Guards are permission-based. The remaining rank-based guards are being replaced in slice 4
+  (#826).
+
+### Permission changes (slice 3, #825)
+
+| Role | Gains | Loses |
+|------|-------|-------|
+| `chairman` | `settings.view`, `settings.manage_general`, `settings.manage_billing`, `settings.manage_security`, `settings.manage_reference`, `settings.view_audit_logs`, `system.assign_roles`, `view_projects`, `manage_projects` | all four `impersonation.*`; every `system.*` except `system.assign_roles` and `system.view_all_profiles` |
+| `financial_officer` | `impersonation.start_session`, `impersonation.view_sessions` | `impersonation.approve_requests` (if held) |
+| `security_officer` | `impersonation.start_session`, `impersonation.view_sessions` | none |
+| `secretary` | none | none |
+| `super_admin` | `system.assign_board_roles` (new, exclusive) | none |
 
 ---
 
 ## 4. Role-Permission Matrix
+
+> **Historical (2025-12-30).** This matrix is the pre-redesign snapshot. Its Vice Chair, Project Mgr and Resident columns are roles that were deleted in slice 3 (#825) and are not current. For the current roles, counts and permission changes, use section 3.
 
 ### Legend
 - ✅ = Has permission
