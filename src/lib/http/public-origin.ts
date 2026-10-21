@@ -21,7 +21,8 @@ function firstValue(header: string | null): string | null {
   return value ? value : null;
 }
 
-function configuredOrigin(): string | null {
+/** The origin from NEXT_PUBLIC_SITE_URL (no trailing slash), or null when unset or not http(s). */
+export function getConfiguredPublicOrigin(): string | null {
   // NEXT_PUBLIC_* is inlined at build time in client bundles; in server code it is read from the environment at call time.
   const raw = process.env.NEXT_PUBLIC_SITE_URL?.trim();
   if (!raw) return null;
@@ -48,7 +49,7 @@ function originFrom(protocol: string, host: string): string | null {
 }
 
 export function getPublicOrigin(request: Request): string {
-  const configured = configuredOrigin();
+  const configured = getConfiguredPublicOrigin();
   if (configured) return configured;
 
   const headers = request.headers;
