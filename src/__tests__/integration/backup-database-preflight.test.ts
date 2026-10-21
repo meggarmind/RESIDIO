@@ -61,7 +61,7 @@ describe('preflight CLI', () => {
 
   it('exits non-zero, names the secret, and prints no value', () => {
     const r = spawnSync('node', [script, 'stage'], {
-      env: { ...envFor('stage'), R2_BUCKET: '', PATH: process.env.PATH },
+      env: { ...envFor('stage'), R2_BUCKET: '', PATH: process.env.PATH } as NodeJS.ProcessEnv,
       encoding: 'utf8',
     });
     expect(r.status).toBe(1);
@@ -70,7 +70,7 @@ describe('preflight CLI', () => {
   });
 
   it('exits zero when everything is set', () => {
-    const out = execFileSync('node', [script, 'prod'], { env: { ...envFor('prod'), PATH: process.env.PATH }, encoding: 'utf8' });
+    const out = execFileSync('node', [script, 'prod'], { env: { ...envFor('prod'), PATH: process.env.PATH } as NodeJS.ProcessEnv, encoding: 'utf8' });
     expect(out).toContain('Backup secrets present for prod');
     expect(out).not.toContain(SENTINEL);
   });
