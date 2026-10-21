@@ -163,7 +163,9 @@ allowed).
 - `impersonation.approve_requests` and `impersonation.manage_settings` are `super_admin` only.
 - Account guards are permission-based. Granting `super_admin`, `chairman` or `trustee`, or
   changing an account that holds `super_admin` or `chairman`, needs `system.assign_board_roles`;
-  anything else needs `system.assign_roles` (`src/lib/auth/account-guards.ts`, #826).
+  anything else needs `system.assign_roles` (`src/lib/auth/account-guards.ts`, #826). The
+  database enforces the same rule on every profile insert, delete and role change made by a
+  signed-in caller (trigger `profiles_enforce_role_rules`, #991).
 
 ### Permission changes (slice 3, #825)
 
