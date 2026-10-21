@@ -112,7 +112,7 @@ describe('system bank-password reads (#884)', () => {
 
 describe('parseFirstBankPdf forwards systemSource to the password reads (#884)', () => {
   it('passes it to both the account lookup and the fallback over all passwords', async () => {
-    mocks.getDocument.mockReturnValue({ promise: Promise.reject(new Error('No password given')) });
+    mocks.getDocument.mockImplementation(() => ({ promise: Promise.reject(new Error('No password given')) }));
     const byLast4 = vi
       .spyOn(passwords, 'getPasswordByAccountLast4')
       .mockResolvedValue({ data: null, bankAccountId: null, error: 'none' });
