@@ -26,6 +26,29 @@ export type SettingsItem = {
      */
     permissions?: Permission[];
     children?: SettingsItem[];
+    /**
+     * Sections of a merged settings page (#791). The registry is the single source for
+     * row labels, so search and the page cannot name a row differently.
+     */
+    sections?: SettingsSectionDef[];
+};
+
+export type SettingsRowDef = {
+    id: string;
+    label: string;
+    help?: string;
+    /** Search aliases. Never displayed. */
+    keywords?: string[];
+};
+
+export type SettingsSectionDef = {
+    /** Anchor id, also the URL hash. */
+    id: string;
+    title: string;
+    /** Holding any one reveals the section. Omitted means the item's own permissions apply. */
+    permissions?: Permission[];
+    defaultCollapsed?: boolean;
+    rows: SettingsRowDef[];
 };
 
 export type SettingsGroup = {
@@ -227,4 +250,30 @@ export function findSettingsEntry(
         }
     }
     return null;
+}
+
+export type SettingsRowMatch = { item: SettingsItem; section: SettingsSectionDef; row: SettingsRowDef };
+
+function walkItems(items: SettingsItem[], visit: (item: SettingsItem) => void) {
+    for (const item of items) {
+        visit(item);
+        if (item.children) walkItems(item.children, visit);
+    }
+}
+
+/** Every row in the registry with the item and section that own it. */
+export function flattenSettingsRows(groups: SettingsGroup[] = settingsConfig): SettingsRowMatch[] {
+    const out: SettingsRowMatch[] = [];
+    for (const group of groups) {
+        walkItems(group.items, (item) => {
+            for (const section of item.sections ?? []) {
+                for (const row of section.rows) out.push({ item, section, row });
+            }
+        });
+    }
+    return out;
+}
+
+export function findSettingsRow(rowId: string, groups: SettingsGroup[] = settingsConfig): SettingsRowMatch | null {
+    return flattenSettingsRows(groups).find((m) => m.row.id === rowId) ?? null;
 }
