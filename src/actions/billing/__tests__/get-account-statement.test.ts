@@ -120,9 +120,9 @@ describe('getAccountStatement', () => {
     const [periodQuery, priorQuery] = queries.filter((q) => q.table === 'invoices');
     expect(args(periodQuery.calls, 'gte')).toEqual([]);
     expect(args(periodQuery.calls, 'or')[0][0]).toBe(
-      'and(period_start.gte.2015-01-01,period_start.lte.2026-10-19),and(period_start.is.null,created_at.gte.2015-01-01,created_at.lte.2026-10-19)',
+      'and(period_start.gte.2015-01-01,period_start.lte.2026-10-19),and(period_start.is.null,created_at.gte.2014-12-31T23:00:00.000Z,created_at.lt.2026-10-19T23:00:00.000Z)',
     );
-    expect(args(priorQuery.calls, 'or')[0][0]).toBe('period_start.lt.2015-01-01,and(period_start.is.null,created_at.lt.2015-01-01)');
+    expect(args(priorQuery.calls, 'or')[0][0]).toBe('period_start.lt.2015-01-01,and(period_start.is.null,created_at.lt.2014-12-31T23:00:00.000Z)');
   });
 
   it('keeps the pre-#863 opening balance for a non-admin while the resident setting is off', async () => {
