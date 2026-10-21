@@ -305,6 +305,7 @@ export type AuditEntityType =
   | 'system_settings'
   | 'bank_statement_imports'
   | 'resident_payment_aliases'
+  | 'resident_merges'             // Merge residents (#987)
   | 'estate_bank_accounts'
   | 'transaction_tags'
   | 'app_roles'           // Phase 10: RBAC
@@ -405,6 +406,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   system_settings: 'System Setting',
   bank_statement_imports: 'Bank Statement Import',
   resident_payment_aliases: 'Payment Alias',
+  resident_merges: 'Resident Merge',              // Merge residents (#987)
   estate_bank_accounts: 'Estate Bank Account',
   transaction_tags: 'Transaction Tag',
   app_roles: 'Role',               // Phase 10: RBAC

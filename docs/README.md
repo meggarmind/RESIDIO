@@ -55,6 +55,7 @@ See [Development Environment](setup/development-environment.md) for detailed set
 - [Announcements System](features/announcements.md) - Community communication, scheduling, and read receipts
 - [Admin Impersonation](features/admin-impersonation.md) - Secure resident portal preview for admins
 - [Gmail Integration](features/gmail-integration.md) - Automated bank statement import and processing
+- [Merge Residents](features/resident-merge.md) - Database contract for merging a duplicate resident into another (#987)
 
 ### API
 - [Supabase Integration](api/supabase-integration.md) - Data layer patterns, client configuration, MCP tools, form handling
