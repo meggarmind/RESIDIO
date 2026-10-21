@@ -6,6 +6,8 @@ residio_sources:
   - src/app/(dashboard)/residents/[id]/**
   - src/actions/residents/transfer-ownership.ts
   - src/actions/residents/unassign-house.ts
+  - src/actions/residents/merge-residents.ts
+  - src/components/residents/resident-merge-dialog.tsx
 residio_verified_commit: e24b7386
 residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
@@ -34,6 +36,7 @@ Buttons appear only for users who hold the permission the action needs:
 | --- | --- |
 | Edit, Inactivate / Reactivate (under **More**) | `residents.update` |
 | Archive (under **More**) | `residents.delete` |
+| Merge residents (under **More**) | `residents.merge` (super admin only) |
 | Verify contact | `residents.verify` |
 | Link house, Move out, Transfer, Remove assignment | `houses.assign_resident` |
 | Add, edit, activate or delete a payment alias | `residents.update` |
@@ -43,6 +46,21 @@ Buttons appear only for users who hold the permission the action needs:
 **Verify contact** marks every unverified contact detail (email and phone) as verified by an admin, and the resident as verified, after a confirmation dialog.
 
 **Move out**, **Transfer** and **Remove assignment** on a linked house each open a confirmation dialog that names the resident and the house affected; nothing changes until you confirm.
+
+## Merge residents
+
+Use **More → Merge residents** when one person has two resident records. The merge moves everything from the duplicate to the record you keep, then archives the duplicate. It cannot be undone from the app.
+
+1. Choose the other record, then choose which of the two records to keep.
+2. Read the preview. It lists everything that will move (house links, invoices, payments, the wallet balance and its transactions, WhatsApp opt-ins and links, notification preferences, documents, notes and the rest), the kept wallet's new balance and the combined account balance.
+3. If the preview shows a reason the merge cannot go ahead, fix that first. The merge stops when both records are linked to the same house (end one link with the move-out or unassign tools) or both records have a portal login (unlink one).
+4. Check any warning about a payment or an invoice that may have been entered on both records, and void the extra one first.
+5. Where the email or phone numbers differ, choose which value the kept record should have. The kept record's value is selected by default. Every other detail stays as on the kept record.
+6. Type the kept record's resident code and press **Merge residents**.
+
+The duplicate's WhatsApp PIN is cleared, not copied. If the kept record has no PIN, the resident sets a new one.
+
+A merged record shows **Merged into** and the kept record's code at the top of its page, with a link to the kept record.
 
 Use the edit action only when the source information has been verified. Changes to assignments can affect billing and access decisions.
 

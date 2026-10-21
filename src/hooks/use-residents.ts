@@ -9,6 +9,7 @@ import type { DuplicateResidentMatch } from '@/lib/residents/duplicate-match';
 import { updateResident } from '@/actions/residents/update-resident';
 import { updateResidentStatus } from '@/actions/residents/update-resident-status';
 import { deleteResident } from '@/actions/residents/delete-resident';
+import { previewResidentMerge, mergeResidents, type MergeResidentsInput } from '@/actions/residents/merge-residents';
 import { assignHouse } from '@/actions/residents/assign-house';
 import { unassignHouse } from '@/actions/residents/unassign-house';
 import { moveOutLandlord } from '@/actions/residents/move-out-landlord';
@@ -177,6 +178,38 @@ export function useUpdateResidentStatus() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['residents'] });
       queryClient.invalidateQueries({ queryKey: ['resident', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['residentStats'] });
+    },
+  });
+}
+
+export function useResidentMergePreview(keptId: string | undefined, duplicateId: string | undefined) {
+  return useQuery({
+    queryKey: ['residentMergePreview', keptId, duplicateId],
+    queryFn: async () => {
+      const result = await previewResidentMerge(keptId!, duplicateId!);
+      if (result.error) throw new Error(result.error);
+      return result.data!;
+    },
+    enabled: !!keptId && !!duplicateId,
+    staleTime: 0,
+  });
+}
+
+export function useMergeResidents() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: MergeResidentsInput) => {
+      const result = await mergeResidents(input);
+      if (result.error) throw new Error(result.error);
+      return result.data!;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['residents'] });
+      queryClient.invalidateQueries({ queryKey: ['resident', variables.keptId] });
+      queryClient.invalidateQueries({ queryKey: ['resident', variables.duplicateId] });
+      queryClient.invalidateQueries({ queryKey: ['residentMergePreview'] });
       queryClient.invalidateQueries({ queryKey: ['residentStats'] });
     },
   });
