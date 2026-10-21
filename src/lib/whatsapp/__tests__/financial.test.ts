@@ -531,13 +531,16 @@ describe('WhatsApp Assistant statement (#804 decisions 22-23)', () => {
   });
 
   it('replies with the contact line, and sends nothing, when since move-in has no active billable link', async () => {
-    for (const texts of [['statement', '6'], ['statement', '6', '1']]) {
-      const repo = repository([PALM], { loadStatement: vi.fn().mockResolvedValue(null) });
+    // The email path loads twice: the first load offers email over 40 rows, the confirm finds the link gone.
+    const gone = () => vi.fn().mockResolvedValue(null);
+    const goneOnConfirm = () => vi.fn().mockResolvedValueOnce({ fromDate: '2025-02-03', toDate: '2026-10-20', statement: statementData(41) }).mockResolvedValue(null);
+    for (const [texts, loadStatement] of [[['statement', '6'], gone()], [['statement', '6', '1'], goneOnConfirm()]] as const) {
+      const repo = repository([PALM], { loadStatement });
       const send = vi.fn().mockResolvedValue({ success: true });
       for (const text of texts) await handleFinancialMessage(message(text), identity, { repository: repo, optedIn: true, send });
 
-      expect(send.mock.calls[1][0].body).toBe(["We couldn't find an active tenancy for this property, so there is no move-in date to start from.", CONTACT, FOOTER].join('\n'));
-      expect(send.mock.calls[1][0].mediaUrls).toBeUndefined();
+      expect(send.mock.calls[texts.length - 1][0].body).toBe(["We couldn't find an active tenancy for this property, so there is no move-in date to start from.", CONTACT, FOOTER].join('\n'));
+      expect(send.mock.calls[texts.length - 1][0].mediaUrls).toBeUndefined();
       expect(repo.logDisclosure).not.toHaveBeenCalled();
       expect(repo.storeStatementPdf).not.toHaveBeenCalled();
       expect(repo.queueStatementEmail).not.toHaveBeenCalled();
