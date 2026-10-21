@@ -82,12 +82,9 @@ export function CurrentAdminsList({
     );
   }
 
-  // Group admins by role level for visual hierarchy
-  const getRoleBadgeVariant = (level: number): 'default' | 'secondary' | 'outline' => {
-    if (level <= 1) return 'default'; // Super Admin, Chairman
-    if (level <= 3) return 'secondary'; // Vice Chairman, Secretary, etc.
-    return 'outline'; // Other roles
-  };
+  // Board roles stand out; display only, access is decided by permissions (#826).
+  const getRoleBadgeVariant = (roleName: string): 'default' | 'secondary' =>
+    roleName === 'super_admin' || roleName === 'chairman' ? 'default' : 'secondary';
 
   return (
     <div className="space-y-2">
@@ -128,7 +125,7 @@ export function CurrentAdminsList({
               override={overrides?.[admin.profile_id] ?? null}
               generalEnabled={generalEnabled}
             />
-            <Badge variant={getRoleBadgeVariant(admin.role_level)}>
+            <Badge variant={getRoleBadgeVariant(admin.role_name)}>
               <Shield className="h-3 w-3 mr-1" />
               {admin.role_display_name}
             </Badge>

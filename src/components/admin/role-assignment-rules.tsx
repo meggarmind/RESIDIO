@@ -172,7 +172,7 @@ export function RoleAssignmentRulesEditor() {
                           <span className="cursor-help">{role.display_name}</span>
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p>Level {role.level} • {role.permissions.length} permissions</p>
+                          <p>{role.permissions.length} permissions</p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>

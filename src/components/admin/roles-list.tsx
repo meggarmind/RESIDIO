@@ -117,7 +117,6 @@ export function RolesList() {
   const [formDisplayName, setFormDisplayName] = useState('');
   const [formDescription, setFormDescription] = useState('');
   const [formCategory, setFormCategory] = useState<RoleCategory>('exco');
-  const [formLevel, setFormLevel] = useState(5);
   const [formIsActive, setFormIsActive] = useState(true);
   // Permissions chosen while creating, and the role they were seeded from.
   const [formPermissionIds, setFormPermissionIds] = useState<Set<string>>(new Set());
@@ -133,7 +132,6 @@ export function RolesList() {
     setFormDisplayName('');
     setFormDescription('');
     setFormCategory('exco');
-    setFormLevel(5);
     setFormIsActive(true);
     setFormPermissionIds(new Set());
     setCloneFromId('none');
@@ -158,7 +156,6 @@ export function RolesList() {
     setFormDisplayName(role.display_name);
     setFormDescription(role.description || '');
     setFormCategory(role.category);
-    setFormLevel(role.level);
     setFormIsActive(role.is_active);
     setIsDialogOpen(true);
   };
@@ -192,7 +189,6 @@ export function RolesList() {
             // Only include these if not a system role
             ...(isSystemRole ? {} : {
               category: formCategory,
-              level: formLevel,
             }),
             is_active: formIsActive,
           },
@@ -206,7 +202,6 @@ export function RolesList() {
             display_name: formDisplayName,
             description: formDescription || undefined,
             category: formCategory,
-            level: formLevel,
             is_active: formIsActive,
           },
           permissionIds: Array.from(formPermissionIds),
@@ -417,26 +412,6 @@ export function RolesList() {
                   </Select>
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="level" className="text-right">
-                    Level
-                  </Label>
-                  <div className="col-span-3 flex items-center gap-2">
-                    <Input
-                      id="level"
-                      type="number"
-                      min={0}
-                      max={10}
-                      value={formLevel}
-                      onChange={(e) => setFormLevel(parseInt(e.target.value) || 0)}
-                      className="w-20"
-                      disabled={isSystemRole}
-                    />
-                    <span className="text-sm text-muted-foreground">
-                      (0 = highest, 10 = lowest)
-                    </span>
-                  </div>
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="is_active" className="text-right">
                     Active
                   </Label>
@@ -526,7 +501,7 @@ export function RolesList() {
                       {role.is_system_role && <SystemBadge />}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {CATEGORY_LABELS[role.category]} · Level {role.level}
+                      {CATEGORY_LABELS[role.category]}
                     </p>
                   </div>
                   <ActiveStatusBadge active={role.is_active} />
@@ -562,9 +537,9 @@ export function RolesList() {
                         <code className="text-xs text-muted-foreground">
                           {role.name}
                         </code>
-                        {/* Category and level live here, not in their own columns, so Actions fit the 1440 column (#788). */}
+                        {/* Category lives here, not in its own column, so Actions fit the 1440 column (#788). */}
                         <span className="text-xs text-muted-foreground">
-                          {CATEGORY_LABELS[role.category]} · Level {role.level}
+                          {CATEGORY_LABELS[role.category]}
                         </span>
                       </div>
                     </TableCell>

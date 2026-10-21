@@ -202,7 +202,7 @@ export async function getAvailableRolesForPolicy(): Promise<{
     .from('app_roles')
     .select('id, name, display_name')
     .eq('is_active', true)
-    .order('level');
+    .order('display_name');
 
   if (rolesError) {
     return { success: false, data: [] };

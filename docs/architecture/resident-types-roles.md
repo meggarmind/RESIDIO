@@ -674,7 +674,7 @@ export type AccountStatus = 'active' | 'inactive' | 'suspended' | 'archived';
 | `residents` | People/entities with `resident_type`, `entity_type`, `account_status`, `verification_status` |
 | `resident_houses` | Property assignments with `resident_id`, `house_id`, `resident_role`, `sponsor_resident_id`, `is_live_in`, `tags` |
 | `profiles` | User accounts with `role` (legacy), `role_id` (new RBAC), `resident_id` |
-| `app_roles` | New RBAC roles with `name`, `category`, `level`, `is_system_role` |
+| `app_roles` | New RBAC roles with `name`, `category`, `is_system_role` |
 | `app_permissions` | Granular permissions with `name`, `category`, `is_active` |
 | `role_permissions` | Role-permission junction table |
 | `role_assignment_rules` | Resident-role to app-role restrictions |
