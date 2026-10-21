@@ -48,11 +48,11 @@ test.describe('Settings phone targets and layout (#788)', () => {
         });
     }
 
-    // The roles page moved out of Settings into Roles & Access (#912), so it has no settings-content wrapper.
-    test('/system/accounts?tab=roles: no horizontal page scroll at 1440', async ({ page }) => {
+    // Roles & Access is back in Settings (#939); it is checked at 1440 because its tables are the widest.
+    test('/settings/access?tab=roles: no horizontal page scroll at 1440', async ({ page }) => {
         await page.setViewportSize({ width: 1440, height: 900 });
         await loginAs(page, 'admin');
-        await page.goto('/system/accounts?tab=roles');
+        await page.goto('/settings/access?tab=roles');
         await expect(page.getByRole('button', { name: 'Add Role' })).toBeVisible({ timeout: 20000 });
         const overflow = await page.evaluate(() => {
             const main = document.querySelector('main') ?? document.documentElement;

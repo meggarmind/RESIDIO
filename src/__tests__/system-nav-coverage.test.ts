@@ -64,11 +64,10 @@ describe('system navigation coverage', () => {
   });
 
   it('lists every system page that has one', () => {
-    // Exception list for pages intentionally not a nav destination of their
-    // own (e.g. permanent redirect stubs). Empty today — add here, following
-    // settings-nav-coverage.test.ts's REDIRECTS pattern, if a later slice
-    // under /system needs one.
-    const REDIRECTS = new Set<string>([]);
+    // Pages intentionally not a nav destination of their own (permanent
+    // redirect stubs), following settings-nav-coverage.test.ts's REDIRECTS pattern.
+    // Roles & Access moved to /settings/access (#939).
+    const REDIRECTS = new Set<string>(['/system/accounts']);
 
     const unlisted = routesOnDisk()
       .filter((route) => !navHrefs.has(route) && !REDIRECTS.has(route))

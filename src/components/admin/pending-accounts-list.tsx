@@ -194,7 +194,7 @@ export function PendingAccountsList() {
           {!searchFilter && canManageRoles && (
             <p className="mt-1 text-sm text-muted-foreground">
               Approving one assigns a role defined under{' '}
-              <Link href="/system/accounts?tab=roles" className="font-medium text-primary underline-offset-4 hover:underline">
+              <Link href="/settings/access?tab=roles" className="font-medium text-primary underline-offset-4 hover:underline">
                 Roles
               </Link>
               .
