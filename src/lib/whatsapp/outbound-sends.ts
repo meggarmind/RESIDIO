@@ -93,6 +93,23 @@ export async function updateOutboundSendStatus(
   return (data || []).length > 0;
 }
 
+/**
+ * Whether a send is stored. Chatmaid can report a status within a second of
+ * accepting a message, before `recordOutboundSend` has written the row (#941),
+ * so an update that moved nothing is told apart from one that came too early.
+ * Throws on a database error.
+ */
+export async function outboundSendExists(provider: string, providerMessageId: string): Promise<boolean> {
+  const { data, error } = await createAdminClient()
+    .from('whatsapp_outbound_sends')
+    .select('id')
+    .eq('provider', provider)
+    .eq('provider_message_id', providerMessageId)
+    .limit(1);
+  if (error) throw error;
+  return (data || []).length > 0;
+}
+
 /** Stored sends that failed within the last `windowMinutes`. Throws on a database error. */
 export async function countRecentOutboundFailures(
   windowMinutes = OUTBOUND_FAILURE_ALERT_WINDOW_MINUTES
