@@ -319,7 +319,7 @@ WhatsApp operational state is short-lived by design and purged on a daily schedu
 - Survey answers (the rating, the optional comment and the phone number) are removed after 90 days by default. Opt-out records are kept, because they record a resident's choice and hold no comment.
 - Outbound send records are removed after 90 days by default.
 
-The session, processed message, survey answer and outbound send periods are set under **Settings → WhatsApp** in the rollout controls. Survey answer and outbound send periods accept 1 to 365 days.
+The session, processed message, survey answer and outbound send periods are set under **Settings → WhatsApp** in the rollout controls. Survey answer and outbound send periods accept 1 to 365 days. The public privacy policy at `/privacy-policy` states the survey answer period currently set.
 
 The cleanup runs automatically shortly after midnight, documented on the Scheduled jobs page in this section.
 
