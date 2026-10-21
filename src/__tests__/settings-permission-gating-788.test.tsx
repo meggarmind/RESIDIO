@@ -4,7 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
-import type { ReactElement } from 'react';
+import { useEffect, useRef, type ReactElement, type ReactNode } from 'react';
 
 const { mocks, mutation, query } = vi.hoisted(() => ({
   mocks: { permissions: [] as string[] },
@@ -106,8 +106,17 @@ import { ContactCategoriesSection as CategoriesPage } from '@/components/setting
 import { BillingGeneralSection as BillingSettingsPage } from '@/components/settings/billing/billing-general-section';
 import { LateFeesSection as LateFeesPage } from '@/components/settings/billing/late-fees-section';
 import BrandingPage from '@/app/(dashboard)/settings/branding/page';
-import DataRetentionPage from '@/app/(dashboard)/settings/data-retention/page';
+import { RetentionSection } from '@/components/settings/system/retention-section';
 import { Switch } from '@/components/ui/switch';
+
+/** Opens the section a page starts collapsed, as an admin would. */
+function Opened({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ref.current?.querySelector<HTMLButtonElement>('button[aria-expanded="false"]')?.click();
+  }, []);
+  return <div ref={ref}>{children}</div>;
+}
 
 type Case = {
   name: string;
@@ -205,15 +214,15 @@ const CASES: Case[] = [
   },
   {
     name: 'data retention: prune',
-    ui: () => <DataRetentionPage />,
+    ui: () => <Opened><RetentionSection /></Opened>,
     permission: PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION,
     buttons: [/Prune Data/],
   },
   {
     name: 'data retention: retention days',
-    ui: () => <DataRetentionPage />,
+    ui: () => <Opened><RetentionSection /></Opened>,
     permission: PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION,
-    buttons: [/^Save$/],
+    buttons: [/^Save Data retention$/],
   },
 ];
 

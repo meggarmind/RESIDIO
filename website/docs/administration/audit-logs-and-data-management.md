@@ -7,6 +7,8 @@ residio_sources:
   - src/actions/audit/**
   - src/app/(dashboard)/system/data-tools/**
   - src/app/(dashboard)/settings/data-retention/**
+  - src/app/(dashboard)/settings/system/**
+  - src/components/settings/system/**
 residio_verified_commit: b59d58f5
 residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
@@ -24,7 +26,7 @@ This is enforced in the database as well as the interface, so it holds however t
 
 ## How long entries are kept
 
-Audit log entries are kept until someone runs **Prune Data** under **Settings → System → Data Retention**, which deletes entries older than the saved **Audit Log Retention** setting (365 days if it was never saved). Nothing prunes them automatically. The prune shows how many entries it would delete and runs only after you type PRUNE; deleted entries remove the record of who changed what. See [Access and system health](../settings/access-and-system-health.md).
+Audit log entries are kept until someone runs **Prune Data** under **Settings → Maintenance & Data → Data retention**, which deletes entries older than the saved **Audit Log Retention** setting (365 days if it was never saved). Nothing prunes them automatically. The prune shows how many entries it would delete and runs only after you type PRUNE; deleted entries remove the record of who changed what. See [Access and system health](../settings/access-and-system-health.md).
 
 ## Data management
 

@@ -538,8 +538,54 @@ export const settingsConfig: SettingsGroup[] = [
         title: "System",
         icon: Wrench,
         items: [
-            { title: "Maintenance Mode", href: "/settings/maintenance", description: "Turn maintenance mode on and set the message", permissions: [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE] },
-            { title: "Data Retention", href: "/settings/data-retention", description: "Retention policies and pruning", permissions: [PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION] },
+            {
+                title: "Maintenance & Data",
+                href: "/settings/system",
+                description: "Lock out non-admins during maintenance, and clear out old logs and notifications",
+                // The page opens for either section's permission; each section keeps its own.
+                permissions: [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE, PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION],
+                sections: [
+                    {
+                        id: "maintenance-mode",
+                        title: "Maintenance mode",
+                        permissions: [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE],
+                        rows: [
+                            {
+                                id: "maintenance-mode",
+                                label: "Maintenance mode",
+                                help: "Only super admins can use the application while it is on. Takes effect as soon as you confirm.",
+                                keywords: ["lock out", "downtime", "offline", "shut down", "upgrade", "freeze"],
+                            },
+                            {
+                                id: "maintenance-message",
+                                label: "Maintenance message",
+                                help: "What everyone else sees on the maintenance page. Takes effect once saved.",
+                                keywords: ["notice", "downtime message", "back soon"],
+                            },
+                        ],
+                    },
+                    {
+                        id: "retention",
+                        title: "Data retention",
+                        permissions: [PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION],
+                        defaultCollapsed: true,
+                        rows: [
+                            {
+                                id: "audit-log-retention",
+                                label: "Audit log retention",
+                                help: "How many days of audit log entries to keep. Prune Data deletes older ones; saved changes apply to the next prune.",
+                                keywords: ["history", "how long to keep", "old logs", "storage"],
+                            },
+                            {
+                                id: "prune-data",
+                                label: "Prune old data",
+                                help: "Deletes read notifications over 30 days and unread over 90, audit logs older than the retention above, search history over 30 days and system action log entries over 90. Cannot be undone.",
+                                keywords: ["delete logs", "clean up", "purge", "storage"],
+                            },
+                        ],
+                    },
+                ],
+            },
             {
                 // Live state stays in /system (ADR-0004); these entries only link to it (#933).
                 // No permissions on the parent: each child asks for exactly its /system route guard.

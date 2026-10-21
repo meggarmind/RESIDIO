@@ -47,7 +47,7 @@ describe('OpsStatusBanner (#789)', () => {
     render(<OpsStatusBanner />);
     expect(banner(MAINTENANCE)).toBeInTheDocument();
     expect(banner(OVERRIDE)).not.toBeInTheDocument();
-    expect(linkIn(MAINTENANCE)).toHaveAttribute('href', '/settings/maintenance');
+    expect(linkIn(MAINTENANCE)).toHaveAttribute('href', '/settings/system#maintenance-mode');
   });
 
   it('shows only the override notice, linking to its settings page', () => {

@@ -72,7 +72,6 @@ describe('settings navigation coverage', () => {
       '/settings/data-management',
       '/settings/cron-status',
       '/settings/system/health',
-      '/settings/system',
       '/settings/system/maintenance',
       '/settings/system/data',
       // The Gmail import config sub-page merged into its parent (#178): both
@@ -101,6 +100,9 @@ describe('settings navigation coverage', () => {
       '/settings/billing/development-levies',
       '/settings/bank-accounts',
       '/settings/transaction-tags',
+      // Merged into Maintenance & data (#938, #791); same arrangement as above.
+      '/settings/maintenance',
+      '/settings/data-retention',
     ]);
 
     const unlisted = routesOnDisk()

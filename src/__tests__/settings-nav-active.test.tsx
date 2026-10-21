@@ -93,7 +93,7 @@ describe('settings nav grouping (#786, owner decision 2026-10-20)', () => {
     expect(where('/settings/reminders')).toBe('Messages > Reminders');
     expect(where('/settings/wording')).toBe('Messages > Message Wording');
     expect(where('/settings/announcements')).toBe('Messages > Announcements');
-    expect(where('/settings/maintenance')).toBe('System > Maintenance Mode');
+    expect(where('/settings/system')).toBe('System > Maintenance & Data');
     expect(where('/settings/whatsapp')).toBe('Connections > WhatsApp');
   });
 
