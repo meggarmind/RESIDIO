@@ -23,6 +23,7 @@ async function getAdminEmails(): Promise<Array<{ email: string; name: string }>>
     const supabase = createAdminClient();
 
     // Get admin role IDs
+    // TODO(slice 3, #824): recipient list, no permission is held by exactly these roles. Revisit when roles are re-seeded.
     const { data: roles } = await supabase
         .from('app_roles')
         .select('id, name')

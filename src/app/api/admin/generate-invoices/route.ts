@@ -29,6 +29,8 @@ export async function POST(request: NextRequest) {
 
         const role = profile?.app_roles as unknown as { name: string } | null;
         const roleName = role?.name ?? '';
+        // TODO(slice 3, #824): billing.create_invoice is also held by vice_chairman, which this
+        // list excludes, so a permission check would widen access. Convert once vice_chairman is retired.
         if (!['super_admin', 'chairman', 'financial_officer'].includes(roleName)) {
             return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
         }
