@@ -254,7 +254,7 @@ export function RolesList() {
       <span className="text-sm text-muted-foreground">—</span>
     ) : role.user_count > 0 && role.category !== 'resident' ? (
       <Link
-        href={`/system/accounts?tab=administrators&role=${encodeURIComponent(role.name)}`}
+        href={`/settings/access?tab=administrators&role=${encodeURIComponent(role.name)}`}
         className="text-sm font-medium text-primary underline-offset-4 hover:underline"
         aria-label={`${role.user_count} ${role.user_count === 1 ? 'holder' : 'holders'} of ${role.display_name}`}
       >

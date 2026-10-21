@@ -68,6 +68,13 @@ describe('system route guard', () => {
     expect(resolve(routes, '/system/anything-else')).toBe('/system');
   });
 
+  it('keeps the /system/accounts guard after Roles & Access moved to /settings/access (#939)', () => {
+    // The redirect stub runs after middleware, so dropping the key would let the generic
+    // /system entry decide who reaches it (ADR-0004). The new route carries the same guard.
+    expect(ROUTE_PERMISSIONS['/system/accounts']).toEqual([PERMISSIONS.SYSTEM_ASSIGN_ROLES]);
+    expect(ROUTE_PERMISSIONS['/settings/access']).toEqual(ROUTE_PERMISSIONS['/system/accounts']);
+  });
+
   it('includes /system in adminOnlyRoutes', () => {
     expect(adminOnlyRoutes).toContain('/system');
   });

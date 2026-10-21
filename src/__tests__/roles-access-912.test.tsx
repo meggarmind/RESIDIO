@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-// Issue #912: /settings/roles and /system/accounts merge into one Roles & Access page.
+// Issue #912: /settings/roles and /system/accounts merge into one Roles & Access page,
+// which #939 moved to /settings/access.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
@@ -40,7 +41,7 @@ vi.mock('@/lib/auth/auth-provider', () => ({
 }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace, push: vi.fn() }),
-  usePathname: () => '/system/accounts',
+  usePathname: () => '/settings/access',
   useSearchParams: () => new URLSearchParams(mocks.search),
   redirect,
 }));
@@ -83,7 +84,8 @@ vi.mock('@/components/admin/permission-picker', () => ({ PermissionPicker: () =>
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() } }));
 
 import { PERMISSIONS } from '@/lib/auth/action-roles';
-import AccountsPage from '@/app/(dashboard)/system/accounts/page';
+import AccountsPage from '@/app/(dashboard)/settings/access/page';
+import AccountsRedirect from '@/app/(dashboard)/system/accounts/page';
 import RolesRedirect from '@/app/(dashboard)/settings/roles/page';
 import UserRolesRedirect from '@/app/(dashboard)/settings/user-roles/page';
 
@@ -157,15 +159,15 @@ describe('?tab= round trip (#912)', () => {
   it('writes ?tab= with router.replace on every tab change, without scrolling', () => {
     open('', [ASSIGN, MANAGE]);
     fireEvent.mouseDown(screen.getByRole('tab', { name: 'Unlinked logins' }), { button: 0 });
-    expect(replace).toHaveBeenLastCalledWith('/system/accounts?tab=unlinked', { scroll: false });
+    expect(replace).toHaveBeenLastCalledWith('/settings/access?tab=unlinked', { scroll: false });
     fireEvent.mouseDown(screen.getByRole('tab', { name: 'Roles' }), { button: 0 });
-    expect(replace).toHaveBeenLastCalledWith('/system/accounts?tab=roles', { scroll: false });
+    expect(replace).toHaveBeenLastCalledWith('/settings/access?tab=roles', { scroll: false });
   });
 
   it('drops the role filter when leaving the Administrators tab', () => {
     open('tab=administrators&role=treasurer', [ASSIGN, MANAGE]);
     fireEvent.mouseDown(screen.getByRole('tab', { name: 'Pending sign-ups' }), { button: 0 });
-    expect(replace).toHaveBeenLastCalledWith('/system/accounts?tab=pending', { scroll: false });
+    expect(replace).toHaveBeenLastCalledWith('/settings/access?tab=pending', { scroll: false });
   });
 
   it('keeps the five-tab bar scrolling inside itself rather than widening the page', () => {
@@ -180,16 +182,27 @@ describe('?tab= round trip (#912)', () => {
 describe('old routes redirect (#912)', () => {
   it('sends /settings/roles to the Roles tab and keeps ?tab=rules', async () => {
     await RolesRedirect({ searchParams: Promise.resolve({}) });
-    expect(redirect).toHaveBeenLastCalledWith('/system/accounts?tab=roles');
+    expect(redirect).toHaveBeenLastCalledWith('/settings/access?tab=roles');
     await RolesRedirect({ searchParams: Promise.resolve({ tab: 'rules' }) });
-    expect(redirect).toHaveBeenLastCalledWith('/system/accounts?tab=rules');
+    expect(redirect).toHaveBeenLastCalledWith('/settings/access?tab=rules');
     await RolesRedirect({ searchParams: Promise.resolve({ tab: 'roles' }) });
-    expect(redirect).toHaveBeenLastCalledWith('/system/accounts?tab=roles');
+    expect(redirect).toHaveBeenLastCalledWith('/settings/access?tab=roles');
+  });
+
+  it('sends /system/accounts to /settings/access with every query value (#939)', async () => {
+    await AccountsRedirect({ searchParams: Promise.resolve({}) });
+    expect(redirect).toHaveBeenLastCalledWith('/settings/access');
+    for (const tab of ['administrators', 'pending', 'unlinked', 'roles', 'rules', 'assignments', 'orphaned']) {
+      await AccountsRedirect({ searchParams: Promise.resolve({ tab }) });
+      expect(redirect).toHaveBeenLastCalledWith(`/settings/access?tab=${tab}`);
+    }
+    await AccountsRedirect({ searchParams: Promise.resolve({ tab: 'administrators', role: 'vice chairman' }) });
+    expect(redirect).toHaveBeenLastCalledWith('/settings/access?tab=administrators&role=vice+chairman');
   });
 
   it('sends /settings/user-roles to the Administrators tab', () => {
     UserRolesRedirect();
-    expect(redirect).toHaveBeenLastCalledWith('/system/accounts?tab=administrators');
+    expect(redirect).toHaveBeenLastCalledWith('/settings/access?tab=administrators');
   });
 });
 
@@ -197,7 +210,7 @@ describe('links between tabs (#912)', () => {
   it('shows a holder count per role that links to the Administrators tab filtered to the role', () => {
     open('tab=roles', [ASSIGN, MANAGE]);
     const link = screen.getAllByRole('link', { name: '1 holder of Treasurer' })[0];
-    expect(link).toHaveAttribute('href', '/system/accounts?tab=administrators&role=treasurer');
+    expect(link).toHaveAttribute('href', '/settings/access?tab=administrators&role=treasurer');
     expect(link).toHaveTextContent('1');
   });
 
@@ -212,7 +225,7 @@ describe('links between tabs (#912)', () => {
     expect(screen.getByText('Ada Okoro')).toBeInTheDocument();
     expect(screen.queryByText('Bayo Ade')).not.toBeInTheDocument();
     expect(screen.getByText(/Showing:/)).toHaveTextContent('Showing: Treasurer');
-    expect(screen.getByRole('link', { name: '(clear)' })).toHaveAttribute('href', '/system/accounts?tab=administrators');
+    expect(screen.getByRole('link', { name: '(clear)' })).toHaveAttribute('href', '/settings/access?tab=administrators');
   });
 
   it('lists every administrator when there is no ?role=', () => {
@@ -224,7 +237,7 @@ describe('links between tabs (#912)', () => {
 
   it('links the empty Pending state to Roles for someone who can manage roles', () => {
     open('tab=pending', [ASSIGN, MANAGE]);
-    expect(screen.getByRole('link', { name: 'Roles' })).toHaveAttribute('href', '/system/accounts?tab=roles');
+    expect(screen.getByRole('link', { name: 'Roles' })).toHaveAttribute('href', '/settings/access?tab=roles');
   });
 
   it('does not offer that link to someone who cannot open the Roles tab', () => {
@@ -259,20 +272,21 @@ describe('Unlinked logins (#912)', () => {
 });
 
 describe('navigation, search and route guards (#912)', () => {
-  it('labels the System sidebar item Roles & Access', async () => {
+  it('takes Roles & Access out of the System sidebar (#939)', async () => {
     const { ADMIN_NAV_SECTIONS } = await import('@/config/navigation');
     const system = ADMIN_NAV_SECTIONS.find((s) => s.id === 'system')!;
-    expect(system.items.find((i) => i.href === '/system/accounts')?.title).toBe('Roles & Access');
+    expect(system.items.map((i) => i.href)).not.toContain('/system/accounts');
   });
 
-  it('keeps a Settings Roles & Permissions link to the Roles tab, indexed for search', async () => {
+  it('lists Roles & Access in Settings at /settings/access, indexed for search (#939)', async () => {
     const { settingsConfig } = await import('@/config/settings-nav');
     const { SETTINGS_SEARCH_ENTRIES } = await import('@/lib/search/settings-search-entries');
     const items = settingsConfig.flatMap((g) => g.items);
-    expect(items.find((i) => i.title === 'Roles & Permissions')?.href).toBe('/system/accounts?tab=roles');
-    const entry = SETTINGS_SEARCH_ENTRIES.find((e) => e.title === 'Roles & Permissions');
-    expect(entry?.href).toBe('/system/accounts?tab=roles');
+    expect(items.find((i) => i.title === 'Roles & Access')?.href).toBe('/settings/access');
+    const entry = SETTINGS_SEARCH_ENTRIES.find((e) => e.title === 'Roles & Access');
+    expect(entry?.href).toBe('/settings/access');
     expect(entry?.permissions).toEqual([ASSIGN]);
+    expect(SETTINGS_SEARCH_ENTRIES.some((e) => e.href.startsWith('/system/accounts'))).toBe(false);
   });
 
   it('keeps the old route guards, because the redirect runs after middleware', async () => {
@@ -280,5 +294,7 @@ describe('navigation, search and route guards (#912)', () => {
     expect(ROUTE_PERMISSIONS['/settings/roles']).toEqual([MANAGE, ASSIGN]);
     expect(ROUTE_PERMISSIONS['/settings/user-roles']).toEqual([MANAGE, ASSIGN]);
     expect(ROUTE_PERMISSIONS['/system/accounts']).toEqual([ASSIGN]);
+    // The new route carries the old page's guard unchanged (#939).
+    expect(ROUTE_PERMISSIONS['/settings/access']).toEqual([ASSIGN]);
   });
 });

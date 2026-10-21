@@ -59,7 +59,6 @@ function idFromHref(href: string): string {
 const SYSTEM_SUBTITLES: Record<string, string> = {
   '/system': 'System dashboard overview',
   '/system/audit-logs': 'System activity trail',
-  '/system/accounts': 'Administrators, roles and pending sign-ups',
   '/system/notification-queue': 'Outgoing notification queue',
   '/system/notification-history': 'Sent notification records',
   '/system/data-tools': 'Export and bulk data utilities',

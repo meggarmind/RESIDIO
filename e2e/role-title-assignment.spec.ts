@@ -9,7 +9,7 @@ import { loginAs } from './fixtures';
 test.describe('Role and title assignment (#827)', () => {
     test('picking a role offers its titles and the confirmation names the title', async ({ page }) => {
         await loginAs(page, 'admin');
-        await page.goto('/system/accounts?tab=administrators');
+        await page.goto('/settings/access?tab=administrators');
 
         await page.getByRole('radio', { name: 'Search accounts' }).click();
         await page.getByRole('combobox').filter({ hasText: 'Search by name or email' }).click();
@@ -33,7 +33,7 @@ test.describe('Role and title assignment (#827)', () => {
 
     test('the Roles tab lists titles with seats and offers Add title', async ({ page }) => {
         await loginAs(page, 'admin');
-        await page.goto('/system/accounts?tab=roles');
+        await page.goto('/settings/access?tab=roles');
 
         await expect(page.getByRole('heading', { name: 'Titles' })).toBeVisible({ timeout: 20000 });
         await expect(page.getByText('Vice Chairman').first()).toBeVisible();

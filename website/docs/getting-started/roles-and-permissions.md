@@ -5,6 +5,7 @@ sidebar_label: Roles and permissions
 residio_sources:
   - src/lib/auth/**
   - src/actions/roles/**
+  - src/app/(dashboard)/settings/access/**
   - src/app/(dashboard)/settings/roles/**
   - src/app/(dashboard)/settings/user-roles/**
   - src/app/(dashboard)/system/accounts/**
@@ -13,7 +14,7 @@ residio_sources:
   - src/components/admin/role-title-picker.tsx
   - src/components/admin/role-titles-manager.tsx
   - src/components/admin/pending-accounts-list.tsx
-residio_verified_commit: 13cbd359
+residio_verified_commit: 6bed011d
 residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---
@@ -26,7 +27,7 @@ Residio uses granular role-based access control. A role determines which modules
 
 Signing up does not grant access. Anyone can create an account — with Google, or with an email address and password — but a new account starts as **pending**. It can sign in and sees a holding page explaining that it is waiting for approval, and nothing else. A pending account holds no permissions in the database either, so it cannot reach estate data by any route.
 
-Review sign-ups in **System → Roles & Access → Pending sign-ups**. The queue shows each person's name, email, whether that email is verified, how they signed up, and when they requested access. An account already linked to a resident record is tagged **Resident**.
+Review sign-ups in **Settings → Roles & Access → Pending sign-ups**. The queue shows each person's name, email, whether that email is verified, how they signed up, and when they requested access. An account already linked to a resident record is tagged **Resident**.
 
 - **Approve** opens a dialog where you choose the role the account will hold. Approval and role assignment are a single step; there is no approve-without-a-role.
 - **Reject** requires a reason. The account is marked rejected, the person is signed out, and they are told the account was not approved and to contact the estate office. The reason you give is recorded in the audit log.
@@ -65,7 +66,7 @@ A role with only view access, such as Trustee, sees no create, edit, delete, app
 A plain resident holds no role at all. They have no admin dashboard and reach the resident portal through their resident record.
 
 :::info[Resident portal links]
-Whether an admin sees *My Portal*, *Resident Portal* and *View as Resident* depends on the estate-wide **Resident portal** switch (Settings → Estate & Property → Estate Profile) and a per-account override (System → Roles & Access: Inherit, Enabled or Disabled). The links are hidden by default. An account with no linked resident never sees *My Portal* or *Resident Portal*, whatever its role, including the Super Administrator. Hiding the links does not block the `/portal` address.
+Whether an admin sees *My Portal*, *Resident Portal* and *View as Resident* depends on the estate-wide **Resident portal** switch (Settings → Estate & Property → Estate Profile) and a per-account override (Settings → Roles & Access: Inherit, Enabled or Disabled). The links are hidden by default. An account with no linked resident never sees *My Portal* or *Resident Portal*, whatever its role, including the Super Administrator. Hiding the links does not block the `/portal` address.
 :::
 
 :::info[What the Chairman cannot do]
@@ -76,7 +77,7 @@ Your deployment may contain additional custom roles, created under **Roles**. A 
 
 ## Creating a role
 
-**System → Roles & Access → Roles → Add Role** (also reached from **Settings → Roles & Permissions**). The Roles tab needs the Manage roles permission; an admin who can only assign roles does not see it.
+**Settings → Roles & Access → Roles → Add Role**. The Roles tab needs the Manage roles permission; an admin who can only assign roles does not see it.
 
 Name the role, give it a display name, pick its category, then choose its access in the same dialog. Names reserved for the built-in roles, or that only look like them, are refused.
 
@@ -100,7 +101,7 @@ Permission changes take effect when the affected user next signs in. Ask them to
 
 ## Assigning a role
 
-**System → Roles & Access → Administrators** lists everyone who currently holds an admin role, and lets you search for the person whose role you want to change.
+**Settings → Roles & Access → Administrators** lists everyone who currently holds an admin role, and lets you search for the person whose role you want to change.
 
 The search has two modes, chosen with the **Residents / Accounts** switch above the search box. They are two different populations, not one list with a filter, so pick the one that matches who you are looking for:
 
@@ -120,7 +121,7 @@ Who can change whom follows two permissions. **Assign Board Roles**, which only 
 
 ### Accounts that are not yet approved
 
-An account only holds permissions once it is approved, so the Accounts search will show you a pending, rejected, or suspended account but will not let you assign a role to it. Approve it under **System → Roles & Access → Pending sign-ups** instead — that step chooses the role and grants access in one go.
+An account only holds permissions once it is approved, so the Accounts search will show you a pending, rejected, or suspended account but will not let you assign a role to it. Approve it under **Settings → Roles & Access → Pending sign-ups** instead — that step chooses the role and grants access in one go.
 
 ### Removing a role
 
@@ -129,9 +130,9 @@ An account only holds permissions once it is approved, so the Accounts search wi
 - Someone with a resident record is left with no role. They lose every administrative permission and keep nothing but resident access.
 - An account with no resident record has no role to fall back on, so it returns to **pending** and loses access entirely until it is approved again. You are warned before this happens.
 
-Assigning roles is day-to-day account work rather than configuration, so it lives under **System → Roles & Access** rather than Settings. The **Super Administrator** always has access, and the permission can also be granted on its own to another role. The Super Administrator role cannot be removed through the app at all.
+Assigning roles happens on the same Settings page where roles are defined, **Settings → Roles & Access**. The **Super Administrator** always has access, and the permission can also be granted on its own to another role. The Super Administrator role cannot be removed through the app at all.
 
-**System → Roles & Access → Who can hold each role** controls which resident types are eligible for each executive role. Set that before assigning, not after.
+**Settings → Roles & Access → Who can hold each role** controls which resident types are eligible for each executive role. Set that before assigning, not after.
 
 ### The estate always keeps one Super Administrator
 
@@ -163,7 +164,7 @@ Give a user the smallest role that lets them complete their job. Financial and s
 ## When access is denied
 
 1. Confirm the user is signed in with the expected account.
-2. Confirm the account has been approved. An unapproved account never reaches the dashboard — it is sent to the waiting-for-approval page instead. Check **System → Roles & Access → Pending sign-ups**.
-3. Confirm the correct role is assigned. Search for them under **System → Roles & Access → Administrators** — switch to **Accounts** if they are staff without a resident record.
-4. Ask a super administrator to review the role's access under **System → Roles & Access → Roles**, using the **Access** column to see exactly which modules and privileges it holds.
+2. Confirm the account has been approved. An unapproved account never reaches the dashboard — it is sent to the waiting-for-approval page instead. Check **Settings → Roles & Access → Pending sign-ups**.
+3. Confirm the correct role is assigned. Search for them under **Settings → Roles & Access → Administrators** — switch to **Accounts** if they are staff without a resident record.
+4. Ask a super administrator to review the role's access under **Settings → Roles & Access → Roles**, using the **Access** column to see exactly which modules and privileges it holds.
 5. Retry after the role or permission change has propagated.

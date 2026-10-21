@@ -338,7 +338,7 @@ shadcn/ui components - button, card, form, table, dialog, sheet, tabs, badge, al
 - `/settings/estate` - Estate Profile: details, logo, theme, assistant, resident portal, social links (old `/settings/estate-info`, `/settings/branding`, `/settings/appearance` redirect here)
 - `/settings/billing` - Billing rules (general, invoices & due dates, late fees, levies on one page); the old `/settings/billing/late-fees`, `/invoices` and `/development-levies` routes redirect to its sections
 - `/settings/security` - Security rules task page (contact limits, contact categories, session timeout); `/settings/security/categories` redirects to it
-- `/system/accounts` - Roles & Access (administrators, pending sign-ups, unlinked logins, roles, who can hold each role; `?tab=`). `/settings/roles` and `/settings/user-roles` redirect here
+- `/settings/access` - Roles & Access (administrators, pending sign-ups, unlinked logins, roles, who can hold each role; `?tab=`). `/system/accounts`, `/settings/roles` and `/settings/user-roles` redirect here
 - `/settings/reminders`, `/settings/wording`, `/settings/sending`, `/settings/announcements` - Messages task pages (reminders, email wording, email & sending, announcements); the old `/settings/notifications/*`, `/settings/email`, `/settings/comms-override` routes redirect to them
 - `/system/audit-logs` - Audit trail viewer
 - `/settings/system` - Maintenance & data (maintenance mode and message, audit log retention and Prune Data); `/settings/maintenance` and `/settings/data-retention` redirect here

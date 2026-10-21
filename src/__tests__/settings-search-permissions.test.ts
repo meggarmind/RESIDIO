@@ -92,7 +92,8 @@ describe('Settings/System search entry permissions', () => {
       '/settings/wording': ['notifications.manage'],
       '/settings/sending': ['settings.manage_general'],
       '/settings/announcements': ['announcements.manage_categories', 'announcements.manage_templates'],
-      '/system/accounts?tab=roles': ['system.assign_roles'],
+      // Roles & Access moved into Settings with its /system/accounts guard (#939).
+      '/settings/access': ['system.assign_roles'],
       '/settings/groups': ['groups.view'],
       // Merged Documents and Security rules task pages (#937): each is the OR of its sections' permissions.
       '/settings/documents': ['documents.manage_categories', 'documents.manage_custom_fields', 'documents.manage_tags'],
@@ -103,7 +104,6 @@ describe('Settings/System search entry permissions', () => {
       '/settings/system': ['system.manage_data_retention', 'system.manage_maintenance'],
       '/system': ['system.view_all_settings'],
       '/system/audit-logs': ['settings.view_audit_logs'],
-      '/system/accounts': ['system.assign_roles'],
       '/system/notification-queue': ['notifications.manage'],
       '/system/notification-history': ['notifications.manage'],
       '/system/data-tools': ['settings.manage_general'],

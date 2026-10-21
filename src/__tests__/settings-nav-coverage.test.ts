@@ -38,8 +38,8 @@ function navItems(): SettingsItem[] {
 const systemDir = fileURLToPath(new URL('../app/(dashboard)/system', import.meta.url));
 const stripQuery = (href: string) => href.split('?')[0];
 
-// Hrefs as written in the nav config. Some point into /system (Roles & Permissions
-// opens a tab of Roles & Access, #912) and may carry a query string.
+// Hrefs as written in the nav config. The Monitoring links point into /system and may
+// carry a query string.
 const navHrefs = new Set(navItems().map((i) => i.href));
 
 /** The longest ROUTE_PERMISSIONS prefix matching a path — how middleware resolves. */
@@ -62,7 +62,7 @@ describe('settings navigation coverage', () => {
     // Every path here is a permanent redirect rather than a page of its own,
     // so none should appear in the nav. All point into /system/* (ADR-0004:
     // Settings is configuration-only); /settings/roles and /settings/user-roles
-    // land on Roles & Access (#912). The nav links straight to the new tab.
+    // land on Roles & Access, now /settings/access (#912, #939).
     const REDIRECTS = new Set([
       '/settings/roles',
       '/settings/user-roles',

@@ -8,7 +8,7 @@ describe('safeNextPath (#455 open redirect)', () => {
     '/dashboard',
     '/residents',
     '/payments/abc-123',
-    '/settings/roles?tab=1',
+    '/settings/access?tab=roles',
     '/a_b-c',
     '/',
   ])('keeps the safe same-origin path %s', (p) => {

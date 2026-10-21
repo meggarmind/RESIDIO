@@ -550,11 +550,10 @@ export const settingsConfig: SettingsGroup[] = [
         title: "People & Access",
         icon: Shield,
         items: [
-            // Roles now live on the Roles & Access page (#912, ADR-0004 amendment). The link
-            // opens its Roles tab; the route guard is /system/accounts (SYSTEM_ASSIGN_ROLES), so the
-            // entry asks for exactly that. The tab itself also needs SYSTEM_MANAGE_ROLES and falls back
-            // to Administrators without it.
-            { title: "Roles & Permissions", href: "/system/accounts?tab=roles", description: "Create roles and choose what each can do", permissions: [PERMISSIONS.SYSTEM_ASSIGN_ROLES] },
+            // Roles & Access (#912) moved into Settings (#939, ADR-0004 amendment). The route guard is
+            // SYSTEM_ASSIGN_ROLES, so the entry asks for exactly that. The Roles and rules tabs also need
+            // SYSTEM_MANAGE_ROLES and fall back to Administrators without it.
+            { title: "Roles & Access", href: "/settings/access", description: "Administrators, roles and titles, pending sign-ups and unlinked logins", permissions: [PERMISSIONS.SYSTEM_ASSIGN_ROLES] },
             { title: "Groups", href: "/settings/groups", description: "Named lists of residents that messages and copies are sent to", permissions: [PERMISSIONS.GROUPS_VIEW] },
             {
                 title: "Security Rules",

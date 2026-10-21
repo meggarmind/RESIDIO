@@ -9,6 +9,7 @@ residio_sources:
   - src/components/settings/system/**
   - src/app/(dashboard)/system/audit-logs/**
   - src/app/(dashboard)/system/action-log/**
+  - src/app/(dashboard)/settings/access/**
   - src/app/(dashboard)/settings/roles/**
   - src/app/(dashboard)/settings/groups/**
   - src/actions/groups/**
@@ -16,7 +17,7 @@ residio_sources:
   - src/app/(dashboard)/system/page.tsx
   - src/components/system/**
   - src/actions/system/**
-residio_verified_commit: 723fc8b2
+residio_verified_commit: 6bed011d
 residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---
@@ -29,7 +30,7 @@ Open **System** in the sidebar — or the status indicator next to the menu butt
 
 ## Roles and permissions
 
-Defining a role and giving it to a person are one task, so both live on one page. Open **System → Roles & Access** (the **Roles & Permissions** link in Settings opens its Roles tab). Make changes only with an approved access request, and record the reason.
+Defining a role and giving it to a person are one task, so both live on one page. Open **Settings → People & Access → Roles & Access** (`/settings/access`). Old links to `/system/accounts`, `/settings/roles` and `/settings/user-roles` still land here, on the same tab. Make changes only with an approved access request, and record the reason.
 
 | Tab | Use it for | Needs |
 | --- | --- | --- |
@@ -66,7 +67,7 @@ Deleting a role states how many users hold it. A role that anyone still holds ca
 
 **Resident portal access per account.** On the **Administrators** tab, each administrator row and the account you select under *Assign Roles* carries a *Resident portal* control with three choices: **Inherit** (follow the estate-wide switch in Settings → Estate & Property → Estate Profile), **Enabled** and **Disabled**. The text beside it shows the effective result, for example "Inherit (currently off)". *Enabled* works while the estate-wide switch is off, so you can open the portal links to a pilot group first. Changing it needs the permission to assign roles; without it you see the effective state read-only. Every change is recorded in the audit log. This setting only controls whether links are shown: *My Portal* and *Resident Portal* also require the account to be linked to a resident, so an administrator with no resident record never sees them, and *View as Resident* additionally needs the impersonation permission.
 
-Work the **Pending sign-ups** queue, under System → Roles & Access, as part of routine access review. A new sign-up has no access to anything until it is approved there, so a queue left unattended is a person locked out rather than a person with access they should not have. [Roles and permissions](../getting-started/roles-and-permissions) covers the approval and rejection steps.
+Work the **Pending sign-ups** queue, under Settings → Roles & Access, as part of routine access review. A new sign-up has no access to anything until it is approved there, so a queue left unattended is a person locked out rather than a person with access they should not have. [Roles and permissions](../getting-started/roles-and-permissions) covers the approval and rejection steps.
 
 ## Audit logs
 
