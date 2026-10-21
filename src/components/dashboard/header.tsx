@@ -4,6 +4,7 @@ import { useState, useSyncExternalStore } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth/auth-provider';
+import { roleWithTitle } from '@/lib/auth/role-label';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -271,7 +272,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                   ) : (
                     <DropdownMenuItem className="capitalize font-medium opacity-70">
                       <User className="mr-2 h-4 w-4" />
-                      {profile?.role_display_name}
+                      {roleWithTitle(profile?.role_display_name, profile?.title_name)}
                     </DropdownMenuItem>
                   )}
                   {isDismissed && (

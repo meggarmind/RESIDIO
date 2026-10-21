@@ -15,6 +15,8 @@ import {
   getUsersWithRoles,
   getCurrentAdmins,
 } from '@/actions/roles';
+import { getAdminTitles, createAdminTitle, updateAdminTitle } from '@/actions/roles/titles';
+import type { TitleInput } from '@/actions/roles/titles';
 import type { AppRoleInsert, AppRoleUpdate } from '@/types/database';
 
 // Query keys
@@ -22,6 +24,7 @@ const ROLES_KEY = ['roles'];
 const PERMISSIONS_KEY = ['permissions'];
 const USERS_WITH_ROLES_KEY = ['users-with-roles'];
 const CURRENT_ADMINS_KEY = ['current-admins'];
+const ADMIN_TITLES_KEY = ['admin-titles'];
 
 /**
  * Fetch all roles with their permissions
@@ -269,6 +272,68 @@ export function useCurrentAdmins() {
         throw new Error(result.error);
       }
       return result.data;
+    },
+  });
+}
+
+/**
+ * Titles under each role with their current holders (#827).
+ * Short stale time: the holders decide whether a seat shows as full.
+ */
+export function useAdminTitles() {
+  return useQuery({
+    queryKey: ADMIN_TITLES_KEY,
+    queryFn: async () => {
+      const result = await getAdminTitles();
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      return result.data ?? [];
+    },
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useCreateAdminTitle() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: { role_id: string; name: string; seats: number | null }) => {
+      const result = await createAdminTitle(input);
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      return result.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ADMIN_TITLES_KEY });
+      toast.success('Title added');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to add title');
+    },
+  });
+}
+
+export function useUpdateAdminTitle() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, input }: { id: string; input: TitleInput }) => {
+      const result = await updateAdminTitle(id, input);
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      return result.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ADMIN_TITLES_KEY });
+      // A rename shows on the administrators list and the role list too.
+      queryClient.invalidateQueries({ queryKey: CURRENT_ADMINS_KEY });
+      toast.success('Title updated');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to update title');
     },
   });
 }

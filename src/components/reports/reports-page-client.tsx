@@ -41,6 +41,8 @@ import { EnhancedPageHeader } from '@/components/dashboard/enhanced-stat-card';
 import { ReportRequestWizard } from '@/components/reports/report-request-wizard';
 import { ReportViewer } from '@/components/reports/report-viewer';
 import { ReportSchedulesPanel } from '@/components/reports/report-schedules';
+import { useCan } from '@/components/auth/can';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { WalletBatchReconciliationPanel } from '@/components/reports/wallet-batch-reconciliation-panel';
 import { useGenerateReport, useGeneratedReports, useDeleteGeneratedReport, useReportSchedules, useReportArchive, type GeneratedReport } from '@/hooks/use-reports';
 import type { ArchivedReport } from '@/actions/reports/get-report-archive';
@@ -118,6 +120,7 @@ function ReportCard({
     onDelete: (report: GeneratedReport) => void;
 }) {
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+    const canDelete = useCan(PERMISSIONS.REPORTS_MANAGE_SCHEDULES);
     const config = reportTypeConfig[report.type];
     const Icon = config.icon;
     const timeAgo = formatDistanceToNow(new Date(report.generatedAt), { addSuffix: true });
@@ -183,14 +186,18 @@ function ReportCard({
                             <Download className="h-3.5 w-3.5" />
                             PDF
                         </Button>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => setShowDeleteDialog(true)}
-                        >
-                            <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                        {/* deleteGeneratedReport enforces reports.manage_schedules */}
+                        {canDelete && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => setShowDeleteDialog(true)}
+                                aria-label={`Delete report ${report.title}`}
+                            >
+                                <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                        )}
                     </div>
                 </div>
             </CardContent>

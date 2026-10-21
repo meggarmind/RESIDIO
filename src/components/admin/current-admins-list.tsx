@@ -8,6 +8,8 @@ import { useCurrentAdmins } from '@/hooks/use-roles';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { usePortalAccessOverrides } from '@/hooks/use-portal-access';
 import { PortalAccessControl } from '@/components/admin/portal-access-control';
+import { AdminRoleActions } from '@/components/admin/admin-role-actions';
+import { roleWithTitle } from '@/lib/auth/role-label';
 import { Shield, User, Home, AlertCircle } from 'lucide-react';
 
 export function CurrentAdminsList({
@@ -127,8 +129,9 @@ export function CurrentAdminsList({
             />
             <Badge variant={getRoleBadgeVariant(admin.role_name)}>
               <Shield className="h-3 w-3 mr-1" />
-              {admin.role_display_name}
+              {roleWithTitle(admin.role_display_name, admin.title_name)}
             </Badge>
+            <AdminRoleActions admin={admin} />
           </div>
         ))}
       </div>

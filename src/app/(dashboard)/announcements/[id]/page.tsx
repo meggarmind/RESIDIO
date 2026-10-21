@@ -1,6 +1,8 @@
 'use client';
 
 import { use } from 'react';
+import { useCan } from '@/components/auth/can';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -60,6 +62,11 @@ export default function AnnouncementDetailPage({
   const unpublishMutation = useUnpublishAnnouncement();
   const archiveMutation = useArchiveAnnouncement();
   const deleteMutation = useDeleteAnnouncement();
+  // The permissions the actions enforce: edit and archive are announcements.update,
+  // publish and unpublish are announcements.publish, delete is announcements.delete.
+  const mayUpdate = useCan(PERMISSIONS.ANNOUNCEMENTS_UPDATE);
+  const mayPublish = useCan(PERMISSIONS.ANNOUNCEMENTS_PUBLISH);
+  const mayDelete = useCan(PERMISSIONS.ANNOUNCEMENTS_DELETE);
 
   const handlePublish = async () => {
     try {
@@ -135,11 +142,11 @@ export default function AnnouncementDetailPage({
   }
 
   const status = announcement.status || 'draft';
-  const canEdit = status === 'draft';
-  const canPublish = status === 'draft';
-  const canUnpublish = status === 'published';
-  const canArchive = status === 'draft' || status === 'published';
-  const canDelete = status === 'draft';
+  const canEdit = mayUpdate && status === 'draft';
+  const canPublish = mayPublish && status === 'draft';
+  const canUnpublish = mayPublish && status === 'published';
+  const canArchive = mayUpdate && (status === 'draft' || status === 'published');
+  const canDelete = mayDelete && status === 'draft';
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">

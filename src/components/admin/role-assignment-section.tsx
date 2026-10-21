@@ -36,10 +36,13 @@ import {
 } from '@/components/ui/alert-dialog';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useDebounce } from '@/hooks/use-debounce';
-import { useRolesWithPermissions } from '@/hooks/use-roles';
+import { useRolesWithPermissions, useAdminTitles } from '@/hooks/use-roles';
 import { usePortalAccessOverrides } from '@/hooks/use-portal-access';
 import { PortalAccessControl } from './portal-access-control';
 import { useAuth } from '@/lib/auth/auth-provider';
+import { permissionToManage } from '@/lib/auth/board-roles';
+import { roleWithTitle } from '@/lib/auth/role-label';
+import { RoleTitlePicker, grantableRoles, residentRoleBlock } from './role-title-picker';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   searchResidentsForRoleAssignment,
@@ -103,6 +106,8 @@ type RoleTarget = {
   currentRoleId: string | null;
   currentRoleName: string | null;
   currentRoleDisplayName: string | null;
+  currentTitleId: string | null;
+  currentTitleName: string | null;
 };
 
 function residentToTarget(resident: ResidentSearchResult): RoleTarget {
@@ -119,6 +124,8 @@ function residentToTarget(resident: ResidentSearchResult): RoleTarget {
     currentRoleId: resident.current_role_id,
     currentRoleName: resident.current_role_name,
     currentRoleDisplayName: resident.current_role_display_name,
+    currentTitleId: resident.current_title_id,
+    currentTitleName: resident.current_title_name,
   };
 }
 
@@ -136,12 +143,15 @@ function profileToTarget(profile: ProfileSearchResult): RoleTarget {
     currentRoleId: profile.current_role_id,
     currentRoleName: profile.current_role_name,
     currentRoleDisplayName: profile.current_role_display_name,
+    currentTitleId: profile.current_title_id,
+    currentTitleName: profile.current_title_name,
   };
 }
 
 export function RoleAssignmentSection() {
-  const { profile, hasPermission, residentPortalEnabled } = useAuth();
+  const { hasPermission, residentPortalEnabled } = useAuth();
   const { data: roles, isLoading: rolesLoading } = useRolesWithPermissions();
+  const { data: titles } = useAdminTitles();
   const queryClient = useQueryClient();
 
   // Search state
@@ -155,6 +165,7 @@ export function RoleAssignmentSection() {
   // Selected person state
   const [selectedTarget, setSelectedTarget] = useState<RoleTarget | null>(null);
   const [selectedRoleId, setSelectedRoleId] = useState<string>('');
+  const [selectedTitleId, setSelectedTitleId] = useState<string>('');
 
   // Assignment dialog state
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -169,24 +180,11 @@ export function RoleAssignmentSection() {
   const { data: portalOverrides } = usePortalAccessOverrides(selectedTarget?.profileId ? [selectedTarget.profileId] : []);
   const canManageRoles = hasPermission('system.manage_roles');
   const canAssignRoles = hasPermission('system.assign_roles');
-  // Mirrors the server guard in assignRoleToProfile, which checks
-  // `auth.roleName !== 'super_admin'`. Previously read the legacy
-  // `profiles.role` column, removed by #193.
-  const isSuperAdmin = profile?.role_name === 'super_admin';
 
-  // Filter roles based on what the current user can assign.
-  // Mirrors the server-side guards in assignRoleToProfile — the server is the
-  // enforcement boundary, this just avoids offering choices that would be
-  // rejected.
-  const assignableRoles = roles?.filter(role => {
-    // Super admin and chairman may only be granted by an existing super admin.
-    // Previously super_admin was hidden unconditionally, which meant no super
-    // admin could ever be appointed through the app at all.
-    if ((role.name === 'super_admin' || role.name === 'chairman') && !isSuperAdmin) return false;
-    // Only active roles
-    if (!role.is_active) return false;
-    return true;
-  }) || [];
+  // Filter roles to what the current user may grant. Same rule as the server's
+  // assertCanGrantRoles (board roles need system.assign_board_roles); the server
+  // is the enforcement boundary, this just avoids offering choices it would refuse.
+  const assignableRoles = grantableRoles(roles, hasPermission);
 
   // Search for residents or accounts, depending on the active mode
   const performSearch = useCallback(async (query: string, mode: SearchMode) => {
@@ -238,12 +236,14 @@ export function RoleAssignmentSection() {
     setSearchResults([]);
     setSelectedTarget(null);
     setSelectedRoleId('');
+    setSelectedTitleId('');
     setShowLinkDialog(false);
   };
 
   const handleSelectTarget = (target: RoleTarget) => {
     setSelectedTarget(target);
     setSelectedRoleId(target.currentRoleId || '');
+    setSelectedTitleId(target.currentTitleId || '');
     setSearchOpen(false);
     setSearchQuery('');
   };
@@ -251,10 +251,13 @@ export function RoleAssignmentSection() {
   const handleClearSelection = () => {
     setSelectedTarget(null);
     setSelectedRoleId('');
+    setSelectedTitleId('');
   };
 
   const handleRoleChange = (roleId: string) => {
     setSelectedRoleId(roleId);
+    // A title belongs to one role: keep it only when going back to the role the person already holds.
+    setSelectedTitleId(roleId === selectedTarget?.currentRoleId ? selectedTarget.currentTitleId || '' : '');
   };
 
   const handleAssignClick = () => {
@@ -295,8 +298,12 @@ export function RoleAssignmentSection() {
           currentRoleId: null,
           currentRoleName: null,
           currentRoleDisplayName: null,
+          currentTitleId: null,
+          currentTitleName: null,
         });
         setSelectedRoleId('');
+        setSelectedTitleId('');
+        queryClient.invalidateQueries({ queryKey: ['admin-titles'] });
       }
     } catch {
       toast.error('Failed to remove role');
@@ -312,22 +319,28 @@ export function RoleAssignmentSection() {
     setIsAssigning(true);
     try {
       const result = selectedTarget.kind === 'accounts'
-        ? await assignRoleToProfile(selectedTarget.targetId, selectedRoleId)
-        : await assignRoleToResident(selectedTarget.targetId, selectedRoleId);
+        ? await assignRoleToProfile(selectedTarget.targetId, selectedRoleId, selectedTitleId || null)
+        : await assignRoleToResident(selectedTarget.targetId, selectedRoleId, selectedTitleId || null);
 
       if (result.error) {
         toast.error(result.error);
       } else {
+        // The action returns what it wrote, so local state shows the saved role and title.
+        const assigned = result.data;
         const assignedRole = roles?.find(r => r.id === selectedRoleId);
-        toast.success(`${assignedRole?.display_name} role assigned to ${selectedTarget.name}`);
-        // Refresh current admins list
+        toast.success(
+          `${roleWithTitle(assigned?.role_display_name ?? assignedRole?.display_name, assigned?.title_name)} assigned to ${selectedTarget.name}`
+        );
+        // Refresh current admins list and seat counts
         queryClient.invalidateQueries({ queryKey: ['current-admins'] });
-        // Update local state
+        queryClient.invalidateQueries({ queryKey: ['admin-titles'] });
         setSelectedTarget({
           ...selectedTarget,
           currentRoleId: selectedRoleId,
-          currentRoleName: assignedRole?.name || null,
-          currentRoleDisplayName: assignedRole?.display_name || null,
+          currentRoleName: assigned?.role_name ?? assignedRole?.name ?? null,
+          currentRoleDisplayName: assigned?.role_display_name ?? assignedRole?.display_name ?? null,
+          currentTitleId: assigned?.title_id ?? null,
+          currentTitleName: assigned?.title_name ?? null,
         });
       }
     } catch {
@@ -340,7 +353,12 @@ export function RoleAssignmentSection() {
   };
 
   const selectedRole = roles?.find(r => r.id === selectedRoleId);
-  const hasChanges = selectedTarget && selectedRoleId !== (selectedTarget.currentRoleId || '');
+  const selectedTitle = titles?.find(t => t.id === selectedTitleId);
+  const hasChanges =
+    selectedTarget &&
+    (selectedRoleId !== (selectedTarget.currentRoleId || '') ||
+      selectedTitleId !== (selectedTarget.currentTitleId || ''));
+  const residentBlock = residentRoleBlock(selectedRole, selectedTarget?.hasResidentLink ?? true);
 
   const isAccountMode = searchMode === 'accounts';
 
@@ -354,15 +372,18 @@ export function RoleAssignmentSection() {
   // Residents only hold a role through a linked account.
   const missingAccountLink = selectedTarget?.kind === 'residents' && !selectedTarget.profileId;
 
-  const assignmentBlocked = Boolean(unapprovedAccount || missingAccountLink);
-
-  // Mirror the server-side removal guards in removeRoleFromProfile: the super
-  // administrator role cannot be removed at all, and only a super admin may
-  // remove the chairman.
-  const canRemoveCurrentRole = Boolean(
+  // Mirror the server-side guards: assertCanManageTarget needs
+  // system.assign_board_roles to change a super_admin or chairman account.
+  const canManageCurrentRole = Boolean(
     selectedTarget?.currentRoleId
-    && selectedTarget.currentRoleName !== 'super_admin'
-    && !(selectedTarget.currentRoleName === 'chairman' && !isSuperAdmin)
+    && hasPermission(permissionToManage(selectedTarget.currentRoleName))
+  );
+  const cannotChangeCurrentRole = Boolean(selectedTarget?.currentRoleId && !canManageCurrentRole);
+  const assignmentBlocked = Boolean(unapprovedAccount || missingAccountLink || cannotChangeCurrentRole);
+
+  // The super administrator role cannot be removed at all.
+  const canRemoveCurrentRole = Boolean(
+    canManageCurrentRole && selectedTarget?.currentRoleName !== 'super_admin'
   );
 
   if (!canAssignRoles && !canManageRoles) {
@@ -458,7 +479,7 @@ export function RoleAssignmentSection() {
                         </div>
                         {target.currentRoleDisplayName ? (
                           <Badge variant="secondary" className="ml-auto">
-                            {target.currentRoleDisplayName}
+                            {roleWithTitle(target.currentRoleDisplayName, target.currentTitleName)}
                           </Badge>
                         ) : target.kind === 'accounts' && target.approvalStatus !== 'active' ? (
                           <Badge variant="outline" className="ml-auto text-muted-foreground">
@@ -509,7 +530,7 @@ export function RoleAssignmentSection() {
                       <span className="text-sm">Current Role:</span>
                       <Badge variant="default">
                         <Shield className="h-3 w-3 mr-1" />
-                        {selectedTarget.currentRoleDisplayName}
+                        {roleWithTitle(selectedTarget.currentRoleDisplayName, selectedTarget.currentTitleName)}
                       </Badge>
                     </>
                   )}
@@ -572,8 +593,8 @@ export function RoleAssignmentSection() {
               </div>
             )}
 
-            <div className="flex items-end gap-4">
-              <div className="flex-1 space-y-2">
+            <div className="space-y-4">
+              <div className="space-y-2">
                 <label className="text-sm font-medium">Assign Role</label>
                 <Select
                   value={selectedRoleId}
@@ -592,9 +613,18 @@ export function RoleAssignmentSection() {
                   </SelectContent>
                 </Select>
               </div>
+              <RoleTitlePicker
+                role={selectedRole}
+                titles={titles ?? []}
+                titleId={selectedTitleId}
+                onTitleChange={setSelectedTitleId}
+                profileId={selectedTarget.profileId}
+                hasResidentLink={selectedTarget.hasResidentLink}
+                disabled={isAssigning || assignmentBlocked}
+              />
               <Button
                 onClick={handleAssignClick}
-                disabled={!hasChanges || isAssigning || assignmentBlocked}
+                disabled={!hasChanges || isAssigning || assignmentBlocked || Boolean(residentBlock)}
               >
                 {isAssigning ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -620,9 +650,9 @@ export function RoleAssignmentSection() {
                   </Button>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    {selectedTarget.currentRoleName === 'super_admin'
+                    {canManageCurrentRole
                       ? 'The Super Administrator role cannot be removed through the app.'
-                      : 'Only a Super Administrator can remove the Chairman role.'}
+                      : 'Only someone who can assign board roles can change or remove this role.'}
                   </p>
                 )}
               </div>
@@ -638,7 +668,8 @@ export function RoleAssignmentSection() {
             <AlertDialogTitle>Confirm Role Assignment</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to assign the <strong>{selectedRole?.display_name}</strong> role
-              to <strong>{selectedTarget?.name}</strong>?
+              {selectedTitle && <> with the title <strong>{selectedTitle.name}</strong></>}
+              {' '}to <strong>{selectedTarget?.name}</strong>?
               <br /><br />
               This will grant them access to administrative features based on the role&apos;s permissions.
             </AlertDialogDescription>
@@ -662,9 +693,9 @@ export function RoleAssignmentSection() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               <strong>{selectedTarget?.name}</strong> currently
-              has the <strong>{selectedTarget?.currentRoleDisplayName}</strong> role.
+              has the <strong>{roleWithTitle(selectedTarget?.currentRoleDisplayName, selectedTarget?.currentTitleName)}</strong> role.
               <br /><br />
-              Do you want to replace it with <strong>{selectedRole?.display_name}</strong>?
+              Do you want to replace it with <strong>{roleWithTitle(selectedRole?.display_name, selectedTitle?.name)}</strong>?
               <br /><br />
               <span className="text-amber-600">
                 The previous role will be removed and the new role will be assigned immediately.

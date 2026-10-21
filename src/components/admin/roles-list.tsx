@@ -8,6 +8,7 @@ import {
   useUpdateRole,
   useDeleteRole,
   usePermissions,
+  useAdminTitles,
 } from '@/hooks/use-roles';
 import { Button } from '@/components/ui/button';
 import {
@@ -93,6 +94,9 @@ export function RolesList() {
   const { hasPermission } = useAuth();
   const canManage = hasPermission(PERMISSIONS.SYSTEM_MANAGE_ROLES);
   const { data: rolesData, isLoading } = useRolesWithPermissions();
+  const { data: allTitles } = useAdminTitles();
+  const titleNames = (role: AppRoleWithPermissions) =>
+    (allTitles ?? []).filter((t) => t.role_id === role.id).map((t) => t.name);
   const { data: allPermissions, isLoading: permissionsLoading } = usePermissions();
   const createMutation = useCreateRoleWithPermissions();
   const updateMutation = useUpdateRole();
@@ -503,6 +507,9 @@ export function RolesList() {
                     <p className="text-xs text-muted-foreground">
                       {CATEGORY_LABELS[role.category]}
                     </p>
+                    {titleNames(role).length > 0 && (
+                      <p className="text-xs text-muted-foreground">Titles: {titleNames(role).join(', ')}</p>
+                    )}
                   </div>
                   <ActiveStatusBadge active={role.is_active} />
                 </div>
@@ -541,6 +548,11 @@ export function RolesList() {
                         <span className="text-xs text-muted-foreground">
                           {CATEGORY_LABELS[role.category]}
                         </span>
+                        {titleNames(role).length > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            Titles: {titleNames(role).join(', ')}
+                          </span>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="text-center">{accessButton(role)}</TableCell>

@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Can } from '@/components/auth/can';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { Plus, Building2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -28,10 +30,12 @@ export function ProjectsClient({ initialProjects }: ProjectsClientProps) {
 
             <div className="flex justify-between items-center">
                 <h2 className="text-xl font-semibold">Ongoing Projects</h2>
-                <Button className="gap-2">
-                    <Plus className="h-4 w-4" />
-                    New Project
-                </Button>
+                <Can permission={PERMISSIONS.PROJECTS_MANAGE}>
+                    <Button className="gap-2">
+                        <Plus className="h-4 w-4" />
+                        New Project
+                    </Button>
+                </Can>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
