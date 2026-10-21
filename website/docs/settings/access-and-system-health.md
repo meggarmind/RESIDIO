@@ -14,8 +14,8 @@ residio_sources:
   - src/app/(dashboard)/system/page.tsx
   - src/components/system/**
   - src/actions/system/**
-residio_verified_commit: 8ee874c6
-residio_verified_at: '2026-10-20'
+residio_verified_commit: dadb3b30
+residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---
 
@@ -31,10 +31,10 @@ Defining a role and giving it to a person are one task, so both live on one page
 
 | Tab | Use it for | Needs |
 | --- | --- | --- |
-| Administrators | Who currently holds an admin role, and assigning one | Assign roles |
+| Administrators | Who currently holds an admin role and under which title, assigning one, and Change role or Remove role on each row | Assign roles |
 | Pending sign-ups | Sign-ups waiting to be approved or rejected | Assign roles |
 | Unlinked logins | Logins that are not linked to any resident. A login that already holds a role carries a *Holds role* badge | Assign roles |
-| Roles | Roles, the modules and privileges each one carries, and how many people hold each | Manage roles |
+| Roles | Roles, the modules and privileges each one carries, how many people hold each, and the titles under each role with their seats | Manage roles |
 | Who can hold each role | Which resident types are eligible for each executive role | Manage roles |
 
 The tab is kept in the address (?tab=), so a link opens the tab you were on. The holder count on the Roles tab opens the Administrators tab filtered to that role; clear the filter from the *Showing* line.
