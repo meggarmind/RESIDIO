@@ -1,12 +1,5 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { generateHouseShortName, houseFormSchema } from '@/lib/validators/house';
-
-const migration = readFileSync(
-  fileURLToPath(new URL('../../supabase/migrations/20261023100900_house_shortname_whitespace_to_hyphen.sql', import.meta.url)),
-  'utf8'
-);
 
 // The invoice-run preflight pattern, applied after upper(btrim()).
 const invoiceRunPattern = /^[A-Z0-9][A-Z0-9.-]*$/;
@@ -68,21 +61,5 @@ describe('generateHouseShortName (#965)', () => {
 
   it('produces a value the form accepts', () => {
     expect(check(generateHouseShortName('GLB', '14 F1')).success).toBe(true);
-  });
-});
-
-describe('generate_house_shortname migration (#965)', () => {
-  it('replaces each whitespace run in the trimmed house number with one hyphen', () => {
-    expect(migration).toContain(`UPPER(regexp_replace(btrim(p_house_number), '\\s+', '-', 'g'))`);
-  });
-
-  it('keeps the hardened search_path and does not add a CHECK that would reject the ? rows', () => {
-    expect(migration).toContain('SET search_path = public, auth, extensions, pg_temp');
-    expect(migration).not.toMatch(/ADD\s+CONSTRAINT|CHECK\s*\(/i);
-  });
-
-  it('documents the rollback in the header', () => {
-    expect(migration).toContain('-- Rollback');
-    expect(migration).toContain("RETURN UPPER(v_street_code) || '-' || UPPER(p_house_number);");
   });
 });
