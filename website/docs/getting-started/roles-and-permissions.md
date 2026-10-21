@@ -73,7 +73,7 @@ Your deployment may contain additional custom roles, created under **Roles**. A 
 
 **System → Roles & Access → Roles → Add Role** (also reached from **Settings → Roles & Permissions**). The Roles tab needs the Manage roles permission; an admin who can only assign roles does not see it.
 
-Name the role, give it a display name, pick its category and level (a whole number from 0 to 10), then choose its access in the same dialog. Names reserved for the built-in roles, or that only look like them, are refused.
+Name the role, give it a display name, pick its category, then choose its access in the same dialog. Names reserved for the built-in roles, or that only look like them, are refused.
 
 - **Start from** copies another role's access as a starting point. This is usually the quickest route — "the same as the Secretary, plus finance" is one selection and a few ticks.
 - Tick a **module** to grant everything in it.
@@ -104,7 +104,7 @@ The search has two modes, chosen with the **Residents / Accounts** switch above 
 
 Select someone, choose a role, and confirm. If they already hold a role you are asked to confirm the replacement instead.
 
-Who can change whom follows rank: Super Administrator first, then Chairman, then every other role, custom roles included. You can change an account only if your role ranks at least as high as the role it holds now, and you cannot assign a role that outranks your own. Assigning the Super Administrator, Chairman or Trustee role also needs the Assign Board Roles permission, which only the Super Administrator holds. The same rules apply to approving, rejecting and removing roles, and an Assignment Rule cannot allow a role you could not assign yourself.
+Who can change whom follows two permissions. **Assign Board Roles**, which only the Super Administrator holds, is needed to assign the Super Administrator, Chairman or Trustee role, and to change an account that holds the Super Administrator or Chairman role. **Assign Roles** covers every other role and every other account, a Trustee's included, so a Chairman can manage Trustee accounts but cannot appoint a Trustee. The same rules apply to approving, rejecting and removing roles, linking or unlinking an account and a resident, and resetting someone's two-factor authentication, and an Assignment Rule cannot allow a role you could not assign yourself.
 
 ### Accounts that are not yet approved
 
