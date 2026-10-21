@@ -39,6 +39,16 @@ describe('lagosDayStart', () => {
 });
 
 describe('loadAccountStatement timestamp bounds (#945)', () => {
+    it.each([['2026-13-45', '2026-10-31'], ['2026-10-01', '2026-13-45']])(
+        'returns the format error for calendar-invalid dates %s..%s without throwing',
+        async (fromDate, toDate) => {
+            const { client } = stubClient();
+            await expect(
+                loadAccountStatement(client, { residentId: 'r', fromDate, toDate } as never),
+            ).resolves.toEqual({ data: null, error: 'Dates must be in YYYY-MM-DD format' });
+        },
+    );
+
     it('bounds wallet and invoice created_at by Lagos days, end exclusive', async () => {
         const { client, calls } = stubClient();
         await loadAccountStatement(client, {
