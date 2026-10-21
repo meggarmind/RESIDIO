@@ -327,8 +327,8 @@ Nightly:
 
 Storage files are **not** copied in full every night. They are synced incrementally (for
 example `rclone` with a `crypt` remote, so they are encrypted too) into one mirror, with changed
-or deleted files moved to a dated folder rather than lost. Only the database is snapshotted
-42 times.
+or deleted files moved to a dated folder rather than lost; those folders are purged after 30 days.
+Only the databases are snapshotted 42 times (each of Prod and Stage).
 
 ### R2 free-tier sizing (10 GB-month storage)
 
@@ -336,16 +336,50 @@ Measured on Residio_Stage 2026-10-10: `public` schema 17 MB (whole DB 35 MB incl
 catalogs); storage objects ~9.4 MB (233 email imports, 1 document). Prod was paused, so its size
 is unknown; these are planning estimates.
 
-| Scenario | DB dump (compressed) | x42 copies | Files mirror | Total |
-|---|---|---|---|---|
-| Today (stage-sized) | ~5 MB | ~0.2 GB | ~10 MB | **~0.2 GB** |
-| Year one, generous growth (DB 150 MB, files 300 MB) | ~40 MB | ~1.7 GB | ~0.3 GB | **~2 GB** |
-| Supabase free-plan ceiling (DB 500 MB, files 1 GB) | ~150 MB | ~6.3 GB | ~1 GB | **~7.3 GB** |
+Each environment keeps up to 42 dumps (30 daily + 12 monthly), and Stage is backed up too, so the
+dump column counts both. `deleted/` holds 30 days of changed and deleted files; the table assumes
+a quarter of the files mirror changes in that window (a guess, not a measurement).
 
-Every scenario fits in 10 GB because files are mirrored once. Copying files in full nightly
-would not fit at the ceiling (~48 GB). Beyond the free tier R2 charges ~$0.015 per GB-month, and
+| Scenario | DB dump (compressed) | Prod + Stage dumps (2 x 42) | Files mirror | `deleted/` (30 days) | Total |
+|---|---|---|---|---|---|
+| Today (stage-sized, Prod assumed alike) | ~5 MB | ~0.4 GB | ~10 MB | ~0 | **~0.4 GB** |
+| Year one, generous growth (DB 150 MB, files 300 MB) | ~40 MB | ~3.4 GB | ~0.3 GB | ~0.08 GB | **~3.8 GB** |
+| Supabase free-plan ceiling (DB 500 MB, files 1 GB) | ~150 MB | ~12.6 GB | ~1 GB | ~0.25 GB | **~13.9 GB** |
+
+At the ceiling the bucket does **not** fit in 10 GB: the 42-dump retention alone is 6.3 GB per
+environment. The size guard below warns at 7 GB and fails the job at 8.5 GB, long before that, so
+the owner decides then whether to shorten the dump retention or pay for the overage. Stage is
+backed up weekly, so its `daily/` folder holds 30 weekly dumps, about 210 days, not 30 days.
+
+The files are mirrored once; copying them in full nightly would not fit even before the dumps
+(~48 GB at the ceiling). Beyond the free tier R2 charges ~$0.015 per GB-month, and
 egress (downloading for a restore) is free. Cloudflare may require a payment method to enable
 R2; set a billing notification so any overage is noticed.
+
+### Retention and size guards
+
+Added in #963 so the bucket stays under the 10 GB free tier (R2 bills the overage, it does not stop
+writes). The decisions live in `scripts/backup/retention.mjs`, called through `retention.sh`; both
+are covered by `src/__tests__/integration/backup-retention.test.ts`.
+
+- **`deleted/` purge.** After a successful mirror sync, `files-sync.sh` lists `FILESCRYPT:deleted`
+  with `rclone lsd` (through the crypt remote, so the date names are readable) and runs
+  `rclone purge` on each date folder more than `DELETED_KEEP_DAYS` days old (default 30; a folder
+  exactly 30 days old is kept). Names that are not a real date are never purged. An R2 lifecycle
+  rule cannot do this, because the crypt remote encrypts the folder names. To change the window set
+  `DELETED_KEEP_DAYS` in the job's `env:`; zero or a non-number fails the step instead of purging
+  everything. A restore of a file changed or deleted more than 30 days ago is no longer possible
+  from the mirror (database dumps are unaffected).
+- **Size check.** At the end of `db-backup.sh` and `files-sync.sh`, `rclone size R2:<bucket> --json`
+  prints the whole bucket's size. Above 7 GB it logs a warning; above 8.5 GB the job fails, so
+  GitHub emails the owner. The check runs last, so a full bucket never costs that night's backup.
+  It counts stored objects, not incomplete multipart uploads (see below).
+- **Incomplete multipart uploads (owner step, Cloudflare dashboard).** They count toward storage and
+  nothing in the scripts cleans them. Cloudflare Dashboard, R2 Object Storage, the backup bucket,
+  **Settings**, **Object lifecycle rules**, **Add rule**: name it `abort-incomplete-multipart`,
+  leave the prefix empty (whole bucket), choose **Abort incomplete multipart uploads**, set it to
+  **1 day**, save. If the dashboard already lists a default multipart-abort rule, edit it to 1 day
+  rather than adding a second. Tick this off in the checklist below once done.
 
 ### Stage keep-awake
 
@@ -370,17 +404,17 @@ Implemented by `.github/workflows/backup-database.yml` (#415) and the scripts in
 
 | Job | Schedule | What it does |
 |---|---|---|
-| `prod` | nightly 02:23 UTC | `pg_dump -Fc` (PostgreSQL 17 client), `age` encrypt, upload to R2, prune; then incremental storage mirror |
-| `stage` | Mondays 03:41 UTC | `select 1` keep-awake, then the same dump, encrypt, upload, prune (database only) |
+| `prod` | nightly 02:23 UTC | `pg_dump -Fc` (PostgreSQL 17 client), `age` encrypt, upload to R2, prune, size check; then incremental storage mirror, `deleted/` purge, size check |
+| `stage` | Mondays 03:41 UTC | `select 1` keep-awake, then the same dump, encrypt, upload, prune, size check (database only) |
 
 Run either by hand from the Actions tab (Backup Database, Run workflow, choose `prod`, `stage` or
 `both`). Layout in the bucket:
 
 ```text
-db/<prod|stage>/daily/YYYY-MM-DD.dump.age     newest 30 kept
+db/<prod|stage>/daily/YYYY-MM-DD.dump.age     newest 30 kept (Stage runs weekly: about 210 days)
 db/<prod|stage>/monthly/YYYY-MM.dump.age      newest 12 kept; the first backup of each month is copied here
 files/prod/current/...                        storage mirror, file names and contents encrypted (rclone crypt)
-files/prod/deleted/YYYY-MM-DD/...             files changed or deleted that day (not pruned automatically)
+files/prod/deleted/YYYY-MM-DD/...             files changed or deleted that day; folders older than 30 days are purged after each sync
 ```
 
 ### Secrets to create
@@ -465,6 +499,7 @@ For the files mirror, `rclone ls` through a crypt remote built with the same two
 - [ ] Backup Database run manually for `both`; both jobs green; objects visible in R2
 - [ ] **Owner has run the test restore above once and the data came back. #415 is not done until this is ticked.**
 - [ ] A second test restore is scheduled for three months out
+- [ ] R2 lifecycle rule "abort incomplete multipart uploads after 1 day" set on the backup bucket (see "Retention and size guards")
 
 ## KVM setup runbook (Coolify)
 
