@@ -8,8 +8,8 @@ residio_sources:
   - src/actions/residents/unassign-house.ts
   - src/actions/residents/merge-residents.ts
   - src/components/residents/resident-merge-dialog.tsx
-residio_verified_commit: e24b7386
-residio_verified_at: '2026-10-20'
+residio_verified_commit: d2f427cd
+residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---
 
