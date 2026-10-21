@@ -128,18 +128,14 @@ export async function registerResidentPortal(
     // This account is auto-approved rather than left pending: an administrator
     // already vetted it by enabling portal access on the resident record, and
     // the caller proved ownership via resident_code plus a matching email.
-    const { data: residentRole } = await supabase
-      .from('app_roles')
-      .select('id')
-      .eq('name', 'resident')
-      .single();
-
+    // A plain resident holds no role (role_id null): the 'resident' role was
+    // retired by #825. The portal admits an active profile with a resident_id.
     const { error: profileError } = await supabase
       .from('profiles')
       .update({
         email: email,
         full_name: fullName,
-        role_id: residentRole?.id ?? null,
+        role_id: null,
         resident_id: resident.id,
         approval_status: 'active',
         approved_at: new Date().toISOString(),

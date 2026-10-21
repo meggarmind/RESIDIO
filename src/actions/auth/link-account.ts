@@ -329,15 +329,9 @@ export async function linkAuthAccountToResident(
     // Linking an account to a resident is an explicit administrative act, so it
     // also approves the account — otherwise it would stay pending and remain
     // locked out of everything, including the portal it was just linked to.
-    // An account that already holds a role keeps it; only a role-less one is
-    // given the base 'resident' role, so linking never demotes an admin who
-    // also happens to live on the estate.
-    const { data: residentRole } = await supabase
-      .from('app_roles')
-      .select('id')
-      .eq('name', 'resident')
-      .single();
-
+    // An account that already holds a role keeps it, so linking never demotes
+    // an admin who also happens to live on the estate. A plain resident holds no
+    // role (role_id null): the 'resident' role was retired by #825.
     if (existingProfile) {
       // Written with the service role: profiles carries no RLS policy allowing
       // an administrator to update another account's row, so this write through
@@ -349,7 +343,7 @@ export async function linkAuthAccountToResident(
           resident_id: residentId,
           full_name: fullName,
           email: authUser.email,
-          role_id: existingProfile.role_id ?? residentRole?.id ?? null,
+          role_id: existingProfile.role_id ?? null,
           approval_status: 'active',
           approved_at: new Date().toISOString(),
           approved_by: auth.userId,
@@ -376,7 +370,7 @@ export async function linkAuthAccountToResident(
         resident_id: residentId,
         full_name: fullName,
         email: authUser.email,
-        role_id: residentRole?.id ?? null,
+        role_id: null,
         approval_status: 'active',
         approved_at: new Date().toISOString(),
         approved_by: auth.userId,

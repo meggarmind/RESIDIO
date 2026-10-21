@@ -137,6 +137,14 @@ describe('public-origin redirects (#417)', () => {
             app_roles: { name: 'super_admin', category: 'admin' },
         };
 
+        // A plain resident holds no role: the 'resident' role was retired by #825.
+        const resident = {
+            role_id: null,
+            resident_id: 'res-1',
+            approval_status: 'active',
+            app_roles: null,
+        };
+
         async function run(pathname: string) {
             const res = await middleware(new NextRequest(new URL(`${BIND}${pathname}`)));
             const location = res.headers.get('location');
@@ -179,24 +187,20 @@ describe('public-origin redirects (#417)', () => {
         });
 
         it('active resident on /login is sent to /portal', async () => {
-            state.profile = {
-                role_id: 'role-2',
-                resident_id: 'res-1',
-                approval_status: 'active',
-                app_roles: { name: 'resident', category: 'resident' },
-            };
+            state.profile = { ...resident };
             const target = await run('/login');
             expect(target.origin).toBe(PUBLIC);
             expect(target.pathname).toBe('/portal');
         });
 
+        it('role-less resident on /portal is admitted', async () => {
+            state.profile = { ...resident };
+            const res = await middleware(new NextRequest(new URL(`${BIND}/portal`)));
+            expect(res.headers.get('location')).toBeNull();
+        });
+
         it('resident on an admin-only route is sent to /portal', async () => {
-            state.profile = {
-                role_id: 'role-2',
-                resident_id: 'res-1',
-                approval_status: 'active',
-                app_roles: { name: 'resident', category: 'resident' },
-            };
+            state.profile = { ...resident };
             const target = await run('/residents');
             expect(target.origin).toBe(PUBLIC);
             expect(target.pathname).toBe('/portal');
