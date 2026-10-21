@@ -61,7 +61,7 @@ export default function SettingsPage() {
   // Cards whose state changes what every user gets (#789); the same state the dashboard banner shows.
   const isOn: Record<string, boolean> = {
     '/settings/maintenance': opsStatus.maintenance,
-    '/settings/comms-override': opsStatus.commsOverride,
+    '/settings/sending': opsStatus.commsOverride,
   };
 
   const statusChip = (href: string) => {

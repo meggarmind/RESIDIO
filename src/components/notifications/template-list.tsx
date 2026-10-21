@@ -140,7 +140,7 @@ export function TemplateList({
                   ) : (
                     <div className="text-xs text-muted-foreground">
                       Channels are set per step in{' '}
-                      <Link href="/settings/notifications/reminders/schedule" className="underline">
+                      <Link href="/settings/reminders#schedule" className="underline">
                         Reminder Schedule
                       </Link>
                     </div>

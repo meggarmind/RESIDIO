@@ -333,6 +333,13 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/settings/comms-override': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
   '/settings/message-templates': [PERMISSIONS.ANNOUNCEMENTS_MANAGE_TEMPLATES],
   '/settings/announcement-categories': [PERMISSIONS.ANNOUNCEMENTS_MANAGE_CATEGORIES],
+  // Merged task pages (#934, #791): each opens for any one of its sections' permissions and the
+  // sections keep their own. The old routes above stay: their redirect stubs run after middleware,
+  // so those entries still decide who reaches them (ADR-0004).
+  '/settings/reminders': [PERMISSIONS.NOTIFICATIONS_MANAGE, PERMISSIONS.SETTINGS_MANAGE_GENERAL],
+  '/settings/wording': [PERMISSIONS.NOTIFICATIONS_MANAGE],
+  '/settings/sending': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
+  '/settings/announcements': [PERMISSIONS.ANNOUNCEMENTS_MANAGE_TEMPLATES, PERMISSIONS.ANNOUNCEMENTS_MANAGE_CATEGORIES],
 
   // Maintenance & Data
   // Maintenance mode and data retention are genuine configuration and stay in

@@ -51,7 +51,7 @@ afterEach(() => {
 describe('Settings landing page (#786)', () => {
   it('has a card for each index page an earlier version hid', () => {
     renderPage();
-    for (const href of ['/settings/billing', '/settings/email', '/settings/security', '/settings/notifications']) {
+    for (const href of ['/settings/billing', '/settings/sending', '/settings/security', '/settings/reminders']) {
       expect(cardHrefs()).toContain(href);
     }
   });

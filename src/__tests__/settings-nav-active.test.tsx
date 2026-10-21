@@ -31,14 +31,12 @@ describe('activeSettingsHref', () => {
   });
 
   it('picks the longest match, not the first prefix', () => {
-    expect(activeSettingsHref('/settings/notifications/reminders/schedule', settingsConfig)).toBe(
-      '/settings/notifications/reminders/schedule'
-    );
+    expect(activeSettingsHref('/settings/billing/profiles', settingsConfig)).toBe('/settings/billing/profiles');
     expect(activeSettingsHref('/settings/billing/late-fees', settingsConfig)).toBe('/settings/billing/late-fees');
   });
 
   it('highlights the nearest entry for a page with none of its own', () => {
-    expect(activeSettingsHref('/settings/notifications/schedules', settingsConfig)).toBe('/settings/notifications');
+    expect(activeSettingsHref('/settings/reminders/unlisted', settingsConfig)).toBe('/settings/reminders');
   });
 
   it('matches whole path segments only', () => {
@@ -73,7 +71,7 @@ describe('settings nav grouping (#786, owner decision 2026-10-20)', () => {
       'Setup',
       'Estate & Property',
       'Money',
-      'Messages & Reminders',
+      'Messages',
       'Documents',
       'People & Access',
       'Connections',
@@ -90,8 +88,10 @@ describe('settings nav grouping (#786, owner decision 2026-10-20)', () => {
     expect(where('/settings/estate-info')).toBe('Estate & Property > Estate Details');
     expect(where('/settings/billing/invoices')).toBe('Money > Invoices & Due Dates');
     expect(where('/settings/billing/profiles')).toBe('Money > Rate Cards');
-    expect(where('/settings/comms-override')).toBe('Messages & Reminders > Redirect Messages (test mode)');
-    expect(where('/settings/email/debug')).toBe('Messages & Reminders > Send a Test');
+    expect(where('/settings/sending')).toBe('Messages > Email & Sending');
+    expect(where('/settings/reminders')).toBe('Messages > Reminders');
+    expect(where('/settings/wording')).toBe('Messages > Message Wording');
+    expect(where('/settings/announcements')).toBe('Messages > Announcements');
     expect(where('/settings/maintenance')).toBe('System > Maintenance Mode');
     expect(where('/settings/whatsapp')).toBe('Connections > WhatsApp');
   });

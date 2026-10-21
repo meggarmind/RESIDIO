@@ -10,8 +10,8 @@ export const SETUP_STEPS = [
   { id: 'bankAccount', title: 'Add a bank account', href: '/settings/bank-accounts' },
   { id: 'billingProfile', title: 'Create a billing profile', href: '/settings/billing/profiles' },
   { id: 'billingSettings', title: 'Save the billing settings', href: '/settings/billing' },
-  { id: 'notificationChannel', title: 'Turn on a notification channel', href: '/settings/email' },
-  { id: 'reminderSchedule', title: 'Turn on payment reminders', href: '/settings/notifications/reminders/schedule' },
+  { id: 'notificationChannel', title: 'Turn on a notification channel', href: '/settings/sending' },
+  { id: 'reminderSchedule', title: 'Turn on payment reminders', href: '/settings/reminders' },
   { id: 'customRole', title: 'Give someone a custom role', href: '/system/accounts?tab=roles' },
 ] as const;
 

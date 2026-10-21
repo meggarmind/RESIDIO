@@ -15,8 +15,8 @@ import { describe, expect, it } from 'vitest';
 const srcDir = fileURLToPath(new URL('..', import.meta.url));
 
 const ENTRY_POINTS = [
-  'app/(dashboard)/settings/comms-override/page.tsx',
-  'app/(dashboard)/settings/email/debug/page.tsx',
+  'app/(dashboard)/settings/sending/page.tsx',
+  'app/(dashboard)/settings/reminders/page.tsx',
 ];
 
 const FORBIDDEN = ['lib/supabase/server.ts', 'lib/settings/service.ts', 'lib/comms-override/settings.ts'];

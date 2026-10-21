@@ -72,7 +72,7 @@ import LateFeesPage from '@/app/(dashboard)/settings/billing/late-fees/page';
 import DevelopmentLeviesPage from '@/app/(dashboard)/settings/billing/development-levies/page';
 import SecuritySettingsPage from '@/app/(dashboard)/settings/security/page';
 import DataRetentionPage from '@/app/(dashboard)/settings/data-retention/page';
-import EmailDebugPage from '@/app/(dashboard)/settings/email/debug/page';
+import { SendRemindersNowSection as EmailDebugPage } from '@/components/settings/messages/send-reminders-test-section';
 import MaintenancePage from '@/app/(dashboard)/settings/maintenance/page';
 
 function renderPage(Page: React.ComponentType) {
@@ -224,6 +224,8 @@ describe('guarded actions confirm with a preview', () => {
   it('Send Reminders names the recipient count before sending', async () => {
     m.previewPaymentReminders.mockResolvedValue({ data: { recipients: 9, invoices: 11, skipped: 2, disabledReason: null }, error: null });
     renderPage(EmailDebugPage);
+    // The section starts collapsed (#934).
+    fireEvent.click(screen.getByRole('button', { name: 'Send now' }));
     fireEvent.click(screen.getByRole('button', { name: /Send Reminders/ }));
     const dialog = await screen.findByRole('alertdialog');
     await waitFor(() => expect(dialog).toHaveTextContent('11 reminder(s) to 9 resident(s)'));

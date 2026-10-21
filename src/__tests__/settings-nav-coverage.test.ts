@@ -81,6 +81,17 @@ describe('settings navigation coverage', () => {
       '/settings/email-integration/config',
       // Notification Schedules is hidden (#787): nothing consumed what it configured.
       '/settings/notifications/schedules',
+      // Merged into the four Messages task pages (#934, #791); each stub redirects to
+      // `new#section`, and its ROUTE_PERMISSIONS entry stays so the old URL keeps its guard (ADR-0004).
+      '/settings/notifications',
+      '/settings/notifications/reminders',
+      '/settings/notifications/reminders/schedule',
+      '/settings/notifications/templates',
+      '/settings/email',
+      '/settings/email/debug',
+      '/settings/comms-override',
+      '/settings/message-templates',
+      '/settings/announcement-categories',
     ]);
 
     const unlisted = routesOnDisk()

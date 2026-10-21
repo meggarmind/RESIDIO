@@ -13,11 +13,10 @@ const { step } = vi.hoisted(() => ({ step: {
 } }));
 
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
-vi.mock('@/lib/auth/auth-provider', () => ({ useAuth: () => ({ hasPermission: () => true }) }));
+vi.mock('@/lib/auth/auth-provider', () => ({
+  useAuth: () => ({ isLoading: false, hasPermission: () => true, hasAnyPermission: () => true }),
+}));
 vi.mock('@/actions/notifications/reminder-config', () => ({
-  getReminderSettings: vi.fn().mockResolvedValue({
-    schedule: { id: 'default', name: 'Std', isDefault: true, isActive: true, steps: [step] },
-  }),
   addReminderStep: vi.fn(),
   updateReminderStep: vi.fn(),
   removeReminderStep: vi.fn(),
@@ -25,11 +24,14 @@ vi.mock('@/actions/notifications/reminder-config', () => ({
   resetToDefaultSchedule: vi.fn(),
 }));
 
-import ReminderSchedulePage from '@/app/(dashboard)/settings/notifications/reminders/schedule/page';
+import { ReminderScheduleSection } from '@/components/settings/messages/reminder-schedule-section';
+
+const schedule = { id: 'default', name: 'Std', isDefault: true, isActive: true, steps: [step], createdAt: '', updatedAt: '' };
+const ReminderSchedulePage = () => <ReminderScheduleSection schedule={schedule} loading={false} reload={async () => {}} />;
 
 afterEach(cleanup);
 
-describe('reminder schedule page while SMS is off', () => {
+describe('reminder schedule section while SMS is off', () => {
   it('offers no SMS toggle in the add-step dialog', async () => {
     render(<ReminderSchedulePage />);
     fireEvent.click(await screen.findByRole('button', { name: /add step/i }));

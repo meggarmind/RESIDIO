@@ -10,7 +10,11 @@ residio_sources:
   - src/actions/notifications/**
   - src/app/(dashboard)/settings/email/**
   - src/app/(dashboard)/settings/notifications/**
-residio_verified_commit: 99a7cdaa
+  - src/app/(dashboard)/settings/sending/**
+  - src/app/(dashboard)/settings/reminders/**
+  - src/app/(dashboard)/settings/wording/**
+  - src/components/settings/messages/**
+residio_verified_commit: dd9e1184
 residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---
@@ -23,19 +27,19 @@ Residio sends resident communication over three channels: email, SMS, and in-app
 
 ## Email
 
-Open **Settings → Messages & Reminders → Email Delivery → Email Settings**. The page reports whether email is configured on the server before it shows any toggles — read that banner first. If it says email is not configured, no toggle on the page will produce a delivered message, and the fix is a server credential change by an engineer.
+Open **Settings → Messages → Email & sending**. The **Channels** section reports whether email is configured on the server before it shows any toggles — read that banner first. If it says email is not configured, no toggle there will produce a delivered message, and the fix is a server credential change by an engineer.
 
-**Enable Email Notifications** switches email on or off as a whole. Below it, **Invoice Notifications** and **Welcome Emails** turn off one class of message without disabling the channel. **Payment Reminders** on this page turns reminder emails on or off for both the automatic daily reminders and the manual run from **Send a Test**; the automatic reminders as a whole are switched on or off under **Reminders** (see below). Changing these switches needs the manage general settings permission; without it they are shown disabled.
+**Send email notifications** switches email on or off as a whole. In **Email types**, **Invoice notifications** and **Welcome emails** turn off one class of message without disabling the channel. **Payment reminders** there turns reminder emails on or off for both the automatic daily reminders and the manual run from **Reminders → Send now**; the automatic reminders as a whole are switched on or off under **Reminders** (see below). Changing these switches needs the manage general settings permission; without it they are shown disabled.
 
-**Settings → Messages & Reminders → Redirect Messages (test mode)** holds Debug Mode. While it is on, every email, SMS and WhatsApp message goes to the override contacts instead of the real recipient, so you can watch the system work without messaging residents. Choose a duration from 5 to 480 minutes when you turn it on; it switches itself off when the time is up, and it cannot be turned on while the override email or phone is blank. It replaces the old email-only debug switch, which skipped sending altogether.
+The **Testing** section of **Settings → Messages → Email & sending** (collapsed until you open it) holds the redirect and Debug Mode. It carries a *Needs attention* tag while messages are being redirected. While it is on, every email, SMS and WhatsApp message goes to the override contacts instead of the real recipient, so you can watch the system work without messaging residents. Choose a duration from 5 to 480 minutes when you turn it on; it switches itself off when the time is up, and it cannot be turned on while the override email or phone is blank. The override contacts have their own **Save Testing** and **Discard** buttons; Debug Mode and the test email act as soon as you use them. It replaces the old email-only debug switch, which skipped sending altogether.
 
-**Settings → Messages & Reminders → Email Delivery → Send a Test** is where you send a test email to an address of your choosing and trigger payment reminders by hand. Outside production these are redirected to the override contacts, and blocked if the override email is blank; in production they go to the real recipients unless Debug Mode is on.
+The same **Testing** section is where you send a test email to an address of your choosing. **Settings → Messages → Reminders → Send now** triggers payment reminders by hand. Outside production these are redirected to the override contacts, and blocked if the override email is blank; in production they go to the real recipients unless Debug Mode is on.
 
 ## SMS
 
 SMS is used for a narrower set of messages: two-factor codes, plus contact verification codes once the SMS provider is connected. SMS is currently switched off for emergency broadcasts, reminders, contact verification codes, and the WhatsApp fallback below until the SMS provider (Termii) is connected. It is more expensive and more intrusive than email, so it should not be the default channel for routine billing communication.
 
-Until then, SMS has no settings of its own: **Settings → Messages & Reminders → Notifications Overview** lists only email and WhatsApp as active channels.
+Until then, SMS has no settings of its own: **Settings → Messages → Reminders** offers only email and WhatsApp as channels for each step.
 
 ### SMS fallback for urgent WhatsApp messages
 
@@ -56,7 +60,7 @@ A multi-channel emergency announcement bypasses the normal reminder cadence. Whi
 
 ## Templates
 
-**Settings → Messages & Reminders → Message Wording → Email Wording** lists the five emails residents actually receive, and lets you change their wording. Reusable announcement text is separate, under **Message Wording → Announcement Templates**.
+**Settings → Messages → Message wording** lists the five emails residents actually receive, in its **Email** section, and lets you change their wording. Reusable announcement text is separate, under **Settings → Messages → Announcements → Templates**.
 
 - Welcome email
 - Payment receipt
@@ -90,7 +94,7 @@ Editing is available only while Chatmaid is the connected WhatsApp provider. Wit
 
 ## Reminders and schedules
 
-**Settings → Messages & Reminders → Reminders** turns automatic reminders on or off, and **Reminder Schedule** defines the steps. Reminders are dispatched by a scheduled job rather than at the moment you save them, so a saved reminder that has not arrived yet is usually waiting for its next run, not broken. The Billing reminder days and the Email **Payment Reminders** switch also limit what it sends; see [Billing and notifications](../settings/billing-and-notifications.md).
+**Settings → Messages → Reminders** turns automatic reminders on or off (**On or off**) and defines the steps (**Schedule**). Reminders are dispatched by a scheduled job rather than at the moment you save them, so a saved reminder that has not arrived yet is usually waiting for its next run, not broken. The Billing reminder days and the Email **Payment reminders** switch also limit what it sends; see [Billing and notifications](../settings/billing-and-notifications.md).
 
 Invoice reminders go out by email and WhatsApp only. SMS is switched off for reminders until the SMS provider (Termii) is connected, so an SMS step in a reminder schedule is skipped without an error. The default schedule is email only. The schedule editor offers Email and WhatsApp for each step; it does not offer SMS. A WhatsApp step reaches only residents who have opted in to WhatsApp.
 

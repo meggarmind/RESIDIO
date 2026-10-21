@@ -6,7 +6,12 @@ residio_sources:
   - src/app/(dashboard)/settings/billing/**
   - src/app/(dashboard)/settings/notifications/**
   - src/app/(dashboard)/settings/message-templates/**
-residio_verified_commit: 10297b79
+  - src/app/(dashboard)/settings/reminders/**
+  - src/app/(dashboard)/settings/wording/**
+  - src/app/(dashboard)/settings/sending/**
+  - src/app/(dashboard)/settings/announcements/**
+  - src/components/settings/messages/**
+residio_verified_commit: dd9e1184
 residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---
@@ -35,17 +40,17 @@ Each billing setting carries an **Affects** line saying whether a change reaches
 
 ## Notifications
 
-Use **Settings → Messages & Reminders → Notifications Overview** to review reminders and email wording. **Email Wording** changes the wording of the five emails residents receive; anything left empty uses the built-in text (see [Email and SMS](../integrations/email-and-sms.md)). The **Sending** switch on the payment receipt, welcome and new invoice rows turns that message off or on for that channel; the receipt also has one on the WhatsApp tab, and WhatsApp still needs the resident's opt-in. Reminder rows link to **Reminder Schedule**, where channels are set per step. Announcement text lives in **Announcement Templates**. Notification Schedules is hidden, because nothing sent what it configured; automatic reminders follow **Reminder Schedule**.
+Use **Settings → Messages → Message wording** to change email wording. Its **Email** section changes the wording of the five emails residents receive; anything left empty uses the built-in text (see [Email and SMS](../integrations/email-and-sms.md)). The **Sending** switch on the payment receipt, welcome and new invoice rows turns that message off or on for that channel; the receipt also has one on the WhatsApp tab, and WhatsApp still needs the resident's opt-in. Reminder rows link to the **Schedule** section of **Reminders**, where channels are set per step. Announcement text lives in **Settings → Messages → Announcements**. Notification Schedules is hidden, because nothing sent what it configured; automatic reminders follow the reminder **Schedule**.
 
-Three controls affect payment reminders. **Enable Reminders** on the Reminders page turns the automatic daily reminders on or off. **Payment Reminders** under **Email Notifications** turns reminder emails off for both the automatic reminders and the manual run; automatic WhatsApp reminders still send. The reminder days set in **Billing** apply to both: an automatic reminder before the due date sends only on a day that is ticked in **Billing** and is a step in **Reminder Schedule**. **Send Payment Reminders Now** on **Email Delivery → Send a Test** (headed *Debug & Testing*) sends one email-only run on those days.
+Three controls affect payment reminders. **Send payment reminders** under **Reminders → On or off** turns the automatic daily reminders on or off. **Payment reminders** under **Email & sending → Email types** turns reminder emails off for both the automatic reminders and the manual run; automatic WhatsApp reminders still send. The reminder days set in **Billing** apply to both: an automatic reminder before the due date sends only on a day that is ticked in **Billing** and is a step in the reminder **Schedule**. **Send payment reminders now** under **Reminders → Send now** sends one email-only run on those days.
 
-The **Enable Reminders** switch saves the state you set it to. **Reset to Default** on the reminder schedule asks before it replaces your steps, and **Send Reminders** on **Send a Test** shows how many reminders would go to how many residents before it sends.
+The **Send payment reminders** switch saves the state you set it to. **Reset to Default** on the reminder schedule asks before it replaces your steps, and **Send Reminders** under **Send now** shows how many reminders would go to how many residents before it sends.
 
-Sent-notification history and the outgoing queue are system state rather than configuration, so they live under **System → Notification History** and **System → Notification Queue** instead. From the queue you can cancel a pending item or retry one that failed.
+Sent-notification history and the outgoing queue are system state rather than configuration, so they live under **System → Notification History** and **System → Notification Queue** instead; **Reminders → On or off** links to both and no longer shows live counts. From the queue you can cancel a pending item or retry one that failed.
 
 ## Email and WhatsApp
 
-Email configuration and WhatsApp operations are separate controls, and live in different Settings groups. **Settings → Messages & Reminders → Email Delivery** configures outbound email; **Settings → Connections → WhatsApp** holds WhatsApp's provider credentials, rollout mode, consent, and pending contacts together — WhatsApp is grouped with the other external-service integrations rather than with Messages & Reminders. Confirm provider status and rollout mode before enabling an operational communication path.
+Email configuration and WhatsApp operations are separate controls, and live in different Settings groups. **Settings → Messages → Email & sending** configures outbound email; **Settings → Connections → WhatsApp** holds WhatsApp's provider credentials, rollout mode, consent, and pending contacts together — WhatsApp is grouped with the other external-service integrations rather than with Messages. Confirm provider status and rollout mode before enabling an operational communication path.
 
 :::warning[Production communication]
 Test recipient scope, template content, and daily caps before enabling automated outbound messages.
