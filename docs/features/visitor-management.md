@@ -77,4 +77,4 @@ When a visitor checks out (`check_out_time` is set), a trigger calculates the `a
 - **Tables**: `visitor_vehicles`
 - **Enums**: `visitor_recurrence_pattern`, `day_of_week`, `vehicle_type`
 - **Views**: `visitor_analytics`
-- **Functions**: `get_frequent_visitors()`, `get_visitor_history_summary()`
+- **Functions**: `get_frequent_visitors()`, `get_visitor_history_summary()` (both refuse callers without `security.view_logs`, #992)
