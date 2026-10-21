@@ -95,12 +95,12 @@ export async function getTemplateByName(
 
 const updateEventContentSchema = z.object({
   event: z.enum(EVENT_KEYS),
-  channel: z.literal('email'),
+  channel: z.enum(['email', 'whatsapp']),
   overrides: z.record(z.string(), z.string().max(5000)),
 });
 
 /**
- * Save the admin's wording for one email event. `overrides` replaces the stored map; a blank value
+ * Save the admin's wording for one event on one channel (email, or Chatmaid WhatsApp text). `overrides` replaces the stored map; a blank value
  * (or a key left out) means "use the code default", which is how Reset to default works.
  */
 export async function updateEventContent(
@@ -116,7 +116,7 @@ export async function updateEventContent(
     return { data: null, error: parsed.error.issues[0]?.message || 'Invalid input' };
   }
 
-  const checked = validateOverrides(parsed.data.event, parsed.data.overrides);
+  const checked = validateOverrides(parsed.data.event, parsed.data.overrides, parsed.data.channel);
   if (!checked.ok) return { data: null, error: checked.errors.join('; ') };
 
   const cleaned = Object.fromEntries(
