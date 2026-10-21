@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Incrementally mirror Supabase Storage into an rclone `crypt` remote on R2 (#415).
-# Changed or deleted files are moved into a dated folder instead of being lost.
+# Changed or deleted files are moved into a dated folder instead of being lost; folders older
+# than DELETED_KEEP_DAYS (default 30) are purged after each sync (#963).
 #
 # Usage: files-sync.sh <prod|stage>
 # Env:   STORAGE_S3_ENDPOINT, STORAGE_S3_REGION, STORAGE_S3_ACCESS_KEY_ID,
@@ -11,6 +12,8 @@ set +x
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/backup/r2-env.sh
 . "${here}/r2-env.sh"
+# shellcheck source=scripts/backup/retention.sh
+. "${here}/retention.sh"
 
 env_name="${1:-}"
 case "$env_name" in
@@ -55,5 +58,9 @@ rclone sync SUPA: FILESCRYPT:current \
   --backup-dir "FILESCRYPT:deleted/${day}" \
   --transfers 4 \
   --stats-one-line --stats 30s
+
+# Only after a successful sync: deleted/<day> folders older than DELETED_KEEP_DAYS (default 30) go.
+purge_old_deleted
+check_bucket_size
 
 echo "Storage mirror of ${env_name} complete"
