@@ -114,7 +114,7 @@ function buildSearchText(parts: Array<string | undefined | string[]>): string {
  * findable by "billing" because that group/parent context is
  * folded in; its own title and description say nothing of the kind.
  */
-function flattenSettingsItems(
+export function flattenSettingsItems(
   items: SettingsItem[],
   groupTitle: string,
   parentTitle?: string
@@ -132,6 +132,20 @@ function flattenSettingsItems(
       keywords,
       searchText: buildSearchText([groupTitle, parentTitle, item.title, item.description, keywords]),
     });
+    for (const section of item.sections ?? []) {
+      for (const row of section.rows) {
+        out.push({
+          id: `settings-row-${row.id}`,
+          title: row.label,
+          subtitle: `${item.title} › ${section.title}`,
+          href: `${item.href}?row=${row.id}#${section.id}`,
+          type: 'settings',
+          permissions: section.permissions ?? resolvePermissions(item.href, item.permissions),
+          keywords: row.keywords,
+          searchText: buildSearchText([groupTitle, item.title, section.title, row.label, row.help, row.keywords]),
+        });
+      }
+    }
     if (item.children) {
       out.push(...flattenSettingsItems(item.children, groupTitle, item.title));
     }
