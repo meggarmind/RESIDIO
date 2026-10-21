@@ -63,6 +63,7 @@ const validInput: PilotSettings = {
   financialLookupDailyCap: 50,
   sessionRetentionDays: 1,
   processedMessageRetentionDays: 2,
+  surveyResponseRetentionDays: 90,
 };
 
 describe('updateWhatsAppPilotSettings', () => {
@@ -176,6 +177,11 @@ describe('updateWhatsAppPilotSettings', () => {
         await expect(updateWhatsAppPilotSettings({ ...validInput, [field]: 30 })).resolves.toEqual({ success: true, error: null });
       });
     }
+    it('bounds surveyResponseRetentionDays to 1-365', async () => {
+      await expectRejected({ ...validInput, surveyResponseRetentionDays: 0 }, /between 1 and 365 days/);
+      await expectRejected({ ...validInput, surveyResponseRetentionDays: 366 }, /between 1 and 365 days/);
+      await expect(updateWhatsAppPilotSettings({ ...validInput, surveyResponseRetentionDays: 365 })).resolves.toEqual({ success: true, error: null });
+    });
   });
 });
 

@@ -18,6 +18,7 @@ export type PilotSettings = {
   financialLookupDailyCap: number;
   sessionRetentionDays: number;
   processedMessageRetentionDays: number;
+  surveyResponseRetentionDays: number;
 };
 
 // Bounds mirror the clamp already applied in
@@ -26,6 +27,7 @@ export type PilotSettings = {
 // re-clamped to something else by the cron route later.
 const MIN_RETENTION_DAYS = 1;
 const MAX_RETENTION_DAYS = 30;
+const MAX_SURVEY_RETENTION_DAYS = 365;
 
 function parseNumber(value: unknown, fallback: number): number {
   const number = typeof value === 'number' ? value : Number(value);
@@ -50,6 +52,7 @@ export async function getWhatsAppPilotSettings(): Promise<{
     'whatsapp_daily_financial_lookup_cap',
     'whatsapp_session_retention_days',
     'whatsapp_processed_message_retention_days',
+    'whatsapp_survey_retention_days',
   ]);
   if (error) return { success: false, data: null, error: error.message };
   const values = Object.fromEntries((data || []).map((setting) => [setting.key, setting.value]));
@@ -75,6 +78,7 @@ export async function getWhatsAppPilotSettings(): Promise<{
       // row is missing, not an arbitrary placeholder.
       sessionRetentionDays: parseNumber(values.whatsapp_session_retention_days, 1),
       processedMessageRetentionDays: parseNumber(values.whatsapp_processed_message_retention_days, 2),
+      surveyResponseRetentionDays: parseNumber(values.whatsapp_survey_retention_days, 90),
     },
     error: null,
   };
@@ -112,6 +116,13 @@ export async function updateWhatsAppPilotSettings(input: PilotSettings): Promise
   ) {
     return { success: false, error: `Retention windows must be whole numbers between ${MIN_RETENTION_DAYS} and ${MAX_RETENTION_DAYS} days` };
   }
+  if (
+    !Number.isInteger(input.surveyResponseRetentionDays) ||
+    input.surveyResponseRetentionDays < MIN_RETENTION_DAYS ||
+    input.surveyResponseRetentionDays > MAX_SURVEY_RETENTION_DAYS
+  ) {
+    return { success: false, error: `Survey retention must be a whole number between ${MIN_RETENTION_DAYS} and ${MAX_SURVEY_RETENTION_DAYS} days` };
+  }
   if (input.mode === 'estate') {
     const { data: current, error: currentError } = await createAdminClient()
       .from('system_settings')
@@ -132,6 +143,7 @@ export async function updateWhatsAppPilotSettings(input: PilotSettings): Promise
     whatsapp_daily_financial_lookup_cap: String(input.financialLookupDailyCap),
     whatsapp_session_retention_days: String(input.sessionRetentionDays),
     whatsapp_processed_message_retention_days: String(input.processedMessageRetentionDays),
+    whatsapp_survey_retention_days: String(input.surveyResponseRetentionDays),
   };
   const { data: savedRows, error } = await createAdminClient().from('system_settings').upsert(
     Object.entries(values).map(([key, value]) => ({ key, value, category: 'notifications' })),
