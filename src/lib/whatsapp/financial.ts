@@ -233,7 +233,7 @@ export interface WhatsAppFinancialRepository {
   /** Files an approval request for a clearance certificate on this property (#816 decision 15). */
   requestClearance(input: Parameters<typeof requestClearanceCertificate>[0]): Promise<ClearanceRequestResult>;
   /** The statement PDF for a period: the admin account statement, with its Lagos dates. */
-  loadStatement(residentId: string, houseId: string, period: StatementPeriod, now: Date): Promise<{ fromDate: string; toDate: string; statement: AccountStatementData }>;
+  loadStatement(residentId: string, houseId: string, period: StatementPeriod, now: Date): Promise<{ fromDate: string; toDate: string; statement: AccountStatementData } | null>;
   /** Stores the PDF privately and returns a 1-hour signed URL for the reply. */
   storeStatementPdf(input: StatementRequestInput & { replyText: string }, statement: AccountStatementData): Promise<string>;
   /** Records that the resident is being asked for feedback (#872); null when they must not be: opted out, or asked in the last 30 days. */
@@ -921,7 +921,7 @@ function propertyPrompt(houses: FinancialHouse[]): string {
 }
 
 function statementPeriodPrompt(): string {
-  return ['Which period?', '1. This month', '2. This year', '3. Last 6 months', '4. Last 12 months', '5. All time', 'Reply with the period number.'].join('\n');
+  return ['Which period?', '1. This month', '2. This year', '3. Last 6 months', '4. Last 12 months', '5. All time', '6. Since move-in', 'Reply with the period number.'].join('\n');
 }
 
 async function miss(turn: Turn, node: string): Promise<void> {
@@ -1025,8 +1025,11 @@ function requestInput(turn: Turn, house: FinancialHouse, period: StatementPeriod
 
 /** The period and property line that opens every statement reply; carries no statement rows (#917). */
 function statementHeading(period: StatementPeriod, house: FinancialHouse, fromDate: string, toDate: string): string {
+  if (period === 'since_move_in') return `*Statement, ${house.label}*\n${formatDay(fromDate)} (move-in) to ${formatDay(toDate)}`;
   return `*Statement, ${PERIOD_LABELS[period]}, ${house.label}*\n${formatDay(fromDate)} to ${formatDay(toDate)}`;
 }
+
+const NO_MOVE_IN_REPLY = "We couldn't find an active tenancy for this property, so there is no move-in date to start from.";
 
 /**
  * Every statement is a PDF, never chat text (#917, amending #804 decisions 22-24 and #863): in
@@ -1040,7 +1043,9 @@ async function deliverStatementPdf(turn: Turn, period: StatementPeriod): Promise
   if (capped) return respond(turn, capped, 'financial');
 
   const repository = turn.options.repository;
-  const { fromDate, toDate, statement } = await repository.loadStatement(turn.identity.id, house.id, period, new Date());
+  const loaded = await repository.loadStatement(turn.identity.id, house.id, period, new Date());
+  if (!loaded) return respond(turn, `${withContact(turn, NO_MOVE_IN_REPLY)}\n${footer(turn)}`, 'financial');
+  const { fromDate, toDate, statement } = loaded;
   const rowCount = statement.transactions.length;
   const input = requestInput(turn, house, period, fromDate, toDate, rowCount);
 
@@ -1079,7 +1084,9 @@ async function confirmStatementEmail(turn: Turn, period: StatementPeriod): Promi
   const repository = turn.options.repository;
   const email = await repository.getResidentEmail(turn.identity.id);
   if (!email) return deliverStatementPdf(turn, period);
-  const { fromDate, toDate, statement } = await repository.loadStatement(turn.identity.id, house.id, period, new Date());
+  const loaded = await repository.loadStatement(turn.identity.id, house.id, period, new Date());
+  if (!loaded) return respond(turn, `${withContact(turn, NO_MOVE_IN_REPLY)}\n${footer(turn)}`, 'financial');
+  const { fromDate, toDate, statement } = loaded;
   await repository.logDisclosure({
     residentId: turn.identity.id,
     phoneNumber: turn.phoneNumber,
@@ -1682,7 +1689,7 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
   }
 
   if (node === 'statement_period') {
-    const period = /^[1-5]$/.test(input) ? PERIODS[Number(input) - 1] : null;
+    const period = /^[1-6]$/.test(input) ? PERIODS[Number(input) - 1] : /^since move[ -]in$/.test(input) ? 'since_move_in' : null;
     if (!period) return miss(turn, node);
     await loadHouses(turn);
     if (!selectedHouse(turn)) return enterFinancial(turn, 'statement');

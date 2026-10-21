@@ -8,7 +8,7 @@ residio_sources:
   - src/actions/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp/**
   - src/app/api/whatsapp/**
-residio_verified_commit: b7aa8ecf
+residio_verified_commit: 4f1afcb3
 residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---
@@ -232,7 +232,7 @@ The main menu opens with `Hi <first name>, what would you like to do?` and lists
 | 5. Update email | Always |
 | 9. Contact the estate office | The estate phone or email is set on **Settings → Estate & Property → Estate Details** |
 
-**Financial standing** lists What I owe, Recent payments (the last 5), Statement (this month, this year, last 6 months, last 12 months or all time), Wallet, Receipt, Report a payment and Clearance certificate. Only this item, and Update email, ask for the PIN. A resident billed for more than one property is asked which one once per session, sees it in every heading, and can change it under **8. More**.
+**Financial standing** lists What I owe, Recent payments (the last 5), Statement (this month, this year, last 6 months, last 12 months, all time or since move-in), Wallet, Receipt, Report a payment and Clearance certificate. Only this item, and Update email, ask for the PIN. A resident billed for more than one property is asked which one once per session, sees it in every heading, and can change it under **8. More**.
 
 Every statement is a PDF, never chat text. Choosing a period sends one of these, and the reply names only the period, the property and where the PDF is going; it carries no statement rows. A statement that cannot be made gets the failure reply and the estate office line, not a text fallback.
 
