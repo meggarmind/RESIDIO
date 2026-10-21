@@ -24,7 +24,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useHousesWithRoles, useHouseResidents } from '@/hooks/use-houses';
-import { useCreateResident, useUpdateResident, useResidentOptions } from '@/hooks/use-residents';
+import { useCreateResident, useUpdateResident, useResidentOptions, DuplicateResidentError } from '@/hooks/use-residents';
+import { DuplicateResidentDialog } from '@/components/residents/duplicate-resident-dialog';
+import type { CreateResidentOptions } from '@/actions/residents/create-resident';
+import type { DuplicateResidentMatch } from '@/lib/residents/duplicate-match';
 import { createResidentBaseSchema, resolveSubmittedCorporateFields, type CreateResidentData, type ResidentFormData, requiresSponsor } from '@/lib/validators/resident';
 import { toast } from 'sonner';
 import type { Resident, ResidentRole, EntityType } from '@/types/database';
@@ -129,6 +132,11 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
   });
 
   const isLoading = createMutation.isPending || updateMutation.isPending;
+  // Set when the server found an existing resident matching the new one (#820); the admin chooses.
+  const [duplicatePrompt, setDuplicatePrompt] = React.useState<{
+    createData: CreateResidentData;
+    matches: DuplicateResidentMatch[];
+  } | null>(null);
 
   // Watch fields for conditional rendering
   const residentType = form.watch('resident_type');
@@ -181,6 +189,23 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
     }
   }, [residentType, availableRoles, form]);
 
+  async function runCreate(createData: CreateResidentData, options?: CreateResidentOptions) {
+    try {
+      await createMutation.mutateAsync({ data: createData, options });
+      setDuplicatePrompt(null);
+      toast.success(options?.linkToResidentId ? 'House linked to existing resident' : 'Resident created successfully');
+      onSuccess?.();
+      router.push('/residents');
+    } catch (error) {
+      if (error instanceof DuplicateResidentError) {
+        setDuplicatePrompt({ createData, matches: error.matches });
+        return;
+      }
+      setDuplicatePrompt(null);
+      toast.error(error instanceof Error ? error.message : 'An error occurred');
+    }
+  }
+
   async function onSubmit(data: CreateResidentData) {
     try {
       const submitted = resolveSubmittedCorporateFields(data);
@@ -210,8 +235,8 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
         toast.success('Resident updated successfully');
       } else {
         const createData = canManageOverride ? submitted : { ...submitted, use_override_comms: undefined };
-        await createMutation.mutateAsync(createData);
-        toast.success('Resident created successfully');
+        await runCreate(createData);
+        return;
       }
       onSuccess?.();
       router.push('/residents');
@@ -275,6 +300,14 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
 
   return (
     <Form {...form}>
+      <DuplicateResidentDialog
+        matches={duplicatePrompt?.matches ?? null}
+        canLink={!!duplicatePrompt?.createData.house_id && !!duplicatePrompt?.createData.resident_role}
+        isPending={createMutation.isPending}
+        onLink={(residentId) => duplicatePrompt && runCreate(duplicatePrompt.createData, { linkToResidentId: residentId })}
+        onCreateAnyway={() => duplicatePrompt && runCreate(duplicatePrompt.createData, { createAnyway: true })}
+        onCancel={() => setDuplicatePrompt(null)}
+      />
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-w-3xl">
         {/* Personal Information */}
         <div className="space-y-4">

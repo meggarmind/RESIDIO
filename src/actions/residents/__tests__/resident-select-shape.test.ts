@@ -19,6 +19,7 @@ vi.mock('@/lib/supabase/server', () => ({
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: mocks.authorizePermission }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit: vi.fn() }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+vi.mock('@/lib/residents/find-duplicates', () => ({ loadDuplicateMatches: async () => ({ matches: [], error: null }) }));
 vi.mock('@/actions/email/send-welcome-email', () => ({ sendWelcomeEmail: vi.fn(async () => ({})) }));
 vi.mock('@/actions/verification/send-verification', () => ({
   sendEmailVerification: vi.fn(async () => ({})),
