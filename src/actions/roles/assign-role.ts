@@ -378,10 +378,11 @@ export async function assignRoleToProfile(
 /**
  * Revoke a role from an account.
  *
- * A resident-linked account drops to the base 'resident' role so the portal
- * keeps working. An account with no resident link has no floor to drop to, so
- * it loses its role entirely and returns to pending — leaving it role-less but
- * active would give it a dashboard with nothing on it.
+ * Every account loses its role (role_id null). A resident-linked account stays
+ * active, which is what a plain resident is: the portal admits it by its
+ * resident_id (the 'resident' role was retired by #825). An account with no
+ * resident link returns to pending — leaving it role-less but active would
+ * give it a dashboard with nothing on it.
  */
 export async function removeRoleFromProfile(
   profileId: string
@@ -429,26 +430,9 @@ export async function removeRoleFromProfile(
     }
   }
 
-  let newRoleId: string | null = null;
-  let newRoleLabel = 'None';
-  let newStatus = profile.approval_status;
-
-  if (profile.resident_id) {
-    const { data: residentRole } = await supabase
-      .from('app_roles')
-      .select('id')
-      .eq('name', 'resident')
-      .single();
-
-    if (!residentRole) {
-      return { success: false, error: 'Base resident role not found' };
-    }
-
-    newRoleId = residentRole.id;
-    newRoleLabel = 'Resident';
-  } else {
-    newStatus = 'pending';
-  }
+  const newRoleId: string | null = null;
+  const newRoleLabel = profile.resident_id ? 'Resident' : 'None';
+  const newStatus = profile.resident_id ? profile.approval_status : 'pending';
 
   // Service role for the same reason as assignRoleToProfile above.
   const { data: updated, error: updateError } = await createAdminClient()

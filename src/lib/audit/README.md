@@ -327,7 +327,7 @@ export async function generateMonthlyInvoices(month: string) {
 
 ## Viewing Audit Logs
 
-Audit logs can be viewed at `/system/audit-logs` by users with the `settings.view_audit_logs` permission. The `super_admin` and `vice_chairman` roles hold it; `chairman` does not.
+Audit logs can be viewed at `/system/audit-logs` by users with the `settings.view_audit_logs` permission. The `super_admin` and `chairman` roles hold it (#825).
 
 Features:
 - Filter by entity type, action type, actor, and date range

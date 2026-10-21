@@ -132,7 +132,6 @@ const ROLES: Record<string, Row> = {
   super_admin: { id: 'r-sa', name: 'super_admin', display_name: 'Super Admin', is_active: true, is_system_role: true },
   chairman: { id: 'r-ch', name: 'chairman', display_name: 'Chairman', is_active: true, is_system_role: true },
   secretary: { id: 'r-sec', name: 'secretary', display_name: 'Secretary', is_active: true, is_system_role: true },
-  resident: { id: 'r-res', name: 'resident', display_name: 'Resident', is_active: true, is_system_role: true },
   treasurer: { id: 'r-treasurer', name: 'treasurer', display_name: 'Treasurer', is_active: true, is_system_role: false },
   // A role *named* super_admin that is not flagged as a system role, so the name
   // check is exercised on its own rather than hidden behind is_system_role.
@@ -343,12 +342,13 @@ describe('linkAuthAccountToResident', () => {
     expect(profileOf(TARGET_AUTH_ID).approval_status).toBe(status);
   });
 
-  it('links a pending, role-less account and approves it (the legitimate flow)', async () => {
+  it('links a pending, role-less account and approves it, leaving it role-less (the legitimate flow)', async () => {
     seed({ caller: 'chairman', target: null, targetStatus: 'pending' });
     const result = await linkAuthAccountToResident(TARGET_AUTH_ID, RESIDENT_ID);
     expect(result.success).toBe(true);
     expect(profileOf(TARGET_AUTH_ID).approval_status).toBe('active');
-    expect(profileOf(TARGET_AUTH_ID).role_id).toBe('r-res');
+    // The 'resident' role was retired by #825: a plain resident holds no role.
+    expect(profileOf(TARGET_AUTH_ID).role_id).toBeNull();
   });
 
   it('allows an equal-ranked chairman target', async () => {

@@ -36,7 +36,7 @@ import type {
 /**
  * Get queue items with optional filtering.
  * Admin operation — guarded by `notifications.manage` (super_admin, chairman,
- * vice_chairman). Reachable only from the /system, /settings/notifications and
+ * welfare_officer). Reachable only from the /system, /settings/notifications and
  * /settings/notification-queue admin pages, which the route middleware already
  * gates on the same permission; this closes the gap for anyone calling the
  * server action directly.

@@ -26,8 +26,8 @@ type GetAuditLogsResponse = {
 
 /**
  * Get audit logs with filtering and pagination.
- * Only accessible to roles holding `settings.view_audit_logs` (super_admin,
- * vice_chairman — per ADR-0006, chairman does not read audit logs).
+ * Only accessible to roles holding `settings.view_audit_logs` (super_admin and,
+ * since #825, chairman).
  */
 export async function getAuditLogs(
   params: GetAuditLogsParams = {}

@@ -118,7 +118,6 @@ const ROLES: Record<string, Row> = {
   super_admin: { id: 'r-sa', name: 'super_admin', display_name: 'Super Admin', is_active: true, is_system_role: true },
   chairman: { id: 'r-ch', name: 'chairman', display_name: 'Chairman', is_active: true, is_system_role: true },
   secretary: { id: 'r-sec', name: 'secretary', display_name: 'Secretary', is_active: true, is_system_role: true },
-  resident: { id: 'r-res', name: 'resident', display_name: 'Resident', is_active: true, is_system_role: true },
   treasurer: { id: 'r-treasurer', name: 'treasurer', display_name: 'Treasurer', is_active: true, is_system_role: false },
   auditor: { id: 'r-auditor', name: 'auditor', display_name: 'Auditor', is_active: true, is_system_role: false },
 };
@@ -188,10 +187,11 @@ describe('removeRoleFromProfile', () => {
     expect(writesTo('profiles')).toEqual([]);
   });
 
-  it('still lets a chairman remove an ordinary role (drops to resident)', async () => {
+  it('still lets a chairman remove an ordinary role (a resident-linked account drops to no role, still active)', async () => {
     seed('chairman', 'secretary');
     expect(await removeRoleFromProfile(TARGET)).toEqual({ success: true });
-    expect(profileOf(TARGET).role_id).toBe('r-res');
+    expect(profileOf(TARGET).role_id).toBeNull();
+    expect(profileOf(TARGET).approval_status).toBe('active');
   });
 
   it('still lets a super_admin remove a chairman role', async () => {
@@ -447,7 +447,7 @@ describe('role name guard (shared by createRole, createRoleWithPermissions, upda
     'financial_officer',
     'vice_chairman',
     'Secretary',
-    'resident', // an existing system role, caught via the database read
+    'resident', // retired by #825, reserved by the static list
   ];
 
   it.each(reservedVariants)('createRole refuses %j and writes nothing', async (name) => {
