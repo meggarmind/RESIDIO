@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
+import { reversePaymentSettlement } from '@/lib/payments/reverse-payment-settlement';
 
 export async function deletePayment(id: string) {
     // Authorization check - only admin, chairman, financial_secretary can delete payments
@@ -22,6 +23,15 @@ export async function deletePayment(id: string) {
         .eq('id', id)
         .single();
 
+    if (!existing) {
+        return { error: 'Payment not found', success: false };
+    }
+
+    const reversalError = await reversePaymentSettlement(supabase, existing, auth.userId);
+    if (reversalError) {
+        return { error: `Payment not deleted: ${reversalError}`, success: false };
+    }
+
     const { error } = await supabase
         .from('payment_records')
         .delete()
@@ -31,15 +41,13 @@ export async function deletePayment(id: string) {
         return { error: error.message, success: false };
     }
 
-    if (existing) {
-        await logAudit({
-            action: 'DELETE',
-            entityType: 'payments',
-            entityId: id,
-            entityDisplay: `Payment ₦${Number(existing.amount).toLocaleString()}${existing.reference_number ? ` (${existing.reference_number})` : ''}`,
-            oldValues: existing,
-        });
-    }
+    await logAudit({
+        action: 'DELETE',
+        entityType: 'payments',
+        entityId: id,
+        entityDisplay: `Payment ₦${Number(existing.amount).toLocaleString()}${existing.reference_number ? ` (${existing.reference_number})` : ''}`,
+        oldValues: existing,
+    });
 
     return { success: true, error: null };
 }
