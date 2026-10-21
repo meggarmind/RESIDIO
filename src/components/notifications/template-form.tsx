@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Email wording editor (#907).
+ * Wording editor for one event on one channel, email (#907) or Chatmaid WhatsApp (#908).
  *
  * Each field shows the built-in text as its placeholder. Leaving a field empty, or pressing
  * "Reset to default", means that field uses the built-in text.
@@ -17,7 +17,8 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useUpdateEventContent } from '@/hooks/use-notifications';
 import {
-  EVENT_REGISTRY,
+  WHATSAPP_MAX_CONTENT_LENGTH,
+  getChannelContent,
   isEventKey,
   validateOverrides,
 } from '@/lib/notifications/event-content-registry';
@@ -32,13 +33,17 @@ interface TemplateFormProps {
 export function TemplateForm({ template, onSuccess, onCancel }: TemplateFormProps) {
   const updateContent = useUpdateEventContent();
   const event = template.event && isEventKey(template.event) ? template.event : null;
+  const channel = template.channel === 'whatsapp' ? 'whatsapp' : 'email';
   const [values, setValues] = useState<Record<string, string>>(template.overrides ?? {});
 
   if (!event) {
     return <p className="text-sm text-muted-foreground">This template is not editable.</p>;
   }
 
-  const definition = EVENT_REGISTRY[event];
+  const definition = getChannelContent(event, channel);
+  if (!definition) {
+    return <p className="text-sm text-muted-foreground">This template is not editable.</p>;
+  }
   const groups = [...new Set(definition.fields.map((field) => field.group ?? ''))];
 
   const setField = (key: string, value: string) => setValues((prev) => ({ ...prev, [key]: value }));
@@ -54,13 +59,13 @@ export function TemplateForm({ template, onSuccess, onCancel }: TemplateFormProp
     const overrides = Object.fromEntries(
       Object.entries(values).filter(([, value]) => value.trim() !== '')
     );
-    const checked = validateOverrides(event, overrides);
+    const checked = validateOverrides(event, overrides, channel);
     if (!checked.ok) {
       toast.error(checked.errors.join('; '));
       return;
     }
     try {
-      await updateContent.mutateAsync({ event, channel: 'email', overrides });
+      await updateContent.mutateAsync({ event, channel, overrides });
       onSuccess?.();
     } catch {
       // The mutation hook already toasts the error.
@@ -110,6 +115,7 @@ export function TemplateForm({ template, onSuccess, onCancel }: TemplateFormProp
                     <Textarea
                       id={id}
                       rows={4}
+                      maxLength={channel === 'whatsapp' ? WHATSAPP_MAX_CONTENT_LENGTH : undefined}
                       value={values[field.key] ?? ''}
                       placeholder={field.default}
                       onChange={(e) => setField(field.key, e.target.value)}

@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+import { getEventContent } from '@/lib/notifications/event-content';
+import { EVENT_KEYS, EVENT_REGISTRY, renderEventText } from '@/lib/notifications/event-content-registry';
 import type { ChatmaidWhatsAppConfig } from '@/lib/whatsapp/config';
 import type { WhatsAppProvider } from '@/lib/whatsapp/provider';
 import { isRetryableHttpStatus } from '@/lib/whatsapp/retry';
@@ -35,7 +37,7 @@ import type {
  *
  * 2. **`sendTemplate` renders to plain text locally.** Chatmaid has no
  *    template/content-SID concept -- there is nothing to call. The
- *    `TEMPLATE_RENDERERS` map below turns the same `(templateName,
+ *    renderer below turns the same `(templateName,
  *    parameters)` pairs the Meta/Twilio providers receive into a plain-text
  *    rendering, then sends it exactly like `sendText`. This means Chatmaid
  *    sends are not template-gated the way Meta's are, which is fine --
@@ -295,27 +297,40 @@ function buildIdempotencyKey(
 }
 
 /**
- * Chatmaid has no template concept (file docblock point 2). Each renderer
- * takes the same positional `parameters` the Meta/Twilio Content templates
- * receive (see `src/lib/whatsapp/outbound.ts` for how each array is built)
- * and produces a plain-text equivalent.
+ * Chatmaid has no template concept (file docblock point 2). Payment reminders and receipts read their
+ * text from the editable wording (`getEventContent(event, 'whatsapp')`, #908): the same positional
+ * `parameters` the Meta/Twilio Content templates receive (see `src/lib/whatsapp/outbound.ts`) are
+ * named through the registry's `parameterOrder`. `announcement` is written per send, so it stays here.
  */
 const TEMPLATE_RENDERERS: Record<string, (parameters: string[]) => string> = {
-  // parameters: [residentName, invoiceNumber, amount, dueDate]
-  invoice_reminder: ([residentName, invoiceNumber, amount, dueDate]) =>
-    `Hi ${residentName || 'there'}, invoice ${invoiceNumber || ''} for ${amount || ''} is due ${
-      dueDate || 'soon'
-    }. Please make payment at your earliest convenience.`,
-  // parameters: [residentName, amount, paymentDate, referenceNumber]
-  payment_received: ([residentName, amount, paymentDate, referenceNumber]) =>
-    `Hi ${residentName || 'there'}, we've received your payment of ${amount || ''} on ${
-      paymentDate || ''
-    } (Ref: ${referenceNumber || 'Not provided'}). Thank you.`,
   // parameters: [title, summary]
   announcement: ([title, summary]) => `${title || 'Announcement'}\n\n${summary || ''}`,
 };
 
-function renderTemplateToText(templateName: string, parameters: string[]): string {
+/** What an empty parameter reads as, so a missing value never leaves a gap in the sentence. */
+const PARAMETER_FALLBACKS: Record<string, string> = {
+  resident_name: 'there',
+  due_date: 'soon',
+  reference_number: 'Not provided',
+};
+
+const EVENT_BY_TEMPLATE = new Map(
+  EVENT_KEYS.filter((key) => EVENT_REGISTRY[key].whatsapp).map((key) => [
+    EVENT_REGISTRY[key].templateName,
+    key,
+  ])
+);
+
+async function renderTemplateToText(templateName: string, parameters: string[]): Promise<string> {
+  const event = EVENT_BY_TEMPLATE.get(templateName);
+  const order = event && EVENT_REGISTRY[event].whatsapp?.parameterOrder;
+  if (event && order) {
+    const variables = Object.fromEntries(
+      order.map((name, index) => [name, parameters[index] || PARAMETER_FALLBACKS[name] || ''])
+    );
+    const content = await getEventContent(event, 'whatsapp');
+    return renderEventText(content.body, variables);
+  }
   const renderer = TEMPLATE_RENDERERS[templateName];
   if (renderer) {
     return renderer(parameters);
@@ -414,7 +429,7 @@ export function createChatmaidWhatsAppProvider(
       return sendContent(message.to, message.body, message.idempotencySeed, message.mediaUrls);
     },
     async sendTemplate(message: WhatsAppTemplateMessage) {
-      const content = renderTemplateToText(message.templateName, message.parameters);
+      const content = await renderTemplateToText(message.templateName, message.parameters);
       return sendContent(message.to, content, message.idempotencySeed);
     },
   };

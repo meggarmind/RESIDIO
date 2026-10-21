@@ -3,8 +3,12 @@
 /**
  * Notification Template List Component
  *
- * Lists the resident emails whose wording an admin can edit (#907). The set is fixed by the
- * event registry, so there is nothing to create, duplicate or delete here.
+ * Lists the events whose wording an admin can edit on one channel: the resident emails (#907) or
+ * the Chatmaid WhatsApp texts (#908). The set is fixed by the event registry, so there is nothing
+ * to create, duplicate or delete here.
+ *
+ * WhatsApp through Meta or Twilio sends code-owned approved templates, so those rows are read-only:
+ * the template name and the order its parameters are filled in.
  */
 
 import {
@@ -18,36 +22,47 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { IconBox } from '@/components/ui/icon-box';
-import { Eye, Mail, Pencil } from 'lucide-react';
+import { Eye, Mail, MessageCircle, Pencil } from 'lucide-react';
 import { useNotificationTemplates } from '@/hooks/use-notifications';
-import { EVENT_KEYS, EVENT_REGISTRY } from '@/lib/notifications/event-content-registry';
+import {
+  EVENT_KEYS,
+  EVENT_REGISTRY,
+  getChannelContent,
+  type ContentChannel,
+} from '@/lib/notifications/event-content-registry';
 import type { NotificationTemplate } from '@/lib/notifications/types';
 
 interface TemplateListProps {
+  channel?: ContentChannel;
+  /** WhatsApp only: the active provider. Anything but Chatmaid shows the code-owned template read-only. */
+  whatsappProvider?: string | null;
   /** Edit controls show only when the viewer holds notifications.manage. */
   canManage: boolean;
   onEdit?: (template: NotificationTemplate) => void;
   onPreview?: (template: NotificationTemplate) => void;
 }
 
-export function TemplateList({ canManage, onEdit, onPreview }: TemplateListProps) {
-  const { data: templates, isLoading } = useNotificationTemplates({ channel: 'email' });
+export function TemplateList({
+  channel = 'email',
+  whatsappProvider,
+  canManage,
+  onEdit,
+  onPreview,
+}: TemplateListProps) {
+  const { data: templates, isLoading } = useNotificationTemplates({ channel });
+  const readOnly = channel === 'whatsapp' && whatsappProvider !== 'chatmaid';
 
   if (isLoading) {
-    return <div className="text-center py-8 text-muted-foreground">Loading emails...</div>;
+    return <div className="text-center py-8 text-muted-foreground">Loading...</div>;
   }
 
-  const rows = EVENT_KEYS.map((key) => ({
+  const rows = EVENT_KEYS.filter((key) => getChannelContent(key, channel)).map((key) => ({
     key,
     template: templates?.find((t) => t.event === key),
   }));
 
   if (!templates || templates.length === 0) {
-    return (
-      <div className="text-center py-8 text-muted-foreground">
-        No editable emails found.
-      </div>
-    );
+    return <div className="text-center py-8 text-muted-foreground">Nothing editable found.</div>;
   }
 
   return (
@@ -55,8 +70,8 @@ export function TemplateList({ canManage, onEdit, onPreview }: TemplateListProps
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Email</TableHead>
-            <TableHead>Wording</TableHead>
+            <TableHead>{channel === 'whatsapp' ? 'Message' : 'Email'}</TableHead>
+            <TableHead>{readOnly ? 'Template' : 'Wording'}</TableHead>
             <TableHead className="w-[200px] text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
@@ -69,7 +84,11 @@ export function TemplateList({ canManage, onEdit, onPreview }: TemplateListProps
                 <TableCell>
                   <div className="flex items-center gap-3">
                     <IconBox color="blue" size="sm">
-                      <Mail className="h-5 w-5" />
+                      {channel === 'whatsapp' ? (
+                        <MessageCircle className="h-5 w-5" />
+                      ) : (
+                        <Mail className="h-5 w-5" />
+                      )}
                     </IconBox>
                     <div>
                       <div className="font-medium">{definition.displayName}</div>
@@ -80,14 +99,28 @@ export function TemplateList({ canManage, onEdit, onPreview }: TemplateListProps
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={editedCount > 0 ? 'default' : 'secondary'}>
-                    {editedCount > 0
-                      ? `${editedCount} ${editedCount === 1 ? 'field' : 'fields'} edited`
-                      : 'Default'}
-                  </Badge>
+                  {readOnly ? (
+                    <div className="text-xs text-muted-foreground">
+                      <div>
+                        Approved template <code>{definition.templateName}</code>, set in code
+                      </div>
+                      <div>
+                        Parameters in order:{' '}
+                        {definition.whatsapp?.parameterOrder
+                          ?.map((name) => `{{${name}}}`)
+                          .join(', ')}
+                      </div>
+                    </div>
+                  ) : (
+                    <Badge variant={editedCount > 0 ? 'default' : 'secondary'}>
+                      {editedCount > 0
+                        ? `${editedCount} ${editedCount === 1 ? 'field' : 'fields'} edited`
+                        : 'Default'}
+                    </Badge>
+                  )}
                 </TableCell>
                 <TableCell className="text-right">
-                  {template && (
+                  {template && !readOnly && (
                     <div className="flex justify-end gap-2">
                       {onPreview && (
                         <Button variant="outline" size="sm" onClick={() => onPreview(template)}>

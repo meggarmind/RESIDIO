@@ -30,7 +30,7 @@ import type { NotificationChannel } from '@/lib/notifications/types';
 const CHANNEL_ICONS: Record<NotificationChannel, typeof Mail> = { email: Mail, sms: MessageSquare, whatsapp: MessageCircle };
 
 export default function NotificationsSettingsPage() {
-  const { data: templates, isLoading: templatesLoading } = useNotificationTemplates();
+  const { data: templates, isLoading: templatesLoading } = useNotificationTemplates({ channel: 'email' });
   const { data: queueStats, isLoading: queueLoading } = useQueueStatistics();
   const { data: historyStats, isLoading: historyLoading } = useNotificationStats();
 
