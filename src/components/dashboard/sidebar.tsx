@@ -121,7 +121,8 @@ export function Sidebar({ className }: SidebarProps) {
           {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </button>
       </div>
-      <nav className={cn('flex-1 pb-4 space-y-4', isExpanded ? 'px-4' : 'px-2')}>
+      {/* The shell is h-dvh and the aside clips, so the nav must shrink and scroll itself (#1009). */}
+      <nav className={cn('min-h-0 flex-1 overflow-y-auto pb-4 space-y-4', isExpanded ? 'px-4' : 'px-2')}>
         <TooltipProvider delayDuration={0}>
           {sections.map((section, sectionIndex) => (
             <div key={section.id}>
