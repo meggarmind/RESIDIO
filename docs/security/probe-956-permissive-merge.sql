@@ -1,12 +1,19 @@
 -- Rolled-back access-delta probe for #956. NOT executed by the branch author.
--- Run on Residio_Stage BEFORE applying the 20261023100000..20261023100600
--- rls_merge_permissive_* migrations, as the migration owner, in ONE transaction.
+-- Run on Residio_Stage BEFORE applying the migrations it tests, as the migration owner, in ONE
+-- transaction:
+--   part 1: 20261023100000..20261023100600 rls_merge_permissive_* (applied to Stage; expect no
+--           difference for any subject);
+--   part 2: 20261023100700..20261023100800 rls_rescope_merge_* (owner decision 2026-10-21,
+--           option A). Expect no difference for any role:* subject or for resident. Every anon
+--           row is a change to report, table by table; read houses select first. The 'before'
+--           rows for anon are today's anon access on each table.
 --
 -- 1. Captures, for anon, one active profile per app role and one resident, how many rows each
 --    touched table returns to SELECT, and how many rows an UPDATE and a DELETE would reach
 --    (each write is undone at once by a subtransaction; any error is recorded by SQLSTATE).
 -- 2. Applies the migration bodies (paste them at the marker, without their own BEGIN/COMMIT).
--- 3. Captures again and lists every difference. Zero rows = zero access delta.
+-- 3. Captures again and lists every difference. Zero rows = zero access delta (part 2: zero rows
+--    other than subject anon).
 -- 4. ROLLBACK. Nothing is committed.
 --
 -- INSERT is not probed here: no generic INSERT exercises a WITH CHECK. The WITH CHECK
@@ -28,7 +35,10 @@ DECLARE
     'document_categories', 'document_custom_field_values', 'document_custom_fields', 'document_tags',
     'approval_requests', 'hierarchical_settings', 'impersonation_sessions', 'profiles', 'role_assignment_rules',
     'two_factor_audit_log',
-    'resident_houses', 'residents'];
+    'resident_houses', 'residents',
+    -- part 2 (resident_houses, residents and wallet_transactions are listed above)
+    'houses', 'invoices', 'invoice_items', 'resident_wallets', 'paystack_transactions',
+    'wallet_payment_batches', 'wallet_payment_batch_items'];
   s record; t text; op text; n bigint; res text;
 BEGIN
   FOR s IN
@@ -75,7 +85,7 @@ SELECT pg_temp.probe_956('before');
 
 SELECT pg_temp.probe_956('after');
 
--- Every difference between the phases. Expect zero rows.
+-- Every difference between the phases. Expect zero rows (part 2: only subject anon).
 SELECT coalesce(b.subject, a.subject) AS subject, coalesce(b.tbl, a.tbl) AS tbl, coalesce(b.op, a.op) AS op,
        b.result AS before, a.result AS after
   FROM (SELECT * FROM probe_956 WHERE phase = 'before') b
@@ -84,6 +94,15 @@ SELECT coalesce(b.subject, a.subject) AS subject, coalesce(b.tbl, a.tbl) AS tbl,
 
 -- Coverage: rows probed per phase (equal counts; subjects = anon + roles + resident).
 SELECT phase, count(DISTINCT subject) AS subjects, count(*) AS probes FROM probe_956 GROUP BY phase;
+
+-- anon, before and after, on the part 2 tables (the owner asked for each table to be reported).
+SELECT b.tbl, b.op, b.result AS before, a.result AS after
+  FROM (SELECT * FROM probe_956 WHERE phase = 'before' AND subject = 'anon') b
+  JOIN (SELECT * FROM probe_956 WHERE phase = 'after' AND subject = 'anon') a USING (tbl, op)
+ WHERE b.tbl IN ('houses', 'invoices', 'invoice_items', 'resident_wallets', 'paystack_transactions',
+                 'wallet_payment_batches', 'wallet_payment_batch_items', 'residents',
+                 'resident_houses', 'wallet_transactions')
+ ORDER BY b.tbl, b.op;
 
 ROLLBACK;
 
@@ -97,6 +116,8 @@ ROLLBACK;
 --   EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM public.residents;
 --   EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM public.security_contacts;
 --   EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM public.wallet_transactions;
+--   EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM public.houses;          -- part 2
+--   EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM public.invoices;        -- part 2
 --   RESET ROLE;
---   -- paste the migration bodies, then repeat the three EXPLAINs as the same subject
+--   -- paste the migration bodies, then repeat the EXPLAINs as the same subject
 --   ROLLBACK;
