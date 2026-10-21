@@ -202,7 +202,7 @@ beforeAll(async () => {
   const later = readdirSync(migrationsDir)
     .filter((f) => f.endsWith('.sql') && f.slice(0, 14) > BASELINE_CUTOFF)
     .sort();
-  expect(later.filter((f) => f.startsWith('20261024')).length).toBe(3);
+  expect(later.filter((f) => /^20261024100[012]00_resident_merge_/.test(f)).length).toBe(3);
   for (const f of later) await replay(f, readFileSync(path.join(migrationsDir, f), 'utf8'));
 
   await replay(
