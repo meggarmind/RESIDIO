@@ -10,8 +10,8 @@ residio_sources:
   - src/actions/system/cron-status.ts
   - src/lib/system/cron-status.ts
   - src/app/(dashboard)/system/cron-status/**
-residio_verified_commit: 29e89ffa
-residio_verified_at: '2026-10-20'
+residio_verified_commit: b7aa8ecf
+residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---
 
@@ -30,7 +30,7 @@ Times are in UTC. Adjust for your estate's local time when reasoning about when 
 | Job | Runs | What it does |
 |---|---|---|
 | Payment cadence refresh | Daily, 00:00 | Recalculates resident payment cadence |
-| WhatsApp retention purge | Daily, 00:15 | Removes expired WhatsApp sessions and processed messages |
+| WhatsApp retention purge | Daily, 00:15 | Removes expired WhatsApp sessions, processed messages, survey answers and outbound send records |
 | Invoice generation | Daily, 06:00 | Generates recurring invoices that are due |
 | Report generation | Daily, 06:00 | Builds scheduled reports |
 | Report schedule processing | Daily, 07:00 | Delivers reports to their subscribers |

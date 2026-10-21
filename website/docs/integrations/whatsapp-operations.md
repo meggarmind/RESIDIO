@@ -8,8 +8,8 @@ residio_sources:
   - src/actions/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp/**
   - src/app/api/whatsapp/**
-residio_verified_commit: dc3b32b2
-residio_verified_at: '2026-10-20'
+residio_verified_commit: b7aa8ecf
+residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---
 
@@ -308,6 +308,10 @@ WhatsApp operational state is short-lived by design and purged on a daily schedu
 
 - Sessions are removed after they expire, by default the next day.
 - Processed message records are removed after their expiry, by default two days.
+- Survey answers (the rating, the optional comment and the phone number) are removed after 90 days by default. Opt-out records are kept, because they record a resident's choice and hold no comment.
+- Outbound send records are removed after 90 days by default.
+
+The session, processed message, survey answer and outbound send periods are set under **Settings → WhatsApp** in the rollout controls. Survey answer and outbound send periods accept 1 to 365 days.
 
 The cleanup runs automatically shortly after midnight, documented on the Scheduled jobs page in this section.
 
