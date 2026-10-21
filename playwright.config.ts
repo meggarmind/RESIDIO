@@ -20,7 +20,8 @@ export default defineConfig({
             use: { ...devices['Desktop Chrome'] },
         },
     ],
-    webServer: {
+    // PERF_BASE_URL points e2e/perf-admin.spec.ts at an existing environment: no local server.
+    webServer: process.env.PERF_BASE_URL ? undefined : {
         command: 'npm run dev',
         url: 'http://localhost:3000',
         reuseExistingServer: !process.env.CI,

@@ -12,6 +12,8 @@ set +x
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/backup/r2-env.sh
 . "${here}/r2-env.sh"
+# shellcheck source=scripts/backup/retention.sh
+. "${here}/retention.sh"
 
 env_name="${1:-}"
 case "$env_name" in
@@ -94,5 +96,8 @@ prune() {
 }
 prune daily "$KEEP_DAILY"
 prune monthly "$KEEP_MONTHLY"
+
+# Last, so a full bucket fails the job (GitHub emails the owner) without losing today's backup.
+check_bucket_size
 
 echo "Backup of ${env_name} complete"
