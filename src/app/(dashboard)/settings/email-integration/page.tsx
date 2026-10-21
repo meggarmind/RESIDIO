@@ -227,7 +227,7 @@ function EmailIntegrationContent() {
               <p className="text-sm text-muted-foreground">Manage PDF passwords in the Bank Accounts settings.</p>
             </div>
             <Button variant="outline" asChild>
-              <a href="/settings/bank-accounts"><Settings className="h-4 w-4 mr-2" /> Bank Accounts</a>
+              <a href="/settings/banking#bank-accounts"><Settings className="h-4 w-4 mr-2" /> Bank Accounts</a>
             </Button>
           </div>
         </CardContent>

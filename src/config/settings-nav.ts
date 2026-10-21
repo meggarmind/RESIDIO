@@ -101,17 +101,92 @@ export const settingsConfig: SettingsGroup[] = [
             {
                 title: "Billing Rules",
                 href: "/settings/billing",
+                description: "How invoices are generated and fall due, late fees, and development levies",
+                // The page opens for the same permissions as before the merge (#935); the four sections are all
+                // visible to anyone who reaches it and each control keeps the permission its action enforces.
                 permissions: [PERMISSIONS.SETTINGS_MANAGE_BILLING],
-                children: [
-                    { title: "General", href: "/settings/billing", description: "General billing configuration", permissions: [PERMISSIONS.SETTINGS_MANAGE_BILLING] },
-                    { title: "Late Fees", href: "/settings/billing/late-fees", description: "Late fee rules and waivers", permissions: [PERMISSIONS.SETTINGS_MANAGE_BILLING] },
-                    { title: "Invoices & Due Dates", href: "/settings/billing/invoices", description: "When invoices are generated and fall due", permissions: [PERMISSIONS.SETTINGS_MANAGE_BILLING] },
-                    { title: "Levies", href: "/settings/billing/development-levies", description: "Development levy profiles", permissions: [PERMISSIONS.SETTINGS_MANAGE_BILLING] },
-                ]
+                sections: [
+                    {
+                        id: "general",
+                        title: "General",
+                        rows: [
+                            { id: "bill-vacant-houses", label: "Bill vacant houses", help: "Bill property owners for vacant properties.", keywords: ["empty", "unoccupied", "owner", "dues"] },
+                            { id: "bill-under-renovation", label: "Bill houses under renovation", help: "Bill property owners for properties under renovation.", keywords: ["refurbishment", "dues"] },
+                            { id: "bill-under-construction", label: "Bill houses under construction", help: "Bill property owners for properties under construction.", keywords: ["building", "dues"] },
+                            { id: "auto-generate-levies", label: "Auto-generate levies", help: "Automatically generate one-time levies when a house is created.", keywords: ["development levy", "one-time", "new house"] },
+                            { id: "pro-rata-first-month", label: "Pro-rata first month", help: "Apply pro-rata calculation for the first billing month.", keywords: ["partial month", "proration"] },
+                            { id: "invoice-due-window", label: "Invoice due window", help: "Days from invoice issue date until payment is due (1-90).", keywords: ["dues", "payment deadline", "due date"] },
+                            { id: "payment-reminder-days", label: "Payment reminder days", help: "Which days before the due date reminders may go out.", keywords: ["dues", "nudge", "chase"] },
+                            { id: "clearance-copy-group", label: "Clearance certificate copies", help: "Every issued clearance certificate is copied on WhatsApp to the members of one group.", keywords: ["move-out", "certificate", "whatsapp"] },
+                        ],
+                    },
+                    {
+                        id: "invoices",
+                        title: "Invoices & due dates",
+                        rows: [
+                            { id: "auto-generate-invoices", label: "Auto-generate invoices", help: "Automatically generate monthly invoices on the configured day.", keywords: ["monthly bill", "dues", "schedule"] },
+                            { id: "generation-day", label: "Generation day", help: "Day of the month when invoices are generated.", keywords: ["billing day", "due date", "dues"] },
+                        ],
+                    },
+                    {
+                        id: "late-fees",
+                        title: "Late fees",
+                        rows: [
+                            { id: "late-fee-enabled", label: "Enable late fees", help: "Apply late fee charges to overdue invoices.", keywords: ["penalty", "fine", "surcharge", "overdue", "dues"] },
+                            { id: "late-fee-type", label: "Late fee type", help: "How the late fee is calculated.", keywords: ["penalty", "percentage", "fixed amount"] },
+                            { id: "late-fee-amount", label: "Late fee amount", help: "A percentage of the invoice total or a fixed amount, depending on the type.", keywords: ["penalty", "rate", "naira"] },
+                            { id: "grace-period-days", label: "Grace period", help: "Days after the due date before a late fee applies (1-30). The late fee run treats 0 as 7, so 0 is not accepted.", keywords: ["penalty", "overdue", "dues"] },
+                            { id: "late-fee-auto-apply", label: "Auto-apply late fees", help: "Automatically apply late fees on the configured day.", keywords: ["penalty", "automatic"] },
+                            { id: "late-fee-application-day", label: "Application day", help: "Day of the month to auto-apply late fees.", keywords: ["penalty", "schedule"] },
+                            { id: "apply-late-fees-now", label: "Apply late fees now", help: "Manually apply late fees to all eligible overdue invoices.", keywords: ["penalty", "run", "charge", "dues"] },
+                            { id: "late-fee-waivers", label: "Late fee waiver requests", help: "Review and approve or reject requests to waive a late fee.", keywords: ["penalty", "forgive", "cancel fee"] },
+                        ],
+                    },
+                    {
+                        id: "levies",
+                        title: "Levies",
+                        rows: [
+                            { id: "current-dev-levy", label: "Current development levy", help: "This profile is applied to all newly created houses.", keywords: ["one-time", "new house", "rate card"] },
+                            { id: "retroactive-levies", label: "Generate retroactive levies", help: "Generate outstanding one-time levies for existing houses that haven't been charged yet.", keywords: ["backfill", "catch up", "existing houses"] },
+                        ],
+                    },
+                ],
             },
             { title: "Rate Cards", href: "/settings/billing/profiles", description: "Billing profiles: what each house type pays", permissions: [PERMISSIONS.BILLING_MANAGE_PROFILES] },
-            { title: "Bank Accounts", href: "/settings/bank-accounts", description: "Estate bank accounts", permissions: [PERMISSIONS.SETTINGS_MANAGE_REFERENCE] },
-            { title: "Transaction Tags", href: "/settings/transaction-tags", description: "Financial categorization", permissions: [PERMISSIONS.SETTINGS_MANAGE_REFERENCE] },
+            {
+                title: "Banking",
+                href: "/settings/banking",
+                description: "Estate bank accounts, transaction tags and duplicate matching",
+                // The OR of the sections: the page opens for any one of them and each section keeps its own.
+                permissions: [PERMISSIONS.SETTINGS_MANAGE_REFERENCE, PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE],
+                sections: [
+                    {
+                        id: "bank-accounts",
+                        title: "Bank accounts",
+                        permissions: [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
+                        rows: [
+                            { id: "estate-bank-accounts", label: "Estate bank accounts", help: "Add, edit or remove the accounts used for statement imports. Changes by non-admin users require approval.", keywords: ["account number", "statement import", "bank"] },
+                            { id: "statement-passwords", label: "PDF statement passwords", help: "Passwords for password-protected bank statement PDFs. They are encrypted at rest.", keywords: ["pdf password", "encrypted statement", "unlock"] },
+                        ],
+                    },
+                    {
+                        id: "tags",
+                        title: "Transaction tags",
+                        permissions: [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
+                        rows: [
+                            { id: "transaction-tags", label: "Transaction tags", help: "Category tags that classify incoming (credit) and outgoing (debit) bank statement transactions for financial reporting.", keywords: ["category", "classify", "credit", "debit", "keywords"] },
+                        ],
+                    },
+                    {
+                        id: "duplicate-matching",
+                        title: "Duplicate matching",
+                        permissions: [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE],
+                        rows: [
+                            { id: "duplicate-threshold", label: "Confidence threshold", help: "Transactions scoring above this percentage are flagged as duplicates.", keywords: ["sensitivity", "duplicate payment", "double", "match score"] },
+                        ],
+                    },
+                ],
+            },
         ]
     },
     {
@@ -463,7 +538,7 @@ export const settingsConfig: SettingsGroup[] = [
         title: "System",
         icon: Wrench,
         items: [
-            { title: "Maintenance Mode", href: "/settings/maintenance", description: "Maintenance mode and duplicate matching", permissions: [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE] },
+            { title: "Maintenance Mode", href: "/settings/maintenance", description: "Turn maintenance mode on and set the message", permissions: [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE] },
             { title: "Data Retention", href: "/settings/data-retention", description: "Retention policies and pruning", permissions: [PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION] },
             {
                 // Live state stays in /system (ADR-0004); these entries only link to it (#933).

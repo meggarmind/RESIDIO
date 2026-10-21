@@ -182,8 +182,8 @@ export function BankAccountsList() {
   return (
     <div className="space-y-4">
       {/* Header with filter and add button */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-4">
           <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
             <TabsList>
               <TabsTrigger value="all">{canAutoApprove ? 'All' : 'Active'}</TabsTrigger>
@@ -314,7 +314,7 @@ export function BankAccountsList() {
 
       {/* Table */}
       <div className="rounded-md border">
-        <Table>
+        <Table stack>
           <TableHeader>
             <TableRow>
               <TableHead>Account Name</TableHead>
@@ -351,11 +351,11 @@ export function BankAccountsList() {
             ) : (
               filteredAccounts.map((account) => (
                 <TableRow key={account.id}>
-                  <TableCell className="font-medium">{account.account_name}</TableCell>
-                  <TableCell className="font-mono text-sm">{account.account_number}</TableCell>
-                  <TableCell>{account.bank_name}</TableCell>
-                  <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">{truncateDescription(account.description)}</TableCell>
-                  <TableCell>
+                  <TableCell label="Account name" className="font-medium">{account.account_name}</TableCell>
+                  <TableCell label="Account number" className="font-mono text-sm">{account.account_number}</TableCell>
+                  <TableCell label="Bank">{account.bank_name}</TableCell>
+                  <TableCell label="Description" className="text-muted-foreground text-sm max-w-[200px] truncate">{truncateDescription(account.description)}</TableCell>
+                  <TableCell label="Status">
                     <Badge variant={account.is_active ? 'default' : 'secondary'}>{account.is_active ? 'Active' : 'Inactive'}</Badge>
                   </TableCell>
                   {canManage && (

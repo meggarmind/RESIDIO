@@ -326,8 +326,13 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/settings/audit-logs': [PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS],
 
   // Billing & finance
+  // /settings/billing is the merged Billing rules page (#935): general, invoices, late fees and levies all
+  // opened under this key already (the old sub-routes inherited it by prefix), so it is unchanged.
   '/settings/billing': [PERMISSIONS.SETTINGS_MANAGE_BILLING, PERMISSIONS.BILLING_MANAGE_PROFILES],
   '/settings/billing/profiles': [PERMISSIONS.BILLING_MANAGE_PROFILES],
+  // Merged Banking page (#935): the OR of bank accounts and tags (manage_reference) and duplicate matching
+  // (manage_maintenance). The old /settings/bank-accounts and /settings/transaction-tags keys stay (ADR-0004).
+  '/settings/banking': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE, PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE],
   '/settings/email-integration': [PERMISSIONS.EMAIL_IMPORTS_VIEW],
   '/settings/email-integration/config': [PERMISSIONS.EMAIL_IMPORTS_CONFIGURE],
 

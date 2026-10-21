@@ -7,7 +7,7 @@ export const SETUP_STEPS = [
   { id: 'estate', title: 'Add the estate name and address', href: '/settings/estate-info' },
   { id: 'street', title: 'Add a street', href: '/settings/streets' },
   { id: 'houseType', title: 'Add a house type', href: '/settings/house-types' },
-  { id: 'bankAccount', title: 'Add a bank account', href: '/settings/bank-accounts' },
+  { id: 'bankAccount', title: 'Add a bank account', href: '/settings/banking' },
   { id: 'billingProfile', title: 'Create a billing profile', href: '/settings/billing/profiles' },
   { id: 'billingSettings', title: 'Save the billing settings', href: '/settings/billing' },
   { id: 'notificationChannel', title: 'Turn on a notification channel', href: '/settings/sending' },

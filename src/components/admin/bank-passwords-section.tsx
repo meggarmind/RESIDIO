@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ConfirmAction } from '@/components/ui/confirm-action';
 import { Input } from '@/components/ui/input';
@@ -106,92 +105,82 @@ export function BankPasswordsSection() {
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5" />
-            PDF Statement Passwords
-          </CardTitle>
-          <CardDescription>
-            Set passwords for password-protected bank statement PDFs. These are encrypted at rest.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="text-center py-4 text-muted-foreground">Loading accounts...</div>
-          ) : !allAccounts || allAccounts.length === 0 ? (
-            <div className="text-center py-4 text-muted-foreground">
-              No bank accounts found. Add bank accounts first.
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {allAccounts.map((account) => (
-                <div
-                  key={account.id}
-                  className="flex flex-wrap items-center justify-between gap-3 p-4 border rounded-lg"
-                >
-                  <div className="flex items-center gap-4">
-                    <Key className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                      <p className="font-medium">{account.account_name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {account.bank_name} • ****{account.account_number.slice(-4)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {account.has_password ? (
-                      <>
-                        <Badge variant="secondary">
-                          <Shield className="h-3 w-3 mr-1" />
-                          Password Set
-                        </Badge>
-                        {canManage && (
-                        <>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="min-h-11 md:min-h-8"
-                          onClick={() => handleOpenDialog(account)}
-                        >
-                          Update
-                        </Button>
-                        <ConfirmAction
-                          trigger={
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="size-11 md:size-8"
-                              aria-label={`Remove password for ${account.account_name}`}
-                              disabled={removePasswordMutation.isPending}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          }
-                          title="Remove the statement password?"
-                          description="Password-protected statements for this account cannot be opened until a password is set again."
-                          confirmLabel="Remove password"
-                          destructive
-                          onConfirm={() => removePasswordMutation.mutate(account.id)}
-                        />
-                        </>
-                        )}
-                      </>
-                    ) : canManage ? (
-                      <Button variant="outline" size="sm" className="min-h-11 md:min-h-8" onClick={() => handleOpenDialog(account)}>
-                        <Key className="h-4 w-4 mr-2" />
-                        Set Password
-                      </Button>
-                    ) : (
-                      <Badge variant="outline">No password</Badge>
-                    )}
+      {/* The "PDF statement passwords" row of Banking supplies the heading and help (#935). */}
+      <div className="w-full">
+        {isLoading ? (
+          <div className="text-center py-4 text-muted-foreground">Loading accounts...</div>
+        ) : !allAccounts || allAccounts.length === 0 ? (
+          <div className="text-center py-4 text-muted-foreground">
+            No bank accounts found. Add bank accounts first.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {allAccounts.map((account) => (
+              <div
+                key={account.id}
+                className="flex flex-wrap items-center justify-between gap-3 p-4 border rounded-lg"
+              >
+                <div className="flex items-center gap-4">
+                  <Key className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <p className="font-medium">{account.account_name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {account.bank_name} • ****{account.account_number.slice(-4)}
+                    </p>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                <div className="flex items-center gap-2">
+                  {account.has_password ? (
+                    <>
+                      <Badge variant="secondary">
+                        <Shield className="h-3 w-3 mr-1" />
+                        Password Set
+                      </Badge>
+                      {canManage && (
+                      <>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="min-h-11 md:min-h-8"
+                        onClick={() => handleOpenDialog(account)}
+                      >
+                        Update
+                      </Button>
+                      <ConfirmAction
+                        trigger={
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="size-11 md:size-8"
+                            aria-label={`Remove password for ${account.account_name}`}
+                            disabled={removePasswordMutation.isPending}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        }
+                        title="Remove the statement password?"
+                        description="Password-protected statements for this account cannot be opened until a password is set again."
+                        confirmLabel="Remove password"
+                        destructive
+                        onConfirm={() => removePasswordMutation.mutate(account.id)}
+                      />
+                      </>
+                      )}
+                    </>
+                  ) : canManage ? (
+                    <Button variant="outline" size="sm" className="min-h-11 md:min-h-8" onClick={() => handleOpenDialog(account)}>
+                      <Key className="h-4 w-4 mr-2" />
+                      Set Password
+                    </Button>
+                  ) : (
+                    <Badge variant="outline">No password</Badge>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Set Password Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
