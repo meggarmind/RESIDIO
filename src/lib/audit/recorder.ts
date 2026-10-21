@@ -85,6 +85,7 @@ export const ENTITY_DISPLAY_FIELDS: Record<AuditEntityType, readonly (string | r
   app_permissions: DEFAULT_DISPLAY_FIELDS,
   role_permissions: DEFAULT_DISPLAY_FIELDS,
   role_assignment_rules: DEFAULT_DISPLAY_FIELDS,
+  admin_titles: ['name'],
   notification_templates: ['display_name', 'name'],
   notification_schedules: ['name'],
   notification_queue: DEFAULT_DISPLAY_FIELDS,

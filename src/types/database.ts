@@ -311,6 +311,7 @@ export type AuditEntityType =
   | 'app_permissions'     // Phase 10: RBAC
   | 'role_permissions'    // Phase 10: RBAC
   | 'role_assignment_rules' // Role assignment restrictions
+  | 'admin_titles'        // Titles under an admin role (#823)
   | 'notification_templates'    // Phase 11: Notifications
   | 'notification_schedules'    // Phase 11: Notifications
   | 'notification_queue'        // Phase 11: Notifications
@@ -410,6 +411,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   app_permissions: 'Permission',   // Phase 10: RBAC
   role_permissions: 'Role Permission', // Phase 10: RBAC
   role_assignment_rules: 'Role Assignment Rule',
+  admin_titles: 'Admin Title',     // Titles under an admin role (#823)
   notification_templates: 'Notification Template',    // Phase 11: Notifications
   notification_schedules: 'Notification Schedule',    // Phase 11: Notifications
   notification_queue: 'Queued Notification',          // Phase 11: Notifications
