@@ -294,6 +294,12 @@ Two migrations, each guarded, idempotent, one transaction, with its rollback in 
 
 Modelled `multiple_permissive_policies` findings on the ten tables: 11 before, 0 after.
 
+`src/__tests__/rls-permissive-policy-merge-956.test.ts` replays them too. For every table, command
+and permissive flag it proves that `authenticated` evaluates the same `USING` and `WITH CHECK`
+disjuncts before and after, that `anon` and `service_role` lose exactly the re-scoped policies and
+nothing else, that no overlap is left on any table either part touched, and that the rollback
+blocks restore part 1's definitions.
+
 **Left `TO public`, by design.** These policies on the same tables overlap nothing, so option A does
 not reach them: `houses` INSERT, UPDATE and DELETE; `residents` INSERT and DELETE;
 `resident_houses` INSERT, UPDATE and DELETE; and the `wallet_transactions` `(insert)`, `(update)` and
