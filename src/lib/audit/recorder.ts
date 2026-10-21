@@ -79,6 +79,7 @@ export const ENTITY_DISPLAY_FIELDS: Record<AuditEntityType, readonly (string | r
   system_settings: ['key', 'name'],
   bank_statement_imports: ['file_name'],
   resident_payment_aliases: ['alias_name'],
+  resident_merges: DEFAULT_DISPLAY_FIELDS,
   estate_bank_accounts: [['bank_name', 'account_number']],
   transaction_tags: ['name'],
   app_roles: ['display_name', 'name'],
