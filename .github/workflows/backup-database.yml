@@ -6,6 +6,7 @@
 # Plan: docs/deployment/hosting-plan.md "Backup plan". Secrets and the restore runbook:
 # same file, "Backups: secrets, restore runbook". The logic lives in scripts/backup/.
 #
+# A preflight step names any unset secret before the first dump step (#799).
 # Failure is deliberately loud: no continue-on-error anywhere, every script runs with
 # `set -euo pipefail`, and GitHub emails on a failed scheduled run. The job fails while
 # the Supabase project is paused: resume it first.
@@ -64,6 +65,10 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v5
 
+      # Fails fast, naming each unset secret, instead of a psql socket error (#799).
+      - name: Preflight secrets
+        run: node scripts/backup/preflight.mjs prod
+
       - name: Install PostgreSQL 17 client, age and rclone
         run: bash scripts/backup/install-tools.sh
 
@@ -93,6 +98,10 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
+
+      # Fails fast, naming each unset secret, instead of a psql socket error (#799).
+      - name: Preflight secrets
+        run: node scripts/backup/preflight.mjs stage
 
       - name: Install PostgreSQL 17 client, age and rclone
         run: bash scripts/backup/install-tools.sh
