@@ -264,6 +264,33 @@ export const settingsConfig: SettingsGroup[] = [
             },
             { title: "Rate Cards", href: "/settings/billing/profiles", description: "Billing profiles: what each house type pays", permissions: [PERMISSIONS.BILLING_MANAGE_PROFILES] },
             {
+                title: "Debt Status",
+                href: "/settings/debt-status",
+                description: "The words for what a house owes, the arrears threshold and the debt status report",
+                permissions: [PERMISSIONS.SETTINGS_MANAGE_DEBT_STATUS],
+                sections: [
+                    {
+                        id: "labels",
+                        title: "Status labels",
+                        rows: [
+                            { id: "debt-label-arrears", label: "Arrears", help: "Shown when a house owes more invoices than the arrears threshold.", keywords: ["debt", "owing", "overdue", "debtor", "wording"] },
+                            { id: "debt-label-outstanding", label: "Outstanding", help: "Shown when a house owes from 1 invoice up to the arrears threshold. A part-paid invoice counts as owed.", keywords: ["debt", "owing", "unpaid", "wording"] },
+                            { id: "debt-label-paid-in-full", label: "Paid in Full", help: "Shown when a house owes nothing and its billed resident has no wallet credit.", keywords: ["clear", "settled", "up to date", "wording"] },
+                            { id: "debt-label-credit", label: "Credit", help: "Shown when a house owes nothing and its billed resident has wallet credit.", keywords: ["paid ahead", "prepaid", "wallet", "wording"] },
+                        ],
+                    },
+                    {
+                        id: "rules",
+                        title: "Threshold and report",
+                        rows: [
+                            { id: "debt-arrears-threshold", label: "Arrears threshold", help: "Owed invoices whose period has started, up to this many, are Outstanding; more are Arrears.", keywords: ["months", "debt", "overdue", "debtor"] },
+                            { id: "debt-report-footnote", label: "Report footnote", help: "Printed under the debt status report.", keywords: ["footer", "note", "pdf", "financial secretary"] },
+                            { id: "debt-chat-pdf-house-limit", label: "Chat PDF house limit", help: "A debt status PDF covering more houses than this is sent by email instead of in the WhatsApp chat.", keywords: ["whatsapp", "pdf", "email", "report size"] },
+                        ],
+                    },
+                ],
+            },
+            {
                 title: "Banking",
                 href: "/settings/banking",
                 description: "Estate bank accounts, transaction tags and duplicate matching",
