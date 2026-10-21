@@ -921,7 +921,7 @@ function propertyPrompt(houses: FinancialHouse[]): string {
 }
 
 function statementPeriodPrompt(): string {
-  return ['Which period?', '1. This month', '2. This year', '3. Last 6 months', '4. Last 12 months', '5. All time', 'Reply with the period number.'].join('\n');
+  return ['Which period?', '1. This month', '2. This year', '3. Last 6 months', '4. Last 12 months', '5. All time', '6. Since move-in', 'Reply with the period number.'].join('\n');
 }
 
 async function miss(turn: Turn, node: string): Promise<void> {
@@ -1025,6 +1025,7 @@ function requestInput(turn: Turn, house: FinancialHouse, period: StatementPeriod
 
 /** The period and property line that opens every statement reply; carries no statement rows (#917). */
 function statementHeading(period: StatementPeriod, house: FinancialHouse, fromDate: string, toDate: string): string {
+  if (period === 'since_move_in') return `*Statement, ${house.label}*\n${formatDay(fromDate)} (move-in) to ${formatDay(toDate)}`;
   return `*Statement, ${PERIOD_LABELS[period]}, ${house.label}*\n${formatDay(fromDate)} to ${formatDay(toDate)}`;
 }
 
@@ -1682,7 +1683,7 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
   }
 
   if (node === 'statement_period') {
-    const period = /^[1-5]$/.test(input) ? PERIODS[Number(input) - 1] : null;
+    const period = /^[1-6]$/.test(input) ? PERIODS[Number(input) - 1] : /^since move[ -]in$/.test(input) ? 'since_move_in' : null;
     if (!period) return miss(turn, node);
     await loadHouses(turn);
     if (!selectedHouse(turn)) return enterFinancial(turn, 'statement');

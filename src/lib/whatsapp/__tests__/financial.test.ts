@@ -499,18 +499,18 @@ describe('WhatsApp Assistant statement (#804 decisions 22-23)', () => {
     vi.useRealTimers();
   });
 
-  it('offers the five periods and sends the chosen range as a PDF in Lagos time', async () => {
+  it('offers the six periods and sends the chosen range as a PDF in Lagos time', async () => {
     const repo = repository();
     const replies = await chat(repo, ['statement', '3']);
 
-    expect(replies[0]).toBe(['Which period?', '1. This month', '2. This year', '3. Last 6 months', '4. Last 12 months', '5. All time', 'Reply with the period number.'].join('\n'));
+    expect(replies[0]).toBe(['Which period?', '1. This month', '2. This year', '3. Last 6 months', '4. Last 12 months', '5. All time', '6. Since move-in', 'Reply with the period number.'].join('\n'));
     expect(repo.loadStatement).toHaveBeenCalledWith('resident-1', 'house-1', 'last_six_months', expect.any(Date));
     expect(replies[1]).toBe(['*Statement, last 6 months, 12 Palm Close*', '1 Oct 2026 to 20 Oct 2026', 'Your PDF is attached.', FOOTER].join('\n'));
     expect(repo.logDisclosure).toHaveBeenCalledWith(expect.objectContaining({ menuItem: 'statement', houseId: 'house-1', channel: 'pdf' }));
   });
 
   it('sends every period as a PDF and never as chat rows', async () => {
-    for (const [choice, period] of [['1', 'this_month'], ['2', 'this_year'], ['3', 'last_six_months'], ['4', 'last_twelve_months'], ['5', 'all_time']]) {
+    for (const [choice, period] of [['1', 'this_month'], ['2', 'this_year'], ['3', 'last_six_months'], ['4', 'last_twelve_months'], ['5', 'all_time'], ['6', 'since_move_in'], ['since move-in', 'since_move_in'], ['Since move in', 'since_move_in']]) {
       const repo = repository([PALM], { loadStatement: vi.fn().mockResolvedValue({ fromDate: '2026-10-01', toDate: '2026-10-20', statement: statementData(0) }) });
       const send = vi.fn().mockResolvedValue({ success: true });
       for (const text of ['statement', choice]) await handleFinancialMessage(message(text), identity, { repository: repo, optedIn: true, send });
@@ -519,6 +519,15 @@ describe('WhatsApp Assistant statement (#804 decisions 22-23)', () => {
       expect(send.mock.calls[1][0].mediaUrls).toEqual(['https://storage.test/signed/statement.pdf']);
       expect(send.mock.calls[1][0].body).not.toMatch(/Charges|Payments:|Invoice|earlier entries|No activity|Reply PDF/);
     }
+  });
+
+  it('heads a since-move-in statement with the move-in date and no period label', async () => {
+    const repo = repository([PALM], { loadStatement: vi.fn().mockResolvedValue({ fromDate: '2025-02-03', toDate: '2026-10-20', statement: statementData(0) }) });
+    const send = vi.fn().mockResolvedValue({ success: true });
+    for (const text of ['statement', '6']) await handleFinancialMessage(message(text), identity, { repository: repo, optedIn: true, send });
+
+    expect(send.mock.calls[1][0].body).toBe(['*Statement, 12 Palm Close*', '3 Feb 2025 (move-in) to 20 Oct 2026', 'Your PDF is attached.', FOOTER].join('\n'));
+    expect(repo.logDisclosure).toHaveBeenCalledWith(expect.objectContaining({ metadata: { period: 'since_move_in', row_count: 0 } }));
   });
 
   it('starts each period at midnight Lagos', () => {
