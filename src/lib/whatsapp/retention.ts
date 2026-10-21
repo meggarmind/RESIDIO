@@ -1,5 +1,11 @@
 import { createAdminClient } from '@/lib/supabase/server';
 
+/** A retention setting as the purge cron applies it: clamped to 1..max days, or the fallback when unset or invalid. */
+export function retentionDays(value: unknown, fallback: number, max: number): number {
+  const n = typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;
+  return Number.isFinite(n) ? Math.min(Math.max(n, 1), max) : fallback;
+}
+
 export async function purgeWhatsAppOperationalState(options?: {
   sessionDays?: number;
   processedMessageDays?: number;

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { getRawSettingsAsService } from '@/lib/settings/service';
+import { retentionDays } from '@/lib/whatsapp/retention';
 import { POLICY_LAST_UPDATED, buildPolicySections, type PolicyContext } from './content';
 
 export const metadata: Metadata = { title: 'Privacy Policy' };
@@ -11,7 +12,7 @@ function text(value: unknown): string {
 }
 
 async function loadContext(): Promise<PolicyContext> {
-  const result = await getRawSettingsAsService(['estate_name', 'estate_phone', 'estate_email']);
+  const result = await getRawSettingsAsService(['estate_name', 'estate_phone', 'estate_email', 'whatsapp_survey_retention_days']);
   if (result.status === 'error') {
     console.error('Privacy policy: estate settings lookup failed', result.message);
     return { estateName: 'Residio Estate' };
@@ -20,6 +21,8 @@ async function loadContext(): Promise<PolicyContext> {
     estateName: text(result.values.get('estate_name')) || 'Residio Estate',
     phone: text(result.values.get('estate_phone')) || undefined,
     email: text(result.values.get('estate_email')) || undefined,
+    // Same clamp as the purge cron, so the policy states the period actually enforced.
+    surveyRetentionDays: retentionDays(result.values.get('whatsapp_survey_retention_days'), 90, 365),
   };
 }
 

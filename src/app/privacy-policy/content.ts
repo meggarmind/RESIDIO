@@ -10,6 +10,8 @@ export interface PolicyContext {
   estateName: string;
   phone?: string;
   email?: string;
+  /** `whatsapp_survey_retention_days` as the purge cron applies it; 90 when unknown. */
+  surveyRetentionDays?: number;
 }
 
 /** The estate office contact sentence, or '' when neither phone nor email is set. */
@@ -74,7 +76,7 @@ export function buildPolicySections(ctx: PolicyContext): PolicySection[] {
     {
       heading: '6. How long we keep it',
       items: [
-        'Survey answers: 90 days.',
+        `Survey answers: ${ctx.surveyRetentionDays ?? 90} days.`,
         'Financial records: as long as the law requires.',
         'Consent records: kept as evidence of your consent.',
         'Other data: while you are a resident, and for a reasonable period after.',

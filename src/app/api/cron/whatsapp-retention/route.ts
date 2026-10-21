@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSettingValueAsService } from '@/lib/settings/service';
 import { verifyCronAuth } from '@/lib/auth/cron-auth';
-import { purgeWhatsAppOperationalState } from '@/lib/whatsapp/retention';
+import { purgeWhatsAppOperationalState, retentionDays } from '@/lib/whatsapp/retention';
 import { withSystemLog, type SystemLogRun } from '@/lib/system-log/with-system-log';
 
 export const runtime = 'nodejs';
@@ -15,10 +15,6 @@ export async function GET(request: NextRequest) {
 // The settings page stores these as JSON strings, other writers store numbers.
 // Anything that is not a finite number or a non-blank numeric string falls back
 // to the default, so an invalid value never widens the deletion window.
-function retentionDays(value: unknown, fallback: number, max: number): number {
-  const n = typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;
-  return Number.isFinite(n) ? Math.min(Math.max(n, 1), max) : fallback;
-}
 
 async function runPurge(run: SystemLogRun) {
   try {

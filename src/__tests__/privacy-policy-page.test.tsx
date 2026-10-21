@@ -21,6 +21,11 @@ describe('privacy policy page', () => {
     expect(html).toContain('0801 or at office@palm.test');
   });
 
+  it('states the configured survey retention, clamped as the purge cron applies it', async () => {
+    expect(await render({ whatsapp_survey_retention_days: '30' })).toContain('Survey answers: 30 days.');
+    expect(await render({ whatsapp_survey_retention_days: '9999' })).toContain('Survey answers: 365 days.');
+  });
+
   it('omits the contact details when none are set', async () => {
     const html = await render({ estate_name: 'Palm Estate' });
     expect(html).not.toContain('You can contact the estate office');
