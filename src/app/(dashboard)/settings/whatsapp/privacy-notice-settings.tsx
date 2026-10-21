@@ -35,7 +35,7 @@ export function PrivacyNoticeSettings({ initial }: { initial: { version: string;
       <div className="space-y-1">
         <Label htmlFor="privacy-notice-text">Notice text</Label>
         <Textarea id="privacy-notice-text" rows={8} value={text} disabled={!canManage || isPending} onChange={(event) => setText(event.target.value)} />
-        <p className="text-xs text-muted-foreground">Sent to residents as a PDF before the assistant uses their records. Needs exco sign-off before launch.</p>
+        <p className="text-xs text-muted-foreground">Sent to residents in the WhatsApp chat before the assistant uses their records. Placeholders: {'{{URL}}'} (the public site address), {'{{App Name}}'} (the estate name) and {'{{App Assistant}}'}. WhatsApp formatting works: *bold* and _italic_.</p>
       </div>
       {canManage ? <Button size="sm" disabled={isPending || !version.trim() || !text.trim()} onClick={handleSave}>Save notice</Button> : null}
     </div>

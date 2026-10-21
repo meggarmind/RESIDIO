@@ -8,7 +8,7 @@ residio_sources:
   - src/actions/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp/**
   - src/app/api/whatsapp/**
-residio_verified_commit: 4f1afcb3
+residio_verified_commit: de4ddea8
 residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---
@@ -134,11 +134,11 @@ Pending contacts are people who have messaged the number but are not yet matched
 The alerts opt-in above covers messages the estate sends. Before the assistant uses a resident's records to answer them, two more steps run in chat, for every number including imported opt-ins:
 
 1. **Identity read-back.** On the first message from a matched number the assistant replies `This number is registered to <First> <L.> on <Street>. Is that you?` with `1. Yes, that's me` and `2. No, not me`. It asks again if the resident's name or street changes.
-2. **Privacy notice.** After `Yes`, the resident gets a short message with the full notice attached as a PDF, and replies `1. Accept` or `2. Decline`. A request sent before this, such as `OWE`, is answered after Accept, still behind the PIN policy. A resident who declines gets the estate office contact and can reply `ACCEPT` at any time; no records are used until then.
+2. **Privacy notice.** After `Yes`, the resident gets the full notice as a message in the chat, followed by `_Version X_`, and replies `1. Accept` or `2. Decline`. A request sent before this, such as `OWE`, is answered after Accept, still behind the PIN policy. A resident who declines gets the estate office contact and can reply `ACCEPT` at any time; no records are used until then.
 
 Every decision (identity confirmed or disputed, notice accepted or declined) is logged permanently with the number, the notice version and the WhatsApp message that carried it. `STOP` and `START` keep their meaning for alerts.
 
-**Privacy notice** in the Resident bot section holds the notice text and version. Changing the version asks every resident to accept again. A text change is refused unless the version changes too, so each accepted version covers one wording. The text needs exco sign-off before launch.
+**Privacy notice** in the Resident bot section holds the notice text and version. Changing the version asks every resident to accept again. A text change is refused unless the version changes too, so each accepted version covers one wording. The text is sent in the chat, so WhatsApp formatting (`*bold*`, `_italic_`) works. These placeholders are filled when the message is sent: `{{URL}}` (the public site address from `NEXT_PUBLIC_SITE_URL`), `{{App Name}}` (the estate name) and `{{App Assistant}}` (the estate name followed by `Assistant`). If the text has `{{URL}}` and no site address is set, the notice counts as not published and nothing is sent. The notice can link to the public privacy policy at `/privacy-policy`, which needs no sign-in.
 
 If a holder answers **No, not me**, the number is marked **disputed** in Pending contacts, admins are notified, and the assistant shows no details for it. After checking, an admin with WhatsApp manage permission clicks **Clear dispute**; the number then gets the identity read-back again on its next message. A link code does not lift a dispute; only clearing it does.
 
