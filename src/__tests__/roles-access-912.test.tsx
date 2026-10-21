@@ -52,6 +52,13 @@ vi.mock('@/hooks/use-roles', () => ({
   useCreateRoleWithPermissions: mutation,
   useUpdateRole: mutation,
   useDeleteRole: mutation,
+  useAdminTitles: () => ({ data: [], isLoading: false }),
+  useCreateAdminTitle: mutation,
+  useUpdateAdminTitle: mutation,
+}));
+vi.mock('@tanstack/react-query', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-query')>()),
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
 vi.mock('@/hooks/use-portal-access', () => ({ usePortalAccessOverrides: () => ({ data: {} }) }));
 vi.mock('@/hooks/use-auth-accounts', () => ({
@@ -63,7 +70,11 @@ vi.mock('@/hooks/use-pending-accounts', () => ({
   useApproveAccount: mutation,
   useRejectAccount: mutation,
 }));
-vi.mock('@/actions/roles/assign-role', () => ({ searchResidentsForRoleAssignment: vi.fn() }));
+vi.mock('@/actions/roles/assign-role', () => ({
+  searchResidentsForRoleAssignment: vi.fn(),
+  assignRoleToProfile: vi.fn(),
+  removeRoleFromProfile: vi.fn(),
+}));
 vi.mock('@/components/admin/portal-access-control', () => ({ PortalAccessControl: () => null }));
 vi.mock('@/components/admin/role-assignment-section', () => ({ RoleAssignmentSection: () => null }));
 vi.mock('@/components/admin/role-assignment-rules', () => ({ RoleAssignmentRulesEditor: () => <p>rules editor</p> }));

@@ -9,6 +9,7 @@ import { OrphanedAccountsList } from '@/components/admin/orphaned-accounts-list'
 import { CurrentAdminsList } from '@/components/admin/current-admins-list';
 import { PendingAccountsList } from '@/components/admin/pending-accounts-list';
 import { RolesList } from '@/components/admin/roles-list';
+import { RoleTitlesManager } from '@/components/admin/role-titles-manager';
 import { RoleAssignmentRulesEditor } from '@/components/admin/role-assignment-rules';
 import { Users, Ghost, UserCheck, Shield, Settings, Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-provider';
@@ -150,6 +151,18 @@ function AccountsContent() {
               </CardHeader>
               <CardContent>
                 <RolesList />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Titles</CardTitle>
+                <CardDescription>
+                  Add, rename or resize the titles people can hold under each role.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <RoleTitlesManager />
               </CardContent>
             </Card>
           </TabsContent>

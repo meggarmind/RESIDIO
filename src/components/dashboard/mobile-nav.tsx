@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth/auth-provider';
+import { roleWithTitle } from '@/lib/auth/role-label';
 import { useEstateLogo } from '@/hooks/use-estate-logo';
 import { ThemeSwitcher } from '@/components/ui/theme-switcher';
 import {
@@ -142,7 +143,7 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
             <div className="flex-1 truncate">
               <p className="text-sm font-medium truncate">{profile?.full_name}</p>
               <p className="text-xs capitalize text-muted-foreground">
-                {profile?.role_display_name}
+                {roleWithTitle(profile?.role_display_name, profile?.title_name)}
               </p>
             </div>
           </div>

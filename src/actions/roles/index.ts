@@ -805,9 +805,13 @@ export async function getCurrentAdmins(): Promise<{
     last_name: string;
     email: string | null;
     house_address: string | null;
+    /** The linked resident, if any; a resident-only role cannot be given without one. */
+    resident_id: string | null;
     role_id: string;
     role_name: string;
     role_display_name: string;
+    title_id: string | null;
+    title_name: string | null;
   }>;
   error?: string;
 }> {
@@ -826,7 +830,12 @@ export async function getCurrentAdmins(): Promise<{
       email,
       full_name,
       role_id,
+      title_id,
       resident_id,
+      admin_titles:title_id (
+        id,
+        name
+      ),
       residents:resident_id (
         id,
         first_name,
@@ -878,6 +887,8 @@ export async function getCurrentAdmins(): Promise<{
         display_name: string;
       };
 
+      const title = profile.admin_titles as unknown as { id: string; name: string } | null;
+
       // Get primary or first active house
       const houses = resident?.resident_houses || [];
       const primaryHouse = houses.find((h) => h.is_primary && h.is_active)
@@ -902,9 +913,12 @@ export async function getCurrentAdmins(): Promise<{
         last_name: resident?.last_name || profileLastName || '',
         email: resident?.email || profile.email || null,
         house_address: houseAddress,
+        resident_id: profile.resident_id ?? null,
         role_id: role.id,
         role_name: role.name,
         role_display_name: role.display_name,
+        title_id: profile.title_id ?? null,
+        title_name: title?.name ?? null,
       };
     })
     .sort(

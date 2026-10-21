@@ -22,6 +22,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useCan } from '@/components/auth/can';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import {
   useGmailConnectionStatus,
   useManualFetch,
@@ -75,6 +77,10 @@ export default function EmailImportsPage() {
   const cancelMutation = useCancelImport();
   const retryMutation = useRetryImport();
   const manualFetchMutation = useManualFetch();
+  // The same permissions the actions enforce: cancel, retry and manual fetch are
+  // email_imports.trigger; the Configure link leads to email_imports.configure.
+  const canTrigger = useCan(PERMISSIONS.EMAIL_IMPORTS_TRIGGER);
+  const canConfigure = useCan(PERMISSIONS.EMAIL_IMPORTS_CONFIGURE);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['email-imports', statusFilter],
@@ -114,21 +120,25 @@ export default function EmailImportsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => manualFetchMutation.mutate()}
-            disabled={manualFetchMutation.isPending}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${manualFetchMutation.isPending ? 'animate-spin' : ''}`} />
-            {manualFetchMutation.isPending ? 'Fetching...' : 'Manual Fetch'}
-          </Button>
+          {canTrigger && (
+            <Button
+              variant="outline"
+              onClick={() => manualFetchMutation.mutate()}
+              disabled={manualFetchMutation.isPending}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${manualFetchMutation.isPending ? 'animate-spin' : ''}`} />
+              {manualFetchMutation.isPending ? 'Fetching...' : 'Manual Fetch'}
+            </Button>
+          )}
 
-          <Button variant="outline" asChild>
-            <a href="/settings/email-integration">
-              <Settings className="h-4 w-4 mr-2" />
-              Configure
-            </a>
-          </Button>
+          {canConfigure && (
+            <Button variant="outline" asChild>
+              <a href="/settings/email-integration">
+                <Settings className="h-4 w-4 mr-2" />
+                Configure
+              </a>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -290,7 +300,7 @@ export default function EmailImportsPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1 justify-end">
-                        {['fetching', 'parsing', 'matching', 'processing'].includes(importItem.status) && (
+                        {canTrigger && ['fetching', 'parsing', 'matching', 'processing'].includes(importItem.status) && (
                           <>
                             <Button
                               variant="ghost"
@@ -314,7 +324,7 @@ export default function EmailImportsPage() {
                           </>
                         )}
 
-                        {importItem.status === 'failed' && (
+                        {canTrigger && importItem.status === 'failed' && (
                           <Button
                             variant="ghost"
                             size="icon"

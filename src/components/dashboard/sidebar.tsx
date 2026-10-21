@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth/auth-provider';
+import { roleWithTitle } from '@/lib/auth/role-label';
 import { User, UserSearch, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { usePendingApprovalsCount } from '@/hooks/use-approvals';
 import { Badge } from '@/components/ui/badge';
@@ -405,7 +406,7 @@ export function Sidebar({ className }: SidebarProps) {
               <TooltipContent side="right">
                 <p className="font-medium">{profile?.full_name}</p>
                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  {profile?.role_display_name}
+                  {roleWithTitle(profile?.role_display_name, profile?.title_name)}
                 </p>
               </TooltipContent>
             </Tooltip>
@@ -431,7 +432,7 @@ export function Sidebar({ className }: SidebarProps) {
                   {profile?.full_name}
                 </p>
                 <p className="text-xs truncate whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
-                  {profile?.role_display_name}
+                  {roleWithTitle(profile?.role_display_name, profile?.title_name)}
                 </p>
               </div>
             </Link>

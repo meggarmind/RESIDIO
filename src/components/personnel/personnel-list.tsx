@@ -17,6 +17,8 @@ import {
     X
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useCan } from '@/components/auth/can';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,6 +50,8 @@ const PersonnelDialog = dynamic(
 );
 
 export function PersonnelList() {
+    // vendors.manage: create, edit and delete personnel all enforce it server-side.
+    const canManage = useCan(PERMISSIONS.VENDORS_MANAGE);
     const [personnel, setPersonnel] = useState<PersonnelWithEngagements[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -165,7 +169,7 @@ export function PersonnelList() {
                     </SelectContent>
                 </Select>
 
-                <PersonnelDialog onSuccess={fetchPersonnel} />
+                {canManage && <PersonnelDialog onSuccess={fetchPersonnel} />}
             </div>
 
             {/* Active Filter Badges */}
@@ -297,29 +301,31 @@ export function PersonnelList() {
                                         </Badge>
                                     </TableCell>
                                     <TableCell className="text-right">
-                                        <div className="flex items-center justify-end gap-1">
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="h-8 w-8"
-                                                onClick={() => {
-                                                    setEditPersonnel(person);
-                                                    setEditOpen(true);
-                                                }}
-                                                title="Edit"
-                                            >
-                                                <Pencil className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="h-8 w-8 text-red-600"
-                                                onClick={() => handleDelete(person.id)}
-                                                title="Delete"
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </div>
+                                        {canManage && (
+                                            <div className="flex items-center justify-end gap-1">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-8 w-8"
+                                                    onClick={() => {
+                                                        setEditPersonnel(person);
+                                                        setEditOpen(true);
+                                                    }}
+                                                    title="Edit"
+                                                >
+                                                    <Pencil className="h-4 w-4" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-8 w-8 text-red-600"
+                                                    onClick={() => handleDelete(person.id)}
+                                                    title="Delete"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        )}
                                     </TableCell>
                                 </TableRow>
                             ))

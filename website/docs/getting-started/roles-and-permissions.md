@@ -9,8 +9,11 @@ residio_sources:
   - src/app/(dashboard)/settings/user-roles/**
   - src/app/(dashboard)/system/accounts/**
   - src/components/admin/role-assignment-section.tsx
+  - src/components/admin/admin-role-actions.tsx
+  - src/components/admin/role-title-picker.tsx
+  - src/components/admin/role-titles-manager.tsx
   - src/components/admin/pending-accounts-list.tsx
-residio_verified_commit: 971058f1
+residio_verified_commit: 13cbd359
 residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---
@@ -57,6 +60,8 @@ A **title** is the post a person holds within a role. A backup officer, such as 
 
 Every role except Super Administrator and Security Guard Supervisor can only be held by an account linked to a resident record. If that resident moves out or is deactivated, the role is removed automatically.
 
+A role with only view access, such as Trustee, sees no create, edit, delete, approve or settings buttons on the admin pages: each control appears only when the role holds the matching write permission.
+
 A plain resident holds no role at all. They have no admin dashboard and reach the resident portal through their resident record.
 
 :::info[Resident portal links]
@@ -102,7 +107,14 @@ The search has two modes, chosen with the **Residents / Accounts** switch above 
 - **Residents** searches people with a resident record on an estate property. A resident must already have a linked account before a role will attach — if they do not, the result is tagged **No Account** and you can link one from the selected record.
 - **Accounts** searches everyone who has a login, whether or not they live on the estate. This is how you reach staff such as a hired security officer or a treasurer after they have been approved.
 
-Select someone, choose a role, and confirm. If they already hold a role you are asked to confirm the replacement instead.
+Select someone, choose a role, then choose a **title** under that role and confirm. If they already hold a role you are asked to confirm the replacement instead.
+
+- **Title.** The list shows only the titles that belong to the chosen role. A title whose seats are all taken is greyed out and names who holds it, for example "Vice Chairman — held by Jane Doe"; move that person to another title first. Choosing **No title** is allowed. Changing someone's role clears their old title, so pick the new one in the same step.
+- **Residents only.** A role that can only be held by a resident, such as Chairman or Trustee, cannot be given to an account with no resident record. The page says so before you submit; link the account to a resident first.
+- **Change role and Remove role.** Each row on the **Administrators** tab has both buttons, so you do not need to search for the person again. They appear only when you are allowed to change that account, and Remove role is never offered on a Super Administrator.
+- **Titles.** On the **Roles** tab, the **Titles** card lists every title with its seats and current holders. A holder of Manage Roles can add a title, rename one, or change its seats; seats cannot be set below the number of people who hold the title. Leave seats empty for no limit.
+
+The signed-in person's title shows next to their role in the header and sidebar, in the Administrators list and in the Roles tab.
 
 Who can change whom follows two permissions. **Assign Board Roles**, which only the Super Administrator holds, is needed to assign the Super Administrator, Chairman or Trustee role, and to change an account that holds the Super Administrator or Chairman role. **Assign Roles** covers every other role and every other account, a Trustee's included, so a Chairman can manage Trustee accounts but cannot appoint a Trustee. The same rules apply to approving, rejecting and removing roles, linking or unlinking an account and a resident, and resetting someone's two-factor authentication, and an Assignment Rule cannot allow a role you could not assign yourself.
 

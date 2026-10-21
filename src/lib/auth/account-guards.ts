@@ -1,5 +1,8 @@
 import { createAdminClient } from '@/lib/supabase/server';
-import { extractRoleName, PERMISSIONS, type Permission } from '@/lib/auth/action-roles';
+import { extractRoleName } from '@/lib/auth/action-roles';
+import { permissionToGrant, permissionToManage } from '@/lib/auth/board-roles';
+
+export { permissionToGrant, permissionToManage };
 
 /**
  * Who may grant which role, and who may change whom (#475, #826).
@@ -24,24 +27,6 @@ import { extractRoleName, PERMISSIONS, type Permission } from '@/lib/auth/action
  * role's active permissions). Treat a refusal here as final; a lookup failure
  * refuses rather than allows.
  */
-
-/** Roles only a `system.assign_board_roles` holder may grant. */
-const BOARD_GRANT_ROLES: readonly string[] = ['super_admin', 'chairman', 'trustee'];
-
-/** Accounts only a `system.assign_board_roles` holder may change. Trustee is deliberately absent. */
-const BOARD_ACCOUNT_ROLES: readonly string[] = ['super_admin', 'chairman'];
-
-export function permissionToGrant(roleName: string): Permission {
-  return BOARD_GRANT_ROLES.includes(roleName)
-    ? PERMISSIONS.SYSTEM_ASSIGN_BOARD_ROLES
-    : PERMISSIONS.SYSTEM_ASSIGN_ROLES;
-}
-
-export function permissionToManage(targetRoleName: string | null): Permission {
-  return targetRoleName && BOARD_ACCOUNT_ROLES.includes(targetRoleName)
-    ? PERMISSIONS.SYSTEM_ASSIGN_BOARD_ROLES
-    : PERMISSIONS.SYSTEM_ASSIGN_ROLES;
-}
 
 export type ManageTargetResult =
   | { ok: true; targetRoleName: string | null; targetApprovalStatus: string | null }

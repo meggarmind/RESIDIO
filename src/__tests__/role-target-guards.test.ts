@@ -272,7 +272,7 @@ describe('assignRoleToProfile', () => {
     expect(writesTo('profiles')).toEqual([]);
 
     seed({ caller: 'secretary', target: 'treasurer', callerGrants: [ASSIGN] });
-    expect(await assignRoleToProfile(TARGET_AUTH_ID, ROLES.auditor.id as string)).toEqual({ success: true });
+    expect(await assignRoleToProfile(TARGET_AUTH_ID, ROLES.auditor.id as string)).toMatchObject({ success: true });
   });
 
   it('refuses a caller with neither permission changing even an ordinary account', async () => {
@@ -285,13 +285,13 @@ describe('assignRoleToProfile', () => {
   it('still lets a chairman reassign an ordinary account', async () => {
     seed({ caller: 'chairman', target: 'secretary' });
     const result = await assignRoleToProfile(TARGET_AUTH_ID, ROLES.auditor.id as string);
-    expect(result).toEqual({ success: true });
+    expect(result).toMatchObject({ success: true });
     expect(profileOf(TARGET_AUTH_ID).role_id).toBe('r-auditor');
   });
 
   it('lets a chairman demote a trustee', async () => {
     seed({ caller: 'chairman', target: 'trustee' });
-    expect(await assignRoleToProfile(TARGET_AUTH_ID, ROLES.secretary.id as string)).toEqual({ success: true });
+    expect(await assignRoleToProfile(TARGET_AUTH_ID, ROLES.secretary.id as string)).toMatchObject({ success: true });
     expect(profileOf(TARGET_AUTH_ID).role_id).toBe('r-sec');
   });
 
@@ -307,7 +307,7 @@ describe('assignRoleToProfile', () => {
 
   it.each(['super_admin', 'chairman', 'trustee'] as const)('lets a super_admin grant %s', async (role) => {
     seed({ caller: 'super_admin', target: 'secretary' });
-    expect(await assignRoleToProfile(TARGET_AUTH_ID, ROLES[role].id as string)).toEqual({ success: true });
+    expect(await assignRoleToProfile(TARGET_AUTH_ID, ROLES[role].id as string)).toMatchObject({ success: true });
   });
 
   it('lets a super_admin change a chairman', async () => {

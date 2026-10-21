@@ -2014,8 +2014,27 @@ export interface RolePermission {
 // Role with permissions (for UI display)
 export interface AppRoleWithPermissions extends AppRole {
   permissions: AppPermission[];
+  /** Only a profile linked to a resident may hold the role (#823). Absent until the types are regenerated. */
+  requires_resident?: boolean;
   /** Profiles holding the role; null when the count could not be read. Absent on single-role reads. */
   user_count?: number | null;
+}
+
+// A title under an admin role, such as Vice Chairman under chairman (#823).
+// Hand-written: the generated types predate public.admin_titles.
+export interface AdminTitle {
+  id: string;
+  role_id: string;
+  name: string;
+  is_principal: boolean;
+  /** null means unlimited */
+  seats: number | null;
+  sort_order: number;
+}
+
+/** A title with the people holding it now, for seat-full display. */
+export interface AdminTitleWithHolders extends AdminTitle {
+  holders: Array<{ profile_id: string; name: string }>;
 }
 
 // Profile with role details (new RBAC)

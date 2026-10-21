@@ -28,6 +28,8 @@ interface Profile {
   role_id: string | null;
   role_name: AppRoleName | null;
   role_display_name: string | null;
+  /** Title under the role, such as Vice Chairman (#827); display only. */
+  title_name?: string | null;
   permissions: string[];
   // Resident portal fields
   resident_id: string | null;
@@ -271,7 +273,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Fetch profile including resident_id for portal access
     const { data: profileDataRaw, error: profileError } = await supabase
       .from('profiles')
-      .select('id, email, full_name, role_id, resident_id')
+      .select('id, email, full_name, role_id, resident_id, admin_titles:title_id (name)')
       .eq('id', userId)
       .single();
     let profileData = profileDataRaw;
@@ -326,7 +328,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // permissions, on every navigation and reload.
         setProfile(fallbackProfile);
         cacheProfileIfHealthy(fallbackProfile, true);
-        profileData = fallbackProfile;
+        profileData = { ...fallbackProfile, admin_titles: [] };
       } else {
         return;
       }
@@ -398,6 +400,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    // One FK, so the embed comes back as a single object; tolerate an array all the same.
+    const joinedTitle = (profileData as { admin_titles?: unknown }).admin_titles;
+    const titleName =
+      ((Array.isArray(joinedTitle) ? joinedTitle[0] : joinedTitle) as { name?: string } | null | undefined)?.name ?? null;
+
     const newProfile: Profile = {
       id: profileData.id,
       email: profileData.email,
@@ -405,6 +412,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       role_id: profileData.role_id,
       role_name: roleName as AppRoleName | null,
       role_display_name: roleDisplayName,
+      title_name: titleName,
       permissions,
       resident_id: profileData.resident_id,
     };

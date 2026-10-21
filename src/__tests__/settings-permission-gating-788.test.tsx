@@ -54,6 +54,7 @@ vi.mock('@/hooks/use-roles', () => ({
     { id: 'r1', name: 'treasurer', display_name: 'Treasurer', category: 'exco', is_active: true, is_system_role: false, permissions: [], user_count: 2 },
   ]),
   usePermissions: query([]),
+  useAdminTitles: query([]),
   useCreateRoleWithPermissions: mutation,
   useUpdateRole: mutation,
   useDeleteRole: mutation,
