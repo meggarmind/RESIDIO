@@ -7,10 +7,9 @@
 --   decided by public.get_debt_statuses (20261022180000_debt_status.sql), the one place the rule lives.
 --   - House: the status of the house as a whole, plus the same three fields on each row of "residents"
 --     (that resident's own invoices in the house and that resident's wallet).
---   - Resident: the worst status over the houses the resident is linked to or has invoices in, using the
---     most-to-least-owed order of DEBT_STATUSES (arrears, outstanding, paid_in_full, credit);
---     owedInvoiceCount sums those houses; walletBalance is the resident's wallet. A resident with no
---     house and no invoice is credit when the wallet holds money, otherwise paid_in_full.
+--   - Resident: the #980 rule applied to owedInvoiceCount, the resident's owed invoices summed over the
+--     houses they are linked to or have invoices in (threshold read from system_settings as
+--     get_debt_statuses does), with the resident's own wallet for credit. Not the worst per-house status.
 --   The status words are labels applied in TypeScript (system_settings), not here.
 --
 -- IDEMPOTENT: CREATE OR REPLACE FUNCTION. Return type stays jsonb, so no caller breaks.
@@ -42,6 +41,18 @@ AS $$
       p_resident_id
     )
   ),
+  totals AS (
+    SELECT COALESCE(SUM(d.owed_invoice_count), 0) AS owed FROM d
+  ),
+  params AS (
+    SELECT coalesce(
+      (SELECT (s.value #>> '{}')::integer
+         FROM public.system_settings s
+        WHERE s.key = 'debt_status_arrears_threshold_months'
+          AND s.value #>> '{}' ~ '^[0-9]{1,3}$'),
+      3
+    ) AS threshold
+  ),
   wallet AS (
     SELECT COALESCE((SELECT w.balance FROM public.resident_wallets w WHERE w.resident_id = p_resident_id), 0) AS balance
   )
@@ -54,12 +65,13 @@ AS $$
     'partiallyPaidCount', COUNT(*) FILTER (
       WHERE i.status = 'partially_paid' AND i.amount_due - i.amount_paid > 0
     ),
-    'debtStatus', COALESCE(
-      (SELECT d.status FROM d
-        ORDER BY array_position(ARRAY['arrears', 'outstanding', 'paid_in_full', 'credit'], d.status) LIMIT 1),
-      CASE WHEN (SELECT balance FROM wallet) > 0 THEN 'credit' ELSE 'paid_in_full' END
-    ),
-    'owedInvoiceCount', COALESCE((SELECT SUM(d.owed_invoice_count) FROM d), 0),
+    'debtStatus', CASE
+      WHEN (SELECT owed FROM totals) > (SELECT threshold FROM params) THEN 'arrears'
+      WHEN (SELECT owed FROM totals) > 0 THEN 'outstanding'
+      WHEN (SELECT balance FROM wallet) > 0 THEN 'credit'
+      ELSE 'paid_in_full'
+    END,
+    'owedInvoiceCount', (SELECT owed FROM totals),
     'walletBalance', (SELECT balance FROM wallet)
   )
   FROM public.invoices i

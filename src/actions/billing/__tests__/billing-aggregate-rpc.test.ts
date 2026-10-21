@@ -58,6 +58,15 @@ describe('billing aggregate RPC adapters', () => {
     expect(rpc).toHaveBeenCalledWith('get_resident_indebtedness', { p_resident_id: 'resident-1' });
   });
 
+  it('labels a resident with 2 owed invoices in each of two houses as arrears', async () => {
+    const data = { totalUnpaid: 40, invoiceCount: 4, unpaidCount: 4, partiallyPaidCount: 0, debtStatus: 'arrears', owedInvoiceCount: 4, walletBalance: 0 };
+    rpc.mockResolvedValue({ data, error: null });
+
+    const result = await getResidentIndebtedness('resident-1');
+
+    expect(result.data).toMatchObject({ debtStatus: 'arrears', debtStatusLabel: 'Arrears', owedInvoiceCount: 4 });
+  });
+
   it('uses the bounded house payment aggregate', async () => {
     const data = {
       totalDue: 10, totalPaid: 5, totalOutstanding: 5, debtStatus: 'arrears', owedInvoiceCount: 4, walletBalance: 0,
