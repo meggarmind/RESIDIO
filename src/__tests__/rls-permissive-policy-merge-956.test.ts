@@ -1,0 +1,286 @@
+import { readFileSync, readdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+
+/**
+ * Issue #956. The `rls_merge_permissive_*` migrations collapse overlapping permissive RLS policies
+ * into one policy per role and command, and must change no access. Nothing here connects to a
+ * database: the migrations are replayed in filename order into a model of the policy set, once up
+ * to the first #956 migration and once to the end, and the two are compared.
+ *
+ * The invariant: for every touched table, every role and every command, the set of OR-ed USING
+ * disjuncts and the set of OR-ed WITH CHECK disjuncts (a policy without WITH CHECK checks with its
+ * USING) are the same before and after. Restrictive policies are untouched. Applying each file's
+ * ROLLBACK block to the end state restores every original definition.
+ */
+
+const migrationsDir = fileURLToPath(
+  new URL("../../supabase/migrations", import.meta.url),
+);
+const files = readdirSync(migrationsDir)
+  .filter((f) => f.endsWith(".sql"))
+  .sort();
+const mergeFiles = files.filter((f) => /_rls_merge_permissive_/.test(f));
+
+const ROLES = ["anon", "authenticated", "service_role"];
+const ACTIONS = ["SELECT", "INSERT", "UPDATE", "DELETE"];
+
+interface Policy {
+  cmd: string;
+  roles: string[];
+  permissive: boolean;
+  using: string | null;
+  check: string | null;
+}
+type Model = Map<string, Policy>; // `${table}|${name}`
+
+const ws = (s: string) => s.replace(/\s+/g, " ").trim();
+const stripComments = (sql: string) =>
+  sql.replace(/\/\*[\s\S]*?\*\//g, "").replace(/--[^\n]*/g, "");
+const unquote = (s: string) =>
+  s.startsWith('"') ? s.slice(1, -1).replace(/""/g, '"') : s.toLowerCase();
+
+/** Index just past the parenthesis that closes the one at `open`. */
+function closeParen(s: string, open: number): number {
+  let depth = 0;
+  let quoted = false;
+  for (let i = open; i < s.length; i++) {
+    const c = s[i];
+    if (c === "'") quoted = !quoted;
+    if (quoted) continue;
+    if (c === "(") depth++;
+    if (c === ")" && --depth === 0) return i + 1;
+  }
+  throw new Error(`unbalanced: ${s.slice(open, open + 80)}`);
+}
+
+function clause(rest: string, keyword: RegExp): string | null {
+  const m = rest.match(keyword);
+  if (!m || m.index === undefined) return null;
+  const open = m.index + m[0].length - 1;
+  return ws(rest.slice(open + 1, closeParen(rest, open) - 1));
+}
+
+const NAME = '("(?:[^"]|"")+"|\\w+)';
+const TABLE = "(?:\\w+\\.)?(\\w+)";
+
+function apply(model: Model, statement: string) {
+  const st = ws(statement);
+  let m: RegExpMatchArray | null;
+  if (st.includes("%I")) return; // dynamic SQL creates only restrictive policies outside the touched set
+  if ((m = st.match(new RegExp(`^DROP TABLE (?:IF EXISTS )?${TABLE}`, "i")))) {
+    for (const key of [...model.keys()])
+      if (key.startsWith(`${m[1]}|`)) model.delete(key);
+  } else if (
+    (m = st.match(
+      new RegExp(`^DROP POLICY (?:IF EXISTS )?${NAME} ON ${TABLE}`, "i"),
+    ))
+  ) {
+    model.delete(`${m[2]}|${unquote(m[1])}`);
+  } else if (
+    (m = st.match(new RegExp(`^CREATE POLICY ${NAME} ON ${TABLE}(.*)$`, "i")))
+  ) {
+    const rest = m[3];
+    model.set(`${m[2]}|${unquote(m[1])}`, {
+      cmd: (
+        rest.match(/\bFOR (ALL|SELECT|INSERT|UPDATE|DELETE)\b/i)?.[1] ?? "ALL"
+      ).toUpperCase(),
+      roles: (rest.match(/\bTO ([\w, ]+?)(?= USING| WITH|$)/i)?.[1] ?? "public")
+        .split(",")
+        .map((r) => r.trim()),
+      permissive: !/\bAS RESTRICTIVE\b/i.test(rest),
+      using: clause(rest, /\bUSING \(/i),
+      check: clause(rest, /\bWITH CHECK \(/i),
+    });
+  } else if (
+    (m = st.match(new RegExp(`^ALTER POLICY ${NAME} ON ${TABLE}(.*)$`, "i")))
+  ) {
+    const existing = model.get(`${m[2]}|${unquote(m[1])}`);
+    if (!existing || /^\s*RENAME/i.test(m[3])) return;
+    existing.using = clause(m[3], /\bUSING \(/i) ?? existing.using;
+    existing.check = clause(m[3], /\bWITH CHECK \(/i) ?? existing.check;
+  }
+}
+
+const STATEMENT =
+  /\b(?:CREATE|ALTER|DROP)\s+POLICY\b[\s\S]*?;|\bDROP\s+TABLE\b[\s\S]*?;/gi;
+
+function replay(upTo: number): Model {
+  const model: Model = new Map();
+  for (const file of files.slice(0, upTo)) {
+    const sql = stripComments(
+      readFileSync(path.join(migrationsDir, file), "utf8"),
+    );
+    for (const st of sql.match(STATEMENT) ?? []) apply(model, st);
+  }
+  return model;
+}
+
+/** Top-level OR disjuncts, flattened through redundant outer parentheses. */
+function disjuncts(expr: string): string[] {
+  let s = ws(expr);
+  while (
+    s.startsWith("(") &&
+    closeParen(s, 0) === s.length &&
+    !/^\(\s*select\b/i.test(s)
+  )
+    s = s.slice(1, -1).trim();
+  const parts: string[] = [];
+  let depth = 0;
+  let quoted = false;
+  let start = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (c === "'") quoted = !quoted;
+    if (quoted) continue;
+    if (c === "(") depth++;
+    if (c === ")") depth--;
+    if (depth === 0 && s.slice(i, i + 4).toUpperCase() === " OR ") {
+      parts.push(s.slice(start, i));
+      start = i + 4;
+    }
+  }
+  parts.push(s.slice(start));
+  return parts.length === 1 ? [s] : parts.flatMap(disjuncts);
+}
+
+/** What Postgres evaluates for one table, role and command: sorted USING and WITH CHECK disjuncts. */
+function effective(
+  model: Model,
+  table: string,
+  role: string,
+  action: string,
+  permissive: boolean,
+) {
+  const applying = [...model.entries()].filter(
+    ([key, p]) =>
+      key.startsWith(`${table}|`) &&
+      p.permissive === permissive &&
+      (p.cmd === action || p.cmd === "ALL") &&
+      (p.roles.includes("public") || p.roles.includes(role)),
+  );
+  const set = (exprs: Array<string | null>) => {
+    const all = new Set(exprs.flatMap((e) => (e === null ? [] : disjuncts(e))));
+    return all.has("true") ? ["true"] : [...all].sort();
+  };
+  return {
+    using: action === "INSERT" ? [] : set(applying.map(([, p]) => p.using)),
+    check:
+      action === "SELECT" || action === "DELETE"
+        ? []
+        : set(applying.map(([, p]) => p.check ?? p.using)),
+    count: applying.length,
+  };
+}
+
+const firstMerge = files.indexOf(mergeFiles[0]);
+const before = replay(firstMerge);
+const after = replay(files.length);
+const touched = [
+  ...new Set(
+    mergeFiles.flatMap((f) =>
+      [
+        ...stripComments(
+          readFileSync(path.join(migrationsDir, f), "utf8"),
+        ).matchAll(/ POLICY .*? ON public\.(\w+)/g),
+      ].map((m) => m[1]),
+    ),
+  ),
+].sort();
+
+function overlaps(model: Model) {
+  return touched.flatMap((t) =>
+    ROLES.flatMap((r) =>
+      ACTIONS.filter((a) => effective(model, t, r, a, true).count > 1).map(
+        (a) => `${t} ${r} ${a}`,
+      ),
+    ),
+  );
+}
+
+describe("#956: merging permissive policies changes no access", () => {
+  it("has the seven table-group migrations, sorted after every other migration", () => {
+    expect(mergeFiles).toHaveLength(7);
+    expect(files.slice(firstMerge)).toEqual(mergeFiles);
+  });
+
+  it("touches the 34 tables whose overlaps are same-role", () => {
+    expect(touched).toHaveLength(34);
+  });
+
+  it.each(touched)(
+    "%s: same USING and WITH CHECK disjuncts for every role and command",
+    (table) => {
+      for (const role of ROLES) {
+        for (const action of ACTIONS) {
+          for (const permissive of [true, false]) {
+            const b = effective(before, table, role, action, permissive);
+            const a = effective(after, table, role, action, permissive);
+            expect(
+              { using: a.using, check: a.check },
+              `${table} ${role} ${action}`,
+            ).toEqual({
+              using: b.using,
+              check: b.check,
+            });
+          }
+        }
+      }
+    },
+  );
+
+  it("leaves overlaps only where a TO public and a TO authenticated policy meet (owner decision)", () => {
+    expect(overlaps(before).length).toBeGreaterThan(40);
+    expect(overlaps(after)).toEqual([
+      "resident_houses authenticated SELECT",
+      "residents authenticated SELECT",
+      "residents authenticated UPDATE",
+      "wallet_transactions authenticated SELECT",
+    ]);
+  });
+
+  it.each(mergeFiles)(
+    "%s is one transaction with a guard and a rollback block",
+    (file) => {
+      const raw = readFileSync(path.join(migrationsDir, file), "utf8");
+      expect((raw.match(/^BEGIN;$/gm) ?? []).length).toBe(1);
+      expect((raw.match(/^COMMIT;$/gm) ?? []).length).toBe(1);
+      expect(raw).toMatch(
+        /DO \$guard\$[\s\S]*RAISE EXCEPTION[\s\S]*\$guard\$;/,
+      );
+      expect(raw).toContain("-- ROLLBACK");
+    },
+  );
+
+  it("the rollback blocks restore every original definition", () => {
+    const restored: Model = new Map([...after].map(([k, p]) => [k, { ...p }]));
+    for (const file of mergeFiles) {
+      const raw = readFileSync(path.join(migrationsDir, file), "utf8");
+      const block = raw.slice(
+        raw.indexOf("-- ROLLBACK"),
+        raw.indexOf("\nBEGIN;\n"),
+      );
+      const sql = block
+        .split("\n")
+        .map((l) => l.replace(/^-- ?/, ""))
+        .filter((l) => !l.startsWith("--"))
+        .join("\n");
+      for (const st of sql.match(STATEMENT) ?? []) apply(restored, st);
+    }
+    const norm = (m: Model) =>
+      Object.fromEntries(
+        [...m]
+          .filter(([k]) => touched.includes(k.split("|")[0]))
+          .map(([k, p]) => [
+            k,
+            {
+              ...p,
+              using: p.using && disjuncts(p.using).sort(),
+              check: p.check && disjuncts(p.check).sort(),
+            },
+          ]),
+      );
+    expect(norm(restored)).toEqual(norm(before));
+  });
+});
