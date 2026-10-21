@@ -154,6 +154,8 @@ restore every original definition.
 
 ## Needs owner decision
 
+**Decided 2026-10-21: option A.** Part 2 below maps and merges these overlaps.
+
 These overlaps mix a `TO public` policy with a `TO authenticated` policy on the same command. A
 `TO public` policy also applies to `anon`, `authenticator`, `dashboard_user` and `service_role`
 (which bypasses RLS). One policy per role and command is only possible if the two policies are
@@ -204,6 +206,147 @@ Options:
 5. Recapture `docs/validation/policy-definitions.baseline.json`: the merged and split policies no
    longer match the 2026-10-16 capture, so `npm run rbac:policies:diff` reports them until it is
    recaptured.
+
+## Part 2: the public-versus-authenticated overlaps (option A)
+
+Owner decision, 2026-10-21: **option A** for the 11 overlaps that part 1 left. Re-scope the
+`TO public` policy in each overlap to `TO authenticated`, keep its expressions, then merge it with
+the matching `TO authenticated` policy, so each table has one permissive policy per role and
+command. Signed-in users must see no change. Visitors (`anon`) read and change nothing.
+
+### The 11 overlaps as they stand on Residio_Stage
+
+Part 1 (#969) is applied to Residio_Stage, so the starting point is part 1's after-state. It was
+derived the same way as part 1: every migration replayed in filename order and checked against
+`docs/validation/policy-definitions.baseline.json`. The live definitions still need confirming
+with the query under "Source and confidence", and each part 2 migration's guard aborts if a name,
+command or role differs.
+
+| # | Table | Command | `TO public` policy (re-scoped) | `TO authenticated` policy |
+| --- | --- | --- | --- | --- |
+| 1 | `houses` | SELECT | All authenticated users can view active houses | Residents can view assigned houses |
+| 2 | `invoices` | SELECT | Admins chairmen fin sec can manage all invoices (ALL) | Residents can view own invoices |
+| 3 | `invoice_items` | SELECT | Admins chairmen fin sec can manage all invoice items (ALL) | Residents can view own invoice items |
+| 4 | `resident_wallets` | SELECT | Admins chairmen fin sec can manage wallets (ALL) | Residents can view own wallet |
+| 5 | `paystack_transactions` | SELECT | paystack_transactions_resident_select | paystack_transactions_admin_all (ALL) |
+| 6 | `wallet_payment_batches` | SELECT | Residents can view own wallet payment batches | Admin finance can manage wallet payment batches (ALL) |
+| 7 | `wallet_payment_batch_items` | SELECT | Residents can view own wallet payment batch items | Admin finance can manage wallet payment batch items (ALL) |
+| 8 | `residents` | SELECT | Admins chairmen fin sec can view all residents | Residents can view housemates |
+| 9 | `residents` | UPDATE | Admins chairmen fin sec can update residents | Residents can update own contact info |
+| 10 | `resident_houses` | SELECT | Admins chairmen fin sec can view all resident houses | Residents can view housemates house assignments |
+| 11 | `wallet_transactions` | SELECT | Residents can view own transactions | Residents can view own wallet transactions |
+
+The expressions, as part 1 left them:
+
+| Table | Policy | Command | Roles | USING | WITH CHECK |
+| --- | --- | --- | --- | --- | --- |
+| `houses` | All authenticated users can view active houses | SELECT | public | `((is_active = true) OR ((select has_permission('houses.manage_records'::text))))` | — |
+| `houses` | Residents can view assigned houses | SELECT | authenticated | `(id IN ( SELECT resident_houses.house_id FROM resident_houses WHERE ((resident_houses.resident_id = (select get_my_resident_id())) AND (resident_houses.is_active = true))))` | — |
+| `invoices` | Admins chairmen fin sec can manage all invoices | ALL | public | `((select has_permission('billing.create_invoice'::text)))` | — |
+| `invoices` | Residents can view own invoices | SELECT | authenticated | `(resident_id = (select get_my_resident_id()))` | — |
+| `invoice_items` | Admins chairmen fin sec can manage all invoice items | ALL | public | `((select has_permission('billing.create_invoice'::text)))` | — |
+| `invoice_items` | Residents can view own invoice items | SELECT | authenticated | `(invoice_id IN ( SELECT invoices.id FROM invoices WHERE (invoices.resident_id = (select get_my_resident_id()))))` | — |
+| `resident_wallets` | Admins chairmen fin sec can manage wallets | ALL | public | `((select has_permission('billing.manage_wallets'::text)))` | — |
+| `resident_wallets` | Residents can view own wallet | SELECT | authenticated | `(resident_id = (select get_my_resident_id()))` | — |
+| `paystack_transactions` | paystack_transactions_admin_all | ALL | authenticated | `(select has_permission('payments.update'::text))` | `(select has_permission('payments.update'::text))` |
+| `paystack_transactions` | paystack_transactions_resident_select | SELECT | public | `(resident_id IN ( SELECT residents.id FROM residents WHERE (residents.profile_id = (select auth.uid()))))` | — |
+| `wallet_payment_batches` | Admin finance can manage wallet payment batches | ALL | authenticated | `(select has_permission('billing.manage_wallets'::text))` | `(select has_permission('billing.manage_wallets'::text))` |
+| `wallet_payment_batches` | Residents can view own wallet payment batches | SELECT | public | `(resident_id IN ( SELECT residents.id FROM residents WHERE (residents.profile_id = (select auth.uid()))))` | — |
+| `wallet_payment_batch_items` | Admin finance can manage wallet payment batch items | ALL | authenticated | `(select has_permission('billing.manage_wallets'::text))` | `(select has_permission('billing.manage_wallets'::text))` |
+| `wallet_payment_batch_items` | Residents can view own wallet payment batch items | SELECT | public | `(batch_id IN ( SELECT wallet_payment_batches.id FROM wallet_payment_batches WHERE (wallet_payment_batches.resident_id IN ( SELECT residents.id FROM residents WHERE (residents.profile_id = (select auth.uid()))))))` | — |
+| `residents` | Admins chairmen fin sec can view all residents | SELECT | public | `((select has_permission('residents.manage_records'::text)) OR (((select has_permission('security.view_active_residents'::text))) AND (account_status = 'active'::account_status)))` | — |
+| `residents` | Residents can view housemates | SELECT | authenticated | `((id IN ( SELECT rh2.resident_id FROM resident_houses rh2 WHERE ((rh2.house_id IN ( SELECT rh1.house_id FROM resident_houses rh1 WHERE ((rh1.resident_id = (select get_my_resident_id())) AND (rh1.is_active = true)))) AND (rh2.is_active = true)))) OR (id = (select get_my_resident_id())))` | — |
+| `residents` | Admins chairmen fin sec can update residents | UPDATE | public | `((select has_permission('residents.manage_records'::text)))` | — |
+| `residents` | Residents can update own contact info | UPDATE | authenticated | `(id = (select get_my_resident_id()))` | `(id = (select get_my_resident_id()))` |
+| `resident_houses` | Admins chairmen fin sec can view all resident houses | SELECT | public | `((select has_permission('houses.manage_records'::text)) OR (((select has_permission('security.view_active_residents'::text))) AND (is_active = true)))` | — |
+| `resident_houses` | Residents can view housemates house assignments | SELECT | authenticated | `((house_id IN (SELECT get_my_house_ids())) OR (resident_id = (select get_my_resident_id())))` | — |
+| `wallet_transactions` | Residents can view own transactions | SELECT | public | `((wallet_id IN ( SELECT w.id FROM (resident_wallets w JOIN residents r ON ((r.id = w.resident_id))) WHERE (r.profile_id = (select auth.uid())))) OR (select has_permission('billing.manage_wallets'::text)))` | — |
+| `wallet_transactions` | Residents can view own wallet transactions | SELECT | authenticated | `(wallet_id IN ( SELECT resident_wallets.id FROM resident_wallets WHERE (resident_wallets.resident_id = (select get_my_resident_id()))))` | — |
+
+`houses` also carries the restrictive `Approved accounts only can read` (SELECT, `authenticated`,
+`public.is_approved()`). It is not part of the lint, and nothing here changes it.
+
+### The merges
+
+The same two shapes as part 1, with one extra step: the `TO public` policy is re-scoped with
+`ALTER POLICY ... TO authenticated` before its expression is merged. No expression changes meaning.
+For `authenticated`, each merged expression is the OR of the two policies it replaces, so signed-in
+users see exactly what they saw before.
+
+- **Same command** (`houses`, `residents` SELECT and UPDATE, `resident_houses`,
+  `wallet_transactions`). The `TO public` policy is re-scoped and `ALTER`ed to the OR of both; the
+  `TO authenticated` policy is dropped. On `residents` UPDATE the admin policy had no `WITH CHECK`,
+  so Postgres checked with its `USING`; the merged policy states `WITH CHECK` as the same OR as its
+  `USING`.
+- **`FOR ALL` overlapping `SELECT`** (`invoices`, `invoice_items`, `resident_wallets`,
+  `paystack_transactions`, the two wallet payment batch tables). The `ALL` policy is split into
+  `"<name> (insert)"`, `"(update)"` and `"(delete)"` policies `TO authenticated` with its own
+  expressions, and its `SELECT` part is ORed into the table's `SELECT` policy, which is
+  `TO authenticated` (re-scoped first where it was `TO public`).
+
+Two migrations, each guarded, idempotent, one transaction, with its rollback in its header:
+
+- `20261023100700_rls_rescope_merge_residents_houses.sql`: `houses`, `residents`,
+  `resident_houses` (overlaps 1, 8, 9 and 10).
+- `20261023100800_rls_rescope_merge_billing_wallets.sql`: `invoices`, `invoice_items`,
+  `resident_wallets`, `paystack_transactions`, `wallet_payment_batches`,
+  `wallet_payment_batch_items`, `wallet_transactions` (overlaps 2 to 7 and 11).
+
+Modelled `multiple_permissive_policies` findings on the ten tables: 11 before, 0 after.
+
+**Left `TO public`, by design.** These policies on the same tables overlap nothing, so option A does
+not reach them: `houses` INSERT, UPDATE and DELETE; `residents` INSERT and DELETE;
+`resident_houses` INSERT, UPDATE and DELETE; and the `wallet_transactions` `(insert)`, `(update)` and
+`(delete)` policies part 1 split out. Each calls `has_permission()`, which `anon` cannot execute, so
+an `anon` write fails with 42501 today and still does.
+
+### What changes for `anon`
+
+`anon` evaluates no permissive policy for the re-scoped commands after part 2, so it reads no row
+and writes none. What it gets today is predicted below; the probe's `anon` subject measures it, and
+the measured result is what counts.
+
+| Table | Commands that lose their `anon` policy | `anon` today (predicted) | After |
+| --- | --- | --- | --- |
+| `houses` | SELECT | `is_active = true` is not tied to a user. Where Postgres reaches the `has_permission()` call, the read fails with 42501; where it does not, `anon` may read active houses. | no rows |
+| `invoices`, `invoice_items`, `resident_wallets` | SELECT, INSERT, UPDATE, DELETE (the `ALL` policy) | 42501 (`has_permission()`) | no rows; an INSERT is refused by RLS |
+| `paystack_transactions`, `wallet_payment_batches`, `wallet_payment_batch_items` | SELECT | no rows (`auth.uid()` is null), unless a nested read of `residents` fails first | no rows |
+| `residents` | SELECT, UPDATE | 42501 | no rows |
+| `resident_houses` | SELECT | 42501 | no rows |
+| `wallet_transactions` | SELECT | 42501 | no rows |
+
+### No signed-out code path reads these tables
+
+`src/` was searched for every read of the ten tables, and each was traced to its client:
+
+- **Sign-up and sign-in.** `src/app/(auth)/register/page.tsx` reads only `streets` with the browser
+  client before sign-up (step 5). It never reads `houses`. `src/app/(auth)/login/page.tsx` reads
+  `profiles` after sign-in. The pre-auth server actions `checkEmailAvailability` and
+  `registerResidentPortal` read `residents` through the service-role client, which bypasses RLS.
+- **Public routes.** `src/middleware.ts` serves only `/login`, `/register`, `/forgot-password`,
+  `/reset-password`, `/pending-approval`, `/auth`, `/maintenance`, `/privacy-policy`, `/` (a
+  redirect) and `/api` without a session. None of those pages reads the ten tables.
+- **`/api` routes without a session.** The cron routes, the Paystack and WhatsApp webhooks and
+  `src/lib/whatsapp/**` use the service-role client. `/api/search`, `/api/statements`,
+  `/api/receipts/[id]` and `/api/admin/generate-invoices` call `auth.getUser()` and refuse a
+  request with no user before they read anything.
+- **Session client in shared code.** `runLateFeeApplication` uses the session client only for the
+  signed-in manual trigger; cron uses the service-role client. `verifyPaystackPayment` runs from the
+  resident portal callback page, which middleware requires a session for.
+
+So no public page or sign-up flow needs `anon` to list houses, or to read any of the other nine
+tables.
+
+### Applying and verifying part 2 (Firstmate, on Residio_Stage)
+
+1. Confirm the live definitions match the tables above (the query under "Source and confidence").
+2. Run `docs/security/probe-956-permissive-merge.sql` with the two part 2 migration bodies pasted at
+   the marker. Expect no difference for any `role:*` subject or for `resident`. Every `anon` row it
+   lists is a change to report; `houses` SELECT is the one to read first.
+3. Capture `EXPLAIN (ANALYZE, BUFFERS)` before and after, as for part 1.
+4. Apply the two migrations in filename order after the merge, verify them by name in the applied
+   list, rerun the advisor and record the `multiple_permissive_policies` count.
+5. Recapture `docs/validation/policy-definitions.baseline.json`.
 
 ## Mapping, per table
 
