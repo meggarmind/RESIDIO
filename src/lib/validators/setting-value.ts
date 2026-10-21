@@ -43,6 +43,56 @@ export function isValidAuditLogRetentionDays(n: unknown): n is number {
   return typeof n === 'number' && Number.isInteger(n) && n >= AUDIT_LOG_RETENTION_MIN_DAYS && n <= AUDIT_LOG_RETENTION_MAX_DAYS;
 }
 
+/**
+ * Debt status settings (#980). The status rule is the database function get_debt_statuses, wrapped by
+ * src/lib/billing/debt-status.ts; only these labels and numbers are editable.
+ */
+export const DEBT_STATUS_LABEL_KEYS = {
+  arrears: 'debt_status_label_arrears',
+  outstanding: 'debt_status_label_outstanding',
+  paid_in_full: 'debt_status_label_paid_in_full',
+  credit: 'debt_status_label_credit',
+} as const;
+export const DEBT_STATUS_THRESHOLD_KEY = 'debt_status_arrears_threshold_months';
+export const DEBT_STATUS_FOOTNOTE_KEY = 'debt_status_report_footnote';
+export const DEBT_STATUS_CHAT_PDF_LIMIT_KEY = 'debt_status_chat_pdf_house_limit';
+export const DEBT_STATUS_LABEL_MAX_LENGTH = 40;
+export const DEBT_STATUS_FOOTNOTE_MAX_LENGTH = 300;
+export const DEBT_STATUS_THRESHOLD_MIN = 1;
+export const DEBT_STATUS_THRESHOLD_MAX = 24;
+export const DEBT_STATUS_CHAT_PDF_LIMIT_MIN = 1;
+export const DEBT_STATUS_CHAT_PDF_LIMIT_MAX = 500;
+
+const DEBT_STATUS_LABEL_KEY_SET = new Set<string>(Object.values(DEBT_STATUS_LABEL_KEYS));
+
+function textError(key: string, value: unknown, max: number): string | null {
+  return typeof value === 'string' && value.trim().length > 0 && value.trim().length <= max
+    ? null
+    : `Setting "${key}" must be text of 1 to ${max} characters`;
+}
+
+function wholeNumberError(key: string, value: unknown, min: number, max: number, unit: string): string | null {
+  const n = toNumber(value);
+  return n !== null && Number.isInteger(n) && n >= min && n <= max
+    ? null
+    : `Setting "${key}" must be a whole number of ${unit} from ${min} to ${max}`;
+}
+
+/** Returns undefined for a key that is not a debt status setting. */
+function debtStatusSettingError(key: string, value: unknown): string | null | undefined {
+  if (DEBT_STATUS_LABEL_KEY_SET.has(key)) return textError(key, value, DEBT_STATUS_LABEL_MAX_LENGTH);
+  switch (key) {
+    case DEBT_STATUS_FOOTNOTE_KEY:
+      return textError(key, value, DEBT_STATUS_FOOTNOTE_MAX_LENGTH);
+    case DEBT_STATUS_THRESHOLD_KEY:
+      return wholeNumberError(key, value, DEBT_STATUS_THRESHOLD_MIN, DEBT_STATUS_THRESHOLD_MAX, 'months');
+    case DEBT_STATUS_CHAT_PDF_LIMIT_KEY:
+      return wholeNumberError(key, value, DEBT_STATUS_CHAT_PDF_LIMIT_MIN, DEBT_STATUS_CHAT_PDF_LIMIT_MAX, 'houses');
+    default:
+      return undefined;
+  }
+}
+
 export const CLEARANCE_COPY_GROUP_KEY = 'clearance_copy_recipient_group_id';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -95,6 +145,9 @@ function commsSettingError(key: string, value: unknown, now: Date): string | nul
 export function settingValueError(key: string, value: unknown, now: Date = new Date()): string | null {
   const comms = commsSettingError(key, value, now);
   if (comms !== undefined) return comms;
+
+  const debtStatus = debtStatusSettingError(key, value);
+  if (debtStatus !== undefined) return debtStatus;
 
   if (key === EMAIL_AUTO_PROCESS_LIMIT_KEY) {
     // Zero, a negative or a huge value would turn the approval control off (#710).
