@@ -26,7 +26,7 @@ import {
 import { useStreets, useHouseTypes } from '@/hooks/use-reference';
 import { useCreateHouse, useUpdateHouse } from '@/hooks/use-houses';
 import { useBillingProfiles } from '@/hooks/use-billing';
-import { generateHouseShortName, houseFormSchema, type HouseFormData } from '@/lib/validators/house';
+import { generateHouseShortName, houseFormSchemaFor, type HouseFormData } from '@/lib/validators/house';
 import { toast } from 'sonner';
 import type { House } from '@/types/database';
 import { HelpCircle, Sparkles } from 'lucide-react';
@@ -49,7 +49,7 @@ export function HouseForm({ house, onSuccess }: HouseFormProps) {
   const updateMutation = useUpdateHouse();
 
   const form = useForm<HouseFormData>({
-    resolver: zodResolver(houseFormSchema),
+    resolver: zodResolver(houseFormSchemaFor(house?.short_name)),
     defaultValues: {
       house_number: house?.house_number ?? '',
       street_id: house?.street_id ?? '',

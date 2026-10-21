@@ -5,7 +5,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { revalidatePath } from 'next/cache';
 import type { HouseWithStreet } from '@/types/database';
-import type { HouseFormData } from '@/lib/validators/house';
+import { isValidHouseShortName, HOUSE_SHORT_NAME_MESSAGE, type HouseFormData } from '@/lib/validators/house';
 import { canAutoApprove } from '@/actions/approvals';
 import { createApprovalRequest } from '@/lib/approvals/create-approval-request';
 import { logAudit, getChangedValues } from '@/lib/audit/logger';
@@ -57,6 +57,10 @@ export async function updateHouse(id: string, formData: HouseFormData): Promise<
 
   if (fetchError || !currentHouse) {
     return { data: null, error: 'House not found' };
+  }
+
+  if (formData.short_name && !isValidHouseShortName(formData.short_name, currentHouse.short_name)) {
+    return { data: null, error: HOUSE_SHORT_NAME_MESSAGE };
   }
 
   // Check if number_of_plots is being changed
