@@ -316,16 +316,17 @@ export async function checkDuplicatesBatch(
       const { data, error } = await fetchAllRows<Candidate>((from, to) =>
         supabase
           .from('payment_records')
-          .select('id, description, amount, payment_date')
+          .select('id, amount, payment_date, description:notes')
           .in('amount', chunk)
           .gte('payment_date', minStart)
           .lte('payment_date', maxEnd)
           .order('id')
           .range(from, to)
       );
+      // A failed lookup must not read as "no duplicate" (#994).
       if (error || !data) {
         console.error(`checkDuplicatesBatch: candidate lookup failed (${chunk.length} amounts):`, error);
-        continue;
+        throw new Error(`Duplicate check failed: ${error ?? 'no data returned'}`);
       }
       for (const c of data) {
         const key = Number(c.amount);
