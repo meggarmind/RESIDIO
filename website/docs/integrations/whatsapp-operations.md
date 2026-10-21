@@ -266,6 +266,12 @@ After a request goes well, the Assistant asks `How was Residio Assistant today?`
 
 It never asks after an error, a PIN lock, an expired session or inside a PIN step, and at most once every 30 days per resident, whether or not they answered. On `3. Poor` the Assistant asks what went wrong (`Too slow`, `Couldn't find what I needed`, `Information looked wrong`, `Something else`), then for one optional line (`SKIP` leaves it out), and closes with the estate office line. A resident who replies `STOP SURVEYS` is never asked again; plain `STOP` still only ends alerts. The **Resident feedback** card in the console shows the counts by score and by reason for the last 30 days. It shows no comments and no names.
 
+### Resident balance
+
+The **Resident balance** card in the Resident bot section switches residents to the roll-forward account balance: invoices billed, less verified payments, with wallet credits and debits on an all-properties statement only. It never reads what was allocated to each invoice. It is off by default. While it is off, residents see the figures they saw before: What I owe shows what is unpaid on invoices, and statement PDFs, in WhatsApp, by email or in the portal, keep their old opening balance. When it is on, What I owe shows `Outstanding: ₦X owed`, `₦X in credit` or `Nil`, and statement PDFs use the same figure. Overdue and Next due are still worked out invoice by invoice.
+
+Leave it off until the legacy charges are created as invoices. Until then, a resident whose old dues were paid but never invoiced is shown in credit by that amount. Admin account statements use the roll-forward balance whatever this switch says. The switch needs `whatsapp.manage`, and each change is written to the audit log.
+
 ### Assistant replies
 
 The **Assistant replies** card in the Resident bot section holds the text the Assistant sends:

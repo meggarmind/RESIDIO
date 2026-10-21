@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ForcePinToggle } from '@/app/(dashboard)/settings/whatsapp/force-pin-toggle';
 import { AssistantText } from '@/app/(dashboard)/settings/whatsapp/assistant-text';
 import { getWhatsAppAssistantText } from '@/actions/whatsapp/assistant-settings';
+import { getResidentRollForwardBalance } from '@/actions/whatsapp/balance-setting';
+import { RollForwardBalanceToggle } from '@/app/(dashboard)/settings/whatsapp/roll-forward-balance-toggle';
 import { OptInImport } from '@/app/(dashboard)/settings/whatsapp/opt-in-import';
 import { PrivacyNoticeSettings } from '@/app/(dashboard)/settings/whatsapp/privacy-notice-settings';
 import { PilotControls } from '@/app/(dashboard)/settings/whatsapp/pilot-controls';
@@ -34,7 +36,7 @@ const DISCONNECTED_STATUS: WhatsAppConnectionStatus = {
 };
 
 export default async function WhatsAppOperationsPage() {
-  const [optInResult, pendingResult, forcePinResult, sessionsResult, disclosuresResult, healthResult, pilotResult, connectionResult, overrideNumbersResult, whatsappEnabledResult, pilotResidentsResult, deliveryProblemsResult, assistantTextResult, statementFlagsResult, privacyNoticeResult, clearanceCopyFailuresResult, surveyResult] = await Promise.all([
+  const [optInResult, pendingResult, forcePinResult, sessionsResult, disclosuresResult, healthResult, pilotResult, connectionResult, overrideNumbersResult, whatsappEnabledResult, pilotResidentsResult, deliveryProblemsResult, assistantTextResult, statementFlagsResult, privacyNoticeResult, clearanceCopyFailuresResult, surveyResult, rollForwardResult] = await Promise.all([
     getWhatsAppOptIns(),
     getWhatsAppPendingContacts(),
     getWhatsAppForcePin(),
@@ -52,6 +54,7 @@ export default async function WhatsAppOperationsPage() {
     getWhatsAppPrivacyNotice(),
     getWhatsAppClearanceCopyFailures(),
     getWhatsAppSurveySummary(),
+    getResidentRollForwardBalance(),
   ]);
 
   // Fallback idiom matches src/actions/system/cron-status.ts.
@@ -93,6 +96,10 @@ export default async function WhatsAppOperationsPage() {
             <CardContent><OptInImport /></CardContent>
           </Card>
         </div>
+        <Card>
+          <CardHeader><CardTitle>Resident balance</CardTitle><CardDescription>Show residents the roll-forward balance: What I owe, statement PDFs and the portal, signed as owed or in credit.</CardDescription></CardHeader>
+          <CardContent className="flex items-center justify-between gap-4"><p className="text-sm text-muted-foreground">Leave off until legacy charges are invoiced, or residents with uninvoiced legacy payments see false credit. Admin statements always use it.</p><RollForwardBalanceToggle initialValue={rollForwardResult.data === true} /></CardContent>
+        </Card>
         <Card>
           <CardHeader><CardTitle>Assistant replies</CardTitle><CardDescription>Text the resident bot sends. Estate phone, email and office hours come from Settings &gt; Estate info.</CardDescription></CardHeader>
           <CardContent><AssistantText initial={assistantTextResult.data || { paymentInstructions: '', keywordSynonyms: '' }} /></CardContent>
