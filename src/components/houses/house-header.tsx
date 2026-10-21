@@ -26,6 +26,7 @@ import { useDeleteHouse } from '@/hooks/use-houses';
 import { useHousePaymentStatus } from '@/hooks/use-billing';
 import { useCan } from '@/components/auth/can';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { DebtStatusBadge } from '@/components/billing/debt-status-badge';
 import { formatCurrency } from '@/lib/utils';
 import { ArrowLeft, Loader2, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -79,15 +80,16 @@ export function HouseHeader({ house, activeResidentCount }: HouseHeaderProps) {
             <OccupancyBadge isOccupied={house.is_occupied} />
             <span>{activeResidentCount} {activeResidentCount === 1 ? 'resident' : 'residents'}</span>
             <span className="text-muted-foreground" aria-hidden="true">·</span>
-            {/* Never show "nothing outstanding" while the figure is unknown. */}
+            {/* Never show a debt status while the figure is unknown. */}
             {isPaymentLoading ? (
               <span className="text-muted-foreground">Checking dues…</span>
             ) : isPaymentError || typeof outstanding !== 'number' ? (
-              <span className="text-muted-foreground">Outstanding unavailable</span>
-            ) : outstanding > 0 ? (
-              <span className="font-medium">{formatCurrency(outstanding)} outstanding</span>
+              <span className="text-muted-foreground">Debt status unavailable</span>
             ) : (
-              <span className="text-muted-foreground">No outstanding dues</span>
+              <>
+                <DebtStatusBadge status={paymentStatus!.debtStatus} label={paymentStatus!.debtStatusLabel} />
+                {outstanding > 0 && <span className="font-medium">{formatCurrency(outstanding)}</span>}
+              </>
             )}
           </div>
           {house.notes && <p className="text-sm text-muted-foreground">{house.notes}</p>}
