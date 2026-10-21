@@ -330,6 +330,13 @@ describe('privacy notice (#871 steps 3-7)', () => {
     expect(send.mock.calls[0][0].mediaUrls).toBeUndefined();
   });
 
+  it('keeps the alerts-enabled line above the notice body when START opens the notice', async () => {
+    const repo = repository(confirmed());
+    const { bodies } = await run('START', repo);
+
+    expect(bodies[0]).toBe('Estate WhatsApp alerts are now enabled.\nFull notice\n\n_Version v1_\n\n1. Accept\n2. Decline');
+  });
+
   it('records a decline, gives the office contact and uses no records', async () => {
     const repo = repository(prompted({ pendingRequest: 'OWE' }));
     const { result, bodies, onIdentified } = await run('2', repo);
