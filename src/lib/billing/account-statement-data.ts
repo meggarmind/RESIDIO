@@ -105,7 +105,9 @@ export async function loadAccountStatement(
 ): Promise<GetAccountStatementResponse> {
     const { residentId, houseId, fromDate, toDate } = params;
 
-    if (!ISO_DATE.test(fromDate) || !ISO_DATE.test(toDate)) {
+    // Shape alone passes 2026-13-45, which would make lagosDayStart throw.
+    const validDate = (d: string) => ISO_DATE.test(d) && !Number.isNaN(Date.parse(`${d}T00:00:00+01:00`));
+    if (!validDate(fromDate) || !validDate(toDate)) {
         return { data: null, error: 'Dates must be in YYYY-MM-DD format' };
     }
 
@@ -145,9 +147,7 @@ export async function loadAccountStatement(
 
     // 3. Get invoices in period (excluding void), dated by the period they bill.
     // Legacy invoices carry their import date in created_at, so created_at is only the fallback.
-    const createdInPeriod = rollForward
-        ? `created_at.gte."${lagosDayStart(fromDate)}",created_at.lt."${lagosDayStart(toDate, 1)}"`
-        : `created_at.gte.${fromDate},created_at.lte.${toDate}`;
+    const createdInPeriod = `created_at.gte."${lagosDayStart(fromDate)}",created_at.lt."${lagosDayStart(toDate, 1)}"`;
     let invoiceQuery = supabase
         .from('invoices')
         .select(`
@@ -215,9 +215,7 @@ export async function loadAccountStatement(
                 .from('wallet_transactions')
                 .select('id, type, amount, description, reference_type, reference_id, created_at')
                 .eq('wallet_id', wallet.id);
-            walletQuery = rollForward
-                ? walletQuery.gte('created_at', lagosDayStart(fromDate)).lt('created_at', lagosDayStart(toDate, 1))
-                : walletQuery.gte('created_at', fromDate).lte('created_at', toDate);
+            walletQuery = walletQuery.gte('created_at', lagosDayStart(fromDate)).lt('created_at', lagosDayStart(toDate, 1));
             const { data: walletTx } = await walletQuery.order('created_at', { ascending: true });
 
             walletTransactions = (walletTx || []) as LedgerWalletTransaction[];
@@ -243,7 +241,7 @@ export async function loadAccountStatement(
             .select('amount_due, amount_paid')
             .eq('resident_id', residentId)
             .neq('status', 'void')
-            .or(`period_start.lt.${fromDate},and(period_start.is.null,created_at.lt.${fromDate})`);
+            .or(`period_start.lt.${fromDate},and(period_start.is.null,created_at.lt."${lagosDayStart(fromDate)}")`);
 
         if (houseId) {
             priorInvoiceQuery = priorInvoiceQuery.eq('house_id', houseId);
