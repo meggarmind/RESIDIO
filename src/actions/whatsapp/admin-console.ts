@@ -5,6 +5,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/server';
 import { OUTBOUND_PENDING_TIMEOUT_MINUTES } from '@/lib/whatsapp/outbound-sends';
+import { OUTBOUND_SENDS_PAGE_SIZE, OUTBOUND_SEND_PURPOSES, OUTBOUND_SEND_STATUSES } from '@/lib/whatsapp/outbound-send-list';
 import { SURVEY_INTERVAL_DAYS, type SurveyReason, type SurveyScore } from '@/lib/whatsapp/survey';
 import { logAudit } from '@/lib/audit/logger';
 import { retryClearanceCopy } from '@/lib/clearance/issue-certificate';
@@ -122,6 +123,51 @@ export async function getWhatsAppDeliveryProblems(): Promise<Result<unknown[]>> 
     .limit(200);
 
   return { success: !error, data: data || [], error: error?.message || null };
+}
+
+export type WhatsAppOutboundSend = {
+  id: string;
+  purpose: (typeof OUTBOUND_SEND_PURPOSES)[number];
+  maskedPhone: string;
+  status: (typeof OUTBOUND_SEND_STATUSES)[number];
+  error_code: string | null;
+  inbound_message_id: string | null;
+  created_at: string;
+  resident: { first_name: string; last_name: string; resident_code: string } | null;
+};
+
+export type WhatsAppOutboundSendsPage = { rows: WhatsAppOutboundSend[]; total: number };
+
+/** Last 4 digits only: the full number never leaves the server (#923). */
+function maskLast4(phone: string) {
+  return `****${phone.slice(-4)}`;
+}
+
+/**
+ * Every outbound WhatsApp send, assistant replies included (#923). The queue page cannot show
+ * replies because they bypass `notification_queue`. The table stores no message text, so none is returned.
+ */
+export async function getWhatsAppOutboundSends(
+  filters: { status?: string; purpose?: string; page?: number } = {},
+): Promise<Result<WhatsAppOutboundSendsPage>> {
+  const authorization = await authorizePermission(PERMISSIONS.WHATSAPP_VIEW);
+  if (!authorization.authorized) return { success: false, data: null, error: authorization.error || 'Unauthorized' };
+
+  const page = Math.max(0, Math.floor(filters.page ?? 0));
+  const from = page * OUTBOUND_SENDS_PAGE_SIZE;
+  let query = createAdminClient()
+    .from('whatsapp_outbound_sends')
+    .select('id, purpose, phone_number, status, error_code, inbound_message_id, created_at, resident:residents(first_name, last_name, resident_code)', { count: 'exact' });
+  if (filters.status && (OUTBOUND_SEND_STATUSES as readonly string[]).includes(filters.status)) query = query.eq('status', filters.status);
+  if (filters.purpose && (OUTBOUND_SEND_PURPOSES as readonly string[]).includes(filters.purpose)) query = query.eq('purpose', filters.purpose);
+
+  const { data, error, count } = await query
+    .order('created_at', { ascending: false })
+    .range(from, from + OUTBOUND_SENDS_PAGE_SIZE - 1);
+  if (error) return { success: false, data: null, error: error.message };
+
+  const rows = (data || []).map(({ phone_number, ...row }) => ({ ...row, maskedPhone: maskLast4(phone_number) })) as WhatsAppOutboundSend[];
+  return { success: true, data: { rows, total: count ?? rows.length }, error: null };
 }
 
 export type WhatsAppHealth = {
