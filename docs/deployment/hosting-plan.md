@@ -385,6 +385,8 @@ files/prod/deleted/YYYY-MM-DD/...             files changed or deleted that day 
 
 ### Secrets to create
 
+Each job starts with a preflight (`scripts/backup/preflight.mjs`) that fails naming any unset secret above, so a missing one no longer shows up as a psql socket error.
+
 GitHub, Settings, Secrets and variables, Actions, **Repository secrets** (not variables):
 
 | Secret | Value |
