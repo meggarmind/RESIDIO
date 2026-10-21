@@ -10,6 +10,7 @@ import { findSettingsRow, flattenSettingsRows, type SettingsGroup } from '@/conf
 const push = vi.fn();
 let rowParam: string | null = null;
 let held: string[] = [PERMISSIONS.SETTINGS_MANAGE_GENERAL];
+let authLoading = false;
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push }),
@@ -17,7 +18,7 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(rowParam ? { row: rowParam } : {}),
 }));
 vi.mock('@/lib/auth/auth-provider', () => ({
-  useAuth: () => ({ isLoading: false, hasAnyPermission: (p: string[]) => p.some((x) => held.includes(x)) }),
+  useAuth: () => ({ isLoading: authLoading, hasAnyPermission: (p: string[]) => p.some((x) => held.includes(x)) }),
 }));
 
 import { SettingsSection } from '@/components/settings/settings-section';
@@ -87,6 +88,7 @@ const edit = (title: string) => fireEvent.click(screen.getByRole('button', { nam
 beforeEach(() => {
   push.mockClear();
   rowParam = null;
+  authLoading = false;
   held = [PERMISSIONS.SETTINGS_MANAGE_GENERAL];
 });
 afterEach(cleanup);
@@ -279,6 +281,49 @@ describe('SettingsSectionsProvider', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Test recipient, in Testing');
     fireEvent.pointerDown(document.body);
     expect(document.getElementById('test-recipient')).not.toHaveAttribute('data-hit');
+  });
+});
+
+describe('?row= while auth loads', () => {
+  const tree = () => (
+    <SettingsSectionsProvider groups={groups}>
+      <Harness id="testing" title="Testing" defaultCollapsed withRow="test-recipient" />
+    </SettingsSectionsProvider>
+  );
+
+  it('finds, highlights, focuses and announces the row once auth has loaded', async () => {
+    rowParam = 'test-recipient';
+    authLoading = true;
+    const { rerender } = render(tree());
+    expect(document.getElementById('test-recipient')).toBeNull();
+    // Let a few animation frames run while loading, so the row is found only by a retry.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 100));
+    });
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
+    authLoading = false;
+    rerender(tree());
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Test recipient' })).toHaveFocus());
+    expect(document.getElementById('test-recipient')).toHaveAttribute('data-hit', 'true');
+    expect(screen.getByRole('status')).toHaveTextContent('Test recipient, in Testing');
+  });
+
+  it('stops after the retry limit without throwing or announcing when the row never appears', () => {
+    vi.useFakeTimers();
+    try {
+      rowParam = 'test-recipient';
+      authLoading = true;
+      const raf = vi.spyOn(window, 'requestAnimationFrame');
+      expect(() => render(tree())).not.toThrow();
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
+      expect(document.querySelector('[data-hit]')).toBeNull();
+      expect(screen.getByRole('status')).toBeEmptyDOMElement();
+      expect(raf.mock.calls.length).toBeLessThan(80);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
