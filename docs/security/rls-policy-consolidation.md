@@ -57,11 +57,11 @@ disjunct that appears in more than one original is written once. They cover 34 o
 The modelled finding count on those tables goes from 61 to 4, and from 68 to 11 overall. Expect
 the advisor's 73 to fall by a similar proportion; Firstmate records the real rerun.
 
-Overlaps between a `TO public` policy and a `TO authenticated` policy are **not** merged. Merging
-them changes which roles a predicate applies to, so they need an owner decision (below). They
-account for the 11 modelled findings that remain.
+Overlaps between a `TO public` policy and a `TO authenticated` policy are not merged by these
+seven migrations: merging them changes which roles a predicate applies to. They account for the 11
+modelled findings that remain, and part 2 (below) resolves them under the owner's option A.
 
-None of these migrations has been applied anywhere.
+These seven migrations are merged (PR 969) and applied to Residio_Stage; Residio_Prod gets them at the next release.
 
 ## Zero-delta merges (written)
 
@@ -93,7 +93,7 @@ Each migration:
 `src/__tests__/rls-permissive-policy-merge-956.test.ts` replays all migrations with an independent
 parser and proves, for every touched table, role and command, that the OR-ed `USING` and `WITH
 CHECK` disjuncts are identical before and after, that restrictive policies are untouched, that the
-only overlaps left are the four public-versus-authenticated ones, and that the rollback blocks
+only overlaps left are the public-versus-authenticated ones (part 2 resolves them), and that the rollback blocks
 restore every original definition.
 
 ### `20261023100000_rls_merge_permissive_security_contacts.sql`
