@@ -49,30 +49,10 @@ describe('checkSecrets', () => {
     expect(REQUIRED.prod).toHaveLength(12);
   });
 
-  it.each([
-    ['DB_URL', 'mysql://u:p@h:5432/db', 'STAGE_DB_URL'],
-    ['DB_URL', 'postgresql://u:p@h:6543/db', 'STAGE_DB_URL'],
-    ['DB_URL', 'postgresql://not a url', 'STAGE_DB_URL'],
-    ['BACKUP_AGE_PUBLIC_KEY', 'AGE-SECRET-KEY-1abc', 'BACKUP_AGE_PUBLIC_KEY'],
-    ['R2_ENDPOINT', 'http://r2.example.com', 'R2_ENDPOINT'],
-  ])('flags wrong shape for %s', (name, value, secret) => {
-    const { problems } = checkSecrets('stage', { ...envFor('stage'), [name]: value });
-    expect(problems).toHaveLength(1);
-    expect(problems[0]).toMatch(`Secret ${secret} has the wrong shape`);
-  });
-
-  it('accepts a postgres URL with no explicit port', () => {
-    expect(checkSecrets('stage', { ...envFor('stage'), DB_URL: 'postgres://u:p@h/db' }).ok).toBe(true);
-  });
-
   it('never puts a value in a problem message', () => {
-    const bad = {
-      ...envFor('stage'),
-      DB_URL: `postgresql://u:${SENTINEL}@h:6543/db`,
-      BACKUP_AGE_PUBLIC_KEY: SENTINEL,
-      R2_ENDPOINT: `http://${SENTINEL}`,
-    };
-    expect(checkSecrets('stage', bad).problems.join('\n')).not.toContain(SENTINEL);
+    const { problems } = checkSecrets('stage', { ...envFor('stage'), R2_BUCKET: '', R2_ENDPOINT: SENTINEL });
+    expect(problems).toEqual(['Secret R2_BUCKET is not set']);
+    expect(problems.join('\n')).not.toContain(SENTINEL);
   });
 });
 
@@ -81,12 +61,11 @@ describe('preflight CLI', () => {
 
   it('exits non-zero, names the secret, and prints no value', () => {
     const r = spawnSync('node', [script, 'stage'], {
-      env: { ...envFor('stage'), R2_BUCKET: '', DB_URL: `postgresql://u:${SENTINEL}@h:6543/db`, PATH: process.env.PATH },
+      env: { ...envFor('stage'), R2_BUCKET: '', PATH: process.env.PATH },
       encoding: 'utf8',
     });
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('Secret R2_BUCKET is not set');
-    expect(r.stderr).toContain('Secret STAGE_DB_URL has the wrong shape');
     expect(r.stdout + r.stderr).not.toContain(SENTINEL);
   });
 

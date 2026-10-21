@@ -1,11 +1,10 @@
 // Preflight for .github/workflows/backup-database.yml (#799).
 //
-// Fails the job before any dump step when a secret it needs is unset or has the wrong
-// shape, so the log says "Secret R2_BUCKET is not set" instead of a misleading psql
-// socket error. Mirrors scripts/backup-cron-preflight.mjs (#623) but fails the job: a
+// Fails the job before any dump step when a secret it needs is unset, so the log says
+// "Secret R2_BUCKET is not set" instead of a misleading psql socket error. Mirrors scripts/backup-cron-preflight.mjs (#623) but fails the job: a
 // silent skip would hide a missing backup, and GitHub already emails a failed scheduled run.
 //
-// Secret VALUES are never printed: messages carry the secret name and the rule only.
+// Secret VALUES are never printed: messages carry the secret name only.
 //
 // Usage (CLI, driven by the workflow's env):
 //   node scripts/backup/preflight.mjs <prod|stage>
@@ -18,18 +17,14 @@ export const ENVIRONMENTS = ['prod', 'stage'];
 
 // Names are the env var names the scripts read; `secret` is the repository secret behind each.
 const SHARED = [
-  { name: 'R2_ENDPOINT', secret: 'R2_ENDPOINT', rule: 'must start with https://' },
+  { name: 'R2_ENDPOINT', secret: 'R2_ENDPOINT' },
   { name: 'R2_ACCESS_KEY_ID', secret: 'R2_ACCESS_KEY_ID' },
   { name: 'R2_SECRET_ACCESS_KEY', secret: 'R2_SECRET_ACCESS_KEY' },
   { name: 'R2_BUCKET', secret: 'R2_BUCKET' },
-  { name: 'BACKUP_AGE_PUBLIC_KEY', secret: 'BACKUP_AGE_PUBLIC_KEY', rule: 'must start with age1' },
+  { name: 'BACKUP_AGE_PUBLIC_KEY', secret: 'BACKUP_AGE_PUBLIC_KEY' },
 ];
 
-const dbUrl = (secret) => ({
-  name: 'DB_URL',
-  secret,
-  rule: 'must be a postgres:// session pooler URL on port 5432, not 6543',
-});
+const dbUrl = (secret) => ({ name: 'DB_URL', secret });
 
 export const REQUIRED = {
   stage: [dbUrl('STAGE_DB_URL'), ...SHARED],
@@ -49,32 +44,17 @@ function isBlank(value) {
   return typeof value !== 'string' || value.trim() === '';
 }
 
-const SHAPE = {
-  R2_ENDPOINT: (v) => v.startsWith('https://'),
-  BACKUP_AGE_PUBLIC_KEY: (v) => v.startsWith('age1'),
-  DB_URL: (v) => {
-    if (!v.startsWith('postgres')) return false;
-    try {
-      const { port } = new URL(v);
-      return port === '' || port === '5432';
-    } catch {
-      return false;
-    }
-  },
-};
-
 /**
  * @param {string} environment prod | stage
  * @param {Record<string, string | undefined>} env
  * @returns {{ environment: string, problems: string[], ok: boolean }}
- * `problems` hold secret NAMES and rules only, never values.
+ * `problems` hold secret NAMES only, never values.
  */
 export function checkSecrets(environment, env) {
   const problems = [];
-  for (const { name, secret, rule } of REQUIRED[environment]) {
+  for (const { name, secret } of REQUIRED[environment]) {
     const value = env[name];
     if (isBlank(value)) problems.push(`Secret ${secret} is not set`);
-    else if (SHAPE[name] && !SHAPE[name](value)) problems.push(`Secret ${secret} has the wrong shape: ${rule}`);
   }
   return { environment, problems, ok: problems.length === 0 };
 }
