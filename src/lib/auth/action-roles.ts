@@ -89,6 +89,7 @@ export const PERMISSIONS = {
   SETTINGS_VIEW: 'settings.view',
   SETTINGS_MANAGE_GENERAL: 'settings.manage_general',
   SETTINGS_MANAGE_BILLING: 'settings.manage_billing',
+  SETTINGS_MANAGE_DEBT_STATUS: 'settings.manage_debt_status',
   SETTINGS_MANAGE_SECURITY: 'settings.manage_security',
   SETTINGS_MANAGE_REFERENCE: 'settings.manage_reference',
   SETTINGS_VIEW_AUDIT_LOGS: 'settings.view_audit_logs',
@@ -333,6 +334,7 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   // opened under this key already (the old sub-routes inherited it by prefix), so it is unchanged.
   '/settings/billing': [PERMISSIONS.SETTINGS_MANAGE_BILLING, PERMISSIONS.BILLING_MANAGE_PROFILES],
   '/settings/billing/profiles': [PERMISSIONS.BILLING_MANAGE_PROFILES],
+  '/settings/debt-status': [PERMISSIONS.SETTINGS_MANAGE_DEBT_STATUS],
   // Merged Banking page (#935): the OR of bank accounts and tags (manage_reference) and duplicate matching
   // (manage_maintenance). The old /settings/bank-accounts and /settings/transaction-tags keys stay (ADR-0004).
   '/settings/banking': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE, PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE],
