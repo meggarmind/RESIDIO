@@ -538,6 +538,26 @@ describe('Chatmaid WhatsApp webhook route', () => {
       }
     );
 
+    it('drops an old unmatched event with a 200, and a dropped failure still gets its log row without phone numbers', async () => {
+      const h = await load({ sendMatched: false, sendExists: false });
+      const old = JSON.parse(failedBody);
+      old.timestamp = '2026-09-22T11:50:00.000Z';
+
+      expect((await h.POST(post('message.failed', JSON.stringify(old)))).status).toBe(200);
+      expect(h.outboundSendExists).toHaveBeenCalledTimes(0);
+      expect(recordSystemAction).toHaveBeenCalledTimes(1);
+      expect(recordSystemAction).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'outbound_failed', summary: expect.objectContaining({ matchedSend: false }) })
+      );
+      expect(JSON.stringify(recordSystemAction.mock.calls)).not.toMatch(/800\D?000\D?0000|2348000000000/);
+    });
+
+    it('retries a recent unmatched event whose provider timestamp is within the 5 minute window', async () => {
+      const h = await load({ sendMatched: false, sendExists: false });
+      const recent = JSON.stringify({ event: 'message.delivered', timestamp: '2026-09-22T11:55:30.000Z', data: { messageId: 'outmsg_1' } });
+      expect((await h.POST(post('message.delivered', recent))).status).toBe(500);
+    });
+
     it('does not ask for a retry when the send exists but was already settled', async () => {
       const h = await load({ sendMatched: false, sendExists: true });
       const body = JSON.stringify({ event: 'message.sent', data: { messageId: 'outmsg_1' } });

@@ -194,6 +194,15 @@ async function handlePhoneHealth(event: 'phone.disconnected' | 'phone.connected'
 
 class SendNotRecordedYet extends Error {}
 
+/** An unmatched status event is only worth a retry while it could still be the send-record race (#941). */
+const STATUS_EVENT_RETRY_WINDOW_MS = 5 * 60 * 1000;
+
+/** The provider's event time, or receipt time (now) when it is missing or unparseable. */
+function isRecentEvent(payload: unknown): boolean {
+  const at = Date.parse(String((payload as { timestamp?: unknown } | null)?.timestamp ?? ''));
+  return Number.isNaN(at) || Date.now() - at <= STATUS_EVENT_RETRY_WINDOW_MS;
+}
+
 function optionalText(value: unknown): string | null {
   if (value === null || value === undefined || value === '') return null;
   return stripPhoneNumbers(String(value)).slice(0, 500);
@@ -224,8 +233,9 @@ async function handleDeliveryStatus(event: 'message.sent' | 'message.delivered' 
       matched = await updateOutboundSendStatus('chatmaid', messageId, status, { code: errorCode, message: errorMessage });
       // The event can beat the send record by under a second (#941). Throwing releases the
       // claim and answers 500, so Chatmaid's retry applies it once the record exists.
-      // shortcut: an id Residio never stored is retried too, then dropped by Chatmaid after its 3 attempts.
-      if (!matched && !(await outboundSendExists('chatmaid', messageId))) {
+      // An older event, or an id Residio never stored, is dropped with a 200 so Chatmaid does not see an endless run of
+      // errors; a dropped `failed` still gets its outbound_failed log row below.
+      if (!matched && isRecentEvent(payload) && !(await outboundSendExists('chatmaid', messageId))) {
         throw new SendNotRecordedYet();
       }
       // A statement PDF reply that failed is sent once more with a fresh signed URL (#804).
