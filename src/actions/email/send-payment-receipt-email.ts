@@ -7,7 +7,7 @@ import { sendEmail, getEstateEmailSettings } from '@/lib/email';
 import { embed } from '@/lib/utils';
 import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
 import { PaymentReceiptEmail } from '@/emails';
-import { formatEventCurrency, getEventContent, getEventDefaults, renderEventText } from '@/lib/notifications/event-content';
+import { formatEventCurrency, getEventContent, getEventDefaults, isEventChannelEnabled, renderEventText } from '@/lib/notifications/event-content';
 import { format } from 'date-fns';
 
 interface SendPaymentReceiptEmailResult {
@@ -141,6 +141,10 @@ export async function sendPaymentReceiptEmail(
 
   if (recipientEmails.length === 0) {
     return { success: false, error: 'No recipients specified' };
+  }
+
+  if (!(await isEventChannelEnabled('payment_receipt', 'email'))) {
+    return { success: false, error: 'Receipt emails are switched off in message wording settings' };
   }
 
   const supabase = await createServerSupabaseClient();

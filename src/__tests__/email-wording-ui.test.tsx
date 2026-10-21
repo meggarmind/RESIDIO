@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   permissions: [] as string[],
   templates: [] as unknown[],
   mutateAsync: vi.fn(),
+  setEnabled: vi.fn(),
   provider: 'chatmaid' as string | null,
 }));
 
@@ -22,6 +23,7 @@ vi.mock('@/hooks/use-notifications', () => ({
     data: (mocks.templates as Array<{ channel: string }>).filter((t) => t.channel === (options?.channel ?? 'email')),
     isLoading: false,
   }),
+  useSetEventChannelEnabled: () => ({ mutate: mocks.setEnabled, isPending: false }),
   useUpdateEventContent: () => ({ mutateAsync: mocks.mutateAsync, isPending: false }),
 }));
 // Render sheet content only while open, without Radix portals.
@@ -54,6 +56,7 @@ import type { NotificationTemplate } from '@/lib/notifications/types';
 const row = (event: string, overrides: Record<string, string> = {}, channel = 'email') =>
   ({
     id: `id-${event}`,
+    is_active: true,
     name: event,
     display_name: event,
     category: 'general',
@@ -66,6 +69,7 @@ beforeEach(() => {
   mocks.permissions = [];
   mocks.provider = 'chatmaid';
   mocks.templates = EVENT_KEYS.map((e) => row(e));
+  mocks.setEnabled.mockReset();
   mocks.mutateAsync.mockReset();
   mocks.mutateAsync.mockResolvedValue({});
 });
@@ -79,6 +83,41 @@ describe('template list', () => {
     render(<TemplateList canManage={false} onEdit={vi.fn()} onPreview={vi.fn()} />);
     expect(screen.queryByRole('button', { name: /Edit/ })).toBeNull();
     expect(screen.getAllByRole('button', { name: /Preview/ })).toHaveLength(EVENT_KEYS.length);
+  });
+});
+
+describe('channel switches (#909)', () => {
+  it('email tab: a switch for receipt, welcome and invoice; reminders link to the schedule instead', () => {
+    render(<TemplateList canManage={true} onEdit={vi.fn()} />);
+    expect(screen.getAllByRole('switch')).toHaveLength(3);
+    expect(screen.queryByRole('switch', { name: /reminder/i })).toBeNull();
+    const links = screen.getAllByRole('link', { name: 'Reminder Schedule' });
+    expect(links).toHaveLength(2);
+    expect(links[0]).toHaveAttribute('href', '/settings/notifications/reminders/schedule');
+  });
+
+  it('a switch calls the toggle with the event, channel and new state', () => {
+    render(<TemplateList canManage={true} onEdit={vi.fn()} />);
+    fireEvent.click(screen.getByRole('switch', { name: 'Send Welcome email by email' }));
+    expect(mocks.setEnabled).toHaveBeenCalledWith({ event: 'welcome_resident', channel: 'email', enabled: false });
+  });
+
+  it('a viewer without notifications.manage sees the switches disabled', () => {
+    render(<TemplateList canManage={false} onEdit={vi.fn()} />);
+    for (const toggle of screen.getAllByRole('switch')) expect(toggle).toBeDisabled();
+  });
+
+  it('whatsapp tab: only the receipt has a switch, and an inactive row shows off', () => {
+    mocks.templates = [
+      row('payment_receipt', {}, 'whatsapp'),
+      row('payment_reminder', {}, 'whatsapp'),
+    ];
+    (mocks.templates[0] as { is_active: boolean }).is_active = false;
+    render(<TemplateList channel="whatsapp" whatsappProvider="chatmaid" canManage={true} />);
+    const toggles = screen.getAllByRole('switch');
+    expect(toggles).toHaveLength(1);
+    expect(toggles[0]).not.toBeChecked();
+    expect(screen.getAllByRole('link', { name: 'Reminder Schedule' })).toHaveLength(1);
   });
 });
 
