@@ -327,6 +327,58 @@ describe('resident merge: blockers', () => {
     expect(await q(`SELECT 1 FROM public.resident_houses WHERE id = $1`, [ended])).toHaveLength(1);
   });
 
+  async function generationRun(status: string, candidates: { resident: string; house: string }[]) {
+    const bp = (await one(`SELECT id FROM public.billing_profiles LIMIT 1`)).id;
+    const version = (
+      await one(`INSERT INTO public.billing_profile_versions (billing_profile_id, effective_from) VALUES ($1, DATE '2026-01-01') RETURNING id`, [bp])
+    ).id;
+    const run = (await one(`INSERT INTO public.invoice_generation_runs (status) VALUES ($1) RETURNING id`, [status])).id;
+    for (const c of candidates) {
+      await db.query(
+        `INSERT INTO public.invoice_generation_candidates (run_id, resident_id, house_id, billing_profile_id, billing_profile_version_id, period_start, period_end, due_date, amount_due)
+         VALUES ($1, $2, $3, $4, $5, DATE '2026-01-01', DATE '2026-01-31', DATE '2026-02-15', 100)`,
+        [run, c.resident, c.house, bp, version]
+      );
+    }
+    return run as string;
+  }
+
+  async function expectRefused(k: string, d: string, code: string) {
+    expect(blockerCodes(await preview(k, d))).toContain(code);
+    const res = await merge(k, d);
+    expect(res.code).toBe('P0001');
+    expect(res.message).toContain(code);
+    expect(await one(`SELECT account_status, merged_into_resident_id FROM public.residents WHERE id = $1`, [d])).toEqual({
+      account_status: 'active',
+      merged_into_resident_id: null,
+    });
+    expect(await q(`SELECT 1 FROM public.resident_merges`)).toHaveLength(0);
+    expect(await q(`SELECT 1 FROM public.invoice_generation_candidates WHERE resident_id = $1`, [d]).then((r) => r.length)).toBeGreaterThan(0);
+  }
+
+  it('stops while an open invoice generation run includes either record, and not once it is done', async () => {
+    const k = await resident();
+    const d = await resident();
+    const run = await generationRun('draft', [{ resident: d, house: await house() }]);
+    const p = await preview(k, d);
+    expect(p.blockers.find((b: Row) => b.code === 'generation_run_open').detail.run_ids).toEqual([run]);
+    await expectRefused(k, d, 'generation_run_open');
+
+    await db.query(`UPDATE public.invoice_generation_runs SET status = 'completed' WHERE id = $1`, [run]);
+    expect(blockerCodes(await preview(k, d))).not.toContain('generation_run_open');
+  });
+
+  it('stops when one run billed both records for the same house and period', async () => {
+    const k = await resident();
+    const d = await resident();
+    const h = await house();
+    await generationRun('completed', [
+      { resident: k, house: h },
+      { resident: d, house: h },
+    ]);
+    await expectRefused(k, d, 'generation_candidate_clash');
+  });
+
   it('does not stop for a different entity type or for two residences (no role rules in the merge)', async () => {
     const k = await resident();
     const corporate = await resident({ entity_type: 'corporate', company_name: 'Acme' });

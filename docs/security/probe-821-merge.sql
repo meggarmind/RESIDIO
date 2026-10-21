@@ -31,9 +31,8 @@
 -- destructive (DROP ... IF EXISTS in the migration bodies, DELETE inside the merge function body).
 -- On this fresh path the DROP ... IF EXISTS lines can be left out of the pasted bodies.
 --
--- Not covered here: the generation_run_open and generation_candidate_clash blockers (they need a
--- full invoice generation run fixture) and concurrency (two sessions). The static test
--- src/__tests__/resident-merge-pglite.test.ts covers the house_link_in_use blocker.
+-- Not covered here: concurrency (two sessions). The PGlite test src/__tests__/resident-merge-pglite.test.ts
+-- covers the generation_run_open, generation_candidate_clash and house_link_in_use blockers.
 
 BEGIN;
 
