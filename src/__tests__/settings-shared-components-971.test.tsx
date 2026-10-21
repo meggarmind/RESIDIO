@@ -59,6 +59,10 @@ describe('dashboard shell scroll model (M1)', () => {
       return 1;
     });
     const tops: Record<string, number> = { one: 0, two: 800 };
+    // Stub before render: the nav measures once on mount.
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      return { top: tops[this.id] ?? 0 } as DOMRect;
+    });
     const { container } = render(
       <div data-testid="scroller">
         <SettingsPageNav />
@@ -67,11 +71,6 @@ describe('dashboard shell scroll model (M1)', () => {
         ))}
       </div>,
     );
-    for (const id of ['one', 'two']) {
-      vi.spyOn(document.getElementById(id)!, 'getBoundingClientRect').mockImplementation(
-        () => ({ top: tops[id] }) as DOMRect,
-      );
-    }
     const current = () => container.querySelector('a[aria-current="true"]')?.textContent;
     expect(current()).toBe('One');
     tops.one = -900;
@@ -80,6 +79,7 @@ describe('dashboard shell scroll model (M1)', () => {
       fireEvent.scroll(screen.getByTestId('scroller'));
     });
     expect(current()).toBe('Two');
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
 });
