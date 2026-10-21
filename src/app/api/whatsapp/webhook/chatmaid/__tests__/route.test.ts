@@ -53,6 +53,7 @@ interface Harness {
   pause: ReturnType<typeof vi.fn>;
   store: ProcessedMessageStore;
   updateOutboundSendStatus: ReturnType<typeof vi.fn>;
+  outboundSendExists: ReturnType<typeof vi.fn>;
   countRecentOutboundFailures: ReturnType<typeof vi.fn>;
   retryFailedStatementSend: ReturnType<typeof vi.fn>;
   POST: (request: NextRequest) => Promise<Response>;
@@ -64,6 +65,7 @@ async function load(options: {
   handleResidentMessage?: ReturnType<typeof vi.fn>;
   notifyResult?: { success: boolean; count: number; error?: string };
   sendMatched?: boolean;
+  sendExists?: boolean;
   recentFailures?: number;
   retryFailedStatementSend?: ReturnType<typeof vi.fn>;
 } = {}): Promise<Harness> {
@@ -102,10 +104,12 @@ async function load(options: {
   vi.doMock('@/lib/system-log/recorder', () => ({ recordSystemAction }));
 
   const updateOutboundSendStatus = vi.fn().mockResolvedValue(options.sendMatched ?? true);
+  const outboundSendExists = vi.fn().mockResolvedValue(options.sendExists ?? true);
   const countRecentOutboundFailures = vi.fn().mockResolvedValue(options.recentFailures ?? 1);
   vi.doMock('@/lib/whatsapp/outbound-sends', async () => ({
     ...(await vi.importActual<typeof import('@/lib/whatsapp/outbound-sends')>('@/lib/whatsapp/outbound-sends')),
     updateOutboundSendStatus,
+    outboundSendExists,
     countRecentOutboundFailures,
   }));
 
@@ -113,7 +117,7 @@ async function load(options: {
   vi.doMock('@/lib/whatsapp/statement-delivery', () => ({ retryFailedStatementSend }));
 
   const { POST } = await import('@/app/api/whatsapp/webhook/chatmaid/route');
-  return { handleResidentMessage, notifyAdmins, getPausedUntil, pause, store, updateOutboundSendStatus, countRecentOutboundFailures, retryFailedStatementSend, POST };
+  return { handleResidentMessage, notifyAdmins, getPausedUntil, pause, store, updateOutboundSendStatus, outboundSendExists, countRecentOutboundFailures, retryFailedStatementSend, POST };
 }
 
 describe('Chatmaid WhatsApp webhook route', () => {
@@ -499,13 +503,46 @@ describe('Chatmaid WhatsApp webhook route', () => {
       warn.mockRestore();
     });
 
-    it('still records a failure for a send Residio has no record of', async () => {
+    it('records the failure for a send that moved nothing because it was already settled', async () => {
       const h = await load({ sendMatched: false });
       expect((await h.POST(post('message.failed', failedBody))).status).toBe(200);
       expect(recordSystemAction).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'outbound_failed', summary: expect.objectContaining({ matchedSend: false }) })
       );
       expect(h.countRecentOutboundFailures).not.toHaveBeenCalled();
+    });
+
+    it.each(['message.sent', 'message.delivered', 'message.failed'])(
+      'asks for a retry when %s arrives before the send is stored, then applies it once (#941)',
+      async (event) => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const h = await load();
+        const body = JSON.stringify({ event, data: { messageId: 'outmsg_1' } });
+        h.updateOutboundSendStatus.mockResolvedValueOnce(false);
+        h.outboundSendExists.mockResolvedValueOnce(false);
+
+        // Too early: no row yet. 500 and the claim is released, with no failure log row.
+        expect((await h.POST(post(event, body))).status).toBe(500);
+        expect(recordSystemAction).not.toHaveBeenCalled();
+        expect(h.notifyAdmins).not.toHaveBeenCalled();
+
+        // Chatmaid's retry: the row exists now.
+        expect((await h.POST(post(event, body))).status).toBe(200);
+        expect(h.updateOutboundSendStatus).toHaveBeenCalledTimes(2);
+        expect(h.updateOutboundSendStatus).toHaveBeenLastCalledWith('chatmaid', 'outmsg_1', event.slice(8), expect.anything());
+
+        // And only once: a further retry is a duplicate.
+        expect((await h.POST(post(event, body))).status).toBe(200);
+        expect(h.updateOutboundSendStatus).toHaveBeenCalledTimes(2);
+        warn.mockRestore();
+      }
+    );
+
+    it('does not ask for a retry when the send exists but was already settled', async () => {
+      const h = await load({ sendMatched: false, sendExists: true });
+      const body = JSON.stringify({ event: 'message.sent', data: { messageId: 'outmsg_1' } });
+      expect((await h.POST(post('message.sent', body))).status).toBe(200);
+      expect(h.outboundSendExists).toHaveBeenCalledWith('chatmaid', 'outmsg_1');
     });
 
     it('alerts admins when the failure is the third in the window', async () => {

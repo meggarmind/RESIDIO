@@ -18,7 +18,7 @@ vi.mock('@/lib/comms-override/gate', () => ({
   decideSend: vi.fn().mockResolvedValue({ result: { redirect: false }, envLabel: 'TEST' }),
 }));
 
-import { alertStalePendingSends, stripPhoneNumbers, updateOutboundSendStatus } from '@/lib/whatsapp/outbound-sends';
+import { alertStalePendingSends, outboundSendExists, stripPhoneNumbers, updateOutboundSendStatus } from '@/lib/whatsapp/outbound-sends';
 import { sendWhatsAppMessage, sendWhatsAppTemplate } from '@/lib/whatsapp/provider';
 
 type Result = { data?: unknown; error: unknown };
@@ -27,7 +27,7 @@ type Result = { data?: unknown; error: unknown };
 function query(result: Result) {
   const calls: [string, unknown[]][] = [];
   const builder: Record<string, unknown> = {};
-  for (const method of ['insert', 'update', 'select', 'eq', 'in', 'is', 'lt', 'gte']) {
+  for (const method of ['insert', 'update', 'select', 'eq', 'in', 'is', 'lt', 'gte', 'limit']) {
     builder[method] = (...args: unknown[]) => {
       calls.push([method, args]);
       return builder;
@@ -120,6 +120,63 @@ describe('updateOutboundSendStatus', () => {
   it('throws on a database error so the webhook asks for a retry', async () => {
     mocks.from.mockReturnValue(query({ error: { message: 'db down' } }).builder);
     await expect(updateOutboundSendStatus('chatmaid', 'outmsg_1', 'sent')).rejects.toEqual({ message: 'db down' });
+  });
+});
+
+/** A one-row table that honours the `.in('status', ...)` guard, so event order can be replayed. */
+function fakeSendRow(initial: string) {
+  const row = { status: initial };
+  mocks.from.mockImplementation(() => {
+    let next: { status: string } | null = null;
+    let allowed: string[] = [];
+    const builder: Record<string, unknown> = {
+      update: (values: { status: string }) => { next = values; return builder; },
+      eq: () => builder,
+      in: (_column: string, statuses: string[]) => { allowed = statuses; return builder; },
+      select: () => builder,
+      then: (resolve: (value: Result) => unknown) => {
+        const moves = next !== null && allowed.includes(row.status);
+        if (moves && next) row.status = next.status;
+        return Promise.resolve(resolve({ data: moves ? [{ id: 'row-1' }] : [], error: null }));
+      },
+    };
+    return builder;
+  });
+  return row;
+}
+
+describe('status event order (#941)', () => {
+  it.each([
+    [['sent', 'delivered']],
+    [['delivered', 'sent']],
+  ] as const)('ends at delivered when events arrive as %j', async (order) => {
+    const row = fakeSendRow('pending');
+    for (const status of order) await updateOutboundSendStatus('chatmaid', 'outmsg_1', status);
+    expect(row.status).toBe('delivered');
+  });
+
+  it.each(['sent', 'delivered'] as const)('never overwrites failed with a late %s', async (status) => {
+    const row = fakeSendRow('failed');
+    expect(await updateOutboundSendStatus('chatmaid', 'outmsg_1', status)).toBe(false);
+    expect(row.status).toBe('failed');
+  });
+
+  it('a send settled by a replayed event is no longer pending, so the stale alert skips it', async () => {
+    const row = fakeSendRow('pending');
+    await updateOutboundSendStatus('chatmaid', 'outmsg_1', 'delivered');
+    expect(row.status).not.toBe('pending');
+  });
+});
+
+describe('outboundSendExists', () => {
+  it.each([[[{ id: 'row-1' }], true], [[], false]] as const)('maps %j to %s', async (data, expected) => {
+    mocks.from.mockReturnValue(query({ data, error: null }).builder);
+    expect(await outboundSendExists('chatmaid', 'outmsg_1')).toBe(expected);
+  });
+
+  it('throws on a database error so the webhook asks for a retry', async () => {
+    mocks.from.mockReturnValue(query({ error: { message: 'db down' } }).builder);
+    await expect(outboundSendExists('chatmaid', 'outmsg_1')).rejects.toEqual({ message: 'db down' });
   });
 });
 

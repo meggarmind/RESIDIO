@@ -16,6 +16,7 @@ import {
   OUTBOUND_FAILURE_ALERT_THRESHOLD,
   OUTBOUND_FAILURE_ALERT_WINDOW_MINUTES,
   countRecentOutboundFailures,
+  outboundSendExists,
   stripPhoneNumbers,
   updateOutboundSendStatus,
   type OutboundDeliveryStatus,
@@ -191,6 +192,8 @@ async function handlePhoneHealth(event: 'phone.disconnected' | 'phone.connected'
   }
 }
 
+class SendNotRecordedYet extends Error {}
+
 function optionalText(value: unknown): string | null {
   if (value === null || value === undefined || value === '') return null;
   return stripPhoneNumbers(String(value)).slice(0, 500);
@@ -219,6 +222,12 @@ async function handleDeliveryStatus(event: 'message.sent' | 'message.delivered' 
     let matched = false;
     const outcome = await runOnce(chatmaidEventDedupeKey(event, rawBody), async () => {
       matched = await updateOutboundSendStatus('chatmaid', messageId, status, { code: errorCode, message: errorMessage });
+      // The event can beat the send record by under a second (#941). Throwing releases the
+      // claim and answers 500, so Chatmaid's retry applies it once the record exists.
+      // shortcut: an id Residio never stored is retried too, then dropped by Chatmaid after its 3 attempts.
+      if (!matched && !(await outboundSendExists('chatmaid', messageId))) {
+        throw new SendNotRecordedYet();
+      }
       // A statement PDF reply that failed is sent once more with a fresh signed URL (#804).
       // Its failure must not fail this status event, which is already recorded.
       if (status === 'failed' && matched) {
@@ -256,6 +265,11 @@ async function handleDeliveryStatus(event: 'message.sent' | 'message.delivered' 
 
     return NextResponse.json({ received: true, processed: true, duplicate: outcome === 'duplicate' });
   } catch (error) {
+    if (error instanceof SendNotRecordedYet) {
+      // Expected race, not a fault: no failure log row.
+      console.warn('[chatmaid-webhook] Status event arrived before its send was stored; asking for a retry', { event, messageId });
+      return processingFailed('Send not stored yet; retry');
+    }
     console.error(`[chatmaid-webhook] Failed to handle ${event}:`, error);
     await recordWebhookDelivery({
       provider: 'whatsapp-chatmaid',
