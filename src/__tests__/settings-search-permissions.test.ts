@@ -85,6 +85,8 @@ describe('Settings/System search entry permissions', () => {
       '/settings/property': ['settings.manage_reference'],
       '/settings/billing': ['settings.manage_billing'],
       '/settings/billing/profiles': ['billing.manage_profiles'],
+      // Debt status labels, threshold and report (#980).
+      '/settings/debt-status': ['settings.manage_debt_status'],
       // Merged Banking page (#935): the OR of bank accounts and tags (manage_reference) and duplicate matching.
       '/settings/banking': ['settings.manage_reference', 'system.manage_maintenance'],
       // Merged Messages task pages (#934): each is the OR of its sections' permissions.
@@ -171,6 +173,14 @@ describe('Settings row search entry permissions (#934, #935, #937)', () => {
       'late-fee-waivers': BILLING,
       'current-dev-levy': BILLING,
       'retroactive-levies': BILLING,
+      // Debt Status (#980): one page permission, no section of its own.
+      'debt-label-arrears': ['settings.manage_debt_status'],
+      'debt-label-outstanding': ['settings.manage_debt_status'],
+      'debt-label-paid-in-full': ['settings.manage_debt_status'],
+      'debt-label-credit': ['settings.manage_debt_status'],
+      'debt-arrears-threshold': ['settings.manage_debt_status'],
+      'debt-report-footnote': ['settings.manage_debt_status'],
+      'debt-chat-pdf-house-limit': ['settings.manage_debt_status'],
       // Banking (#935): each section keeps its own permission.
       'estate-bank-accounts': REFERENCE,
       'statement-passwords': REFERENCE,

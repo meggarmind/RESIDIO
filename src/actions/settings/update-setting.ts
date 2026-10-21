@@ -8,6 +8,7 @@ import { PERMISSIONS, type Permission } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { settingValueError } from '@/lib/validators/setting-value';
 import { EMAIL_AUTO_PROCESS_LIMIT_KEY } from '@/lib/email-imports/utils';
+import { ALL_DEBT_STATUS_SETTING_KEYS } from '@/lib/billing/debt-status';
 
 type UpdateSettingResponse = {
     data: SystemSetting | null;
@@ -50,6 +51,11 @@ const SETTING_AREAS: { permissions: Permission[]; keys: string[] }[] = [
             'current_development_levy_profile_id',
             'clearance_copy_recipient_group_id',
         ],
+    },
+    {
+        // /settings/debt-status (#980)
+        permissions: [PERMISSIONS.SETTINGS_MANAGE_DEBT_STATUS],
+        keys: ALL_DEBT_STATUS_SETTING_KEYS,
     },
     {
         permissions: [PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION],
