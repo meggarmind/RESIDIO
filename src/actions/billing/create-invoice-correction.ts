@@ -242,7 +242,7 @@ export async function createInvoiceCorrection(
     if (creditError) {
       // Keep only the credit that has a credit note behind it.
       const recorded = creditNotes.reduce((sum, note) => sum - Number(note.amount_due), 0);
-      await supabase
+      const { error: rollbackError } = await supabase
         .from('invoices')
         .update({ amount_paid: recorded, status: creditStatus(recorded) })
         .eq('id', originalInvoice.id);
@@ -250,7 +250,7 @@ export async function createInvoiceCorrection(
         success: false,
         creditNotes,
         debitNotes: [],
-        error: `Failed to create credit note: ${creditError.message}`,
+        error: `Failed to create credit note: ${creditError.message}${rollbackError ? `. The credit applied to original invoice ${originalInvoice.invoice_number} could not be reversed (${rollbackError.message}); check its paid amount.` : ''}`,
       };
     }
 
@@ -316,7 +316,11 @@ export async function createInvoiceCorrection(
         success: false,
         creditNotes,
         debitNotes,
-        error: `Failed to create debit note: ${debitError.message}`,
+        error: `Failed to create debit note: ${debitError.message}. The credit is already applied to original invoice ${originalInvoice.invoice_number}; debit notes still missing: ${input.corrections
+          .filter((c) => c.type === 'debit')
+          .slice(debitNotes.length)
+          .map((c) => c.description)
+          .join(', ')}.`,
       };
     }
 
