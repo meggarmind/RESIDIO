@@ -5,6 +5,7 @@ import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { loadAccountStatement } from '@/lib/billing/account-statement-data';
 import {
   buildStatementEmail,
+  loadWhatsAppStatementForPeriod,
   markStatementEmailSent,
   purgeExpiredStatementFiles,
   queueStatementEmail,
@@ -223,5 +224,28 @@ describe('WhatsApp statement by email (#804 decision 24)', () => {
       openingBalance: '₦45,000.00',
       closingBalance: '−₦2,000.00',
     });
+  });
+});
+
+describe('Since move-in start date (#864)', () => {
+  const now = new Date('2026-10-20T10:00:00Z');
+
+  it('reads only active links with a billable role and starts on the earliest of them', async () => {
+    const { calls } = mockDb({ resident_houses: [{ data: [{ move_in_date: '2025-06-01' }, { move_in_date: '2025-02-03' }], error: null }] });
+    vi.mocked(loadAccountStatement).mockResolvedValue({ data: statement, error: null } as never);
+
+    const loaded = await loadWhatsAppStatementForPeriod('resident-1', 'house-1', 'since_move_in', now);
+
+    expect(loaded?.fromDate).toBe('2025-02-03');
+    expect(calls).toContainEqual({ table: 'resident_houses', op: 'eq', args: ['is_active', true] });
+    expect(calls).toContainEqual({ table: 'resident_houses', op: 'in', args: ['resident_role', ['resident_landlord', 'non_resident_landlord', 'developer', 'tenant']] });
+  });
+
+  it('returns null, building nothing, when no active billable link exists', async () => {
+    mockDb({ resident_houses: [{ data: [], error: null }] });
+    vi.mocked(loadAccountStatement).mockClear();
+
+    expect(await loadWhatsAppStatementForPeriod('resident-1', 'house-1', 'since_move_in', now)).toBeNull();
+    expect(loadAccountStatement).not.toHaveBeenCalled();
   });
 });

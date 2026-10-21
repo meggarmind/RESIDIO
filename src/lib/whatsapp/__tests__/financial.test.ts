@@ -530,6 +530,20 @@ describe('WhatsApp Assistant statement (#804 decisions 22-23)', () => {
     expect(repo.logDisclosure).toHaveBeenCalledWith(expect.objectContaining({ metadata: { period: 'since_move_in', row_count: 0 } }));
   });
 
+  it('replies with the contact line, and sends nothing, when since move-in has no active billable link', async () => {
+    for (const texts of [['statement', '6'], ['statement', '6', '1']]) {
+      const repo = repository([PALM], { loadStatement: vi.fn().mockResolvedValue(null) });
+      const send = vi.fn().mockResolvedValue({ success: true });
+      for (const text of texts) await handleFinancialMessage(message(text), identity, { repository: repo, optedIn: true, send });
+
+      expect(send.mock.calls[1][0].body).toBe(["We couldn't find an active tenancy for this property, so there is no move-in date to start from.", CONTACT, FOOTER].join('\n'));
+      expect(send.mock.calls[1][0].mediaUrls).toBeUndefined();
+      expect(repo.logDisclosure).not.toHaveBeenCalled();
+      expect(repo.storeStatementPdf).not.toHaveBeenCalled();
+      expect(repo.queueStatementEmail).not.toHaveBeenCalled();
+    }
+  });
+
   it('starts each period at midnight Lagos', () => {
     const now = new Date('2026-01-31T23:30:00Z'); // 1 Feb 00:30 in Lagos
     expect(statementRange('this_month', now).from?.toISOString()).toBe('2026-01-31T23:00:00.000Z');

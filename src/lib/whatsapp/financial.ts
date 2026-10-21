@@ -233,7 +233,7 @@ export interface WhatsAppFinancialRepository {
   /** Files an approval request for a clearance certificate on this property (#816 decision 15). */
   requestClearance(input: Parameters<typeof requestClearanceCertificate>[0]): Promise<ClearanceRequestResult>;
   /** The statement PDF for a period: the admin account statement, with its Lagos dates. */
-  loadStatement(residentId: string, houseId: string, period: StatementPeriod, now: Date): Promise<{ fromDate: string; toDate: string; statement: AccountStatementData }>;
+  loadStatement(residentId: string, houseId: string, period: StatementPeriod, now: Date): Promise<{ fromDate: string; toDate: string; statement: AccountStatementData } | null>;
   /** Stores the PDF privately and returns a 1-hour signed URL for the reply. */
   storeStatementPdf(input: StatementRequestInput & { replyText: string }, statement: AccountStatementData): Promise<string>;
   /** Records that the resident is being asked for feedback (#872); null when they must not be: opted out, or asked in the last 30 days. */
@@ -1029,6 +1029,8 @@ function statementHeading(period: StatementPeriod, house: FinancialHouse, fromDa
   return `*Statement, ${PERIOD_LABELS[period]}, ${house.label}*\n${formatDay(fromDate)} to ${formatDay(toDate)}`;
 }
 
+const NO_MOVE_IN_REPLY = "We couldn't find an active tenancy for this property, so there is no move-in date to start from.";
+
 /**
  * Every statement is a PDF, never chat text (#917, amending #804 decisions 22-24 and #863): in
  * chat up to 40 rows, by email beyond. The reply only says where the PDF is going.
@@ -1041,7 +1043,9 @@ async function deliverStatementPdf(turn: Turn, period: StatementPeriod): Promise
   if (capped) return respond(turn, capped, 'financial');
 
   const repository = turn.options.repository;
-  const { fromDate, toDate, statement } = await repository.loadStatement(turn.identity.id, house.id, period, new Date());
+  const loaded = await repository.loadStatement(turn.identity.id, house.id, period, new Date());
+  if (!loaded) return respond(turn, `${withContact(turn, NO_MOVE_IN_REPLY)}\n${footer(turn)}`, 'financial');
+  const { fromDate, toDate, statement } = loaded;
   const rowCount = statement.transactions.length;
   const input = requestInput(turn, house, period, fromDate, toDate, rowCount);
 
@@ -1080,7 +1084,9 @@ async function confirmStatementEmail(turn: Turn, period: StatementPeriod): Promi
   const repository = turn.options.repository;
   const email = await repository.getResidentEmail(turn.identity.id);
   if (!email) return deliverStatementPdf(turn, period);
-  const { fromDate, toDate, statement } = await repository.loadStatement(turn.identity.id, house.id, period, new Date());
+  const loaded = await repository.loadStatement(turn.identity.id, house.id, period, new Date());
+  if (!loaded) return respond(turn, `${withContact(turn, NO_MOVE_IN_REPLY)}\n${footer(turn)}`, 'financial');
+  const { fromDate, toDate, statement } = loaded;
   await repository.logDisclosure({
     residentId: turn.identity.id,
     phoneNumber: turn.phoneNumber,

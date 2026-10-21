@@ -10,6 +10,7 @@ import { WhatsAppStatementEmail } from '@/emails/whatsapp-statement';
 import { addToQueue, PRIORITY } from '@/lib/notifications/queue';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
+import { LEVY_BILLABLE_ROLES } from '@/lib/billing/retroactive-levy-plan';
 import { earliestMoveIn, formatDay, formatNaira, PERIOD_LABELS, statementDates, type StatementPeriod } from '@/lib/whatsapp/assistant-format';
 
 /**
@@ -57,20 +58,22 @@ export async function loadWhatsAppStatement(residentId: string, houseId: string,
   return data;
 }
 
-/** The move-in date of this resident's active tenancy at the house; with several active rows, the earliest. */
+/** The move-in date of this resident's active billable tenancy at the house; with several such rows, the earliest. */
 async function activeMoveIn(residentId: string, houseId: string): Promise<string | null> {
   const { data, error } = await createAdminClient()
     .from('resident_houses')
     .select('move_in_date')
     .eq('resident_id', residentId)
     .eq('house_id', houseId)
-    .eq('is_active', true);
+    .eq('is_active', true)
+    .in('resident_role', [...LEVY_BILLABLE_ROLES]);
   if (error) throw error;
   return earliestMoveIn((data || []).map((row) => row.move_in_date));
 }
 
 export async function loadWhatsAppStatementForPeriod(residentId: string, houseId: string, period: StatementPeriod, now: Date) {
   const moveIn = period === 'since_move_in' ? await activeMoveIn(residentId, houseId) : null;
+  if (period === 'since_move_in' && !moveIn) return null;
   const { fromDate, toDate } = statementDates(period, now, moveIn);
   return { fromDate, toDate, statement: await loadWhatsAppStatement(residentId, houseId, fromDate, toDate) };
 }
