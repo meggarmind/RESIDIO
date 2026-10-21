@@ -58,7 +58,7 @@ export function maskReference(reference: string | null | undefined): string | nu
 // ---------------------------------------------------------------------------
 // Statement periods (#804 decisions 22-23)
 
-export type StatementPeriod = 'this_month' | 'this_year' | 'last_six_months' | 'last_twelve_months' | 'all_time';
+export type StatementPeriod = 'this_month' | 'this_year' | 'last_six_months' | 'last_twelve_months' | 'all_time' | 'since_move_in';
 
 export const PERIOD_LABELS: Record<StatementPeriod, string> = {
   this_month: 'this month',
@@ -66,8 +66,9 @@ export const PERIOD_LABELS: Record<StatementPeriod, string> = {
   last_six_months: 'last 6 months',
   last_twelve_months: 'last 12 months',
   all_time: 'all time',
+  since_move_in: 'since move-in',
 };
-export const PERIODS: StatementPeriod[] = ['this_month', 'this_year', 'last_six_months', 'last_twelve_months', 'all_time'];
+export const PERIODS: StatementPeriod[] = ['this_month', 'this_year', 'last_six_months', 'last_twelve_months', 'all_time', 'since_move_in'];
 
 /** Period boundaries in Africa/Lagos (#804 decisions 22-23); "last 6 months" is this month plus the 5 before. */
 export function statementRange(period: StatementPeriod, now: Date): { from: Date | null; to: Date } {
@@ -81,6 +82,7 @@ export function statementRange(period: StatementPeriod, now: Date): { from: Date
         : period === 'last_twelve_months'
           ? lagosMidnight(year, month - 11, 1)
           : null;
+  // Since move-in starts on a stored date, not a calendar boundary; statementDates supplies it.
   return { from, to: now };
 }
 
@@ -90,10 +92,23 @@ export function lagosDateString(date: Date): string {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
-/** The period as Lagos calendar dates for the account statement; all time starts at 2000-01-01. */
-export function statementDates(period: StatementPeriod, now: Date): { fromDate: string; toDate: string } {
+/** The earliest `YYYY-MM-DD` move-in date; null when there is none (#864 decisions 2-3). */
+export function earliestMoveIn(moveInDates: string[]): string | null {
+  return moveInDates.length ? moveInDates.reduce((a, b) => (b < a ? b : a)) : null;
+}
+
+/**
+ * The period as Lagos calendar dates for the account statement; all time starts at 2000-01-01.
+ * Since move-in starts on `moveInDate` (capped at today, so a future move-in gives a one-day range).
+ */
+export function statementDates(period: StatementPeriod, now: Date, moveInDate?: string | null): { fromDate: string; toDate: string } {
   const { from, to } = statementRange(period, now);
-  return { fromDate: from ? lagosDateString(from) : '2000-01-01', toDate: lagosDateString(to) };
+  const toDate = lagosDateString(to);
+  if (period === 'since_move_in') {
+    if (!moveInDate) throw new Error('Since move-in needs a move-in date');
+    return { fromDate: moveInDate < toDate ? moveInDate : toDate, toDate };
+  }
+  return { fromDate: from ? lagosDateString(from) : '2000-01-01', toDate };
 }
 
 /** `a***@gmail.com` (#804 decision 24). */

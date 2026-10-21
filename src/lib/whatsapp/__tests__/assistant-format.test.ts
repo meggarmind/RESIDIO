@@ -7,6 +7,7 @@ import {
   formatNaira,
   maskEmail,
   maskReference,
+  earliestMoveIn,
   statementDates,
   officeBackLine,
   parseKeywordSynonyms,
@@ -51,6 +52,23 @@ describe('WhatsApp Assistant formatting (#804)', () => {
     expect(statementDates('this_month', now)).toEqual({ fromDate: '2026-02-01', toDate: '2026-02-01' });
     expect(statementDates('last_six_months', now)).toEqual({ fromDate: '2025-09-01', toDate: '2026-02-01' });
     expect(statementDates('all_time', now)).toEqual({ fromDate: '2000-01-01', toDate: '2026-02-01' });
+  });
+
+  it('starts since move-in on the move-in date and ends today in Lagos', () => {
+    const now = new Date('2026-01-31T23:30:00Z'); // 1 Feb 2026 in Lagos
+    expect(statementDates('since_move_in', now, '2025-02-03')).toEqual({ fromDate: '2025-02-03', toDate: '2026-02-01' });
+    // Moved in today: a one-day range, not an empty or inverted one.
+    expect(statementDates('since_move_in', now, '2026-02-01')).toEqual({ fromDate: '2026-02-01', toDate: '2026-02-01' });
+    // Move-in before the first invoice is still the move-in date, not the first charge.
+    expect(statementDates('since_move_in', now, '1999-06-01').fromDate).toBe('1999-06-01');
+    // A move-in dated after today never inverts the range.
+    expect(statementDates('since_move_in', now, '2026-03-01')).toEqual({ fromDate: '2026-02-01', toDate: '2026-02-01' });
+    expect(() => statementDates('since_move_in', now, null)).toThrow();
+  });
+
+  it('starts all properties at the earliest move-in', () => {
+    expect(earliestMoveIn(['2025-02-03', '2024-11-20', '2026-01-01'])).toBe('2024-11-20');
+    expect(earliestMoveIn([])).toBeNull();
   });
 
   it('reads 12-hour clock times', () => {
