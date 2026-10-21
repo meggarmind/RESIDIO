@@ -13,7 +13,7 @@ residio_sources:
   - src/components/admin/role-title-picker.tsx
   - src/components/admin/role-titles-manager.tsx
   - src/components/admin/pending-accounts-list.tsx
-residio_verified_commit: dadb3b30
+residio_verified_commit: 13cbd359
 residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---
@@ -59,6 +59,8 @@ Two-factor authentication is optional: it applies only to accounts that have tur
 A **title** is the post a person holds within a role. A backup officer, such as the Vice Chairman or the Financial Secretary, holds the same role as the principal and has exactly the same permissions; the title is what tells them apart. Each title has one seat, except Trustee, which has no limit.
 
 Every role except Super Administrator and Security Guard Supervisor can only be held by an account linked to a resident record. If that resident moves out or is deactivated, the role is removed automatically.
+
+A role with only view access, such as Trustee, sees no create, edit, delete, approve or settings buttons on the admin pages: each control appears only when the role holds the matching write permission.
 
 A plain resident holds no role at all. They have no admin dashboard and reach the resident portal through their resident record.
 
