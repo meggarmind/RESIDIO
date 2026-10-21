@@ -399,13 +399,14 @@ External PRs are not a triage surface. See `docs/agents/issue-tracker.md`.
 automatically — that is your job. Board and field IDs, and the exact `gh project item-edit`
 commands, are in `docs/agents/project-board.md`.
 
-`Status` columns: **Backlog → Ready → In progress → In review → Done**.
+`Status` columns: **Backlog → Ready → In progress → In review → On stage → Done**. Definitions: pinned issue #1006.
 
-Move an issue's Status at these three points, without being asked:
+Move an issue's Status at these points, without being asked:
 
 1. Starting work on a `ready-for-agent` / `ready-for-human` issue → **In progress**
 2. Opening the PR for it → **In review**
-3. The issue or its PR is closed or merged → **Done**
+3. The PR merges into `stage` and the work is live on Stage → **On stage**, and add the `on-stage` label. The issue stays open until it is live on Prod.
+4. The issue is closed (after the release to Prod, or `wontfix`) → **Done**
 
 Do not move issues *backwards* (to Backlog or Ready) on your own; that stays manual.
 

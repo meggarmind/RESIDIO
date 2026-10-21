@@ -21,6 +21,7 @@ Read it at session start, with #412. If a definition changes, update #1006 and t
 | Ready         | `61e4505c` |
 | In progress   | `47fc9ee4` |
 | In review     | `df73e18b` |
+| On stage      | `e2a2fcdd` |
 | Done          | `98236657` |
 
 ## Triage label → Status mapping
@@ -32,16 +33,18 @@ Read it at session start, with #412. If a definition changes, update #1006 and t
 | `ready-for-agent` / `ready-for-human` | Ready      |
 | *(agent actively working the issue)* | In progress |
 | *(PR open, awaiting review)*       | In review     |
-| Issue/PR closed or merged, or `wontfix` | Done     |
+| `on-stage` (open issue, live on Stage) | On stage |
+| Issue closed after the Prod release, or `wontfix` | Done |
 
 ## When to move an issue's Status
 
 Per `CORE.md` section 9, every agent — under any harness — moves an issue automatically at
-exactly three points:
+exactly these points:
 
 1. **Picking up a `ready-for-agent`/`ready-for-human` issue to start work** → set Status to `In progress`.
 2. **Opening the PR for it** → set Status to `In review`.
-3. **The issue (or its PR) is closed or merged** → set Status to `Done`.
+3. **The PR merges into `stage` and the work is live on Stage** → add the `on-stage` label and set Status to `On stage`. The issue stays open.
+4. **The issue is closed** (after the release to Prod, or `wontfix`) → set Status to `Done`.
 
 Do not move issues *backwards* (to `Backlog` or `Ready`) on your own; that stays manual, as does
 the initial `Backlog` → `Ready` triage transition.
