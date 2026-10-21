@@ -103,8 +103,8 @@ import { BankAccountsList } from '@/components/admin/bank-accounts-list';
 import { RolesList } from '@/components/admin/roles-list';
 import { SecurityLimitsSection as SecuritySettingsPage } from '@/components/settings/security/security-limits-section';
 import { ContactCategoriesSection as CategoriesPage } from '@/components/settings/security/contact-categories-section';
-import BillingSettingsPage from '@/app/(dashboard)/settings/billing/page';
-import LateFeesPage from '@/app/(dashboard)/settings/billing/late-fees/page';
+import { BillingGeneralSection as BillingSettingsPage } from '@/components/settings/billing/billing-general-section';
+import { LateFeesSection as LateFeesPage } from '@/components/settings/billing/late-fees-section';
 import BrandingPage from '@/app/(dashboard)/settings/branding/page';
 import DataRetentionPage from '@/app/(dashboard)/settings/data-retention/page';
 import { Switch } from '@/components/ui/switch';
@@ -169,21 +169,21 @@ const CASES: Case[] = [
     ui: () => <BillingSettingsPage />,
     permission: PERMISSIONS.SETTINGS_MANAGE_BILLING,
     buttons: [],
-    fields: [['switch', /Bill Vacant Houses/], ['checkbox', /7 days before/], ['combobox', /Send copies to/]],
+    fields: [['switch', /Bill vacant houses/], ['checkbox', /7 days before/], ['combobox', /Send copies to/]],
   },
   {
     name: 'billing settings: profiles permission (#840)',
     ui: () => <BillingSettingsPage />,
     permission: PERMISSIONS.BILLING_MANAGE_PROFILES,
     buttons: [],
-    fields: [['switch', /Bill Vacant Houses/]],
+    fields: [['switch', /Bill vacant houses/]],
   },
   {
     name: 'late fees: settings',
     ui: () => <LateFeesPage />,
     permission: PERMISSIONS.SETTINGS_MANAGE_BILLING,
     buttons: [],
-    fields: [['switch', /Enable Late Fees/]],
+    fields: [['switch', /Enable late fees/]],
   },
   {
     name: 'late fees: apply',

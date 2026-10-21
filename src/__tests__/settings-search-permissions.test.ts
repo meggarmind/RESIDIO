@@ -86,12 +86,9 @@ describe('Settings/System search entry permissions', () => {
       '/settings/streets': ['settings.manage_reference'],
       '/settings/house-types': ['settings.manage_reference'],
       '/settings/billing': ['settings.manage_billing'],
-      '/settings/billing/late-fees': ['settings.manage_billing'],
-      '/settings/billing/invoices': ['settings.manage_billing'],
-      '/settings/billing/development-levies': ['settings.manage_billing'],
       '/settings/billing/profiles': ['billing.manage_profiles'],
-      '/settings/bank-accounts': ['settings.manage_reference'],
-      '/settings/transaction-tags': ['settings.manage_reference'],
+      // Merged Banking page (#935): the OR of bank accounts and tags (manage_reference) and duplicate matching.
+      '/settings/banking': ['settings.manage_reference', 'system.manage_maintenance'],
       // Merged Messages task pages (#934): each is the OR of its sections' permissions.
       '/settings/reminders': ['notifications.manage', 'settings.manage_general'],
       '/settings/wording': ['notifications.manage'],
@@ -118,9 +115,11 @@ describe('Settings/System search entry permissions', () => {
   });
 });
 
-describe('Settings row search entry permissions (#934, #937)', () => {
+describe('Settings row search entry permissions (#934, #935, #937)', () => {
   const MANAGE_GENERAL = ['settings.manage_general'];
   const NOTIFICATIONS = ['notifications.manage'];
+  const BILLING = ['settings.manage_billing'];
+  const REFERENCE = ['settings.manage_reference'];
 
   it('pins each row of the merged task pages to the permission of its own section', () => {
     expect(
@@ -153,7 +152,39 @@ describe('Settings row search entry permissions (#934, #937)', () => {
       'reset-security-defaults': ['settings.manage_security'],
       'contact-category-rules': ['security.manage_categories'],
       'session-timeout-minutes': ['system.manage_maintenance'],
+      // Billing rules (#935): the page opens for manage_billing in the nav and its sections declare none of their own.
+      'bill-vacant-houses': BILLING,
+      'bill-under-renovation': BILLING,
+      'bill-under-construction': BILLING,
+      'auto-generate-levies': BILLING,
+      'pro-rata-first-month': BILLING,
+      'invoice-due-window': BILLING,
+      'payment-reminder-days': BILLING,
+      'clearance-copy-group': BILLING,
+      'auto-generate-invoices': BILLING,
+      'generation-day': BILLING,
+      'late-fee-enabled': BILLING,
+      'late-fee-type': BILLING,
+      'late-fee-amount': BILLING,
+      'grace-period-days': BILLING,
+      'late-fee-auto-apply': BILLING,
+      'late-fee-application-day': BILLING,
+      'apply-late-fees-now': BILLING,
+      'late-fee-waivers': BILLING,
+      'current-dev-levy': BILLING,
+      'retroactive-levies': BILLING,
+      // Banking (#935): each section keeps its own permission.
+      'estate-bank-accounts': REFERENCE,
+      'statement-passwords': REFERENCE,
+      'transaction-tags': REFERENCE,
+      'duplicate-threshold': ['system.manage_maintenance'],
     });
+  });
+
+  it('a late fee row is findable by the estate word "penalty"', () => {
+    expect(matchSettingsEntries(SETTINGS_SEARCH_ENTRIES, 'penalty').map((e) => e.id)).toEqual(
+      expect.arrayContaining(['settings-row-late-fee-enabled', 'settings-row-grace-period-days'])
+    );
   });
 
   it('a row is findable by an estate word kept in its keywords', () => {

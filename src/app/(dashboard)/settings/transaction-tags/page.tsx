@@ -1,28 +1,6 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import { TransactionTagsList } from '@/components/admin/transaction-tags-list';
-import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
-
-export default function TransactionTagsPage() {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-medium">Transaction Tags</h3>
-        <p className="text-sm text-muted-foreground">
-          Manage category tags for classifying bank statement transactions.
-          Tags help organize imported transactions for financial reporting.
-        </p>
-      </div>
-      <Card>
-        <CardHeader>
-          <CardDescription>
-            Create and manage tags to categorize incoming (credit) and outgoing (debit) transactions.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <TransactionTagsList />
-        </CardContent>
-      </Card>
-    </div>
-  );
+// Merged into /settings/banking#tags (#935). The ROUTE_PERMISSIONS entry for this path stays: it still decides who reaches the redirect (ADR-0004).
+export default function Page() {
+  redirect('/settings/banking#tags');
 }

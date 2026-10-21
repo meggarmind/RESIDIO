@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -14,7 +14,6 @@ import { useSystemSettings, useUpdateSettings } from '@/hooks/use-settings';
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
 import { updateMaintenanceMode, previewMaintenanceLockout } from '@/actions/settings/update-maintenance-mode';
 import { ConfirmAction } from '@/components/ui/confirm-action';
-import { NumericSettingInput } from '@/components/settings/numeric-setting-input';
 import { StickySaveBar } from '@/components/settings/sticky-save-bar';
 import { isMaintenanceModeOn } from '@/lib/settings/maintenance-mode';
 import { useAuth } from '@/lib/auth/auth-provider';
@@ -25,7 +24,6 @@ const DEFAULT_MESSAGE = 'The system is currently under maintenance. Please try a
 
 type MaintenanceForm = {
   maintenance_message: string;
-  duplicate_matching_threshold: number;
 };
 
 function settingsToObject(settings: { key: string; value: unknown }[] | undefined): Record<string, unknown> {
@@ -48,7 +46,6 @@ export default function MaintenancePage() {
   const settingsObj = useMemo(() => settingsToObject(systemSettings), [systemSettings]);
   const savedForm = useMemo<MaintenanceForm>(() => ({
     maintenance_message: (settingsObj.maintenance_message as string) || DEFAULT_MESSAGE,
-    duplicate_matching_threshold: Number(settingsObj.duplicate_matching_threshold) || 90,
   }), [settingsObj]);
   // The stored value may be a boolean or the string 'true' (updateSetting stores strings).
   const maintenanceMode = isMaintenanceModeOn(settingsObj.maintenance_mode);
@@ -56,24 +53,15 @@ export default function MaintenancePage() {
   // One save model: every field below is a draft until Save. Maintenance mode itself is an
   // action with its own confirmation, not part of the draft.
   const [overrides, setOverrides] = useState<Partial<MaintenanceForm>>({});
-  const [invalidFields, setInvalidFields] = useState<Record<string, boolean>>({});
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
-  // Remounts the numeric fields on Discard so their drafts and messages reset too.
-  const [resetKey, setResetKey] = useState(0);
 
   const form = { ...savedForm, ...overrides };
   const isDirty = Object.keys(overrides).length > 0;
-  const canSave = !Object.values(invalidFields).some(Boolean);
   useUnsavedChangesGuard(isDirty);
 
   const setField = <K extends keyof MaintenanceForm>(key: K, value: MaintenanceForm[K]) =>
     setOverrides((prev) => ({ ...prev, [key]: value }));
-  const trackValidity = useCallback(
-    (key: string) => (valid: boolean) => setInvalidFields((prev) => (prev[key] === !valid ? prev : { ...prev, [key]: !valid })),
-    []
-  );
-  const thresholdValidity = useMemo(() => trackValidity('duplicate_matching_threshold'), [trackValidity]);
 
   const setMaintenanceMode = async (enabled: boolean) => {
     setSwitching(true);
@@ -102,7 +90,7 @@ export default function MaintenancePage() {
       <div>
         <h3 className="text-lg font-medium">System Behaviour</h3>
         <p className="text-sm text-muted-foreground">
-          Maintenance mode and duplicate transaction matching.
+          Maintenance mode. Duplicate transaction matching is now under Banking.
         </p>
       </div>
       <Separator />
@@ -180,40 +168,13 @@ export default function MaintenancePage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Duplicate Matching</CardTitle>
-          <CardDescription>Configure sensitivity for detecting duplicate transactions.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label htmlFor="duplicate-threshold">Confidence Threshold (%)</Label>
-              <p className="text-sm text-muted-foreground">Transactions above this score will be flagged as duplicates</p>
-            </div>
-            <NumericSettingInput
-              key={`threshold-${resetKey}`}
-              id="duplicate-threshold"
-              min={1}
-              max={100}
-              integer
-              unit="%"
-              value={form.duplicate_matching_threshold}
-              onCommit={(value) => setField('duplicate_matching_threshold', value)}
-              onValidityChange={thresholdValidity}
-              disabled={!canEdit}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
       {canEdit && (
         <StickySaveBar
-          isDirty={isDirty || !canSave}
+          isDirty={isDirty}
           isSaving={updateSettings.isPending}
-          canSave={canSave && isDirty}
+          canSave={isDirty}
           onSave={handleSave}
-          onDiscard={() => { setOverrides({}); setInvalidFields({}); setResetKey((k) => k + 1); }}
+          onDiscard={() => setOverrides({})}
         />
       )}
     </div>

@@ -32,7 +32,7 @@ describe('activeSettingsHref', () => {
 
   it('picks the longest match, not the first prefix', () => {
     expect(activeSettingsHref('/settings/billing/profiles', settingsConfig)).toBe('/settings/billing/profiles');
-    expect(activeSettingsHref('/settings/billing/late-fees', settingsConfig)).toBe('/settings/billing/late-fees');
+    expect(activeSettingsHref('/settings/billing/late-fees', settingsConfig)).toBe('/settings/billing');
   });
 
   it('highlights the nearest entry for a page with none of its own', () => {
@@ -86,7 +86,8 @@ describe('settings nav grouping (#786, owner decision 2026-10-20)', () => {
       return `${group?.title} > ${item?.title}`;
     };
     expect(where('/settings/estate-info')).toBe('Estate & Property > Estate Details');
-    expect(where('/settings/billing/invoices')).toBe('Money > Invoices & Due Dates');
+    expect(where('/settings/billing')).toBe('Money > Billing Rules');
+    expect(where('/settings/banking')).toBe('Money > Banking');
     expect(where('/settings/billing/profiles')).toBe('Money > Rate Cards');
     expect(where('/settings/sending')).toBe('Messages > Email & Sending');
     expect(where('/settings/reminders')).toBe('Messages > Reminders');

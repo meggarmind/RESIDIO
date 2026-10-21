@@ -12,9 +12,9 @@ export default function BillingSettingsLayout({ children }: { children: React.Re
                     {/* One <p>: AlertDescription is a grid, so bare text nodes and links would each take a row. */}
                     <p>
                     <span className="font-medium">Setup order:</span>{' '}
-                    1. <Link href="/settings/billing/profiles" className="underline">Billing Profiles</Link> (rate cards),{' '}
-                    2. <Link href="/settings/billing" className="underline">Billing Settings</Link> (rules),{' '}
-                    3. <Link href="/settings/billing/development-levies" className="underline">Development Levies</Link>, which picks one of the rate cards.
+                    1. <Link href="/settings/billing/profiles" className="underline">Rate cards</Link>,{' '}
+                    2. <Link href="/settings/billing" className="underline">Billing rules</Link>,{' '}
+                    3. <Link href="/settings/billing#levies" className="underline">Levies</Link>, which picks one of the rate cards.
                     </p>
                 </AlertDescription>
             </Alert>

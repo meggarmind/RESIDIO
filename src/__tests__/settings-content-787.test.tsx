@@ -74,7 +74,7 @@ import { ReminderScheduleSection } from '@/components/settings/messages/reminder
 import { useReminderSettings } from '@/components/settings/messages/use-reminder-settings';
 import { ContactCategoriesSection as CategoriesPage } from '@/components/settings/security/contact-categories-section';
 import { TemplateForm } from '@/components/notifications/template-form';
-import BillingSettingsPage from '@/app/(dashboard)/settings/billing/page';
+import { BillingGeneralSection as BillingSettingsPage } from '@/components/settings/billing/billing-general-section';
 
 // The on-off and schedule sections of /settings/reminders (#934), loaded the way the page loads them.
 function RemindersPage() {

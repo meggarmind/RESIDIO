@@ -15,7 +15,7 @@ The system calculates a "Duplicate Confidence Score" (0-100%) based on:
     - Score Formula: `50 (Base) + (SimilarityScore * 50)`.
 
 ### Threshold
-The blocking threshold is configurable in **System Settings > Duplicate Matching**.
+The blocking threshold is configurable in **Settings > Money > Banking > Duplicate matching**.
 - **Default**: 90%
 - **Range**: 0-100%
 
@@ -31,5 +31,5 @@ The blocking threshold is configurable in **System Settings > Duplicate Matching
 
 ## Files
 - **Logic**: `src/lib/matching/duplicate-scoring.ts` (Pure logic), `src/lib/matching/duplicate-matcher.ts` (DB Service)
-- **Settings**: `src/lib/settings/hierarchical-settings-types.ts`, `src/app/(dashboard)/settings/maintenance/page.tsx`
+- **Settings**: `src/lib/settings/hierarchical-settings-types.ts`, `src/components/settings/banking/duplicate-matching-section.tsx`
 - **Tests**: `src/lib/matching/__tests__/duplicate-matcher.test.ts`

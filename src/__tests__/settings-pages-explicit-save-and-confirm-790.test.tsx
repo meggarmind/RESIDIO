@@ -67,9 +67,10 @@ vi.mock('@/actions/settings/update-maintenance-mode', () => ({
   updateMaintenanceMode: m.updateMaintenanceMode,
 }));
 
-import BillingSettingsPage from '@/app/(dashboard)/settings/billing/page';
-import LateFeesPage from '@/app/(dashboard)/settings/billing/late-fees/page';
-import DevelopmentLeviesPage from '@/app/(dashboard)/settings/billing/development-levies/page';
+import { BillingGeneralSection as BillingSettingsPage } from '@/components/settings/billing/billing-general-section';
+import { LateFeesSection as LateFeesPage } from '@/components/settings/billing/late-fees-section';
+import { LeviesSection as DevelopmentLeviesPage } from '@/components/settings/billing/levies-section';
+import { DuplicateMatchingSection } from '@/components/settings/banking/duplicate-matching-section';
 import { SecurityLimitsSection as SecuritySettingsPage } from '@/components/settings/security/security-limits-section';
 import { SessionTimeoutSection } from '@/components/settings/security/session-timeout-section';
 import DataRetentionPage from '@/app/(dashboard)/settings/data-retention/page';
@@ -105,7 +106,7 @@ afterEach(() => cleanup());
 describe('numeric settings save on blur only', () => {
   it('late fees: typing a grace period writes once on blur; clearing or 0 writes nothing', () => {
     renderPage(LateFeesPage);
-    const grace = screen.getByLabelText('Grace Period (days)');
+    const grace = screen.getByRole('textbox', { name: 'Grace period' });
     typeSlowly(grace, '20');
     expect(m.updateSetting).not.toHaveBeenCalled();
     fireEvent.blur(grace);
@@ -123,7 +124,7 @@ describe('numeric settings save on blur only', () => {
 
   it('late fees: clearing the amount writes nothing instead of 0', () => {
     renderPage(LateFeesPage);
-    const amount = screen.getByLabelText('Late Fee Amount (%)');
+    const amount = screen.getByRole('textbox', { name: 'Late fee amount' });
     fireEvent.change(amount, { target: { value: '' } });
     fireEvent.blur(amount);
     expect(m.updateSetting).not.toHaveBeenCalled();
@@ -131,7 +132,7 @@ describe('numeric settings save on blur only', () => {
 
   it('billing: the due window writes once on blur and never a fallback', () => {
     renderPage(BillingSettingsPage);
-    const window = screen.getByLabelText('Invoice Due Window');
+    const window = screen.getByRole('textbox', { name: 'Invoice due window' });
     typeSlowly(window, '45');
     fireEvent.blur(window);
     expect(m.updateSetting).toHaveBeenCalledTimes(1);
@@ -152,17 +153,12 @@ describe('numeric settings save on blur only', () => {
     expect(m.updateSecuritySetting).toHaveBeenCalledWith({ key: 'security_max_contacts_per_resident', value: 20 });
   });
 
-  it('maintenance: fields are drafts until Save, and an invalid one blocks Save', async () => {
+  it('maintenance: the message is a draft until Save', async () => {
     renderPage(MaintenancePage);
-    const threshold = screen.getByLabelText('Confidence Threshold (%)');
-    fireEvent.change(threshold, { target: { value: '101' } });
-    fireEvent.blur(threshold);
-    expect(await screen.findByRole('button', { name: /Save changes/ })).toBeDisabled();
-    fireEvent.change(threshold, { target: { value: '30' } });
-    fireEvent.blur(threshold);
+    fireEvent.change(screen.getByLabelText('Maintenance Message'), { target: { value: 'Back at noon' } });
     expect(m.updateSettings).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: /Save changes/ }));
-    expect(m.updateSettings).toHaveBeenCalledWith({ duplicate_matching_threshold: 30 }, expect.anything());
+    fireEvent.click(await screen.findByRole('button', { name: /Save changes/ }));
+    expect(m.updateSettings).toHaveBeenCalledWith({ maintenance_message: 'Back at noon' }, expect.anything());
   });
 
   it('session timeout (moved from maintenance, #937): a draft until Save, and an invalid one blocks Save', async () => {
@@ -181,6 +177,30 @@ describe('numeric settings save on blur only', () => {
   it('maintenance no longer shows the session timeout', () => {
     renderPage(MaintenancePage);
     expect(screen.queryByLabelText('Session Timeout (minutes)')).toBeNull();
+  });
+
+  it('banking: the duplicate threshold is a draft until its section Save, and an invalid one blocks Save (#935)', async () => {
+    renderPage(DuplicateMatchingSection);
+    const threshold = screen.getByRole('textbox', { name: 'Confidence threshold' });
+    expect(screen.getByRole('button', { name: 'Save Duplicate matching' })).toBeDisabled();
+
+    fireEvent.change(threshold, { target: { value: '150' } });
+    fireEvent.blur(threshold);
+    expect(m.updateSettings).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Save Duplicate matching' })).toBeDisabled();
+
+    fireEvent.change(threshold, { target: { value: '85' } });
+    fireEvent.blur(threshold);
+    expect(m.updateSettings).not.toHaveBeenCalled();
+    const save = screen.getByRole('button', { name: 'Save Duplicate matching' });
+    await waitFor(() => expect(save).toBeEnabled());
+    fireEvent.click(save);
+    await waitFor(() => expect(m.updateSettings).toHaveBeenCalledWith({ duplicate_matching_threshold: 85 }));
+  });
+
+  it('maintenance no longer carries the duplicate threshold (#935)', () => {
+    renderPage(MaintenancePage);
+    expect(screen.queryByLabelText(/Confidence Threshold/i)).not.toBeInTheDocument();
   });
 });
 

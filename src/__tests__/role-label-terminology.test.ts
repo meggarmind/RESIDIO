@@ -36,7 +36,7 @@ const FILES = [
   'src/actions/residents/remove-ownership.ts',
   'src/components/residents/linked-houses.tsx',
   'src/components/residents/owner-move-out-wizard.tsx',
-  'src/app/(dashboard)/settings/billing/page.tsx',
+  'src/components/settings/billing/billing-general-section.tsx',
   'src/components/billing/billing-profile-form.tsx',
   'src/types/database.ts',
 ];

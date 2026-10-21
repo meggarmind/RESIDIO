@@ -99,7 +99,7 @@ test.describe('Phase 4: Enhancements', () => {
                 await billingGroup.first().click();
             }
 
-            // Look for billing link in settings nav (not the main sidebar) - link text is "General", under "Billing Rules"
+            // Look for billing link in settings nav (not the main sidebar) - the "Billing Rules" page
             await expect(
                 page.locator('a[href="/settings/billing"]')
             ).toBeVisible({ timeout: 10000 });

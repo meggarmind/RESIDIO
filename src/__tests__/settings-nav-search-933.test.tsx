@@ -10,7 +10,7 @@ import '@testing-library/jest-dom/vitest';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { settingsConfig, settingsPageLabel } from '@/config/settings-nav';
 
-const state = vi.hoisted(() => ({ pathname: '/settings/billing/late-fees', permissions: null as string[] | null }));
+const state = vi.hoisted(() => ({ pathname: '/settings/billing', permissions: null as string[] | null }));
 const push = vi.hoisted(() => vi.fn());
 
 vi.mock('next/navigation', () => ({
@@ -53,7 +53,7 @@ import * as search from '@/lib/search/settings-search-entries';
 
 afterEach(() => {
   cleanup();
-  state.pathname = '/settings/billing/late-fees';
+  state.pathname = '/settings/billing';
   state.permissions = null;
   push.mockClear();
 });
@@ -131,8 +131,9 @@ describe('matchVisibleSettingsEntries', () => {
 
 describe('settingsPageLabel', () => {
   it('names a child as Parent: Child, and an index page by its parent', () => {
-    expect(settingsPageLabel('/settings/billing/late-fees', settingsConfig)).toBe('Billing Rules: Late Fees');
+    expect(settingsPageLabel('/settings/billing/profiles', settingsConfig)).toBe('Rate Cards');
     expect(settingsPageLabel('/settings/billing', settingsConfig)).toBe('Billing Rules');
+    expect(settingsPageLabel('/settings/banking', settingsConfig)).toBe('Banking');
     expect(settingsPageLabel('/settings/streets', settingsConfig)).toBe('Streets');
     expect(settingsPageLabel(null, settingsConfig)).toBeUndefined();
   });
@@ -141,15 +142,15 @@ describe('settingsPageLabel', () => {
 describe('sidebar search', () => {
   it('replaces the nav with matching results and restores it when cleared', () => {
     render(<SettingsSidebar />);
-    expect(screen.getByRole('link', { name: 'Late Fees' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Rate Cards' })).toBeInTheDocument();
 
     type('audit');
     expect(screen.getByRole('link', { name: /Audit Logs/ })).toHaveAttribute('href', '/system/audit-logs');
-    expect(screen.queryByRole('link', { name: 'Late Fees' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Rate Cards' })).not.toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent(/result/);
 
     type('');
-    expect(screen.getByRole('link', { name: 'Late Fees' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Rate Cards' })).toBeInTheDocument();
   });
 
   it('says so when nothing matches', () => {
@@ -186,12 +187,12 @@ describe('sidebar search', () => {
 describe('mobile nav', () => {
   it('names the current page on the trigger', () => {
     render(<SettingsMobileNav />);
-    expect(screen.getByRole('button', { name: /Billing Rules: Late Fees/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Billing Rules/ })).toBeInTheDocument();
   });
 
   it('has the search field inside the sheet', () => {
     render(<SettingsMobileNav />);
-    fireEvent.click(screen.getByRole('button', { name: /Billing Rules: Late Fees/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Billing Rules/ }));
     type('audit');
     expect(screen.getByRole('link', { name: /Audit Logs/ })).toHaveAttribute('href', '/system/audit-logs');
   });

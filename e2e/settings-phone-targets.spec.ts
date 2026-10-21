@@ -7,8 +7,7 @@ import { loginAs } from './fixtures';
 const PHONE_PAGES = [
     '/settings/streets',
     '/settings/house-types',
-    '/settings/transaction-tags',
-    '/settings/bank-accounts',
+    '/settings/banking',
 ];
 
 // Tabs are navigation, out of scope here; inline text links are exempt from the target-size rule.
