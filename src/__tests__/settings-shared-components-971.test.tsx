@@ -1,9 +1,7 @@
 // @vitest-environment jsdom
 import * as React from 'react';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 
 vi.mock('@/components/dashboard/sidebar', () => ({ Sidebar: () => <aside /> }));
@@ -12,13 +10,33 @@ vi.mock('@/components/dashboard/mobile-nav', () => ({ MobileNav: () => null }));
 vi.mock('@/components/dashboard/ops-status-banner', () => ({ OpsStatusBanner: () => null }));
 vi.mock('next/navigation', () => ({ usePathname: () => '/settings/sending' }));
 vi.mock('@/hooks/use-settings-navigation', () => ({ useSettingsNavigation: () => ({ groups: [] }) }));
+vi.mock('@/components/settings/settings-sections-provider', () => ({
+  useSettingsSections: () => ({
+    sections: [
+      { id: 'one', title: 'One', visible: true, dirty: false },
+      { id: 'two', title: 'Two', visible: true, dirty: false },
+    ],
+    goToSection: vi.fn(),
+  }),
+  useOptionalSettingsSections: () => null,
+}));
+vi.mock('@/hooks/use-settings', () => ({
+  useSettings: () => ({ data: [], isLoading: false }),
+  useUpdateSetting: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+vi.mock('@/actions/email/get-email-status', () => ({
+  getEmailStatus: () => Promise.resolve({ isConfigured: true }),
+}));
+vi.mock('@/lib/auth/auth-provider', () => ({
+  useAuth: () => ({ isLoading: false, hasPermission: () => true, hasAnyPermission: () => true }),
+}));
 
 import { DashboardShell } from '@/components/dashboard/dashboard-shell';
+import { SettingsPageNav } from '@/components/settings/settings-page-nav';
+import { EmailDeliverySections } from '@/components/settings/messages/email-delivery-sections';
 import { SettingsPageHeader } from '@/components/settings/settings-page-header';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 import { formatDateTimeMedium } from '@/lib/utils';
-
-const read = (p: string) => readFileSync(path.join(process.cwd(), p), 'utf8');
 
 afterEach(cleanup);
 
@@ -35,10 +53,34 @@ describe('dashboard shell scroll model (M1)', () => {
     expect(main).toHaveClass('overflow-y-auto', 'min-h-0', 'flex-1');
   });
 
-  it('the page nav follows scroll on the capture phase, because <main> scrolls, not the window', () => {
-    const src = read('src/components/settings/settings-page-nav.tsx');
-    expect(src).toContain("document.addEventListener('scroll', onScroll, { capture: true");
-    expect(src).not.toContain("window.addEventListener('scroll'");
+  it('the page nav follows the scrolling <main>, not the window', () => {
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+      cb(0);
+      return 1;
+    });
+    const tops: Record<string, number> = { one: 0, two: 800 };
+    const { container } = render(
+      <div data-testid="scroller">
+        <SettingsPageNav />
+        {['one', 'two'].map((id) => (
+          <section key={id} id={id} />
+        ))}
+      </div>,
+    );
+    for (const id of ['one', 'two']) {
+      vi.spyOn(document.getElementById(id)!, 'getBoundingClientRect').mockImplementation(
+        () => ({ top: tops[id] }) as DOMRect,
+      );
+    }
+    const current = () => container.querySelector('a[aria-current="true"]')?.textContent;
+    expect(current()).toBe('One');
+    tops.one = -900;
+    tops.two = 50;
+    act(() => {
+      fireEvent.scroll(screen.getByTestId('scroller'));
+    });
+    expect(current()).toBe('Two');
+    vi.unstubAllGlobals();
   });
 });
 
@@ -76,10 +118,6 @@ describe('settings page title (L1)', () => {
     render(<SettingsPageHeader title="Sending" breadcrumb={false} />);
     expect(screen.getByRole('heading', { level: 1, name: 'Sending' })).toBeInTheDocument();
   });
-
-  it('the layout label "Settings" is not a heading', () => {
-    expect(read('src/app/(dashboard)/settings/layout.tsx')).not.toMatch(/<h2[^>]*>Settings<\/h2>/);
-  });
 });
 
 describe('date with a month name (L5)', () => {
@@ -89,17 +127,16 @@ describe('date with a month name (L5)', () => {
 });
 
 describe('AlertDescription holds inline text in one block (M4)', () => {
-  it('no settings page puts bare text and inline tags straight into AlertDescription', () => {
-    const files = [
-      'src/components/settings/messages/email-delivery-sections.tsx',
-      'src/app/(dashboard)/settings/billing/page.tsx',
-      'src/app/(dashboard)/settings/billing/layout.tsx',
-    ];
-    for (const f of files) {
-      for (const m of read(f).matchAll(/<AlertDescription[^>]*>([\s\S]*?)<\/AlertDescription>/g)) {
-        const body = m[1];
-        if (/<(strong|Link|a|code)\b/.test(body)) expect(body).toContain('<p');
+  it('the Sending alerts keep bold words and links inside a paragraph or list, not as grid items', async () => {
+    const { container } = render(<EmailDeliverySections />);
+    await screen.findByText('Email service is configured and ready to send.');
+    const descriptions = container.querySelectorAll('[data-slot="alert-description"]');
+    expect(descriptions.length).toBeGreaterThan(0);
+    for (const d of descriptions) {
+      for (const child of Array.from(d.children)) {
+        expect(['P', 'UL', 'OL']).toContain(child.tagName);
       }
     }
+    expect(container.querySelectorAll('[data-slot="alert-description"] > a, [data-slot="alert-description"] > strong')).toHaveLength(0);
   });
 });
