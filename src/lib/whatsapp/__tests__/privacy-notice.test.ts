@@ -1,24 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-/** #871: notice settings read, office contact line and the signed PDF URL. */
+/** #871: notice settings read, placeholder rendering and office contact line. */
 const settings = vi.hoisted(() => ({ result: { status: 'ok', values: new Map<string, unknown>() } as { status: string; values: Map<string, unknown>; message?: string } }));
-const storage = vi.hoisted(() => ({ createSignedUrl: vi.fn(), upload: vi.fn() }));
 
 vi.mock('@/lib/settings/service', () => ({ getRawSettingsAsService: vi.fn(async () => settings.result) }));
-vi.mock('@/lib/supabase/server', () => ({ createAdminClient: () => ({ storage: { from: () => storage } }) }));
-vi.mock('@react-pdf/renderer', () => ({ renderToBuffer: vi.fn(async () => Buffer.from('%PDF')) }));
-vi.mock('@/lib/pdf/privacy-notice', () => ({ PrivacyNoticePDF: vi.fn(() => null) }));
 
-import { createWhatsAppPrivacyNoticeUrl, loadEstateOfficeContactLine, loadWhatsAppPrivacyNotice } from '@/lib/whatsapp/privacy-notice';
+import { loadEstateOfficeContactLine, loadWhatsAppPrivacyNotice, renderPrivacyNoticeText } from '@/lib/whatsapp/privacy-notice';
 
 function withSettings(values: Record<string, unknown>) {
   settings.result = { status: 'ok', values: new Map(Object.entries(values)) };
 }
-
-beforeEach(() => {
-  storage.createSignedUrl.mockReset();
-  storage.upload.mockReset();
-});
 
 describe('WhatsApp privacy notice', () => {
   it('returns the notice only when both version and text are set', async () => {
@@ -44,41 +35,51 @@ describe('WhatsApp privacy notice', () => {
     await expect(loadEstateOfficeContactLine()).resolves.toBe(expected);
   });
 
-  it('reuses an already-rendered PDF for the same wording', async () => {
-    withSettings({});
-    storage.createSignedUrl.mockResolvedValueOnce({ data: { signedUrl: 'https://signed/existing' }, error: null });
-
-    await expect(createWhatsAppPrivacyNoticeUrl({ version: 'v1', text: 'Text' })).resolves.toBe('https://signed/existing');
-    expect(storage.upload).not.toHaveBeenCalled();
-    expect(storage.createSignedUrl).toHaveBeenCalledWith(expect.stringMatching(/^privacy-notice\/[0-9a-f]{32}\.pdf$/), 3600);
+  it('fills the placeholders at send time and keeps the stored version', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://estate.test/');
+    withSettings({
+      whatsapp_privacy_notice_version: 'v1',
+      whatsapp_privacy_notice_text: 'Hi from {{App Assistant}}. Read {{URL}}/privacy-policy',
+      estate_name: 'Palm Estate',
+    });
+    await expect(loadWhatsAppPrivacyNotice()).resolves.toEqual({
+      version: 'v1',
+      text: 'Hi from Palm Estate Assistant. Read https://estate.test/privacy-policy',
+    });
+    vi.unstubAllEnvs();
   });
 
-  it('renders and uploads the PDF once when missing, then signs it for one hour', async () => {
-    withSettings({});
-    storage.createSignedUrl
-      .mockResolvedValueOnce({ data: null, error: { message: 'Object not found' } })
-      .mockResolvedValueOnce({ data: { signedUrl: 'https://signed/new' }, error: null });
-    storage.upload.mockResolvedValueOnce({ error: null });
-
-    await expect(createWhatsAppPrivacyNoticeUrl({ version: 'v1', text: 'Text' })).resolves.toBe('https://signed/new');
-    expect(storage.upload).toHaveBeenCalledWith(expect.stringMatching(/^privacy-notice\//), expect.any(Uint8Array), { contentType: 'application/pdf', upsert: true });
+  it('falls back to the default estate name when estate_name is blank', async () => {
+    withSettings({ whatsapp_privacy_notice_version: 'v1', whatsapp_privacy_notice_text: '{{App Name}} / {{App Assistant}}', estate_name: '  ' });
+    await expect(loadWhatsAppPrivacyNotice()).resolves.toEqual({ version: 'v1', text: 'Residio Estate / Residio Estate Assistant' });
   });
 
-  it('keys the file on the wording, so an edit without a version bump sends the new text', async () => {
-    withSettings({});
-    storage.createSignedUrl.mockResolvedValue({ data: { signedUrl: 'https://signed/x' }, error: null });
+  it('treats the notice as unpublished when {{URL}} has no configured origin', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', '');
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    withSettings({ whatsapp_privacy_notice_version: 'v1', whatsapp_privacy_notice_text: 'Read {{URL}}' });
+    await expect(loadWhatsAppPrivacyNotice()).resolves.toBeNull();
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+    vi.unstubAllEnvs();
+  });
+});
 
-    await createWhatsAppPrivacyNoticeUrl({ version: 'v1', text: 'Old' });
-    await createWhatsAppPrivacyNoticeUrl({ version: 'v1', text: 'New' });
+describe('renderPrivacyNoticeText', () => {
+  const ctx = { origin: 'https://estate.test', estateName: 'Palm Estate' };
 
-    expect(storage.createSignedUrl.mock.calls[0][0]).not.toBe(storage.createSignedUrl.mock.calls[1][0]);
+  it('replaces every exact placeholder and leaves unknown or differently-cased ones', () => {
+    expect(renderPrivacyNoticeText('{{App Name}} {{App Name}} {{App Assistant}} {{URL}} {{url}} {{app name}} {{Other}}', ctx)).toBe(
+      'Palm Estate Palm Estate Palm Estate Assistant https://estate.test {{url}} {{app name}} {{Other}}'
+    );
   });
 
-  it('throws when the upload fails, so the provider retries the message', async () => {
-    withSettings({});
-    storage.createSignedUrl.mockResolvedValueOnce({ data: null, error: { message: 'Object not found' } });
-    storage.upload.mockResolvedValueOnce({ error: { message: 'bucket missing' } });
+  it('inserts an estate name containing $& literally', () => {
+    expect(renderPrivacyNoticeText('Hi {{App Name}}', { origin: null, estateName: 'A$&B$1' })).toBe('Hi A$&B$1');
+  });
 
-    await expect(createWhatsAppPrivacyNoticeUrl({ version: 'v1', text: 'Text' })).rejects.toThrow('bucket missing');
+  it('returns null for {{URL}} without an origin, but not for text that does not use it', () => {
+    expect(renderPrivacyNoticeText('See {{URL}}', { ...ctx, origin: null })).toBeNull();
+    expect(renderPrivacyNoticeText('About {{App Name}}', { ...ctx, origin: null })).toBe('About Palm Estate');
   });
 });

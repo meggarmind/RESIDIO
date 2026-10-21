@@ -31,7 +31,6 @@ const resident: WhatsAppResidentIdentity = {
 const PHONE = '+2348000000000';
 const FINGERPRINT = identityFingerprint(resident, 'Palm Street');
 const CONTACT = 'Contact the estate office on 08011111111.';
-const NOTICE_URL = 'https://storage.test/notice.pdf';
 
 function message(text: string): WhatsAppInboundMessage {
   return { id: `wamid-${text}`, from: '2348000000000', timestamp: '1760000000', type: 'text', text };
@@ -60,7 +59,6 @@ function repository(consent: WhatsAppConsentState, overrides: Partial<WhatsAppId
     markDisputed: vi.fn().mockResolvedValue(undefined),
     notifyDisputed: vi.fn().mockResolvedValue(undefined),
     getPrivacyNotice: vi.fn().mockResolvedValue({ version: 'v1', text: 'Full notice' }),
-    getPrivacyNoticeUrl: vi.fn().mockResolvedValue(NOTICE_URL),
     getOfficeContactLine: vi.fn().mockResolvedValue(CONTACT),
     optOutOfSurveys: vi.fn().mockResolvedValue(undefined),
     ...overrides,
@@ -109,7 +107,7 @@ describe('identity read-back (#871 step 1)', () => {
     expect(repo.saveConsentStep).toHaveBeenCalledWith(PHONE, 'resident-1', `identity:${FINGERPRINT}`, null);
   });
 
-  it('records the confirmation with the message id and then shows the privacy notice with its PDF', async () => {
+  it('records the confirmation with the message id and then shows the privacy notice in the chat', async () => {
     const repo = repository(state({ step: `identity:${FINGERPRINT}`, pendingRequest: 'OWE' }));
     const { result, send, onIdentified } = await run('1', repo);
 
@@ -121,9 +119,8 @@ describe('identity read-back (#871 step 1)', () => {
       providerMessageId: 'wamid-1',
     });
     expect(result.status).toBe('consent_pending');
-    expect(send.mock.calls[0][0]).toMatchObject({ mediaUrls: [NOTICE_URL] });
-    expect(send.mock.calls[0][0].body).toContain('privacy notice (version v1)');
-    expect(send.mock.calls[0][0].body).toContain('1. Accept\n2. Decline');
+    expect(send.mock.calls[0][0].mediaUrls).toBeUndefined();
+    expect(send.mock.calls[0][0].body).toBe('Full notice\n\n_Version v1_\n\n1. Accept\n2. Decline');
     expect(repo.saveConsentStep).toHaveBeenCalledWith(PHONE, 'resident-1', 'privacy:resident-1:v1', 'OWE');
     expect(onIdentified).not.toHaveBeenCalled();
   });
@@ -185,13 +182,6 @@ describe('a failed send is retried as the same inbound', () => {
     const { bodies } = await run('1', retry);
     expect(retry.recordConsentDecision).not.toHaveBeenCalled();
     expect(bodies[0]).toContain('1. Accept');
-  });
-
-  it('does not save the privacy step when the notice PDF cannot be produced', async () => {
-    const repo = repository(confirmed(), { getPrivacyNoticeUrl: vi.fn().mockRejectedValue(new Error('upload failed')) });
-    await expect(run('hi', repo)).rejects.toThrow('upload failed');
-
-    expect(repo.saveConsentStep).not.toHaveBeenCalled();
   });
 
   it('keeps the held request when the resume after acceptance fails, and resumes it on the retry', async () => {
@@ -324,7 +314,7 @@ describe('privacy notice (#871 steps 3-7)', () => {
 
     expect(repo.recordConsentDecision).not.toHaveBeenCalled();
     expect(bodies[0]).toContain('1. Accept');
-    expect(send.mock.calls[0][0].mediaUrls).toEqual([NOTICE_URL]);
+    expect(send.mock.calls[0][0].mediaUrls).toBeUndefined();
     expect(onIdentified).not.toHaveBeenCalled();
   });
 
@@ -337,7 +327,14 @@ describe('privacy notice (#871 steps 3-7)', () => {
     expect(result).toMatchObject({ status: 'consent_pending', optedIn: false });
     expect(bodies[0]).not.toContain('alerts are now enabled');
     expect(bodies[0]).toContain('1. Accept\n2. Decline');
-    expect(send.mock.calls[0][0].mediaUrls).toEqual([NOTICE_URL]);
+    expect(send.mock.calls[0][0].mediaUrls).toBeUndefined();
+  });
+
+  it('keeps the alerts-enabled line above the notice body when START opens the notice', async () => {
+    const repo = repository(confirmed());
+    const { bodies } = await run('START', repo);
+
+    expect(bodies[0]).toBe('Estate WhatsApp alerts are now enabled.\nFull notice\n\n_Version v1_\n\n1. Accept\n2. Decline');
   });
 
   it('records a decline, gives the office contact and uses no records', async () => {
@@ -371,7 +368,7 @@ describe('privacy notice (#871 steps 3-7)', () => {
     const bumped = repository(accepted, { getPrivacyNotice: vi.fn().mockResolvedValue({ version: 'v2', text: 'New notice' }) });
     const changed = await run('OWE', bumped);
     expect(changed.onIdentified).not.toHaveBeenCalled();
-    expect(changed.bodies[0]).toContain('version v2');
+    expect(changed.bodies[0]).toContain('_Version v2_');
     expect(bumped.saveConsentStep).toHaveBeenCalledWith(PHONE, 'resident-1', 'privacy:resident-1:v2', 'OWE');
   });
 

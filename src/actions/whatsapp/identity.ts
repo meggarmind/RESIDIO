@@ -600,7 +600,7 @@ export async function setWhatsAppPrivacyNotice(input: PrivacyNoticeSettings): Pr
     .upsert(
       [
         { key: PRIVACY_NOTICE_VERSION_KEY, value: version, category: 'notifications', description: 'Version of the WhatsApp privacy notice residents accept; changing it re-shows the notice' },
-        { key: PRIVACY_NOTICE_TEXT_KEY, value: text, category: 'notifications', description: 'Full text of the WhatsApp privacy notice, sent as a PDF in chat' },
+        { key: PRIVACY_NOTICE_TEXT_KEY, value: text, category: 'notifications', description: 'Full text of the WhatsApp privacy notice, sent in the WhatsApp chat' },
       ],
       { onConflict: 'key' }
     )

@@ -68,6 +68,7 @@ export const publicRoutePrefixes = [
     '/pending-approval',
     '/auth',
     '/maintenance',
+    '/privacy-policy',
     '/api',
 ];
 

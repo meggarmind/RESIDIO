@@ -6,7 +6,10 @@ import { purgeWhatsAppOperationalState } from '@/lib/whatsapp/retention';
 import { recordSystemAction } from '@/lib/system-log/recorder';
 
 vi.mock('@/lib/settings/service', () => ({ getSettingValueAsService: vi.fn() }));
-vi.mock('@/lib/whatsapp/retention', () => ({ purgeWhatsAppOperationalState: vi.fn() }));
+vi.mock('@/lib/whatsapp/retention', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/whatsapp/retention')>()),
+  purgeWhatsAppOperationalState: vi.fn(),
+}));
 vi.mock('@/lib/system-log/recorder', () => ({ recordSystemAction: vi.fn() }));
 
 const SECRET = 'cron-secret-for-tests';
