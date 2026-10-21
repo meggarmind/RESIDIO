@@ -161,8 +161,9 @@ allowed).
 - Only the Super Administrator grants Super Administrator, Chairman or Trustee
   (`system.assign_board_roles`, held by `super_admin` only).
 - `impersonation.approve_requests` and `impersonation.manage_settings` are `super_admin` only.
-- Guards are permission-based. The remaining rank-based guards are being replaced in slice 4
-  (#826).
+- Account guards are permission-based. Granting `super_admin`, `chairman` or `trustee`, or
+  changing an account that holds `super_admin` or `chairman`, needs `system.assign_board_roles`;
+  anything else needs `system.assign_roles` (`src/lib/auth/account-guards.ts`, #826).
 
 ### Permission changes (slice 3, #825)
 
