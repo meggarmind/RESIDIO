@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { lagosDayStart, loadAccountStatement } from '@/lib/billing/account-statement-data';
+import { loadAccountStatement } from '@/lib/billing/account-statement-data';
 
 type Filter = { op: string; args: unknown[] };
 
@@ -29,22 +29,13 @@ function stubClient() {
     return { client: client as never, calls };
 }
 
-describe('lagosDayStart', () => {
-    it('is 23:00 UTC of the previous day', () => {
-        expect(lagosDayStart('2026-10-01')).toBe('2026-09-30T23:00:00.000Z');
-    });
-    it('adds whole days', () => {
-        expect(lagosDayStart('2026-10-31', 1)).toBe('2026-10-31T23:00:00.000Z');
-    });
-});
-
 describe('loadAccountStatement timestamp bounds (#945)', () => {
     it.each([['2026-13-45', '2026-10-31'], ['2026-10-01', '2026-13-45']])(
         'returns the format error for calendar-invalid dates %s..%s without throwing',
         async (fromDate, toDate) => {
             const { client } = stubClient();
             await expect(
-                loadAccountStatement(client, { residentId: 'r', fromDate, toDate } as never),
+                loadAccountStatement(client, { residentId: 'r', fromDate, toDate } as never, { rollForward: false }),
             ).resolves.toEqual({ data: null, error: 'Dates must be in YYYY-MM-DD format' });
         },
     );
@@ -53,7 +44,7 @@ describe('loadAccountStatement timestamp bounds (#945)', () => {
         const { client, calls } = stubClient();
         await loadAccountStatement(client, {
             residentId: 'r', fromDate: '2026-10-01', toDate: '2026-10-31',
-        } as never);
+        } as never, { rollForward: false });
 
         const wallet = calls.wallet_transactions;
         // 23:30 Lagos on the last day = 22:30Z 31 Oct, below the exclusive end 23:00Z 31 Oct
@@ -63,8 +54,8 @@ describe('loadAccountStatement timestamp bounds (#945)', () => {
         expect(wallet.some((f) => f.op === 'lte')).toBe(false);
 
         const ors = calls.invoices.filter((f) => f.op === 'or').map((f) => f.args[0] as string);
-        expect(ors[0]).toContain('created_at.gte.2026-09-30T23:00:00.000Z,created_at.lt.2026-10-31T23:00:00.000Z');
+        expect(ors[0]).toContain('created_at.gte."2026-09-30T23:00:00.000Z",created_at.lt."2026-10-31T23:00:00.000Z"');
         expect(ors[0]).not.toMatch(/created_at\.lte/);
-        expect(ors[1]).toContain('created_at.lt.2026-09-30T23:00:00.000Z');
+        expect(ors[1]).toContain('created_at.lt."2026-09-30T23:00:00.000Z"');
     });
 });
