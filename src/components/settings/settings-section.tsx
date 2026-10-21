@@ -7,7 +7,7 @@ import { IconBox } from '@/components/ui/icon-box';
 import { useAuth } from '@/lib/auth/auth-provider';
 import type { Permission } from '@/lib/auth/action-roles';
 import { cn } from '@/lib/utils';
-import { useOptionalSettingsSections } from './settings-sections-provider';
+import { useOptionalSettingsSections } from '@/components/settings/settings-sections-provider';
 
 interface SettingsSectionProps {
   /** Anchor id. Must match the registry section id. */
@@ -101,7 +101,7 @@ export function SettingsSection({
       data-dirty={isDirty}
       className={cn(
         'scroll-mt-20 rounded-xl border bg-card shadow-sm',
-        isDirty && 'border-amber-300 dark:border-amber-700/60',
+        isDirty && 'border-warning/30',
       )}
     >
       <div className="relative flex items-center gap-3.5 p-4 md:p-5">
@@ -126,8 +126,8 @@ export function SettingsSection({
               </button>
             </h2>
             {isDirty && (
-              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400">
-                <span aria-hidden className="h-2 w-2 rounded-full bg-amber-600" />
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-warning">
+                <span aria-hidden className="h-2 w-2 rounded-full bg-warning" />
                 Unsaved
               </span>
             )}
@@ -138,29 +138,29 @@ export function SettingsSection({
         </div>
         <ChevronDown
           aria-hidden
-          className={cn('h-5 w-5 shrink-0 text-muted-foreground transition-transform', !open && '-rotate-90')}
+          className={cn('h-5 w-5 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none', !open && '-rotate-90')}
         />
       </div>
 
       <div id={bodyId} hidden={!open} className="border-t">
         {description && <p className="px-4 pt-4 text-sm text-muted-foreground md:px-5">{description}</p>}
-        {children}
+        {isLoading ? null : children}
       </div>
 
       <div
         className={cn(
           'flex flex-wrap items-center justify-between gap-2.5 rounded-b-xl border-t px-4 py-3 md:px-5',
-          isDirty && 'bg-amber-50 dark:bg-amber-950/30',
+          isDirty && 'bg-warning/10',
         )}
       >
         <div aria-live="polite" className="text-sm">
           {isDirty ? (
-            <p className="flex items-center gap-2 font-medium text-amber-700 dark:text-amber-400">
-              <span aria-hidden className="h-2 w-2 rounded-full bg-amber-600" />
+            <p className="flex items-center gap-2 font-medium text-warning">
+              <span aria-hidden className="h-2 w-2 rounded-full bg-warning" />
               Unsaved changes
             </p>
           ) : saved ? (
-            <p className="flex items-center gap-2 font-medium text-emerald-700 dark:text-emerald-400">
+            <p className="flex items-center gap-2 font-medium text-success">
               <Check aria-hidden className="h-4 w-4" />
               Saved
             </p>
@@ -169,7 +169,7 @@ export function SettingsSection({
           )}
         </div>
         {blocked && saveBlockedReason && (
-          <p className="w-full text-sm text-amber-700 dark:text-amber-400 md:order-last">{saveBlockedReason}</p>
+          <p className="w-full text-sm text-warning md:order-last">{saveBlockedReason}</p>
         )}
         <div className="flex w-full gap-2 md:ml-auto md:w-auto">
           <Button

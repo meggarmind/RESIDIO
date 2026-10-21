@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import * as React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { Mail } from 'lucide-react';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
@@ -156,16 +156,58 @@ describe('SettingsSection', () => {
     expect(screen.getByRole('button', { name: 'Save Channels' })).toBeDisabled();
   });
 
-  it('does not claim Saved when the save fails', async () => {
-    const onSave = vi.fn().mockResolvedValue(false);
-    render(
-      <SettingsSection id="c" title="Channels" summary="s" isDirty onSave={onSave} onDiscard={() => {}}>
-        x
-      </SettingsSection>,
-    );
+  it.each([
+    ['returns false', async () => false],
+    [
+      'throws',
+      async () => {
+        throw new Error('boom');
+      },
+    ],
+  ])('does not claim Saved when the save %s', async (_name, result) => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    function Clearing() {
+      const [dirty, setDirty] = React.useState(true);
+      return (
+        <SettingsSection
+          id="c"
+          title="Channels"
+          summary="s"
+          isDirty={dirty}
+          onSave={async () => {
+            setDirty(false);
+            return result();
+          }}
+          onDiscard={() => {}}
+        >
+          x
+        </SettingsSection>
+      );
+    }
+    render(<Clearing />);
     fireEvent.click(screen.getByRole('button', { name: 'Save Channels' }));
-    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    await screen.findByText('No changes');
+    // Let the save promise settle before checking that "Saved" never appears.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
     expect(screen.queryByText('Saved')).toBeNull();
+  });
+
+  it('prevents unload only while a section is dirty', () => {
+    render(
+      <SettingsSectionsProvider groups={groups}>
+        <Harness id="channels" title="Channels" />
+      </SettingsSectionsProvider>,
+    );
+    const fire = () => {
+      const ev = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(ev);
+      return ev.defaultPrevented;
+    };
+    expect(fire()).toBe(false);
+    edit('Channels');
+    expect(fire()).toBe(true);
   });
 });
 

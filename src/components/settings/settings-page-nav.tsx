@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { cn } from '@/lib/utils';
-import { useSettingsSections } from './settings-sections-provider';
+import { useSettingsSections } from '@/components/settings/settings-sections-provider';
 
 /** Sticky "On this page" tabs, one per visible section. Pills are kept for status, so these are rectangles. */
 export function SettingsPageNav() {
@@ -59,7 +59,7 @@ export function SettingsPageNav() {
               {s.dirty && (
                 <>
                   {' '}
-                  <span aria-hidden className="h-2 w-2 rounded-full bg-amber-600" />
+                  <span aria-hidden className="h-2 w-2 rounded-full bg-warning" />
                   <span className="sr-only">(unsaved)</span>
                 </>
               )}

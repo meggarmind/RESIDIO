@@ -183,9 +183,15 @@ export function SettingsSectionsProvider({
     if (!match || !sections.some((s) => s.id === match.section.id && s.visible)) return;
     handlesRef.current.get(match.section.id)?.setOpen(true);
     let cleanup = () => {};
-    const frame = requestAnimationFrame(() => {
+    let frame = 0;
+    let tries = 0;
+    const run = () => {
       const el = document.getElementById(match.row.id);
-      if (!el) return;
+      // Section bodies mount only after auth loads, so wait a few frames for the row.
+      if (!el) {
+        if (++tries < 60) frame = requestAnimationFrame(run);
+        return;
+      }
       el.scrollIntoView?.({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'center' });
       (el.querySelector<HTMLElement>(FOCUSABLE) ?? el).focus({ preventScroll: true });
       el.setAttribute('data-hit', 'true');
@@ -201,7 +207,8 @@ export function SettingsSectionsProvider({
         document.removeEventListener('pointerdown', clear);
         document.removeEventListener('keydown', clear);
       };
-    });
+    };
+    frame = requestAnimationFrame(run);
     return () => {
       cancelAnimationFrame(frame);
       cleanup();
@@ -232,7 +239,7 @@ export function SettingsSectionsProvider({
               {names} {verb} unsaved changes. If you leave now, they are lost.
             </AlertDialogDescription>
             {blocked.length > 0 && (
-              <p className="text-sm text-amber-700 dark:text-amber-400">
+              <p className="text-sm text-warning">
                 Save and leave is off.{' '}
                 {blocked.map((s) => `${s.title}: ${s.saveBlockedReason ?? 'fix the errors first.'}`).join(' ')}
               </p>
