@@ -21,6 +21,7 @@ vi.mock('@/actions/whatsapp/identity', () => ({
   setWhatsAppForcePin: vi.fn(),
   updateWhatsAppPendingContact: vi.fn(),
 }));
+vi.mock('@/actions/whatsapp/balance-setting', () => ({ setResidentRollForwardBalance: vi.fn() }));
 vi.mock('@/actions/whatsapp/pilot', () => ({
   promoteWhatsAppPilotToEstate: vi.fn(),
   updateWhatsAppPilotSettings: vi.fn(),
@@ -37,6 +38,7 @@ vi.mock('@/actions/whatsapp/connection', () => ({
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { ConnectionSettings } from '@/app/(dashboard)/settings/whatsapp/connection-settings';
 import { ForcePinToggle } from '@/app/(dashboard)/settings/whatsapp/force-pin-toggle';
+import { RollForwardBalanceToggle } from '@/app/(dashboard)/settings/whatsapp/roll-forward-balance-toggle';
 import { OperationsConsole } from '@/app/(dashboard)/settings/whatsapp/operations-console';
 import { OptInImport } from '@/app/(dashboard)/settings/whatsapp/opt-in-import';
 import { PilotControls } from '@/app/(dashboard)/settings/whatsapp/pilot-controls';
@@ -67,6 +69,7 @@ function Page() {
       <ConnectionSettings initial={status} siteUrl="http://localhost:3000" />
       <WhatsAppEnabledToggle initialValue={true} />
       <ForcePinToggle initialValue={false} />
+      <RollForwardBalanceToggle initialValue={false} />
       <OptInImport />
       <PilotControls
         initial={{
@@ -110,6 +113,7 @@ const WRITE_CONTROLS: [string, RegExp][] = [
   ['button', /^Reset$/],
   ['switch', /Enable the WhatsApp channel/],
   ['switch', /Require PIN/],
+  ['switch', /roll-forward balance/],
 ];
 
 beforeEach(() => {
@@ -156,5 +160,6 @@ describe('WhatsApp settings permission gating (issue #7)', () => {
     }
     expect(screen.getByRole('switch', { name: /Enable the WhatsApp channel/ })).toBeEnabled();
     expect(screen.getByRole('switch', { name: /Require PIN/ })).toBeEnabled();
+    expect(screen.getByRole('switch', { name: /roll-forward balance/ })).toBeEnabled();
   });
 });

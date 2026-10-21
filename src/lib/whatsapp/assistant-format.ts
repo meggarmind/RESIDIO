@@ -13,6 +13,12 @@ export function formatNaira(amount: number): string {
   return `${sign}₦${Math.abs(amount).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+/** A signed account balance (#863 decision 4): positive is owed, negative is in credit. */
+export function formatBalance(amount: number): string {
+  if (amount === 0) return 'Nil';
+  return `${formatNaira(Math.abs(amount))} ${amount > 0 ? 'owed' : 'in credit'}`;
+}
+
 /** Calendar parts of an instant in Africa/Lagos. */
 export function lagosParts(now: Date): { year: number; month: number; day: number; weekday: number; minutes: number } {
   const shifted = new Date(now.getTime() + LAGOS_OFFSET_MS);

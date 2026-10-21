@@ -10,6 +10,7 @@ import type { WhatsAppInboundMessage, WhatsAppTextMessage } from '@/lib/whatsapp
 import { hashWhatsAppLinkCode, type WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
 import { sendWhatsAppPinAlert } from '@/lib/whatsapp/pin-alert';
 import type { AccountStatementData } from '@/lib/billing/account-statement-data';
+import { fetchAccountBalance, isResidentRollForwardEnabled } from '@/lib/billing/account-balance';
 import {
   STATEMENT_CHAT_ROW_LIMIT,
   createStatementRequest,
@@ -59,7 +60,9 @@ import {
   answerFooter,
   contactLine,
   formatDay,
+  formatBalance,
   formatNaira,
+  lagosDateString,
   lagosMidnight,
   lagosParts,
   maskEmail,
@@ -176,10 +179,15 @@ export interface AssistantAnnouncement {
   publishedAt: string | null;
 }
 
-/** Allocation-based figures for one resident and house (#804 decision 20). */
+/**
+ * Figures for one resident and house (#804 decision 20). `outstanding` is allocation-based
+ * (unpaid on invoices) unless `rollForward`, when it is the signed roll-forward balance (#863).
+ * Overdue and next due are always allocation-based.
+ */
 export interface OwedFigures {
   invoiceCount: number;
   outstanding: number;
+  rollForward?: boolean;
   overdue: { total: number; count: number; oldestDue: string } | null;
   next: { amount: number; dueDate: string; invoiceNumber: string } | null;
   awaitingVerification: number;
@@ -315,7 +323,15 @@ function plural(count: number, word: string): string {
 
 export function composeOweAnswer(figures: OwedFigures, houseLabel: string, showPay: boolean, hasContact: boolean): string {
   const lines = [`*What you owe, ${houseLabel}*`];
-  if (figures.invoiceCount === 0) {
+  if (figures.rollForward) {
+    lines.push(`Outstanding: ${formatBalance(figures.outstanding)}`);
+    if (figures.overdue) {
+      lines.push(`Overdue: ${formatNaira(figures.overdue.total)} across ${plural(figures.overdue.count, 'invoice')} (oldest due ${formatDay(figures.overdue.oldestDue)})`);
+    }
+    if (figures.next) {
+      lines.push(`Next due: ${formatNaira(figures.next.amount)} on ${formatDay(figures.next.dueDate)} (invoice ${figures.next.invoiceNumber})`);
+    }
+  } else if (figures.invoiceCount === 0) {
     lines.push(`No bills on record for ${houseLabel}.`);
   } else if (figures.outstanding <= 0) {
     lines.push(`You're fully paid up for ${houseLabel}.`);
@@ -607,8 +623,10 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
 
     async getOwed(residentId, houseId) {
       const supabase = createAdminClient();
+      const today = lagosDateString(new Date());
+      const rollForward = await isResidentRollForwardEnabled();
       // Unpaid invoices only, filtered in the database: a page of all invoices hides newer unpaid ones (#811).
-      const [unpaidResult, countResult, unverifiedResult] = await Promise.all([
+      const [unpaidResult, countResult, unverifiedResult, balance] = await Promise.all([
         supabase
           .from('invoices')
           .select('invoice_number, amount_due, amount_paid, due_date')
@@ -630,6 +648,7 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
           // A payment a resident reported over WhatsApp is pending until an admin verifies it (#816 decision 11).
           .in('status', ['paid', 'pending'])
           .eq('is_verified', false),
+        rollForward ? fetchAccountBalance(supabase, { residentId, houseId, fromDate: today, toDate: today }) : null,
       ]);
       if (unpaidResult.error) throw unpaidResult.error;
       if (countResult.error) throw countResult.error;
@@ -637,19 +656,21 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
 
       const remaining = (invoice: { amount_due: number; amount_paid: number }) => Number(invoice.amount_due) - Number(invoice.amount_paid);
       const unpaid = (unpaidResult.data || []).filter((invoice) => remaining(invoice) > 0);
-      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });
       const overdue = unpaid.filter((invoice) => invoice.due_date.slice(0, 10) < today);
       const next = unpaid.find((invoice) => invoice.due_date.slice(0, 10) >= today);
       return {
         invoiceCount: countResult.count || 0,
-        // shortcut: allocation-based (Σ amount_due − amount_paid); #863 replaces it with the shared
-        // verified-only roll-forward balance (#804 decisions 18-19) before residents are switched on.
-        outstanding: unpaid.reduce((sum, invoice) => sum + remaining(invoice), 0),
+        // Allocation-based (Σ amount_due − amount_paid) until balance_roll_forward_resident_enabled is
+        // on; then the shared verified-only roll-forward balance (#863, #804 decisions 18-19).
+        outstanding: balance ? balance.closingBalance : unpaid.reduce((sum, invoice) => sum + remaining(invoice), 0),
+        ...(balance && { rollForward: true }),
         overdue: overdue.length
           ? { total: overdue.reduce((sum, invoice) => sum + remaining(invoice), 0), count: overdue.length, oldestDue: overdue[0].due_date.slice(0, 10) }
           : null,
         next: next ? { amount: remaining(next), dueDate: next.due_date.slice(0, 10), invoiceNumber: next.invoice_number } : null,
-        awaitingVerification: (unverifiedResult.data || []).reduce((sum, payment) => sum + Number(payment.amount || 0), 0),
+        awaitingVerification: balance
+          ? balance.awaitingVerification
+          : (unverifiedResult.data || []).reduce((sum, payment) => sum + Number(payment.amount || 0), 0),
       };
     },
 

@@ -1,6 +1,9 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { resolveAccess, toAccessClient } from '@/lib/auth/access';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { isResidentRollForwardEnabled } from '@/lib/billing/account-balance';
 import {
     loadAccountStatement,
     type GetAccountStatementParams,
@@ -14,12 +17,17 @@ export type {
 
 /**
  * Get comprehensive account statement for a resident
- * Shows all invoices, payments, and wallet transactions for a date range
+ * Shows all invoices, payments, and wallet transactions for a date range.
+ * Admins (billing.view) always get the roll-forward balance; anyone else only once the resident
+ * setting is on (#863).
  */
 export async function getAccountStatement(
     params: GetAccountStatementParams
 ): Promise<GetAccountStatementResponse> {
-    return loadAccountStatement(await createServerSupabaseClient(), params);
+    const supabase = await createServerSupabaseClient();
+    const access = await resolveAccess(toAccessClient(supabase));
+    const isAdmin = access.status === 'resolved' && access.permissions.includes(PERMISSIONS.BILLING_VIEW);
+    return loadAccountStatement(supabase, params, { rollForward: isAdmin || await isResidentRollForwardEnabled() });
 }
 
 /**
@@ -47,10 +55,10 @@ export async function getMyAccountStatement(
         return { data: null, error: 'Resident record not found' };
     }
 
-    return getAccountStatement({
+    return loadAccountStatement(supabase, {
         residentId: resident.id,
         houseId: params.houseId,
         fromDate: params.fromDate,
         toDate: params.toDate,
-    });
+    }, { rollForward: await isResidentRollForwardEnabled() });
 }

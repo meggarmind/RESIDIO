@@ -5,6 +5,7 @@ import { renderToBuffer } from '@react-pdf/renderer';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getRawSettingsAsService } from '@/lib/settings/service';
 import { loadAccountStatement, type AccountStatementData } from '@/lib/billing/account-statement-data';
+import { isResidentRollForwardEnabled } from '@/lib/billing/account-balance';
 import { AccountStatementPDF } from '@/lib/pdf/account-statement';
 import { WhatsAppStatementEmail } from '@/emails/whatsapp-statement';
 import { addToQueue, PRIORITY } from '@/lib/notifications/queue';
@@ -51,9 +52,13 @@ async function estateName(): Promise<string> {
   return typeof value === 'string' && value.trim() ? value.trim() : 'Residio Estate';
 }
 
-/** The admin account statement for one resident and house, read with the service-role client. */
+/**
+ * The admin account statement for one resident and house, read with the service-role client.
+ * Resident-facing, so its balances are the roll-forward ones only once the setting is on (#863).
+ */
 export async function loadWhatsAppStatement(residentId: string, houseId: string, fromDate: string, toDate: string): Promise<AccountStatementData> {
-  const { data, error } = await loadAccountStatement(createAdminClient(), { residentId, houseId, fromDate, toDate });
+  const rollForward = await isResidentRollForwardEnabled();
+  const { data, error } = await loadAccountStatement(createAdminClient(), { residentId, houseId, fromDate, toDate }, { rollForward });
   if (error || !data) throw new Error(`Statement could not be built: ${error || 'no data'}`);
   return data;
 }

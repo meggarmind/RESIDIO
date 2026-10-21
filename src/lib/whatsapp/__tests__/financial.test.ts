@@ -908,6 +908,8 @@ describe('WhatsApp What I owe figures (#811, #804 decision 20)', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-10-20T10:00:00Z'));
+    // No balance_roll_forward_resident_enabled row: the allocation figures (#863).
+    vi.mocked(getSettingResultAsService).mockResolvedValue({ status: 'absent' });
   });
 
   afterEach(() => {
@@ -1781,5 +1783,79 @@ describe('WhatsApp Assistant satisfaction survey (#872)', () => {
     const waiting = due({ getOwed: vi.fn().mockResolvedValue(PAID_UP), requestClearance: vi.fn().mockResolvedValue({ status: 'duplicate' }) });
     await chat(waiting, ['clearance']);
     expect(waiting.askSurvey).not.toHaveBeenCalled();
+  });
+});
+
+describe('What I owe roll-forward balance (#863)', () => {
+  function mockOwedClient(balance: Record<string, number> | null) {
+    const results: Record<string, unknown[]> = {
+      invoices: [
+        { data: [{ invoice_number: 'INV-1', amount_due: 10000, amount_paid: 4000, due_date: '2026-01-01' }], error: null },
+        { count: 3, error: null },
+      ],
+      payment_records: [{ data: [{ amount: 700 }], error: null }],
+    };
+    const from = vi.fn((table: string) => {
+      const result = results[table].shift();
+      const chain: Record<string, unknown> = { then: (resolve: (value: unknown) => unknown) => resolve(result) };
+      for (const method of ['select', 'eq', 'in', 'neq', 'order']) chain[method] = () => chain;
+      return chain;
+    });
+    const rpc = vi.fn(() => ({ single: async () => ({ data: balance, error: null }) }));
+    vi.mocked(createAdminClient).mockReturnValue({ from, rpc } as unknown as ReturnType<typeof createAdminClient>);
+    return { rpc };
+  }
+
+  const settingIs = (on: boolean) => vi.mocked(getSettingResultAsService).mockImplementation(async (key) =>
+    key === 'balance_roll_forward_resident_enabled' ? { status: 'ok', value: on } : { status: 'absent' });
+
+  const BALANCE = { opening_balance: 0, closing_balance: -2500, total_invoiced: 0, total_paid: 0, total_wallet_credits: 0, total_wallet_debits: 0, awaiting_verification: 300 };
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-20T23:30:00Z')); // 21 Oct 00:30 in Lagos
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('keeps the allocation figures, and never reads the balance function, while the setting is off', async () => {
+    settingIs(false);
+    const { rpc } = mockOwedClient(BALANCE);
+
+    const owed = await createSupabaseWhatsAppFinancialRepository().getOwed('resident-1', 'house-1');
+
+    expect(owed).toMatchObject({ outstanding: 6000, awaitingVerification: 700, invoiceCount: 3 });
+    expect(owed).not.toHaveProperty('rollForward');
+    expect(owed.overdue).toEqual({ total: 6000, count: 1, oldestDue: '2026-01-01' });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('switches Outstanding and Awaiting verification to the shared balance as of today in Lagos when the setting is on', async () => {
+    settingIs(true);
+    const { rpc } = mockOwedClient(BALANCE);
+
+    const owed = await createSupabaseWhatsAppFinancialRepository().getOwed('resident-1', 'house-1');
+
+    expect(rpc).toHaveBeenCalledWith('resident_account_balance', { p_resident_id: 'resident-1', p_house_id: 'house-1', p_from: '2026-10-21', p_to: '2026-10-21' });
+    expect(owed).toMatchObject({ outstanding: -2500, awaitingVerification: 300, rollForward: true });
+    // Overdue and next due stay allocation-based.
+    expect(owed.overdue).toEqual({ total: 6000, count: 1, oldestDue: '2026-01-01' });
+  });
+
+  it('treats an unreadable setting as off', async () => {
+    vi.mocked(getSettingResultAsService).mockResolvedValue({ status: 'error', message: 'connection reset' });
+    const { rpc } = mockOwedClient(BALANCE);
+
+    await expect(createSupabaseWhatsAppFinancialRepository().getOwed('resident-1', 'house-1')).resolves.not.toHaveProperty('rollForward');
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('signs the roll-forward balance: owed, in credit, or Nil, never floored at zero', () => {
+    const base: OwedFigures = { invoiceCount: 0, outstanding: 0, rollForward: true, overdue: null, next: null, awaitingVerification: 0 };
+    expect(composeOweAnswer({ ...base, outstanding: -60000 }, '12 Palm Close', true, true)).toBe(
+      ['*What you owe, 12 Palm Close*', 'Outstanding: ₦60,000.00 in credit', FOOTER].join('\n'));
+    expect(composeOweAnswer({ ...base, outstanding: 0, invoiceCount: 2 }, '12 Palm Close', true, true)).toBe(
+      ['*What you owe, 12 Palm Close*', 'Outstanding: Nil', FOOTER].join('\n'));
+    expect(composeOweAnswer({ ...base, outstanding: 1250.5, invoiceCount: 1, awaitingVerification: 300 }, '12 Palm Close', true, true)).toBe(
+      ['*What you owe, 12 Palm Close*', 'Outstanding: ₦1,250.50 owed', 'Awaiting verification: ₦300.00', 'Reply PAY for how to pay', FOOTER].join('\n'));
   });
 });
