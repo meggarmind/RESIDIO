@@ -5,7 +5,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { isLastActiveSuperAdmin, LAST_SUPER_ADMIN_ERROR } from '@/lib/auth/super-admin-invariant';
-import { assertCanManageTarget, canGrantRole } from '@/lib/auth/role-rank';
+import { assertCanGrantRoles, assertCanManageTarget } from '@/lib/auth/account-guards';
 import type {
   AppRole,
   AppPermission,
@@ -37,7 +37,7 @@ export async function getRolesWithPermissions(): Promise<{
   const { data: roles, error: rolesError } = await supabase
     .from('app_roles')
     .select('*')
-    .order('level', { ascending: true });
+    .order('display_name', { ascending: true });
 
   if (rolesError) {
     return { success: false, error: rolesError.message };
@@ -213,8 +213,6 @@ async function assertCallerMayGrantPermissions(
 
 /** Values the role form offers; anything else is refused rather than stored. */
 const ROLE_CATEGORIES = ['exco', 'bot', 'staff', 'resident'];
-const ROLE_LEVEL_MIN = 0;
-const ROLE_LEVEL_MAX = 10;
 
 /**
  * Names no custom role may take, whatever the database says: the two top roles,
@@ -280,21 +278,8 @@ async function checkRoleName(
   return { ok: true, name };
 }
 
-/**
- * Validates the fields a role form can send. level and category are checked
- * against what the form offers; there is no rank-by-level concept (authorization
- * ranks by role name, see role-rank.ts), so this is a type and range check.
- */
-function checkRoleFields(data: { level?: unknown; category?: unknown }): string | null {
-  if (
-    data.level !== undefined &&
-    (typeof data.level !== 'number' ||
-      !Number.isInteger(data.level) ||
-      data.level < ROLE_LEVEL_MIN ||
-      data.level > ROLE_LEVEL_MAX)
-  ) {
-    return `Level must be a whole number from ${ROLE_LEVEL_MIN} to ${ROLE_LEVEL_MAX}`;
-  }
+/** Validates the category a role form can send against what the form offers. */
+function checkRoleFields(data: { category?: unknown }): string | null {
   if (data.category !== undefined && !ROLE_CATEGORIES.includes(data.category as string)) {
     return 'Unknown role category';
   }
@@ -338,7 +323,6 @@ export async function createRole(roleData: AppRoleInsert): Promise<{
       display_name: roleData.display_name,
       description: roleData.description,
       category: roleData.category,
-      level: roleData.level,
       is_active: roleData.is_active,
       can_be_assigned_to_resident: roleData.can_be_assigned_to_resident,
       is_system_role: false,
@@ -482,7 +466,6 @@ export async function updateRole(
       'display_name',
       'description',
       'category',
-      'level',
       'is_active',
       'can_be_assigned_to_resident',
     ]) {
@@ -721,7 +704,8 @@ export async function assignRoleToUser(
 
   const supabase = await createServerSupabaseClient();
 
-  // Target guard (#475): the account being changed must not outrank the caller.
+  // Target guard (#475, #826): changing an account that holds super_admin or
+  // chairman needs system.assign_board_roles.
   const targetGuard = await assertCanManageTarget(auth.userId!, userId);
   if (!targetGuard.ok) {
     return { success: false, error: targetGuard.error };
@@ -748,17 +732,11 @@ export async function assignRoleToUser(
     return { success: false, error: 'Role not found' };
   }
 
-  // Escalation guard (#475): this path had none. Same rule as
-  // assignRoleToProfile -- super_admin and chairman are grantable by a
-  // super_admin only, and nobody may grant above their own rank.
-  if (!canGrantRole(auth.roleName, targetRole.name)) {
-    return {
-      success: false,
-      error:
-        targetRole.name === 'super_admin' || targetRole.name === 'chairman'
-          ? `Only Super Administrator can assign the ${targetRole.name === 'super_admin' ? 'Super Administrator' : 'Chairman'} role`
-          : 'You cannot assign a role that outranks your own',
-    };
+  // Grant guard (#475, #826): same rule as assignRoleToProfile --
+  // super_admin, chairman and trustee need system.assign_board_roles.
+  const grantGuard = await assertCanGrantRoles(auth.userId!, [targetRole.name]);
+  if (!grantGuard.ok) {
+    return { success: false, error: grantGuard.error };
   }
 
   // Bootstrap invariant (#184). This is a second role-assignment path alongside
@@ -830,7 +808,6 @@ export async function getCurrentAdmins(): Promise<{
     role_id: string;
     role_name: string;
     role_display_name: string;
-    role_level: number;
   }>;
   error?: string;
 }> {
@@ -867,8 +844,7 @@ export async function getCurrentAdmins(): Promise<{
       app_roles:role_id (
         id,
         name,
-        display_name,
-        level
+        display_name
       )
     `)
     .not('role_id', 'is', null);
@@ -900,7 +876,6 @@ export async function getCurrentAdmins(): Promise<{
         id: string;
         name: string;
         display_name: string;
-        level: number;
       };
 
       // Get primary or first active house
@@ -930,10 +905,13 @@ export async function getCurrentAdmins(): Promise<{
         role_id: role.id,
         role_name: role.name,
         role_display_name: role.display_name,
-        role_level: role.level,
       };
     })
-    .sort((a, b) => a.role_level - b.role_level); // Sort by role level (highest first)
+    .sort(
+      (a, b) =>
+        a.role_display_name.localeCompare(b.role_display_name) ||
+        `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`)
+    );
 
   return { success: true, data: admins };
 }

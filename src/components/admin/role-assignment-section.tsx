@@ -586,12 +586,7 @@ export function RoleAssignmentSection() {
                   <SelectContent>
                     {assignableRoles.map((role) => (
                       <SelectItem key={role.id} value={role.id}>
-                        <div className="flex items-center gap-2">
-                          <span>{role.display_name}</span>
-                          <Badge variant="outline" className="text-xs">
-                            Level {role.level}
-                          </Badge>
-                        </div>
+                        <span>{role.display_name}</span>
                       </SelectItem>
                     ))}
                   </SelectContent>

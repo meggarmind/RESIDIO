@@ -1,15 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * Issue #475: role and account administration guarded the role being granted but
- * not the account being changed. These tests drive each action against an
- * in-memory fake of the two Supabase clients, with a lower-ranked, equal-ranked
- * and higher-ranked caller, and assert on the writes that reached the "database"
- * rather than on return values alone.
+ * Issues #475 and #826: who may grant which role, and who may change whom. These
+ * tests drive each action against an in-memory fake of the two Supabase clients
+ * and assert on the writes that reached the "database" rather than on return
+ * values alone.
  *
- * Rank: super_admin (3) > chairman (2) > everything else, custom roles included (1).
- * The caller below is a custom `treasurer` role for the lower-ranked cases, so
- * the "custom roles rank 1" rule is exercised rather than assumed.
+ * The guards read the caller's permissions from role_permissions, so each role's
+ * grants are seeded below: super_admin holds system.assign_roles and
+ * system.assign_board_roles, chairman holds system.assign_roles only, and the
+ * other roles hold neither unless a test grants it. The mocked
+ * authorizePermission() result is never consulted by the guards.
  */
 
 type Row = Record<string, unknown>;
@@ -19,6 +20,8 @@ const state = vi.hoisted(() => ({
   tables: {} as Record<string, Row[]>,
   /** Profile ids whose maybeSingle() read fails with a database error. */
   failProfileReads: [] as string[],
+  /** When true, reads of role_permissions fail with a database error. */
+  failPermissionReads: false,
   writes: [] as Array<{ table: string; op: string; values?: Row }>,
   auth: {
     authorized: true,
@@ -39,11 +42,18 @@ function fakeFrom(table: string) {
     (state.tables[table] ?? []).filter((row) => filters.every(([col, val]) => row[col] === val));
 
   const withEmbeds = (rows: Row[]): Row[] =>
-    rows.map((row) =>
-      table === 'profiles'
-        ? { ...row, app_roles: (state.tables.app_roles ?? []).find((r) => r.id === row.role_id) ?? null }
-        : row
-    );
+    rows.map((row) => {
+      if (table === 'profiles') {
+        return { ...row, app_roles: (state.tables.app_roles ?? []).find((r) => r.id === row.role_id) ?? null };
+      }
+      if (table === 'role_permissions') {
+        return {
+          ...row,
+          permission: (state.tables.app_permissions ?? []).find((p) => p.id === row.permission_id) ?? null,
+        };
+      }
+      return row;
+    });
 
   const execute = (): Row[] => {
     const rows = matching();
@@ -90,7 +100,10 @@ function fakeFrom(table: string) {
       }
       return { data: execute()[0] ?? null, error: null };
     },
-    then: (resolve: (v: unknown) => unknown) => resolve({ data: execute(), error: null }),
+    then: (resolve: (v: unknown) => unknown) =>
+      table === 'role_permissions' && op === 'select' && state.failPermissionReads
+        ? resolve({ data: null, error: { message: 'db down' } })
+        : resolve({ data: execute(), error: null }),
   };
   return builder;
 }
@@ -118,19 +131,31 @@ vi.mock('@/actions/roles/assignment-rules', () => ({
   checkRoleAssignmentAllowed: async () => ({ allowed: true }),
 }));
 
-import { assignRoleToProfile } from '@/actions/roles/assign-role';
+import { assignRoleToProfile, removeRoleFromProfile } from '@/actions/roles/assign-role';
 import { assignRoleToUser, updateRole, updateRolePermissions } from '@/actions/roles/index';
 import { rejectAccount } from '@/actions/auth/account-approval';
-import { linkAuthAccountToResident } from '@/actions/auth/link-account';
+import { linkAuthAccountToResident, unlinkAuthAccount } from '@/actions/auth/link-account';
 import { resetUserTwoFactor } from '@/actions/two-factor/disable';
-import { getRoleRank, canGrantRole, assertCanManageTarget } from '@/lib/auth/role-rank';
+import {
+  assertCanGrantRoles,
+  assertCanManageTarget,
+  permissionToGrant,
+  permissionToManage,
+  CALLER_NOT_VERIFIED_ERROR,
+  CANNOT_CHANGE_ACCOUNT_ERROR,
+  CANNOT_GRANT_ROLE_ERROR,
+} from '@/lib/auth/account-guards';
 
 const RESIDENT_ID = '11111111-1111-4111-8111-111111111111';
 const TARGET_AUTH_ID = '22222222-2222-4222-8222-222222222222';
 
+const ASSIGN = 'system.assign_roles';
+const BOARD = 'system.assign_board_roles';
+
 const ROLES: Record<string, Row> = {
   super_admin: { id: 'r-sa', name: 'super_admin', display_name: 'Super Admin', is_active: true, is_system_role: true },
   chairman: { id: 'r-ch', name: 'chairman', display_name: 'Chairman', is_active: true, is_system_role: true },
+  trustee: { id: 'r-tr', name: 'trustee', display_name: 'Trustee', is_active: true, is_system_role: true },
   secretary: { id: 'r-sec', name: 'secretary', display_name: 'Secretary', is_active: true, is_system_role: true },
   treasurer: { id: 'r-treasurer', name: 'treasurer', display_name: 'Treasurer', is_active: true, is_system_role: false },
   // A role *named* super_admin that is not flagged as a system role, so the name
@@ -139,21 +164,42 @@ const ROLES: Record<string, Row> = {
   auditor: { id: 'r-auditor', name: 'auditor', display_name: 'Auditor', is_active: true, is_system_role: false },
 };
 
+/** Each role's permission grants, as role_permissions holds them. */
+const GRANTS: Record<string, string[]> = {
+  super_admin: [ASSIGN, BOARD],
+  chairman: [ASSIGN],
+};
+
 type Scenario = {
   caller: keyof typeof ROLES;
   target?: keyof typeof ROLES | null;
   targetStatus?: string;
+  /** Replaces the caller role's grants, e.g. a secretary given system.assign_roles. */
+  callerGrants?: string[];
+  callerStatus?: string;
 };
 
 /** Seeds the fake database and points the mocked authorizePermission at the caller. */
-function seed({ caller, target = 'secretary', targetStatus = 'active' }: Scenario) {
+function seed({ caller, target = 'secretary', targetStatus = 'active', callerGrants, callerStatus = 'active' }: Scenario) {
   state.writes = [];
   state.failProfileReads = [];
+  state.failPermissionReads = false;
+  const grants: Record<string, string[]> = { ...GRANTS, ...(callerGrants ? { [caller]: callerGrants } : {}) };
   state.tables = {
     app_roles: Object.values(ROLES).map((r) => ({ ...r })),
-    role_permissions: [{ role_id: 'r-auditor', permission_id: 'p1' }],
+    app_permissions: [
+      { id: 'p-assign', name: ASSIGN, is_active: true },
+      { id: 'p-board', name: BOARD, is_active: true },
+      { id: 'p1', name: 'x.view', is_active: true },
+    ],
+    role_permissions: [
+      { role_id: 'r-auditor', permission_id: 'p1' },
+      ...Object.entries(grants).flatMap(([role, names]) =>
+        names.map((name) => ({ role_id: ROLES[role].id, permission_id: name === BOARD ? 'p-board' : 'p-assign' }))
+      ),
+    ],
     profiles: [
-      { id: 'caller', email: 'caller@example.test', full_name: 'Caller', role_id: ROLES[caller].id, approval_status: 'active' },
+      { id: 'caller', email: 'caller@example.test', full_name: 'Caller', role_id: ROLES[caller].id, approval_status: callerStatus, resident_id: null },
       {
         id: TARGET_AUTH_ID,
         email: 'target@example.test',
@@ -184,39 +230,57 @@ const writesTo = (table: string): Write[] => state.writes.filter((w) => w.table 
 const profileOf = (id: string) => state.tables.profiles.find((p) => p.id === id)!;
 
 beforeEach(() => {
-  seed({ caller: 'treasurer' });
+  seed({ caller: 'chairman' });
 });
 
-describe('getRoleRank', () => {
-  it('ranks super_admin > chairman > every other role, and no role lowest', () => {
-    expect(getRoleRank('super_admin')).toBe(3);
-    expect(getRoleRank('chairman')).toBe(2);
-    expect(getRoleRank('secretary')).toBe(1);
-    expect(getRoleRank('a-custom-role')).toBe(1);
-    expect(getRoleRank(null)).toBe(0);
+describe('permissionToGrant and permissionToManage', () => {
+  it('needs assign_board_roles to grant super_admin, chairman or trustee, and assign_roles for anything else', () => {
+    expect(permissionToGrant('super_admin')).toBe(BOARD);
+    expect(permissionToGrant('chairman')).toBe(BOARD);
+    expect(permissionToGrant('trustee')).toBe(BOARD);
+    expect(permissionToGrant('secretary')).toBe(ASSIGN);
+    expect(permissionToGrant('a-custom-role')).toBe(ASSIGN);
   });
 
-  it('lets only a super_admin grant the two top roles, and nobody grant above their rank', () => {
-    expect(canGrantRole('super_admin', 'chairman')).toBe(true);
-    expect(canGrantRole('chairman', 'chairman')).toBe(false);
-    expect(canGrantRole('chairman', 'super_admin')).toBe(false);
-    expect(canGrantRole('chairman', 'treasurer')).toBe(true);
-    expect(canGrantRole(null, 'treasurer')).toBe(false);
+  it('needs assign_board_roles to change a super_admin or chairman account, and assign_roles for any other, a trustee included', () => {
+    expect(permissionToManage('super_admin')).toBe(BOARD);
+    expect(permissionToManage('chairman')).toBe(BOARD);
+    expect(permissionToManage('trustee')).toBe(ASSIGN);
+    expect(permissionToManage('secretary')).toBe(ASSIGN);
+    expect(permissionToManage(null)).toBe(ASSIGN);
   });
 });
 
 describe('assignRoleToProfile', () => {
   it.each(['chairman', 'super_admin'] as const)(
-    'refuses a lower-ranked caller assigning a role to a %s, and writes nothing',
+    'refuses a chairman assigning a role to a %s account, and writes nothing',
     async (target) => {
-      seed({ caller: 'treasurer', target });
+      seed({ caller: 'chairman', target });
       const result = await assignRoleToProfile(TARGET_AUTH_ID, ROLES.secretary.id as string);
-      expect(result.success).toBe(false);
-      expect(result.error).toMatch(/outranks/);
+      expect(result).toEqual({ success: false, error: CANNOT_CHANGE_ACCOUNT_ERROR });
       expect(writesTo('profiles')).toEqual([]);
       expect(profileOf(TARGET_AUTH_ID).role_id).toBe(ROLES[target].id);
     }
   );
+
+  it('refuses a secretary given system.assign_roles changing a chairman, but lets them change an ordinary account', async () => {
+    seed({ caller: 'secretary', target: 'chairman', callerGrants: [ASSIGN] });
+    expect(await assignRoleToProfile(TARGET_AUTH_ID, ROLES.auditor.id as string)).toEqual({
+      success: false,
+      error: CANNOT_CHANGE_ACCOUNT_ERROR,
+    });
+    expect(writesTo('profiles')).toEqual([]);
+
+    seed({ caller: 'secretary', target: 'treasurer', callerGrants: [ASSIGN] });
+    expect(await assignRoleToProfile(TARGET_AUTH_ID, ROLES.auditor.id as string)).toEqual({ success: true });
+  });
+
+  it('refuses a caller with neither permission changing even an ordinary account', async () => {
+    seed({ caller: 'treasurer', target: 'secretary' });
+    const result = await assignRoleToProfile(TARGET_AUTH_ID, ROLES.auditor.id as string);
+    expect(result).toEqual({ success: false, error: CANNOT_CHANGE_ACCOUNT_ERROR });
+    expect(writesTo('profiles')).toEqual([]);
+  });
 
   it('still lets a chairman reassign an ordinary account', async () => {
     seed({ caller: 'chairman', target: 'secretary' });
@@ -225,10 +289,25 @@ describe('assignRoleToProfile', () => {
     expect(profileOf(TARGET_AUTH_ID).role_id).toBe('r-auditor');
   });
 
-  it('allows an equal-ranked chairman target (previously allowed)', async () => {
-    seed({ caller: 'chairman', target: 'chairman' });
-    const result = await assignRoleToProfile(TARGET_AUTH_ID, ROLES.auditor.id as string);
-    expect(result.success).toBe(true);
+  it('lets a chairman demote a trustee', async () => {
+    seed({ caller: 'chairman', target: 'trustee' });
+    expect(await assignRoleToProfile(TARGET_AUTH_ID, ROLES.secretary.id as string)).toEqual({ success: true });
+    expect(profileOf(TARGET_AUTH_ID).role_id).toBe('r-sec');
+  });
+
+  it.each(['super_admin', 'chairman', 'trustee'] as const)(
+    'refuses a chairman granting %s, and writes nothing',
+    async (role) => {
+      seed({ caller: 'chairman', target: 'secretary' });
+      const result = await assignRoleToProfile(TARGET_AUTH_ID, ROLES[role].id as string);
+      expect(result).toEqual({ success: false, error: CANNOT_GRANT_ROLE_ERROR });
+      expect(writesTo('profiles')).toEqual([]);
+    }
+  );
+
+  it.each(['super_admin', 'chairman', 'trustee'] as const)('lets a super_admin grant %s', async (role) => {
+    seed({ caller: 'super_admin', target: 'secretary' });
+    expect(await assignRoleToProfile(TARGET_AUTH_ID, ROLES[role].id as string)).toEqual({ success: true });
   });
 
   it('lets a super_admin change a chairman', async () => {
@@ -236,33 +315,51 @@ describe('assignRoleToProfile', () => {
     const result = await assignRoleToProfile(TARGET_AUTH_ID, ROLES.auditor.id as string);
     expect(result.success).toBe(true);
   });
+});
 
-  it('keeps the existing grant guard: a chairman still cannot grant chairman', async () => {
-    seed({ caller: 'chairman', target: 'secretary' });
-    const result = await assignRoleToProfile(TARGET_AUTH_ID, ROLES.chairman.id as string);
-    expect(result.success).toBe(false);
-    expect(writesTo('profiles')).toEqual([]);
-  });
+describe('self-escalation', () => {
+  /** Points the target at the caller's own profile. */
+  const self = 'caller';
+
+  it.each(['super_admin', 'chairman', 'trustee'] as const)(
+    'refuses a secretary holding system.assign_roles granting themselves %s',
+    async (role) => {
+      seed({ caller: 'secretary', callerGrants: [ASSIGN] });
+      expect((await assignRoleToProfile(self, ROLES[role].id as string)).success).toBe(false);
+      expect((await assignRoleToUser(self, ROLES[role].id as string)).success).toBe(false);
+      expect(writesTo('profiles')).toEqual([]);
+      expect(profileOf(self).role_id).toBe('r-sec');
+    }
+  );
+
+  it.each(['super_admin', 'trustee', 'secretary'] as const)(
+    'refuses a chairman changing their own account to %s (it holds chairman)',
+    async (role) => {
+      seed({ caller: 'chairman' });
+      const result = await assignRoleToProfile(self, ROLES[role].id as string);
+      expect(result).toEqual({ success: false, error: CANNOT_CHANGE_ACCOUNT_ERROR });
+      expect(writesTo('profiles')).toEqual([]);
+      expect(profileOf(self).role_id).toBe('r-ch');
+    }
+  );
 });
 
 describe('assignRoleToUser', () => {
   it.each(['chairman', 'super_admin'] as const)(
-    'refuses a lower-ranked caller targeting a %s, and writes nothing',
+    'refuses a chairman targeting a %s account, and writes nothing',
     async (target) => {
-      seed({ caller: 'treasurer', target });
+      seed({ caller: 'chairman', target });
       const result = await assignRoleToUser(TARGET_AUTH_ID, ROLES.secretary.id as string);
-      expect(result.success).toBe(false);
-      expect(result.error).toMatch(/outranks/);
+      expect(result).toEqual({ success: false, error: CANNOT_CHANGE_ACCOUNT_ERROR });
       expect(writesTo('profiles')).toEqual([]);
     }
   );
 
-  it('now carries the escalation guard it never had', async () => {
+  it('carries the grant guard: a chairman cannot grant super_admin, chairman or trustee', async () => {
     seed({ caller: 'chairman', target: 'secretary' });
-    for (const role of ['super_admin', 'chairman'] as const) {
+    for (const role of ['super_admin', 'chairman', 'trustee'] as const) {
       const result = await assignRoleToUser(TARGET_AUTH_ID, ROLES[role].id as string);
-      expect(result.success).toBe(false);
-      expect(result.error).toMatch(/Only Super Administrator/);
+      expect(result).toEqual({ success: false, error: CANNOT_GRANT_ROLE_ERROR });
     }
     expect(writesTo('profiles')).toEqual([]);
   });
@@ -274,8 +371,8 @@ describe('assignRoleToUser', () => {
     expect(writesTo('profiles')).toEqual([]);
   });
 
-  it('still lets a chairman manage an ordinary user, and a chairman peer', async () => {
-    for (const target of ['secretary', 'chairman'] as const) {
+  it('still lets a chairman manage an ordinary user and a trustee', async () => {
+    for (const target of ['secretary', 'trustee'] as const) {
       seed({ caller: 'chairman', target });
       const result = await assignRoleToUser(TARGET_AUTH_ID, ROLES.auditor.id as string);
       expect(result.success).toBe(true);
@@ -284,14 +381,30 @@ describe('assignRoleToUser', () => {
   });
 });
 
+describe('removeRoleFromProfile', () => {
+  it('lets a chairman remove a trustee role', async () => {
+    seed({ caller: 'chairman', target: 'trustee' });
+    expect(await removeRoleFromProfile(TARGET_AUTH_ID)).toEqual({ success: true });
+    expect(profileOf(TARGET_AUTH_ID).role_id).toBeNull();
+  });
+
+  it('refuses a secretary holding system.assign_roles removing the chairman role', async () => {
+    seed({ caller: 'secretary', target: 'chairman', callerGrants: [ASSIGN] });
+    expect(await removeRoleFromProfile(TARGET_AUTH_ID)).toEqual({
+      success: false,
+      error: CANNOT_CHANGE_ACCOUNT_ERROR,
+    });
+    expect(writesTo('profiles')).toEqual([]);
+  });
+});
+
 describe('rejectAccount', () => {
   it.each(['chairman', 'super_admin'] as const)(
-    'refuses a lower-ranked caller rejecting a %s, and writes nothing',
+    'refuses a chairman rejecting a %s account, and writes nothing',
     async (target) => {
-      seed({ caller: 'treasurer', target, targetStatus: 'pending' });
+      seed({ caller: 'chairman', target, targetStatus: 'pending' });
       const result = await rejectAccount(TARGET_AUTH_ID, 'no');
-      expect(result.success).toBe(false);
-      expect(result.error).toMatch(/outranks/);
+      expect(result).toEqual({ success: false, error: CANNOT_CHANGE_ACCOUNT_ERROR });
       expect(writesTo('profiles')).toEqual([]);
     }
   );
@@ -308,7 +421,7 @@ describe('rejectAccount', () => {
   );
 
   it('rejects a pending account (the legitimate flow), including a role-less one', async () => {
-    seed({ caller: 'treasurer', target: null, targetStatus: 'pending' });
+    seed({ caller: 'chairman', target: null, targetStatus: 'pending' });
     const result = await rejectAccount(TARGET_AUTH_ID, 'not a resident');
     expect(result.success).toBe(true);
     expect(profileOf(TARGET_AUTH_ID).approval_status).toBe('rejected');
@@ -322,12 +435,11 @@ describe('rejectAccount', () => {
 
 describe('linkAuthAccountToResident', () => {
   it.each(['chairman', 'super_admin'] as const)(
-    'refuses a lower-ranked caller linking a %s account, and writes nothing',
+    'refuses a chairman linking a %s account, and writes nothing',
     async (target) => {
-      seed({ caller: 'treasurer', target, targetStatus: 'active' });
+      seed({ caller: 'chairman', target, targetStatus: 'active' });
       const result = await linkAuthAccountToResident(TARGET_AUTH_ID, RESIDENT_ID);
-      expect(result.success).toBe(false);
-      expect(result.error).toMatch(/outranks/);
+      expect(result).toEqual({ success: false, error: CANNOT_CHANGE_ACCOUNT_ERROR });
       expect(writesTo('profiles')).toEqual([]);
       expect(writesTo('residents')).toEqual([]);
     }
@@ -351,36 +463,49 @@ describe('linkAuthAccountToResident', () => {
     expect(profileOf(TARGET_AUTH_ID).role_id).toBeNull();
   });
 
-  it('allows an equal-ranked chairman target', async () => {
-    seed({ caller: 'chairman', target: 'chairman', targetStatus: 'active' });
+  it('lets a chairman link a trustee account', async () => {
+    seed({ caller: 'chairman', target: 'trustee', targetStatus: 'active' });
     expect((await linkAuthAccountToResident(TARGET_AUTH_ID, RESIDENT_ID)).success).toBe(true);
+  });
+});
+
+describe('unlinkAuthAccount', () => {
+  it('refuses a chairman unlinking a chairman account, and writes nothing', async () => {
+    seed({ caller: 'chairman', target: 'chairman' });
+    profileOf(TARGET_AUTH_ID).resident_id = RESIDENT_ID;
+    expect(await unlinkAuthAccount(TARGET_AUTH_ID)).toEqual({ success: false, error: CANNOT_CHANGE_ACCOUNT_ERROR });
+    expect(writesTo('profiles')).toEqual([]);
+    expect(profileOf(TARGET_AUTH_ID).resident_id).toBe(RESIDENT_ID);
+  });
+
+  it('lets a chairman unlink an ordinary account', async () => {
+    seed({ caller: 'chairman', target: 'secretary' });
+    profileOf(TARGET_AUTH_ID).resident_id = RESIDENT_ID;
+    expect(await unlinkAuthAccount(TARGET_AUTH_ID)).toEqual({ success: true });
+    expect(profileOf(TARGET_AUTH_ID).resident_id).toBeNull();
   });
 });
 
 describe('resetUserTwoFactor', () => {
   it.each(['chairman', 'super_admin'] as const)(
-    'refuses a lower-ranked caller resetting a %s, and writes nothing',
+    'refuses a chairman resetting a %s, and writes nothing',
     async (target) => {
-      seed({ caller: 'treasurer', target });
+      seed({ caller: 'chairman', target });
       const result = await resetUserTwoFactor(TARGET_AUTH_ID, 'lost phone');
-      expect(result.success).toBe(false);
-      expect(result.message).toMatch(/outranks/);
+      expect(result).toEqual({ success: false, message: CANNOT_CHANGE_ACCOUNT_ERROR });
       expect(state.writes).toEqual([]);
       expect(profileOf(TARGET_AUTH_ID).two_factor_enabled).toBe(true);
     }
   );
 
-  it('lets a chairman reset an ordinary user, and a super_admin reset a chairman', async () => {
-    seed({ caller: 'chairman', target: 'secretary' });
-    expect((await resetUserTwoFactor(TARGET_AUTH_ID, 'lost phone')).success).toBe(true);
-    expect(profileOf(TARGET_AUTH_ID).two_factor_enabled).toBe(false);
+  it('lets a chairman reset an ordinary user and a trustee, and a super_admin reset a chairman', async () => {
+    for (const target of ['secretary', 'trustee'] as const) {
+      seed({ caller: 'chairman', target });
+      expect((await resetUserTwoFactor(TARGET_AUTH_ID, 'lost phone')).success).toBe(true);
+      expect(profileOf(TARGET_AUTH_ID).two_factor_enabled).toBe(false);
+    }
 
     seed({ caller: 'super_admin', target: 'chairman' });
-    expect((await resetUserTwoFactor(TARGET_AUTH_ID, 'lost phone')).success).toBe(true);
-  });
-
-  it('allows an equal-ranked chairman target', async () => {
-    seed({ caller: 'chairman', target: 'chairman' });
     expect((await resetUserTwoFactor(TARGET_AUTH_ID, 'lost phone')).success).toBe(true);
   });
 });
@@ -435,7 +560,9 @@ describe('updateRolePermissions', () => {
     state.auth.permissions = ['x.view'];
     const result = await updateRolePermissions(ROLES.auditor.id as string, ['p2']);
     expect(result.success).toBe(true);
-    expect(state.tables.role_permissions.map((r) => r.permission_id)).toEqual(['p2']);
+    expect(
+      state.tables.role_permissions.filter((r) => r.role_id === 'r-auditor').map((r) => r.permission_id)
+    ).toEqual(['p2']);
   });
 
   it("lets a super_admin edit a system role and their own role's permissions", async () => {
@@ -445,23 +572,56 @@ describe('updateRolePermissions', () => {
   });
 });
 
-describe('assertCanManageTarget -- lookup failures refuse', () => {
+describe('lookup failures and unapproved callers refuse', () => {
   it('refuses when the caller profile cannot be found', async () => {
-    seed({ caller: 'chairman' });
+    seed({ caller: 'super_admin' });
     state.tables.profiles = state.tables.profiles.filter((p) => p.id !== 'caller');
     expect(await assertCanManageTarget('caller', TARGET_AUTH_ID)).toEqual({
       ok: false,
-      error: 'Could not verify your role',
+      error: CALLER_NOT_VERIFIED_ERROR,
     });
+    expect(await assertCanGrantRoles('caller', ['secretary'])).toEqual({ ok: false, error: CALLER_NOT_VERIFIED_ERROR });
   });
 
   it('refuses when the caller lookup errors', async () => {
-    seed({ caller: 'chairman' });
+    seed({ caller: 'super_admin' });
     state.failProfileReads = ['caller'];
     expect(await assertCanManageTarget('caller', TARGET_AUTH_ID)).toEqual({
       ok: false,
-      error: 'Could not verify your role',
+      error: CALLER_NOT_VERIFIED_ERROR,
     });
+    expect(await assertCanGrantRoles('caller', ['secretary'])).toEqual({ ok: false, error: CALLER_NOT_VERIFIED_ERROR });
+  });
+
+  it("refuses when the caller's permissions cannot be read, and writes nothing", async () => {
+    seed({ caller: 'super_admin', target: 'secretary' });
+    state.failPermissionReads = true;
+    expect(await assertCanManageTarget('caller', TARGET_AUTH_ID)).toEqual({
+      ok: false,
+      error: CALLER_NOT_VERIFIED_ERROR,
+    });
+    expect(await assertCanGrantRoles('caller', ['secretary'])).toEqual({ ok: false, error: CALLER_NOT_VERIFIED_ERROR });
+    expect((await assignRoleToProfile(TARGET_AUTH_ID, ROLES.auditor.id as string)).success).toBe(false);
+    expect(writesTo('profiles')).toEqual([]);
+  });
+
+  it.each(['pending', 'suspended', 'rejected'])('gives a %s caller no permissions', async (status) => {
+    seed({ caller: 'super_admin', target: 'secretary', callerStatus: status });
+    expect(await assertCanManageTarget('caller', TARGET_AUTH_ID)).toEqual({
+      ok: false,
+      error: CANNOT_CHANGE_ACCOUNT_ERROR,
+    });
+    expect(await assertCanGrantRoles('caller', ['secretary'])).toEqual({ ok: false, error: CANNOT_GRANT_ROLE_ERROR });
+  });
+
+  it('ignores an inactive permission', async () => {
+    seed({ caller: 'super_admin', target: 'chairman' });
+    state.tables.app_permissions.find((p) => p.name === BOARD)!.is_active = false;
+    expect(await assertCanManageTarget('caller', TARGET_AUTH_ID)).toEqual({
+      ok: false,
+      error: CANNOT_CHANGE_ACCOUNT_ERROR,
+    });
+    expect(await assertCanGrantRoles('caller', ['chairman'])).toEqual({ ok: false, error: CANNOT_GRANT_ROLE_ERROR });
   });
 
   it('refuses with "Account not found" when the target does not exist', async () => {
@@ -503,10 +663,18 @@ describe('linkAuthAccountToResident -- the one place "not found" is tolerated', 
   });
 
   it('does NOT tolerate a failed target lookup', async () => {
-    seed({ caller: 'treasurer', target: 'chairman' });
+    seed({ caller: 'super_admin', target: 'chairman' });
     state.failProfileReads = [TARGET_AUTH_ID];
     const result = await linkAuthAccountToResident(TARGET_AUTH_ID, RESIDENT_ID);
     expect(result.success).toBe(false);
+    expect(writesTo('profiles')).toEqual([]);
+  });
+
+  it('does NOT tolerate a failed caller permission lookup', async () => {
+    seed({ caller: 'super_admin', target: null, targetStatus: 'pending' });
+    state.failPermissionReads = true;
+    const result = await linkAuthAccountToResident(TARGET_AUTH_ID, RESIDENT_ID);
+    expect(result).toEqual({ success: false, error: CALLER_NOT_VERIFIED_ERROR });
     expect(writesTo('profiles')).toEqual([]);
   });
 });

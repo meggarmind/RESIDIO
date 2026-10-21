@@ -51,7 +51,7 @@ vi.mock('@/hooks/use-approvals', () => ({ useCanAutoApprove: query(true) }));
 vi.mock('@/hooks/use-finance-permissions', () => ({ useCanViewInactiveBankAccounts: query({ authorized: true }) }));
 vi.mock('@/hooks/use-roles', () => ({
   useRolesWithPermissions: query([
-    { id: 'r1', name: 'treasurer', display_name: 'Treasurer', category: 'exco', level: 3, is_active: true, is_system_role: false, permissions: [], user_count: 2 },
+    { id: 'r1', name: 'treasurer', display_name: 'Treasurer', category: 'exco', is_active: true, is_system_role: false, permissions: [], user_count: 2 },
   ]),
   usePermissions: query([]),
   useCreateRoleWithPermissions: mutation,

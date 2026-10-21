@@ -13,12 +13,12 @@ const { mocks, replace, redirect } = vi.hoisted(() => ({
 const { ADMINS, ROLES, ORPHANS, mutation } = vi.hoisted(() => {
   const mutation = () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false });
   const ADMINS = [
-  { id: 'a1', profile_id: 'u-1', first_name: 'Ada', last_name: 'Okoro', email: 'ada@x.test', house_address: null, role_id: 'r1', role_name: 'treasurer', role_display_name: 'Treasurer', role_level: 3 },
-  { id: 'a2', profile_id: 'u-2', first_name: 'Bayo', last_name: 'Ade', email: 'bayo@x.test', house_address: null, role_id: 'r2', role_name: 'secretary', role_display_name: 'Secretary', role_level: 3 },
+  { id: 'a1', profile_id: 'u-1', first_name: 'Ada', last_name: 'Okoro', email: 'ada@x.test', house_address: null, role_id: 'r1', role_name: 'treasurer', role_display_name: 'Treasurer' },
+  { id: 'a2', profile_id: 'u-2', first_name: 'Bayo', last_name: 'Ade', email: 'bayo@x.test', house_address: null, role_id: 'r2', role_name: 'secretary', role_display_name: 'Secretary' },
 ];
   const ROLES = [
-  { id: 'r1', name: 'treasurer', display_name: 'Treasurer', category: 'exco', level: 3, is_active: true, is_system_role: false, permissions: [], user_count: 1 },
-  { id: 'r3', name: 'resident', display_name: 'Resident', category: 'resident', level: 9, is_active: true, is_system_role: true, permissions: [], user_count: 40 },
+  { id: 'r1', name: 'treasurer', display_name: 'Treasurer', category: 'exco', is_active: true, is_system_role: false, permissions: [], user_count: 1 },
+  { id: 'r3', name: 'resident', display_name: 'Resident', category: 'resident', is_active: true, is_system_role: true, permissions: [], user_count: 40 },
 ];
   const ORPHANS = [
   { id: 'u-1', email: 'other@x.test', created_at: '2026-01-01T00:00:00Z', last_sign_in_at: null, email_confirmed_at: null },
