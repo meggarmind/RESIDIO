@@ -30,7 +30,7 @@ function stubClient() {
 }
 
 describe('loadAccountStatement timestamp bounds (#945)', () => {
-    it.each([['2026-13-45', '2026-10-31'], ['2026-10-01', '2026-13-45']])(
+    it.each([['2026-13-45', '2026-10-31'], ['2026-10-01', '2026-13-45'], ['2026-02-30', '2026-10-31'], ['2026-10-01', '2026-02-31']])(
         'returns the format error for calendar-invalid dates %s..%s without throwing',
         async (fromDate, toDate) => {
             const { client } = stubClient();

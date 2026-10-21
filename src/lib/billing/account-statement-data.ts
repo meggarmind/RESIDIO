@@ -106,7 +106,10 @@ export async function loadAccountStatement(
     const { residentId, houseId, fromDate, toDate } = params;
 
     // Shape alone passes 2026-13-45, which would make lagosDayStart throw.
-    const validDate = (d: string) => ISO_DATE.test(d) && !Number.isNaN(Date.parse(`${d}T00:00:00+01:00`));
+    const validDate = (d: string) => {
+        const t = ISO_DATE.test(d) ? Date.parse(`${d}T00:00:00Z`) : NaN;
+        return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === d;
+    };
     if (!validDate(fromDate) || !validDate(toDate)) {
         return { data: null, error: 'Dates must be in YYYY-MM-DD format' };
     }
