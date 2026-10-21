@@ -14,7 +14,7 @@ export const OPS_STATUS_MESSAGES = [
   {
     key: 'commsOverride',
     text: 'Communications override is ON. Messages go to override contacts, not residents.',
-    href: '/settings/comms-override',
+    href: '/settings/sending#testing',
   },
 ] as const;
 

@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Check, ChevronDown, Loader2, Save, type LucideIcon } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, Loader2, Save, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { IconBox } from '@/components/ui/icon-box';
 import { useAuth } from '@/lib/auth/auth-provider';
@@ -20,14 +20,21 @@ interface SettingsSectionProps {
   /** Holding any one reveals the section. Renders nothing otherwise. */
   permissions?: Permission[];
   defaultCollapsed?: boolean;
-  isDirty: boolean;
+  /**
+   * The section's controls act the moment they are used (a switch, a table with its own
+   * dialogs), so there is nothing to save: no footer, no dirty state (decision 7, #791).
+   */
+  instant?: boolean;
+  /** Marks the section as risky (a redirect is on): amber border and a "Needs attention" tag. */
+  warning?: boolean;
+  isDirty?: boolean;
   isSaving?: boolean;
   canSave?: boolean;
   /** Said in the footer when Save is blocked. */
   saveBlockedReason?: string;
   /** Return false (or throw) when the save failed, so the footer does not claim "Saved". */
-  onSave: () => unknown;
-  onDiscard: () => void;
+  onSave?: () => unknown;
+  onDiscard?: () => void;
   children: React.ReactNode;
 }
 
@@ -39,7 +46,9 @@ export function SettingsSection({
   icon: Icon,
   permissions,
   defaultCollapsed = false,
-  isDirty,
+  instant = false,
+  warning = false,
+  isDirty = false,
   isSaving = false,
   canSave = true,
   saveBlockedReason,
@@ -53,9 +62,9 @@ export function SettingsSection({
   const page = useOptionalSettingsSections();
   const [open, setOpen] = React.useState(!defaultCollapsed);
   const [saved, setSaved] = React.useState(false);
-  const onSaveRef = React.useRef(onSave);
+  const onSaveRef = React.useRef(onSave ?? (() => true));
   React.useEffect(() => {
-    onSaveRef.current = onSave;
+    onSaveRef.current = onSave ?? (() => true);
   });
 
   const save = React.useCallback(async () => {
@@ -101,7 +110,7 @@ export function SettingsSection({
       data-dirty={isDirty}
       className={cn(
         'scroll-mt-20 rounded-xl border bg-card shadow-sm',
-        isDirty && 'border-warning/30',
+        (isDirty || warning) && 'border-warning/30',
       )}
     >
       <div className="relative flex items-center gap-3.5 p-4 md:p-5">
@@ -131,6 +140,12 @@ export function SettingsSection({
                 Unsaved
               </span>
             )}
+            {warning && !isDirty && (
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-warning">
+                <AlertTriangle aria-hidden className="h-3.5 w-3.5" />
+                Needs attention
+              </span>
+            )}
           </div>
           <p id={summaryId} className="mt-0.5 text-sm text-muted-foreground">
             {summary}
@@ -147,49 +162,51 @@ export function SettingsSection({
         {isLoading ? null : children}
       </div>
 
-      <div
-        className={cn(
-          'flex flex-wrap items-center justify-between gap-2.5 rounded-b-xl border-t px-4 py-3 md:px-5',
-          isDirty && 'bg-warning/10',
-        )}
-      >
-        <div aria-live="polite" className="text-sm">
-          {isDirty ? (
-            <p className="flex items-center gap-2 font-medium text-warning">
-              <span aria-hidden className="h-2 w-2 rounded-full bg-warning" />
-              Unsaved changes
-            </p>
-          ) : saved ? (
-            <p className="flex items-center gap-2 font-medium text-success">
-              <Check aria-hidden className="h-4 w-4" />
-              Saved
-            </p>
-          ) : (
-            <p className="text-muted-foreground">No changes</p>
+      {!instant && (
+        <div
+          className={cn(
+            'flex flex-wrap items-center justify-between gap-2.5 rounded-b-xl border-t px-4 py-3 md:px-5',
+            isDirty && 'bg-warning/10',
           )}
+        >
+          <div aria-live="polite" className="text-sm">
+            {isDirty ? (
+              <p className="flex items-center gap-2 font-medium text-warning">
+                <span aria-hidden className="h-2 w-2 rounded-full bg-warning" />
+                Unsaved changes
+              </p>
+            ) : saved ? (
+              <p className="flex items-center gap-2 font-medium text-success">
+                <Check aria-hidden className="h-4 w-4" />
+                Saved
+              </p>
+            ) : (
+              <p className="text-muted-foreground">No changes</p>
+            )}
+          </div>
+          {blocked && saveBlockedReason && (
+            <p className="w-full text-sm text-warning md:order-last">{saveBlockedReason}</p>
+          )}
+          <div className="flex w-full gap-2 md:ml-auto md:w-auto">
+            <Button
+              variant="outline"
+              className={cn(btn, 'flex-1 md:flex-none')}
+              onClick={onDiscard}
+              disabled={!isDirty || isSaving}
+            >
+              Discard
+            </Button>
+            <Button
+              className={cn(btn, 'flex-1 md:flex-none')}
+              onClick={save}
+              disabled={!isDirty || isSaving || !canSave}
+            >
+              {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              Save {title}
+            </Button>
+          </div>
         </div>
-        {blocked && saveBlockedReason && (
-          <p className="w-full text-sm text-warning md:order-last">{saveBlockedReason}</p>
-        )}
-        <div className="flex w-full gap-2 md:ml-auto md:w-auto">
-          <Button
-            variant="outline"
-            className={cn(btn, 'flex-1 md:flex-none')}
-            onClick={onDiscard}
-            disabled={!isDirty || isSaving}
-          >
-            Discard
-          </Button>
-          <Button
-            className={cn(btn, 'flex-1 md:flex-none')}
-            onClick={save}
-            disabled={!isDirty || isSaving || !canSave}
-          >
-            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            Save {title}
-          </Button>
-        </div>
-      </div>
+      )}
     </section>
   );
 }

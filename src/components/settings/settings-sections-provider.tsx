@@ -217,6 +217,19 @@ export function SettingsSectionsProvider({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rowParam, pathname, groups, registeredIds]);
 
+  // Old routes redirect to `new#section` (#791): open that section once it has registered.
+  // A ?row= hit handles its own section, so the hash is left alone then.
+  const hashHandled = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (rowParam) return;
+    const hash = window.location.hash.slice(1);
+    if (!hash || hashHandled.current === hash) return;
+    const target = sections.find((s) => s.id === hash && s.visible);
+    if (!target || !handlesRef.current.has(hash)) return;
+    hashHandled.current = hash;
+    goToSection(hash);
+  }, [rowParam, pathname, registeredIds, sections, goToSection]);
+
   const value = React.useMemo(
     () => ({ groups, sections, register, unregister, setHandles, goToSection }),
     [groups, sections, register, unregister, setHandles, goToSection],

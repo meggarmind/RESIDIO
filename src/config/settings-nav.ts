@@ -115,43 +115,203 @@ export const settingsConfig: SettingsGroup[] = [
         ]
     },
     {
-        title: "Messages & Reminders",
+        title: "Messages",
         icon: Mail,
         items: [
-            { title: "Notifications Overview", href: "/settings/notifications", description: "Notification dashboard", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
+            // Four task pages (#934, #791). Notification history, queue and delivery counts are
+            // live state and stay in /system (ADR-0004); the Monitoring group links to them.
             {
                 title: "Reminders",
-                href: "/settings/notifications/reminders",
-                permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE],
-                children: [
-                    { title: "When to Send", href: "/settings/notifications/reminders", description: "Turn invoice payment reminders on or off", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
-                    { title: "Reminder Schedule", href: "/settings/notifications/reminders/schedule", description: "Days before and after the due date, and escalation", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
-                ]
+                href: "/settings/reminders",
+                description: "Turn invoice payment reminders on or off, set when they go out, and send them now",
+                // The page opens for any one of its sections' permissions; each section keeps its own.
+                permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE, PERMISSIONS.SETTINGS_MANAGE_GENERAL],
+                sections: [
+                    {
+                        id: "on-off",
+                        title: "On or off",
+                        permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE],
+                        rows: [
+                            {
+                                id: "reminders-enabled",
+                                label: "Send payment reminders",
+                                help: "Turns the automatic daily reminders for unpaid invoices on or off.",
+                                keywords: ["dues", "overdue", "chase", "nudge", "late payment"],
+                            },
+                        ],
+                    },
+                    {
+                        id: "schedule",
+                        title: "Schedule",
+                        permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE],
+                        rows: [
+                            {
+                                id: "reminder-steps",
+                                label: "Reminder steps",
+                                help: "Days before and after the due date, how firm each reminder is, and the channels it uses.",
+                                keywords: ["escalation", "days before due", "days after due", "overdue", "dues"],
+                            },
+                        ],
+                    },
+                    {
+                        id: "send-test",
+                        title: "Send now",
+                        permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
+                        defaultCollapsed: true,
+                        rows: [
+                            {
+                                id: "send-reminders-now",
+                                label: "Send payment reminders now",
+                                help: "Runs one email-only round of reminders straight away.",
+                                keywords: ["test", "manual", "trigger", "dues"],
+                            },
+                        ],
+                    },
+                ],
             },
-            // Notification Schedules hidden (#787): nothing consumes notification_schedules.
-            // History moved to /system/notification-history (ADR-0004): it shows
-            // sent-notification state, not configuration.
             {
                 title: "Message Wording",
-                href: "/settings/notifications/templates",
-                // No permissions of its own: the two children need different ones, and
-                // the parent is dropped when neither is visible.
-                children: [
-                    { title: "Email Wording", href: "/settings/notifications/templates", description: "Edit the wording of resident emails", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
-                    { title: "Announcement Templates", href: "/settings/message-templates", description: "Reusable announcement text", permissions: [PERMISSIONS.ANNOUNCEMENTS_MANAGE_TEMPLATES] },
-                ]
+                href: "/settings/wording",
+                description: "Edit the wording of the emails residents receive",
+                permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE],
+                sections: [
+                    {
+                        id: "email",
+                        title: "Email",
+                        rows: [
+                            {
+                                id: "email-wording",
+                                label: "Resident email wording",
+                                help: "The subject, greeting and body of each automatic email. Anything left empty uses the built-in text.",
+                                keywords: ["template", "text", "invoice email", "receipt", "welcome", "reminder email"],
+                            },
+                        ],
+                    },
+                    {
+                        // Already built under #908; the owner's table lists it as "later".
+                        id: "whatsapp",
+                        title: "WhatsApp",
+                        defaultCollapsed: true,
+                        rows: [
+                            {
+                                id: "whatsapp-wording",
+                                label: "WhatsApp message wording",
+                                help: "Editable when Chatmaid is the active provider; Meta and Twilio templates are set in code.",
+                                keywords: ["chatmaid", "template", "text"],
+                            },
+                        ],
+                    },
+                ],
             },
             {
-                title: "Email Delivery",
-                href: "/settings/email",
+                title: "Email & Sending",
+                href: "/settings/sending",
+                description: "Whether email goes out, which emails are sent, and testing",
                 permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
-                children: [
-                    { title: "Email Settings", href: "/settings/email", description: "Which emails are sent", permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL] },
-                    { title: "Send a Test", href: "/settings/email/debug", description: "Send a test email and payment reminders", permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL] },
-                ]
+                sections: [
+                    {
+                        id: "channels",
+                        title: "Channels",
+                        rows: [
+                            {
+                                id: "email-enabled",
+                                label: "Send email notifications",
+                                help: "When off, the system sends no email at all.",
+                                keywords: ["resend", "smtp", "mute", "stop emails"],
+                            },
+                        ],
+                    },
+                    {
+                        id: "email-types",
+                        title: "Email types",
+                        rows: [
+                            {
+                                id: "email-payment-reminders",
+                                label: "Payment reminders",
+                                help: "Reminder emails for unpaid invoices, automatic and manual. WhatsApp reminders are not affected.",
+                                keywords: ["dues", "overdue"],
+                            },
+                            {
+                                id: "email-invoice-notifications",
+                                label: "Invoice notifications",
+                                help: "Email residents when a new invoice is generated.",
+                                keywords: ["bill", "levy"],
+                            },
+                            {
+                                id: "email-welcome",
+                                label: "Welcome emails",
+                                help: "Email new residents their code.",
+                                keywords: ["new resident", "onboarding", "code"],
+                            },
+                        ],
+                    },
+                    {
+                        id: "testing",
+                        title: "Testing",
+                        defaultCollapsed: true,
+                        rows: [
+                            {
+                                id: "redirect-all",
+                                label: "Redirect outbound messages",
+                                help: "Sends every email, SMS and WhatsApp message to the override contacts instead of residents.",
+                                keywords: ["test mode", "debug mode", "override", "uat", "sandbox"],
+                            },
+                            {
+                                id: "override-contacts",
+                                label: "Override contacts",
+                                help: "Where redirected messages are delivered.",
+                                keywords: ["test email address", "test phone"],
+                            },
+                            {
+                                id: "debug-mode",
+                                label: "Debug Mode",
+                                help: "Redirects everything for a set time, then turns itself off.",
+                                keywords: ["test mode", "redirect", "expiry"],
+                            },
+                            {
+                                id: "test-email",
+                                label: "Send a test email",
+                                help: "Checks that email delivery works.",
+                                keywords: ["verify", "check email works"],
+                            },
+                        ],
+                    },
+                ],
             },
-            { title: "Redirect Messages (test mode)", href: "/settings/comms-override", description: "Redirect outbound email, SMS and WhatsApp to override contacts", permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL] },
-            { title: "Announcement Categories", href: "/settings/announcement-categories", description: "Organize announcements", permissions: [PERMISSIONS.ANNOUNCEMENTS_MANAGE_CATEGORIES] },
+            {
+                title: "Announcements",
+                href: "/settings/announcements",
+                description: "Reusable announcement text and the categories announcements sit in",
+                permissions: [PERMISSIONS.ANNOUNCEMENTS_MANAGE_TEMPLATES, PERMISSIONS.ANNOUNCEMENTS_MANAGE_CATEGORIES],
+                sections: [
+                    {
+                        id: "templates",
+                        title: "Templates",
+                        permissions: [PERMISSIONS.ANNOUNCEMENTS_MANAGE_TEMPLATES],
+                        rows: [
+                            {
+                                id: "announcement-templates",
+                                label: "Announcement templates",
+                                help: "Reusable text for announcements. The automatic emails are edited under Message Wording.",
+                                keywords: ["notice", "canned message", "boilerplate"],
+                            },
+                        ],
+                    },
+                    {
+                        id: "categories",
+                        title: "Categories",
+                        permissions: [PERMISSIONS.ANNOUNCEMENTS_MANAGE_CATEGORIES],
+                        rows: [
+                            {
+                                id: "announcement-categories",
+                                label: "Announcement categories",
+                                help: "Groups announcements so residents can filter them.",
+                                keywords: ["topics", "tags", "colour"],
+                            },
+                        ],
+                    },
+                ],
+            },
         ]
     },
     {
@@ -238,8 +398,8 @@ export function flattenSettingsNav(groups: SettingsGroup[]): SettingsItem[] {
  *
  * Longest match is what keeps a single item highlighted. Plain prefix matching
  * lit up every ancestor: "Overview" (/settings) on every settings page, and
- * both "Reminders" and "Reminder Schedule" on
- * /settings/notifications/reminders/schedule. A page with no entry of its own
+ * both "Billing Rules" and "Late Fees" on
+ * /settings/billing/late-fees. A page with no entry of its own
  * (a hidden route) highlights the nearest entry above it.
  */
 export function activeSettingsHref(pathname: string, groups: SettingsGroup[]): string | null {

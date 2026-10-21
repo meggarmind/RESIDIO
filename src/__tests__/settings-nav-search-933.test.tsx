@@ -21,7 +21,7 @@ vi.mock('next/navigation', () => ({
 // before any real page declares sections.
 vi.mock('@/config/settings-nav', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/config/settings-nav')>();
-  const email = actual.flattenSettingsNav(actual.settingsConfig).find((item) => item.href === '/settings/email')!;
+  const email = actual.flattenSettingsNav(actual.settingsConfig).find((item) => item.href === '/settings/groups')!;
   email.sections = [
     {
       id: 'testing',
@@ -110,18 +110,18 @@ describe('matchVisibleSettingsEntries', () => {
 
   it('finds a row by its keyword and links to the row and section', () => {
     const [hit] = search.matchVisibleSettingsEntries(settingsConfig, 'penalty-free', all);
-    expect(hit.href).toBe('/settings/email?row=redirect-all#testing');
+    expect(hit.href).toBe('/settings/groups?row=redirect-all#testing');
   });
 
   it('hides a row whose section permission the reader lacks, but keeps its page', () => {
     const canSee = (ps: string[]) => !ps.includes(PERMISSIONS.NOTIFICATIONS_MANAGE);
     expect(search.matchVisibleSettingsEntries(settingsConfig, 'penalty-free', canSee)).toEqual([]);
-    expect(search.matchVisibleSettingsEntries(settingsConfig, 'email settings', canSee).length).toBeGreaterThan(0);
+    expect(search.matchVisibleSettingsEntries(settingsConfig, 'groups', canSee).length).toBeGreaterThan(0);
   });
 
   it('hides a row whose page the nav does not link to', () => {
-    const noEmail = settingsConfig.map((g) => ({ ...g, items: g.items.filter((i) => i.title !== 'Email Delivery') }));
-    expect(search.matchVisibleSettingsEntries(noEmail, 'penalty-free', all)).toEqual([]);
+    const noGroups = settingsConfig.map((g) => ({ ...g, items: g.items.filter((i) => i.title !== 'Groups') }));
+    expect(search.matchVisibleSettingsEntries(noGroups, 'penalty-free', all)).toEqual([]);
   });
 
   it('returns nothing for an empty query', () => {
@@ -164,7 +164,7 @@ describe('sidebar search', () => {
     type('penalty-free');
     expect(screen.getByRole('link', { name: /Redirect every message/ })).toHaveAttribute(
       'href',
-      '/settings/email?row=redirect-all#testing'
+      '/settings/groups?row=redirect-all#testing'
     );
   });
 

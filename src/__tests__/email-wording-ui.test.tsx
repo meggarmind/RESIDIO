@@ -16,7 +16,11 @@ vi.mock('@/actions/whatsapp/connection', () => ({
 }));
 
 vi.mock('@/lib/auth/auth-provider', () => ({
-  useAuth: () => ({ hasPermission: (p: string) => mocks.permissions.includes(p) }),
+  useAuth: () => ({
+    isLoading: false,
+    hasPermission: (p: string) => mocks.permissions.includes(p),
+    hasAnyPermission: () => true,
+  }),
 }));
 vi.mock('@/hooks/use-notifications', () => ({
   useNotificationTemplates: (options?: { channel?: string }) => ({
@@ -47,7 +51,7 @@ vi.mock('@/components/notifications/template-list', async (importActual) => {
   };
 });
 
-import NotificationTemplatesPage from '@/app/(dashboard)/settings/notifications/templates/page';
+import { WordingSections as NotificationTemplatesPage } from '@/components/settings/messages/email-wording-section';
 import { TemplateForm } from '@/components/notifications/template-form';
 import { TemplateList } from '@/components/notifications/template-list';
 import { EVENT_KEYS } from '@/lib/notifications/event-content-registry';
@@ -93,7 +97,7 @@ describe('channel switches (#909)', () => {
     expect(screen.queryByRole('switch', { name: /reminder/i })).toBeNull();
     const links = screen.getAllByRole('link', { name: 'Reminder Schedule' });
     expect(links).toHaveLength(2);
-    expect(links[0]).toHaveAttribute('href', '/settings/notifications/reminders/schedule');
+    expect(links[0]).toHaveAttribute('href', '/settings/reminders#schedule');
   });
 
   it('a switch calls the toggle with the event, channel and new state', () => {
@@ -166,17 +170,17 @@ describe('whatsapp tab (#908)', () => {
   });
 });
 
-describe('wording page', () => {
+describe('wording sections', () => {
   it('does not render the edit form without notifications.manage', () => {
     render(<NotificationTemplatesPage />);
-    fireEvent.click(screen.getByText('stub-edit'));
+    fireEvent.click(screen.getAllByText('stub-edit')[0]);
     expect(screen.queryByRole('button', { name: 'Save wording' })).toBeNull();
   });
 
   it('renders the edit form with notifications.manage', () => {
     mocks.permissions = ['notifications.manage'];
     render(<NotificationTemplatesPage />);
-    fireEvent.click(screen.getByText('stub-edit'));
+    fireEvent.click(screen.getAllByText('stub-edit')[0]);
     expect(screen.getByRole('button', { name: 'Save wording' })).toBeInTheDocument();
   });
 });

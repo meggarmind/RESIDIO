@@ -55,7 +55,7 @@ describe('OpsStatusBanner (#789)', () => {
     render(<OpsStatusBanner />);
     expect(banner(OVERRIDE)).toBeInTheDocument();
     expect(banner(MAINTENANCE)).not.toBeInTheDocument();
-    expect(linkIn(OVERRIDE)).toHaveAttribute('href', '/settings/comms-override');
+    expect(linkIn(OVERRIDE)).toHaveAttribute('href', '/settings/sending#testing');
   });
 
   it('shows both notices when both states are on', () => {

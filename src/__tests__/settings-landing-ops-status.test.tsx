@@ -45,14 +45,14 @@ describe('Settings landing ops status (#789)', () => {
     document.cookie = 'residio_ops_status=10; path=/';
     renderPage();
     expect(card('/settings/maintenance')).toHaveTextContent('ON');
-    expect(card('/settings/comms-override')).not.toHaveTextContent('ON');
+    expect(card('/settings/sending')).not.toHaveTextContent('ON');
     expect(card('/settings/data-retention')).not.toHaveTextContent('ON');
   });
 
   it('marks the override card when the override is on', () => {
     document.cookie = 'residio_ops_status=01; path=/';
     renderPage();
-    expect(card('/settings/comms-override')).toHaveTextContent('ON');
+    expect(card('/settings/sending')).toHaveTextContent('ON');
     expect(card('/settings/maintenance')).not.toHaveTextContent('ON');
   });
 });

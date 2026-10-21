@@ -6,5 +6,5 @@ import { redirect } from 'next/navigation';
  * Reminder Schedule. The table and its actions stay until the owner decides on removal.
  */
 export default function NotificationSchedulesRedirect() {
-  redirect('/settings/notifications');
+  redirect('/settings/reminders');
 }
