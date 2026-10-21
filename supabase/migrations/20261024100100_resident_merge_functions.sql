@@ -20,7 +20,7 @@
 -- REFERENCES (re-derived on 2026-10-21 from supabase/baseline plus every later migration): 46
 --   foreign-key columns in 44 tables point at residents(id), plus three added by migration A
 --   (residents.merged_into_resident_id and the two resident_merges columns). The static test
---   src/__tests__/resident-merge-migration.test.ts fails when a migration adds a reference that is
+--   src/__tests__/resident-merge-pglite.test.ts fails when a migration adds a reference that is
 --   not listed in resident_merge_references(). At run time the preview reports any foreign key to
 --   residents that is not listed and holds rows for the duplicate as the blocker
 --   unhandled_reference, and the merge's last check counts rows left on the duplicate in every
@@ -229,8 +229,6 @@ DECLARE
   v_unhandled jsonb := '[]'::jsonb;
   v_kept_login boolean;
   v_dup_login boolean;
-  v_kept_residences bigint;
-  v_dup_residences bigint;
   v_money jsonb;
   v_dup_wallet public.resident_wallets%ROWTYPE;
 BEGIN
@@ -269,12 +267,6 @@ BEGIN
       'detail', NULL));
   END IF;
 
-  IF k.entity_type <> d.entity_type THEN
-    v_blockers := v_blockers || jsonb_build_array(jsonb_build_object(
-      'code', 'entity_type_mismatch', 'message', 'The two records are different kinds of resident (individual, corporate or developer).',
-      'detail', jsonb_build_object('kept', k.entity_type, 'duplicate', d.entity_type)));
-  END IF;
-
   -- Q3: both linked to the same house, both links active.
   SELECT jsonb_agg(DISTINCT kh.house_id) INTO v_tmp
     FROM public.resident_houses kh
@@ -286,17 +278,17 @@ BEGIN
       'detail', jsonb_build_object('house_ids', v_tmp)));
   END IF;
 
-  -- Moving links by resident_id skips the residency trigger, so the merge checks it itself.
-  SELECT count(*) FILTER (WHERE rh.resident_id = p_kept), count(*) FILTER (WHERE rh.resident_id = p_duplicate)
-    INTO v_kept_residences, v_dup_residences
-    FROM public.resident_houses rh
-   WHERE rh.resident_id IN (p_kept, p_duplicate)
-     AND rh.is_active
-     AND rh.resident_role IN ('resident_landlord', 'tenant', 'co_resident');
-  IF v_dup_residences > 0 AND v_kept_residences + v_dup_residences > 1 THEN
+  -- The fold drops one of two links to the same house (Q3); an engagement cannot outlive its link.
+  SELECT jsonb_agg(DISTINCT x.id) INTO v_tmp
+    FROM public.resident_houses dh
+    JOIN public.resident_houses kh ON kh.house_id = dh.house_id AND kh.resident_id = p_kept
+    JOIN public.resident_houses x ON x.id = CASE WHEN NOT dh.is_active THEN dh.id ELSE kh.id END
+   WHERE dh.resident_id = p_duplicate AND (NOT dh.is_active OR NOT kh.is_active)
+     AND EXISTS (SELECT 1 FROM public.personnel_engagements pe WHERE pe.resident_house_id = x.id);
+  IF v_tmp IS NOT NULL THEN
     v_blockers := v_blockers || jsonb_build_array(jsonb_build_object(
-      'code', 'two_active_residences', 'message', 'After the merge the person would live in two houses at once (resident landlord, tenant or co-resident). End one residency first.',
-      'detail', jsonb_build_object('kept', v_kept_residences, 'duplicate', v_dup_residences)));
+      'code', 'house_link_in_use', 'message', 'A house link the merge would drop is still used by a personnel engagement. Move or end the engagement first.',
+      'detail', jsonb_build_object('resident_house_ids', v_tmp)));
   END IF;
 
   -- Q4: both have a login.

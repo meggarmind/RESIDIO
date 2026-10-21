@@ -33,7 +33,7 @@
 --
 -- Not covered here: the generation_run_open and generation_candidate_clash blockers (they need a
 -- full invoice generation run fixture) and concurrency (two sessions). The static test
--- src/__tests__/resident-merge-migration.test.ts pins their SQL.
+-- src/__tests__/resident-merge-pglite.test.ts covers the house_link_in_use blocker.
 
 BEGIN;
 
@@ -213,14 +213,10 @@ BEGIN
   v_txt := v_txt || ' not_found:' || v_ok;
   v_pv := public.preview_resident_merge(v_b1, v_b2);
   v_txt := v_txt || ' same_house:' || (v_pv->'blockers' @> '[{"code": "same_house"}]');
-  v_pv := public.preview_resident_merge(v_k, v_corp);
-  v_txt := v_txt || ' entity_type_mismatch:' || (v_pv->'blockers' @> '[{"code": "entity_type_mismatch"}]');
-  v_pv := public.preview_resident_merge(v_k, v_r1);
-  v_txt := v_txt || ' two_active_residences:' || (v_pv->'blockers' @> '[{"code": "two_active_residences"}]');
   v_pv := public.preview_resident_merge(v_r3, v_r4);
   v_txt := v_txt || ' kept_archived:' || (v_pv->'blockers' @> '[{"code": "kept_archived"}]');
   RESET ROLE;
-  PERFORM pg_temp.p821('blockers: self_merge, not_found, same_house (Q3), entity type, two residences, kept archived',
+  PERFORM pg_temp.p821('blockers: self_merge, not_found, same_house (Q3), kept archived',
                        coalesce(v_txt NOT LIKE '%false%', false), v_txt);
 
   IF v_bp IS NULL THEN

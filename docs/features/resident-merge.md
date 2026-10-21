@@ -106,9 +106,8 @@ Field notes:
 | `self_merge` | null | Same record twice | Pick again |
 | `already_merged` | `{kept_merged_into, duplicate_merged_into}` | One record was merged before | Merge into the surviving record |
 | `kept_archived` | null | The record to keep is archived | Keep the live record |
-| `entity_type_mismatch` | `{kept, duplicate}` | Individual, corporate or developer differ | Not the same person |
 | `same_house` | `{house_ids}` | Both have an **active** link to one house (Q3) | End one link with the move-out or unassign tools, then merge |
-| `two_active_residences` | `{kept, duplicate}` | After the merge the person would live in two houses (resident landlord, tenant or co-resident) | End one residency |
+| `house_link_in_use` | `{resident_house_ids}` | The Q3 fold would drop an ended house link that a personnel engagement still uses | Move or end the engagement |
 | `both_logins` | null | Both have a portal login (Q4) | Unlink one login |
 | `invoice_clash` | `{pairs: [{kept_invoice_id, duplicate_invoice_id}]}` | Both were invoiced for the same house, billing profile (or version) and period | Void one invoice of each pair |
 | `generation_run_open` | `{run_ids}` | An open invoice generation run includes either record | Finish or cancel the run |
