@@ -43,22 +43,27 @@
 --     holds it (20260102095132 granted it; 20260830100100 found that permission missing, so it is
 --     probably not held).
 --   secretary: unchanged.
---   welfare_officer (20): residents.view, houses.view, announcements.view, announcements.create,
+--   welfare_officer (22): residents.view, houses.view, announcements.view, announcements.create,
 --     announcements.update, announcements.delete, announcements.publish,
 --     announcements.manage_categories, announcements.manage_templates,
 --     announcements.emergency_broadcast, notes.view, notes.create, notes.update, notes.delete,
 --     notes.view_confidential, notifications.view, notifications.send, notifications.manage,
---     notifications.manage_delivery, documents.view
---   trustee (24): residents.view, houses.view, payments.view, billing.view, security.view,
+--     notifications.manage_delivery, documents.view, two_factor.enable, two_factor.disable
+--   trustee (26): residents.view, houses.view, payments.view, billing.view, security.view,
 --     security.view_logs, reports.view_financial, reports.view_occupancy, reports.view_security,
 --     reports.export, approvals.view, documents.view, documents.view_all, announcements.view,
 --     notifications.view, report_subscriptions.view, notes.view, email_imports.view, whatsapp.view,
---     groups.view, view_expenditure, view_vendors, view_projects, two_factor.view_status
+--     groups.view, view_expenditure, view_vendors, view_projects, two_factor.view_status,
+--     two_factor.enable, two_factor.disable (self-service two-factor on the holder's own account,
+--     owner decision 2026-10-21; every other role already has it, 20260830100100)
 --     (document downloads are gated on documents.view, src/actions/documents/download-document.ts;
 --     there is no separate download permission)
---   security_guard_supervisor (5): security.view, security.generate_codes, security.verify_codes,
+--   security_guard_supervisor (8): security.view, security.generate_codes, security.verify_codes,
 --     security.record_access, security.operate_records (the RLS permission behind viewing contacts
---     and codes and recording check-ins, as security_officer holds it)
+--     and codes and recording check-ins, as security_officer holds it), security.manage_records
+--     (owner decision 2026-10-21: the access_codes INSERT policy requires it, and generateAccessCode
+--     writes through the caller's client; it also allows creating and updating security contacts
+--     and visitor vehicles), two_factor.enable, two_factor.disable
 --   super_admin only: system.assign_board_roles, impersonation.approve_requests,
 --     impersonation.manage_settings. Removed from every other role, custom roles included.
 --   The three new roles are set to exactly the lists above (anything else they hold is removed).
@@ -151,6 +156,30 @@
 --     EXCEPTION WHEN check_violation THEN NULL;
 --     END;
 --     UPDATE public.profiles SET role_id = v_sgs WHERE id = v_p;          -- non-resident role: accepted
+--     IF (SELECT array_agg(r.name || '=' || n ORDER BY r.name)
+--         FROM (SELECT rp.role_id, count(*) AS n FROM public.role_permissions rp GROUP BY rp.role_id) c
+--         JOIN public.app_roles r ON r.id = c.role_id
+--         WHERE r.name IN ('welfare_officer', 'trustee', 'security_guard_supervisor'))
+--        IS DISTINCT FROM ARRAY['security_guard_supervisor=8', 'trustee=26', 'welfare_officer=22'] THEN
+--       RAISE EXCEPTION 'probe failed: a new role does not hold exactly its list';
+--     END IF;
+--     IF EXISTS (SELECT 1 FROM public.role_permissions rp
+--                JOIN public.app_permissions p ON p.id = rp.permission_id
+--                JOIN public.app_roles r ON r.id = rp.role_id
+--                WHERE p.name IN ('system.assign_board_roles', 'impersonation.approve_requests',
+--                                 'impersonation.manage_settings')
+--                  AND r.name <> 'super_admin') THEN
+--       RAISE EXCEPTION 'probe failed: a super_admin-only permission is held by another role';
+--     END IF;
+--     IF EXISTS (SELECT 1 FROM public.role_permissions rp
+--                JOIN public.app_permissions p ON p.id = rp.permission_id
+--                JOIN public.app_roles r ON r.id = rp.role_id
+--                WHERE r.name = 'chairman'
+--                  AND (p.name LIKE 'impersonation.%'
+--                       OR (p.name LIKE 'system.%'
+--                           AND p.name NOT IN ('system.assign_roles', 'system.view_all_profiles')))) THEN
+--       RAISE EXCEPTION 'probe failed: chairman still holds impersonation.* or another system.*';
+--     END IF;
 --     IF EXISTS (SELECT 1 FROM public.app_roles
 --                WHERE name IN ('vice_chairman', 'project_manager', 'resident')) THEN
 --       RAISE EXCEPTION 'probe failed: a retired role still exists';
@@ -181,10 +210,10 @@ VALUES
    'Resident welfare: residents and houses (view), announcements, notes, notifications and documents (view)',
    'exco', 3, true, true, true, true),
   ('trustee', 'Trustee',
-   'Board of trustees: views every module except settings, and exports reports. No changes',
+   'Board of trustees: views every module except settings, and exports reports. Changes nothing but their own two-factor setting',
    'bot', 3, true, true, true, true),
   ('security_guard_supervisor', 'Security Guard Supervisor',
-   'Gate supervisor, not a resident: views security contacts, creates and verifies access codes, records check-ins',
+   'Gate supervisor, not a resident: security contacts, creating and verifying access codes, and check-ins',
    'staff', 3, true, true, false, false)
 ON CONFLICT (name) DO NOTHING;
 
@@ -264,7 +293,8 @@ DECLARE
     'announcements.emergency_broadcast',
     'notes.view', 'notes.create', 'notes.update', 'notes.delete', 'notes.view_confidential',
     'notifications.view', 'notifications.send', 'notifications.manage', 'notifications.manage_delivery',
-    'documents.view'
+    'documents.view',
+    'two_factor.enable', 'two_factor.disable'
   ];
   c_trustee constant text[] := ARRAY[
     'residents.view', 'houses.view', 'payments.view', 'billing.view',
@@ -273,11 +303,12 @@ DECLARE
     'approvals.view', 'documents.view', 'documents.view_all', 'announcements.view',
     'notifications.view', 'report_subscriptions.view', 'notes.view', 'email_imports.view',
     'whatsapp.view', 'groups.view', 'view_expenditure', 'view_vendors', 'view_projects',
-    'two_factor.view_status'
+    'two_factor.view_status', 'two_factor.enable', 'two_factor.disable'
   ];
   c_guard constant text[] := ARRAY[
     'security.view', 'security.generate_codes', 'security.verify_codes', 'security.record_access',
-    'security.operate_records'
+    'security.operate_records', 'security.manage_records',
+    'two_factor.enable', 'two_factor.disable'
   ];
   c_resident_types constant text[] := ARRAY[
     'caretaker', 'co_resident', 'contractor', 'developer', 'domestic_staff', 'household_member',

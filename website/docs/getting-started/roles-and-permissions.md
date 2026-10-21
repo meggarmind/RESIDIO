@@ -50,8 +50,8 @@ Two-factor authentication is optional: it applies only to accounts that have tur
 | Secretary | Secretary, Assistant Secretary | Documents, communications, and resident records | Residents, operations |
 | Security Officer | Chief Security Officer, Assistant Chief Security Officer | Security contacts, access records, and gate operations | Security |
 | Welfare Officer | Welfare Officer | Announcements, notes and notifications; reads residents, houses and documents | Operations |
-| Trustee | Trustee (any number) | Oversight: reads every module except Settings and exports reports. Changes nothing | Dashboard, reports |
-| Security Guard Supervisor | Security Guard Supervisor | Gate work: views security contacts, creates and verifies access codes, records check-ins | Security |
+| Trustee | Trustee (any number) | Oversight: reads every module except Settings and exports reports. Changes nothing except their own two-factor setting | Dashboard, reports |
+| Security Guard Supervisor | Security Guard Supervisor | Gate work: views, creates and updates security contacts, creates and verifies access codes, records check-ins. No security settings and no deletes | Security |
 
 A **title** is the post a person holds within a role. A backup officer, such as the Vice Chairman or the Financial Secretary, holds the same role as the principal and has exactly the same permissions; the title is what tells them apart. Each title has one seat, except Trustee, which has no limit.
 
