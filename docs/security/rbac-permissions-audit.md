@@ -127,8 +127,8 @@ redesign and is superseded by the counts and changes below until it is regenerat
 | `trustee` | bot | Yes | Yes | 26 |
 | `security_guard_supervisor` | staff | Yes | No | 8 |
 
-The `level` column is no longer part of the model; account guards are being replaced in slice 4
-(#826).
+The `level` column is gone; account guards are permission-based (`system.assign_roles` and
+`system.assign_board_roles`, #826).
 
 ### Titles and seats
 
