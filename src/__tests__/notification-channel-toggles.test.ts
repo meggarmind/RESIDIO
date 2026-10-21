@@ -92,7 +92,7 @@ describe('isEventChannelEnabled: defaults match today', () => {
 
 describe('setEventChannelEnabled', () => {
   const row = { id: 'row-1', display_name: 'Welcome email', is_active: true };
-  let update: ReturnType<typeof vi.fn>;
+  let update: (patch: unknown) => void;
 
   beforeEach(() => {
     vi.clearAllMocks();

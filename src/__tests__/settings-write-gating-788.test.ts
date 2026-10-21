@@ -25,7 +25,10 @@ const SHARED_COMPONENTS = [
  * Files that write without a gate of their own, each with its reason. Keep it short:
  * an entry here is a page whose controls a narrower role would see and fail on.
  */
-const ALLOWLIST: Record<string, string> = {};
+const ALLOWLIST: Record<string, string> = {
+  'src/components/notifications/template-list.tsx':
+    'Gated by the canManage prop, which the templates page derives from hasPermission.',
+};
 
 const WRITES =
   /\.mutate(Async)?\(|useMutation\(|\bawait (create|update|delete|set|save|remove|reset|toggle|add|import|promote|disconnect|prune|upload|send|test|approve|reject)[A-Z]\w*\(/;

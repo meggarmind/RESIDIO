@@ -10,6 +10,7 @@ export {
   getTemplate,
   getTemplateByName,
   updateEventContent,
+  setEventChannelEnabled,
 } from './templates';
 
 // Schedules
