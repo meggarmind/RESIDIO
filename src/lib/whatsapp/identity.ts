@@ -5,7 +5,6 @@ import { normalizePhoneNumber } from '@/lib/sms/termii';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isWhatsAppMasterSwitchOn } from '@/lib/whatsapp/master-switch';
 import {
-  createWhatsAppPrivacyNoticeUrl,
   loadEstateOfficeContactLine,
   loadWhatsAppPrivacyNotice,
   type WhatsAppPrivacyNotice,
@@ -57,7 +56,6 @@ export interface WhatsAppIdentityRepository {
   markDisputed(phoneNumber: string, residentId: string): Promise<void>;
   notifyDisputed(phoneNumber: string, residentId: string): Promise<void>;
   getPrivacyNotice(): Promise<WhatsAppPrivacyNotice | null>;
-  getPrivacyNoticeUrl(notice: WhatsAppPrivacyNotice): Promise<string>;
   getOfficeContactLine(): Promise<string>;
   /** STOP SURVEYS (#872): the assistant never asks this resident for feedback again. */
   optOutOfSurveys(residentId: string): Promise<void>;
@@ -479,7 +477,6 @@ export function createSupabaseWhatsAppIdentityRepository(): WhatsAppIdentityRepo
     },
 
     getPrivacyNotice: loadWhatsAppPrivacyNotice,
-    getPrivacyNoticeUrl: createWhatsAppPrivacyNoticeUrl,
     getOfficeContactLine: loadEstateOfficeContactLine,
     optOutOfSurveys,
   };
@@ -562,12 +559,9 @@ export function identityReadBack(identity: WhatsAppResidentIdentity, street: str
   );
 }
 
-function privacyNoticePrompt(version: string): string {
-  return withLines(
-    `Before I use your estate records, please read our privacy notice (version ${version}), attached as a PDF.`,
-    '1. Accept',
-    '2. Decline'
-  );
+/** The notice goes in the chat body; WhatsApp renders the admin's `*bold*` and `_italic_` itself. */
+function privacyNoticePrompt(notice: WhatsAppPrivacyNotice): string {
+  return [notice.text, `_Version ${notice.version}_`, '1. Accept\n2. Decline'].join('\n\n');
 }
 
 async function sendReply(
@@ -783,11 +777,7 @@ export async function handleResidentMessage(
       return result('declined', optedIn);
     }
 
-    const noticeUrl = await repository.getPrivacyNoticeUrl(notice);
-    await reply(
-      withLines(starting ? 'Estate WhatsApp alerts are now enabled.' : '', privacyNoticePrompt(notice.version)),
-      [noticeUrl]
-    );
+    await reply(withLines(starting ? 'Estate WhatsApp alerts are now enabled.' : '', privacyNoticePrompt(notice)));
     await repository.saveConsentStep(phoneNumber, residentId, privacyStep, request);
     return result('consent_pending', optedIn);
   }

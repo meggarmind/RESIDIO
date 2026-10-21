@@ -55,7 +55,6 @@ function repository(overrides: Partial<WhatsAppIdentityRepository> = {}): WhatsA
     markDisputed: vi.fn().mockResolvedValue(undefined),
     notifyDisputed: vi.fn().mockResolvedValue(undefined),
     getPrivacyNotice: vi.fn().mockResolvedValue({ version: 'v1', text: 'Notice' }),
-    getPrivacyNoticeUrl: vi.fn().mockResolvedValue('https://storage.test/notice.pdf'),
     getOfficeContactLine: vi.fn().mockResolvedValue(''),
     optOutOfSurveys: vi.fn().mockResolvedValue(undefined),
     ...overrides,
