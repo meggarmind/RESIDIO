@@ -1,16 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { notifyAdmins } from '@/lib/notifications/admin-notifier';
 import { recordInboundBatch, recordWebhookDelivery } from '@/lib/system-log/webhook';
-import {
-  canPerformWhatsAppFinancialLookup,
-  createSupabaseProcessedMessageStore,
-  createSupabaseWhatsAppFinancialRepository,
-  createSupabaseWhatsAppIdentityRepository,
-  handleFinancialMessage,
-  handleResidentMessage,
-  processInboundMessages,
-  resolveWhatsAppConfig,
-} from '@/lib/whatsapp';
+import { createSupabaseProcessedMessageStore, resolveWhatsAppConfig } from '@/lib/whatsapp';
 import {
   CHATMAID_HUMAN_TAKEOVER_PAUSE_MS,
   chatmaidEventDedupeKey,
@@ -20,6 +11,7 @@ import {
   isChatmaidManualOutgoing,
   verifyChatmaidSignature,
 } from '@/lib/whatsapp/providers/chatmaid-inbound';
+import { processChatmaidMessages } from '@/lib/whatsapp/providers/chatmaid-message-handler';
 import {
   OUTBOUND_FAILURE_ALERT_THRESHOLD,
   OUTBOUND_FAILURE_ALERT_WINDOW_MINUTES,
@@ -89,33 +81,7 @@ async function runOnce(
 }
 
 async function handleMessageReceived(payload: unknown) {
-  const pauseStore = createSupabaseChatmaidSessionPauseStore();
-  let pausedCount = 0;
-
-  const result = await processInboundMessages(extractChatmaidMessages(payload), {
-    store: createSupabaseProcessedMessageStore(),
-    onMessage: async (message) => {
-      // Human takeover: an admin typed on the handset recently, so the
-      // Assistant stays quiet. The message is still claimed, so a retry does
-      // not answer it once the pause lapses.
-      const pausedUntil = await pauseStore.getPausedUntil(message.from);
-      if (pausedUntil && Date.now() < pausedUntil.getTime()) {
-        pausedCount += 1;
-        return;
-      }
-
-      await handleResidentMessage(message, {
-        repository: createSupabaseWhatsAppIdentityRepository(),
-        onIdentified: async (identifiedMessage, identity) => {
-          await handleFinancialMessage(identifiedMessage, identity, {
-            repository: createSupabaseWhatsAppFinancialRepository(),
-            optedIn: true,
-            canLookup: canPerformWhatsAppFinancialLookup,
-          });
-        },
-      });
-    },
-  });
+  const { result, pausedCount } = await processChatmaidMessages(extractChatmaidMessages(payload));
 
   await recordInboundBatch(
     'whatsapp-chatmaid',
