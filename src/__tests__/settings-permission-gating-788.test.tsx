@@ -101,8 +101,8 @@ import { HouseTypesList } from '@/components/admin/house-types-list';
 import { TransactionTagsList } from '@/components/admin/transaction-tags-list';
 import { BankAccountsList } from '@/components/admin/bank-accounts-list';
 import { RolesList } from '@/components/admin/roles-list';
-import SecuritySettingsPage from '@/app/(dashboard)/settings/security/page';
-import CategoriesPage from '@/app/(dashboard)/settings/security/categories/page';
+import { SecurityLimitsSection as SecuritySettingsPage } from '@/components/settings/security/security-limits-section';
+import { ContactCategoriesSection as CategoriesPage } from '@/components/settings/security/contact-categories-section';
 import BillingSettingsPage from '@/app/(dashboard)/settings/billing/page';
 import LateFeesPage from '@/app/(dashboard)/settings/billing/late-fees/page';
 import BrandingPage from '@/app/(dashboard)/settings/branding/page';
@@ -228,8 +228,9 @@ describe.each(CASES)('$name (#788)', ({ ui, permission, buttons, fields = [] }) 
     for (const name of buttons) {
       expect(screen.queryAllByRole('button', { name }), String(name)).toHaveLength(0);
     }
+    // A section the admin may not use renders nothing (#937); any control that does render must be disabled.
     for (const [role, name] of fields) {
-      for (const el of screen.getAllByRole(role, { name })) expect(el).toBeDisabled();
+      for (const el of screen.queryAllByRole(role, { name })) expect(el).toBeDisabled();
     }
   });
 

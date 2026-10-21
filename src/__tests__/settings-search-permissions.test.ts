@@ -85,8 +85,6 @@ describe('Settings/System search entry permissions', () => {
       '/settings/appearance': ['settings.manage_general'],
       '/settings/streets': ['settings.manage_reference'],
       '/settings/house-types': ['settings.manage_reference'],
-      '/settings/document-categories': ['documents.manage_categories'],
-      '/settings/document-taxonomy': ['documents.manage_custom_fields', 'documents.manage_tags'],
       '/settings/billing': ['settings.manage_billing'],
       '/settings/billing/late-fees': ['settings.manage_billing'],
       '/settings/billing/invoices': ['settings.manage_billing'],
@@ -101,8 +99,9 @@ describe('Settings/System search entry permissions', () => {
       '/settings/announcements': ['announcements.manage_categories', 'announcements.manage_templates'],
       '/system/accounts?tab=roles': ['system.assign_roles'],
       '/settings/groups': ['groups.view'],
-      '/settings/security': ['settings.manage_security'],
-      '/settings/security/categories': ['security.manage_categories'],
+      // Merged Documents and Security rules task pages (#937): each is the OR of its sections' permissions.
+      '/settings/documents': ['documents.manage_categories', 'documents.manage_custom_fields', 'documents.manage_tags'],
+      '/settings/security': ['security.manage_categories', 'settings.manage_security', 'system.manage_maintenance'],
       '/settings/whatsapp': ['whatsapp.view'],
       '/settings/email-integration': ['email_imports.view'],
       '/settings/maintenance': ['system.manage_maintenance'],
@@ -119,11 +118,11 @@ describe('Settings/System search entry permissions', () => {
   });
 });
 
-describe('Settings row search entry permissions (#934)', () => {
+describe('Settings row search entry permissions (#934, #937)', () => {
   const MANAGE_GENERAL = ['settings.manage_general'];
   const NOTIFICATIONS = ['notifications.manage'];
 
-  it('pins each row of the Messages task pages to the permission of its own section', () => {
+  it('pins each row of the merged task pages to the permission of its own section', () => {
     expect(
       Object.fromEntries(
         SETTINGS_SEARCH_ENTRIES.filter((e) => e.id.startsWith('settings-row-')).map((e) => [e.id.slice('settings-row-'.length), [...e.permissions].sort()])
@@ -144,6 +143,16 @@ describe('Settings row search entry permissions (#934)', () => {
       'test-email': MANAGE_GENERAL,
       'announcement-templates': ['announcements.manage_templates'],
       'announcement-categories': ['announcements.manage_categories'],
+      // #937
+      'document-categories': ['documents.manage_categories'],
+      'document-tags': ['documents.manage_custom_fields', 'documents.manage_tags'],
+      'document-custom-fields': ['documents.manage_custom_fields', 'documents.manage_tags'],
+      'auto-expire-contacts': ['settings.manage_security'],
+      'max-contacts-per-category': ['settings.manage_security'],
+      'expiry-warning-days': ['settings.manage_security'],
+      'reset-security-defaults': ['settings.manage_security'],
+      'contact-category-rules': ['security.manage_categories'],
+      'session-timeout-minutes': ['system.manage_maintenance'],
     });
   });
 

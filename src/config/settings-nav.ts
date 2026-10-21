@@ -318,8 +318,47 @@ export const settingsConfig: SettingsGroup[] = [
         title: "Documents",
         icon: FileText,
         items: [
-            { title: "Categories", href: "/settings/document-categories", description: "Organize document types", permissions: [PERMISSIONS.DOCUMENTS_MANAGE_CATEGORIES] },
-            { title: "Tags & Fields", href: "/settings/document-taxonomy", description: "Nested tags and custom fields", permissions: [PERMISSIONS.DOCUMENTS_MANAGE_TAGS, PERMISSIONS.DOCUMENTS_MANAGE_CUSTOM_FIELDS] },
+            {
+                title: "Documents",
+                href: "/settings/documents",
+                description: "Document categories, nested tags and custom fields",
+                // The page opens for any one of its sections' permissions; each section keeps its own.
+                permissions: [PERMISSIONS.DOCUMENTS_MANAGE_CATEGORIES, PERMISSIONS.DOCUMENTS_MANAGE_TAGS, PERMISSIONS.DOCUMENTS_MANAGE_CUSTOM_FIELDS],
+                sections: [
+                    {
+                        id: "categories",
+                        title: "Categories",
+                        permissions: [PERMISSIONS.DOCUMENTS_MANAGE_CATEGORIES],
+                        rows: [
+                            {
+                                id: "document-categories",
+                                label: "Document categories",
+                                help: "Organise documents into categories and choose which ones residents can see in the portal.",
+                                keywords: ["folders", "document types", "resident access", "visibility", "admin only"],
+                            },
+                        ],
+                    },
+                    {
+                        id: "tags-fields",
+                        title: "Tags & fields",
+                        permissions: [PERMISSIONS.DOCUMENTS_MANAGE_TAGS, PERMISSIONS.DOCUMENTS_MANAGE_CUSTOM_FIELDS],
+                        rows: [
+                            {
+                                id: "document-tags",
+                                label: "Document tags",
+                                help: "Nested tags for classifying documents. Filtering the library by a tag also finds documents under it.",
+                                keywords: ["labels", "nested tags", "parent tag", "classify"],
+                            },
+                            {
+                                id: "document-custom-fields",
+                                label: "Document custom fields",
+                                help: "Typed details recorded on each document, such as an amount, an expiry date or a related document.",
+                                keywords: ["metadata", "expiry date", "amount", "extra details"],
+                            },
+                        ],
+                    },
+                ],
+            },
         ]
     },
     {
@@ -335,11 +374,69 @@ export const settingsConfig: SettingsGroup[] = [
             {
                 title: "Security Rules",
                 href: "/settings/security",
-                permissions: [PERMISSIONS.SETTINGS_MANAGE_SECURITY, PERMISSIONS.SECURITY_MANAGE_CATEGORIES],
-                children: [
-                    { title: "Security Settings", href: "/settings/security", description: "Security protocols and limits", permissions: [PERMISSIONS.SETTINGS_MANAGE_SECURITY] },
-                    { title: "Contact Categories", href: "/settings/security/categories", description: "Validity periods and requirements", permissions: [PERMISSIONS.SECURITY_MANAGE_CATEGORIES] },
-                ]
+                description: "Limits on security contacts, their categories, and how long a session stays signed in",
+                // The page opens for any one of its sections' permissions; each section keeps its own.
+                permissions: [PERMISSIONS.SETTINGS_MANAGE_SECURITY, PERMISSIONS.SECURITY_MANAGE_CATEGORIES, PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE],
+                sections: [
+                    {
+                        id: "contact-limits",
+                        title: "Contact limits",
+                        permissions: [PERMISSIONS.SETTINGS_MANAGE_SECURITY],
+                        rows: [
+                            {
+                                id: "auto-expire-contacts",
+                                label: "Auto-Expire Contacts",
+                                help: "Automatically deactivate contacts after their validity period expires.",
+                                keywords: ["visitor", "gate", "access code", "expiry"],
+                            },
+                            {
+                                id: "max-contacts-per-category",
+                                label: "Max Contacts Per Category",
+                                help: "Maximum number of active contacts allowed per category.",
+                                keywords: ["limit", "visitors", "cap"],
+                            },
+                            {
+                                id: "expiry-warning-days",
+                                label: "Warning Days Before Expiry",
+                                help: "Days before contact expiry to trigger a warning notification.",
+                                keywords: ["reminder", "notice", "expiring"],
+                            },
+                            {
+                                id: "reset-security-defaults",
+                                label: "Reset security settings",
+                                help: "Puts the contact limits back to their defaults. Permissions and contact categories are not affected.",
+                                keywords: ["defaults", "restore"],
+                            },
+                        ],
+                    },
+                    {
+                        id: "contact-categories",
+                        title: "Contact categories",
+                        permissions: [PERMISSIONS.SECURITY_MANAGE_CATEGORIES],
+                        rows: [
+                            {
+                                id: "contact-category-rules",
+                                label: "Contact category validity",
+                                help: "How long each kind of security contact stays valid by default, and the longest it can be made valid for.",
+                                keywords: ["visitor", "domestic staff", "validity period", "days", "access"],
+                            },
+                        ],
+                    },
+                    {
+                        // Moved from Maintenance (#937). Still written under system.manage_maintenance.
+                        id: "session-timeout",
+                        title: "Session timeout",
+                        permissions: [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE],
+                        rows: [
+                            {
+                                id: "session-timeout-minutes",
+                                label: "Session Timeout (minutes)",
+                                help: "Inactive users are signed out after this long.",
+                                keywords: ["logout", "sign out", "idle", "inactivity", "auto logout"],
+                            },
+                        ],
+                    },
+                ],
             },
         ]
     },
@@ -366,7 +463,7 @@ export const settingsConfig: SettingsGroup[] = [
         title: "System",
         icon: Wrench,
         items: [
-            { title: "Maintenance Mode", href: "/settings/maintenance", description: "Maintenance mode, session timeout and duplicate matching", permissions: [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE] },
+            { title: "Maintenance Mode", href: "/settings/maintenance", description: "Maintenance mode and duplicate matching", permissions: [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE] },
             { title: "Data Retention", href: "/settings/data-retention", description: "Retention policies and pruning", permissions: [PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION] },
             {
                 // Live state stays in /system (ADR-0004); these entries only link to it (#933).

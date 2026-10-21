@@ -11,7 +11,9 @@ residio_sources:
   - src/app/(dashboard)/settings/wording/**
   - src/app/(dashboard)/settings/sending/**
   - src/app/(dashboard)/settings/announcements/**
-residio_verified_commit: 5ed0365a
+  - src/app/(dashboard)/settings/documents/**
+  - src/app/(dashboard)/settings/security/**
+residio_verified_commit: 3d960404
 residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---
@@ -26,10 +28,10 @@ Settings are grouped by the decision they control.
 - **Estate & Property:** estate details, logo and branding, theme, streets, and house types.
 - **Money:** billing rules (general, late fees, invoices and due dates, levies), rate cards (billing profiles), bank accounts, and transaction tags.
 - **Messages:** four task pages, each made of sections on one page. **Reminders** (on or off, schedule, send now), **Message wording** (email, WhatsApp), **Email & sending** (channels, email types, and a collapsed *Testing* section for the test-mode redirect and the test email) and **Announcements** (templates, categories). The old addresses for these pages still work and open the right section. The row of section names under the page title stays in view as you scroll and jumps to a section; sections that control a message start collapsed when they are rarely used.
-- **Documents:** document categories, and tags and custom fields.
-- **People & Access:** role and permission definitions, recipient groups (named lists of residents the estate sends copies to), and security rules (security settings and contact categories).
+- **Documents:** one task page with two sections, **Categories** (which ones residents can see) and **Tags & fields**. The old addresses for the category and tag pages still work and open the right section. You see only the sections your role can change.
+- **People & Access:** role and permission definitions, recipient groups (named lists of residents the estate sends copies to), and **Security rules**, one page with three sections: **Contact limits** (auto-expire, the cap per category, warning days), **Contact categories** (default and longest validity) and **Session timeout**. The old Contact Categories address still works and opens its section.
 - **Connections:** external services — WhatsApp and Gmail import today, with Paystack and SMS planned. Each keeps its credentials and its day-to-day console (consent, sync status, manual actions) together, rather than splitting configuration from operations the way the other groups do.
-- **System:** maintenance mode (with session timeout and duplicate matching), data retention, and **Monitoring**, which links to the audit logs, scheduled jobs, notification queue and notification history. The Monitoring links are marked **Opens System** because those pages live under **System** in the main sidebar.
+- **System:** maintenance mode (with duplicate matching), data retention, and **Monitoring**, which links to the audit logs, scheduled jobs, notification queue and notification history. The Monitoring links are marked **Opens System** because those pages live under **System** in the main sidebar.
 
 **Search from any settings page.** The search box at the top of the Settings menu (the menu button on a phone) finds a page by name and lists matches in place of the menu. Press Enter to open the first match, or Escape to clear the box. It lists only pages your role can open.
 

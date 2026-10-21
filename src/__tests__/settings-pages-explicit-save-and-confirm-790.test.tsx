@@ -70,7 +70,8 @@ vi.mock('@/actions/settings/update-maintenance-mode', () => ({
 import BillingSettingsPage from '@/app/(dashboard)/settings/billing/page';
 import LateFeesPage from '@/app/(dashboard)/settings/billing/late-fees/page';
 import DevelopmentLeviesPage from '@/app/(dashboard)/settings/billing/development-levies/page';
-import SecuritySettingsPage from '@/app/(dashboard)/settings/security/page';
+import { SecurityLimitsSection as SecuritySettingsPage } from '@/components/settings/security/security-limits-section';
+import { SessionTimeoutSection } from '@/components/settings/security/session-timeout-section';
 import DataRetentionPage from '@/app/(dashboard)/settings/data-retention/page';
 import { SendRemindersNowSection as EmailDebugPage } from '@/components/settings/messages/send-reminders-test-section';
 import MaintenancePage from '@/app/(dashboard)/settings/maintenance/page';
@@ -143,7 +144,7 @@ describe('numeric settings save on blur only', () => {
 
   it('security: typing "20" writes 20 once, not 2 then 20', () => {
     renderPage(SecuritySettingsPage);
-    const max = screen.getByLabelText('Max Contacts Per Category');
+    const max = screen.getByRole('textbox', { name: 'Max Contacts Per Category' });
     typeSlowly(max, '20');
     expect(max).not.toBeDisabled();
     fireEvent.blur(max);
@@ -153,15 +154,33 @@ describe('numeric settings save on blur only', () => {
 
   it('maintenance: fields are drafts until Save, and an invalid one blocks Save', async () => {
     renderPage(MaintenancePage);
-    const timeout = screen.getByLabelText('Session Timeout (minutes)');
+    const threshold = screen.getByLabelText('Confidence Threshold (%)');
+    fireEvent.change(threshold, { target: { value: '101' } });
+    fireEvent.blur(threshold);
+    expect(await screen.findByRole('button', { name: /Save changes/ })).toBeDisabled();
+    fireEvent.change(threshold, { target: { value: '30' } });
+    fireEvent.blur(threshold);
+    expect(m.updateSettings).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: /Save changes/ }));
+    expect(m.updateSettings).toHaveBeenCalledWith({ duplicate_matching_threshold: 30 }, expect.anything());
+  });
+
+  it('session timeout (moved from maintenance, #937): a draft until Save, and an invalid one blocks Save', async () => {
+    renderPage(SessionTimeoutSection);
+    const timeout = screen.getByRole('textbox', { name: 'Session Timeout (minutes)' });
     fireEvent.change(timeout, { target: { value: '2' } });
     fireEvent.blur(timeout);
-    expect(await screen.findByRole('button', { name: /Save changes/ })).toBeDisabled();
+    expect(await screen.findByRole('button', { name: /Save Session timeout/ })).toBeDisabled();
     fireEvent.change(timeout, { target: { value: '30' } });
     fireEvent.blur(timeout);
     expect(m.updateSettings).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: /Save changes/ }));
-    expect(m.updateSettings).toHaveBeenCalledWith({ session_timeout_minutes: 30 }, expect.anything());
+    fireEvent.click(screen.getByRole('button', { name: /Save Session timeout/ }));
+    await waitFor(() => expect(m.updateSettings).toHaveBeenCalledWith({ session_timeout_minutes: 30 }));
+  });
+
+  it('maintenance no longer shows the session timeout', () => {
+    renderPage(MaintenancePage);
+    expect(screen.queryByLabelText('Session Timeout (minutes)')).toBeNull();
   });
 });
 
