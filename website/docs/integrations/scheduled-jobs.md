@@ -40,7 +40,7 @@ Times are in UTC. Adjust for your estate's local time when reasoning about when 
 | Email import | Hourly | Reads the connected mailbox for bank alerts and statements, and queues every transaction it finds for admin review (it posts no money) |
 | Approval expiry | Hourly | Rejects approval requests left pending past their 72-hour expiry and notifies the requester |
 
-These schedules run as scheduled tasks on both the production and the staging server. On staging, every email, SMS and WhatsApp message a job sends goes to the contacts set on **Settings → Messages & Reminders → Redirect Messages (test mode)**, never to the real resident, staff member or report recipient; if the needed override contact is blank the message is blocked instead. See [Email and SMS channels](./email-and-sms) for how the override works.
+These schedules run as scheduled tasks on both the production and the staging server. On staging, every email, SMS and WhatsApp message a job sends goes to the contacts set on **Settings → Messages → Email & sending → Testing**, never to the real resident, staff member or report recipient; if the needed override contact is blank the message is blocked instead. See [Email and SMS channels](./email-and-sms) for how the override works.
 
 The override does not reach three kinds of message, which staging can still send to real people: WhatsApp Assistant replies (they go to whoever messaged the number), sign-in emails such as password resets and invites (sent by Supabase), and Paystack payment receipts (sent by Paystack).
 

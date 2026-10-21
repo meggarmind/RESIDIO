@@ -75,7 +75,9 @@ describe('Settings/System search entry permissions', () => {
 
   it('pins the full href -> permissions mapping, so a rename or a new page is a deliberate, reviewed change', () => {
     expect(
-      Object.fromEntries(SETTINGS_SEARCH_ENTRIES.map((e) => [e.href, [...e.permissions].sort()]))
+      Object.fromEntries(
+        SETTINGS_SEARCH_ENTRIES.filter((e) => !e.id.startsWith('settings-row-')).map((e) => [e.href, [...e.permissions].sort()])
+      )
     ).toEqual({
       '/settings': ['settings.view'],
       '/settings/estate-info': ['settings.manage_general'],
@@ -92,15 +94,11 @@ describe('Settings/System search entry permissions', () => {
       '/settings/billing/profiles': ['billing.manage_profiles'],
       '/settings/bank-accounts': ['settings.manage_reference'],
       '/settings/transaction-tags': ['settings.manage_reference'],
-      '/settings/notifications': ['notifications.manage'],
-      '/settings/notifications/reminders': ['notifications.manage'],
-      '/settings/notifications/reminders/schedule': ['notifications.manage'],
-      '/settings/notifications/templates': ['notifications.manage'],
-      '/settings/email': ['settings.manage_general'],
-      '/settings/email/debug': ['settings.manage_general'],
-      '/settings/comms-override': ['settings.manage_general'],
-      '/settings/message-templates': ['announcements.manage_templates'],
-      '/settings/announcement-categories': ['announcements.manage_categories'],
+      // Merged Messages task pages (#934): each is the OR of its sections' permissions.
+      '/settings/reminders': ['notifications.manage', 'settings.manage_general'],
+      '/settings/wording': ['notifications.manage'],
+      '/settings/sending': ['settings.manage_general'],
+      '/settings/announcements': ['announcements.manage_categories', 'announcements.manage_templates'],
       '/system/accounts?tab=roles': ['system.assign_roles'],
       '/settings/groups': ['groups.view'],
       '/settings/security': ['settings.manage_security'],
@@ -118,6 +116,41 @@ describe('Settings/System search entry permissions', () => {
       '/system/cron-status': ['system.monitor'],
       '/system/action-log': ['system.view_system_log'],
     });
+  });
+});
+
+describe('Settings row search entry permissions (#934)', () => {
+  const MANAGE_GENERAL = ['settings.manage_general'];
+  const NOTIFICATIONS = ['notifications.manage'];
+
+  it('pins each row of the Messages task pages to the permission of its own section', () => {
+    expect(
+      Object.fromEntries(
+        SETTINGS_SEARCH_ENTRIES.filter((e) => e.id.startsWith('settings-row-')).map((e) => [e.id.slice('settings-row-'.length), [...e.permissions].sort()])
+      )
+    ).toEqual({
+      'reminders-enabled': NOTIFICATIONS,
+      'reminder-steps': NOTIFICATIONS,
+      'send-reminders-now': MANAGE_GENERAL,
+      'email-wording': NOTIFICATIONS,
+      'whatsapp-wording': NOTIFICATIONS,
+      'email-enabled': MANAGE_GENERAL,
+      'email-payment-reminders': MANAGE_GENERAL,
+      'email-invoice-notifications': MANAGE_GENERAL,
+      'email-welcome': MANAGE_GENERAL,
+      'redirect-all': MANAGE_GENERAL,
+      'override-contacts': MANAGE_GENERAL,
+      'debug-mode': MANAGE_GENERAL,
+      'test-email': MANAGE_GENERAL,
+      'announcement-templates': ['announcements.manage_templates'],
+      'announcement-categories': ['announcements.manage_categories'],
+    });
+  });
+
+  it('a row is findable by an estate word kept in its keywords', () => {
+    expect(matchSettingsEntries(SETTINGS_SEARCH_ENTRIES, 'dues').map((e) => e.id)).toEqual(
+      expect.arrayContaining(['settings-row-reminders-enabled', 'settings-row-reminder-steps'])
+    );
   });
 });
 
@@ -145,7 +178,7 @@ describe('Settings/System search entry matching', () => {
 
   it('"email" alone finds both the email notification settings and the Gmail import page', () => {
     const hrefs = hrefsFor('email');
-    expect(hrefs).toContain('/settings/email');
+    expect(hrefs).toContain('/settings/sending');
     expect(hrefs).toContain('/settings/email-integration');
   });
 

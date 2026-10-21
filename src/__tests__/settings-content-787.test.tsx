@@ -69,12 +69,25 @@ vi.mock('@/components/ui/select', () => {
   };
 });
 
-import RemindersOverviewPage from '@/app/(dashboard)/settings/notifications/reminders/page';
-import ReminderSchedulePage from '@/app/(dashboard)/settings/notifications/reminders/schedule/page';
+import { RemindersOnOffSection } from '@/components/settings/messages/reminders-on-off-section';
+import { ReminderScheduleSection } from '@/components/settings/messages/reminder-schedule-section';
+import { useReminderSettings } from '@/components/settings/messages/use-reminder-settings';
 import CategoriesPage from '@/app/(dashboard)/settings/security/categories/page';
-import NotificationsSettingsPage from '@/app/(dashboard)/settings/notifications/page';
 import { TemplateForm } from '@/components/notifications/template-form';
 import BillingSettingsPage from '@/app/(dashboard)/settings/billing/page';
+
+// The on-off and schedule sections of /settings/reminders (#934), loaded the way the page loads them.
+function RemindersPage() {
+  const reminders = useReminderSettings(true);
+  return (
+    <>
+      <RemindersOnOffSection {...reminders} />
+      <ReminderScheduleSection schedule={reminders.schedule} loading={reminders.loading} reload={reminders.reload} />
+    </>
+  );
+}
+const RemindersOverviewPage = RemindersPage;
+const ReminderSchedulePage = RemindersPage;
 
 beforeAll(() => {
   if (!globalThis.ResizeObserver) {
@@ -110,8 +123,8 @@ describe('formatDaysFromDue', () => {
 
   it('the reminders overview renders post-due steps as "after"', async () => {
     render(<RemindersOverviewPage />);
-    expect(await screen.findByText('7 days before')).toBeInTheDocument();
-    expect(screen.getByText('3 days after')).toBeInTheDocument();
+    expect((await screen.findAllByText('7 days before')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('3 days after').length).toBeGreaterThan(0);
     expect(screen.queryByText(/-\d/)).not.toBeInTheDocument();
     expect(screen.getByText(/A WhatsApp step reaches only residents who have opted in to WhatsApp/)).toBeInTheDocument();
   });
@@ -150,9 +163,10 @@ describe('notification channels follow IMPLEMENTED_CHANNELS', () => {
     expect(IMPLEMENTED_CHANNELS).not.toContain('sms');
   });
 
-  it('the overview shows only implemented channels', () => {
-    render(<NotificationsSettingsPage />);
-    for (const label of implementedLabels) expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+  it('the reminders page shows only implemented channels', async () => {
+    render(<RemindersPage />);
+    await screen.findAllByText(/7 days before/i);
+    expect(screen.getAllByText(NOTIFICATION_CHANNEL_LABELS.email).length).toBeGreaterThan(0);
     expect(screen.queryByText('SMS')).not.toBeInTheDocument();
     expect(screen.queryByText(/coming soon/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /manage schedules/i })).not.toBeInTheDocument();

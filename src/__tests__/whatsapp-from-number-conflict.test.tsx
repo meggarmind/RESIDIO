@@ -7,7 +7,7 @@ import '@testing-library/jest-dom/vitest';
 const mocks = vi.hoisted(() => ({ state: null as unknown }));
 
 vi.mock('@/lib/auth/auth-provider', () => ({
-  useAuth: () => ({ isLoading: false, hasPermission: () => true }),
+  useAuth: () => ({ isLoading: false, hasPermission: () => true, hasAnyPermission: () => true }),
 }));
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 vi.mock('@/actions/whatsapp/connection', () => ({
@@ -24,7 +24,7 @@ vi.mock('@/actions/settings/comms-override', () => ({
 }));
 
 import { ConnectionSettings } from '@/app/(dashboard)/settings/whatsapp/connection-settings';
-import CommsOverridePage from '@/app/(dashboard)/settings/comms-override/page';
+import { TestingSection } from '@/components/settings/messages/testing-section';
 
 const FROM = '+2348037000101';
 
@@ -77,7 +77,7 @@ describe('WhatsApp connection form from-number conflict (#904)', () => {
   });
 });
 
-describe('Communications override form from-number conflict (#904)', () => {
+describe('Testing section (communications override) from-number conflict (#904)', () => {
   const state = {
     environment: 'staging', isProduction: false, storedEnabled: true, effectiveEnabled: true,
     email: 'o@example.test', phone: '+15550100100', whatsappPhone: '', whatsappFromNumber: FROM,
@@ -93,13 +93,16 @@ describe('Communications override form from-number conflict (#904)', () => {
   async function renderPage() {
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <CommsOverridePage />
+        <TestingSection />
       </QueryClientProvider>
     );
+    const phone = await screen.findByLabelText('Override phone (SMS and WhatsApp)');
+    // Testing starts collapsed (#934); open it so its alerts are reachable by role.
+    fireEvent.click(screen.getByRole('button', { name: 'Testing' }));
     return {
-      phone: await screen.findByLabelText('Override phone (SMS and WhatsApp)'),
+      phone,
       whatsapp: screen.getByLabelText('WhatsApp number (optional)'),
-      save: screen.getByRole('button', { name: 'Save' }),
+      save: screen.getByRole('button', { name: 'Save Testing' }),
     };
   }
 
