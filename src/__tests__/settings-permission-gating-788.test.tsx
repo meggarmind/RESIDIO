@@ -105,7 +105,7 @@ import { SecurityLimitsSection as SecuritySettingsPage } from '@/components/sett
 import { ContactCategoriesSection as CategoriesPage } from '@/components/settings/security/contact-categories-section';
 import { BillingGeneralSection as BillingSettingsPage } from '@/components/settings/billing/billing-general-section';
 import { LateFeesSection as LateFeesPage } from '@/components/settings/billing/late-fees-section';
-import BrandingPage from '@/app/(dashboard)/settings/branding/page';
+import { EstateLogoSection } from '@/components/settings/estate/estate-logo-section';
 import { RetentionSection } from '@/components/settings/system/retention-section';
 import { Switch } from '@/components/ui/switch';
 
@@ -208,7 +208,7 @@ const CASES: Case[] = [
   },
   {
     name: 'branding',
-    ui: () => <BrandingPage />,
+    ui: () => <EstateLogoSection />,
     permission: PERMISSIONS.SETTINGS_MANAGE_GENERAL,
     buttons: [/Replace Logo/, /^Remove$/],
   },

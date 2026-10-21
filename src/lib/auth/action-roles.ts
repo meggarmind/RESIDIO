@@ -348,6 +348,10 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/settings/wording': [PERMISSIONS.NOTIFICATIONS_MANAGE],
   '/settings/sending': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
   '/settings/announcements': [PERMISSIONS.ANNOUNCEMENTS_MANAGE_TEMPLATES, PERMISSIONS.ANNOUNCEMENTS_MANAGE_CATEGORIES],
+  // Merged task pages (#936): Estate Profile (details, logo, theme, assistant, portal, social) and
+  // Streets & houses (streets, house types). The old routes stay for the same reason.
+  '/settings/estate': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
+  '/settings/property': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
 
   // Maintenance & Data
   // Maintenance mode and data retention are genuine configuration and stay in

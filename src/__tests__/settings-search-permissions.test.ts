@@ -80,11 +80,9 @@ describe('Settings/System search entry permissions', () => {
       )
     ).toEqual({
       '/settings': ['settings.view'],
-      '/settings/estate-info': ['settings.manage_general'],
-      '/settings/branding': ['settings.manage_general'],
-      '/settings/appearance': ['settings.manage_general'],
-      '/settings/streets': ['settings.manage_reference'],
-      '/settings/house-types': ['settings.manage_reference'],
+      // Merged Estate task pages (#936): each is the OR of its sections' permissions.
+      '/settings/estate': ['settings.manage_general'],
+      '/settings/property': ['settings.manage_reference'],
       '/settings/billing': ['settings.manage_billing'],
       '/settings/billing/profiles': ['billing.manage_profiles'],
       // Merged Banking page (#935): the OR of bank accounts and tags (manage_reference) and duplicate matching.
@@ -182,6 +180,24 @@ describe('Settings row search entry permissions (#934, #935, #937)', () => {
       'maintenance-message': ['system.manage_maintenance'],
       'audit-log-retention': ['system.manage_data_retention'],
       'prune-data': ['system.manage_data_retention'],
+      // Estate task pages (#936).
+      'estate-name': MANAGE_GENERAL,
+      'estate-email': MANAGE_GENERAL,
+      'estate-address': MANAGE_GENERAL,
+      'estate-phone': MANAGE_GENERAL,
+      'estate-website': MANAGE_GENERAL,
+      'estate-office-hours': MANAGE_GENERAL,
+      'estate-logo': MANAGE_GENERAL,
+      'estate-theme': MANAGE_GENERAL,
+      'assistant-visible': MANAGE_GENERAL,
+      'assistant-greeting': MANAGE_GENERAL,
+      'assistant-name': MANAGE_GENERAL,
+      'resident-portal-links': MANAGE_GENERAL,
+      'social-facebook': MANAGE_GENERAL,
+      'social-twitter': MANAGE_GENERAL,
+      'social-instagram': MANAGE_GENERAL,
+      'street-list': REFERENCE,
+      'house-type-list': REFERENCE,
     });
   });
 

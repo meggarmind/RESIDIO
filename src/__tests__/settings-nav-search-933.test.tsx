@@ -134,7 +134,7 @@ describe('settingsPageLabel', () => {
     expect(settingsPageLabel('/settings/billing/profiles', settingsConfig)).toBe('Rate Cards');
     expect(settingsPageLabel('/settings/billing', settingsConfig)).toBe('Billing Rules');
     expect(settingsPageLabel('/settings/banking', settingsConfig)).toBe('Banking');
-    expect(settingsPageLabel('/settings/streets', settingsConfig)).toBe('Streets');
+    expect(settingsPageLabel('/settings/property', settingsConfig)).toBe('Streets & Houses');
     expect(settingsPageLabel(null, settingsConfig)).toBeUndefined();
   });
 });

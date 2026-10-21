@@ -230,7 +230,7 @@ The main menu opens with `Hi <first name>, what would you like to do?` and lists
 | 3. How to pay | **Payment instructions** is filled in (see below) |
 | 4. Alert settings | Always. Turning *All estate WhatsApp messages* off works like replying `STOP`. A resident billed for a property also sees *Payment reminders*, ON or OFF |
 | 5. Update email | Always |
-| 9. Contact the estate office | The estate phone or email is set on **Settings → Estate & Property → Estate Details** |
+| 9. Contact the estate office | The estate phone or email is set on **Settings → Estate & Property → Estate Profile** |
 
 **Financial standing** lists What I owe, Recent payments (the last 5), Statement (this month, this year, last 6 months, last 12 months, all time or since move-in), Wallet, Receipt, Report a payment and Clearance certificate. Only this item, and Update email, ask for the PIN. A resident billed for more than one property is asked which one once per session, sees it in every heading, and can change it under **8. More**.
 
@@ -251,7 +251,7 @@ Beyond answers, a resident can make four changes from chat. Each is recorded in 
 - **Clearance certificate** (item 7, or `CLEARANCE`): per property. A resident who owes money is told the amount. A resident who owes nothing files a request in Approvals (only one can wait per property: a second resident on the same property is told a request for the property is already waiting, with the estate office line, and the certificate goes to whoever asked first); on approval the certificate is issued, sent to them in chat, saved to Documents under *Clearance certificates* with the property, and copied on WhatsApp to the members of the group chosen under **Settings → Billing → Clearance certificate copies** (see [Billing and notifications settings](../settings/billing-and-notifications)). The same copies go out for every certificate issued from the move-out screens.
 
 - `0` goes back one level; `MENU`, `HI` or `HELLO` show the main menu; `CANCEL` abandons the current step; `LOCK` ends an unlocked session.
-- `9`, `HELP`, `AGENT` and `CONTACT` give the estate office line: phone, email and office hours from Estate Details.
+- `9`, `HELP`, `AGENT` and `CONTACT` give the estate office line: phone, email and office hours from Estate Profile.
 - Keywords such as `OWE`, `PAYMENTS`, `STATEMENT`, `WALLET`, `PAY`, `NEWS`, `RECEIPT`, `REPORT`, `CLEARANCE`, `REMINDERS` and `EMAIL` jump straight to an item. Add the estate's own phrasing under **Extra keywords**.
 - A reply the Assistant does not understand gets `I didn't catch that.`; from the second in a row it adds the estate office line. Voice notes, images and stickers get a request to type instead.
 - After 15 minutes without activity the session ends: the next message says so, and the chosen property and the PIN unlock are forgotten.

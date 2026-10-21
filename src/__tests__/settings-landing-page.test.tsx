@@ -87,6 +87,6 @@ describe('Settings landing page (#786)', () => {
     renderPage();
     fireEvent.change(screen.getByLabelText('Search settings'), { target: { value: 'late fee' } });
     expect(cardHrefs()).toContain('/settings/billing');
-    expect(cardHrefs()).not.toContain('/settings/streets');
+    expect(cardHrefs()).not.toContain('/settings/property');
   });
 });

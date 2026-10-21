@@ -5,8 +5,10 @@ sidebar_label: Settings overview
 description: Navigate the admin configuration areas without losing control of dependencies.
 residio_sources:
   - src/app/(dashboard)/settings/page.tsx
-  - src/app/(dashboard)/settings/estate-info/**
-  - src/app/(dashboard)/settings/branding/**
+  - src/app/(dashboard)/settings/estate/**
+  - src/app/(dashboard)/settings/property/**
+  - src/components/settings/estate/**
+  - src/components/settings/property/**
   - src/app/(dashboard)/settings/reminders/**
   - src/app/(dashboard)/settings/wording/**
   - src/app/(dashboard)/settings/sending/**
@@ -16,7 +18,7 @@ residio_sources:
   - src/app/(dashboard)/settings/billing/**
   - src/app/(dashboard)/settings/banking/**
   - src/app/(dashboard)/settings/system/**
-residio_verified_commit: c2f2451f
+residio_verified_commit: 025eec9a
 residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---
@@ -28,7 +30,7 @@ Settings are grouped by the decision they control.
 ![Residio settings hub](../assets/admin/settings-overview.png)
 
 - **Setup:** this overview page, with the setup checklist.
-- **Estate & Property:** estate details, logo and branding, theme, streets, and house types.
+- **Estate & Property:** two task pages. **Estate Profile** (details, logo, theme, assistant, resident portal, social links) and **Streets & Houses** (streets, house types). The old addresses for these pages still work and open the right section.
 - **Money:** **Billing rules** (general, invoices and due dates, late fees, levies on one page), **Rate cards** (billing profiles), and **Banking** (bank accounts, transaction tags, duplicate matching on one page). The old addresses for the billing and bank pages still work and open the right section.
 - **Messages:** four task pages, each made of sections on one page. **Reminders** (on or off, schedule, send now), **Message wording** (email, WhatsApp), **Email & sending** (channels, email types, and a collapsed *Testing* section for the test-mode redirect and the test email) and **Announcements** (templates, categories). The old addresses for these pages still work and open the right section. The row of section names under the page title stays in view as you scroll and jumps to a section; sections that control a message start collapsed when they are rarely used.
 - **Documents:** one task page with two sections, **Categories** (which ones residents can see) and **Tags & fields**. The old addresses for the category and tag pages still work and open the right section. You see only the sections your role can change.
@@ -42,11 +44,11 @@ Settings are grouped by the decision they control.
 
 **States that affect everyone.** While maintenance mode or the communications override is on, a banner that cannot be dismissed sits above the header on every dashboard page, the **Settings** item in the main menu carries an amber dot, and the matching card on this page reads **ON**. Each banner links to its settings page; the maintenance banner opens the **Maintenance mode** section of **Maintenance & Data**. You see a state only if your role can open its page: the maintenance permission for maintenance mode, the general settings permission for the override. Debug Mode also counts as the override being on while it is running, since it redirects every message too. Outside production the override is always on, so on Stage the override banner is always shown.
 
-**Resident portal switch.** **Settings → Estate & Property → Estate Details** has a *Resident portal* card with one switch. It decides whether the resident portal links (*My Portal*, *Resident Portal* in the profile menu, and *View as Resident*) appear in the admin dashboard. It is off by default and needs the general settings permission to change. The switch only hides or shows links: it does not block the `/portal` address, so anyone who opens `/portal` directly still reaches it. An individual account can override the switch under **System → Roles & Access**.
+**Resident portal switch.** **Settings → Estate & Property → Estate Profile** has a *Resident portal* section with one switch. The section starts collapsed. It decides whether the resident portal links (*My Portal*, *Resident Portal* in the profile menu, and *View as Resident*) appear in the admin dashboard. It is off by default and needs the general settings permission to change. The switch only hides or shows links: it does not block the `/portal` address, so anyone who opens `/portal` directly still reaches it. An individual account can override the switch under **System → Roles & Access**.
 
-**Estate office hours.** The same page sets the estate office hours per day (closed, all day, or from and to times, in Lagos time). The WhatsApp Assistant shows them with the estate phone and email whenever it tells a resident to contact the estate office, and adds when the office is next open if it is closed. Leave every day closed to show no hours.
+**Estate office hours.** The *Details* section of the same page sets the estate office hours per day (closed, all day, or from and to times, in Lagos time). The WhatsApp Assistant shows them with the estate phone and email whenever it tells a resident to contact the estate office, and adds when the office is next open if it is closed. Leave every day closed to show no hours.
 
-The rest of **Settings → Estate & Property → Estate Details**, including the AI assistant switches and office hours, saves together from the save bar that appears when something has changed; email and web addresses must be valid before it saves, and the page warns before you leave with unsaved changes. Removing the logo under **Branding** asks first.
+Each section of **Settings → Estate & Property → Estate Profile** saves on its own. *Details* (with the office hours), *Theme*, *Assistant* and *Social links* have a Save and a Discard button at the foot of the section, and a section with unsaved changes is marked in the row of section names; email and web addresses must be valid before *Details* or *Social links* saves, and the page warns before you leave with unsaved changes, naming the sections. *Logo* and *Resident portal* act at once, and removing the logo asks first. *Theme* is saved for both the admin dashboard and the resident portal.
 
 Day-to-day account work — assigning roles, watching cron jobs, the notification queue and history, audit logs — lives under **System** in the main sidebar, not Settings: Settings holds configuration, System holds live state and account operations.
 
