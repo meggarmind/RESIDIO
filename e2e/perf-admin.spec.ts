@@ -14,6 +14,13 @@ const DASHBOARD_TARGET_MS = 2000;
 const LIST_TARGET_MS = 800;
 
 // Primary admin lists, from the admin sidebar. Confirm the set with the owner (#970).
+// Ready signal per list: the first <tbody> row that holds no skeleton (data-slot="skeleton"), so the
+// timer stops on real data (or the empty-state row), not the table shell.
+//   residents: residents-table.tsx renders skeleton rows while isLoading, then ResidentRow
+//   houses:    houses-table.tsx renders skeleton rows while isLoading, then HouseRow
+//   invoices:  billing/page.tsx renders skeleton rows while isLoading, then invoice rows
+//   payments:  payments/page.tsx renders the table only after loading, so any <tbody> row is data
+const LIST_ROW_READY = 'main tbody tr:not(:has([data-slot="skeleton"]))';
 const LIST_PAGES = [
     { name: 'residents', path: '/residents' },
     { name: 'houses', path: '/houses' },
@@ -24,7 +31,7 @@ const LIST_PAGES = [
 const DASHBOARD = { name: 'dashboard', path: '/dashboard', ready: '[data-testid="command-strip"]', targetMs: DASHBOARD_TARGET_MS };
 const PAGES = [
     DASHBOARD,
-    ...LIST_PAGES.map((p) => ({ ...p, ready: 'main table', targetMs: LIST_TARGET_MS })),
+    ...LIST_PAGES.map((p) => ({ ...p, ready: LIST_ROW_READY, targetMs: LIST_TARGET_MS })),
 ];
 
 test.describe('admin performance benchmark', () => {
