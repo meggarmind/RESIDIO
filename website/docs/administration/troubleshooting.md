@@ -12,7 +12,7 @@ residio_sources:
   - src/app/api/health/**
   - src/actions/system/**
   - src/lib/system/**
-residio_verified_commit: e052f48a
+residio_verified_commit: c2f2451f
 residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---

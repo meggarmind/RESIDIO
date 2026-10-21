@@ -16,7 +16,7 @@ residio_sources:
   - src/app/(dashboard)/settings/billing/**
   - src/app/(dashboard)/settings/banking/**
   - src/app/(dashboard)/settings/system/**
-residio_verified_commit: 3d960404
+residio_verified_commit: c2f2451f
 residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---
