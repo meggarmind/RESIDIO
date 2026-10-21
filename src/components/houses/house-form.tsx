@@ -26,7 +26,7 @@ import {
 import { useStreets, useHouseTypes } from '@/hooks/use-reference';
 import { useCreateHouse, useUpdateHouse } from '@/hooks/use-houses';
 import { useBillingProfiles } from '@/hooks/use-billing';
-import { houseFormSchema, type HouseFormData } from '@/lib/validators/house';
+import { generateHouseShortName, houseFormSchema, type HouseFormData } from '@/lib/validators/house';
 import { toast } from 'sonner';
 import type { House } from '@/types/database';
 import { HelpCircle, Sparkles } from 'lucide-react';
@@ -34,15 +34,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { IconBox } from '@/components/ui/icon-box';
 
 const NONE_VALUE = '_none';
-
-/**
- * Generate a property shortname from street code and house number
- * Format: STREET_CODE-HOUSE_NUMBER (e.g., OAK-10A)
- */
-function generateShortname(streetShortName: string | null | undefined, houseNumber: string): string {
-  if (!streetShortName || !houseNumber) return '';
-  return `${streetShortName.toUpperCase()}-${houseNumber.toUpperCase()}`;
-}
 
 interface HouseFormProps {
   house?: House;
@@ -90,7 +81,7 @@ export function HouseForm({ house, onSuccess }: HouseFormProps) {
 
   // Auto-generate shortname when street or house number changes (only if not manually edited)
   const suggestedShortname = useMemo(() => {
-    return generateShortname(selectedStreet?.short_name, watchedHouseNumber);
+    return generateHouseShortName(selectedStreet?.short_name, watchedHouseNumber);
   }, [selectedStreet?.short_name, watchedHouseNumber]);
 
   // Set today's date on client side only to avoid hydration mismatch
