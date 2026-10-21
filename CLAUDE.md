@@ -81,11 +81,13 @@ Every `agent()` call inside a workflow script sets `model` explicitly, per the t
 comment on it last. This is how Claude Code does it:
 
 - **Start:** before the first substantive tool call, run `gh issue view 412 --repo
-  meggarmind/RESIDIO --comments` (Bash). Invoke `task-observer` at the same point.
+  meggarmind/RESIDIO --comments` (Bash), then `gh issue view 1006 --repo meggarmind/RESIDIO`
+  (the board Status definitions). Invoke `task-observer` at the same point.
 - **End:** before you stop — including after `end_session`/`pause_session`, a finished PR, or an
   abandoned task — write the comment to a scratchpad file and post it with `gh issue comment 412
   --repo meggarmind/RESIDIO --body-file <file>`. Use the scratchpad directory, never a file in the
-  repo (`CORE.md` §14: no handoff files).
+  repo (`CORE.md` §14: no handoff files). Before posting, check the board Status of every issue
+  you filed, worked or closed against #1006, and list each with its final Status in the comment.
 - **Who posts:** only the session talking to the user. `Agent`/`Workflow` sub-agents never post; put
   their results in your comment. A session that was only a peer for `SendMessage` coordination
   still posts a short one.

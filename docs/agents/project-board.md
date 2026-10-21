@@ -12,6 +12,9 @@ manual step something an agent can do consistently).
 
 ## Status columns
 
+The pinned issue **#1006** is the live definition of each Status and of who moves an issue.
+Read it at session start, with #412. If a definition changes, update #1006 and this file together.
+
 | Status        | Option ID  |
 | ------------- | ---------- |
 | Backlog       | `f75ad846` |

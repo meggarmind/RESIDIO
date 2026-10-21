@@ -9,8 +9,10 @@ what this project does or forbids lives anywhere, it lives here.
 
 > **Session bookends — every session, every harness, no exceptions.**
 > **First:** read the handoff record — `gh issue view 412 --repo meggarmind/RESIDIO --comments`
-> (newest last) — before any substantive work.
-> **Last:** post a new handoff comment on **#412** before you stop — `gh issue comment 412
+> (newest last) — before any substantive work. Also read **#1006**, the pinned definition of the
+> board Status columns (`gh issue view 1006 --repo meggarmind/RESIDIO`).
+> **Last:** check the board Status of every issue you filed, worked or closed against #1006, and
+> list each issue with its final Status in the handoff. Then post a new handoff comment on **#412** before you stop — `gh issue comment 412
 > --repo meggarmind/RESIDIO --body-file handoff.md` — even if you were not asked, even if you
 > only read, coordinated or reviewed, and even if the work was abandoned (say so). A session that
 > ends without it has left nothing for the next one. Content and format: §14 and §16. Do not
