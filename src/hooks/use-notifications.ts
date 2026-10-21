@@ -127,9 +127,9 @@ export function useUpdateEventContent() {
       if (error) throw new Error(error);
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: notificationKeys.templates() });
-      toast.success('Email wording saved');
+      toast.success(variables.channel === 'whatsapp' ? 'WhatsApp wording saved' : 'Email wording saved');
     },
     onError: (error: Error) => {
       toast.error(`Failed to save wording: ${error.message}`);

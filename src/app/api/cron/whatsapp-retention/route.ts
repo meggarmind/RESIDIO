@@ -12,6 +12,14 @@ export async function GET(request: NextRequest) {
   return withSystemLog('cron:whatsapp-retention', 'purge', runPurge);
 }
 
+// The settings page stores these as JSON strings, other writers store numbers.
+// Anything that is not a finite number or a non-blank numeric string falls back
+// to the default, so an invalid value never widens the deletion window.
+function retentionDays(value: unknown, fallback: number, max: number): number {
+  const n = typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;
+  return Number.isFinite(n) ? Math.min(Math.max(n, 1), max) : fallback;
+}
+
 async function runPurge(run: SystemLogRun) {
   try {
     // Service-role reads (see #136) — this cron route has no authenticated
@@ -24,13 +32,14 @@ async function runPurge(run: SystemLogRun) {
       getSettingValueAsService('whatsapp_survey_retention_days'),
       getSettingValueAsService('whatsapp_outbound_send_retention_days'),
     ]);
-    const result = await purgeWhatsAppOperationalState({
-      sessionDays: typeof sessionDays === 'number' ? Math.min(Math.max(sessionDays, 1), 30) : 1,
-      processedMessageDays: typeof processedMessageDays === 'number' ? Math.min(Math.max(processedMessageDays, 1), 30) : 2,
-      surveyResponseDays: typeof surveyResponseDays === 'number' ? Math.min(Math.max(surveyResponseDays, 1), 365) : 90,
-      outboundSendDays: typeof outboundSendDays === 'number' ? Math.min(Math.max(outboundSendDays, 1), 365) : 90,
-    });
-    run.summary = { ...result };
+    const days = {
+      sessionDays: retentionDays(sessionDays, 1, 30),
+      processedMessageDays: retentionDays(processedMessageDays, 2, 30),
+      surveyResponseDays: retentionDays(surveyResponseDays, 90, 365),
+      outboundSendDays: retentionDays(outboundSendDays, 90, 365),
+    };
+    const result = await purgeWhatsAppOperationalState(days);
+    run.summary = { ...result, retentionDays: days };
     return NextResponse.json({ success: true, ...result });
   } catch (error) {
     run.error = error;
