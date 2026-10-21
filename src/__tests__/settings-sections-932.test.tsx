@@ -130,16 +130,18 @@ describe('SettingsSection', () => {
     expect(screen.queryByText('No changes')).toBeNull();
   });
 
-  it('puts the toggle button inside the h2 and keeps the footer when collapsed', () => {
+  it('puts the toggle button inside the h2 and shows the footer only while open (#971)', () => {
     render(<Harness id="channels" title="Channels" defaultCollapsed />);
     const button = within(screen.getByRole('heading', { level: 2 })).getByRole('button', { name: 'Channels' });
     expect(button).toHaveAttribute('aria-expanded', 'false');
     expect(button).toHaveAccessibleDescription('Currently on');
+    expect(screen.queryByText('No changes')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Save Channels' })).toBeNull();
+    fireEvent.click(button);
+    expect(button).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByText('No changes')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save Channels' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Discard' })).toBeDisabled();
-    fireEvent.click(button);
-    expect(button).toHaveAttribute('aria-expanded', 'true');
   });
 
   it('shows Unsaved changes when dirty, then Saved after the save resolves', async () => {

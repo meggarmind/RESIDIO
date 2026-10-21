@@ -71,7 +71,7 @@ export function TemplateList({
 
   return (
     <div className="rounded-md border">
-      <Table>
+      <Table stack>
         <TableHeader>
           <TableRow>
             <TableHead>{channel === 'whatsapp' ? 'Message' : 'Email'}</TableHead>
@@ -86,7 +86,7 @@ export function TemplateList({
             const editedCount = Object.keys(template?.overrides ?? {}).length;
             return (
               <TableRow key={key}>
-                <TableCell>
+                <TableCell label={channel === 'whatsapp' ? 'Message' : 'Email'}>
                   <div className="flex items-center gap-3">
                     <IconBox color="blue" size="sm">
                       {channel === 'whatsapp' ? (
@@ -103,7 +103,7 @@ export function TemplateList({
                     </div>
                   </div>
                 </TableCell>
-                <TableCell>
+                <TableCell label={readOnly ? 'Template' : 'Wording'}>
                   {readOnly ? (
                     <div className="text-xs text-muted-foreground">
                       <div>
@@ -124,7 +124,7 @@ export function TemplateList({
                     </Badge>
                   )}
                 </TableCell>
-                <TableCell>
+                <TableCell label="Sending">
                   {getToggleableChannels(key).includes(channel) ? (
                     <div className="flex items-center gap-2">
                       <Switch
@@ -146,7 +146,7 @@ export function TemplateList({
                     </div>
                   )}
                 </TableCell>
-                <TableCell className="text-right">
+                <TableCell label="Actions" className="text-right">
                   {template && !readOnly && (
                     <div className="flex justify-end gap-2">
                       {onPreview && (

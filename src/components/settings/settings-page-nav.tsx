@@ -26,9 +26,10 @@ export function SettingsPageNav() {
       if (!frame) frame = requestAnimationFrame(update);
     };
     update();
-    window.addEventListener('scroll', onScroll, { passive: true });
+    // <main> scrolls, not the window, and scroll does not bubble: listen in the capture phase.
+    document.addEventListener('scroll', onScroll, { capture: true, passive: true });
     return () => {
-      window.removeEventListener('scroll', onScroll);
+      document.removeEventListener('scroll', onScroll, { capture: true });
       if (frame) cancelAnimationFrame(frame);
     };
   }, [ids]);
@@ -51,7 +52,7 @@ export function SettingsPageNav() {
                 goToSection(s.id);
               }}
               className={cn(
-                'inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-lg border bg-card px-3 text-sm font-medium md:min-h-9',
+                'inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-lg border bg-card px-3 text-sm font-medium',
                 current === s.id && 'border-transparent bg-primary text-primary-foreground',
               )}
             >

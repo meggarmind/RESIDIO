@@ -236,7 +236,7 @@ export function AnnouncementTemplatesSection() {
               </Button>
             </div>
           ) : (
-            <Table>
+            <Table stack>
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
@@ -250,23 +250,23 @@ export function AnnouncementTemplatesSection() {
               <TableBody>
                 {templates.map((template) => (
                   <TableRow key={template.id} className={!template.is_active ? 'opacity-50' : ''}>
-                    <TableCell>
+                    <TableCell label="Name">
                       <div className="flex items-center gap-2">
                         <FileText className="h-4 w-4 text-muted-foreground" />
                         <span className="font-medium">{template.name}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-muted-foreground max-w-[200px] truncate">
+                    <TableCell label="Title Template" className="text-muted-foreground max-w-[200px] truncate">
                       {template.title_template}
                     </TableCell>
-                    <TableCell>
+                    <TableCell label="Category">
                       {template.category ? (
                         <Badge variant="outline">{template.category.name}</Badge>
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell label="Variables">
                       {template.variables && template.variables.length > 0 ? (
                         <div className="flex items-center gap-1">
                           <Variable className="h-3 w-3 text-muted-foreground" />
@@ -276,7 +276,7 @@ export function AnnouncementTemplatesSection() {
                         <span className="text-muted-foreground text-sm">None</span>
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell label="Status">
                       {template.is_active ? (
                         <Badge
                           variant="secondary"
@@ -290,7 +290,7 @@ export function AnnouncementTemplatesSection() {
                         </Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell label="Actions" className="text-right">
                       <div className="flex justify-end gap-1">
                         <Button
                           variant="ghost"

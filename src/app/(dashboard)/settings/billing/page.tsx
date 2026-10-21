@@ -240,9 +240,11 @@ export default function BillingSettingsPage() {
                         <Alert className="border-warning/20 bg-warning/10">
                             <AlertTriangle className="h-4 w-4 text-warning" />
                             <AlertDescription className="text-foreground">
-                                Send payment reminders now under{' '}
-                                <a href="/settings/reminders#send-test" className="underline">Reminders</a> sends on these days. Automatic daily reminders before the due date send only on days that are both ticked here and a step in the{' '}
-                                <a href="/settings/reminders#schedule" className="underline">Reminder schedule</a>.
+                                <p>
+                                    Send payment reminders now under{' '}
+                                    <a href="/settings/reminders#send-test" className="underline">Reminders</a> sends on these days. Automatic daily reminders before the due date send only on days that are both ticked here and a step in the{' '}
+                                    <a href="/settings/reminders#schedule" className="underline">Reminder schedule</a>.
+                                </p>
                             </AlertDescription>
                         </Alert>
                     </CardContent>

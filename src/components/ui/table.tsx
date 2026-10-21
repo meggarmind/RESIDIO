@@ -6,9 +6,20 @@ import { cn } from "@/lib/utils"
 
 interface TableProps extends React.ComponentProps<"table"> {
   variant?: "default" | "modern";
+  /**
+   * Below md, show each row as a stacked card instead of a wide table. A cell names its
+   * line with `label`; the header row is hidden visually but stays for screen readers.
+   */
+  stack?: boolean;
 }
 
-function Table({ className, variant = "default", ...props }: TableProps) {
+// Written once on the table so rows and cells need no phone classes of their own.
+const STACKED =
+  "max-md:block max-md:[&_thead]:sr-only max-md:[&_tbody]:block max-md:[&_tr]:mb-3 max-md:[&_tr]:block max-md:[&_tr]:rounded-lg max-md:[&_tr]:border max-md:[&_tr]:p-2 " +
+  "max-md:[&_td]:flex max-md:[&_td]:w-auto max-md:[&_td]:max-w-none max-md:[&_td]:items-start max-md:[&_td]:justify-between max-md:[&_td]:gap-3 max-md:[&_td]:whitespace-normal max-md:[&_td]:px-2 max-md:[&_td]:py-1.5 " +
+  "max-md:[&_td[data-label]]:before:content-[attr(data-label)] max-md:[&_td[data-label]]:before:shrink-0 max-md:[&_td[data-label]]:before:text-xs max-md:[&_td[data-label]]:before:font-semibold max-md:[&_td[data-label]]:before:uppercase max-md:[&_td[data-label]]:before:tracking-wider max-md:[&_td[data-label]]:before:text-muted-foreground";
+
+function Table({ className, variant = "default", stack = false, ...props }: TableProps) {
   return (
     <div
       data-slot="table-container"
@@ -22,6 +33,7 @@ function Table({ className, variant = "default", ...props }: TableProps) {
         className={cn(
           "w-full caption-bottom text-sm",
           variant === "modern" && "table-modern",
+          stack && STACKED,
           className
         )}
         {...props}
@@ -110,10 +122,11 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
   )
 }
 
-function TableCell({ className, ...props }: React.ComponentProps<"td">) {
+function TableCell({ className, label, ...props }: React.ComponentProps<"td"> & { label?: string }) {
   return (
     <td
       data-slot="table-cell"
+      data-label={label}
       className={cn(
         "px-4 py-3 align-middle whitespace-nowrap",
         "[&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",

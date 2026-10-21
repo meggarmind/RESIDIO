@@ -162,7 +162,7 @@ export function SettingsSection({
         {isLoading ? null : children}
       </div>
 
-      {!instant && (
+      {!instant && open && (
         <div
           className={cn(
             'flex flex-wrap items-center justify-between gap-2.5 rounded-b-xl border-t px-4 py-3 md:px-5',

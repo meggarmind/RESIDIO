@@ -5,7 +5,7 @@ import * as React from 'react';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { PERMISSIONS, ROUTE_PERMISSIONS } from '@/lib/auth/action-roles';
 import { flattenSettingsNav, settingsConfig, type SettingsItem } from '@/config/settings-nav';
@@ -136,8 +136,10 @@ describe('SettingsSection instant and warning modes', () => {
     expect(screen.queryByText('No changes')).toBeNull();
   });
 
-  it('a section that is not instant keeps its footer', () => {
+  it('a section that is not instant shows its footer while open and hides it when collapsed (#971)', () => {
     render(<Section id="channels" />);
+    expect(screen.queryByRole('button', { name: 'Save channels' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'channels' }));
     expect(screen.getByRole('button', { name: 'Save channels' })).toBeDisabled();
   });
 

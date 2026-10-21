@@ -32,6 +32,12 @@ export function formatDateTime(date: Date | string): string {
   return `${day}/${month}/${year} ${hours.toString().padStart(2, '0')}:${minutes}${ampm}`;
 }
 
+/** Date and time with the month as a name, so no reader can take it day-first or month-first: "21 Oct 2026, 09:00". */
+export function formatDateTimeMedium(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
 /** "1 day", "7 days". */
 export function formatDayCount(days: number): string {
   return `${days} ${Math.abs(days) === 1 ? 'day' : 'days'}`;

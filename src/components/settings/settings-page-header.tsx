@@ -9,8 +9,8 @@ import { activeSettingsHref, findSettingsEntry } from '@/config/settings-nav';
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation';
 
 /**
- * The heading every settings page shares (#786): an h3 under the layout's
- * "Settings" h2, with the title and description taken from `settings-nav.ts`
+ * The heading every settings page shares (#786): the page's h1 (the layout's
+ * "Settings" is a label, not a heading), with the title and description taken from `settings-nav.ts`
  * unless given, so the page and the menu cannot name it differently.
  *
  * Pass `isDirty` to warn before leaving with unsaved changes, and `onSave` to
@@ -70,7 +70,7 @@ export function SettingsPageHeader({
               ))}
             </nav>
           )}
-          <h3 className="text-lg font-medium">{title ?? entry?.item.title}</h3>
+          <h1 className="text-lg font-medium">{title ?? entry?.item.title}</h1>
           {(description ?? entry?.item.description) && (
             <p className="text-sm text-muted-foreground">{description ?? entry?.item.description}</p>
           )}
