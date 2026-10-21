@@ -10,8 +10,8 @@ residio_sources:
   - src/actions/notifications/**
   - src/app/(dashboard)/settings/email/**
   - src/app/(dashboard)/settings/notifications/**
-residio_verified_commit: 544de726
-residio_verified_at: '2026-10-20'
+residio_verified_commit: 1b200086
+residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---
 
@@ -81,6 +81,12 @@ Before saving a wording change:
 1. Read the **Preview**, which shows your saved wording with sample data.
 2. Keep the subject short, because it is all some mail apps show.
 3. Check the email reads correctly with a real name and amount, not only the sample.
+
+### WhatsApp wording
+
+The **WhatsApp** tab on the same page edits the text of two WhatsApp messages: the payment reminder and the payment receipt. It works the same way as the email wording (empty means the built-in text, **Reset to default**, a variable list, a Preview), with one message per event and a limit of 4096 characters. Announcements are written each time they are sent, so they are not listed.
+
+Editing is available only while Chatmaid is the connected WhatsApp provider. With Meta or Twilio, WhatsApp sends an approved template that is set in code, so the tab shows each template's name and the order its values are filled in, and nothing can be changed. A change takes effect on the next send.
 
 ## Reminders and schedules
 

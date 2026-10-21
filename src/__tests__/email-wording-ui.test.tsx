@@ -7,13 +7,21 @@ const mocks = vi.hoisted(() => ({
   permissions: [] as string[],
   templates: [] as unknown[],
   mutateAsync: vi.fn(),
+  provider: 'chatmaid' as string | null,
+}));
+
+vi.mock('@/actions/whatsapp/connection', () => ({
+  getWhatsAppConnectionStatus: async () => ({ data: { provider: mocks.provider } }),
 }));
 
 vi.mock('@/lib/auth/auth-provider', () => ({
   useAuth: () => ({ hasPermission: (p: string) => mocks.permissions.includes(p) }),
 }));
 vi.mock('@/hooks/use-notifications', () => ({
-  useNotificationTemplates: () => ({ data: mocks.templates, isLoading: false }),
+  useNotificationTemplates: (options?: { channel?: string }) => ({
+    data: (mocks.templates as Array<{ channel: string }>).filter((t) => t.channel === (options?.channel ?? 'email')),
+    isLoading: false,
+  }),
   useUpdateEventContent: () => ({ mutateAsync: mocks.mutateAsync, isPending: false }),
 }));
 // Render sheet content only while open, without Radix portals.
@@ -43,19 +51,20 @@ import { TemplateList } from '@/components/notifications/template-list';
 import { EVENT_KEYS } from '@/lib/notifications/event-content-registry';
 import type { NotificationTemplate } from '@/lib/notifications/types';
 
-const row = (event: string, overrides: Record<string, string> = {}) =>
+const row = (event: string, overrides: Record<string, string> = {}, channel = 'email') =>
   ({
     id: `id-${event}`,
     name: event,
     display_name: event,
     category: 'general',
-    channel: 'email',
+    channel,
     event,
     overrides,
   }) as unknown as NotificationTemplate;
 
 beforeEach(() => {
   mocks.permissions = [];
+  mocks.provider = 'chatmaid';
   mocks.templates = EVENT_KEYS.map((e) => row(e));
   mocks.mutateAsync.mockReset();
   mocks.mutateAsync.mockResolvedValue({});
@@ -70,6 +79,51 @@ describe('template list', () => {
     render(<TemplateList canManage={false} onEdit={vi.fn()} onPreview={vi.fn()} />);
     expect(screen.queryByRole('button', { name: /Edit/ })).toBeNull();
     expect(screen.getAllByRole('button', { name: /Preview/ })).toHaveLength(EVENT_KEYS.length);
+  });
+});
+
+describe('whatsapp tab (#908)', () => {
+  beforeEach(() => {
+    mocks.templates = [
+      ...EVENT_KEYS.map((e) => row(e)),
+      row('payment_receipt', {}, 'whatsapp'),
+      row('payment_reminder', { body: 'Hi' }, 'whatsapp'),
+    ];
+  });
+
+  it('lists only the two WhatsApp events, editable under Chatmaid', () => {
+    render(<TemplateList channel="whatsapp" whatsappProvider="chatmaid" canManage={true} onEdit={vi.fn()} />);
+    expect(screen.getAllByRole('button', { name: /Edit/ })).toHaveLength(2);
+    expect(screen.getByText('1 field edited')).toBeInTheDocument();
+  });
+
+  it.each(['meta', 'twilio', null])('shows the code-owned template read-only for provider %s', (provider) => {
+    render(<TemplateList channel="whatsapp" whatsappProvider={provider} canManage={true} onEdit={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: /Edit/ })).toBeNull();
+    expect(screen.getByText('invoice_reminder')).toBeInTheDocument();
+    expect(screen.getByText('payment_received')).toBeInTheDocument();
+    expect(screen.getAllByText(/Parameters in order/)).toHaveLength(2);
+    expect(screen.getByText(/\{\{resident_name\}\}, \{\{amount\}\}, \{\{payment_date\}\}, \{\{reference_number\}\}/)).toBeInTheDocument();
+  });
+
+  it('the form saves to the whatsapp channel', async () => {
+    render(<TemplateForm template={row('payment_receipt', {}, 'whatsapp')} />);
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Got {{amount}}' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save wording' }));
+    await waitFor(() => expect(mocks.mutateAsync).toHaveBeenCalledTimes(1));
+    expect(mocks.mutateAsync).toHaveBeenCalledWith({
+      event: 'payment_receipt',
+      channel: 'whatsapp',
+      overrides: { body: 'Got {{amount}}' },
+    });
+  });
+
+  it('the form refuses a variable outside the WhatsApp list', async () => {
+    render(<TemplateForm template={row('payment_receipt', {}, 'whatsapp')} />);
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'At {{property}}' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save wording' }));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(mocks.mutateAsync).not.toHaveBeenCalled();
   });
 });
 

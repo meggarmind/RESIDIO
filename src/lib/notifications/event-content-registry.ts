@@ -30,6 +30,19 @@ export interface EventVariable {
   description: string;
 }
 
+export type ContentChannel = 'email' | 'whatsapp';
+
+/** Wording spec for one channel of an event. Email lives on `EventDefinition` itself. */
+export interface ChannelContent {
+  variables: EventVariable[];
+  fields: EventField[];
+  /**
+   * WhatsApp only: the variable behind each positional Meta/Twilio template parameter, in order.
+   * Must match the arrays built in `src/lib/whatsapp/outbound.ts`.
+   */
+  parameterOrder?: string[];
+}
+
 export interface EventDefinition {
   key: EventKey;
   /** `notification_templates.name` of the row that stores this event's overrides. */
@@ -38,7 +51,12 @@ export interface EventDefinition {
   description: string;
   variables: EventVariable[];
   fields: EventField[];
+  /** Only events with an editable WhatsApp text (#908). Announcements stay in code. */
+  whatsapp?: ChannelContent;
 }
+
+/** Chatmaid's per-message cap (`chatmaid.ts`); saved WhatsApp wording must fit under it. */
+export const WHATSAPP_MAX_CONTENT_LENGTH = 4096;
 
 const V = {
   resident_name: { name: 'resident_name', description: "Resident's full name" },
@@ -50,6 +68,8 @@ const V = {
   due_date: { name: 'due_date', description: 'Invoice due date' },
   due_text: { name: 'due_text', description: 'When it is due, e.g. "tomorrow"' },
   days_overdue: { name: 'days_overdue', description: 'Days past the due date' },
+  payment_date: { name: 'payment_date', description: 'Date the payment was received' },
+  reference_number: { name: 'reference_number', description: 'Payment reference, or "Not provided"' },
   property: { name: 'property', description: 'House number and street' },
 } satisfies Record<string, EventVariable>;
 
@@ -65,6 +85,8 @@ export const SAMPLE_VARIABLES: Record<string, string> = {
   due_text: 'tomorrow',
   days_overdue: '4',
   property: '12 Palm Avenue',
+  payment_date: '12 Jan 2027',
+  reference_number: 'REF-88231',
 };
 
 const f = (key: string, label: string, def: string, multiline = false, group?: string): EventField => ({
@@ -154,6 +176,18 @@ export const EVENT_REGISTRY: Record<EventKey, EventDefinition> = {
       f('body', 'Opening message', 'Thank you for your payment. Please find your receipt details below.', true),
       f('sign_off', 'Sign-off', 'Thank you,'),
     ],
+    whatsapp: {
+      variables: [V.resident_name, V.amount, V.payment_date, V.reference_number],
+      parameterOrder: ['resident_name', 'amount', 'payment_date', 'reference_number'],
+      fields: [
+        f(
+          'body',
+          'Message',
+          "Hi {{resident_name}}, we've received your payment of {{amount}} on {{payment_date}} (Ref: {{reference_number}}). Thank you.",
+          true
+        ),
+      ],
+    },
   },
   payment_reminder: {
     key: 'payment_reminder',
@@ -172,6 +206,18 @@ export const EVENT_REGISTRY: Record<EventKey, EventDefinition> = {
       ),
       f('sign_off', 'Sign-off', 'Thank you,'),
     ],
+    whatsapp: {
+      variables: [V.resident_name, V.invoice_number, V.amount, V.due_date],
+      parameterOrder: ['resident_name', 'invoice_number', 'amount', 'due_date'],
+      fields: [
+        f(
+          'body',
+          'Message',
+          'Hi {{resident_name}}, invoice {{invoice_number}} for {{amount}} is due {{due_date}}. Please make payment at your earliest convenience.',
+          true
+        ),
+      ],
+    },
   },
   payment_reminder_escalated: {
     key: 'payment_reminder_escalated',
@@ -215,13 +261,25 @@ export function isEventKey(value: string): value is EventKey {
   return (EVENT_KEYS as readonly string[]).includes(value);
 }
 
-export function getEventDefaults(event: EventKey): Record<string, string> {
-  return Object.fromEntries(EVENT_REGISTRY[event].fields.map((field) => [field.key, field.default]));
+/** Variables and fields for one channel, or null when the event has no editable text there. */
+export function getChannelContent(event: EventKey, channel: ContentChannel = 'email'): ChannelContent | null {
+  const definition = EVENT_REGISTRY[event];
+  if (channel === 'email') return { variables: definition.variables, fields: definition.fields };
+  return definition.whatsapp ?? null;
+}
+
+export function getEventDefaults(event: EventKey, channel: ContentChannel = 'email'): Record<string, string> {
+  const fields = getChannelContent(event, channel)?.fields ?? [];
+  return Object.fromEntries(fields.map((field) => [field.key, field.default]));
 }
 
 /** Stored overrides win over defaults; an empty or whitespace-only override means the default. */
-export function mergeEventContent(event: EventKey, overrides: unknown): Record<string, string> {
-  const merged = getEventDefaults(event);
+export function mergeEventContent(
+  event: EventKey,
+  overrides: unknown,
+  channel: ContentChannel = 'email'
+): Record<string, string> {
+  const merged = getEventDefaults(event, channel);
   if (overrides && typeof overrides === 'object' && !Array.isArray(overrides)) {
     for (const [key, value] of Object.entries(overrides as Record<string, unknown>)) {
       if (Object.hasOwn(merged, key) && typeof value === 'string' && value.trim() !== '') merged[key] = value;
@@ -240,8 +298,8 @@ export function renderEventText(text: string, variables: Record<string, string |
   });
 }
 
-export function findUnknownVariables(event: EventKey, text: string): string[] {
-  const allowed = new Set(EVENT_REGISTRY[event].variables.map((v) => v.name));
+export function findUnknownVariables(event: EventKey, text: string, channel: ContentChannel = 'email'): string[] {
+  const allowed = new Set((getChannelContent(event, channel)?.variables ?? []).map((v) => v.name));
   const unknown = new Set<string>();
   for (const match of text.matchAll(VARIABLE_PATTERN)) {
     if (!allowed.has(match[1])) unknown.add(match[1]);
@@ -251,16 +309,28 @@ export function findUnknownVariables(event: EventKey, text: string): string[] {
 
 export type OverrideValidation = { ok: true } | { ok: false; errors: string[] };
 
-/** Rejects unknown field keys and any `{{variable}}` outside the event's allowed list. */
-export function validateOverrides(event: EventKey, overrides: Record<string, string>): OverrideValidation {
-  const known = new Set(EVENT_REGISTRY[event].fields.map((field) => field.key));
+/**
+ * Rejects unknown field keys and any `{{variable}}` outside the event's allowed list. WhatsApp text
+ * is also capped at `WHATSAPP_MAX_CONTENT_LENGTH`, the most Chatmaid will send.
+ */
+export function validateOverrides(
+  event: EventKey,
+  overrides: Record<string, string>,
+  channel: ContentChannel = 'email'
+): OverrideValidation {
+  const content = getChannelContent(event, channel);
+  if (!content) return { ok: false, errors: [`${event} has no editable ${channel} wording`] };
+  const known = new Set(content.fields.map((field) => field.key));
   const errors: string[] = [];
   for (const [key, value] of Object.entries(overrides)) {
     if (!known.has(key)) {
       errors.push(`Unknown field "${key}"`);
       continue;
     }
-    const unknown = findUnknownVariables(event, value);
+    if (channel === 'whatsapp' && value.length > WHATSAPP_MAX_CONTENT_LENGTH) {
+      errors.push(`${key}: over ${WHATSAPP_MAX_CONTENT_LENGTH} characters`);
+    }
+    const unknown = findUnknownVariables(event, value, channel);
     if (unknown.length > 0) {
       errors.push(`${key}: unknown variable ${unknown.map((name) => `{{${name}}}`).join(', ')}`);
     }

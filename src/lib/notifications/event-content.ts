@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import {
   getEventDefaults,
   mergeEventContent,
+  type ContentChannel,
   type EventKey,
 } from './event-content-registry';
 
@@ -14,7 +15,7 @@ export * from './event-content-registry';
  */
 export async function getEventContent(
   event: EventKey,
-  channel: string = 'email'
+  channel: ContentChannel = 'email'
 ): Promise<Record<string, string>> {
   try {
     const supabase = createAdminClient();
@@ -27,11 +28,11 @@ export async function getEventContent(
 
     if (error) {
       console.error('[EventContent] read failed, using defaults', { event, channel, error });
-      return getEventDefaults(event);
+      return getEventDefaults(event, channel);
     }
-    return mergeEventContent(event, data?.overrides);
+    return mergeEventContent(event, data?.overrides, channel);
   } catch (error) {
     console.error('[EventContent] read threw, using defaults', { event, channel, error });
-    return getEventDefaults(event);
+    return getEventDefaults(event, channel);
   }
 }
