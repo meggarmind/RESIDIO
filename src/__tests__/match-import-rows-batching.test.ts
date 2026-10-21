@@ -76,6 +76,8 @@ function makeSupabase() {
       chain.lte = (col: string, val: unknown) => (entry.filters.push({ kind: 'lte', col, val }), chain);
       chain.order = (col: string) => (orders.push(col), chain);
       chain.range = (from: number, to: number) => ((entry.range = [from, to]), chain);
+      let limitN = Infinity;
+      chain.limit = (n: number) => ((limitN = n), chain);
 
       const matching = () => {
         let out = (db[table] ?? []).filter((r) =>
@@ -101,9 +103,9 @@ function makeSupabase() {
         if (entry.op === 'update') return { data: null, error: table === 'bank_statement_rows' ? updateError : null };
         return { data: matching(), error: null };
       };
-      // Mirrors PostgREST: maybeSingle errors on more than one match.
+      // Mirrors PostgREST: maybeSingle errors on more than one match, unless limited to one.
       chain.maybeSingle = async () => {
-        const rows = matching();
+        const rows = matching().slice(0, limitN);
         return rows.length > 1 ? { data: null, error: { message: 'multiple rows' } } : { data: rows[0] ?? null, error: null };
       };
       chain.single = chain.maybeSingle;
