@@ -104,6 +104,7 @@ read from the container's environment by the command, so it is never written int
 | `fetch-emails` | `0 * * * *` | 300000 |
 | `refresh-payment-cadence` | `0 0 * * *` | 300000 |
 | `whatsapp-retention` | `15 0 * * *` | 60000 |
+| `whatsapp-chatmaid-reconcile` | `*/15 * * * *` | 120000 |
 | `generate-invoices` | `0 6 * * *` | 300000 |
 | `generate-reports` | `0 6 * * *` | 300000 |
 | `process-report-schedules` | `0 7 * * *` | 300000 |
@@ -144,6 +145,9 @@ node -e "fetch('http://127.0.0.1:3000/api/cron/refresh-payment-cadence',{headers
 # whatsapp-retention  (15 0 * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/whatsapp-retention',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(60000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
 
+# whatsapp-chatmaid-reconcile  (*/15 * * * *)
+node -e "fetch('http://127.0.0.1:3000/api/cron/whatsapp-chatmaid-reconcile',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(120000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
+
 # generate-invoices  (0 6 * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/generate-invoices',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(300000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
 
@@ -172,6 +176,7 @@ node -e "fetch('http://127.0.0.1:3000/api/cron/process-notifications',{headers:{
 | 120 s | `payment-reminders` | Declared `maxDuration`: multi-channel sends. |
 | 60 s | `process-notifications` | Declared `maxDuration`. |
 | 60 s | `expire-approvals` | One read, one set-based UPDATE inside `process_expired_approvals()` and one in-app notification per expired request (#558). Hourly, so the backlog is small. New route: the owner must create this Coolify task; nothing runs it until then. |
+| 120 s | `whatsapp-chatmaid-reconcile` | New route (#511): at most 3 Chatmaid list calls (15 s timeout each) plus the Assistant reply for any message the webhook missed. Nothing runs it until the owner creates this Coolify task. |
 | 60 s | `whatsapp-retention` | **Previously undeclared.** Four bulk `DELETE ... WHERE <timestamp> < cutoff` statements run in parallel (`src/lib/whatsapp/retention.ts`) and nothing else; it runs daily so the backlog is small. Anything near 60 s means something is wrong. |
 
 A timeout aborts the caller, **not** the server-side work: the route handler keeps running in the
