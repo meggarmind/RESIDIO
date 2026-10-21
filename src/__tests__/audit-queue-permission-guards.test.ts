@@ -300,7 +300,7 @@ describe('audit_logs RLS policy (ADR-0006 boundary, expressed as a test)', () =>
     expect(regainMigration).not.toContain("ap.category = 'settings'");
   });
 
-  it('no migration grants settings.view_audit_logs back to chairman', () => {
+  it('no migration other than the #825 owner decision grants settings.view_audit_logs back to chairman', () => {
     // `view_audit_logs` should appear in exactly these places in migration
     // history: the seed that declares the app_permissions row, this issue's
     // own policy migration, and #187's policy migration (both of which
@@ -318,6 +318,9 @@ describe('audit_logs RLS policy (ADR-0006 boundary, expressed as a test)', () =>
       // #63 rewrites the audit_logs and search_logs USING clauses to the
       // InitPlan form; it names the permission in ALTER POLICY text, not a grant.
       '20261020150000_rls_helper_initplan_and_exact_permissions.sql',
+      // #825 grants it to chairman ON PURPOSE: the owner's RBAC redesign (#822, 2026-10-19) gives
+      // chairman all six settings.* permissions, superseding ADR-0006's audit-log boundary.
+      '20261022160000_seed_rbac_role_model.sql',
     ]);
 
     const offenders = files.filter(

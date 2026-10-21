@@ -230,6 +230,8 @@ const RESERVED_ROLE_NAMES = [
   'financial_officer',
   'vice_chairman',
   'secretary',
+  // Retired by #825; still keyed on by isResidentRole(), so never a custom name.
+  'resident',
 ];
 
 /**
@@ -766,27 +768,6 @@ export async function assignRoleToUser(
     return { success: false, error: LAST_SUPER_ADMIN_ERROR };
   }
 
-  // For the "resident" role, verify the user's linked resident is verified
-  if (targetRole?.name === 'resident') {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('resident_id')
-      .eq('id', userId)
-      .single();
-
-    if (profile?.resident_id) {
-      const { isResidentVerified } = await import('../residents/verify-resident');
-      const verificationCheck = await isResidentVerified(profile.resident_id);
-
-      if (!verificationCheck.isVerified) {
-        return {
-          success: false,
-          error: `Cannot assign "Resident" role: the linked resident must be verified first (current status: ${verificationCheck.status || 'unknown'})`,
-        };
-      }
-    }
-  }
-
   // Get old role for audit
   const { data: oldProfile } = await supabase
     .from('profiles')
@@ -834,7 +815,7 @@ export async function assignRoleToUser(
 }
 
 /**
- * Get all users with admin roles (excluding base 'resident' role)
+ * Get all users with a role. A plain resident holds none (role_id null, #825).
  * Used to display the current admins list
  */
 export async function getCurrentAdmins(): Promise<{
@@ -860,7 +841,7 @@ export async function getCurrentAdmins(): Promise<{
 
   const supabase = await createServerSupabaseClient();
 
-  // Get profiles with non-resident roles, joined with residents and roles
+  // Get profiles holding a role, joined with residents and roles
   const { data, error } = await supabase
     .from('profiles')
     .select(`
@@ -897,13 +878,10 @@ export async function getCurrentAdmins(): Promise<{
     return { success: false, error: error.message };
   }
 
-  // Filter to only include non-resident roles and map to clean format
+  // Drop any row whose role join came back empty, and map to clean format
   const admins = (data || [])
-    .filter((profile) => {
-      // app_roles is a single object (not array) due to role_id FK
-      const role = profile.app_roles as unknown as { name: string } | null;
-      return role && role.name !== 'resident';
-    })
+    // app_roles is a single object (not array) due to role_id FK
+    .filter((profile) => profile.app_roles != null)
     .map((profile) => {
       // residents is a single object (not array) due to resident_id FK
       const resident = profile.residents as unknown as {

@@ -12,12 +12,12 @@ import type { Database as GeneratedDatabase } from '@/types/database.generated';
 export type BuiltInRoleName =
   | 'super_admin'
   | 'chairman'
-  | 'vice_chairman'
   | 'financial_officer'
   | 'security_officer'
   | 'secretary'
-  | 'project_manager'
-  | 'resident';
+  | 'welfare_officer'
+  | 'trustee'
+  | 'security_guard_supervisor';
 
 /**
  * A value of app_roles.name.

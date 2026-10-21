@@ -17,7 +17,7 @@ residio_app_version: '0.4.0'
 Auditability is part of every administrative workflow. After a successful write, confirm the success notification and use **Audit Logs** when the operation needs evidence.
 
 :::note[Who can read the audit log]
-Audit Logs are open only to roles holding **View audit logs** — the super administrator and the vice chairman. The chairman does **not** have it, deliberately: the audit trail records what administrators did, so the people it records do not control who reads it.
+Audit Logs are open only to roles holding **View audit logs** — the super administrator and the chairman.
 
 This is enforced in the database as well as the interface, so it holds however the data is reached. If you need evidence from the log and cannot open it, ask a super administrator rather than looking for another route to the same records.
 :::

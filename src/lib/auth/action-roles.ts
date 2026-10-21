@@ -107,6 +107,9 @@ export const PERMISSIONS = {
   // System Module (Super Admin Only)
   SYSTEM_MANAGE_ROLES: 'system.manage_roles',
   SYSTEM_ASSIGN_ROLES: 'system.assign_roles',
+  // Granting super_admin, chairman or trustee, or changing an account holding
+  // super_admin or chairman (#822). Held by super_admin only.
+  SYSTEM_ASSIGN_BOARD_ROLES: 'system.assign_board_roles',
   SYSTEM_MANAGE_MAINTENANCE: 'system.manage_maintenance',
   SYSTEM_MANAGE_DATA_RETENTION: 'system.manage_data_retention',
   SYSTEM_VIEW_ALL_SETTINGS: 'system.view_all_settings',
@@ -373,11 +376,12 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
 export const ADMIN_ROLE_NAMES: readonly BuiltInRoleName[] = [
   'super_admin',
   'chairman',
-  'vice_chairman',
   'financial_officer',
   'security_officer',
   'secretary',
-  'project_manager',
+  'welfare_officer',
+  'trustee',
+  'security_guard_supervisor',
 ] as const;
 
 /** A role as read from an `app_roles!profiles_role_id_fkey (name, category)` join. */

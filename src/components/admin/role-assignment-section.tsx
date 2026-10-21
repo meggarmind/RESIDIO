@@ -179,8 +179,6 @@ export function RoleAssignmentSection() {
   // enforcement boundary, this just avoids offering choices that would be
   // rejected.
   const assignableRoles = roles?.filter(role => {
-    // Don't show resident role (base role)
-    if (role.name === 'resident') return false;
     // Super admin and chairman may only be granted by an existing super admin.
     // Previously super_admin was hidden unconditionally, which meant no super
     // admin could ever be appointed through the app at all.
