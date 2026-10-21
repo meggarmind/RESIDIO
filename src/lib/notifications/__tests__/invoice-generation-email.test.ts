@@ -5,7 +5,7 @@ import {
 } from '@/lib/notifications/invoice-generation-email';
 import { addToQueue } from '@/lib/notifications/queue';
 import { InvoiceGeneratedEmail } from '@/emails';
-import { getEventContent } from '@/lib/notifications/event-content';
+import { getEventContent, isEventChannelEnabled } from '@/lib/notifications/event-content';
 import { getSettingValueAsService } from '@/lib/settings/service';
 import { createAdminClient } from '@/lib/supabase/server';
 
@@ -17,7 +17,11 @@ vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
 // #907: the wording read is its own admin-client query; keep it out of this test's call counts.
 vi.mock('@/lib/notifications/event-content', async (importActual) => {
   const actual = await importActual<typeof import('@/lib/notifications/event-content')>();
-  return { ...actual, getEventContent: vi.fn(async () => actual.getEventDefaults('invoice_generated')) };
+  return {
+    ...actual,
+    getEventContent: vi.fn(async () => actual.getEventDefaults('invoice_generated')),
+    isEventChannelEnabled: vi.fn(async () => true),
+  };
 });
 vi.mock('@/lib/notifications/queue', () => ({
   addToQueue: vi.fn(),
@@ -54,6 +58,16 @@ beforeEach(() => {
 describe('invoice generation email queue', () => {
   it('uses an invoice-specific stable deduplication key', () => {
     expect(invoiceGeneratedDeduplicationKey('invoice-1')).toBe('invoice-generated:invoice-1');
+  });
+
+  it('does not queue when the admin has switched the invoice email channel off (#909)', async () => {
+    vi.mocked(isEventChannelEnabled).mockResolvedValueOnce(false);
+
+    const result = await queueInvoiceGeneratedEmail('invoice-1', 'candidate-1');
+
+    expect(isEventChannelEnabled).toHaveBeenCalledWith('invoice_generated', 'email');
+    expect(result.status).toBe('skipped');
+    expect(addToQueueMock).not.toHaveBeenCalled();
   });
 
   it('does not queue when invoice notifications are disabled', async () => {

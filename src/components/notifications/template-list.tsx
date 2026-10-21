@@ -19,15 +19,18 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { IconBox } from '@/components/ui/icon-box';
 import { Eye, Mail, MessageCircle, Pencil } from 'lucide-react';
-import { useNotificationTemplates } from '@/hooks/use-notifications';
+import { useNotificationTemplates, useSetEventChannelEnabled } from '@/hooks/use-notifications';
 import {
   EVENT_KEYS,
   EVENT_REGISTRY,
   getChannelContent,
+  getToggleableChannels,
   type ContentChannel,
 } from '@/lib/notifications/event-content-registry';
 import type { NotificationTemplate } from '@/lib/notifications/types';
@@ -50,6 +53,7 @@ export function TemplateList({
   onPreview,
 }: TemplateListProps) {
   const { data: templates, isLoading } = useNotificationTemplates({ channel });
+  const setEnabled = useSetEventChannelEnabled();
   const readOnly = channel === 'whatsapp' && whatsappProvider !== 'chatmaid';
 
   if (isLoading) {
@@ -72,6 +76,7 @@ export function TemplateList({
           <TableRow>
             <TableHead>{channel === 'whatsapp' ? 'Message' : 'Email'}</TableHead>
             <TableHead>{readOnly ? 'Template' : 'Wording'}</TableHead>
+            <TableHead>Sending</TableHead>
             <TableHead className="w-[200px] text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
@@ -117,6 +122,28 @@ export function TemplateList({
                         ? `${editedCount} ${editedCount === 1 ? 'field' : 'fields'} edited`
                         : 'Default'}
                     </Badge>
+                  )}
+                </TableCell>
+                <TableCell>
+                  {getToggleableChannels(key).includes(channel) ? (
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={template?.is_active !== false}
+                        disabled={!canManage || !template || setEnabled.isPending}
+                        onCheckedChange={(enabled) => setEnabled.mutate({ event: key, channel, enabled })}
+                        aria-label={`Send ${definition.displayName} by ${channel === 'whatsapp' ? 'WhatsApp' : 'email'}`}
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        {template?.is_active !== false ? 'On' : 'Off'}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-muted-foreground">
+                      Channels are set per step in{' '}
+                      <Link href="/settings/notifications/reminders/schedule" className="underline">
+                        Reminder Schedule
+                      </Link>
+                    </div>
                   )}
                 </TableCell>
                 <TableCell className="text-right">

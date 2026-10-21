@@ -11,7 +11,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { z } from 'zod';
-import { EVENT_KEYS, validateOverrides } from '@/lib/notifications/event-content-registry';
+import { EVENT_KEYS, getToggleableChannels, isEventKey, validateOverrides } from '@/lib/notifications/event-content-registry';
 import type { NotificationTemplate } from '@/lib/notifications/types';
 
 /**
@@ -156,3 +156,52 @@ export async function updateEventContent(
   return { data: data as unknown as NotificationTemplate, error: null };
 }
 
+
+/**
+ * Switch one channel of a payment receipt, welcome or invoice message on or off (#909). Stored as
+ * `is_active` on that event's `notification_templates` row; senders read it through `isEventChannelEnabled`.
+ */
+export async function setEventChannelEnabled(
+  event: string,
+  channel: string,
+  enabled: boolean
+): Promise<{ data: NotificationTemplate | null; error: string | null }> {
+  const auth = await authorizePermission(PERMISSIONS.NOTIFICATIONS_MANAGE);
+  if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
+
+  if (!isEventKey(event) || !(getToggleableChannels(event) as string[]).includes(channel)) {
+    return { data: null, error: 'This channel cannot be switched for this message' };
+  }
+
+  const supabase = await createServerSupabaseClient();
+
+  const { data: oldRow, error: readError } = await supabase
+    .from('notification_templates')
+    .select('*')
+    .eq('event', event)
+    .eq('channel', channel)
+    .maybeSingle();
+
+  if (readError) return { data: null, error: readError.message };
+  if (!oldRow) return { data: null, error: 'Template not found' };
+
+  const { data, error } = await supabase
+    .from('notification_templates')
+    .update({ is_active: enabled })
+    .eq('id', oldRow.id)
+    .select('*')
+    .single();
+
+  if (error) return { data: null, error: error.message };
+
+  await logAudit({
+    action: enabled ? 'ACTIVATE' : 'DEACTIVATE',
+    entityType: 'notification_templates',
+    entityId: oldRow.id,
+    entityDisplay: data.display_name,
+    oldValues: { is_active: oldRow.is_active },
+    newValues: { is_active: enabled },
+  });
+
+  return { data: data as unknown as NotificationTemplate, error: null };
+}

@@ -5,7 +5,7 @@ import { getEstateEmailSettings } from '@/lib/email';
 import { createAdminClient } from '@/lib/supabase/server';
 import { embed } from '@/lib/utils';
 import { addToQueue, PRIORITY } from './queue';
-import { formatEventCurrency, formatEventProperty, getEventContent, renderEventText } from './event-content';
+import { formatEventCurrency, formatEventProperty, getEventContent, isEventChannelEnabled, renderEventText } from './event-content';
 
 export type InvoiceEmailQueueStatus = 'queued' | 'skipped' | 'failed';
 
@@ -35,6 +35,10 @@ export async function queueInvoiceGeneratedEmail(
   // the RLS-bound `getSettingValue` always returns null.
   const enabled = await getSettingValueAsService('email_invoice_notifications_enabled');
   if (enabled === false) return { status: 'skipped', error: 'Invoice notifications are disabled' };
+
+  if (!(await isEventChannelEnabled('invoice_generated', 'email'))) {
+    return { status: 'skipped', error: 'Invoice emails are switched off in message wording settings' };
+  }
 
   const supabase = createAdminClient();
   const { data: invoice, error } = await supabase

@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   createServerSupabaseClient: vi.fn(),
   allocateWalletToInvoices: vi.fn(),
   isWhatsAppOptedIn: vi.fn(),
+  isEventChannelEnabled: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -22,6 +23,7 @@ vi.mock('@/actions/billing/wallet', () => ({
   allocateWalletToInvoices: mocks.allocateWalletToInvoices,
 }));
 vi.mock('@/lib/whatsapp/opt-in', () => ({ isWhatsAppOptedIn: mocks.isWhatsAppOptedIn }));
+vi.mock('@/lib/notifications/event-content', () => ({ isEventChannelEnabled: mocks.isEventChannelEnabled }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit: mocks.logAudit }));
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: mocks.authorizePermission }));
 vi.mock('@/lib/notifications/preferences', () => ({
@@ -77,6 +79,7 @@ beforeEach(() => {
   mocks.addToQueue.mockResolvedValue({ success: true });
   mocks.shouldSendToResident.mockResolvedValue({ shouldSend: true });
   mocks.isWhatsAppOptedIn.mockResolvedValue(true);
+  mocks.isEventChannelEnabled.mockResolvedValue(true);
   mocks.createServerSupabaseClient.mockResolvedValue(supabaseWith('+2348000000000'));
 });
 
@@ -128,6 +131,16 @@ describe('createPaymentCore WhatsApp trigger (#6)', () => {
 
     const result = await createPaymentCore(INPUT);
 
+    expect(result.success).toBe(true);
+    expect(mocks.addToQueue).not.toHaveBeenCalled();
+  });
+
+  it('queues nothing when the admin has switched the receipt WhatsApp channel off (#909)', async () => {
+    mocks.isEventChannelEnabled.mockResolvedValue(false);
+
+    const result = await createPaymentCore(INPUT);
+
+    expect(mocks.isEventChannelEnabled).toHaveBeenCalledWith('payment_receipt', 'whatsapp');
     expect(result.success).toBe(true);
     expect(mocks.addToQueue).not.toHaveBeenCalled();
   });

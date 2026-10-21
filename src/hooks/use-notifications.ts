@@ -13,6 +13,7 @@ import {
   getTemplates,
   getTemplate,
   updateEventContent,
+  setEventChannelEnabled,
   // Schedules
   getSchedules,
   getSchedule,
@@ -133,6 +134,25 @@ export function useUpdateEventContent() {
     },
     onError: (error: Error) => {
       toast.error(`Failed to save wording: ${error.message}`);
+    },
+  });
+}
+
+export function useSetEventChannelEnabled() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: { event: EventKey; channel: NotificationChannel; enabled: boolean }) => {
+      const { data, error } = await setEventChannelEnabled(params.event, params.channel, params.enabled);
+      if (error) throw new Error(error);
+      return data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: notificationKeys.templates() });
+      toast.success(variables.enabled ? 'Channel switched on' : 'Channel switched off');
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to change channel: ${error.message}`);
     },
   });
 }

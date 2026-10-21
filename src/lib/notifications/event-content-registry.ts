@@ -261,6 +261,15 @@ export function isEventKey(value: string): value is EventKey {
   return (EVENT_KEYS as readonly string[]).includes(value);
 }
 
+/** Events whose channels an admin switches on or off (#909). Reminders pick channels per schedule step instead. */
+export const CHANNEL_TOGGLE_EVENTS: readonly EventKey[] = ['payment_receipt', 'welcome_resident', 'invoice_generated'];
+
+/** Channels an admin may switch for an event: email always, WhatsApp only where there is WhatsApp text to send. */
+export function getToggleableChannels(event: EventKey): ContentChannel[] {
+  if (!CHANNEL_TOGGLE_EVENTS.includes(event)) return [];
+  return EVENT_REGISTRY[event].whatsapp ? ['email', 'whatsapp'] : ['email'];
+}
+
 /** Variables and fields for one channel, or null when the event has no editable text there. */
 export function getChannelContent(event: EventKey, channel: ContentChannel = 'email'): ChannelContent | null {
   const definition = EVENT_REGISTRY[event];
