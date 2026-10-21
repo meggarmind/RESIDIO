@@ -245,10 +245,12 @@ function overlaps(model: Model, tables = touched) {
 }
 
 describe("#956: merging permissive policies changes no access", () => {
-  it("has the seven table-group migrations, then the two part 2 migrations, after every other migration", () => {
+  it("has the seven table-group migrations, then the two part 2 migrations, contiguous and after every earlier migration", () => {
     expect(mergeFiles).toHaveLength(7);
     expect(rescopeFiles).toHaveLength(2);
-    expect(files.slice(firstMerge)).toEqual([...mergeFiles, ...rescopeFiles]);
+    const group = [...mergeFiles, ...rescopeFiles];
+    // Later unrelated migrations may follow the group; none may interleave with it.
+    expect(files.slice(firstMerge, firstMerge + group.length)).toEqual(group);
   });
 
   it("touches the 34 tables whose overlaps are same-role", () => {
