@@ -17,7 +17,7 @@ residio_sources:
   - src/app/(dashboard)/system/page.tsx
   - src/components/system/**
   - src/actions/system/**
-residio_verified_commit: 723fc8b2
+residio_verified_commit: 6bed011d
 residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---
