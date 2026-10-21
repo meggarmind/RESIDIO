@@ -3,10 +3,10 @@
 /**
  * Notification Template List Component
  *
- * Displays a table of notification templates with actions.
+ * Lists the resident emails whose wording an admin can edit (#907). The set is fixed by the
+ * event registry, so there is nothing to create, duplicate or delete here.
  */
 
-import { useState } from 'react';
 import {
   Table,
   TableBody,
@@ -16,242 +16,99 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/lib/auth/auth-provider';
-import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { Badge } from '@/components/ui/badge';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import {
-  MoreHorizontal,
-  Pencil,
-  Trash2,
-  Power,
-  PowerOff,
-  Eye,
-  Lock,
-  Mail,
-  MessageSquare,
-  Bell,
-} from 'lucide-react';
-import {
-  useNotificationTemplates,
-  useDeleteTemplate,
-  useToggleTemplateActive,
-} from '@/hooks/use-notifications';
-import {
-  NOTIFICATION_CATEGORY_LABELS,
-  NOTIFICATION_CHANNEL_LABELS,
-} from '@/lib/notifications/types';
-import type { NotificationTemplate, NotificationCategory, NotificationChannel } from '@/lib/notifications/types';
+import { IconBox } from '@/components/ui/icon-box';
+import { Eye, Mail, Pencil } from 'lucide-react';
+import { useNotificationTemplates } from '@/hooks/use-notifications';
+import { EVENT_KEYS, EVENT_REGISTRY } from '@/lib/notifications/event-content-registry';
+import type { NotificationTemplate } from '@/lib/notifications/types';
 
 interface TemplateListProps {
+  /** Edit controls show only when the viewer holds notifications.manage. */
+  canManage: boolean;
   onEdit?: (template: NotificationTemplate) => void;
   onPreview?: (template: NotificationTemplate) => void;
 }
 
-export function TemplateList({ onEdit, onPreview }: TemplateListProps) {
-  const { hasPermission } = useAuth();
-  const canManage = hasPermission(PERMISSIONS.NOTIFICATIONS_MANAGE);
-  const { data: templates, isLoading } = useNotificationTemplates();
-  const deleteTemplate = useDeleteTemplate();
-  const toggleActive = useToggleTemplateActive();
-
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-
-  const handleDelete = async () => {
-    if (deleteId) {
-      await deleteTemplate.mutateAsync(deleteId);
-      setDeleteId(null);
-    }
-  };
-
-  const getChannelIcon = (channel: NotificationChannel) => {
-    switch (channel) {
-      case 'email':
-        return <Mail className="h-4 w-4" />;
-      case 'sms':
-        return <MessageSquare className="h-4 w-4" />;
-      case 'whatsapp':
-        return <Bell className="h-4 w-4" />;
-    }
-  };
-
-  const getCategoryColor = (category: string): 'default' | 'secondary' | 'destructive' | 'outline' => {
-    switch (category) {
-      case 'payment':
-        return 'default';
-      case 'invoice':
-        return 'secondary';
-      case 'security':
-        return 'destructive';
-      default:
-        return 'outline';
-    }
-  };
+export function TemplateList({ canManage, onEdit, onPreview }: TemplateListProps) {
+  const { data: templates, isLoading } = useNotificationTemplates({ channel: 'email' });
 
   if (isLoading) {
-    return <div className="text-center py-8 text-muted-foreground">Loading templates...</div>;
+    return <div className="text-center py-8 text-muted-foreground">Loading emails...</div>;
   }
+
+  const rows = EVENT_KEYS.map((key) => ({
+    key,
+    template: templates?.find((t) => t.event === key),
+  }));
 
   if (!templates || templates.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
-        No templates found. Create your first template to get started.
+        No editable emails found.
       </div>
     );
   }
 
   return (
-    <>
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Channel</TableHead>
-              <TableHead>Variables</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="w-[70px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {templates.map((template) => (
-              <TableRow key={template.id}>
+    <div className="rounded-md border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Email</TableHead>
+            <TableHead>Wording</TableHead>
+            <TableHead className="w-[200px] text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map(({ key, template }) => {
+            const definition = EVENT_REGISTRY[key];
+            const editedCount = Object.keys(template?.overrides ?? {}).length;
+            return (
+              <TableRow key={key}>
                 <TableCell>
-                  <div className="flex items-center gap-2">
-                    {template.is_system && (
-                      <span title="System template">
-                        <Lock className="h-3 w-3 text-muted-foreground" />
-                      </span>
-                    )}
+                  <div className="flex items-center gap-3">
+                    <IconBox color="blue" size="sm">
+                      <Mail className="h-5 w-5" />
+                    </IconBox>
                     <div>
-                      <div className="font-medium">{template.display_name}</div>
-                      <div className="text-xs text-muted-foreground">{template.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {template.is_system ? 'System: read-only, sent by name' : 'Custom: never sent'}
+                      <div className="font-medium">{definition.displayName}</div>
+                      <div className="text-xs text-muted-foreground max-w-md">
+                        {definition.description}
                       </div>
                     </div>
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={getCategoryColor(template.category)}>
-                    {NOTIFICATION_CATEGORY_LABELS[template.category as NotificationCategory]}
+                  <Badge variant={editedCount > 0 ? 'default' : 'secondary'}>
+                    {editedCount > 0
+                      ? `${editedCount} ${editedCount === 1 ? 'field' : 'fields'} edited`
+                      : 'Default'}
                   </Badge>
                 </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-1.5">
-                    {getChannelIcon(template.channel as NotificationChannel)}
-                    <span className="text-sm">
-                      {NOTIFICATION_CHANNEL_LABELS[template.channel as NotificationChannel]}
-                    </span>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <span className="text-sm text-muted-foreground">
-                    {template.variables?.length || 0} variables
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={template.is_active ? 'default' : 'secondary'}>
-                    {template.is_active ? 'Active' : 'Inactive'}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="size-11 md:size-8">
-                        <MoreHorizontal className="h-4 w-4" />
-                        <span className="sr-only">Actions for {template.name}</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
+                <TableCell className="text-right">
+                  {template && (
+                    <div className="flex justify-end gap-2">
                       {onPreview && (
-                        <DropdownMenuItem onClick={() => onPreview(template)}>
+                        <Button variant="outline" size="sm" onClick={() => onPreview(template)}>
                           <Eye className="mr-2 h-4 w-4" />
                           Preview
-                        </DropdownMenuItem>
+                        </Button>
                       )}
-                      {canManage && onEdit && !template.is_system && (
-                        <DropdownMenuItem onClick={() => onEdit(template)}>
+                      {canManage && onEdit && (
+                        <Button size="sm" onClick={() => onEdit(template)}>
                           <Pencil className="mr-2 h-4 w-4" />
                           Edit
-                        </DropdownMenuItem>
+                        </Button>
                       )}
-                      {canManage && (
-                      <>
-                      <DropdownMenuItem onClick={() => toggleActive.mutate(template.id)}>
-                        {template.is_active ? (
-                          <>
-                            <PowerOff className="mr-2 h-4 w-4" />
-                            Deactivate
-                          </>
-                        ) : (
-                          <>
-                            <Power className="mr-2 h-4 w-4" />
-                            Activate
-                          </>
-                        )}
-                      </DropdownMenuItem>
-                      {!template.is_system && (
-                        <>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={() => setDeleteId(template.id)}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                          </DropdownMenuItem>
-                        </>
-                      )}
-                      </>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                    </div>
+                  )}
                 </TableCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* Delete Confirmation */}
-      <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Template</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this template? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-    </>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
   );
 }

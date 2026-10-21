@@ -24,7 +24,6 @@ import {
   shouldSendToResident,
   generateDeduplicationKey,
 } from '@/lib/notifications';
-import { getTemplate } from './templates';
 import type {
   NotificationQueueItem,
   QueueItemWithDetails,
@@ -87,7 +86,7 @@ export async function getNotificationQueue(options?: {
  * Admin operation — guarded by `notifications.manage`. Unlike
  * `getNotificationQueue`, this export has no live caller today: no hook
  * wraps it and nothing imports it directly. Same "no live caller" bucket as
- * `queueDirectNotification` and `queueNotificationFromTemplate` below;
+ * `queueDirectNotification` below;
  * guarded the same way so it is safe the moment a caller is added.
  */
 export async function getQueueItem(
@@ -154,115 +153,11 @@ export async function getQueueStatistics(): Promise<{
 }
 
 /**
- * Queue a notification using a template.
- * Admin operation — guarded by `notifications.manage`. Verified: this export
- * is wrapped by `useQueueNotificationFromTemplate` in
- * `src/hooks/use-notifications.ts`, but that hook itself is never invoked by
- * any component or page — same "no live caller today" bucket as
- * `queueDirectNotification` below. No cron, webhook, or other server action
- * calls this directly either (the automated send path uses `addToQueue` from
- * `@/lib/notifications` via `send.ts`, not this action), so a hard admin
- * guard here breaks nothing today; it is the correct guard for when the hook
- * gets a caller.
- */
-export async function queueNotificationFromTemplate(params: {
-  templateId: string;
-  recipientId: string;
-  variables: Record<string, unknown>;
-  priority?: number;
-  scheduledFor?: Date;
-  entityType?: string;
-  entityId?: string;
-}): Promise<{ success: boolean; queueId?: string; error?: string }> {
-  const auth = await authorizePermission(PERMISSIONS.NOTIFICATIONS_MANAGE);
-  if (!auth.authorized) {
-    return { success: false, error: auth.error || 'Insufficient permissions' };
-  }
-
-  const { templateId, recipientId, variables, priority, scheduledFor, entityType, entityId } = params;
-
-  // Get template
-  const { data: template, error: templateError } = await getTemplate(templateId);
-  if (templateError || !template) {
-    return { success: false, error: templateError || 'Template not found' };
-  }
-
-  // Check resident preferences
-  const prefCheck = await shouldSendToResident({
-    residentId: recipientId,
-    category: template.category as NotificationCategory,
-    channel: template.channel as NotificationChannel,
-  });
-
-  if (!prefCheck.shouldSend) {
-    return { success: false, error: prefCheck.reason || 'Notification blocked by preferences' };
-  }
-
-  // Get recipient details
-  const supabase = createAdminClient();
-  const { data: recipient, error: recipientError } = await supabase
-    .from('residents')
-    .select('id, email, phone_primary')
-    .eq('id', recipientId)
-    .single();
-
-  if (recipientError || !recipient) {
-    return { success: false, error: 'Recipient not found' };
-  }
-
-  // Render template
-  let rendered;
-  try {
-    rendered = renderTemplate(template, variables);
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to render template',
-    };
-  }
-
-  // Add to queue
-  const result = await addToQueue(
-    {
-      template_id: templateId,
-      recipient_id: recipientId,
-      channel: template.channel as NotificationChannel,
-      subject: rendered.subject || undefined,
-      body: rendered.body,
-      html_body: rendered.html || undefined,
-      variables,
-      priority: priority ?? PRIORITY.NORMAL,
-      scheduled_for: scheduledFor,
-      metadata: { entityType, entityId },
-    },
-    {
-      entityType,
-      entityId,
-      category: template.category as NotificationCategory,
-    }
-  );
-
-  if (result.success) {
-    // Audit log
-    await logAudit({
-      action: 'CREATE',
-      entityType: 'notification_queue',
-      entityId: result.queueId!,
-      entityDisplay: `${template.display_name} to ${recipientId}`,
-      newValues: { templateId, recipientId, channel: template.channel },
-    });
-  }
-
-  return result;
-}
-
-/**
  * Queue a direct notification (no template).
  * Admin operation — guarded by `notifications.manage`. Verified: this export
  * is imported by `src/hooks/use-notifications.ts` but never actually wrapped
  * in a hook or called there (no `useQueueDirectNotification` exists) — it has
- * no live caller anywhere in the codebase today. Guarded the same as its
- * sibling `queueNotificationFromTemplate` for when a caller is added; being
+ * no live caller anywhere in the codebase today. Guarded for when a caller is added; being
  * unused today means this guard changes no current behaviour.
  */
 export async function queueDirectNotification(params: {

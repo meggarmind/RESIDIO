@@ -11,6 +11,7 @@ import { readPaymentReminderSettings } from '@/lib/notifications/payment-reminde
 import { updateSetting } from '@/actions/settings/update-setting';
 import { logAudit } from '@/lib/audit/logger';
 import { PaymentReminderEmail } from '@/emails';
+import { formatEventCurrency, formatEventProperty, getEventContent, renderEventText } from '@/lib/notifications/event-content';
 
 interface ReminderResult {
   success: boolean;
@@ -53,6 +54,7 @@ export async function sendPaymentReminders(): Promise<ReminderResult> {
 
   // Get estate settings for email template
   const estateSettings = await getEstateEmailSettings();
+  const copy = await getEventContent('payment_reminder');
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -132,8 +134,16 @@ export async function sendPaymentReminders(): Promise<ReminderResult> {
           name: `${resident.first_name} ${resident.last_name}`,
           residentId: resident.id,
         },
-        subject: `Payment Reminder: ${invoice.invoice_number}`,
+        subject: renderEventText(copy.subject, {
+          resident_name: `${resident.first_name} ${resident.last_name}`,
+          invoice_number: invoice.invoice_number,
+          amount: formatEventCurrency(amountRemaining),
+          due_date: formattedDueDate,
+          property: formatEventProperty(house?.house_number, embed(house?.street)?.name),
+          estate_name: estateSettings.estateName,
+        }),
         react: PaymentReminderEmail({
+          copy,
           residentName: `${resident.first_name} ${resident.last_name}`,
           invoiceNumber: invoice.invoice_number,
           amountDue: amountRemaining,

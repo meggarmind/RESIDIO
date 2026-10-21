@@ -1,5 +1,6 @@
 import { Button, Heading, Hr, Section, Text } from '@react-email/components';
 import { EmailLayout } from './components/email-layout';
+import { makeCopy, splitParagraphs } from '@/lib/notifications/event-content-registry';
 
 interface PaymentReminderEmailProps {
   residentName: string;
@@ -14,6 +15,8 @@ interface PaymentReminderEmailProps {
   estatePhone?: string;
   estateAddress?: string;
   paymentUrl?: string;
+  /** Admin-edited wording (merged templates). Omitted means the built-in text. */
+  copy?: Record<string, string>;
 }
 
 export function PaymentReminderEmail({
@@ -29,6 +32,7 @@ export function PaymentReminderEmail({
   estatePhone,
   estateAddress,
   paymentUrl,
+  copy,
 }: PaymentReminderEmailProps) {
   const formattedAmount = new Intl.NumberFormat('en-NG', {
     style: 'currency',
@@ -45,6 +49,15 @@ export function PaymentReminderEmail({
 
   const isUrgent = daysUntilDue <= 1;
 
+  const text = makeCopy('payment_reminder', copy, {
+    resident_name: residentName,
+    invoice_number: invoiceNumber,
+    amount: formattedAmount,
+    due_date: dueDate,
+    property: streetName ? `${houseNumber}, ${streetName}` : houseNumber,
+    estate_name: estateName,
+  });
+
   return (
     <EmailLayout
       preview={`Payment Reminder: ${formattedAmount} due ${urgencyText}`}
@@ -53,7 +66,7 @@ export function PaymentReminderEmail({
       estatePhone={estatePhone}
       estateAddress={estateAddress}
     >
-      <Heading style={heading}>Payment Reminder</Heading>
+      <Heading style={heading}>{text('heading')}</Heading>
 
       <Text style={greeting}>Dear {residentName},</Text>
 
@@ -87,13 +100,14 @@ export function PaymentReminderEmail({
 
       <Hr style={hr} />
 
-      <Text style={paragraph}>
-        If you have already made this payment, please disregard this reminder. For any
-        questions, please contact the estate management.
-      </Text>
+      {splitParagraphs(text('body')).map((p, i) => (
+        <Text key={i} style={paragraph}>
+          {p}
+        </Text>
+      ))}
 
       <Text style={signoff}>
-        Thank you,
+        {text('sign_off')}
         <br />
         {estateName} Management
       </Text>

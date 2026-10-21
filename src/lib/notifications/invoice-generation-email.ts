@@ -5,6 +5,7 @@ import { getEstateEmailSettings } from '@/lib/email';
 import { createAdminClient } from '@/lib/supabase/server';
 import { embed } from '@/lib/utils';
 import { addToQueue, PRIORITY } from './queue';
+import { formatEventCurrency, formatEventProperty, getEventContent, renderEventText } from './event-content';
 
 export type InvoiceEmailQueueStatus = 'queued' | 'skipped' | 'failed';
 
@@ -58,7 +59,9 @@ export async function queueInvoiceGeneratedEmail(
   });
   const amountRemaining = invoice.amount_due - invoice.amount_paid;
   const estateSettings = await getEstateEmailSettings();
+  const copy = await getEventContent('invoice_generated');
   const htmlBody = await render(InvoiceGeneratedEmail({
+    copy,
     residentName: `${resident.first_name} ${resident.last_name}`,
     invoiceNumber: invoice.invoice_number,
     amountDue: amountRemaining,
@@ -82,7 +85,14 @@ export async function queueInvoiceGeneratedEmail(
     recipient_id: resident.id,
     recipient_email: resident.email,
     channel: 'email',
-    subject: `New Invoice: ${invoice.invoice_number}`,
+    subject: renderEventText(copy.subject, {
+      resident_name: `${resident.first_name} ${resident.last_name}`,
+      invoice_number: invoice.invoice_number,
+      amount: formatEventCurrency(amountRemaining),
+      due_date: formatDate(invoice.due_date),
+      property: formatEventProperty(house?.house_number, embed(house?.street)?.name),
+      estate_name: estateSettings.estateName,
+    }),
     body: `New invoice ${invoice.invoice_number} for ${amountRemaining}.`,
     html_body: htmlBody,
     priority: PRIORITY.NORMAL,

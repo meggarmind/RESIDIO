@@ -1,5 +1,6 @@
 import { Heading, Hr, Section, Text } from '@react-email/components';
 import { EmailLayout } from './components/email-layout';
+import { makeCopy, splitParagraphs } from '@/lib/notifications/event-content-registry';
 
 interface PaymentReceiptEmailProps {
   residentName: string;
@@ -17,6 +18,8 @@ interface PaymentReceiptEmailProps {
   estateEmail?: string;
   estatePhone?: string;
   estateAddress?: string;
+  /** Admin-edited wording (merged templates). Omitted means the built-in text. */
+  copy?: Record<string, string>;
 }
 
 export function PaymentReceiptEmail({
@@ -35,12 +38,20 @@ export function PaymentReceiptEmail({
   estateEmail,
   estatePhone,
   estateAddress,
+  copy,
 }: PaymentReceiptEmailProps) {
   const formattedAmount = new Intl.NumberFormat('en-NG', {
     style: 'currency',
     currency: 'NGN',
     minimumFractionDigits: 0,
   }).format(amount);
+
+  const text = makeCopy('payment_receipt', copy, {
+    resident_name: residentName,
+    receipt_number: receiptNumber,
+    amount: formattedAmount,
+    estate_name: estateName,
+  });
 
   return (
     <EmailLayout
@@ -50,13 +61,15 @@ export function PaymentReceiptEmail({
       estatePhone={estatePhone}
       estateAddress={estateAddress}
     >
-      <Heading style={heading}>Payment Receipt</Heading>
+      <Heading style={heading}>{text('heading')}</Heading>
 
       <Text style={greeting}>Dear {residentName},</Text>
 
-      <Text style={paragraph}>
-        Thank you for your payment. Please find your receipt details below.
-      </Text>
+      {splitParagraphs(text('body')).map((p, i) => (
+        <Text key={i} style={paragraph}>
+          {p}
+        </Text>
+      ))}
 
       <Section style={receiptBox}>
         <Section style={receiptHeader}>
@@ -134,7 +147,7 @@ export function PaymentReceiptEmail({
       </Text>
 
       <Text style={signoff}>
-        Thank you,
+        {text('sign_off')}
         <br />
         {estateName} Management
       </Text>

@@ -43,6 +43,7 @@ import {
 } from '@/lib/notifications/escalation';
 import { addToQueue } from '@/lib/notifications/queue';
 import { shouldSendToResident } from '@/lib/notifications/preferences';
+import { formatDueText, formatEventCurrency, getEventContent } from '@/lib/notifications/event-content';
 import { buildInvoiceReminderWhatsApp } from '@/lib/whatsapp/outbound';
 
 /**
@@ -378,14 +379,27 @@ async function sendEmailReminder(params: {
     const override = await resolveResidentOverride([invoice.resident.id]);
     if (!override.ok) return { success: false, error: override.error };
 
+    const copy = await getEventContent('payment_reminder_escalated');
+
     const result = await sendEmail({
       to: {
         email: invoice.resident.email!,
         name: residentName,
         residentId: invoice.resident.id,
       },
-      subject: getEscalatedReminderSubject(invoice.invoice_number, escalationLevel),
+      subject: getEscalatedReminderSubject(invoice.invoice_number, escalationLevel, copy, {
+        resident_name: residentName,
+        amount: formatEventCurrency(amountRemaining),
+        due_date: formattedDueDate,
+        due_text: formatDueText(-daysFromDue),
+        days_overdue: Math.abs(daysFromDue),
+        property: invoice.house?.street?.name
+          ? `${invoice.house.house_number}, ${invoice.house.street.name}`
+          : invoice.house?.house_number || '',
+        estate_name: estateSettings.estateName || 'Estate',
+      }),
       react: PaymentReminderEscalatedEmail({
+        copy,
         residentName,
         invoiceNumber: invoice.invoice_number,
         amountDue: amountRemaining,
