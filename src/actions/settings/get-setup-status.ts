@@ -10,7 +10,6 @@ const SETTING_KEYS = [
   'estate_address',
   'email_enabled',
   'invoice_reminder_sms_enabled',
-  'invoice_reminder_whatsapp_enabled',
   'invoice_reminders_enabled',
   'invoice_reminder_schedule',
 ];
@@ -109,8 +108,7 @@ export async function getSetupStatus(): Promise<{ data: SetupStatus | null; erro
       ),
       notificationChannel:
         isOn(value('email_enabled')) ||
-        isOn(value('invoice_reminder_sms_enabled')) ||
-        isOn(value('invoice_reminder_whatsapp_enabled')),
+        isOn(value('invoice_reminder_sms_enabled')),
       reminderSchedule:
         !isOff(value('invoice_reminders_enabled')) && hasActiveSchedule(value('invoice_reminder_schedule')),
       customRole: (customRoles.count ?? 0) > 0,

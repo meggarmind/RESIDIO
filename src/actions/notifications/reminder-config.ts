@@ -33,7 +33,6 @@ const SETTINGS_KEYS = {
   REMINDER_SCHEDULE: 'invoice_reminder_schedule',
   REMINDERS_ENABLED: 'invoice_reminders_enabled',
   SMS_ENABLED_FOR_REMINDERS: 'invoice_reminder_sms_enabled',
-  WHATSAPP_ENABLED_FOR_REMINDERS: 'invoice_reminder_whatsapp_enabled',
   DEFAULT_CHANNELS: 'invoice_reminder_default_channels',
 } as const;
 
@@ -169,7 +168,12 @@ export async function saveReminderSchedule(
     };
 
     // Save to settings
-    const saved = await updateSetting(SETTINGS_KEYS.REMINDER_SCHEDULE, JSON.stringify(fullSchedule));
+    // The row is only seeded by a migration; create it if it is missing so a step can be added (#903)
+    const saved = await updateSetting(SETTINGS_KEYS.REMINDER_SCHEDULE, JSON.stringify(fullSchedule), {
+      category: 'notifications',
+      description: 'Invoice reminder schedule (JSON)',
+    });
+    if (saved.error) return { success: false, error: saved.error };
 
     // Audit log. audit_logs.entity_id is a uuid: use the settings row id; no row, no audit (#594).
     if (saved?.data?.id) {
@@ -223,7 +227,8 @@ export async function addReminderStep(
     // Sort by daysFromDue
     schedule.steps.sort((a, b) => a.daysFromDue - b.daysFromDue);
 
-    await saveReminderSchedule(schedule);
+    const saved = await saveReminderSchedule(schedule);
+    if (!saved.success) return { success: false, error: saved.error };
 
     return { success: true };
   } catch (error) {
@@ -274,7 +279,8 @@ export async function updateReminderStep(
     // Re-sort by daysFromDue
     schedule.steps.sort((a, b) => a.daysFromDue - b.daysFromDue);
 
-    await saveReminderSchedule(schedule);
+    const saved = await saveReminderSchedule(schedule);
+    if (!saved.success) return { success: false, error: saved.error };
 
     return { success: true };
   } catch (error) {
@@ -307,7 +313,8 @@ export async function removeReminderStep(
 
     schedule.steps.splice(stepIndex, 1);
 
-    await saveReminderSchedule(schedule);
+    const saved = await saveReminderSchedule(schedule);
+    if (!saved.success) return { success: false, error: saved.error };
 
     return { success: true };
   } catch (error) {
@@ -340,7 +347,8 @@ export async function toggleReminderStep(
 
     step.isActive = !step.isActive;
 
-    await saveReminderSchedule(schedule);
+    const saved = await saveReminderSchedule(schedule);
+    if (!saved.success) return { success: false, error: saved.error };
 
     return { success: true };
   } catch (error) {
@@ -434,14 +442,12 @@ export async function setRemindersEnabled(enabled: boolean): Promise<{
 export async function getReminderSettings(): Promise<{
   enabled: boolean;
   smsEnabled: boolean;
-  whatsappEnabled: boolean;
   schedule: ReminderScheduleConfig | null;
   lastRun: string | null;
 }> {
-  const [enabled, smsEnabled, whatsappEnabled, scheduleResult, lastRun] = await Promise.all([
+  const [enabled, smsEnabled, scheduleResult, lastRun] = await Promise.all([
     areRemindersEnabled(),
     getSettingValue(SETTINGS_KEYS.SMS_ENABLED_FOR_REMINDERS),
-    getSettingValue(SETTINGS_KEYS.WHATSAPP_ENABLED_FOR_REMINDERS),
     getReminderSchedule(),
     getLastReminderRun(),
   ]);
@@ -449,7 +455,6 @@ export async function getReminderSettings(): Promise<{
   return {
     enabled,
     smsEnabled: smsEnabled === true,
-    whatsappEnabled: whatsappEnabled === true,
     schedule: scheduleResult.data,
     lastRun,
   };

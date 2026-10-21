@@ -95,14 +95,14 @@ describe('getSetupStatus (#786)', () => {
     expect((await getSetupStatus()).data!.billingSettings).toBe(false);
   });
 
-  it('marks a channel done when email, SMS or WhatsApp is on', async () => {
+  it('marks a channel done when email or SMS is on', async () => {
     mocks.settings = seededBilling();
     expect((await getSetupStatus()).data!.notificationChannel).toBe(true);
 
     mocks.settings = withSetting('email_enabled', 'false');
     expect((await getSetupStatus()).data!.notificationChannel).toBe(false);
 
-    mocks.settings = [{ key: 'email_enabled', value: false }, { key: 'invoice_reminder_whatsapp_enabled', value: 'true' }];
+    mocks.settings = [{ key: 'email_enabled', value: false }, { key: 'invoice_reminder_sms_enabled', value: 'true' }];
     expect((await getSetupStatus()).data!.notificationChannel).toBe(true);
   });
 
