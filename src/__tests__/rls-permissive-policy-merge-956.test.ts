@@ -13,6 +13,10 @@ import { describe, expect, it } from "vitest";
  * disjuncts and the set of OR-ed WITH CHECK disjuncts (a policy without WITH CHECK checks with its
  * USING) are the same before and after. Restrictive policies are untouched. Applying each file's
  * ROLLBACK block to the end state restores every original definition.
+ *
+ * Part 2 (`rls_rescope_merge_*`, owner decision 2026-10-21, option A) re-scopes the TO public
+ * policy in each remaining public-versus-authenticated overlap to TO authenticated, then merges.
+ * For authenticated the invariant above still holds. anon loses exactly the re-scoped policies.
  */
 
 const migrationsDir = fileURLToPath(
@@ -22,6 +26,7 @@ const files = readdirSync(migrationsDir)
   .filter((f) => f.endsWith(".sql"))
   .sort();
 const mergeFiles = files.filter((f) => /_rls_merge_permissive_/.test(f));
+const rescopeFiles = files.filter((f) => /_rls_rescope_merge_/.test(f));
 
 const ROLES = ["anon", "authenticated", "service_role"];
 const ACTIONS = ["SELECT", "INSERT", "UPDATE", "DELETE"];
@@ -98,6 +103,8 @@ function apply(model: Model, statement: string) {
   ) {
     const existing = model.get(`${m[2]}|${unquote(m[1])}`);
     if (!existing || /^\s*RENAME/i.test(m[3])) return;
+    const to = m[3].match(/^\s*TO ([\w, ]+?)(?= USING| WITH|;|$)/i)?.[1];
+    if (to) existing.roles = to.split(",").map((r) => r.trim());
     existing.using = clause(m[3], /\bUSING \(/i) ?? existing.using;
     existing.check = clause(m[3], /\bWITH CHECK \(/i) ?? existing.check;
   }
@@ -175,22 +182,60 @@ function effective(
 }
 
 const firstMerge = files.indexOf(mergeFiles[0]);
+const firstRescope = files.indexOf(rescopeFiles[0]);
 const before = replay(firstMerge);
-const after = replay(files.length);
-const touched = [
-  ...new Set(
-    mergeFiles.flatMap((f) =>
-      [
-        ...stripComments(
-          readFileSync(path.join(migrationsDir, f), "utf8"),
-        ).matchAll(/ POLICY .*? ON public\.(\w+)/g),
-      ].map((m) => m[1]),
+const after = replay(firstRescope); // part 1 applied, part 2 not
+const end = replay(files.length);
+const tablesOf = (group: string[]) =>
+  [
+    ...new Set(
+      group.flatMap((f) =>
+        [
+          ...stripComments(
+            readFileSync(path.join(migrationsDir, f), "utf8"),
+          ).matchAll(/ POLICY .*? ON public\.(\w+)/g),
+        ].map((m) => m[1]),
+      ),
     ),
-  ),
-].sort();
+  ].sort();
+const touched = tablesOf(mergeFiles);
+const rescoped = tablesOf(rescopeFiles);
 
-function overlaps(model: Model) {
-  return touched.flatMap((t) =>
+function rollback(model: Model, group: string[]): Model {
+  const restored: Model = new Map([...model].map(([k, p]) => [k, { ...p }]));
+  for (const file of group) {
+    const raw = readFileSync(path.join(migrationsDir, file), "utf8");
+    const block = raw.slice(
+      raw.indexOf("-- ROLLBACK"),
+      raw.indexOf("\nBEGIN;\n"),
+    );
+    const sql = block
+      .split("\n")
+      .map((l) => l.replace(/^-- ?/, ""))
+      .filter((l) => !l.startsWith("--"))
+      .join("\n");
+    for (const st of sql.match(STATEMENT) ?? []) apply(restored, st);
+  }
+  return restored;
+}
+
+function norm(m: Model, tables: string[]) {
+  return Object.fromEntries(
+    [...m]
+      .filter(([k]) => tables.includes(k.split("|")[0]))
+      .map(([k, p]) => [
+        k,
+        {
+          ...p,
+          using: p.using && disjuncts(p.using).sort(),
+          check: p.check && disjuncts(p.check).sort(),
+        },
+      ]),
+  );
+}
+
+function overlaps(model: Model, tables = touched) {
+  return tables.flatMap((t) =>
     ROLES.flatMap((r) =>
       ACTIONS.filter((a) => effective(model, t, r, a, true).count > 1).map(
         (a) => `${t} ${r} ${a}`,
@@ -200,9 +245,10 @@ function overlaps(model: Model) {
 }
 
 describe("#956: merging permissive policies changes no access", () => {
-  it("has the seven table-group migrations, sorted after every other migration", () => {
+  it("has the seven table-group migrations, then the two part 2 migrations, after every other migration", () => {
     expect(mergeFiles).toHaveLength(7);
-    expect(files.slice(firstMerge)).toEqual(mergeFiles);
+    expect(rescopeFiles).toHaveLength(2);
+    expect(files.slice(firstMerge)).toEqual([...mergeFiles, ...rescopeFiles]);
   });
 
   it("touches the 34 tables whose overlaps are same-role", () => {
@@ -254,33 +300,110 @@ describe("#956: merging permissive policies changes no access", () => {
   );
 
   it("the rollback blocks restore every original definition", () => {
-    const restored: Model = new Map([...after].map(([k, p]) => [k, { ...p }]));
-    for (const file of mergeFiles) {
-      const raw = readFileSync(path.join(migrationsDir, file), "utf8");
-      const block = raw.slice(
-        raw.indexOf("-- ROLLBACK"),
-        raw.indexOf("\nBEGIN;\n"),
-      );
-      const sql = block
-        .split("\n")
-        .map((l) => l.replace(/^-- ?/, ""))
-        .filter((l) => !l.startsWith("--"))
-        .join("\n");
-      for (const st of sql.match(STATEMENT) ?? []) apply(restored, st);
+    expect(norm(rollback(after, mergeFiles), touched)).toEqual(
+      norm(before, touched),
+    );
+  });
+});
+
+describe("#956 part 2: re-scoping TO public to TO authenticated (option A)", () => {
+  /** The (table, role, command) entries anon evaluates differently after part 2. */
+  const ANON_LOSES = [
+    "houses SELECT",
+    "invoice_items DELETE",
+    "invoice_items INSERT",
+    "invoice_items SELECT",
+    "invoice_items UPDATE",
+    "invoices DELETE",
+    "invoices INSERT",
+    "invoices SELECT",
+    "invoices UPDATE",
+    "paystack_transactions SELECT",
+    "resident_houses SELECT",
+    "resident_wallets DELETE",
+    "resident_wallets INSERT",
+    "resident_wallets SELECT",
+    "resident_wallets UPDATE",
+    "residents SELECT",
+    "residents UPDATE",
+    "wallet_payment_batch_items SELECT",
+    "wallet_payment_batches SELECT",
+    "wallet_transactions SELECT",
+  ];
+
+  it("touches the ten tables of the 11 remaining overlaps", () => {
+    expect(rescoped).toEqual([
+      "houses",
+      "invoice_items",
+      "invoices",
+      "paystack_transactions",
+      "resident_houses",
+      "resident_wallets",
+      "residents",
+      "wallet_payment_batch_items",
+      "wallet_payment_batches",
+      "wallet_transactions",
+    ]);
+    expect(overlaps(after, rescoped)).toHaveLength(11);
+  });
+
+  it.each(rescoped)(
+    "%s: authenticated keeps the same USING and WITH CHECK disjuncts for every command",
+    (table) => {
+      for (const action of ACTIONS) {
+        for (const permissive of [true, false]) {
+          const b = effective(after, table, "authenticated", action, permissive);
+          const a = effective(end, table, "authenticated", action, permissive);
+          expect(
+            { using: a.using, check: a.check },
+            `${table} ${action}`,
+          ).toEqual({ using: b.using, check: b.check });
+        }
+      }
+    },
+  );
+
+  it("anon and service_role lose exactly the re-scoped policies, and nothing else changes for them", () => {
+    for (const role of ["anon", "service_role"]) {
+      const changed: string[] = [];
+      for (const table of rescoped) {
+        for (const action of ACTIONS) {
+          for (const permissive of [true, false]) {
+            const b = effective(after, table, role, action, permissive);
+            const a = effective(end, table, role, action, permissive);
+            if (JSON.stringify(a) === JSON.stringify(b)) continue;
+            expect(permissive, `${table} ${role} ${action}`).toBe(true);
+            expect(a.count, `${table} ${role} ${action}`).toBe(0);
+            changed.push(`${table} ${action}`);
+          }
+        }
+      }
+      expect(changed.sort(), role).toEqual(ANON_LOSES);
     }
-    const norm = (m: Model) =>
-      Object.fromEntries(
-        [...m]
-          .filter(([k]) => touched.includes(k.split("|")[0]))
-          .map(([k, p]) => [
-            k,
-            {
-              ...p,
-              using: p.using && disjuncts(p.using).sort(),
-              check: p.check && disjuncts(p.check).sort(),
-            },
-          ]),
+  });
+
+  it("leaves no overlapping permissive policies on any touched table", () => {
+    expect(overlaps(end, [...new Set([...touched, ...rescoped])].sort())).toEqual(
+      [],
+    );
+  });
+
+  it.each(rescopeFiles)(
+    "%s is one transaction with a guard and a rollback block",
+    (file) => {
+      const raw = readFileSync(path.join(migrationsDir, file), "utf8");
+      expect((raw.match(/^BEGIN;$/gm) ?? []).length).toBe(1);
+      expect((raw.match(/^COMMIT;$/gm) ?? []).length).toBe(1);
+      expect(raw).toMatch(
+        /DO \$guard\$[\s\S]*RAISE EXCEPTION[\s\S]*\$guard\$;/,
       );
-    expect(norm(restored)).toEqual(norm(before));
+      expect(raw).toContain("-- ROLLBACK");
+    },
+  );
+
+  it("the rollback blocks restore every part 1 definition", () => {
+    expect(norm(rollback(end, rescopeFiles), rescoped)).toEqual(
+      norm(after, rescoped),
+    );
   });
 });
