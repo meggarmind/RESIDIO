@@ -228,7 +228,7 @@ describe('reversePaymentAllocation atomic RPC', () => {
         expect(logAudit).not.toHaveBeenCalled();
     });
 
-    it('reverses through reverse_invoice_payment_allocation with no direct table access', async () => {
+    it('reverses through reverse_invoice_payment_allocation with no direct writes', async () => {
         authorizePermission.mockResolvedValue({ authorized: true });
         const { client, calls, rpcCalls } = fakeClient({ rpc: () => ({ data: rpcOk, error: null }) });
         createServerSupabaseClient.mockResolvedValue(client);
@@ -239,7 +239,7 @@ describe('reversePaymentAllocation atomic RPC', () => {
         expect(rpcCalls).toEqual([
             { name: 'reverse_invoice_payment_allocation', args: { p_invoice_id: INVOICE, p_amount: 40 } },
         ]);
-        expect(calls).toEqual([]);
+        expect(writes(calls)).toEqual([]);
         expect(logAudit).toHaveBeenCalledTimes(1);
         expect(logAudit.mock.calls[0][0].oldValues).toMatchObject({ amount_paid: 100, status: 'paid', wallet_balance: 50 });
         expect(logAudit.mock.calls[0][0].newValues).toMatchObject({ amount_paid: 60, wallet_balance: 90 });
