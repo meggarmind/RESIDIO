@@ -57,7 +57,9 @@ export default function SettingsPage() {
   if (isLoading) return <SettingsSkeleton rows={6} />;
 
   const setup = setupStatus ? summarizeSetup(setupStatus) : null;
-  const stepDone = new Map<string, boolean>(setup?.steps.map((step) => [step.href, step.done]));
+  // Two steps can share a page (Streets & houses), and its card is only "Set up" when all of them are.
+  const stepDone = new Map<string, boolean>();
+  for (const step of setup?.steps ?? []) stepDone.set(step.href, (stepDone.get(step.href) ?? true) && step.done);
   // Cards whose state changes what every user gets (#789); the same state the dashboard banner shows.
   const isOn: Record<string, boolean> = {
     '/settings/system': opsStatus.maintenance,

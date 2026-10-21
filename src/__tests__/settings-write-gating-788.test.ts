@@ -55,7 +55,7 @@ describe('settings write gating (#788)', () => {
   it('finds the settings files that write', () => {
     // Guards the scan itself: an empty match set would make the next test pass vacuously.
     const writers = files.filter((p) => WRITES.test(readFileSync(join(ROOT, p), 'utf8')));
-    expect(writers.length).toBeGreaterThan(25);
+    expect(writers.length).toBeGreaterThan(15);
   });
 
   it('every file that writes also checks a permission, or is allowlisted with a reason', () => {

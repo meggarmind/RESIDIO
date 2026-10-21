@@ -87,11 +87,121 @@ export const settingsConfig: SettingsGroup[] = [
         title: "Estate & Property",
         icon: Home,
         items: [
-            { title: "Estate Details", href: "/settings/estate-info", description: "Name, address, contact details", permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL] },
-            { title: "Logo & Branding", href: "/settings/branding", description: "Logo and visual identity", permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL] },
-            { title: "Theme", href: "/settings/appearance", description: "Colours and display settings", permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL] },
-            { title: "Streets", href: "/settings/streets", description: "Manage estate streets", permissions: [PERMISSIONS.SETTINGS_MANAGE_REFERENCE] },
-            { title: "House Types", href: "/settings/house-types", description: "Define property types", permissions: [PERMISSIONS.SETTINGS_MANAGE_REFERENCE] },
+            // Two task pages (#936, #791). Every section of Estate Profile asks for the general settings
+            // permission and both Streets & houses sections for the reference one, as the old pages did.
+            {
+                title: "Estate Profile",
+                href: "/settings/estate",
+                description: "Estate name and contact details, logo, theme, the assistant and social links",
+                permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
+                sections: [
+                    {
+                        id: "details",
+                        title: "Details",
+                        rows: [
+                            { id: "estate-name", label: "Estate name", help: "Shown across the app and in messages.", keywords: ["title", "organisation"] },
+                            { id: "estate-email", label: "Contact email", help: "Shown to residents as the estate's email address.", keywords: ["mail", "office email"] },
+                            { id: "estate-address", label: "Address", help: "The estate's postal address.", keywords: ["location", "postal"] },
+                            { id: "estate-phone", label: "Phone number", help: "Shown to residents as the estate's phone number.", keywords: ["telephone", "office number"] },
+                            { id: "estate-website", label: "Website URL", help: "The estate's web address, starting with https://.", keywords: ["web", "link"] },
+                            {
+                                id: "estate-office-hours",
+                                label: "Estate office hours",
+                                help: "Shown with the phone and email in WhatsApp Assistant replies, in Lagos time. Leave every day closed to show no hours.",
+                                keywords: ["opening hours", "open", "closed", "weekdays"],
+                            },
+                        ],
+                    },
+                    {
+                        id: "logo",
+                        title: "Logo",
+                        rows: [
+                            {
+                                id: "estate-logo",
+                                label: "Estate logo",
+                                help: "Recommended size 512x512 px. PNG, JPG or WebP, up to 2 MB.",
+                                keywords: ["branding", "image", "picture", "upload"],
+                            },
+                        ],
+                    },
+                    {
+                        id: "theme",
+                        title: "Theme",
+                        rows: [
+                            {
+                                id: "estate-theme",
+                                label: "Theme",
+                                help: "The look of the whole app, for the admin dashboard and the resident portal.",
+                                keywords: ["appearance", "colours", "colors", "dark mode", "style"],
+                            },
+                        ],
+                    },
+                    {
+                        id: "assistant",
+                        title: "Assistant",
+                        rows: [
+                            { id: "assistant-visible", label: "Show Estate Assistant", help: "Make the floating assistant visible for all dashboard users.", keywords: ["ai", "chat", "help bubble"] },
+                            { id: "assistant-greeting", label: "Send an opening greeting", help: "Start a new conversation with a personalized greeting.", keywords: ["welcome message", "hello"] },
+                            {
+                                id: "assistant-name",
+                                label: "Assistant name",
+                                help: "Defaults to \"[Estate Name] Assistant\" when left blank.",
+                                keywords: ["bot name", "rename"],
+                            },
+                        ],
+                    },
+                    {
+                        id: "portal",
+                        title: "Resident portal",
+                        defaultCollapsed: true,
+                        rows: [
+                            {
+                                id: "resident-portal-links",
+                                label: "Show resident portal links",
+                                help: "Applies to everyone unless an account has its own setting under System, Accounts.",
+                                keywords: ["self service", "view as resident", "my portal"],
+                            },
+                        ],
+                    },
+                    {
+                        id: "social",
+                        title: "Social links",
+                        defaultCollapsed: true,
+                        rows: [
+                            { id: "social-facebook", label: "Facebook", help: "Your estate's Facebook page.", keywords: ["social media"] },
+                            { id: "social-twitter", label: "Twitter / X", help: "Your estate's Twitter / X profile.", keywords: ["social media", "x"] },
+                            { id: "social-instagram", label: "Instagram", help: "Your estate's Instagram profile.", keywords: ["social media"] },
+                        ],
+                    },
+                ],
+            },
+            {
+                title: "Streets & Houses",
+                href: "/settings/property",
+                description: "The streets of the estate and the types of house on them",
+                permissions: [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
+                sections: [
+                    {
+                        id: "streets",
+                        title: "Streets",
+                        rows: [
+                            { id: "street-list", label: "Streets", help: "Add, edit, or remove streets used throughout the system.", keywords: ["road", "avenue", "close", "address"] },
+                        ],
+                    },
+                    {
+                        id: "house-types",
+                        title: "House types",
+                        rows: [
+                            {
+                                id: "house-type-list",
+                                label: "House types",
+                                help: "Configure house types and link each to the billing profile it pays.",
+                                keywords: ["flat", "duplex", "bungalow", "rate", "billing profile", "max residents"],
+                            },
+                        ],
+                    },
+                ],
+            },
         ]
     },
     {

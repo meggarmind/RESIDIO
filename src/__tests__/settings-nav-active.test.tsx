@@ -85,7 +85,8 @@ describe('settings nav grouping (#786, owner decision 2026-10-20)', () => {
       const item = flattenSettingsNav(settingsConfig).find((i) => i.href === href && !i.children);
       return `${group?.title} > ${item?.title}`;
     };
-    expect(where('/settings/estate-info')).toBe('Estate & Property > Estate Details');
+    expect(where('/settings/estate')).toBe('Estate & Property > Estate Profile');
+    expect(where('/settings/property')).toBe('Estate & Property > Streets & Houses');
     expect(where('/settings/billing')).toBe('Money > Billing Rules');
     expect(where('/settings/banking')).toBe('Money > Banking');
     expect(where('/settings/billing/profiles')).toBe('Money > Rate Cards');

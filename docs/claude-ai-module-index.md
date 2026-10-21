@@ -335,14 +335,14 @@ shadcn/ui components - button, card, form, table, dialog, sheet, tabs, badge, al
 
 ### Settings Pages (/(dashboard)/settings/)
 - `/settings` - General settings
-- `/settings/appearance` - Theme settings
+- `/settings/estate` - Estate Profile: details, logo, theme, assistant, resident portal, social links (old `/settings/estate-info`, `/settings/branding`, `/settings/appearance` redirect here)
 - `/settings/billing` - Billing rules (general, invoices & due dates, late fees, levies on one page); the old `/settings/billing/late-fees`, `/invoices` and `/development-levies` routes redirect to its sections
 - `/settings/security` - Security rules task page (contact limits, contact categories, session timeout); `/settings/security/categories` redirects to it
 - `/system/accounts` - Roles & Access (administrators, pending sign-ups, unlinked logins, roles, who can hold each role; `?tab=`). `/settings/roles` and `/settings/user-roles` redirect here
 - `/settings/reminders`, `/settings/wording`, `/settings/sending`, `/settings/announcements` - Messages task pages (reminders, email wording, email & sending, announcements); the old `/settings/notifications/*`, `/settings/email`, `/settings/comms-override` routes redirect to them
 - `/system/audit-logs` - Audit trail viewer
 - `/settings/system` - Maintenance & data (maintenance mode and message, audit log retention and Prune Data); `/settings/maintenance` and `/settings/data-retention` redirect here
-- `/settings/streets`, `/settings/house-types` - Reference data
+- `/settings/property` - Streets & Houses (old `/settings/streets`, `/settings/house-types` redirect here)
 - `/settings/banking` - Bank accounts, transaction tags and duplicate matching on one page; the old `/settings/bank-accounts` and `/settings/transaction-tags` routes redirect to its sections
 - `/settings/documents` - Documents task page (categories, tags and custom fields); `/settings/document-categories` and `/settings/document-taxonomy` redirect to it
 - `/settings/announcement-categories` - redirects to `/settings/announcements#categories`

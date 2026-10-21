@@ -103,6 +103,12 @@ describe('settings navigation coverage', () => {
       // Merged into Maintenance & data (#938, #791); same arrangement as above.
       '/settings/maintenance',
       '/settings/data-retention',
+      // Merged into Estate Profile and Streets & houses (#936).
+      '/settings/estate-info',
+      '/settings/branding',
+      '/settings/appearance',
+      '/settings/streets',
+      '/settings/house-types',
     ]);
 
     const unlisted = routesOnDisk()

@@ -4,9 +4,9 @@
  * `getSetupStatus` in `@/actions/settings/get-setup-status`.
  */
 export const SETUP_STEPS = [
-  { id: 'estate', title: 'Add the estate name and address', href: '/settings/estate-info' },
-  { id: 'street', title: 'Add a street', href: '/settings/streets' },
-  { id: 'houseType', title: 'Add a house type', href: '/settings/house-types' },
+  { id: 'estate', title: 'Add the estate name and address', href: '/settings/estate' },
+  { id: 'street', title: 'Add a street', href: '/settings/property' },
+  { id: 'houseType', title: 'Add a house type', href: '/settings/property' },
   { id: 'bankAccount', title: 'Add a bank account', href: '/settings/banking' },
   { id: 'billingProfile', title: 'Create a billing profile', href: '/settings/billing/profiles' },
   { id: 'billingSettings', title: 'Save the billing settings', href: '/settings/billing' },

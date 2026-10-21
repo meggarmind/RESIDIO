@@ -1,27 +1,6 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import { StreetsList } from '@/components/admin/streets-list';
-import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
-
-export default function StreetsPage() {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-medium">Streets</h3>
-        <p className="text-sm text-muted-foreground">
-          Manage the list of streets in the estate.
-        </p>
-      </div>
-      <Card>
-        <CardHeader>
-          <CardDescription>
-            Add, edit, or remove streets used throughout the system.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <StreetsList />
-        </CardContent>
-      </Card>
-    </div>
-  );
+// Merged into /settings/property (#936). The ROUTE_PERMISSIONS entry for this path stays: it still decides who reaches the redirect (ADR-0004).
+export default function Page() {
+  redirect('/settings/property#streets');
 }

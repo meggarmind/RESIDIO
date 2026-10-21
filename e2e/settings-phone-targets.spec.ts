@@ -5,8 +5,7 @@ import { loginAs } from './fixtures';
 // scroll sideways at 1440. Axe on the busiest settings pages is a follow-up.
 
 const PHONE_PAGES = [
-    '/settings/streets',
-    '/settings/house-types',
+    '/settings/property',
     '/settings/banking',
 ];
 

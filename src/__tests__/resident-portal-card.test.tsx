@@ -9,7 +9,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 let permissions: string[] = [];
 const refreshPortalVisibility = vi.fn();
 vi.mock('@/lib/auth/auth-provider', () => ({
-  useAuth: () => ({ hasPermission: (p: string) => permissions.includes(p), refreshPortalVisibility }),
+  useAuth: () => ({
+    isLoading: false,
+    hasPermission: (p: string) => permissions.includes(p),
+    hasAnyPermission: (ps: string[]) => ps.some((p) => permissions.includes(p)),
+    refreshPortalVisibility,
+  }),
 }));
 
 const setResidentPortalEnabled = vi.fn();
@@ -23,19 +28,20 @@ vi.mock('@/actions/settings/resident-portal', () => ({
 const toastError = vi.fn();
 vi.mock('sonner', () => ({ toast: { error: (...a: unknown[]) => toastError(...a), success: vi.fn() } }));
 
-const { ResidentPortalCard } = await import('@/app/(dashboard)/settings/estate-info/resident-portal-card');
+const { ResidentPortalSection } = await import('@/components/settings/estate/resident-portal-section');
 const { PERMISSIONS } = await import('@/lib/auth/action-roles');
 
 function renderCard() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <ResidentPortalCard />
+      <ResidentPortalSection />
     </QueryClientProvider>
   );
 }
 
-const getSwitch = () => screen.findByRole('switch', { name: 'Show resident portal links' });
+// The section starts collapsed, so its body is hidden until opened.
+const getSwitch = () => screen.findByRole('switch', { name: 'Show resident portal links', hidden: true });
 
 beforeEach(() => {
   permissions = [PERMISSIONS.SETTINGS_MANAGE_GENERAL];
@@ -48,7 +54,7 @@ beforeEach(() => {
 });
 afterEach(() => cleanup());
 
-describe('ResidentPortalCard', () => {
+describe('ResidentPortalSection', () => {
   it('saves and refreshes the auth context on a successful toggle', async () => {
     renderCard();
     fireEvent.click(await getSwitch());
@@ -68,21 +74,21 @@ describe('ResidentPortalCard', () => {
     expect(refreshPortalVisibility).not.toHaveBeenCalled();
   });
 
-  it('disables the switch without SETTINGS_MANAGE_GENERAL', async () => {
+  it('renders no switch without SETTINGS_MANAGE_GENERAL', async () => {
     permissions = [];
     renderCard();
-    const sw = await getSwitch();
-    expect(sw.hasAttribute('disabled')).toBe(true);
+    expect(screen.queryByRole('switch', { hidden: true })).toBeNull();
+    expect(screen.queryByText('Resident portal')).toBeNull();
   });
 
   it('shows an inline error with retry instead of an off switch when the query fails', async () => {
     getResidentPortalEnabled.mockResolvedValueOnce({ success: false, error: 'boom' });
     renderCard();
-    expect(await screen.findByRole('alert')).not.toBeNull();
-    expect(screen.queryByRole('switch')).toBeNull();
+    expect(await screen.findByRole('alert', { hidden: true })).not.toBeNull();
+    expect(screen.queryByRole('switch', { hidden: true })).toBeNull();
 
     getResidentPortalEnabled.mockResolvedValue({ success: true, data: true });
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Retry', hidden: true }));
     const sw = await getSwitch();
     await waitFor(() => expect(sw.getAttribute('aria-checked')).toBe('true'));
   });

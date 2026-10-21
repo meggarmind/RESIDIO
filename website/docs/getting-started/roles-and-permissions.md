@@ -65,7 +65,7 @@ A role with only view access, such as Trustee, sees no create, edit, delete, app
 A plain resident holds no role at all. They have no admin dashboard and reach the resident portal through their resident record.
 
 :::info[Resident portal links]
-Whether an admin sees *My Portal*, *Resident Portal* and *View as Resident* depends on the estate-wide **Resident portal** switch (Settings → Estate & Property → Estate Details) and a per-account override (System → Roles & Access: Inherit, Enabled or Disabled). The links are hidden by default. An account with no linked resident never sees *My Portal* or *Resident Portal*, whatever its role, including the Super Administrator. Hiding the links does not block the `/portal` address.
+Whether an admin sees *My Portal*, *Resident Portal* and *View as Resident* depends on the estate-wide **Resident portal** switch (Settings → Estate & Property → Estate Profile) and a per-account override (System → Roles & Access: Inherit, Enabled or Disabled). The links are hidden by default. An account with no linked resident never sees *My Portal* or *Resident Portal*, whatever its role, including the Super Administrator. Hiding the links does not block the `/portal` address.
 :::
 
 :::info[What the Chairman cannot do]
