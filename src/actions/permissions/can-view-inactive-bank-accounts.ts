@@ -1,6 +1,5 @@
 // Server action to check if the current user can view inactive bank accounts.
-// Follows the RLS policy gate ['super_admin','chairman','vice_chairman','financial_officer'], except that
-// billing.manage_profiles is also held by project_manager (#824 slice 2 found this; not changed here).
+// Follows the RLS policy gate (payments.manage_reference_records: super_admin, chairman, financial_officer). vice_chairman and project_manager are retired by #825.
 // Uses BILLING_MANAGE_PROFILES as the canonical finance write permission.
 'use server';
 

@@ -42,23 +42,29 @@ Two-factor authentication is optional: it applies only to accounts that have tur
 
 ## Roles
 
-| Role | Typical responsibility | Primary guide sections |
-| --- | --- | --- |
-| Super Administrator | Full estate configuration and oversight | All sections |
-| Chairman | Governance, approvals, reports, and oversight — everything the Super Administrator can do apart from Settings | Dashboard, operations, reports |
-| Vice Chairman | Deputises for the chairman | Dashboard, operations, reports |
-| Financial Officer | Payments, billing, imports, expenditure, and finance reports | Finance |
-| Secretary | Documents, communications, and resident records | Residents, operations |
-| Security Officer | Security contacts, access records, and gate operations | Security |
-| Project Manager | Capital projects and development levies | Operations |
-| Resident | Self-service portal only, no admin dashboard | — |
+| Role | Titles | Typical responsibility | Primary guide sections |
+| --- | --- | --- | --- |
+| Super Administrator | — | Full estate configuration and oversight. An operator role, not tied to a resident | All sections |
+| Chairman | Chairman, Vice Chairman | Governance, approvals, reports, settings, projects and role assignment | Dashboard, operations, reports, settings |
+| Financial Officer | Treasurer, Financial Secretary | Payments, billing, imports, expenditure, and finance reports | Finance |
+| Secretary | Secretary, Assistant Secretary | Documents, communications, and resident records | Residents, operations |
+| Security Officer | Chief Security Officer, Assistant Chief Security Officer | Security contacts, access records, and gate operations | Security |
+| Welfare Officer | Welfare Officer | Announcements, notes and notifications; reads residents, houses and documents | Operations |
+| Trustee | Trustee (any number) | Oversight: reads every module except Settings and exports reports. Changes nothing | Dashboard, reports |
+| Security Guard Supervisor | Security Guard Supervisor | Gate work: views security contacts, creates and verifies access codes, records check-ins | Security |
+
+A **title** is the post a person holds within a role. A backup officer, such as the Vice Chairman or the Financial Secretary, holds the same role as the principal and has exactly the same permissions; the title is what tells them apart. Each title has one seat, except Trustee, which has no limit.
+
+Every role except Super Administrator and Security Guard Supervisor can only be held by an account linked to a resident record. If that resident moves out or is deactivated, the role is removed automatically.
+
+A plain resident holds no role at all. They have no admin dashboard and reach the resident portal through their resident record.
 
 :::info[Resident portal links]
 Whether an admin sees *My Portal*, *Resident Portal* and *View as Resident* depends on the estate-wide **Resident portal** switch (Settings → Estate & Property → Estate Details) and a per-account override (System → Roles & Access: Inherit, Enabled or Disabled). The links are hidden by default. An account with no linked resident never sees *My Portal* or *Resident Portal*, whatever its role, including the Super Administrator. Hiding the links does not block the `/portal` address.
 :::
 
-:::info[Chairman and the Settings module]
-The Chairman is the Super Administrator without configuration. Every operational module is available — residents, houses, payments, billing, security, reports, documents, announcements, approvals — but the whole **Settings** section is not, and does not appear in the sidebar. That includes defining roles, so creating roles is the Super Administrator's job. Role *assignment* is a separate permission on **System → Roles & Access**, outside Settings, so it can be granted to a role such as Chairman independently of Settings access.
+:::info[What the Chairman cannot do]
+The Chairman has every operational module, the **Settings** section, projects and role assignment. It does not have the rest of **System** — defining roles, maintenance mode, data retention, system health — and it cannot view the portal as a resident (impersonation). Approving impersonation requests and changing impersonation settings belong to the Super Administrator alone, so no officer can approve their own request. Assigning the Super Administrator, Chairman or Trustee role needs the **Assign Board Roles** permission, which only the Super Administrator holds.
 :::
 
 Your deployment may contain additional custom roles, created under **Roles**. A custom role behaves exactly like a built-in one: its holder signs in to the admin dashboard and sees the modules it was granted. Ask a super administrator to confirm the exact permission set before assigning responsibility.
@@ -108,7 +114,7 @@ An account only holds permissions once it is approved, so the Accounts search wi
 
 **Remove Current Role** takes the role away. What happens next depends on the person:
 
-- Someone with a resident record drops back to the plain resident role. They lose every administrative permission and keep nothing but resident access.
+- Someone with a resident record is left with no role. They lose every administrative permission and keep nothing but resident access.
 - An account with no resident record has no role to fall back on, so it returns to **pending** and loses access entirely until it is approved again. You are warned before this happens.
 
 Assigning roles is day-to-day account work rather than configuration, so it lives under **System → Roles & Access** rather than Settings. The **Super Administrator** always has access, and the permission can also be granted on its own to another role. The Super Administrator role cannot be removed through the app at all.
