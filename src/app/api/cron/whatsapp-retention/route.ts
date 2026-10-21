@@ -18,13 +18,17 @@ async function runPurge(run: SystemLogRun) {
     // user, so the RLS-bound getSettingValue always returned null and the
     // configured retention windows were silently ignored in favor of the
     // hardcoded fallbacks below.
-    const [sessionDays, processedMessageDays] = await Promise.all([
+    const [sessionDays, processedMessageDays, surveyResponseDays, outboundSendDays] = await Promise.all([
       getSettingValueAsService('whatsapp_session_retention_days'),
       getSettingValueAsService('whatsapp_processed_message_retention_days'),
+      getSettingValueAsService('whatsapp_survey_retention_days'),
+      getSettingValueAsService('whatsapp_outbound_send_retention_days'),
     ]);
     const result = await purgeWhatsAppOperationalState({
       sessionDays: typeof sessionDays === 'number' ? Math.min(Math.max(sessionDays, 1), 30) : 1,
       processedMessageDays: typeof processedMessageDays === 'number' ? Math.min(Math.max(processedMessageDays, 1), 30) : 2,
+      surveyResponseDays: typeof surveyResponseDays === 'number' ? Math.min(Math.max(surveyResponseDays, 1), 365) : 90,
+      outboundSendDays: typeof outboundSendDays === 'number' ? Math.min(Math.max(outboundSendDays, 1), 365) : 90,
     });
     run.summary = { ...result };
     return NextResponse.json({ success: true, ...result });

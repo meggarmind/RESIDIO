@@ -50,7 +50,7 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 const boom = { message: 'boom' };
 const pilotInput = {
   mode: 'disabled' as const, residentIds: [], streetId: '', outboundDailyCap: 1, outboundBurstCap: 1,
-  outboundBurstWindowMinutes: 1, financialLookupDailyCap: 1, sessionRetentionDays: 7, processedMessageRetentionDays: 7,
+  outboundBurstWindowMinutes: 1, financialLookupDailyCap: 1, sessionRetentionDays: 7, processedMessageRetentionDays: 7, surveyResponseRetentionDays: 90, outboundSendRetentionDays: 90,
 };
 
 beforeEach(() => {

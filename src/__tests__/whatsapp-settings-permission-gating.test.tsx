@@ -79,6 +79,8 @@ function Page() {
           financialLookupDailyCap: 50,
           sessionRetentionDays: 1,
           processedMessageRetentionDays: 2,
+          surveyResponseRetentionDays: 90,
+          outboundSendRetentionDays: 90,
         }}
         residentOptions={[{ id: 'res-1', name: 'Ada Okoro', detail: 'RES001 · 12 Palm Close' }]}
       />
