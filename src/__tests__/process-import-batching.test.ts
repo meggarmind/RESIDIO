@@ -88,9 +88,11 @@ function makeSupabase() {
         }
         return { data: rows.map((r) => ({ ...r })), error: null };
       };
-      // Mirrors PostgREST: maybeSingle errors on more than one match.
+      let limitN = Infinity;
+      chain.limit = (n: number) => ((limitN = n), chain);
+      // Mirrors PostgREST: maybeSingle errors on more than one match, unless limited to one.
       chain.maybeSingle = async () => {
-        const rows = matching();
+        const rows = matching().slice(0, limitN);
         return rows.length > 1 ? { data: null, error: { message: 'multiple rows' } } : { data: rows[0] ?? null, error: null };
       };
       chain.single = async () => {
