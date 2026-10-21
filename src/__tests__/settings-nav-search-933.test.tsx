@@ -85,7 +85,7 @@ describe('Monitoring entry in the System group', () => {
   });
 
   it('renders the mark in the sidebar', () => {
-    state.pathname = '/settings/maintenance';
+    state.pathname = '/settings/system';
     render(<SettingsSidebar />);
     const link = screen.getByRole('link', { name: /Audit Logs/ });
     expect(link).toHaveAttribute('href', '/system/audit-logs');
@@ -178,7 +178,8 @@ describe('sidebar search', () => {
 
   it('opens the first result on Enter', () => {
     render(<SettingsSidebar />);
-    type('audit');
+    // "audit" also names the Audit log retention row on Maintenance & data (#938), which sorts first.
+    type('who changed');
     fireEvent.keyDown(screen.getByRole('searchbox', { name: 'Search settings' }), { key: 'Enter' });
     expect(push).toHaveBeenCalledWith('/system/audit-logs');
   });

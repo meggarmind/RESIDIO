@@ -103,9 +103,12 @@ describe('old routes are redirect stubs', () => {
 
 describe('session timeout moved off Maintenance', () => {
   it('Maintenance no longer writes or describes the session timeout', () => {
-    const maintenance = read(`${PAGE_DIR}/maintenance/page.tsx`);
+    // Maintenance is now the Maintenance & data page (#938).
+    const maintenance = ['maintenance-mode-section', 'retention-section']
+      .map((f) => read(`src/components/settings/system/${f}.tsx`))
+      .join('\n');
     expect(maintenance).not.toContain('session_timeout_minutes');
-    const entry = flattenSettingsNav(settingsConfig).find((i) => i.href === '/settings/maintenance')!;
+    const entry = flattenSettingsNav(settingsConfig).find((i) => i.href === '/settings/system')!;
     expect(entry.description).not.toMatch(/session/i);
   });
 

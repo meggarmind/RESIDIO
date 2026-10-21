@@ -15,7 +15,8 @@ residio_sources:
   - src/app/(dashboard)/settings/security/**
   - src/app/(dashboard)/settings/billing/**
   - src/app/(dashboard)/settings/banking/**
-residio_verified_commit: 3d960404
+  - src/app/(dashboard)/settings/system/**
+residio_verified_commit: c2f2451f
 residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---
@@ -33,13 +34,13 @@ Settings are grouped by the decision they control.
 - **Documents:** one task page with two sections, **Categories** (which ones residents can see) and **Tags & fields**. The old addresses for the category and tag pages still work and open the right section. You see only the sections your role can change.
 - **People & Access:** role and permission definitions, recipient groups (named lists of residents the estate sends copies to), and **Security rules**, one page with three sections: **Contact limits** (auto-expire, the cap per category, warning days), **Contact categories** (default and longest validity) and **Session timeout**. The old Contact Categories address still works and opens its section.
 - **Connections:** external services — WhatsApp and Gmail import today, with Paystack and SMS planned. Each keeps its credentials and its day-to-day console (consent, sync status, manual actions) together, rather than splitting configuration from operations the way the other groups do.
-- **System:** maintenance mode, data retention, and **Monitoring**, which links to the audit logs, scheduled jobs, notification queue and notification history. The Monitoring links are marked **Opens System** because those pages live under **System** in the main sidebar.
+- **System:** **Maintenance & Data** (maintenance mode and data retention, each a section of one page), and **Monitoring**, which links to the audit logs, scheduled jobs, notification queue and notification history. The Monitoring links are marked **Opens System** because those pages live under **System** in the main sidebar.
 
 **Search from any settings page.** The search box at the top of the Settings menu (the menu button on a phone) finds a page by name and lists matches in place of the menu. Press Enter to open the first match, or Escape to clear the box. It lists only pages your role can open.
 
 **This page.** Every settings page your role can open has a card here, grouped as in the sidebar. Type in the search box to narrow the cards to matching pages, for example `late fee` or `logo`. A card for a setup step reads **Set up** or **Not set up**. Until the estate is fully set up, a **Setup checklist** above the cards shows how many of the nine first-time steps are done (estate name and address, a street, a house type, a bank account, a billing profile, billing settings changed from their defaults, a notification channel, payment reminders, and a custom role given to someone). Email is switched on by default, so a new estate starts with the notification channel step already done. Each step links to its page, and the checklist disappears once every step is done.
 
-**States that affect everyone.** While maintenance mode or the communications override is on, a banner that cannot be dismissed sits above the header on every dashboard page, the **Settings** item in the main menu carries an amber dot, and the matching card on this page reads **ON**. Each banner links to its settings page. You see a state only if your role can open its page: the maintenance permission for maintenance mode, the general settings permission for the override. Debug Mode also counts as the override being on while it is running, since it redirects every message too. Outside production the override is always on, so on Stage the override banner is always shown.
+**States that affect everyone.** While maintenance mode or the communications override is on, a banner that cannot be dismissed sits above the header on every dashboard page, the **Settings** item in the main menu carries an amber dot, and the matching card on this page reads **ON**. Each banner links to its settings page; the maintenance banner opens the **Maintenance mode** section of **Maintenance & Data**. You see a state only if your role can open its page: the maintenance permission for maintenance mode, the general settings permission for the override. Debug Mode also counts as the override being on while it is running, since it redirects every message too. Outside production the override is always on, so on Stage the override banner is always shown.
 
 **Resident portal switch.** **Settings → Estate & Property → Estate Details** has a *Resident portal* card with one switch. It decides whether the resident portal links (*My Portal*, *Resident Portal* in the profile menu, and *View as Resident*) appear in the admin dashboard. It is off by default and needs the general settings permission to change. The switch only hides or shows links: it does not block the `/portal` address, so anyone who opens `/portal` directly still reaches it. An individual account can override the switch under **System → Roles & Access**.
 

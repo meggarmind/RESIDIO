@@ -341,8 +341,7 @@ shadcn/ui components - button, card, form, table, dialog, sheet, tabs, badge, al
 - `/system/accounts` - Roles & Access (administrators, pending sign-ups, unlinked logins, roles, who can hold each role; `?tab=`). `/settings/roles` and `/settings/user-roles` redirect here
 - `/settings/reminders`, `/settings/wording`, `/settings/sending`, `/settings/announcements` - Messages task pages (reminders, email wording, email & sending, announcements); the old `/settings/notifications/*`, `/settings/email`, `/settings/comms-override` routes redirect to them
 - `/system/audit-logs` - Audit trail viewer
-- `/settings/maintenance` - Maintenance mode, its message and session timeout
-- `/settings/data-retention` - Retention policies and pruning
+- `/settings/system` - Maintenance & data (maintenance mode and message, audit log retention and Prune Data); `/settings/maintenance` and `/settings/data-retention` redirect here
 - `/settings/streets`, `/settings/house-types` - Reference data
 - `/settings/banking` - Bank accounts, transaction tags and duplicate matching on one page; the old `/settings/bank-accounts` and `/settings/transaction-tags` routes redirect to its sections
 - `/settings/documents` - Documents task page (categories, tags and custom fields); `/settings/document-categories` and `/settings/document-taxonomy` redirect to it

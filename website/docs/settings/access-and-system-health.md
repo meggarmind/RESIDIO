@@ -5,6 +5,8 @@ sidebar_label: Access and system health
 residio_sources:
   - src/app/(dashboard)/settings/maintenance/**
   - src/app/(dashboard)/settings/data-retention/**
+  - src/app/(dashboard)/settings/system/**
+  - src/components/settings/system/**
   - src/app/(dashboard)/system/audit-logs/**
   - src/app/(dashboard)/system/action-log/**
   - src/app/(dashboard)/settings/roles/**
@@ -14,7 +16,7 @@ residio_sources:
   - src/app/(dashboard)/system/page.tsx
   - src/components/system/**
   - src/actions/system/**
-residio_verified_commit: 3d960404
+residio_verified_commit: 723fc8b2
 residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---
@@ -72,17 +74,19 @@ Open **System → Audit Logs** to trace creates, updates, approvals, and adminis
 
 ## Action log
 
-Open **System → Action Log** to see what automated processes, such as scheduled jobs and incoming webhooks, did and whether it worked. Audit logs record what a signed-in person changed; the action log covers runs with nobody signed in. Each entry shows when it ran, its source, the action, an outcome (success, partial or failure), how long it took, any error message, and a collapsible summary of counts and ids. Filter by source, outcome, or date range; newest entries come first. Only super administrators see this page and its sidebar link. It is read-only. Entries older than 90 days are removed when someone runs **Prune Data** under **Settings → Data Retention**; nothing prunes them automatically.
+Open **System → Action Log** to see what automated processes, such as scheduled jobs and incoming webhooks, did and whether it worked. Audit logs record what a signed-in person changed; the action log covers runs with nobody signed in. Each entry shows when it ran, its source, the action, an outcome (success, partial or failure), how long it took, any error message, and a collapsible summary of counts and ids. Filter by source, outcome, or date range; newest entries come first. Only super administrators see this page and its sidebar link. It is read-only. Entries older than 90 days are removed when someone runs **Prune Data** under **Settings → Maintenance & Data → Data retention**; nothing prunes them automatically.
 
 ## System health
 
-Maintenance mode (on the **Settings → System → Maintenance Mode** page, headed *System Behaviour*; the duplicate transaction threshold now sits under **Settings → Money → Banking**) and data retention are configuration, so they stay under **Settings**. The things you only watch have moved to **System**: **System → Cron Status** for scheduled jobs, and **System → Notification Queue** for messages waiting to go out. A health warning is a prompt to investigate, not a reason to delete data.
+Maintenance mode and data retention (the two sections of **Settings → Maintenance & Data**; the duplicate transaction threshold sits under **Settings → Money → Banking**) are configuration, so they stay under **Settings**. The things you only watch have moved to **System**: **System → Cron Status** for scheduled jobs, and **System → Notification Queue** for messages waiting to go out. A health warning is a prompt to investigate, not a reason to delete data.
 
-Turning maintenance mode on asks first and lists how many active accounts, by role, would be sent to the maintenance page: everyone without the super admin role. It shows the saved maintenance message; unsaved edits to the message are not used until you save them. Turning it off takes effect at once. While it is on, admins who can manage maintenance see a banner on every dashboard page saying non-admin users are locked out, so it is hard to leave on by mistake. The other fields on the page (message and duplicate threshold) are saved together from the save bar that appears when something has changed, and the page warns before you leave with unsaved changes. The switch and these fields both need the manage maintenance permission.
+Turning maintenance mode on asks first and lists how many active accounts, by role, would be sent to the maintenance page: everyone without the super admin role. It shows the saved maintenance message; unsaved edits to the message are not used until you save them. Turning it off takes effect at once. While it is on, admins who can manage maintenance see a banner on every dashboard page saying non-admin users are locked out, so it is hard to leave on by mistake. The maintenance message is saved with the **Save Maintenance mode** button at the foot of the section, which lights up when the message has changed, and the page warns before you leave with unsaved changes. The section is marked **Needs attention** while maintenance mode is on. The switch and the message both need the manage maintenance permission.
 
 **Session timeout** is under **Settings → People & Access → Security rules**, in its own *Session timeout* section (it moved there from the Maintenance page). It sets how many minutes of inactivity sign a user out, from 5 to 1,440; 60 if never saved. The section has its own **Save** and **Discard**, and still needs the manage maintenance permission.
 
-**Prune Data** under **Settings → Data Retention** shows how many audit log entries, notifications, search entries and system action log entries it would delete, and runs only after you type PRUNE. It deletes audit logs older than the saved **Audit Log Retention** setting on the same page (30 to 3650 days; 365 if never saved), and the other data by fixed ages. Changing the retention setting and running **Prune Data** both need the manage data retention permission.
+**Prune Data** sits in the **Data retention** section of **Settings → Maintenance & Data**, which starts collapsed. It shows how many audit log entries, notifications, search entries and system action log entries it would delete, and runs only after you type PRUNE. It deletes audit logs older than the saved **Audit Log Retention** setting in the same section (30 to 3650 days; 365 if never saved; saved with **Save Data retention**), and the other data by fixed ages. Changing the retention setting and running **Prune Data** both need the manage data retention permission.
+
+The collapsed **Duplicate matching** section sets the confidence threshold (1 to 100; 90 if never saved) above which a transaction is flagged as a duplicate. It has its own **Save** and **Discard** and needs the manage maintenance permission.
 
 ## Safe maintenance sequence
 

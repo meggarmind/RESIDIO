@@ -101,8 +101,8 @@ describe('Settings/System search entry permissions', () => {
       '/settings/security': ['security.manage_categories', 'settings.manage_security', 'system.manage_maintenance'],
       '/settings/whatsapp': ['whatsapp.view'],
       '/settings/email-integration': ['email_imports.view'],
-      '/settings/maintenance': ['system.manage_maintenance'],
-      '/settings/data-retention': ['system.manage_data_retention'],
+      // Merged System page (#938): the OR of its sections' permissions.
+      '/settings/system': ['system.manage_data_retention', 'system.manage_maintenance'],
       '/system': ['system.view_all_settings'],
       '/system/audit-logs': ['settings.view_audit_logs'],
       '/system/accounts': ['system.assign_roles'],
@@ -178,6 +178,10 @@ describe('Settings row search entry permissions (#934, #935, #937)', () => {
       'statement-passwords': REFERENCE,
       'transaction-tags': REFERENCE,
       'duplicate-threshold': ['system.manage_maintenance'],
+      'maintenance-mode': ['system.manage_maintenance'],
+      'maintenance-message': ['system.manage_maintenance'],
+      'audit-log-retention': ['system.manage_data_retention'],
+      'prune-data': ['system.manage_data_retention'],
     });
   });
 

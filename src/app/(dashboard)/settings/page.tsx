@@ -60,7 +60,7 @@ export default function SettingsPage() {
   const stepDone = new Map<string, boolean>(setup?.steps.map((step) => [step.href, step.done]));
   // Cards whose state changes what every user gets (#789); the same state the dashboard banner shows.
   const isOn: Record<string, boolean> = {
-    '/settings/maintenance': opsStatus.maintenance,
+    '/settings/system': opsStatus.maintenance,
     '/settings/sending': opsStatus.commsOverride,
   };
 

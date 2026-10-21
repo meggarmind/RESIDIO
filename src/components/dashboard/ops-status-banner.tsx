@@ -9,7 +9,7 @@ export const OPS_STATUS_MESSAGES = [
   {
     key: 'maintenance',
     text: 'Maintenance mode is ON. Non-admin users are locked out.',
-    href: '/settings/maintenance',
+    href: '/settings/system#maintenance-mode',
   },
   {
     key: 'commsOverride',

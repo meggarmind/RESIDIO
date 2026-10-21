@@ -73,13 +73,18 @@ import { LeviesSection as DevelopmentLeviesPage } from '@/components/settings/bi
 import { DuplicateMatchingSection } from '@/components/settings/banking/duplicate-matching-section';
 import { SecurityLimitsSection as SecuritySettingsPage } from '@/components/settings/security/security-limits-section';
 import { SessionTimeoutSection } from '@/components/settings/security/session-timeout-section';
-import DataRetentionPage from '@/app/(dashboard)/settings/data-retention/page';
+import { RetentionSection } from '@/components/settings/system/retention-section';
 import { SendRemindersNowSection as EmailDebugPage } from '@/components/settings/messages/send-reminders-test-section';
-import MaintenancePage from '@/app/(dashboard)/settings/maintenance/page';
+import { MaintenanceModeSection } from '@/components/settings/system/maintenance-mode-section';
 
 function renderPage(Page: React.ComponentType) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(<QueryClientProvider client={client}><Page /></QueryClientProvider>);
+}
+
+/** Opens the section a page starts collapsed, as an admin would. */
+function openSection(name: string) {
+  fireEvent.click(screen.getByRole('button', { name }));
 }
 
 function typeSlowly(input: HTMLElement, text: string) {
@@ -153,12 +158,26 @@ describe('numeric settings save on blur only', () => {
     expect(m.updateSecuritySetting).toHaveBeenCalledWith({ key: 'security_max_contacts_per_resident', value: 20 });
   });
 
-  it('maintenance: the message is a draft until Save', async () => {
-    renderPage(MaintenancePage);
-    fireEvent.change(screen.getByLabelText('Maintenance Message'), { target: { value: 'Back at noon' } });
+  it('retention: the days are a draft until Save, and an invalid entry blocks Save', async () => {
+    renderPage(RetentionSection);
+    openSection('Data retention');
+    const days = screen.getByRole('textbox', { name: 'Audit log retention' });
+    fireEvent.change(days, { target: { value: '2' } });
+    fireEvent.blur(days);
+    expect(await screen.findByRole('button', { name: 'Save Data retention' })).toBeDisabled();
+    fireEvent.change(days, { target: { value: '30' } });
+    fireEvent.blur(days);
     expect(m.updateSettings).not.toHaveBeenCalled();
-    fireEvent.click(await screen.findByRole('button', { name: /Save changes/ }));
-    expect(m.updateSettings).toHaveBeenCalledWith({ maintenance_message: 'Back at noon' }, expect.anything());
+    fireEvent.click(screen.getByRole('button', { name: 'Save Data retention' }));
+    await waitFor(() => expect(m.updateSettings).toHaveBeenCalledWith({ audit_log_retention_days: 30 }));
+  });
+
+  it('maintenance: the message is a draft until Save', async () => {
+    renderPage(MaintenanceModeSection);
+    fireEvent.change(screen.getByRole('textbox', { name: 'Maintenance message' }), { target: { value: 'Back at noon' } });
+    expect(m.updateSettings).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Save Maintenance mode' }));
+    await waitFor(() => expect(m.updateSettings).toHaveBeenCalledWith({ maintenance_message: 'Back at noon' }));
   });
 
   it('session timeout (moved from maintenance, #937): a draft until Save, and an invalid one blocks Save', async () => {
@@ -174,8 +193,8 @@ describe('numeric settings save on blur only', () => {
     await waitFor(() => expect(m.updateSettings).toHaveBeenCalledWith({ session_timeout_minutes: 30 }));
   });
 
-  it('maintenance no longer shows the session timeout', () => {
-    renderPage(MaintenancePage);
+  it('maintenance mode no longer shows the session timeout', () => {
+    renderPage(MaintenanceModeSection);
     expect(screen.queryByLabelText('Session Timeout (minutes)')).toBeNull();
   });
 
@@ -199,7 +218,7 @@ describe('numeric settings save on blur only', () => {
   });
 
   it('maintenance no longer carries the duplicate threshold (#935)', () => {
-    renderPage(MaintenancePage);
+    renderPage(MaintenanceModeSection);
     expect(screen.queryByLabelText(/Confidence Threshold/i)).not.toBeInTheDocument();
   });
 });
@@ -249,7 +268,8 @@ describe('guarded actions confirm with a preview', () => {
       error: null,
     });
     m.pruneSystemData.mockResolvedValue({ data: { notifications: 40, auditLogs: 1234, searchLogs: 5, systemActionLogs: 6 }, error: null });
-    renderPage(DataRetentionPage);
+    renderPage(RetentionSection);
+    openSection('Data retention');
     fireEvent.click(screen.getByRole('button', { name: /Prune Data/ }));
     expect(await screen.findByText('1234')).toBeInTheDocument();
     const confirm = screen.getByRole('button', { name: 'Delete permanently' });
@@ -279,8 +299,8 @@ describe('guarded actions confirm with a preview', () => {
       error: null,
     });
     m.updateMaintenanceMode.mockResolvedValue({ success: true });
-    renderPage(MaintenancePage);
-    fireEvent.click(screen.getByLabelText('Enable Maintenance Mode'));
+    renderPage(MaintenanceModeSection);
+    fireEvent.click(screen.getByRole('switch', { name: 'Maintenance mode' }));
     const dialog = await screen.findByRole('alertdialog');
     await waitFor(() => expect(dialog).toHaveTextContent('7 active account(s) will be locked out'));
     expect(dialog).toHaveTextContent('Chairman: 2');
