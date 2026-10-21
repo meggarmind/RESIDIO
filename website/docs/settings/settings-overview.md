@@ -18,8 +18,9 @@ residio_sources:
   - src/app/(dashboard)/settings/access/**
   - src/app/(dashboard)/settings/billing/**
   - src/app/(dashboard)/settings/banking/**
+  - src/app/(dashboard)/settings/debt-status/**
   - src/app/(dashboard)/settings/system/**
-residio_verified_commit: 984574d7
+residio_verified_commit: 7abb0811
 residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---
@@ -32,7 +33,7 @@ Settings are grouped by the decision they control.
 
 - **Setup:** this overview page, with the setup checklist.
 - **Estate & Property:** two task pages. **Estate Profile** (details, logo, theme, assistant, resident portal, social links) and **Streets & Houses** (streets, house types). The old addresses for these pages still work and open the right section.
-- **Money:** **Billing rules** (general, invoices and due dates, late fees, levies on one page), **Rate cards** (billing profiles), and **Banking** (bank accounts, transaction tags, duplicate matching on one page). The old addresses for the billing and bank pages still work and open the right section.
+- **Money:** **Billing rules** (general, invoices and due dates, late fees, levies on one page), **Rate cards** (billing profiles), **Debt status** (the words Arrears, Outstanding, Paid in Full and Credit, the number of owed invoices after which a house is in arrears, and the debt status report's footnote and chat-PDF house limit), and **Banking** (bank accounts, transaction tags, duplicate matching on one page). The old addresses for the billing and bank pages still work and open the right section.
 - **Messages:** four task pages, each made of sections on one page. **Reminders** (on or off, schedule, send now), **Message wording** (email, WhatsApp), **Email & sending** (channels, email types, and a collapsed *Testing* section for the test-mode redirect and the test email) and **Announcements** (templates, categories). The old addresses for these pages still work and open the right section. The row of section names under the page title stays in view as you scroll and jumps to a section; sections that control a message start collapsed when they are rarely used.
 - **Documents:** one task page with two sections, **Categories** (which ones residents can see) and **Tags & fields**. The old addresses for the category and tag pages still work and open the right section. You see only the sections your role can change.
 - **People & Access:** **Roles & Access** (administrators, roles and titles, pending sign-ups and unlinked logins, in tabs), recipient groups (named lists of residents the estate sends copies to), and **Security rules**, one page with three sections: **Contact limits** (auto-expire, the cap per category, warning days), **Contact categories** (default and longest validity) and **Session timeout**. The old Contact Categories address still works and opens its section.

@@ -337,6 +337,7 @@ shadcn/ui components - button, card, form, table, dialog, sheet, tabs, badge, al
 - `/settings` - General settings
 - `/settings/estate` - Estate Profile: details, logo, theme, assistant, resident portal, social links (old `/settings/estate-info`, `/settings/branding`, `/settings/appearance` redirect here)
 - `/settings/billing` - Billing rules (general, invoices & due dates, late fees, levies on one page); the old `/settings/billing/late-fees`, `/invoices` and `/development-levies` routes redirect to its sections
+- `/settings/debt-status` - Debt Status: the four status labels, the arrears threshold, the report footnote and the chat-PDF house limit (#980). The status rule is `get_debt_statuses`, wrapped by `src/lib/billing/debt-status.ts`
 - `/settings/security` - Security rules task page (contact limits, contact categories, session timeout); `/settings/security/categories` redirects to it
 - `/settings/access` - Roles & Access (administrators, pending sign-ups, unlinked logins, roles, who can hold each role; `?tab=`). `/system/accounts`, `/settings/roles` and `/settings/user-roles` redirect here
 - `/settings/reminders`, `/settings/wording`, `/settings/sending`, `/settings/announcements` - Messages task pages (reminders, email wording, email & sending, announcements); the old `/settings/notifications/*`, `/settings/email`, `/settings/comms-override` routes redirect to them
