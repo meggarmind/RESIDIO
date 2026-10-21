@@ -45,7 +45,8 @@ interface CorrectionResult {
  * Create invoice correction using debit/credit notes
  *
  * This implements accounting-standard correction workflow:
- * 1. Credit note (negative amount) offsets incorrect invoice
+ * 1. Credit note (negative amount) offsets incorrect invoice; the credit is applied to the
+ *    original invoice's amount_paid so it is no longer owed
  * 2. Debit note(s) (positive amount) create correct invoice(s)
  * 3. Wallet auto-allocation pays new invoices
  *
@@ -171,10 +172,47 @@ export async function createInvoiceCorrection(
     };
   }
 
+  if (totalCredits > Number(originalInvoice.amount_due) + 0.005) {
+    return {
+      success: false,
+      creditNotes: [],
+      debitNotes: [],
+      error: `Credits (₦${totalCredits.toLocaleString()}) cannot exceed the invoice amount (₦${Number(originalInvoice.amount_due).toLocaleString()})`,
+    };
+  }
+
+  // 6. Apply the credit to the original invoice, so it stops counting as owed and stops
+  //    drawing late fees and reminders (#995). It is applied as amount_paid, not by voiding the
+  //    invoice or cutting amount_due: the credit note's own -X amount_due already offsets it in
+  //    resident_account_balance, so either of those would take the credit off twice. The
+  //    amount_paid = 0 condition stops two corrections of one invoice running at once.
+  const creditStatus = (credited: number): InvoiceStatus =>
+    credited <= 0
+      ? (originalInvoice.status as InvoiceStatus)
+      : credited >= Number(originalInvoice.amount_due) - 0.005
+        ? 'paid'
+        : 'partially_paid';
+
+  const { data: claimed, error: claimError } = await supabase
+    .from('invoices')
+    .update({ amount_paid: totalCredits, status: creditStatus(totalCredits) })
+    .eq('id', originalInvoice.id)
+    .eq('amount_paid', 0)
+    .select('id');
+
+  if (claimError || !claimed?.length) {
+    return {
+      success: false,
+      creditNotes: [],
+      debitNotes: [],
+      error: `Failed to apply the credit to the original invoice: ${claimError?.message || 'it changed while the correction was running'}`,
+    };
+  }
+
   const creditNotes: Invoice[] = [];
   const debitNotes: Invoice[] = [];
 
-  // 6. Create credit notes (negative adjustments to offset original invoice)
+  // 7. Create credit notes (negative adjustments to offset original invoice)
   for (const correction of input.corrections.filter((c) => c.type === 'credit')) {
     const invoiceNumber = `ADJ-CR-${Date.now()}-${originalInvoice.invoice_number}`;
 
@@ -202,6 +240,12 @@ export async function createInvoiceCorrection(
       .single();
 
     if (creditError) {
+      // Keep only the credit that has a credit note behind it.
+      const recorded = creditNotes.reduce((sum, note) => sum - Number(note.amount_due), 0);
+      await supabase
+        .from('invoices')
+        .update({ amount_paid: recorded, status: creditStatus(recorded) })
+        .eq('id', originalInvoice.id);
       return {
         success: false,
         creditNotes,
@@ -240,7 +284,7 @@ export async function createInvoiceCorrection(
     });
   }
 
-  // 7. Create debit notes (positive adjustments for correct invoices)
+  // 8. Create debit notes (positive adjustments for correct invoices)
   for (const correction of input.corrections.filter((c) => c.type === 'debit')) {
     const invoiceNumber = `ADJ-DB-${Date.now()}-${originalInvoice.invoice_number}`;
 
@@ -306,7 +350,7 @@ export async function createInvoiceCorrection(
     });
   }
 
-  // 8. Wallet reallocation (unless skipped)
+  // 9. Wallet reallocation (unless skipped)
   let walletResult;
   if (!input.skipWalletReallocation) {
     walletResult = await allocateWalletToInvoices(
@@ -329,7 +373,7 @@ export async function createInvoiceCorrection(
     });
   }
 
-  // 9. Send email notification (unless skipped)
+  // 10. Send email notification (unless skipped)
   let emailSent = false;
   if (!input.skipEmailNotification) {
     const emailResult = await sendCorrectionNotification({
@@ -341,7 +385,7 @@ export async function createInvoiceCorrection(
     emailSent = emailResult.success;
   }
 
-  // 10. Generate warning if wallet insufficient
+  // 11. Generate warning if wallet insufficient
   const warning =
     walletResult && walletResult.totalAllocated < totalDebits
       ? `Only ₦${walletResult.totalAllocated.toLocaleString()} was allocated from wallet. Remaining ₦${(totalDebits - walletResult.totalAllocated).toLocaleString()} is unpaid. Resident may need to make additional payment.`
