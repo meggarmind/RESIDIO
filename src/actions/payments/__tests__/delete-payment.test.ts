@@ -57,6 +57,12 @@ function makeClient(books: Books) {
       if (table === 'wallet_payment_batches') {
         return chain(() => ({ data: books.batches.map(({ id, status }) => ({ id, status })), error: null }));
       }
+      if (table === 'resident_wallets') {
+        return chain(() => ({ data: { balance: books.wallet }, error: null }));
+      }
+      if (table === 'wallet_payment_batch_items') {
+        return chain(() => ({ data: books.batches.map((b) => ({ amount_allocated: b.allocated })), error: null }));
+      }
       if (table === 'wallet_transactions') {
         return chain(() => ({ data: books.ledger, error: null }));
       }
@@ -165,6 +171,27 @@ describe('deletePayment (#993)', () => {
     });
     expect(books.paymentExists).toBe(true);
     expect(books.wallet).toBe(10000);
+  });
+
+  it('refuses the delete when the leftover credit of an allocated payment has been spent', async () => {
+    // ₦50,000 paid, ₦30,000 allocated to the invoice, ₦20,000 left in the wallet and then spent.
+    books = {
+      invoice: { amount_paid: 30000, status: 'paid' },
+      wallet: 0,
+      batches: [{ id: batchId, status: 'completed', allocated: 30000, credit: 50000 }],
+      ledger: [{ type: 'credit', amount: 50000, reference_type: 'payment' }],
+      paymentExists: true,
+      deleteError: null,
+    };
+    mocks.createServerSupabaseClient.mockResolvedValue(makeClient(books));
+
+    const result = await deletePayment(paymentId);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Insufficient wallet balance');
+    expect(mocks.callWalletPaymentBatchReversal).not.toHaveBeenCalled();
+    expect(books.paymentExists).toBe(true);
+    expect(books.invoice).toEqual({ amount_paid: 30000, status: 'paid' });
   });
 
   it('does not undo twice when a delete is retried after the row delete failed', async () => {

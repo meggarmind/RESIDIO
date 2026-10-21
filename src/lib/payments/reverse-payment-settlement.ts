@@ -12,11 +12,13 @@ type SupabaseClient = Awaited<ReturnType<typeof createServerSupabaseClient>>;
  * the wallet holding money that was never received.
  *
  * - Payment with a settlement batch: reverse_wallet_payment_batch lowers each
- *   invoice's amount_paid and removes the payment's wallet credit in one transaction.
+ *   invoice's amount_paid and removes the payment's wallet credit in one transaction. The RPC
+ *   has no balance floor, so the delete is refused here when the wallet no longer holds the
+ *   payment's unallocated credit.
  * - Payment kept as plain wallet credit (no eligible invoice): debit that credit.
- *   The debit fails, and the delete is refused, when the credit has since been spent.
+ *   The debit fails when the credit has since been spent.
  *
- * Both steps are skipped once done, so a retry after a failed delete does not undo twice.
+ * Either way the delete is refused when that credit has been spent. Both steps are skipped once done, so a retry after a failed delete does not undo twice.
  * Callers must authorize first (deletePayment checks payments.delete); SQL and RLS re-check.
  */
 export async function reversePaymentSettlement(
@@ -26,12 +28,36 @@ export async function reversePaymentSettlement(
 ): Promise<string | null> {
     const { data: batches, error: batchError } = await supabase
         .from('wallet_payment_batches')
-        .select('id, status')
+        .select('id, status, resident_id')
         .eq('source_payment_id', payment.id);
     if (batchError) return batchError.message;
 
     if (batches && batches.length > 0) {
         for (const batch of batches.filter((b) => b.status === 'completed')) {
+            const { data: wallet, error: walletError } = await supabase
+                .from('resident_wallets')
+                .select('balance')
+                .eq('resident_id', batch.resident_id)
+                .single();
+            if (walletError || !wallet) return walletError?.message || 'The resident wallet could not be found';
+            const { data: items, error: itemsError } = await supabase
+                .from('wallet_payment_batch_items')
+                .select('amount_allocated')
+                .eq('batch_id', batch.id);
+            if (itemsError) return itemsError.message;
+            const { data: credits, error: creditsError } = await supabase
+                .from('wallet_transactions')
+                .select('type, amount, reference_type')
+                .eq('reference_id', payment.id)
+                .eq('reference_type', 'payment')
+                .eq('type', 'credit');
+            if (creditsError) return creditsError.message;
+            const allocated = (items || []).reduce((sum, i) => sum + Number(i.amount_allocated), 0);
+            const sourceCredit = (credits || []).reduce((sum, c) => sum + Number(c.amount), 0);
+            if (Number(wallet.balance) + allocated - sourceCredit < 0) {
+                return 'Insufficient wallet balance: the unallocated credit from this payment has already been spent';
+            }
+
             const { data, error } = await callWalletPaymentBatchReversal(supabase, {
                 p_batch_id: batch.id,
                 p_reversed_by: userId ?? null,
