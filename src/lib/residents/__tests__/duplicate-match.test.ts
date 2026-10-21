@@ -16,21 +16,28 @@ const EXISTING: ExistingResidentRow = {
 const NOBODY = { first_name: 'Someone', last_name: 'Else' };
 
 describe('matchReasons (#820)', () => {
-  it('matches on phone across formats, normalised', () => {
-    expect(matchReasons({ ...NOBODY, phone_primary: '+234 803 000 1111' }, EXISTING)).toEqual(['phone']);
-    expect(matchReasons({ ...NOBODY, phone_primary: '2348030001111' }, EXISTING)).toEqual(['phone']);
+  const NAME = { first_name: 'Ubah', last_name: 'Karl Chinedu' };
+
+  it('matches phone plus name across phone formats, normalised', () => {
+    expect(matchReasons({ ...NAME, phone_primary: '+234 803 000 1111' }, EXISTING)).toEqual(['phone', 'name']);
+    expect(matchReasons({ ...NAME, phone_primary: '2348030001111' }, EXISTING)).toEqual(['phone', 'name']);
   });
 
-  it('matches a secondary phone against the existing primary', () => {
-    expect(matchReasons({ ...NOBODY, phone_primary: '08099999999', phone_secondary: '08030001111' }, EXISTING)).toEqual(['phone']);
+  it('matches a secondary phone against the existing primary when the name matches', () => {
+    expect(matchReasons({ ...NAME, phone_primary: '08099999999', phone_secondary: '08030001111' }, EXISTING)).toEqual(['phone', 'name']);
   });
 
-  it('matches on email, trimmed and case-insensitive', () => {
+  it('does not match on phone alone (a family sharing a phone)', () => {
+    expect(matchReasons({ ...NOBODY, phone_primary: '+234 803 000 1111' }, EXISTING)).toEqual([]);
+  });
+
+  it('does not match on name alone', () => {
+    expect(matchReasons({ first_name: ' UBAH ', last_name: 'karl chinedu' }, EXISTING)).toEqual([]);
+    expect(matchReasons({ ...NAME, phone_primary: '08099999999' }, EXISTING)).toEqual([]);
+  });
+
+  it('matches on email alone, trimmed and case-insensitive', () => {
     expect(matchReasons({ ...NOBODY, email: '  ubah@example.TEST ' }, EXISTING)).toEqual(['email']);
-  });
-
-  it('matches on exact name, trimmed and case-insensitive', () => {
-    expect(matchReasons({ first_name: ' UBAH ', last_name: 'karl chinedu' }, EXISTING)).toEqual(['name']);
   });
 
   it('reports every key that matches', () => {
@@ -54,7 +61,7 @@ describe('matchReasons (#820)', () => {
 
   it('matches a company by company name, trimmed and case-insensitive', () => {
     const company = { ...EXISTING, first_name: 'Warehouse', last_name: 'Rental', company_name: 'WAREHOUSE RENTAL SERVICE' };
-    expect(matchReasons({ ...NOBODY, company_name: ' warehouse rental service ' }, company)).toEqual(['name']);
+    expect(matchReasons({ ...NOBODY, company_name: ' warehouse rental service ', phone_primary: '08030001111' }, company)).toEqual(['phone', 'name']);
     expect(matchReasons({ ...NOBODY, company_name: 'Warehouse Rental' }, company)).toEqual([]);
   });
 });
@@ -62,7 +69,7 @@ describe('matchReasons (#820)', () => {
 describe('findMatches', () => {
   it('returns only the matching rows', () => {
     const other = { ...EXISTING, id: 'r2', first_name: 'Zed', email: null, phone_primary: '08111111111' };
-    const found = findMatches({ first_name: 'Ubah', last_name: 'Karl Chinedu' }, [EXISTING, other]);
+    const found = findMatches({ first_name: 'Ubah', last_name: 'Karl Chinedu', email: 'ubah@example.test' }, [EXISTING, other]);
     expect(found.map((m) => m.row.id)).toEqual(['r1']);
   });
 });

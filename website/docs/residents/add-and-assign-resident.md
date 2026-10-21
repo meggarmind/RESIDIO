@@ -9,7 +9,7 @@ residio_sources:
   - src/components/residents/duplicate-resident-dialog.tsx
   - src/actions/residents/assign-house.ts
   - src/actions/residents/add-household-member.ts
-residio_verified_commit: dd9e1184
+residio_verified_commit: 2ecb97e1
 residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---
@@ -49,7 +49,7 @@ Users without **Manage General Settings** (`settings.manage_general`) cannot see
 
 ### When Residio finds an existing resident
 
-Before it saves, Residio looks for a resident with the same phone number (in any format, primary or secondary), the same email, or exactly the same name or company name (ignoring capital letters and spaces at the ends). Any one match is enough. Residio never merges or links anyone on its own.
+Before it saves, Residio looks for a resident with the same email, or with both the same phone number (in any format, primary or secondary) and exactly the same name or company name (ignoring capital letters and spaces at the ends). A phone number alone or a name alone is not enough, because families and companies share phones. Residio never merges or links anyone on its own.
 
 The message lists each match with its resident code, why it matched and the houses already linked. Choose one:
 

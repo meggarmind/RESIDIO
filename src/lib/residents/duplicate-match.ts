@@ -1,8 +1,9 @@
 import { normalizePhoneNumber } from '@/lib/sms/termii';
 
 /**
- * Deterministic "is this person already a resident?" rule (#820). A candidate matches an
- * existing resident on ANY ONE of these keys; nothing fuzzy, nothing scored:
+ * Deterministic "is this person already a resident?" rule (#820). Three keys, nothing fuzzy,
+ * nothing scored. A candidate matches only on email alone, or on phone AND name together;
+ * phone alone or name alone never matches (families and companies share phones):
  *   phone - normalised (normalizePhoneNumber) primary or secondary number, either side
  *   email - trimmed, case-insensitive
  *   name  - first + last name, or company name, trimmed, case-insensitive, otherwise exact
@@ -75,7 +76,8 @@ export function matchReasons(
   const existingNames = nameKeys(existing.first_name, existing.last_name, existing.company_name);
   if ([...candidateNames].some((key) => existingNames.has(key))) reasons.push('name');
 
-  return reasons;
+  const qualifies = reasons.includes('email') || (reasons.includes('phone') && reasons.includes('name'));
+  return qualifies ? reasons : [];
 }
 
 export function findMatches(
