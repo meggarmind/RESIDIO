@@ -13,13 +13,32 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { validateHouseAssignment } from './validation';
 import { canManageResidentOverride } from '@/lib/comms-override/resident-flag';
+import { loadDuplicateMatches } from '@/lib/residents/find-duplicates';
+import type { DuplicateResidentMatch } from '@/lib/residents/duplicate-match';
+import { assignHouse } from './assign-house';
 
 type CreateResidentResponse = {
   data: Resident | null;
   error: string | null;
+  /** Set (with data null) when an existing resident matches and the admin has not chosen yet (#820). */
+  duplicates?: DuplicateResidentMatch[];
 }
 
-export async function createResident(formData: CreateResidentData): Promise<CreateResidentResponse> {
+/**
+ * How the admin answered the duplicate prompt (#820). Neither set: the action looks for a match
+ * and stops with `duplicates` if it finds one.
+ */
+export type CreateResidentOptions = {
+  /** Add the house to this existing resident instead of inserting a second one. */
+  linkToResidentId?: string;
+  /** Deliberate second choice: insert a new resident although a match exists. */
+  createAnyway?: boolean;
+};
+
+export async function createResident(
+  formData: CreateResidentData,
+  options: CreateResidentOptions = {}
+): Promise<CreateResidentResponse> {
   // Permission check
   const auth = await authorizePermission(PERMISSIONS.RESIDENTS_CREATE);
   if (!auth.authorized) {
@@ -31,6 +50,28 @@ export async function createResident(formData: CreateResidentData): Promise<Crea
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return { data: null, error: 'Unauthorized' };
+  }
+
+  if (options.linkToResidentId) {
+    return linkHouseToExistingResident(options.linkToResidentId, formData);
+  }
+
+  if (!options.createAnyway) {
+    const { matches, error: lookupError } = await loadDuplicateMatches({
+      first_name: formData.first_name,
+      last_name: formData.last_name,
+      email: formData.email,
+      phone_primary: formData.phone_primary,
+      phone_secondary: formData.phone_secondary,
+      company_name: formData.entity_type === 'corporate' ? formData.company_name : null,
+    });
+    // Fail closed: a roster we could not read must not turn into a silent duplicate.
+    if (lookupError) {
+      return { data: null, error: `Could not check for an existing resident: ${lookupError}` };
+    }
+    if (matches.length > 0) {
+      return { data: null, error: null, duplicates: matches };
+    }
   }
 
   // Pre-validate house assignment if provided to avoid creating resident then deleting
@@ -177,6 +218,40 @@ export async function createResident(formData: CreateResidentData): Promise<Crea
       ? `Created resident with house assignment`
       : `Created resident`,
   });
+
+  revalidatePath('/residents');
+  revalidatePath('/houses');
+  return { data: resident, error: null };
+}
+
+// Linking adds a resident_houses row through assignHouse, which owns the occupancy, sponsor and
+// corporate-role rules plus its own permission check and audit entry. No resident is inserted.
+async function linkHouseToExistingResident(
+  residentId: string,
+  formData: CreateResidentData
+): Promise<CreateResidentResponse> {
+  if (!formData.house_id || !formData.resident_role) {
+    return { data: null, error: 'Choose a house and role to link this house to the existing resident.' };
+  }
+
+  const assigned = await assignHouse(residentId, {
+    house_id: formData.house_id,
+    resident_role: formData.resident_role,
+    move_in_date: formData.move_in_date,
+    sponsor_resident_id: formData.sponsor_resident_id,
+  });
+  if (assigned.error) {
+    return { data: null, error: assigned.error };
+  }
+
+  const { data: resident, error } = await createAdminClient()
+    .from('residents')
+    .select('*')
+    .eq('id', residentId)
+    .single();
+  if (error || !resident) {
+    return { data: null, error: error?.message || 'Resident not found' };
+  }
 
   revalidatePath('/residents');
   revalidatePath('/houses');
