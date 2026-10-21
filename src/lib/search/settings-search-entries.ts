@@ -1,5 +1,5 @@
 import { ROUTE_PERMISSIONS, type Permission } from '@/lib/auth/action-roles';
-import { settingsConfig, type SettingsItem } from '@/config/settings-nav';
+import { flattenSettingsNav, settingsConfig, type SettingsGroup, type SettingsItem } from '@/config/settings-nav';
 import { ADMIN_NAV_SECTIONS, type NavItem } from '@/config/navigation';
 
 /**
@@ -17,6 +17,8 @@ export interface SettingsSearchEntry {
   href: string;
   type: 'settings' | 'system';
   permissions: Permission[];
+  /** Opens a live-state page under /system, not a settings page. Shown as "Opens System". */
+  opensSystem?: boolean;
   /**
    * Hand-picked search aliases for a vocabulary gap no title/description/
    * group closes -- see `SETTINGS_SEARCH_KEYWORDS` below. Folded into
@@ -127,8 +129,10 @@ export function flattenSettingsItems(
       title: item.title,
       subtitle: item.description,
       href: item.href,
-      type: 'settings',
+      // The Monitoring links keep the palette's System badge (#933).
+      type: item.opensSystem ? 'system' : 'settings',
       permissions: resolvePermissions(item.href, item.permissions),
+      opensSystem: item.opensSystem,
       keywords,
       searchText: buildSearchText([groupTitle, parentTitle, item.title, item.description, keywords]),
     });
@@ -245,4 +249,26 @@ export function matchSettingsEntries<T extends { searchText: string }>(
   const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return [];
   return entries.filter((entry) => tokens.every((token) => entry.searchText.includes(token)));
+}
+
+/**
+ * The entries one admin can act on from the Settings nav and Overview: a page entry whose
+ * href the permission-filtered `groups` link to (`/settings` itself excluded), plus a row
+ * entry whose page is linked and whose section permission `canSee` accepts.
+ *
+ * Nothing here widens access: pages come only from the filtered nav, rows only from pages
+ * already in it.
+ */
+export function matchVisibleSettingsEntries(
+  groups: SettingsGroup[],
+  query: string,
+  canSee: (permissions: Permission[]) => boolean
+): SettingsSearchEntry[] {
+  const pages = new Set(flattenSettingsNav(groups).map((item) => item.href));
+  pages.delete('/settings');
+  const visible = SETTINGS_SEARCH_ENTRIES.filter((entry) => {
+    if (pages.has(entry.href)) return true;
+    return entry.id.startsWith('settings-row-') && pages.has(entry.href.split(/[?#]/)[0]) && canSee(entry.permissions);
+  });
+  return matchSettingsEntries(visible, query);
 }

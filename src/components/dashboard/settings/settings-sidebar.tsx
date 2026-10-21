@@ -10,6 +10,7 @@ import { useSettingsNavState } from '@/hooks/use-settings-nav-state';
 import { Button } from '@/components/ui/button';
 import { ChevronRight, ChevronDown } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { OpensSystemMark, SettingsSearchField, SettingsSearchResults, useSettingsSearch } from './settings-search';
 import {
     Collapsible,
     CollapsibleContent,
@@ -39,14 +40,19 @@ export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
     // once they navigate into it from outside, rather than hiding the page
     // they are looking at.
     const { userToggled, setGroupOpen } = useSettingsNavState(activeGroupTitle);
+    const search = useSettingsSearch();
 
     const toggleGroup = (title: string, isOpen: boolean) => {
         setGroupOpen(title, !isOpen);
     };
 
     return (
-        <aside className={cn("lg:w-1/5 sticky top-8 h-[calc(100vh-8rem)]", className)} {...props}>
-            <ScrollArea className="h-full pr-4">
+        <aside className={cn("lg:w-1/5 sticky top-8 flex h-[calc(100vh-8rem)] flex-col gap-3", className)} {...props}>
+            <SettingsSearchField search={search} className="pr-4" />
+            <ScrollArea className="min-h-0 flex-1 pr-4">
+                {search.active ? (
+                    <SettingsSearchResults search={search} />
+                ) : (
                 <nav className="space-y-4 pb-10">
                     {groups.map((group) => {
                         const isActiveGroup = isGroupActive(activeHref, group);
@@ -97,6 +103,7 @@ export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
                                                             )}
                                                         >
                                                             {item.title}
+                                                            {item.opensSystem && <span className="ml-2 text-xs font-normal">Opens System</span>}
                                                         </p>
                                                         {item.children.map((child) => {
                                                             const active = child.href === activeHref;
@@ -113,6 +120,7 @@ export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
                                                                 >
                                                                     <Link href={child.href} aria-current={active ? 'page' : undefined}>
                                                                         {child.title}
+                                                                        {child.opensSystem && <OpensSystemMark />}
                                                                     </Link>
                                                                 </Button>
                                                             );
@@ -145,6 +153,7 @@ export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
                         )
                     })}
                 </nav>
+                )}
             </ScrollArea>
         </aside>
     );

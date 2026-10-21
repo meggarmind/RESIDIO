@@ -31,6 +31,11 @@ export type SettingsItem = {
      * row labels, so search and the page cannot name a row differently.
      */
     sections?: SettingsSectionDef[];
+    /**
+     * The link leaves Settings for a live-state page under /system (ADR-0004), so
+     * the nav and search mark it "Opens System".
+     */
+    opensSystem?: boolean;
 };
 
 export type SettingsRowDef = {
@@ -203,6 +208,19 @@ export const settingsConfig: SettingsGroup[] = [
         items: [
             { title: "Maintenance Mode", href: "/settings/maintenance", description: "Maintenance mode, session timeout and duplicate matching", permissions: [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE] },
             { title: "Data Retention", href: "/settings/data-retention", description: "Retention policies and pruning", permissions: [PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION] },
+            {
+                // Live state stays in /system (ADR-0004); these entries only link to it (#933).
+                // No permissions on the parent: each child asks for exactly its /system route guard.
+                title: "Monitoring",
+                href: "/system/audit-logs",
+                opensSystem: true,
+                children: [
+                    { title: "Audit Logs", href: "/system/audit-logs", description: "Who changed what, and when", permissions: [PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS], opensSystem: true },
+                    { title: "Scheduled Jobs", href: "/system/cron-status", description: "Whether the scheduled jobs are running", permissions: [PERMISSIONS.SYSTEM_MONITOR], opensSystem: true },
+                    { title: "Notification Queue", href: "/system/notification-queue", description: "Messages waiting to be sent", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE], opensSystem: true },
+                    { title: "Notification History", href: "/system/notification-history", description: "Messages already sent", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE], opensSystem: true },
+                ]
+            },
         ]
     }
 ];
@@ -250,6 +268,20 @@ export function findSettingsEntry(
         }
     }
     return null;
+}
+
+/**
+ * What the mobile menu button says: the page being viewed. A child that shares its
+ * parent's href is the parent's index page, so the parent's title alone names it;
+ * any other child reads "Parent: Child" because "General" or "Late Fees" alone
+ * does not say which page it belongs to.
+ */
+export function settingsPageLabel(activeHref: string | null, groups: SettingsGroup[]): string | undefined {
+    const found = activeHref ? findSettingsEntry(activeHref, groups) : null;
+    if (!found) return undefined;
+    const { parent, item } = found;
+    if (!parent || parent.href === item.href) return parent?.title ?? item.title;
+    return `${parent.title}: ${item.title}`;
 }
 
 export type SettingsRowMatch = { item: SettingsItem; section: SettingsSectionDef; row: SettingsRowDef };
