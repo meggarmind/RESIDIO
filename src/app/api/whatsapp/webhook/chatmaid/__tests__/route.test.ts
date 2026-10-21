@@ -541,7 +541,7 @@ describe('Chatmaid WhatsApp webhook route', () => {
     it('drops an old unmatched event with a 200, and a dropped failure still gets its log row without phone numbers', async () => {
       const h = await load({ sendMatched: false, sendExists: false });
       const old = JSON.parse(failedBody);
-      old.timestamp = '2026-09-22T11:50:00.000Z';
+      old.timestamp = '2026-09-22T11:57:00.000Z';
 
       expect((await h.POST(post('message.failed', JSON.stringify(old)))).status).toBe(200);
       expect(h.outboundSendExists).toHaveBeenCalledTimes(0);
@@ -552,9 +552,9 @@ describe('Chatmaid WhatsApp webhook route', () => {
       expect(JSON.stringify(recordSystemAction.mock.calls)).not.toMatch(/800\D?000\D?0000|2348000000000/);
     });
 
-    it('retries a recent unmatched event whose provider timestamp is within the 5 minute window', async () => {
+    it('retries a recent unmatched event whose provider timestamp is within the 2 minute window', async () => {
       const h = await load({ sendMatched: false, sendExists: false });
-      const recent = JSON.stringify({ event: 'message.delivered', timestamp: '2026-09-22T11:55:30.000Z', data: { messageId: 'outmsg_1' } });
+      const recent = JSON.stringify({ event: 'message.delivered', timestamp: '2026-09-22T11:58:30.000Z', data: { messageId: 'outmsg_1' } });
       expect((await h.POST(post('message.delivered', recent))).status).toBe(500);
     });
 
