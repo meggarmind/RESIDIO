@@ -33,11 +33,13 @@ export async function checkDuplicate(
   // 1. Check by Deterministic Hash first (Strongest match)
   if (transaction_hash) {
     // Check in payment_records
-    const { data: byPayHash } = await supabase
+    const { data: byPayHash, error: byPayHashError } = await supabase
       .from('payment_records')
       .select('id, reference_number')
       .eq('transaction_hash', transaction_hash)
+      .limit(1)
       .maybeSingle();
+      if (byPayHashError) throw new Error(`Duplicate check failed: ${byPayHashError.message}`);
 
     if (byPayHash) {
       return {
@@ -48,11 +50,13 @@ export async function checkDuplicate(
     }
 
     // Check in expenses
-    const { data: byExpHash } = await supabase
+    const { data: byExpHash, error: byExpHashError } = await supabase
       .from('expenses')
       .select('id, reference_number')
       .eq('transaction_hash', transaction_hash)
+      .limit(1)
       .maybeSingle();
+      if (byExpHashError) throw new Error(`Duplicate check failed: ${byExpHashError.message}`);
 
     if (byExpHash) {
       return {
@@ -63,12 +67,14 @@ export async function checkDuplicate(
     }
 
     // Check in bank_statement_rows (already processed)
-    const { data: byRowHash } = await supabase
+    const { data: byRowHash, error: byRowHashError } = await supabase
       .from('bank_statement_rows')
       .select('id, status, payment_id')
       .eq('transaction_hash', transaction_hash)
       .eq('status', 'created')
+      .limit(1)
       .maybeSingle();
+      if (byRowHashError) throw new Error(`Duplicate check failed: ${byRowHashError.message}`);
 
     if (byRowHash) {
       return {
@@ -140,9 +146,9 @@ type BatchPage<T> = PromiseLike<{ data: T[] | null; error: { message: string } |
 
 /**
  * Reads every row whose `keyField` is among `keys` (chunked `.in()`, paged) and keeps the FIRST row
- * per key. The single-row checks used `.maybeSingle()`; `.in()` returns all matches, so rows must come
- * back in a deterministic order (callers order by id) for "first" to be stable. A failed page is logged
- * and treated as "no match", as the ignored error of the single-row path was.
+ * per key. The single-row checks take `.limit(1)`; `.in()` returns all matches, so rows must come
+ * back in a deterministic order (callers order by id) for "first" to be stable. A failed page throws, so
+ * a failed lookup never reads as "no duplicate" (#994).
  */
 async function firstRowByKey<T extends Record<string, unknown>>(
   keys: Array<string | number>,
@@ -155,7 +161,7 @@ async function firstRowByKey<T extends Record<string, unknown>>(
     const { data, error } = await fetchAllRows<T>((from, to) => fetchPage(chunk, from, to));
     if (error || !data) {
       console.error(`checkDuplicatesBatch: ${label} lookup failed (${chunk.length} keys):`, error);
-      continue;
+      throw new Error(`Duplicate check failed: ${error ?? 'no data returned'}`);
     }
     for (const row of data) {
       const key = row[keyField] as string | number;
@@ -246,8 +252,8 @@ async function readDuplicateThreshold(supabase: ServerSupabase): Promise<number>
  * amount + date-window candidates against the threshold). Result keyed by row id.
  *
  * Round trips depend on the number of distinct values (chunks of 50), not on row count.
- * Differences from the single-row path: `.in()` yields every match where `.maybeSingle()` errored on
- * more than one (treated as no match); the first by id is used. An unparseable date, which made the
+ * Differences from the single-row path: `.in()` yields every match, and the first by id is used (the
+ * single-row lookups take `.limit(1)`, so several rows sharing a key are still a duplicate). An unparseable date, which made the
  * single-row guardrail throw, simply yields no fuzzy candidates.
  */
 export async function checkDuplicatesBatch(
@@ -373,11 +379,13 @@ export async function checkDuplicateExpense(
 
   // 1. Check by Deterministic Hash
   if (transaction_hash) {
-    const { data: byHash } = await supabase
+    const { data: byHash, error: byHashError } = await supabase
       .from('expenses')
       .select('id, reference_number, status')
       .eq('transaction_hash', transaction_hash)
+      .limit(1)
       .maybeSingle();
+    if (byHashError) throw new Error(`Duplicate check failed: ${byHashError.message}`);
 
     if (byHash) {
       return {

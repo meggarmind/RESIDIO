@@ -57,11 +57,15 @@ export async function checkDuplicateGuardrail(
 
         // Expenses/Petty cash might not enforce unique Ref, but payments usually do.
         // If strict match on Ref, it's 100% duplicate.
-        const { data: exactRef } = await supabase
+        const { data: exactRef, error: exactRefError } = await supabase
             .from(table)
             .select('id')
             .eq('reference_number', transaction.reference)
+            .limit(1)
             .maybeSingle();
+        if (exactRefError) {
+            throw new Error(`Duplicate check failed: ${exactRefError.message}`);
+        }
 
         if (exactRef) {
             return {

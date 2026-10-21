@@ -58,9 +58,13 @@ function makeSupabase() {
         const err = forcedError ?? error;
         return err ? { data: null, error: err } : { data: rows(), error: null };
       };
+      let limitN = Infinity;
+      chain.limit = (n: number) => ((limitN = n), chain);
       chain.maybeSingle = async () => {
         const res = settle();
-        return res.error ? res : { data: res.data![0] ?? null, error: null };
+        if (res.error) return res;
+        // Mirrors PostgREST: maybeSingle errors on more than one match, unless limited to one.
+        return res.data!.length > limitN || res.data!.length <= 1 ? { data: res.data![0] ?? null, error: null } : { data: null, error: { message: 'multiple rows' } };
       };
       chain.then = (res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) => Promise.resolve(settle()).then(res, rej);
       return chain;
@@ -109,6 +113,26 @@ describe('duplicate search selects only real columns (#994)', () => {
     await expect(checkDuplicateGuardrail({ amount: 50000, date: '2026-10-01' }, 'payment', { threshold: 90 })).rejects.toThrow(
       'Duplicate check failed: boom'
     );
+  });
+
+  it('fails closed when the exact-reference lookup errors', async () => {
+    forcedError = { message: 'boom' };
+    await expect(
+      checkDuplicateGuardrail({ amount: 50000, date: '2026-10-01', reference: 'MANUAL-1' }, 'payment', { threshold: 90 })
+    ).rejects.toThrow('Duplicate check failed: boom');
+  });
+
+  it('treats several payments sharing a reference as a duplicate, not an error', async () => {
+    db.payment_records.push({ id: 'pay-2', amount: 1, payment_date: '2026-09-01', notes: null, reference_number: 'MANUAL-1', resident_id: 'res-2' });
+    const result = await checkDuplicateGuardrail({ amount: 777, date: '2026-01-01', reference: 'MANUAL-1' }, 'payment', { threshold: 90 });
+    expect(result).toMatchObject({ isDuplicate: true, matchType: 'exact' });
+  });
+
+  it('fails closed when a batch reference lookup errors', async () => {
+    forcedError = { message: 'boom' };
+    await expect(
+      checkDuplicatesBatch([{ id: 'row-1', reference: 'BANK-REF-9', amount: 50000, transaction_date: '2026-10-01', transaction_hash: null }])
+    ).rejects.toThrow('Duplicate check failed');
   });
 
   it('surfaces a failed batch candidate query', async () => {
