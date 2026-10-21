@@ -10,7 +10,7 @@ residio_sources:
   - src/app/(dashboard)/system/accounts/**
   - src/components/admin/role-assignment-section.tsx
   - src/components/admin/pending-accounts-list.tsx
-residio_verified_commit: 3343056a
+residio_verified_commit: 971058f1
 residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---
@@ -104,7 +104,7 @@ The search has two modes, chosen with the **Residents / Accounts** switch above 
 
 Select someone, choose a role, and confirm. If they already hold a role you are asked to confirm the replacement instead.
 
-Who can change whom follows rank: Super Administrator first, then Chairman, then every other role, custom roles included. You can change an account only if your role ranks at least as high as the role it holds now, and you cannot assign a role that outranks your own. Only a Super Administrator can assign the Super Administrator or Chairman role. The same rules apply to approving, rejecting and removing roles, and an Assignment Rule cannot allow a role you could not assign yourself.
+Who can change whom follows rank: Super Administrator first, then Chairman, then every other role, custom roles included. You can change an account only if your role ranks at least as high as the role it holds now, and you cannot assign a role that outranks your own. Assigning the Super Administrator, Chairman or Trustee role also needs the Assign Board Roles permission, which only the Super Administrator holds. The same rules apply to approving, rejecting and removing roles, and an Assignment Rule cannot allow a role you could not assign yourself.
 
 ### Accounts that are not yet approved
 

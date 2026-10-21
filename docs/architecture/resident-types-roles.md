@@ -454,18 +454,91 @@ Tags can be configured at:
 
 ## 12. App Roles (Administrative Access)
 
-App roles control access to the administrative dashboard and features.
+App roles control access to the administrative dashboard and features. The role model was
+replaced in the RBAC redesign (#822, slice 3: `20261022160000_seed_rbac_role_model.sql`). The
+`vice_chairman`, `project_manager` and `resident` roles no longer exist.
 
-| Role | Code | Level | Category | Permissions | System Role |
-|------|------|-------|----------|-------------|-------------|
-| **Super Administrator** | `super_admin` | 0 | exco | ALL (47) | Yes |
-| **Chairman** | `chairman` | 1 | exco | 42 (all except system.*) | No |
-| **Vice Chairman** | `vice_chairman` | 2 | exco | 42 (all except system.*) | No |
-| **Financial Officer** | `financial_officer` | 3 | exco | 25 (finance-focused) | No |
-| **Security Officer** | `security_officer` | 3 | exco | 14 (security-focused) | No |
-| **Secretary** | `secretary` | 3 | exco | 18 (admin-focused) | No |
-| **Project Manager** | `project_manager` | 3 | exco | 12 (project-focused) | No |
-| **Resident** | `resident` | 10 | resident | 0 (portal only) | Yes |
+### Roles
+
+Permission counts were measured on Residio_Stage after slice 3 (2026-10-21).
+
+| Role | Code | Category | Permissions | Requires resident | System Role |
+|------|------|----------|-------------|-------------------|-------------|
+| **Super Administrator** | `super_admin` | exco | 127 | No | Yes |
+| **Chairman** | `chairman` | exco | 112 | Yes | No |
+| **Financial Officer** | `financial_officer` | exco | 60 | Yes | No |
+| **Secretary** | `secretary` | exco | 25 | Yes | No |
+| **Security Officer** | `security_officer` | exco | 26 | Yes | No |
+| **Welfare Officer** | `welfare_officer` | exco | 22 | Yes | Yes |
+| **Trustee** | `trustee` | bot | 26 | Yes | Yes |
+| **Security Guard Supervisor** | `security_guard_supervisor` | staff | 8 | No | Yes |
+
+A person with no admin role holds `role_id = null`. A plain resident is such a person: the
+portal admits a profile by `resident_id`, not by role.
+
+### Titles and seats
+
+A title is the post a person holds within a role. Everyone holding the same role has the same
+permissions; the title tells them apart. The first title of each role is the principal.
+
+| Role | Titles (seats) |
+|------|----------------|
+| `chairman` | Chairman (1), Vice Chairman (1) |
+| `financial_officer` | Treasurer (1), Financial Secretary (1) |
+| `secretary` | Secretary (1), Assistant Secretary (1) |
+| `security_officer` | Chief Security Officer (1), Assistant Chief Security Officer (1) |
+| `welfare_officer` | Welfare Officer (1) |
+| `trustee` | Trustee (unlimited) |
+| `security_guard_supervisor` | Security Guard Supervisor (1) |
+
+### Assignment matrix (resident types allowed to hold each role)
+
+| Role | resident_landlord | non_resident_landlord | tenant | co_resident |
+|------|:-:|:-:|:-:|:-:|
+| `chairman` | ✅ | ✅ | ❌ | ❌ |
+| `trustee` | ✅ | ✅ | ❌ | ❌ |
+| `security_officer` | ✅ | ✅ | ✅ | ❌ |
+| `financial_officer` | ✅ | ✅ | ✅ | ✅ |
+| `secretary` | ✅ | ✅ | ✅ | ✅ |
+| `welfare_officer` | ✅ | ✅ | ✅ | ✅ |
+
+Every other resident type is not allowed. `super_admin` and `security_guard_supervisor` have no
+rows: they are non-resident roles, and a role with no row is allowed
+(`src/actions/roles/assignment-rules.ts`). Tenants and co-residents therefore cannot hold the
+Vice Chairman title.
+
+### Rules
+
+- **One role per person.** A profile has a single `role_id` and at most one title.
+- **An estate officer must be a resident.** A role with `requires_resident` (Chairman,
+  Financial Officer, Secretary, Security Officer, Welfare Officer, Trustee) is refused on a
+  profile with no linked resident. If the linked resident leaves `active`, the profile loses the
+  role and title, with an `UNASSIGN` audit entry. Super Administrator and Security Guard
+  Supervisor do not need a resident.
+- **Only the Super Administrator grants Super Administrator, Chairman or Trustee**, through the
+  `system.assign_board_roles` permission, which only `super_admin` holds. It also gates changing
+  an account that holds Super Administrator or Chairman.
+- **Impersonation approval is Super Administrator only.** `impersonation.approve_requests` and
+  `impersonation.manage_settings` are held by `super_admin` alone, so no officer approves their
+  own request.
+- **Guards are permission-based.** Account guards are being replaced in slice 4 (#826); see that
+  issue for the final rules rather than this section.
+
+### Permission changes made by slice 3
+
+- **Chairman** gains `settings.view`, `settings.manage_general`, `settings.manage_billing`,
+  `settings.manage_security`, `settings.manage_reference`, `settings.view_audit_logs`,
+  `system.assign_roles`, `view_projects` and `manage_projects`. It loses all four
+  `impersonation.*` permissions and every `system.*` permission except `system.assign_roles` and
+  `system.view_all_profiles` (kept because role screens read accounts through it).
+- **Financial Officer** loses `impersonation.approve_requests` (if held).
+- **Financial Officer and Security Officer** gain `impersonation.start_session` and
+  `impersonation.view_sessions`.
+- **Secretary** is unchanged.
+- **Welfare Officer, Trustee, Security Guard Supervisor** are new and hold exactly the lists in
+  the migration header.
+- Holders of `vice_chairman` became Chairman with the title Vice Chairman; holders of
+  `project_manager` and `resident` lost their role but keep their account.
 
 ### User Classification
 
@@ -473,7 +546,7 @@ Users can be classified into three types based on their profile fields:
 
 | Type | Condition | Access |
 |------|-----------|--------|
-| **Pure Admin** | `role_id != null AND resident_id == null` | Admin dashboard only |
+| **Pure Admin** | `role_id != null AND resident_id == null` | Admin dashboard only (Super Administrator and Security Guard Supervisor only) |
 | **Pure Resident** | `role_id == null AND resident_id != null` | Resident portal only |
 | **Hybrid** | `role_id != null AND resident_id != null` | Both admin & portal |
 
