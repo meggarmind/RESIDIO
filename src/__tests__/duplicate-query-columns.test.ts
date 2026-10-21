@@ -35,7 +35,8 @@ function makeSupabase() {
       let error: { message: string } | null = null;
       let range: [number, number] | null = null;
       const chain: Record<string, unknown> = {};
-      chain.select = (cols: string) => {
+      chain.select = (...args: unknown[]) => {
+          const cols = String(args[0]);
         const known = columnsOf(table);
         fields = cols.split(',').map((f) => {
           const [alias, column = alias] = f.trim().split(':').map((s) => s.trim());
@@ -143,9 +144,10 @@ describe('duplicate search selects only real columns (#994)', () => {
       from: (table: string) => {
         const chain = from(table) as Record<string, (...a: unknown[]) => unknown>;
         const select = chain.select;
-        chain.select = (cols: string) => {
+        chain.select = (...args: unknown[]) => {
+          const cols = String(args[0]);
           if (table === 'payment_records' && cols.includes('payment_date')) forcedError = { message: 'boom' };
-          return select(cols);
+          return select(...args);
         };
         return chain;
       },
