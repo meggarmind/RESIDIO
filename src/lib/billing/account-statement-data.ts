@@ -93,10 +93,10 @@ export type GetAccountStatementResponse = {
  * Shows all invoices, payments, and wallet transactions for a date range.
  *
  * `rollForward` takes the balances and totals from resident_account_balance (#863) and lists
- * only the rows it counts: verified payments, wallet rows on an all-properties statement only,
- * timestamps bounded by the Lagos day. The admin statement always sets it; resident-facing
- * statements set it only once balance_roll_forward_resident_enabled is on. Without it the
- * statement is built exactly as before #863.
+ * only the rows it counts: verified payments, wallet rows on an all-properties statement only.
+ * The admin statement always sets it; resident-facing statements set it only once
+ * balance_roll_forward_resident_enabled is on. Without it the statement is built as before #863.
+ * Either way, timestamp columns are bounded by the Lagos day (#945).
  */
 export async function loadAccountStatement(
     supabase: StatementClient,
