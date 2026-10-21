@@ -49,6 +49,162 @@ policy, and separately ORs their `WITH CHECK` expressions. A policy without `WIT
 policy applies to every role, including `authenticated`, so it overlaps with a `TO authenticated`
 policy on the same command.
 
+## Outcome
+
+Seven migrations, one per table group, merge every overlap whose policies are granted to the
+**same role**. They change no access: each merged expression is the OR of the originals, and a
+disjunct that appears in more than one original is written once. They cover 34 of the 41 tables.
+The modelled finding count on those tables goes from 61 to 4, and from 68 to 11 overall. Expect
+the advisor's 73 to fall by a similar proportion; Firstmate records the real rerun.
+
+Overlaps between a `TO public` policy and a `TO authenticated` policy are **not** merged. Merging
+them changes which roles a predicate applies to, so they need an owner decision (below). They
+account for the 11 modelled findings that remain.
+
+None of these migrations has been applied anywhere.
+
+## Zero-delta merges (written)
+
+Two shapes, both exact:
+
+- **Same command.** One policy is `ALTER`ed to the OR of the set, keeping its name, command and
+  roles. The others are dropped. `ALTER` rather than drop-and-create keeps the policy names that
+  `src/__tests__/authenticated-read-closure.test.ts` pins (`notification_preferences_select`,
+  `role_assignment_rules_select`, `petty_cash_accounts_select`).
+- **`FOR ALL` overlapping `SELECT`.** The `ALL` policy is replaced by `INSERT`, `UPDATE` and
+  `DELETE` policies named `"<original name> (insert)"` and so on, with its own expressions. Where it
+  had no `WITH CHECK`, its `USING` becomes the `INSERT` check, which is what Postgres applied, and
+  the `UPDATE` policy keeps no `WITH CHECK`, so it still checks with its `USING`. Its `SELECT` part is
+  ORed into the table's `SELECT` policy. `UPDATE` and `DELETE` still see only rows the `SELECT`
+  policies admit, and those are unchanged.
+
+`billing_items` and `billing_profiles` keep their `USING (true)` read policy unchanged; it already
+admits every row, so the admin `SELECT` part adds nothing. They stay on the #237 allowlist.
+
+Each migration:
+
+- opens with a `DO $guard$` block that aborts unless every touched table's full policy set (name,
+  command, roles, permissive flag) is exactly the expected before-state or exactly the after-state.
+  The first catches drift from this mapping. The second makes a re-run a no-op, and every statement
+  after the guard is idempotent;
+- carries its rollback in its header, restoring every original definition;
+- runs in one transaction.
+
+`src/__tests__/rls-permissive-policy-merge-956.test.ts` replays all migrations with an independent
+parser and proves, for every touched table, role and command, that the OR-ed `USING` and `WITH
+CHECK` disjuncts are identical before and after, that restrictive policies are untouched, that the
+only overlaps left are the four public-versus-authenticated ones, and that the rollback blocks
+restore every original definition.
+
+### `20261023100000_rls_merge_permissive_security_contacts.sql`
+
+- `access_codes`: SELECT (authenticated): "Residents can view own access codes" becomes the OR of itself and "access_codes_select_policy".
+- `security_contacts`: SELECT (authenticated): "Residents can view own security contacts" becomes the OR of itself and "security_contacts_select_policy"; INSERT (authenticated): "Residents can create own security contacts" becomes the OR of itself and "security_contacts_insert_policy"; UPDATE (authenticated): "Residents can update own security contacts" becomes the OR of itself and "security_contacts_update_policy"; DELETE (authenticated): "Residents can delete own security contacts" becomes the OR of itself and "security_contacts_delete_policy".
+
+### `20261023100100_rls_merge_permissive_announcements.sql`
+
+- `announcement_categories`: SELECT (authenticated): "announcement_categories_select_policy" becomes the OR of itself and "announcement_categories_admin_all"; FOR ALL "announcement_categories_admin_all" (authenticated) split into per-command policies; its SELECT part is carried by the table's SELECT policy.
+- `announcement_read_receipts`: SELECT (authenticated): "read_receipts_admin_select" becomes the OR of itself and "read_receipts_own_select".
+- `announcements`: SELECT (authenticated): "announcements_admin_select" becomes the OR of itself and "announcements_resident_select".
+- `message_templates`: SELECT (authenticated): "message_templates_select_policy" becomes the OR of itself and "message_templates_admin_all"; FOR ALL "message_templates_admin_all" (authenticated) split into per-command policies; its SELECT part is carried by the table's SELECT policy.
+- `notification_preferences`: "Residents can view own notification preferences" dropped: "notification_preferences_select" already states every disjunct it adds; UPDATE (authenticated): "Residents can update own notification preferences" becomes the OR of itself and "notification_preferences_update".
+- `recipient_group_members`: SELECT (authenticated): "recipient_group_members_select" becomes the OR of itself and "recipient_group_members_write"; FOR ALL "recipient_group_members_write" (authenticated) split into per-command policies; its SELECT part is carried by the table's SELECT policy.
+- `recipient_groups`: SELECT (authenticated): "recipient_groups_select" becomes the OR of itself and "recipient_groups_write"; FOR ALL "recipient_groups_write" (authenticated) split into per-command policies; its SELECT part is carried by the table's SELECT policy.
+- `report_subscriptions`: SELECT (authenticated): "report_subscriptions_admin_select" becomes the OR of itself and "report_subscriptions_own_select"; INSERT (authenticated): "report_subscriptions_admin_insert" becomes the OR of itself and "report_subscriptions_own_insert"; UPDATE (authenticated): "report_subscriptions_admin_update" becomes the OR of itself and "report_subscriptions_own_update".
+
+### `20261023100200_rls_merge_permissive_billing_payments.sql`
+
+- `billing_items`: FOR ALL "Admins chairmen fin sec can manage billing items" (authenticated) split into per-command policies; its SELECT part is carried by the table's SELECT policy.
+- `billing_profiles`: FOR ALL "Admins chairmen fin sec can manage billing profiles" (authenticated) split into per-command policies; its SELECT part is carried by the table's SELECT policy.
+- `estate_bank_accounts`: FOR ALL "Admins chairmen fin sec can manage bank accounts" (public) split into per-command policies; its SELECT part is carried by the table's SELECT policy.
+- `payment_records`: SELECT (authenticated): "Residents can view own payments" becomes the OR of itself and "Admins and FinSec can manage all payments"; FOR ALL "Admins and FinSec can manage all payments" (authenticated) split into per-command policies; its SELECT part is carried by the table's SELECT policy.
+- `wallet_transactions`: SELECT (public): "Residents can view own transactions" becomes the OR of itself and "Admins chairmen fin sec can view all transactions"; FOR ALL "Admins chairmen fin sec can view all transactions" (public) split into per-command policies; its SELECT part is carried by the table's SELECT policy.
+
+### `20261023100300_rls_merge_permissive_expenditure_projects.sql`
+
+- `budgets`: SELECT (authenticated): "View Budgets - Authorized Roles" becomes the OR of itself and "Manage Budgets - Authorized Roles"; FOR ALL "Manage Budgets - Authorized Roles" (authenticated) split into per-command policies; its SELECT part is carried by the table's SELECT policy.
+- `expense_categories`: SELECT (authenticated): "View Categories - Authorized Roles" becomes the OR of itself and "Manage Categories - Authorized Roles"; FOR ALL "Manage Categories - Authorized Roles" (authenticated) split into per-command policies; its SELECT part is carried by the table's SELECT policy.
+- `expenses`: SELECT (authenticated): "View Expenditure - Admins/Financial Secretary" becomes the OR of itself and "Manage Expenditure - Authorized Roles"; FOR ALL "Manage Expenditure - Authorized Roles" (authenticated) split into per-command policies; its SELECT part is carried by the table's SELECT policy.
+- `petty_cash_accounts`: SELECT (authenticated): "petty_cash_accounts_select" becomes the OR of itself and "Admins can manage petty cash accounts"; FOR ALL "Admins can manage petty cash accounts" (authenticated) split into per-command policies; its SELECT part is carried by the table's SELECT policy.
+- `project_milestones`: SELECT (authenticated): "View Milestones - Admins/EXCO" becomes the OR of itself and "Manage Milestones - Admins/Project Manager"; FOR ALL "Manage Milestones - Admins/Project Manager" (authenticated) split into per-command policies; its SELECT part is carried by the table's SELECT policy.
+- `projects`: SELECT (authenticated): "View Projects - Admins/EXCO" becomes the OR of itself and "Manage Projects - Admins/Project Manager"; FOR ALL "Manage Projects - Admins/Project Manager" (authenticated) split into per-command policies; its SELECT part is carried by the table's SELECT policy.
+- `vendors`: SELECT (authenticated): "View Vendors - Authorized Roles" becomes the OR of itself and "Manage Vendors - Authorized Roles"; FOR ALL "Manage Vendors - Authorized Roles" (authenticated) split into per-command policies; its SELECT part is carried by the table's SELECT policy.
+
+### `20261023100400_rls_merge_permissive_documents.sql`
+
+- `document_categories`: SELECT (authenticated): "Authenticated users can view active categories" becomes the OR of itself and "Admins can manage categories"; FOR ALL "Admins can manage categories" (authenticated) split into per-command policies; its SELECT part is carried by the table's SELECT policy.
+- `document_custom_field_values`: SELECT (authenticated): "Custom field values follow document visibility" becomes the OR of itself and "Editors can write custom field values"; FOR ALL "Editors can write custom field values" (authenticated) split into per-command policies; its SELECT part is carried by the table's SELECT policy.
+- `document_custom_fields`: SELECT (authenticated): "Document viewers can view active custom fields" becomes the OR of itself and "Custom field managers can manage custom fields"; FOR ALL "Custom field managers can manage custom fields" (authenticated) split into per-command policies; its SELECT part is carried by the table's SELECT policy.
+- `document_tags`: SELECT (authenticated): "Document viewers can view active tags" becomes the OR of itself and "Tag managers can manage tags"; FOR ALL "Tag managers can manage tags" (authenticated) split into per-command policies; its SELECT part is carried by the table's SELECT policy.
+
+### `20261023100500_rls_merge_permissive_admin_identity.sql`
+
+- `approval_requests`: SELECT (authenticated): "Admin and chairman can view all approval requests" becomes the OR of itself and "Users can view their own approval requests".
+- `hierarchical_settings`: SELECT (authenticated): "hierarchical_settings_read_estate" becomes the OR of itself and "hierarchical_settings_admin_all", "hierarchical_settings_read_house", "hierarchical_settings_read_own_resident"; FOR ALL "hierarchical_settings_admin_all" (authenticated) split into per-command policies; its SELECT part is carried by the table's SELECT policy.
+- `impersonation_sessions`: SELECT (authenticated): "admins_read_own_impersonation_sessions" becomes the OR of itself and "super_admin_read_all_impersonation_sessions".
+- `profiles`: SELECT (public): "Admins and chairmen can view all profiles" becomes the OR of itself and "Users can view own profile".
+- `role_assignment_rules`: SELECT (authenticated): "role_assignment_rules_select" becomes the OR of itself and "Admins can manage role assignment rules"; FOR ALL "Admins can manage role assignment rules" (authenticated) split into per-command policies; its SELECT part is carried by the table's SELECT policy.
+- `two_factor_audit_log`: SELECT (authenticated): "Admins can view all audit logs" becomes the OR of itself and "Users can view own audit log".
+
+### `20261023100600_rls_merge_permissive_residents_houses.sql`
+
+- `resident_houses`: SELECT (authenticated): "Residents can view housemates house assignments" becomes the OR of itself and "Residents can view own house assignments"; SELECT (public): "Admins chairmen fin sec can view all resident houses" becomes the OR of itself and "Security officers can view active resident houses".
+- `residents`: SELECT (authenticated): "Residents can view housemates" becomes the OR of itself and "Residents can view own record"; SELECT (public): "Admins chairmen fin sec can view all residents" becomes the OR of itself and "Security officers can view active residents".
+
+
+## Needs owner decision
+
+These overlaps mix a `TO public` policy with a `TO authenticated` policy on the same command. A
+`TO public` policy also applies to `anon`, `authenticator`, `dashboard_user` and `service_role`
+(which bypasses RLS). One policy per role and command is only possible if the two policies are
+granted to the same role, and that changes the roles one of the predicates applies to.
+
+| Table | Command | `TO public` | `TO authenticated` |
+| --- | --- | --- | --- |
+| `houses` | SELECT | All authenticated users can view active houses | Residents can view assigned houses |
+| `invoices` | SELECT | Admins chairmen fin sec can manage all invoices (ALL) | Residents can view own invoices |
+| `invoice_items` | SELECT | Admins chairmen fin sec can manage all invoice items (ALL) | Residents can view own invoice items |
+| `resident_wallets` | SELECT | Admins chairmen fin sec can manage wallets (ALL) | Residents can view own wallet |
+| `paystack_transactions` | SELECT | paystack_transactions_resident_select | paystack_transactions_admin_all (ALL) |
+| `wallet_payment_batches` | SELECT | Residents can view own wallet payment batches | Admin finance can manage wallet payment batches (ALL) |
+| `wallet_payment_batch_items` | SELECT | Residents can view own wallet payment batch items | Admin finance can manage wallet payment batch items (ALL) |
+| `residents` | SELECT | Admins chairmen fin sec can view all residents (merged here with the security-officer policy) | Residents can view housemates (merged here with own record) |
+| `residents` | UPDATE | Admins chairmen fin sec can update residents | Residents can update own contact info |
+| `resident_houses` | SELECT | Admins chairmen fin sec can view all resident houses (merged here with the security-officer policy) | Residents can view housemates house assignments (merged here with own assignments) |
+| `wallet_transactions` | SELECT | Residents can view own transactions (merged here with the admin ALL policy) | Residents can view own wallet transactions |
+
+Options:
+
+- **A (recommended): re-scope the `TO public` policies on these ten tables to `TO authenticated`,
+  then merge.** After the change `anon` evaluates no policy on these tables and reads nothing,
+  which is the direction #212 and #237 took. What `anon` gets today depends on the predicate:
+  where a `TO public` policy calls `has_permission()`, an `anon` read fails with 42501, because
+  `anon` has had no `EXECUTE` on it since `20260824200000`; where it calls only `auth.uid()` or
+  `get_my_resident_id()` (`paystack_transactions`, the two wallet payment batch tables), it returns
+  no rows. Note that `houses`' public policy is `(is_active = true) OR has_permission(...)`, so its
+  `is_active` disjunct is not tied to a signed-in user. Measure each table with the probe's `anon`
+  subject before deciding.
+- **B: re-scope the `TO authenticated` policies to `TO public`, then merge.** `anon` would then
+  evaluate the resident predicates too. They should return no rows for `anon`, but it widens the
+  roles each predicate applies to, so it is the weaker option.
+- **C: leave them.** 11 modelled findings remain, each costing one extra policy evaluation per row
+  for signed-in users.
+
+## Applying and verifying (Firstmate, on Residio_Stage)
+
+1. Confirm the live definitions match this mapping (the query under "Source and confidence"). A
+   mismatch in any name, command or role makes the migration's guard abort, which is the intent.
+2. Run `docs/security/probe-956-permissive-merge.sql`: it counts what `anon`, one profile per app
+   role and a resident can select, update and delete on all 34 tables, applies the migration
+   bodies, counts again, lists every difference (expect none) and rolls back.
+3. Capture `EXPLAIN (ANALYZE, BUFFERS)` before and after for the representative queries at the end
+   of the probe file (#63's evidence rule).
+4. Apply the seven migrations in filename order after the merge, verify by name in the applied
+   list (`CORE.md` §11), rerun the advisor and record the new `multiple_permissive_policies` count.
+5. Recapture `docs/validation/policy-definitions.baseline.json`: the merged and split policies no
+   longer match the 2026-10-16 capture, so `npm run rbac:policies:diff` reports them until it is
+   recaptured.
+
 ## Mapping, per table
 
 ### `access_codes`
