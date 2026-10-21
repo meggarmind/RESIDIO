@@ -16,6 +16,7 @@ import {
   OUTBOUND_FAILURE_ALERT_THRESHOLD,
   OUTBOUND_FAILURE_ALERT_WINDOW_MINUTES,
   countRecentOutboundFailures,
+  outboundSendExists,
   stripPhoneNumbers,
   updateOutboundSendStatus,
   type OutboundDeliveryStatus,
@@ -191,6 +192,17 @@ async function handlePhoneHealth(event: 'phone.disconnected' | 'phone.connected'
   }
 }
 
+class SendNotRecordedYet extends Error {}
+
+/** An unmatched status event is only worth a retry while it could still be the send-record race (#941). */
+const STATUS_EVENT_RETRY_WINDOW_MS = 2 * 60 * 1000;
+
+/** The provider's event time, or receipt time (now) when it is missing or unparseable. */
+function isRecentEvent(payload: unknown): boolean {
+  const at = Date.parse(String((payload as { timestamp?: unknown } | null)?.timestamp ?? ''));
+  return Number.isNaN(at) || Date.now() - at <= STATUS_EVENT_RETRY_WINDOW_MS;
+}
+
 function optionalText(value: unknown): string | null {
   if (value === null || value === undefined || value === '') return null;
   return stripPhoneNumbers(String(value)).slice(0, 500);
@@ -219,6 +231,13 @@ async function handleDeliveryStatus(event: 'message.sent' | 'message.delivered' 
     let matched = false;
     const outcome = await runOnce(chatmaidEventDedupeKey(event, rawBody), async () => {
       matched = await updateOutboundSendStatus('chatmaid', messageId, status, { code: errorCode, message: errorMessage });
+      // The event can beat the send record by under a second (#941). Throwing releases the
+      // claim and answers 500, so Chatmaid's retry applies it once the record exists.
+      // The retry window is short (2 minutes) so ids Residio never sent (handset sends) only get a few 500s; after it, or for an id already stored, the event is dropped with a 200 so Chatmaid does not see an endless run of
+      // errors; a dropped `failed` still gets its outbound_failed log row below.
+      if (!matched && isRecentEvent(payload) && !(await outboundSendExists('chatmaid', messageId))) {
+        throw new SendNotRecordedYet();
+      }
       // A statement PDF reply that failed is sent once more with a fresh signed URL (#804).
       // Its failure must not fail this status event, which is already recorded.
       if (status === 'failed' && matched) {
@@ -256,6 +275,11 @@ async function handleDeliveryStatus(event: 'message.sent' | 'message.delivered' 
 
     return NextResponse.json({ received: true, processed: true, duplicate: outcome === 'duplicate' });
   } catch (error) {
+    if (error instanceof SendNotRecordedYet) {
+      // Expected race, not a fault: no failure log row.
+      console.warn('[chatmaid-webhook] Status event arrived before its send was stored; asking for a retry', { event, messageId });
+      return processingFailed('Send not stored yet; retry');
+    }
     console.error(`[chatmaid-webhook] Failed to handle ${event}:`, error);
     await recordWebhookDelivery({
       provider: 'whatsapp-chatmaid',
