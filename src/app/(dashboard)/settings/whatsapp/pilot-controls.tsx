@@ -20,6 +20,7 @@ export function PilotControls({ initial, residentOptions, residentOptionsError }
   sessionRetentionDays: number;
   processedMessageRetentionDays: number;
   surveyResponseRetentionDays: number;
+  outboundSendRetentionDays: number;
 }; residentOptions: PilotResidentOption[]; residentOptionsError?: string | null }) {
   const { hasPermission } = useAuth();
   const canManage = hasPermission(PERMISSIONS.WHATSAPP_MANAGE);
@@ -35,6 +36,7 @@ export function PilotControls({ initial, residentOptions, residentOptionsError }
     String(initial.processedMessageRetentionDays)
   );
   const [surveyRetentionDays, setSurveyRetentionDays] = useState(String(initial.surveyResponseRetentionDays));
+  const [outboundSendRetentionDays, setOutboundSendRetentionDays] = useState(String(initial.outboundSendRetentionDays));
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -51,6 +53,7 @@ export function PilotControls({ initial, residentOptions, residentOptionsError }
         sessionRetentionDays: Number(sessionRetentionDays),
         processedMessageRetentionDays: Number(processedMessageRetentionDays),
         surveyResponseRetentionDays: Number(surveyRetentionDays),
+        outboundSendRetentionDays: Number(outboundSendRetentionDays),
       });
       setMessage(result.error || 'Pilot controls saved');
     });
@@ -73,6 +76,7 @@ export function PilotControls({ initial, residentOptions, residentOptionsError }
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">Session retention (days)</span><Input type="number" min="1" max="30" value={sessionRetentionDays} onChange={(event) => setSessionRetentionDays(event.target.value)} /></label>
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">Processed message retention (days)</span><Input type="number" min="1" max="30" value={processedMessageRetentionDays} onChange={(event) => setProcessedMessageRetentionDays(event.target.value)} /></label>
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">Survey answer retention (days)</span><Input type="number" min="1" max="365" value={surveyRetentionDays} onChange={(event) => setSurveyRetentionDays(event.target.value)} /></label>
+        <label className="space-y-1 text-sm"><span className="text-muted-foreground">Outbound send record retention (days)</span><Input type="number" min="1" max="365" value={outboundSendRetentionDays} onChange={(event) => setOutboundSendRetentionDays(event.target.value)} /></label>
       </div>
       <div className="flex items-center gap-3"><Button type="button" size="sm" disabled={isPending || !canManage} onClick={save}>Save rollout controls</Button>{mode === 'pilot' ? <Button type="button" size="sm" variant="outline" disabled={isPending || !canManage} onClick={promote}>Promote estate-wide</Button> : null}{message ? <span className="text-xs text-muted-foreground">{message}</span> : null}</div>
     </div>

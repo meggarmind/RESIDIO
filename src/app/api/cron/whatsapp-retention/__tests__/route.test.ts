@@ -25,7 +25,7 @@ describe('GET /api/cron/whatsapp-retention', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv('CRON_SECRET', SECRET);
-    vi.mocked(purgeWhatsAppOperationalState).mockResolvedValue({ sessions: 4, processedMessages: 5, surveyResponses: 6 });
+    vi.mocked(purgeWhatsAppOperationalState).mockResolvedValue({ sessions: 4, processedMessages: 5, surveyResponses: 6, outboundSends: 7 });
     settings({});
   });
   afterEach(() => vi.unstubAllEnvs());
@@ -52,7 +52,7 @@ describe('GET /api/cron/whatsapp-retention', () => {
         source: 'cron:whatsapp-retention',
         action: 'purge',
         outcome: 'success',
-        summary: { sessions: 4, processedMessages: 5, surveyResponses: 6 },
+        summary: { sessions: 4, processedMessages: 5, surveyResponses: 6, outboundSends: 7 },
       })
     );
   });
@@ -61,14 +61,14 @@ describe('GET /api/cron/whatsapp-retention', () => {
     settings({ whatsapp_session_retention_days: 5, whatsapp_processed_message_retention_days: 9 });
     const response = await GET(request(`Bearer ${SECRET}`));
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ success: true, sessions: 4, processedMessages: 5, surveyResponses: 6 });
-    expect(purgeWhatsAppOperationalState).toHaveBeenCalledWith({ sessionDays: 5, processedMessageDays: 9, surveyResponseDays: 90 });
+    await expect(response.json()).resolves.toEqual({ success: true, sessions: 4, processedMessages: 5, surveyResponses: 6, outboundSends: 7 });
+    expect(purgeWhatsAppOperationalState).toHaveBeenCalledWith({ sessionDays: 5, processedMessageDays: 9, surveyResponseDays: 90, outboundSendDays: 90 });
   });
 
   it('falls back to 1 and 2 days when the settings are unset', async () => {
     settings({ whatsapp_session_retention_days: null, whatsapp_processed_message_retention_days: null });
     await GET(request(`Bearer ${SECRET}`));
-    expect(purgeWhatsAppOperationalState).toHaveBeenCalledWith({ sessionDays: 1, processedMessageDays: 2, surveyResponseDays: 90 });
+    expect(purgeWhatsAppOperationalState).toHaveBeenCalledWith({ sessionDays: 1, processedMessageDays: 2, surveyResponseDays: 90, outboundSendDays: 90 });
   });
 
   // Defensive: getSettingValueAsService coerces numeric strings to numbers, so
@@ -76,20 +76,20 @@ describe('GET /api/cron/whatsapp-retention', () => {
   it('defensively falls back to the defaults for a clearly non-numeric value', async () => {
     settings({ whatsapp_session_retention_days: {}, whatsapp_processed_message_retention_days: true });
     await GET(request(`Bearer ${SECRET}`));
-    expect(purgeWhatsAppOperationalState).toHaveBeenCalledWith({ sessionDays: 1, processedMessageDays: 2, surveyResponseDays: 90 });
+    expect(purgeWhatsAppOperationalState).toHaveBeenCalledWith({ sessionDays: 1, processedMessageDays: 2, surveyResponseDays: 90, outboundSendDays: 90 });
   });
 
   // A stored '7' is coerced to the number 7 by the settings service.
   it('passes an in-range numeric value through unchanged', async () => {
     settings({ whatsapp_session_retention_days: 7, whatsapp_processed_message_retention_days: 7 });
     await GET(request(`Bearer ${SECRET}`));
-    expect(purgeWhatsAppOperationalState).toHaveBeenCalledWith({ sessionDays: 7, processedMessageDays: 7, surveyResponseDays: 90 });
+    expect(purgeWhatsAppOperationalState).toHaveBeenCalledWith({ sessionDays: 7, processedMessageDays: 7, surveyResponseDays: 90, outboundSendDays: 90 });
   });
 
   it('clamps retention days above 30 down to 30', async () => {
     settings({ whatsapp_session_retention_days: 400, whatsapp_processed_message_retention_days: 31 });
     await GET(request(`Bearer ${SECRET}`));
-    expect(purgeWhatsAppOperationalState).toHaveBeenCalledWith({ sessionDays: 30, processedMessageDays: 30, surveyResponseDays: 90 });
+    expect(purgeWhatsAppOperationalState).toHaveBeenCalledWith({ sessionDays: 30, processedMessageDays: 30, surveyResponseDays: 90, outboundSendDays: 90 });
   });
 
   it('passes the survey retention setting through and clamps it to 1..365', async () => {
@@ -101,10 +101,19 @@ describe('GET /api/cron/whatsapp-retention', () => {
     expect(purgeWhatsAppOperationalState).toHaveBeenLastCalledWith(expect.objectContaining({ surveyResponseDays: 365 }));
   });
 
+  it('passes the outbound send retention setting through and clamps it to 1..365', async () => {
+    settings({ whatsapp_outbound_send_retention_days: 14 });
+    await GET(request(`Bearer ${SECRET}`));
+    expect(purgeWhatsAppOperationalState).toHaveBeenLastCalledWith(expect.objectContaining({ outboundSendDays: 14 }));
+    settings({ whatsapp_outbound_send_retention_days: 9999 });
+    await GET(request(`Bearer ${SECRET}`));
+    expect(purgeWhatsAppOperationalState).toHaveBeenLastCalledWith(expect.objectContaining({ outboundSendDays: 365 }));
+  });
+
   it('clamps retention days below 1 up to 1', async () => {
     settings({ whatsapp_session_retention_days: 0, whatsapp_processed_message_retention_days: -5 });
     await GET(request(`Bearer ${SECRET}`));
-    expect(purgeWhatsAppOperationalState).toHaveBeenCalledWith({ sessionDays: 1, processedMessageDays: 1, surveyResponseDays: 90 });
+    expect(purgeWhatsAppOperationalState).toHaveBeenCalledWith({ sessionDays: 1, processedMessageDays: 1, surveyResponseDays: 90, outboundSendDays: 90 });
   });
 
   it('returns 500 with the error message when the purge throws', async () => {

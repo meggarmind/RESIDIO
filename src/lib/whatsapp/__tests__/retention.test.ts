@@ -6,7 +6,7 @@ vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const NOW = new Date('2026-10-13T12:00:00.000Z');
-const PURGEABLE = ['whatsapp_sessions', 'whatsapp_processed_messages', 'whatsapp_survey_responses'];
+const PURGEABLE = ['whatsapp_sessions', 'whatsapp_processed_messages', 'whatsapp_survey_responses', 'whatsapp_outbound_sends'];
 
 type Result = { count: number | null; error: unknown };
 
@@ -39,15 +39,17 @@ describe('WhatsApp operational retention', () => {
       whatsapp_sessions: { count: 2, error: null },
       whatsapp_processed_messages: { count: 3, error: null },
       whatsapp_survey_responses: { count: 4, error: null },
+      whatsapp_outbound_sends: { count: 5, error: null },
     });
     await expect(purgeWhatsAppOperationalState({ sessionDays: 1, processedMessageDays: 2 })).resolves.toEqual({
       sessions: 2,
       processedMessages: 3,
       surveyResponses: 4,
+      outboundSends: 5,
     });
   });
 
-  it('deletes only from the three purgeable tables, never the survey opt-outs', async () => {
+  it('deletes only from the four purgeable tables, never the survey opt-outs', async () => {
     const { from } = setup();
     await purgeWhatsAppOperationalState();
     const tables = from.mock.calls.map((call) => call[0]).sort();
@@ -81,6 +83,23 @@ describe('WhatsApp operational retention', () => {
     const { queries } = setup();
     await purgeWhatsAppOperationalState({ surveyResponseDays: 30 });
     expect(queries.whatsapp_survey_responses.lt).toHaveBeenCalledWith('asked_at', new Date(NOW.getTime() - 30 * DAY_MS).toISOString());
+  });
+
+  it('deletes outbound sends created before now minus 90 days by default, keyed on created_at', async () => {
+    const { queries } = setup();
+    await purgeWhatsAppOperationalState();
+    expect(queries.whatsapp_outbound_sends.lt).toHaveBeenCalledWith('created_at', new Date(NOW.getTime() - 90 * DAY_MS).toISOString());
+  });
+
+  it('uses the configured outbound send retention days', async () => {
+    const { queries } = setup();
+    await purgeWhatsAppOperationalState({ outboundSendDays: 14 });
+    expect(queries.whatsapp_outbound_sends.lt).toHaveBeenCalledWith('created_at', new Date(NOW.getTime() - 14 * DAY_MS).toISOString());
+  });
+
+  it('throws when the outbound send delete errors', async () => {
+    setup({ whatsapp_outbound_sends: { count: null, error: new Error('sends failed') } });
+    await expect(purgeWhatsAppOperationalState()).rejects.toThrow('sends failed');
   });
 
   it('throws when the survey delete errors', async () => {
