@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { addToQueue } from '@/lib/notifications/queue';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { loadAccountStatement } from '@/lib/billing/account-statement-data';
+import { getSettingResultAsService } from '@/lib/settings/service';
 import {
   buildStatementEmail,
   loadWhatsAppStatementForPeriod,
@@ -24,6 +25,7 @@ vi.mock('@/lib/billing/account-statement-data', () => ({ loadAccountStatement: v
 vi.mock('@/lib/comms-override/resident-flag', () => ({ resolveResidentOverride: vi.fn().mockResolvedValue({ ok: true, residentOverride: true }) }));
 vi.mock('@/lib/settings/service', () => ({
   getRawSettingsAsService: vi.fn().mockResolvedValue({ status: 'ok', values: new Map([['estate_name', 'Palm Estate']]) }),
+  getSettingResultAsService: vi.fn().mockResolvedValue({ status: 'absent' }),
 }));
 
 const statement = {
@@ -214,7 +216,8 @@ describe('WhatsApp statement by email (#804 decision 24)', () => {
 
     const email = await buildStatementEmail('request-1');
 
-    expect(loadAccountStatement).toHaveBeenCalledWith(expect.anything(), { residentId: 'resident-1', houseId: 'house-1', fromDate: '2026-01-01', toDate: '2026-10-20' });
+    // Resident-facing: the pre-#863 balance while balance_roll_forward_resident_enabled has no row.
+    expect(loadAccountStatement).toHaveBeenCalledWith(expect.anything(), { residentId: 'resident-1', houseId: 'house-1', fromDate: '2026-01-01', toDate: '2026-10-20' }, { rollForward: false });
     expect(email.attachments).toEqual([{ filename: 'statement-2026-01-01-to-2026-10-20.pdf', content: Buffer.from('%PDF') }]);
     expect(email.react.props).toMatchObject({
       estateName: 'Palm Estate',
@@ -224,6 +227,18 @@ describe('WhatsApp statement by email (#804 decision 24)', () => {
       openingBalance: '₦45,000.00',
       closingBalance: '−₦2,000.00',
     });
+  });
+});
+
+describe('Resident roll-forward setting (#863)', () => {
+  it('builds the WhatsApp statement on the roll-forward balance only once the setting is on', async () => {
+    vi.mocked(loadAccountStatement).mockResolvedValue({ data: statement, error: null } as never);
+    vi.mocked(getSettingResultAsService).mockResolvedValueOnce({ status: 'ok', value: true });
+
+    await loadWhatsAppStatementForPeriod('resident-1', 'house-1', 'this_year', new Date('2026-10-20T10:00:00Z'));
+
+    expect(getSettingResultAsService).toHaveBeenCalledWith('balance_roll_forward_resident_enabled');
+    expect(loadAccountStatement).toHaveBeenLastCalledWith(expect.anything(), { residentId: 'resident-1', houseId: 'house-1', fromDate: '2026-01-01', toDate: '2026-10-20' }, { rollForward: true });
   });
 });
 

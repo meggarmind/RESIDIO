@@ -1,11 +1,17 @@
 import type { createAdminClient, createServerSupabaseClient } from '@/lib/supabase/server';
 import type { InvoiceStatus, InvoiceType } from '@/types/database';
 import { buildStatementLedger, type LedgerWalletTransaction } from '@/lib/billing/statement-ledger';
+import { fetchAccountBalance, type AccountBalance } from '@/lib/billing/account-balance';
 
 type StatementClient = Awaited<ReturnType<typeof createServerSupabaseClient>> | ReturnType<typeof createAdminClient>;
 
 // Dates are interpolated into PostgREST or-filters, so only plain YYYY-MM-DD is accepted.
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** The instant a Lagos calendar day starts, `addDays` after `date` (Africa/Lagos is UTC+1 all year). */
+function lagosDayStart(date: string, addDays = 0): string {
+    return new Date(Date.parse(`${date}T00:00:00+01:00`) + addDays * 86_400_000).toISOString();
+}
 
 // ============================================================
 // Account Statement Types
@@ -84,11 +90,18 @@ export type GetAccountStatementResponse = {
 /**
  * Builds the account statement for a resident with the given client: the user's client for
  * admin pages, the service-role client for the WhatsApp Assistant (#804), which has no user.
- * Shows all invoices, payments, and wallet transactions for a date range
+ * Shows all invoices, payments, and wallet transactions for a date range.
+ *
+ * `rollForward` takes the balances and totals from resident_account_balance (#863) and lists
+ * only the rows it counts: verified payments, wallet rows on an all-properties statement only,
+ * timestamps bounded by the Lagos day. The admin statement always sets it; resident-facing
+ * statements set it only once balance_roll_forward_resident_enabled is on. Without it the
+ * statement is built exactly as before #863.
  */
 export async function loadAccountStatement(
     supabase: StatementClient,
-    params: GetAccountStatementParams
+    params: GetAccountStatementParams,
+    { rollForward }: { rollForward: boolean }
 ): Promise<GetAccountStatementResponse> {
     const { residentId, houseId, fromDate, toDate } = params;
 
@@ -132,6 +145,9 @@ export async function loadAccountStatement(
 
     // 3. Get invoices in period (excluding void), dated by the period they bill.
     // Legacy invoices carry their import date in created_at, so created_at is only the fallback.
+    const createdInPeriod = rollForward
+        ? `created_at.gte."${lagosDayStart(fromDate)}",created_at.lt."${lagosDayStart(toDate, 1)}"`
+        : `created_at.gte.${fromDate},created_at.lte.${toDate}`;
     let invoiceQuery = supabase
         .from('invoices')
         .select(`
@@ -147,7 +163,7 @@ export async function loadAccountStatement(
         `)
         .eq('resident_id', residentId)
         .neq('status', 'void')
-        .or(`and(period_start.gte.${fromDate},period_start.lte.${toDate}),and(period_start.is.null,created_at.gte.${fromDate},created_at.lte.${toDate})`);
+        .or(`and(period_start.gte.${fromDate},period_start.lte.${toDate}),and(period_start.is.null,${createdInPeriod})`);
 
     if (houseId) {
         invoiceQuery = invoiceQuery.eq('house_id', houseId);
@@ -172,6 +188,10 @@ export async function loadAccountStatement(
     if (houseId) {
         paymentQuery = paymentQuery.eq('house_id', houseId);
     }
+    // An unverified payment is not in the balance (#804 decision 18), so it is not a row either.
+    if (rollForward) {
+        paymentQuery = paymentQuery.eq('is_verified', true);
+    }
 
     const { data: payments, error: paymentError } = await paymentQuery;
 
@@ -179,51 +199,67 @@ export async function loadAccountStatement(
         return { data: null, error: paymentError.message };
     }
 
-    // 5. Get wallet transactions in period
-    const { data: wallet } = await supabase
-        .from('resident_wallets')
-        .select('id')
-        .eq('resident_id', residentId)
-        .single();
-
+    // 5. Get wallet transactions in period; the wallet is not per property, so a roll-forward
+    // statement for one house leaves it out (#863 decision 7).
     let walletTransactions: LedgerWalletTransaction[] = [];
 
-    if (wallet) {
-        const { data: walletTx } = await supabase
-            .from('wallet_transactions')
-            .select('id, type, amount, description, reference_type, reference_id, created_at')
-            .eq('wallet_id', wallet.id)
-            .gte('created_at', fromDate)
-            .lte('created_at', toDate)
-            .order('created_at', { ascending: true });
+    if (!(rollForward && houseId)) {
+        const { data: wallet } = await supabase
+            .from('resident_wallets')
+            .select('id')
+            .eq('resident_id', residentId)
+            .single();
 
-        walletTransactions = (walletTx || []) as LedgerWalletTransaction[];
+        if (wallet) {
+            let walletQuery = supabase
+                .from('wallet_transactions')
+                .select('id, type, amount, description, reference_type, reference_id, created_at')
+                .eq('wallet_id', wallet.id);
+            walletQuery = rollForward
+                ? walletQuery.gte('created_at', lagosDayStart(fromDate)).lt('created_at', lagosDayStart(toDate, 1))
+                : walletQuery.gte('created_at', fromDate).lte('created_at', toDate);
+            const { data: walletTx } = await walletQuery.order('created_at', { ascending: true });
+
+            walletTransactions = (walletTx || []) as LedgerWalletTransaction[];
+        }
     }
 
-    // 6. Calculate opening balance (invoices billed before fromDate)
+    // 6. Calculate opening balance
     let openingBalance = 0;
+    let balance: AccountBalance | null = null;
 
-    let priorInvoiceQuery = supabase
-        .from('invoices')
-        .select('amount_due, amount_paid')
-        .eq('resident_id', residentId)
-        .neq('status', 'void')
-        .or(`period_start.lt.${fromDate},and(period_start.is.null,created_at.lt.${fromDate})`);
+    if (rollForward) {
+        try {
+            balance = await fetchAccountBalance(supabase, { residentId, houseId, fromDate, toDate });
+        } catch (error) {
+            console.error('[account-statement] balance read failed', { residentId, houseId, fromDate, toDate, error });
+            return { data: null, error: error instanceof Error ? error.message : 'Account balance could not be read' };
+        }
+        openingBalance = balance.openingBalance;
+    } else {
+        // Invoices billed before fromDate, less what is allocated to them today
+        let priorInvoiceQuery = supabase
+            .from('invoices')
+            .select('amount_due, amount_paid')
+            .eq('resident_id', residentId)
+            .neq('status', 'void')
+            .or(`period_start.lt.${fromDate},and(period_start.is.null,created_at.lt.${fromDate})`);
 
-    if (houseId) {
-        priorInvoiceQuery = priorInvoiceQuery.eq('house_id', houseId);
-    }
+        if (houseId) {
+            priorInvoiceQuery = priorInvoiceQuery.eq('house_id', houseId);
+        }
 
-    const { data: priorInvoices } = await priorInvoiceQuery;
+        const { data: priorInvoices } = await priorInvoiceQuery;
 
-    if (priorInvoices) {
-        priorInvoices.forEach((inv) => {
-            openingBalance += (inv.amount_due || 0) - (inv.amount_paid || 0);
-        });
+        if (priorInvoices) {
+            priorInvoices.forEach((inv) => {
+                openingBalance += (inv.amount_due || 0) - (inv.amount_paid || 0);
+            });
+        }
     }
 
     // 7-8. Build the chronological ledger and its totals
-    const { transactions, summary, closingBalance } = buildStatementLedger({
+    const ledger = buildStatementLedger({
         openingBalance,
         invoices: (invoices || []).map((invoice) => {
             // billing_profile can be array or single object depending on Supabase relationship
@@ -234,6 +270,25 @@ export async function loadAccountStatement(
         payments: payments || [],
         walletTransactions,
     });
+    const { transactions } = ledger;
+    let { summary, closingBalance } = ledger;
+
+    if (balance) {
+        // Rows and totals come from two reads of the same data; a gap means one of them is wrong.
+        if (Math.abs(ledger.closingBalance - balance.closingBalance) >= 0.005) {
+            console.error('[account-statement] rows disagree with resident_account_balance', {
+                residentId, houseId, fromDate, toDate, rowsClosing: ledger.closingBalance, balanceClosing: balance.closingBalance,
+            });
+        }
+        summary = {
+            totalInvoiced: balance.totalInvoiced,
+            totalPaid: balance.totalPaid,
+            totalCredits: balance.totalCredits,
+            totalDebits: balance.totalDebits,
+            netChange: Math.round((balance.closingBalance - balance.openingBalance) * 100) / 100,
+        };
+        closingBalance = balance.closingBalance;
+    }
 
     // 9. Get current user for generated by
     const { data: { user } } = await supabase.auth.getUser();
