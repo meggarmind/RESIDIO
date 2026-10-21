@@ -337,7 +337,7 @@ shadcn/ui components - button, card, form, table, dialog, sheet, tabs, badge, al
 - `/settings` - General settings
 - `/settings/appearance` - Theme settings
 - `/settings/billing` - Billing configuration
-- `/settings/security` - Security settings
+- `/settings/security` - Security rules task page (contact limits, contact categories, session timeout); `/settings/security/categories` redirects to it
 - `/system/accounts` - Roles & Access (administrators, pending sign-ups, unlinked logins, roles, who can hold each role; `?tab=`). `/settings/roles` and `/settings/user-roles` redirect here
 - `/settings/reminders`, `/settings/wording`, `/settings/sending`, `/settings/announcements` - Messages task pages (reminders, email wording, email & sending, announcements); the old `/settings/notifications/*`, `/settings/email`, `/settings/comms-override` routes redirect to them
 - `/system/audit-logs` - Audit trail viewer
@@ -345,7 +345,8 @@ shadcn/ui components - button, card, form, table, dialog, sheet, tabs, badge, al
 - `/settings/data-retention` - Retention policies and pruning
 - `/settings/streets`, `/settings/house-types` - Reference data
 - `/settings/bank-accounts`, `/settings/transaction-tags` - Financial reference
-- `/settings/document-categories`, `/settings/announcement-categories` - Category management
+- `/settings/documents` - Documents task page (categories, tags and custom fields); `/settings/document-categories` and `/settings/document-taxonomy` redirect to it
+- `/settings/announcement-categories` - redirects to `/settings/announcements#categories`
 - `/settings/email-integration`, `/settings/email` - Email configuration
 - `/settings/message-templates` - Message template library
 - `/settings/cron-status` - Cron job monitoring

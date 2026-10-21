@@ -309,12 +309,15 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/settings/bank-accounts': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
   '/settings/document-categories': [PERMISSIONS.DOCUMENTS_MANAGE_CATEGORIES],
   '/settings/document-taxonomy': [PERMISSIONS.DOCUMENTS_MANAGE_TAGS, PERMISSIONS.DOCUMENTS_MANAGE_CUSTOM_FIELDS],
+  // Merged Documents task page (#937, #791): the OR of its sections. The two old routes above stay (ADR-0004).
+  '/settings/documents': [PERMISSIONS.DOCUMENTS_MANAGE_CATEGORIES, PERMISSIONS.DOCUMENTS_MANAGE_TAGS, PERMISSIONS.DOCUMENTS_MANAGE_CUSTOM_FIELDS],
 
   // Access & security
   '/settings/roles': [PERMISSIONS.SYSTEM_MANAGE_ROLES, PERMISSIONS.SYSTEM_ASSIGN_ROLES],
   '/settings/groups': [PERMISSIONS.GROUPS_VIEW],
   '/settings/user-roles': [PERMISSIONS.SYSTEM_MANAGE_ROLES, PERMISSIONS.SYSTEM_ASSIGN_ROLES],
-  '/settings/security': [PERMISSIONS.SETTINGS_MANAGE_SECURITY, PERMISSIONS.SECURITY_MANAGE_CATEGORIES],
+  // Security rules task page (#937, #791): the OR of its sections (contact limits, contact categories, session timeout).
+  '/settings/security': [PERMISSIONS.SETTINGS_MANAGE_SECURITY, PERMISSIONS.SECURITY_MANAGE_CATEGORIES, PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE],
   '/settings/security/categories': [PERMISSIONS.SECURITY_MANAGE_CATEGORIES],
   // Retained after the move to /system/audit-logs: the redirect stub at this
   // path is a page component and runs after middleware, so this entry is what

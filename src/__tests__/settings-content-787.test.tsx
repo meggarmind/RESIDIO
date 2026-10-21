@@ -72,7 +72,7 @@ vi.mock('@/components/ui/select', () => {
 import { RemindersOnOffSection } from '@/components/settings/messages/reminders-on-off-section';
 import { ReminderScheduleSection } from '@/components/settings/messages/reminder-schedule-section';
 import { useReminderSettings } from '@/components/settings/messages/use-reminder-settings';
-import CategoriesPage from '@/app/(dashboard)/settings/security/categories/page';
+import { ContactCategoriesSection as CategoriesPage } from '@/components/settings/security/contact-categories-section';
 import { TemplateForm } from '@/components/notifications/template-form';
 import BillingSettingsPage from '@/app/(dashboard)/settings/billing/page';
 

@@ -25,7 +25,6 @@ const DEFAULT_MESSAGE = 'The system is currently under maintenance. Please try a
 
 type MaintenanceForm = {
   maintenance_message: string;
-  session_timeout_minutes: number;
   duplicate_matching_threshold: number;
 };
 
@@ -49,7 +48,6 @@ export default function MaintenancePage() {
   const settingsObj = useMemo(() => settingsToObject(systemSettings), [systemSettings]);
   const savedForm = useMemo<MaintenanceForm>(() => ({
     maintenance_message: (settingsObj.maintenance_message as string) || DEFAULT_MESSAGE,
-    session_timeout_minutes: Number(settingsObj.session_timeout_minutes) || 60,
     duplicate_matching_threshold: Number(settingsObj.duplicate_matching_threshold) || 90,
   }), [settingsObj]);
   // The stored value may be a boolean or the string 'true' (updateSetting stores strings).
@@ -75,7 +73,6 @@ export default function MaintenancePage() {
     (key: string) => (valid: boolean) => setInvalidFields((prev) => (prev[key] === !valid ? prev : { ...prev, [key]: !valid })),
     []
   );
-  const timeoutValidity = useMemo(() => trackValidity('session_timeout_minutes'), [trackValidity]);
   const thresholdValidity = useMemo(() => trackValidity('duplicate_matching_threshold'), [trackValidity]);
 
   const setMaintenanceMode = async (enabled: boolean) => {
@@ -105,7 +102,7 @@ export default function MaintenancePage() {
       <div>
         <h3 className="text-lg font-medium">System Behaviour</h3>
         <p className="text-sm text-muted-foreground">
-          Maintenance mode, session timeout and duplicate transaction matching.
+          Maintenance mode and duplicate transaction matching.
         </p>
       </div>
       <Separator />
@@ -179,33 +176,6 @@ export default function MaintenancePage() {
               aria-describedby="maintenance-message-help"
             />
             <p id="maintenance-message-help" className="text-xs text-muted-foreground">This message will be shown to users on the maintenance page once saved.</p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Session Settings</CardTitle>
-          <CardDescription>Configure user session behavior.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label htmlFor="session-timeout">Session Timeout (minutes)</Label>
-              <p className="text-sm text-muted-foreground">Inactive users will be logged out after this duration</p>
-            </div>
-            <NumericSettingInput
-              key={`timeout-${resetKey}`}
-              id="session-timeout"
-              min={5}
-              max={1440}
-              integer
-              unit="min"
-              value={form.session_timeout_minutes}
-              onCommit={(value) => setField('session_timeout_minutes', value)}
-              onValidityChange={timeoutValidity}
-              disabled={!canEdit}
-            />
           </div>
         </CardContent>
       </Card>

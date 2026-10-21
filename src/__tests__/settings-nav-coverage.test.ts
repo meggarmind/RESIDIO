@@ -92,6 +92,9 @@ describe('settings navigation coverage', () => {
       '/settings/comms-override',
       '/settings/message-templates',
       '/settings/announcement-categories',
+      '/settings/document-categories',
+      '/settings/document-taxonomy',
+      '/settings/security/categories',
     ]);
 
     const unlisted = routesOnDisk()
