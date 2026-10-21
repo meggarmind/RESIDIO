@@ -11,7 +11,7 @@ residio_sources:
   - src/app/(dashboard)/settings/wording/**
   - src/app/(dashboard)/settings/sending/**
   - src/app/(dashboard)/settings/announcements/**
-residio_verified_commit: fc18b33e
+residio_verified_commit: 5ed0365a
 residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---
@@ -25,7 +25,7 @@ Settings are grouped by the decision they control.
 - **Setup:** this overview page, with the setup checklist.
 - **Estate & Property:** estate details, logo and branding, theme, streets, and house types.
 - **Money:** billing rules (general, late fees, invoices and due dates, levies), rate cards (billing profiles), bank accounts, and transaction tags.
-- **Messages:** four task pages, each made of sections on one page. **Reminders** (on or off, schedule, send now), **Message wording** (email, WhatsApp), **Email & sending** (channels, email types, and a collapsed *Testing* section for the test-mode redirect and the test email) and **Announcements** (templates, categories). The old addresses for these pages still work and open the right section. The row of section names under the page title jumps to a section; sections that control a message start collapsed when they are rarely used.
+- **Messages:** four task pages, each made of sections on one page. **Reminders** (on or off, schedule, send now), **Message wording** (email, WhatsApp), **Email & sending** (channels, email types, and a collapsed *Testing* section for the test-mode redirect and the test email) and **Announcements** (templates, categories). The old addresses for these pages still work and open the right section. The row of section names under the page title stays in view as you scroll and jumps to a section; sections that control a message start collapsed when they are rarely used.
 - **Documents:** document categories, and tags and custom fields.
 - **People & Access:** role and permission definitions, recipient groups (named lists of residents the estate sends copies to), and security rules (security settings and contact categories).
 - **Connections:** external services — WhatsApp and Gmail import today, with Paystack and SMS planned. Each keeps its credentials and its day-to-day console (consent, sync status, manual actions) together, rather than splitting configuration from operations the way the other groups do.

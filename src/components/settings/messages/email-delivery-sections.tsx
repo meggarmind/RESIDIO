@@ -64,9 +64,9 @@ export function EmailDeliverySections() {
                 {isEmailConfigured ? (
                   'Email service is configured and ready to send.'
                 ) : (
-                  <>
+                  <p>
                     Email service is not configured. Add <code className="text-xs">RESEND_API_KEY</code> to your environment variables.
-                  </>
+                  </p>
                 )}
               </AlertDescription>
             </Alert>
@@ -102,14 +102,23 @@ export function EmailDeliverySections() {
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription>
-              Three controls affect payment reminders. <strong>Send payment reminders</strong> on the{' '}
-              <Link href="/settings/reminders#on-off" className="text-primary underline">Reminders</Link> page turns the automatic
-              daily reminders on or off; the scheduled job on the Coolify server runs them once a day, with the steps set in{' '}
-              <Link href="/settings/reminders#schedule" className="text-primary underline">Schedule</Link>.{' '}
-              <strong>Payment reminders</strong> above turns reminder emails on or off for both the daily job and the manual run, and the days set in{' '}
-              <Link href="/settings/billing" className="text-primary underline">Billing Settings</Link> limit when either sends before the due date.{' '}
-              <strong>Send payment reminders now</strong> under{' '}
-              <Link href="/settings/reminders#send-test" className="text-primary underline">Send now</Link> sends one email-only run on those days.
+              <p>Three controls affect payment reminders:</p>
+              <ul className="list-disc space-y-1 pl-4">
+                <li>
+                  <strong>Send payment reminders</strong> on the{' '}
+                  <Link href="/settings/reminders#on-off" className="text-primary underline">Reminders</Link> page turns the automatic
+                  daily reminders on or off. The scheduled job on the Coolify server runs them once a day, with the steps set in{' '}
+                  <Link href="/settings/reminders#schedule" className="text-primary underline">Schedule</Link>.
+                </li>
+                <li>
+                  <strong>Payment reminders</strong> above turns reminder emails on or off for both the daily job and the manual run. The days set in{' '}
+                  <Link href="/settings/billing" className="text-primary underline">Billing Settings</Link> limit when either sends before the due date.
+                </li>
+                <li>
+                  <strong>Send payment reminders now</strong> under{' '}
+                  <Link href="/settings/reminders#send-test" className="text-primary underline">Send now</Link> sends one email-only run on those days.
+                </li>
+              </ul>
             </AlertDescription>
           </Alert>
         </div>

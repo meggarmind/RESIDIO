@@ -254,7 +254,7 @@ export function AnnouncementCategoriesSection() {
               </Button>
             </div>
           ) : (
-            <Table>
+            <Table stack>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-12">#</TableHead>
@@ -270,24 +270,24 @@ export function AnnouncementCategoriesSection() {
                   .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0))
                   .map((category, index) => (
                     <TableRow key={category.id} className={!category.is_active ? 'opacity-50' : ''}>
-                      <TableCell className="text-muted-foreground">
+                      <TableCell label="#" className="text-muted-foreground">
                         {index + 1}
                       </TableCell>
-                      <TableCell>
+                      <TableCell label="Name">
                         <div className="flex items-center gap-2">
                           <div className={`h-3 w-3 rounded-full ${getColorClass(category.color)}`} />
                           <span className="font-medium">{category.name}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-muted-foreground font-mono text-sm">
+                      <TableCell label="Slug" className="text-muted-foreground font-mono text-sm">
                         {category.slug}
                       </TableCell>
-                      <TableCell>
+                      <TableCell label="Color">
                         <Badge variant="outline" className="capitalize">
                           {category.color || 'blue'}
                         </Badge>
                       </TableCell>
-                      <TableCell>
+                      <TableCell label="Status">
                         {category.is_active ? (
                           <Badge
                             variant="secondary"
@@ -301,7 +301,7 @@ export function AnnouncementCategoriesSection() {
                           </Badge>
                         )}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell label="Actions" className="text-right">
                         <div className="flex justify-end gap-1">
                           <Button
                             variant="ghost"

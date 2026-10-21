@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
 import { setRemindersEnabled } from '@/actions/notifications/reminder-config';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { formatDateTimeMedium } from '@/lib/utils';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { SettingsRow } from '@/components/settings/settings-row';
 import { SettingsSection } from '@/components/settings/settings-section';
@@ -41,7 +42,7 @@ export function RemindersOnOffSection({
   const summary = loading
     ? 'Loading reminder settings'
     : `${enabled ? 'On' : 'Off'}, ${activeSteps} of ${steps.length} steps active, last run ${
-        lastRun ? new Date(lastRun).toLocaleString() : 'never'
+        lastRun ? formatDateTimeMedium(lastRun) : 'never'
       }`;
 
   return (

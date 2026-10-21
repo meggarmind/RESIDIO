@@ -6,6 +6,7 @@ import { ConfirmAction } from '@/components/ui/confirm-action';
 import { useSettings } from '@/hooks/use-settings';
 import { useSendPaymentReminders } from '@/hooks/use-email';
 import { previewPaymentReminders } from '@/actions/email/send-payment-reminders';
+import { formatDateTimeMedium } from '@/lib/utils';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { SettingsRow } from '@/components/settings/settings-row';
 import { SettingsSection } from '@/components/settings/settings-section';
@@ -20,7 +21,7 @@ export function SendRemindersNowSection() {
     <SettingsSection
       id="send-test"
       title="Send now"
-      summary={lastRun ? `Last manual run ${new Date(lastRun).toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' })}` : 'Not run yet'}
+      summary={lastRun ? `Last manual run ${formatDateTimeMedium(lastRun)}` : 'Not run yet'}
       permissions={[PERMISSIONS.SETTINGS_MANAGE_GENERAL]}
       defaultCollapsed
       instant

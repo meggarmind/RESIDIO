@@ -51,7 +51,8 @@ export function TestingSection() {
         summary={isLoading ? 'Loading' : 'Could not load the communications override'}
         permissions={[PERMISSIONS.SETTINGS_MANAGE_GENERAL]}
         defaultCollapsed
-        instant
+        // While loading, keep the footer (disabled) so its height is reserved and the page does not jump when the form arrives.
+        instant={!isLoading}
       >
         <div className="p-4 md:p-5">
           {isLoading ? (

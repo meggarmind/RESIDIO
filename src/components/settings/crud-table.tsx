@@ -89,7 +89,7 @@ export function CrudTable<T extends { id: string }>({
       </div>
 
       <div className="rounded-md border">
-        <Table>
+        <Table stack>
           <TableHeader>
             <TableRow>
               {selectable && (
@@ -141,10 +141,10 @@ export function CrudTable<T extends { id: string }>({
                     </TableCell>
                   )}
                   {columns.map((col, i) => (
-                    <TableCell key={i} className={col.className}>{col.cell(row)}</TableCell>
+                    <TableCell key={i} label={typeof col.header === 'string' ? col.header : undefined} className={col.className}>{col.cell(row)}</TableCell>
                   ))}
                   {canManage && (
-                    <TableCell className="text-right">
+                    <TableCell label="Actions" className="text-right">
                       <div className="flex justify-end gap-1">
                         {actions.map(({ icon: Icon, label, onClick, disabled, destructive }) => (
                           <Button
