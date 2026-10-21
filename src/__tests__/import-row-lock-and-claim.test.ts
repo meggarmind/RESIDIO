@@ -79,6 +79,7 @@ function makeSupabase() {
       };
       chain.single = one;
       chain.maybeSingle = one;
+      chain.limit = () => chain;
       chain.then = (res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) =>
         Promise.resolve(settle()).then(res, rej);
       return chain;
