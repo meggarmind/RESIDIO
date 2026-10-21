@@ -3,7 +3,7 @@
 import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import type { HouseWithStreet } from '@/types/database';
-import type { HouseFormData } from '@/lib/validators/house';
+import { isValidHouseShortName, HOUSE_SHORT_NAME_MESSAGE, type HouseFormData } from '@/lib/validators/house';
 import { generateLeviesForHouse } from '@/actions/billing/generate-levies';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
@@ -26,6 +26,10 @@ export async function createHouse(formData: HouseFormData): Promise<CreateHouseR
   const auth = await authorizePermission(PERMISSIONS.HOUSES_CREATE);
   if (!auth.authorized) {
     return { data: null, error: auth.error || 'Unauthorized' };
+  }
+
+  if (formData.short_name && !isValidHouseShortName(formData.short_name)) {
+    return { data: null, error: HOUSE_SHORT_NAME_MESSAGE };
   }
 
   const { data, error } = await supabase

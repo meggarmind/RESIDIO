@@ -7,8 +7,8 @@ residio_sources:
   - src/app/(dashboard)/houses/**
   - src/actions/houses/**
   - src/components/houses/**
-residio_verified_commit: e24b7386
-residio_verified_at: '2026-10-20'
+residio_verified_commit: ede18251
+residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---
 
@@ -23,6 +23,15 @@ Open **Houses** to inspect the property registry, current occupancy, street, hou
 1. Search by house label or short name.
 2. Filter by street, house type, occupancy, or active status.
 3. Open the property to review current residents and ownership history.
+
+## Short names
+
+A short name is the street code plus the house number, for example `GLB-14`. Residio creates it
+for you and you can edit it before saving. A space in the house number becomes a hyphen, so
+`14 F1` on street `GLB` gives `GLB-14-F1`. Short names may use only letters, digits, dots and
+hyphens, and must start with a letter or digit; the form shows "Use letters, digits, dots and
+hyphens only" otherwise. Invoice generation needs this, and a name that breaks it stops the
+whole estate's invoice run. Names already saved are never rewritten.
 
 ## The house page
 
