@@ -4,6 +4,10 @@ export interface WhatsAppTextMessage {
   to: string;
   body: string;
   previewUrl?: boolean;
+  /** Distinguishes this send from an identical earlier one (inbound message id). Chatmaid only (#842). */
+  idempotencySeed?: string;
+  /** Public HTTPS URLs of files to attach, such as a signed PDF URL. Chatmaid only (#871). */
+  mediaUrls?: string[];
 }
 
 export interface WhatsAppTemplateMessage {
@@ -11,6 +15,8 @@ export interface WhatsAppTemplateMessage {
   templateName: string;
   languageCode: string;
   parameters: string[];
+  /** Distinguishes this send from an identical earlier one (notification queue id). Chatmaid only (#842). */
+  idempotencySeed?: string;
 }
 
 export interface WhatsAppSendResult {

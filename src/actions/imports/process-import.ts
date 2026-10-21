@@ -79,15 +79,28 @@ export async function checkDuplicate(
     }
   }
 
-  // 2. System-wide Duplicate Guardrail (Reference, Amount, Date, Description)
-  // Uses centralized settings and logic
+  return guardrailDuplicate(reference, amount, date, tolerance_days, description);
+}
+
+/**
+ * System-wide Duplicate Guardrail (Reference, Amount, Date, Description), using centralized settings
+ * and logic. A `threshold` already read by the caller saves the settings read.
+ */
+async function guardrailDuplicate(
+  reference: string | null,
+  amount: number,
+  date: string,
+  tolerance_days: number,
+  description?: string | null,
+  threshold?: number
+): Promise<DuplicateCheckResult> {
   const { checkDuplicateGuardrail } = await import('@/lib/matching/duplicate-matcher');
   const guardrailResult = await checkDuplicateGuardrail({
     amount,
     date,
     reference: reference || undefined,
     description: description || undefined,
-  }, 'payment', { toleranceDays: tolerance_days });
+  }, 'payment', { toleranceDays: tolerance_days, threshold });
 
   if (guardrailResult.isDuplicate) {
     return {
@@ -152,6 +165,80 @@ async function firstRowByKey<T extends Record<string, unknown>>(
   return found;
 }
 
+type ServerSupabase = Awaited<ReturnType<typeof createServerSupabaseClient>>;
+
+type HashIndex = {
+  pay: Map<string | number, { id: string }>;
+  exp: Map<string | number, { id: string }>;
+  row: Map<string | number, { id: string; payment_id: string | null }>;
+};
+
+/** Loads the hash matches for `hashes` from payments, expenses and already-created bank rows, one batch each. */
+async function loadHashIndex(supabase: ServerSupabase, hashes: Array<string | null | undefined>): Promise<HashIndex> {
+  const distinct = [...new Set(hashes.filter((h): h is string => !!h))];
+  if (distinct.length === 0) return { pay: new Map(), exp: new Map(), row: new Map() };
+  const [pay, exp, row] = await Promise.all([
+    firstRowByKey<{ id: string; transaction_hash: string }>(distinct, 'transaction_hash', 'payment hash', (chunk, from, to) =>
+      supabase
+        .from('payment_records')
+        .select('id, transaction_hash')
+        .in('transaction_hash', chunk as string[])
+        .order('id')
+        .range(from, to)
+    ),
+    firstRowByKey<{ id: string; transaction_hash: string }>(distinct, 'transaction_hash', 'expense hash', (chunk, from, to) =>
+      supabase
+        .from('expenses')
+        .select('id, transaction_hash')
+        .in('transaction_hash', chunk as string[])
+        .order('id')
+        .range(from, to)
+    ),
+    firstRowByKey<{ id: string; payment_id: string | null; transaction_hash: string }>(
+      distinct,
+      'transaction_hash',
+      'created-row hash',
+      (chunk, from, to) =>
+        supabase
+          .from('bank_statement_rows')
+          .select('id, payment_id, transaction_hash')
+          .in('transaction_hash', chunk as string[])
+          .eq('status', 'created')
+          .order('id')
+          .range(from, to)
+    ),
+  ]);
+  return { pay, exp, row };
+}
+
+/** The hash step of `checkDuplicate`, answered from a loaded index; null means go on to the guardrail. */
+function duplicateByHash(hash: string | null | undefined, index: HashIndex): DuplicateCheckResult | null {
+  if (!hash) return null;
+  const p = index.pay.get(hash);
+  if (p) return { is_duplicate: true, existing_payment_id: p.id, reason: `Duplicate transaction hash in payments` };
+  const e = index.exp.get(hash);
+  if (e) return { is_duplicate: true, existing_payment_id: e.id, reason: `Duplicate transaction hash in expenses` };
+  const b = index.row.get(hash);
+  if (b) {
+    return {
+      is_duplicate: true,
+      existing_payment_id: b.payment_id || undefined,
+      reason: `Duplicate transaction hash (already imported)`,
+    };
+  }
+  return null;
+}
+
+async function readDuplicateThreshold(supabase: ServerSupabase): Promise<number> {
+  const { resolveDuplicateThreshold } = await import('@/lib/matching/duplicate-matcher');
+  const { data: setting } = await supabase
+    .from('hierarchical_settings')
+    .select('value')
+    .eq('setting_key', 'duplicate_matching_threshold')
+    .maybeSingle();
+  return resolveDuplicateThreshold(setting);
+}
+
 /**
  * Batch equivalent of calling `checkDuplicate(reference, amount || 0, date || '', toleranceDays, hash,
  * description)` for every row, with the same precedence and reasons: hash in payments, hash in
@@ -171,71 +258,16 @@ export async function checkDuplicatesBatch(
   if (rows.length === 0) return results;
 
   const supabase = await createServerSupabaseClient();
-  const { pickBestDuplicate, duplicateWindow, resolveDuplicateThreshold } = await import('@/lib/matching/duplicate-matcher');
+  const { pickBestDuplicate, duplicateWindow } = await import('@/lib/matching/duplicate-matcher');
 
-  // 1. Hash lookups (strongest signal)
-  const hashes = [...new Set(rows.map((r) => r.transaction_hash).filter((h): h is string => !!h))];
-  let payHash = new Map<string | number, { id: string }>();
-  let expHash = new Map<string | number, { id: string }>();
-  let rowHash = new Map<string | number, { id: string; payment_id: string | null }>();
-  if (hashes.length > 0) {
-    [payHash, expHash, rowHash] = await Promise.all([
-      firstRowByKey<{ id: string; transaction_hash: string }>(hashes, 'transaction_hash', 'payment hash', (chunk, from, to) =>
-        supabase
-          .from('payment_records')
-          .select('id, transaction_hash')
-          .in('transaction_hash', chunk as string[])
-          .order('id')
-          .range(from, to)
-      ),
-      firstRowByKey<{ id: string; transaction_hash: string }>(hashes, 'transaction_hash', 'expense hash', (chunk, from, to) =>
-        supabase
-          .from('expenses')
-          .select('id, transaction_hash')
-          .in('transaction_hash', chunk as string[])
-          .order('id')
-          .range(from, to)
-      ),
-      firstRowByKey<{ id: string; payment_id: string | null; transaction_hash: string }>(
-        hashes,
-        'transaction_hash',
-        'created-row hash',
-        (chunk, from, to) =>
-          supabase
-            .from('bank_statement_rows')
-            .select('id, payment_id, transaction_hash')
-            .in('transaction_hash', chunk as string[])
-            .eq('status', 'created')
-            .order('id')
-            .range(from, to)
-      ),
-    ]);
-  }
-
-  // Decide the hash outcome per row; the rest go on to the guardrail.
+  // 1. Hash lookups (strongest signal). Decide the hash outcome per row; the rest go on to the guardrail.
+  const hashIndex = await loadHashIndex(supabase, rows.map((r) => r.transaction_hash));
   const pending: DuplicateCheckBatchRow[] = [];
   for (const row of rows) {
-    const hash = row.transaction_hash;
-    if (hash) {
-      const p = payHash.get(hash);
-      if (p) {
-        results.set(row.id, { is_duplicate: true, existing_payment_id: p.id, reason: `Duplicate transaction hash in payments` });
-        continue;
-      }
-      const e = expHash.get(hash);
-      if (e) {
-        results.set(row.id, { is_duplicate: true, existing_payment_id: e.id, reason: `Duplicate transaction hash in expenses` });
-        continue;
-      }
-      const b = rowHash.get(hash);
-      if (b) {
-        results.set(row.id, {
-          is_duplicate: true,
-          existing_payment_id: b.payment_id || undefined,
-          reason: `Duplicate transaction hash (already imported)`,
-        });
-        continue;
-      }
+    const byHash = duplicateByHash(row.transaction_hash, hashIndex);
+    if (byHash) {
+      results.set(row.id, byHash);
+      continue;
     }
     pending.push(row);
   }
@@ -303,12 +335,7 @@ export async function checkDuplicatesBatch(
     }
 
     // Threshold is read once for the whole batch.
-    const { data: setting } = await supabase
-      .from('hierarchical_settings')
-      .select('value')
-      .eq('setting_key', 'duplicate_matching_threshold')
-      .maybeSingle();
-    const threshold = resolveDuplicateThreshold(setting);
+    const threshold = await readDuplicateThreshold(supabase);
 
     fuzzyRows.forEach(({ row, amount, date }, i) => {
       // payment_date is a DATE column, so the database compared calendar dates (UTC date part of the bounds).
@@ -492,7 +519,9 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
   const { data: rows, error: rowsErrorMessage } = await fetchAllRows((from, to) =>
     supabase
       .from('bank_statement_rows')
-      .select('*')
+      .select(
+        'id, transaction_type, amount, description, reference, transaction_date, transaction_hash, tag_id, matched_resident_id, matched_project_id, matched_petty_cash_account_id, matched_expense_category_id'
+      )
       .eq('import_id', import_id)
       .in('status', processableStatuses)
       .order('row_number')
@@ -554,6 +583,36 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
     import_id,
   };
 
+  // Credits that reach the duplicate check: their hashes are loaded once and checked in memory (#777).
+  const dupCandidates = skip_duplicates
+    ? rows.filter((r) => r.transaction_type !== 'debit' && r.matched_resident_id && r.transaction_date)
+    : [];
+  const hashIndex = await loadHashIndex(supabase, dupCandidates.map((r) => r.transaction_hash));
+  const threshold = dupCandidates.length > 0 ? await readDuplicateThreshold(supabase) : undefined;
+
+  // Skipped, duplicate and error statuses are written after the loop, one update per distinct payload.
+  type DeferredStatus = { status: 'skipped' | 'duplicate' | 'error'; error_message?: string };
+  const deferred = new Map<string, { payload: DeferredStatus; ids: string[] }>();
+  const deferStatus = (rowId: string, payload: DeferredStatus) => {
+    const key = JSON.stringify(payload);
+    if (!deferred.has(key)) deferred.set(key, { payload, ids: [] });
+    deferred.get(key)!.ids.push(rowId);
+  };
+
+  // A row created in this run is "already imported" for any later row with the same hash.
+  const markCreated = async (
+    row: { id: string; transaction_hash: string | null },
+    fields: { payment_id: string | null | undefined; error_message?: string }
+  ) => {
+    await supabase
+      .from('bank_statement_rows')
+      .update({ status: 'created', ...fields })
+      .eq('id', row.id);
+    if (row.transaction_hash && !hashIndex.row.has(row.transaction_hash)) {
+      hashIndex.row.set(row.transaction_hash, { id: row.id, payment_id: fields.payment_id ?? null });
+    }
+  };
+
   // Process each row
   for (const row of rows) {
     // Check for explicit matches first
@@ -565,13 +624,13 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
       // Debits might auto-match via tags, but if no tag and no manual assignment, skip
       if (isDebit && !row.tag_id) {
         result.skipped_count++;
-        await supabase.from('bank_statement_rows').update({ status: 'skipped' }).eq('id', row.id);
+        deferStatus(row.id, { status: 'skipped' });
         continue;
       }
       // Credits MUST have a match
       if (!isDebit) {
         result.skipped_count++;
-        await supabase.from('bank_statement_rows').update({ status: 'skipped' }).eq('id', row.id);
+        deferStatus(row.id, { status: 'skipped' });
         continue;
       }
     }
@@ -581,18 +640,12 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
       // Check if it's a credit but not matched to anything
       if (skip_unmatched) {
         result.skipped_count++;
-        await supabase
-          .from('bank_statement_rows')
-          .update({ status: 'skipped' })
-          .eq('id', row.id);
+        deferStatus(row.id, { status: 'skipped' });
         continue;
       } else {
         result.error_count++;
         result.errors.push({ row_id: row.id, error: 'No assignment matched' });
-        await supabase
-          .from('bank_statement_rows')
-          .update({ status: 'error', error_message: 'No assignment matched' })
-          .eq('id', row.id);
+        deferStatus(row.id, { status: 'error', error_message: 'No assignment matched' });
         continue;
       }
     }
@@ -600,30 +653,26 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
     // Skip if no amount
     if (!row.amount || row.amount <= 0) {
       result.skipped_count++;
-      await supabase
-        .from('bank_statement_rows')
-        .update({ status: 'skipped', error_message: 'Invalid amount' })
-        .eq('id', row.id);
+      deferStatus(row.id, { status: 'skipped', error_message: 'Invalid amount' });
       continue;
     }
 
     // Check for duplicates (only for residential payments/credits)
     if (!isDebit && row.matched_resident_id && skip_duplicates && row.transaction_date) {
-      const dupCheck = await checkDuplicate(
-        row.reference,
-        row.amount || 0,
-        row.transaction_date || '',
-        duplicate_tolerance_days,
-        row.transaction_hash,
-        row.description
-      );
+      const dupCheck =
+        duplicateByHash(row.transaction_hash, hashIndex) ??
+        (await guardrailDuplicate(
+          row.reference,
+          row.amount || 0,
+          row.transaction_date || '',
+          duplicate_tolerance_days,
+          row.description,
+          threshold
+        ));
 
       if (dupCheck.is_duplicate) {
         result.skipped_count++;
-        await supabase
-          .from('bank_statement_rows')
-          .update({ status: 'duplicate', error_message: dupCheck.reason })
-          .eq('id', row.id);
+        deferStatus(row.id, { status: 'duplicate', error_message: dupCheck.reason });
         continue;
       }
     }
@@ -654,13 +703,9 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
         }
 
         // Update row status
-        await supabase
-          .from('bank_statement_rows')
-          .update({
-            status: 'created',
-            payment_id: row.matched_petty_cash_account_id, // Store account ID as reference
-          })
-          .eq('id', row.id);
+        await markCreated(row, {
+          payment_id: row.matched_petty_cash_account_id, // Store account ID as reference
+        });
 
         result.created_count++;
 
@@ -689,7 +734,8 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
             // Check if we can reconcile a pending expense
             if (dupCheck.existing_status === 'pending' && dupCheck.existing_payment_id) {
               // Reconcile: Update status to 'paid' and link
-              await updateExpenseStatus(dupCheck.existing_payment_id, 'paid');
+              const { error: reconcileError } = await updateExpenseStatus(dupCheck.existing_payment_id, 'paid');
+              if (reconcileError) throw new Error(reconcileError);
 
               // Log the reconciliation
               await logAudit({
@@ -701,14 +747,10 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
               });
 
               // Mark row as created (acting as the verification proof)
-              await supabase
-                .from('bank_statement_rows')
-                .update({
-                  status: 'created',
-                  payment_id: dupCheck.existing_payment_id,
-                  error_message: 'Auto-reconciled with existing pending expense'
-                })
-                .eq('id', row.id);
+              await markCreated(row, {
+                payment_id: dupCheck.existing_payment_id,
+                error_message: 'Auto-reconciled with existing pending expense'
+              });
 
               result.created_expenses_count++;
               result.created_count++;
@@ -717,10 +759,7 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
 
             // Otherwise, it's a true duplicate (already paid)
             result.skipped_count++;
-            await supabase
-              .from('bank_statement_rows')
-              .update({ status: 'duplicate', error_message: dupCheck.reason })
-              .eq('id', row.id);
+            deferStatus(row.id, { status: 'duplicate', error_message: dupCheck.reason });
             continue;
           }
         }
@@ -743,7 +782,7 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
         }
 
         // Create the expense record
-        const expense = await createExpense({
+        const { data: expense, error: expenseError } = await createExpense({
           amount: Math.abs(row.amount), // Ensure positive amount
           category_id: categoryId,
           expense_date: row.transaction_date || new Date().toISOString().split('T')[0],
@@ -755,15 +794,14 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
           bank_row_id: row.id,
           project_id: row.matched_project_id || undefined, // Add Project ID if matched
         });
+        if (expenseError || !expense) {
+          throw new Error(expenseError || 'Failed to create expense');
+        }
 
         // Update row status with expense_id (we'll store in payment_id field for now)
-        await supabase
-          .from('bank_statement_rows')
-          .update({
-            status: 'created',
-            payment_id: expense.id, // Reuse payment_id field for the expense ID
-          })
-          .eq('id', row.id);
+        await markCreated(row, {
+          payment_id: expense.id, // Reuse payment_id field for the expense ID
+        });
 
         result.created_expenses_count++;
         result.created_count++;
@@ -796,13 +834,9 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
         }
 
         // Update row status
-        await supabase
-          .from('bank_statement_rows')
-          .update({
-            status: 'created',
-            payment_id: paymentResult.data?.id,
-          })
-          .eq('id', row.id);
+        await markCreated(row, {
+          payment_id: paymentResult.data?.id,
+        });
 
         result.created_payments_count++;
         result.created_count++;
@@ -812,15 +846,21 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       result.errors.push({ row_id: row.id, error: errorMessage });
 
-      await supabase
-        .from('bank_statement_rows')
-        .update({ status: 'error', error_message: errorMessage })
-        .eq('id', row.id);
+      deferStatus(row.id, { status: 'error', error_message: errorMessage });
 
       // In atomic mode, abort on first error
       if (mode === 'atomic') {
         result.success = false;
         break;
+      }
+    }
+  }
+
+  for (const { payload, ids } of deferred.values()) {
+    for (const chunk of chunkOf(ids, DUPLICATE_BATCH_CHUNK)) {
+      const { error } = await supabase.from('bank_statement_rows').update(payload).in('id', chunk);
+      if (error) {
+        console.error(`processImport: failed to write ${payload.status} status for ${chunk.length} rows`, import_id, error);
       }
     }
   }

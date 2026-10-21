@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { processQueue, purgeOldItems } from '@/lib/notifications/queue';
 import { verifyCronAuth } from '@/lib/auth/cron-auth';
 import { withSystemLog, type SystemLogRun } from '@/lib/system-log/with-system-log';
+import { alertStalePendingSends } from '@/lib/whatsapp/outbound-sends';
+import { purgeExpiredStatementFiles } from '@/lib/whatsapp/statement-delivery';
 
 // Configure for Vercel
 export const runtime = 'nodejs';
@@ -38,6 +40,23 @@ async function runNotificationQueue(run: SystemLogRun) {
 
     console.log('[Cron] Queue processing completed:', result);
 
+    // WhatsApp sends Chatmaid accepted but never confirmed (#839). A failure
+    // here must not fail the queue run, which already sent its messages.
+    let stalePendingSends = 0;
+    try {
+      stalePendingSends = await alertStalePendingSends();
+    } catch (error) {
+      console.error('[Cron] Stale WhatsApp send check failed:', error);
+    }
+
+    // WhatsApp statement PDFs are kept 12 hours (#804); same isolation as above.
+    let statementFilesPurged = 0;
+    try {
+      statementFilesPurged = await purgeExpiredStatementFiles();
+    } catch (error) {
+      console.error('[Cron] WhatsApp statement file purge failed:', error);
+    }
+
     // Purge old items once a day (at the top of the hour)
     // We check if minutes are between 0-4 since cron runs every 5 min
     const now = new Date();
@@ -54,6 +73,8 @@ async function runNotificationQueue(run: SystemLogRun) {
       failed: result.failed,
       skipped: result.skipped,
       purged: purgeResult.deleted,
+      stalePendingSends,
+      statementFilesPurged,
     };
     if (result.failed > 0) run.outcome = result.sent > 0 ? 'partial' : 'failure';
 

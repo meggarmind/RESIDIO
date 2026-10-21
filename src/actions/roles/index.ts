@@ -5,7 +5,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { isLastActiveSuperAdmin, LAST_SUPER_ADMIN_ERROR } from '@/lib/auth/super-admin-invariant';
-import { assertCanManageTarget, canGrantRole } from '@/lib/auth/role-rank';
+import { assertCanGrantRoles, assertCanManageTarget } from '@/lib/auth/account-guards';
 import type {
   AppRole,
   AppPermission,
@@ -37,7 +37,7 @@ export async function getRolesWithPermissions(): Promise<{
   const { data: roles, error: rolesError } = await supabase
     .from('app_roles')
     .select('*')
-    .order('level', { ascending: true });
+    .order('display_name', { ascending: true });
 
   if (rolesError) {
     return { success: false, error: rolesError.message };
@@ -54,6 +54,21 @@ export async function getRolesWithPermissions(): Promise<{
     .from('role_permissions')
     .select('role_id, permission_id');
 
+  // Holders per role, so the delete dialog can say who would be affected (#788).
+  // A head count per role, the same query deleteRole uses: loading the rows would be capped by max_rows.
+  const holderCounts = new Map<string, number | null>(
+    await Promise.all(
+      (roles || []).map(async (role) => {
+        const { count, error } = await supabase
+          .from('profiles')
+          .select('id', { count: 'exact', head: true })
+          .eq('role_id', role.id);
+        if (error) console.error('[getRolesWithPermissions] Could not count role holders:', error);
+        return [role.id, error ? null : count] as const;
+      })
+    )
+  );
+
   // Build the result with permissions
   const rolesWithPermissions: AppRoleWithPermissions[] = (roles || []).map((role) => {
     const rolePermIds = rolePerms
@@ -67,6 +82,7 @@ export async function getRolesWithPermissions(): Promise<{
     return {
       ...role,
       permissions: rolePermissions as AppPermission[],
+      user_count: holderCounts.get(role.id) ?? null,
     };
   });
 
@@ -197,8 +213,6 @@ async function assertCallerMayGrantPermissions(
 
 /** Values the role form offers; anything else is refused rather than stored. */
 const ROLE_CATEGORIES = ['exco', 'bot', 'staff', 'resident'];
-const ROLE_LEVEL_MIN = 0;
-const ROLE_LEVEL_MAX = 10;
 
 /**
  * Names no custom role may take, whatever the database says: the two top roles,
@@ -214,6 +228,8 @@ const RESERVED_ROLE_NAMES = [
   'financial_officer',
   'vice_chairman',
   'secretary',
+  // Retired by #825; still keyed on by isResidentRole(), so never a custom name.
+  'resident',
 ];
 
 /**
@@ -262,21 +278,8 @@ async function checkRoleName(
   return { ok: true, name };
 }
 
-/**
- * Validates the fields a role form can send. level and category are checked
- * against what the form offers; there is no rank-by-level concept (authorization
- * ranks by role name, see role-rank.ts), so this is a type and range check.
- */
-function checkRoleFields(data: { level?: unknown; category?: unknown }): string | null {
-  if (
-    data.level !== undefined &&
-    (typeof data.level !== 'number' ||
-      !Number.isInteger(data.level) ||
-      data.level < ROLE_LEVEL_MIN ||
-      data.level > ROLE_LEVEL_MAX)
-  ) {
-    return `Level must be a whole number from ${ROLE_LEVEL_MIN} to ${ROLE_LEVEL_MAX}`;
-  }
+/** Validates the category a role form can send against what the form offers. */
+function checkRoleFields(data: { category?: unknown }): string | null {
   if (data.category !== undefined && !ROLE_CATEGORIES.includes(data.category as string)) {
     return 'Unknown role category';
   }
@@ -320,7 +323,6 @@ export async function createRole(roleData: AppRoleInsert): Promise<{
       display_name: roleData.display_name,
       description: roleData.description,
       category: roleData.category,
-      level: roleData.level,
       is_active: roleData.is_active,
       can_be_assigned_to_resident: roleData.can_be_assigned_to_resident,
       is_system_role: false,
@@ -464,7 +466,6 @@ export async function updateRole(
       'display_name',
       'description',
       'category',
-      'level',
       'is_active',
       'can_be_assigned_to_resident',
     ]) {
@@ -703,7 +704,8 @@ export async function assignRoleToUser(
 
   const supabase = await createServerSupabaseClient();
 
-  // Target guard (#475): the account being changed must not outrank the caller.
+  // Target guard (#475, #826): changing an account that holds super_admin or
+  // chairman needs system.assign_board_roles.
   const targetGuard = await assertCanManageTarget(auth.userId!, userId);
   if (!targetGuard.ok) {
     return { success: false, error: targetGuard.error };
@@ -730,17 +732,11 @@ export async function assignRoleToUser(
     return { success: false, error: 'Role not found' };
   }
 
-  // Escalation guard (#475): this path had none. Same rule as
-  // assignRoleToProfile -- super_admin and chairman are grantable by a
-  // super_admin only, and nobody may grant above their own rank.
-  if (!canGrantRole(auth.roleName, targetRole.name)) {
-    return {
-      success: false,
-      error:
-        targetRole.name === 'super_admin' || targetRole.name === 'chairman'
-          ? `Only Super Administrator can assign the ${targetRole.name === 'super_admin' ? 'Super Administrator' : 'Chairman'} role`
-          : 'You cannot assign a role that outranks your own',
-    };
+  // Grant guard (#475, #826): same rule as assignRoleToProfile --
+  // super_admin, chairman and trustee need system.assign_board_roles.
+  const grantGuard = await assertCanGrantRoles(auth.userId!, [targetRole.name]);
+  if (!grantGuard.ok) {
+    return { success: false, error: grantGuard.error };
   }
 
   // Bootstrap invariant (#184). This is a second role-assignment path alongside
@@ -748,27 +744,6 @@ export async function assignRoleToUser(
   // easily, so it carries the same check.
   if (targetRole?.name !== 'super_admin' && (await isLastActiveSuperAdmin(userId))) {
     return { success: false, error: LAST_SUPER_ADMIN_ERROR };
-  }
-
-  // For the "resident" role, verify the user's linked resident is verified
-  if (targetRole?.name === 'resident') {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('resident_id')
-      .eq('id', userId)
-      .single();
-
-    if (profile?.resident_id) {
-      const { isResidentVerified } = await import('../residents/verify-resident');
-      const verificationCheck = await isResidentVerified(profile.resident_id);
-
-      if (!verificationCheck.isVerified) {
-        return {
-          success: false,
-          error: `Cannot assign "Resident" role: the linked resident must be verified first (current status: ${verificationCheck.status || 'unknown'})`,
-        };
-      }
-    }
   }
 
   // Get old role for audit
@@ -818,7 +793,7 @@ export async function assignRoleToUser(
 }
 
 /**
- * Get all users with admin roles (excluding base 'resident' role)
+ * Get all users with a role. A plain resident holds none (role_id null, #825).
  * Used to display the current admins list
  */
 export async function getCurrentAdmins(): Promise<{
@@ -830,10 +805,13 @@ export async function getCurrentAdmins(): Promise<{
     last_name: string;
     email: string | null;
     house_address: string | null;
+    /** The linked resident, if any; a resident-only role cannot be given without one. */
+    resident_id: string | null;
     role_id: string;
     role_name: string;
     role_display_name: string;
-    role_level: number;
+    title_id: string | null;
+    title_name: string | null;
   }>;
   error?: string;
 }> {
@@ -844,7 +822,7 @@ export async function getCurrentAdmins(): Promise<{
 
   const supabase = await createServerSupabaseClient();
 
-  // Get profiles with non-resident roles, joined with residents and roles
+  // Get profiles holding a role, joined with residents and roles
   const { data, error } = await supabase
     .from('profiles')
     .select(`
@@ -852,7 +830,12 @@ export async function getCurrentAdmins(): Promise<{
       email,
       full_name,
       role_id,
+      title_id,
       resident_id,
+      admin_titles:title_id (
+        id,
+        name
+      ),
       residents:resident_id (
         id,
         first_name,
@@ -870,8 +853,7 @@ export async function getCurrentAdmins(): Promise<{
       app_roles:role_id (
         id,
         name,
-        display_name,
-        level
+        display_name
       )
     `)
     .not('role_id', 'is', null);
@@ -881,13 +863,10 @@ export async function getCurrentAdmins(): Promise<{
     return { success: false, error: error.message };
   }
 
-  // Filter to only include non-resident roles and map to clean format
+  // Drop any row whose role join came back empty, and map to clean format
   const admins = (data || [])
-    .filter((profile) => {
-      // app_roles is a single object (not array) due to role_id FK
-      const role = profile.app_roles as unknown as { name: string } | null;
-      return role && role.name !== 'resident';
-    })
+    // app_roles is a single object (not array) due to role_id FK
+    .filter((profile) => profile.app_roles != null)
     .map((profile) => {
       // residents is a single object (not array) due to resident_id FK
       const resident = profile.residents as unknown as {
@@ -906,8 +885,9 @@ export async function getCurrentAdmins(): Promise<{
         id: string;
         name: string;
         display_name: string;
-        level: number;
       };
+
+      const title = profile.admin_titles as unknown as { id: string; name: string } | null;
 
       // Get primary or first active house
       const houses = resident?.resident_houses || [];
@@ -933,13 +913,19 @@ export async function getCurrentAdmins(): Promise<{
         last_name: resident?.last_name || profileLastName || '',
         email: resident?.email || profile.email || null,
         house_address: houseAddress,
+        resident_id: profile.resident_id ?? null,
         role_id: role.id,
         role_name: role.name,
         role_display_name: role.display_name,
-        role_level: role.level,
+        title_id: profile.title_id ?? null,
+        title_name: title?.name ?? null,
       };
     })
-    .sort((a, b) => a.role_level - b.role_level); // Sort by role level (highest first)
+    .sort(
+      (a, b) =>
+        a.role_display_name.localeCompare(b.role_display_name) ||
+        `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`)
+    );
 
   return { success: true, data: admins };
 }

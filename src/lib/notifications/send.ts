@@ -94,14 +94,22 @@ async function sendViaEmail(
   };
 
   try {
+    // A WhatsApp statement request (#804) is rendered at send time, with its PDF attached.
+    // Imported lazily: it pulls in the PDF renderer, which nothing else here needs.
+    const statementRequestId = item.metadata?.whatsapp_statement_request_id;
+    const statement = typeof statementRequestId === 'string'
+      ? await (await import('@/lib/whatsapp/statement-delivery')).buildStatementEmail(statementRequestId)
+      : null;
     const result = await sendViaResend(
       {
         to: item.recipient_email,
         subject: item.subject || 'Notification',
         // Prefer HTML if available, otherwise use plain text
-        ...(item.html_body
-          ? { html: item.html_body }
-          : { text: item.body }),
+        ...(statement
+          ? statement
+          : item.html_body
+            ? { html: item.html_body }
+            : { text: item.body }),
       },
       transportOptions
     );
@@ -117,6 +125,15 @@ async function sendViaEmail(
         ...(result.retryable ? { retryable: true } : {}),
         ...overrideMetadata,
       };
+    }
+
+    if (typeof statementRequestId === 'string') {
+      // The email is out, so a failed status update must not fail the send: a retry would send it twice.
+      try {
+        await (await import('@/lib/whatsapp/statement-delivery')).markStatementEmailSent(statementRequestId);
+      } catch (error) {
+        console.error('[notifications] Statement request could not be marked sent:', { statementRequestId, error });
+      }
     }
 
     return {
@@ -187,9 +204,15 @@ async function sendViaWhatsApp(
     templateName: decision.template.name,
     languageCode: decision.template.languageCode,
     parameters: decision.template.parameters,
+    // Chatmaid dedupes on content; the queue id keeps a repeat notice a distinct send (#842).
+    ...(item.id === IMMEDIATE_ITEM_ID ? {} : { idempotencySeed: item.id }),
   };
   // Communications override (#716): forward the resident's flag when the caller looked it up.
-  const result = await sendWhatsAppTemplate(templateMessage, undefined, context);
+  const result = await sendWhatsAppTemplate(templateMessage, undefined, context, {
+    purpose: 'notification',
+    residentId: item.recipient_id,
+    ...(item.id === IMMEDIATE_ITEM_ID ? {} : { notificationQueueId: item.id }),
+  });
 
   if (!result.success) {
     // DORMANT while SMS is off (owner decision 2026-10-13): the fallback is

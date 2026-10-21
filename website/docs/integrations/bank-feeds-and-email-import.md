@@ -8,14 +8,14 @@ residio_sources:
   - src/lib/parsers/**
   - src/actions/email-imports/**
   - src/app/(dashboard)/settings/email-integration/**
-residio_verified_commit: e96c4095
-residio_verified_at: '2026-10-18'
+residio_verified_commit: 8d77e88a
+residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
 
 # Gmail import and bank feeds
 
-Residio gets bank data into the system through two routes: an automated Gmail connection that reads bank alerts and statement attachments, and manual file upload from **Transactions → Import Statement**. Gmail items land in the email review queue, apart from high-confidence credits at or below the auto-process limit (₦60,000 by default), which are posted automatically (see [The review queue](#the-review-queue)). An uploaded statement is submitted for approval and processed from its own import page under **Transactions → Import History**.
+Residio gets bank data into the system through two routes: an automated Gmail connection that reads bank alerts and statement attachments, and manual file upload from **Transactions → Import Statement**. Gmail items from the hourly sync always land in the email review queue. A fetch an admin starts by hand can also post high-confidence credits at or below the auto-process limit (₦60,000 by default) automatically (see [The review queue](#the-review-queue)). An uploaded statement is submitted for approval and processed from its own import page under **Transactions → Import History**.
 
 For the day-to-day payment workflow, see [Payments and statement imports](../finance/payments-and-imports). This page covers the connection itself.
 
@@ -23,7 +23,7 @@ For the day-to-day payment workflow, see [Payments and statement imports](../fin
 
 ## Connect a Gmail mailbox
 
-Open **Settings → Integrations → Gmail Import**.
+Open **Settings → Connections → Gmail Import**.
 
 1. Select **Connect** and complete the Google consent screen.
 2. Grant access with the mailbox that actually receives the bank alerts, not a personal account.
@@ -39,7 +39,9 @@ Connecting a personal Gmail account ties the estate's bank feed to one person's 
 
 ### Disconnect
 
-**Disconnect** revokes Residio's access and stops future syncs. Imports already created stay in the system. Disconnect before handing over a mailbox, and reconnect with the replacement account rather than sharing credentials.
+**Disconnect** asks for confirmation, then revokes Residio's access and stops future syncs; reconnecting needs a fresh Google sign-in. Imports already created stay in the system. Disconnect before handing over a mailbox, and reconnect with the replacement account rather than sharing credentials.
+
+Anyone who can view email imports can open the page. **Connect Gmail** and **Disconnect** need the configure email imports permission, and **Manual Fetch** needs the trigger email imports permission; without them the buttons are hidden.
 
 ## What gets imported
 
@@ -49,21 +51,21 @@ Column names vary between statement types, so the parser accepts common variatio
 
 ## Password-protected statements
 
-Bank statement PDFs are often password protected. Residio stores a password per bank account so scheduled imports can open them without manual intervention. Manage these under the bank account record.
+Bank statement PDFs are often password protected. Residio stores a password per bank account so both an admin-started fetch and the hourly sync can open them without manual intervention. Each time the hourly sync reads a stored password it records the read in the system action log; the password itself is never logged. Manage them in the **PDF Statement Passwords** row of the **Bank accounts** section on **Settings → Money → Banking**; changing them needs the manage statement passwords permission, and removing one asks first.
 
 Passwords are stored encrypted and are never displayed back. To change one, set a new value; to stop automated opening, remove it.
 
 ## The review queue
 
-Imported rows are matched against residents, houses, and outstanding invoices. The hourly sync posts a credit automatically only when it matched a resident with high confidence (by alias or phone number) and is at or below the auto-process limit. Every other credit is queued for review.
+Imported rows are matched against residents, houses, and outstanding invoices. The hourly sync never posts money: it queues every row it imports for review, whatever the match. A fetch an admin starts by hand posts a credit automatically only when it matched a resident with high confidence (by alias or phone number) and is at or below the auto-process limit. Every other credit is queued for review.
 
 A credit above the limit is always queued, however confident the match, and is marked **Needs approval: over ₦60,000** (the label shows the current limit). Releasing it needs the import approval permission or the super admin role; without it the Process button is disabled. Anyone who can process email imports can still skip it. Debits (expenses) are not limited.
 
 ### The auto-process limit
 
-The limit is set on **Settings → Integrations → Gmail Import** under **Approval Limit**, in the **Auto-process limit (NGN)** field. It defaults to ₦60,000. Anyone with the settings view permission can see it; only a super admin can change it, because a very large value would switch the approval control off. Every change is recorded in the audit log. The value must be a whole naira amount from 1 to 100,000,000.
+The limit is set on **Settings → Connections → Gmail Import** under **Approval Limit**, in the **Auto-process limit (NGN)** field. It defaults to ₦60,000. Anyone with the settings view permission can see it; only a super admin can change it, because a very large value would switch the approval control off. Every change is recorded in the audit log. The value must be a whole naira amount from 1 to 100,000,000.
 
-If Residio cannot read the limit, or the stored value is invalid, it fails safe: that sync posts no credit automatically and queues every credit for review, marked **Needs approval: approval limit unavailable**. Only an approver can release them until the limit is readable again.
+If Residio cannot read the limit, or the stored value is invalid, it fails safe: that fetch posts no credit automatically and queues every credit for review, marked **Needs approval: approval limit unavailable**. Only an approver can release them until the limit is readable again.
 
 For each queued row you can:
 
@@ -84,7 +86,7 @@ Both actions require the email import permission and are written to the audit lo
 
 ## Automatic syncing
 
-Residio checks the connected mailbox on an hourly schedule. If imports stop appearing, confirm the job is running under **Settings → Cron Status** before assuming the Gmail connection has failed. See [Scheduled jobs](./scheduled-jobs).
+Residio checks the connected mailbox on an hourly schedule. Each run fetches, parses and matches new mail, then queues every transaction for review; it posts no payment, expense or petty-cash entry, so nothing is written to the books until an admin processes a queued row. Each run is recorded in the system action log. If imports stop appearing, confirm the job is running under **Settings → Cron Status** before assuming the Gmail connection has failed. See [Scheduled jobs](./scheduled-jobs).
 
 ## Troubleshooting
 

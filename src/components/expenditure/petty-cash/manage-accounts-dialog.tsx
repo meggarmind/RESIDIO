@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -8,7 +8,6 @@ import { toast } from 'sonner';
 import {
     Loader2,
     Plus,
-    Settings,
     Power,
     Pencil,
     Archive,
@@ -24,7 +23,6 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
 } from '@/components/ui/dialog';
 import {
     Form,
@@ -56,8 +54,13 @@ const accountSchema = z.object({
 
 type AccountFormValues = z.infer<typeof accountSchema>;
 
-export function ManagePettyCashDialog() {
-    const [open, setOpen] = useState(false);
+interface ManagePettyCashDialogProps {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+}
+
+/** Opened from the expenditure page's petty cash menu (#785). */
+export function ManagePettyCashDialog({ open, onOpenChange }: ManagePettyCashDialogProps) {
     const [accounts, setAccounts] = useState<PettyCashAccount[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -83,13 +86,13 @@ export function ManagePettyCashDialog() {
         setLoading(false);
     };
 
-    const handleOpenChange = (newOpen: boolean) => {
-        setOpen(newOpen);
-        if (newOpen) {
-            fetchAccounts();
-            resetView();
-        }
-    };
+    useEffect(() => {
+        if (!open) return;
+        fetchAccounts();
+        resetView();
+        // Reload only when the dialog opens.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open]);
 
     const resetView = () => {
         setEditingId(null);
@@ -153,13 +156,7 @@ export function ManagePettyCashDialog() {
     const isFormVisible = isCreating || !!editingId;
 
     return (
-        <Dialog open={open} onOpenChange={handleOpenChange}>
-            <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
-                    <Settings className="h-4 w-4" />
-                    Manage Accounts
-                </Button>
-            </DialogTrigger>
+        <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-0 gap-0">
                 <DialogHeader className="p-6 pb-4 border-b">
                     <DialogTitle>Manage Petty Cash Accounts</DialogTitle>

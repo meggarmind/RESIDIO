@@ -7,8 +7,8 @@ residio_sources:
   - src/app/(dashboard)/personnel/**
   - src/actions/documents/**
   - src/actions/personnel/**
-residio_verified_commit: 7e9b59ef
-residio_verified_at: '2026-10-18'
+residio_verified_commit: e24b7386
+residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
 
@@ -24,7 +24,7 @@ Search matches whole words in a document's title, description and file name, and
 
 **Custom fields.** Custom fields record structured details on a document: text, a number, a date, money, yes or no, a link, or a link to another document. Fill them in the *Tags & Fields* card on the detail page. Each value must match its field's type. Tags and field values belong to the document as a whole, so uploading a new version keeps them.
 
-Tags and custom fields are defined under **Settings → Document Tags & Fields**, which needs the *Manage Tags* or *Manage Custom Fields* permission. Deactivating a tag or field hides it without removing it from documents, and reactivating it brings it back. A field's type cannot be changed after it is created.
+Tags and custom fields are defined under **Settings → Documents**, in the *Tags & fields* section, which needs the *Manage Tags* or *Manage Custom Fields* permission. Deactivating a tag or field hides it without removing it from documents, and reactivating it brings it back. A field's type cannot be changed after it is created.
 
 ## Contractors and staff
 

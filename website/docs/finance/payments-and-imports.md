@@ -6,11 +6,13 @@ description: Record, import, verify, and reconcile estate payments.
 residio_sources:
   - src/app/(dashboard)/payments/**
   - src/actions/payments/**
+  - src/actions/finance/manual-verification.ts
+  - src/components/payments/payment-table.tsx
   - src/actions/imports/**
   - src/components/imports/**
   - src/lib/parsers/**
-residio_verified_commit: 67b6d9df
-residio_verified_at: '2026-10-17'
+residio_verified_commit: 610d6a54
+residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
 
@@ -53,6 +55,12 @@ On the **Import History** page, click anywhere on a row to open that import. To 
 ## Verify pending payments
 
 Open **Approvals** for transactions awaiting maker-checker verification. The reviewer should compare the submitted evidence with the transaction before approving or rejecting it.
+
+A payment a resident reports through the WhatsApp assistant arrives the same way, as an unverified payment with a request in Approvals. See [WhatsApp operations](../integrations/whatsapp-operations).
+
+Payments created by a bank statement or email import are verified automatically. To verify payments entered by hand, select them on **Transactions** and choose **Mark Verified** in the bar that appears. The confirmation states how many payments are selected. Payments that are already verified are skipped, and the result says how many. Each verified payment gets its own audit entry. This needs the `payments.verify` permission, which also governs **Un-verify** on a payment's page.
+
+A verified payment's amount, resident, property and status are locked. To correct one, open it and choose **Un-verify**, then edit it and verify it again.
 
 ## Related
 

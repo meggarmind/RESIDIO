@@ -28,6 +28,9 @@ vi.mock('@/lib/whatsapp', () => ({
 vi.mock('@/lib/whatsapp/config', () => ({ resolveWhatsAppConfig: vi.fn() }));
 vi.mock('@/lib/whatsapp/rollout', () => ({ isWhatsAppRecipientAllowed: vi.fn() }));
 vi.mock('@/lib/sms/send-sms', () => ({ sendSms: vi.fn() }));
+const buildStatementEmail = vi.hoisted(() => vi.fn());
+const markStatementEmailSent = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/whatsapp/statement-delivery', () => ({ buildStatementEmail, markStatementEmailSent }));
 
 import { sendNotification } from '@/lib/notifications/send';
 import { PRIORITY } from '@/lib/notifications/queue';
@@ -82,6 +85,42 @@ describe('sendViaEmail (through sendNotification)', () => {
       error: 'Email notifications are disabled in system settings',
     });
     expect(mocks.send).not.toHaveBeenCalled();
+  });
+
+  it('renders a queued WhatsApp statement at send time with its PDF attached (#804)', async () => {
+    const attachment = { filename: 'statement.pdf', content: Buffer.from('%PDF') };
+    buildStatementEmail.mockResolvedValue({ react: 'statement-email', attachments: [attachment] });
+
+    const result = await sendNotification(buildEmailItem({ metadata: { whatsapp_statement_request_id: 'request-1' } }));
+
+    expect(result).toEqual({ success: true, externalId: 'rid-9' });
+    expect(buildStatementEmail).toHaveBeenCalledWith('request-1');
+    expect(mocks.send.mock.calls[0][0]).toMatchObject({ react: 'statement-email', attachments: [attachment] });
+    expect(mocks.send.mock.calls[0][0]).not.toHaveProperty('text');
+    expect(markStatementEmailSent).toHaveBeenCalledWith('request-1');
+  });
+
+  it('marks the statement request sent only after the email is out, and a failed mark does not fail the send (#917)', async () => {
+    buildStatementEmail.mockResolvedValue({ react: 'statement-email', attachments: [] });
+    mocks.send.mockResolvedValueOnce({ data: null, error: { message: 'rejected' } });
+    const failed = await sendNotification(buildEmailItem({ metadata: { whatsapp_statement_request_id: 'request-1' } }));
+    expect(failed).toMatchObject({ success: false });
+    expect(markStatementEmailSent).not.toHaveBeenCalled();
+
+    markStatementEmailSent.mockRejectedValueOnce(new Error('db down'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const sent = await sendNotification(buildEmailItem({ metadata: { whatsapp_statement_request_id: 'request-1' } }));
+    expect(sent).toEqual({ success: true, externalId: 'rid-9' });
+  });
+
+  it('leaves other emails alone, and retries when the statement cannot be built', async () => {
+    await sendNotification(buildEmailItem());
+    expect(buildStatementEmail).not.toHaveBeenCalled();
+    expect(mocks.send.mock.calls[0][0]).toMatchObject({ text: 'Plain body' });
+
+    buildStatementEmail.mockRejectedValue(new Error('request missing'));
+    const result = await sendNotification(buildEmailItem({ metadata: { whatsapp_statement_request_id: 'gone' } }));
+    expect(result).toMatchObject({ success: false, error: 'request missing', retryable: true });
   });
 
   it('fails open when email_enabled is null/absent', async () => {

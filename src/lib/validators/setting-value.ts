@@ -29,6 +29,73 @@ function toNumber(value: unknown): number | null {
   return null;
 }
 
+/**
+ * Bounds for audit_log_retention_days, which the data-retention prune deletes
+ * audit logs by (#815). The floor stops a save or prune that would wipe the
+ * audit trail; the page's input uses the same bounds.
+ */
+export const AUDIT_LOG_RETENTION_KEY = 'audit_log_retention_days';
+export const AUDIT_LOG_RETENTION_MIN_DAYS = 30;
+export const AUDIT_LOG_RETENTION_MAX_DAYS = 3650;
+export const AUDIT_LOG_RETENTION_DEFAULT_DAYS = 365;
+
+export function isValidAuditLogRetentionDays(n: unknown): n is number {
+  return typeof n === 'number' && Number.isInteger(n) && n >= AUDIT_LOG_RETENTION_MIN_DAYS && n <= AUDIT_LOG_RETENTION_MAX_DAYS;
+}
+
+/**
+ * Debt status settings (#980). The status rule is the database function get_debt_statuses, wrapped by
+ * src/lib/billing/debt-status.ts; only these labels and numbers are editable.
+ */
+export const DEBT_STATUS_LABEL_KEYS = {
+  arrears: 'debt_status_label_arrears',
+  outstanding: 'debt_status_label_outstanding',
+  paid_in_full: 'debt_status_label_paid_in_full',
+  credit: 'debt_status_label_credit',
+} as const;
+export const DEBT_STATUS_THRESHOLD_KEY = 'debt_status_arrears_threshold_months';
+export const DEBT_STATUS_FOOTNOTE_KEY = 'debt_status_report_footnote';
+export const DEBT_STATUS_CHAT_PDF_LIMIT_KEY = 'debt_status_chat_pdf_house_limit';
+export const DEBT_STATUS_LABEL_MAX_LENGTH = 40;
+export const DEBT_STATUS_FOOTNOTE_MAX_LENGTH = 300;
+export const DEBT_STATUS_THRESHOLD_MIN = 1;
+export const DEBT_STATUS_THRESHOLD_MAX = 24;
+export const DEBT_STATUS_CHAT_PDF_LIMIT_MIN = 1;
+export const DEBT_STATUS_CHAT_PDF_LIMIT_MAX = 500;
+
+const DEBT_STATUS_LABEL_KEY_SET = new Set<string>(Object.values(DEBT_STATUS_LABEL_KEYS));
+
+function textError(key: string, value: unknown, max: number): string | null {
+  return typeof value === 'string' && value.trim().length > 0 && value.trim().length <= max
+    ? null
+    : `Setting "${key}" must be text of 1 to ${max} characters`;
+}
+
+function wholeNumberError(key: string, value: unknown, min: number, max: number, unit: string): string | null {
+  const n = toNumber(value);
+  return n !== null && Number.isInteger(n) && n >= min && n <= max
+    ? null
+    : `Setting "${key}" must be a whole number of ${unit} from ${min} to ${max}`;
+}
+
+/** Returns undefined for a key that is not a debt status setting. */
+function debtStatusSettingError(key: string, value: unknown): string | null | undefined {
+  if (DEBT_STATUS_LABEL_KEY_SET.has(key)) return textError(key, value, DEBT_STATUS_LABEL_MAX_LENGTH);
+  switch (key) {
+    case DEBT_STATUS_FOOTNOTE_KEY:
+      return textError(key, value, DEBT_STATUS_FOOTNOTE_MAX_LENGTH);
+    case DEBT_STATUS_THRESHOLD_KEY:
+      return wholeNumberError(key, value, DEBT_STATUS_THRESHOLD_MIN, DEBT_STATUS_THRESHOLD_MAX, 'months');
+    case DEBT_STATUS_CHAT_PDF_LIMIT_KEY:
+      return wholeNumberError(key, value, DEBT_STATUS_CHAT_PDF_LIMIT_MIN, DEBT_STATUS_CHAT_PDF_LIMIT_MAX, 'houses');
+    default:
+      return undefined;
+  }
+}
+
+export const CLEARANCE_COPY_GROUP_KEY = 'clearance_copy_recipient_group_id';
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** Clock slack allowed on top of the longest Debug Mode duration when checking an expiry. */
 const DEBUG_EXPIRY_SLACK_MINUTES = 5;
 
@@ -79,11 +146,25 @@ export function settingValueError(key: string, value: unknown, now: Date = new D
   const comms = commsSettingError(key, value, now);
   if (comms !== undefined) return comms;
 
+  const debtStatus = debtStatusSettingError(key, value);
+  if (debtStatus !== undefined) return debtStatus;
+
   if (key === EMAIL_AUTO_PROCESS_LIMIT_KEY) {
     // Zero, a negative or a huge value would turn the approval control off (#710).
     return isValidEmailAutoProcessLimit(toNumber(value))
       ? null
       : `Setting "${key}" must be a whole naira amount from 1 to ${EMAIL_AUTO_PROCESS_LIMIT_MAX.toLocaleString('en-NG')}`;
+  }
+
+  if (key === AUDIT_LOG_RETENTION_KEY) {
+    return isValidAuditLogRetentionDays(toNumber(value))
+      ? null
+      : `Setting "${key}" must be a whole number of days from ${AUDIT_LOG_RETENTION_MIN_DAYS} to ${AUDIT_LOG_RETENTION_MAX_DAYS}`;
+  }
+
+  if (key === CLEARANCE_COPY_GROUP_KEY) {
+    // Blank means no copies; otherwise the id of a recipient group (whether it exists is for the write to find out).
+    return value === '' || (typeof value === 'string' && UUID.test(value)) ? null : `Setting "${key}" must be blank or a recipient group id`;
   }
 
   if (typeof value === 'number' && !Number.isFinite(value)) {

@@ -8,8 +8,8 @@ import { planRetroactiveLevies, type LevyPlanProfile } from '@/lib/billing/retro
 describe('planLateFees', () => {
   const invoices = [
     { id: 'a', amount_due: 10000, invoice_items: null },
-    { id: 'b', amount_due: 20000, invoice_items: [{ description: 'Late Fee (auto)', amount: 1000 }] },
-    { id: 'c', amount_due: 30000, invoice_items: [{ description: 'Security Levy', amount: 30000 }] },
+    { id: 'b', amount_due: 20000, invoice_items: [{ amount: 1000, late_fee_applied_at: '2026-10-01T00:00:00Z' }] },
+    { id: 'c', amount_due: 30000, invoice_items: [{ amount: 30000, late_fee_applied_at: null }] },
     { id: 'd', amount_due: 5000, invoice_items: [] },
   ];
 
@@ -30,8 +30,10 @@ describe('planLateFees', () => {
     expect(calculateLateFee(333.33, 'percentage', 5)).toBe(16.67);
   });
 
-  it('does not treat an admin line named like a late fee as a charged fee', () => {
-    const adjusted = [{ id: 'e', amount_due: 10000, invoice_items: [{ description: 'Late Fee adjustment', amount: 200 }] }];
+  it('does not treat an admin line typed as the reserved late-fee description as a charged fee (#830)', () => {
+    const adjusted = [
+      { id: 'e', amount_due: 10000, invoice_items: [{ description: 'Late Fee (auto)', amount: 200, late_fee_applied_at: null }] },
+    ];
     expect(planLateFees(adjusted, new Set(), 'percentage', 5)).toEqual({
       eligible: 1,
       totalLateFees: 500,

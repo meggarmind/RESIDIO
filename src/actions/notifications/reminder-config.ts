@@ -7,7 +7,7 @@
  * Uses system_settings to store reminder schedule configurations.
  */
 
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
 // `getReminderSettings` below reads via the RLS-bound `getSettingValue`
 // deliberately: it is only reached from authenticated dashboard pages
 // (settings/notifications/reminders), never from the cron path -- see #139.
@@ -18,8 +18,8 @@ import { logAudit } from '@/lib/audit/logger';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 
-// Use SETTINGS_MANAGE_GENERAL for notification reminder settings
-const REMINDER_PERMISSION = PERMISSIONS.SETTINGS_MANAGE_GENERAL;
+// The reminder pages sit under /settings/notifications, gated by notifications.manage (#840)
+const REMINDER_PERMISSION = PERMISSIONS.NOTIFICATIONS_MANAGE;
 import type {
   ReminderScheduleConfig,
   ReminderScheduleStep,
@@ -33,9 +33,7 @@ const SETTINGS_KEYS = {
   REMINDER_SCHEDULE: 'invoice_reminder_schedule',
   REMINDERS_ENABLED: 'invoice_reminders_enabled',
   SMS_ENABLED_FOR_REMINDERS: 'invoice_reminder_sms_enabled',
-  WHATSAPP_ENABLED_FOR_REMINDERS: 'invoice_reminder_whatsapp_enabled',
   DEFAULT_CHANNELS: 'invoice_reminder_default_channels',
-  LAST_RUN: 'invoice_reminder_last_run',
 } as const;
 
 /**
@@ -170,7 +168,12 @@ export async function saveReminderSchedule(
     };
 
     // Save to settings
-    const saved = await updateSetting(SETTINGS_KEYS.REMINDER_SCHEDULE, JSON.stringify(fullSchedule));
+    // The row is only seeded by a migration; create it if it is missing so a step can be added (#903)
+    const saved = await updateSetting(SETTINGS_KEYS.REMINDER_SCHEDULE, JSON.stringify(fullSchedule), {
+      category: 'notifications',
+      description: 'Invoice reminder schedule (JSON)',
+    });
+    if (saved.error) return { success: false, error: saved.error };
 
     // Audit log. audit_logs.entity_id is a uuid: use the settings row id; no row, no audit (#594).
     if (saved?.data?.id) {
@@ -224,7 +227,8 @@ export async function addReminderStep(
     // Sort by daysFromDue
     schedule.steps.sort((a, b) => a.daysFromDue - b.daysFromDue);
 
-    await saveReminderSchedule(schedule);
+    const saved = await saveReminderSchedule(schedule);
+    if (!saved.success) return { success: false, error: saved.error };
 
     return { success: true };
   } catch (error) {
@@ -275,7 +279,8 @@ export async function updateReminderStep(
     // Re-sort by daysFromDue
     schedule.steps.sort((a, b) => a.daysFromDue - b.daysFromDue);
 
-    await saveReminderSchedule(schedule);
+    const saved = await saveReminderSchedule(schedule);
+    if (!saved.success) return { success: false, error: saved.error };
 
     return { success: true };
   } catch (error) {
@@ -308,7 +313,8 @@ export async function removeReminderStep(
 
     schedule.steps.splice(stepIndex, 1);
 
-    await saveReminderSchedule(schedule);
+    const saved = await saveReminderSchedule(schedule);
+    if (!saved.success) return { success: false, error: saved.error };
 
     return { success: true };
   } catch (error) {
@@ -341,7 +347,8 @@ export async function toggleReminderStep(
 
     step.isActive = !step.isActive;
 
-    await saveReminderSchedule(schedule);
+    const saved = await saveReminderSchedule(schedule);
+    if (!saved.success) return { success: false, error: saved.error };
 
     return { success: true };
   } catch (error) {
@@ -435,25 +442,48 @@ export async function setRemindersEnabled(enabled: boolean): Promise<{
 export async function getReminderSettings(): Promise<{
   enabled: boolean;
   smsEnabled: boolean;
-  whatsappEnabled: boolean;
   schedule: ReminderScheduleConfig | null;
   lastRun: string | null;
 }> {
-  const [enabled, smsEnabled, whatsappEnabled, scheduleResult, lastRun] = await Promise.all([
+  const [enabled, smsEnabled, scheduleResult, lastRun] = await Promise.all([
     areRemindersEnabled(),
     getSettingValue(SETTINGS_KEYS.SMS_ENABLED_FOR_REMINDERS),
-    getSettingValue(SETTINGS_KEYS.WHATSAPP_ENABLED_FOR_REMINDERS),
     getReminderSchedule(),
-    getSettingValue(SETTINGS_KEYS.LAST_RUN),
+    getLastReminderRun(),
   ]);
 
   return {
     enabled,
     smsEnabled: smsEnabled === true,
-    whatsappEnabled: whatsappEnabled === true,
     schedule: scheduleResult.data,
-    lastRun: typeof lastRun === 'string' ? lastRun : null,
+    lastRun,
   };
+}
+
+// The cron records each run in the System Action Log (#846). Reminder managers lack
+// system.view_system_log, so only this one timestamp is read with the service role.
+async function getLastReminderRun(): Promise<string | null> {
+  const auth = await authorizePermission(REMINDER_PERMISSION);
+  if (!auth.authorized) return null;
+  type UntypedClient = {
+    from: (table: string) => {
+      select: (columns: string) => {
+        eq: (column: string, value: string) => {
+          order: (column: string, opts: { ascending: boolean }) => {
+            limit: (n: number) => PromiseLike<{ data: { occurred_at: string }[] | null }>;
+          };
+        };
+      };
+    };
+  };
+  const supabase = createAdminClient() as unknown as UntypedClient;
+  const { data } = await supabase
+    .from('system_action_log')
+    .select('occurred_at')
+    .eq('source', 'cron:payment-reminders')
+    .order('occurred_at', { ascending: false })
+    .limit(1);
+  return data?.[0]?.occurred_at ?? null;
 }
 
 /**

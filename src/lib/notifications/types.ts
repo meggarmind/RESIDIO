@@ -5,6 +5,8 @@
  * SMS remains defined for compatibility but is not currently operational.
  */
 
+import { formatDayCount } from '@/lib/utils';
+
 // ============================================================================
 // CHANNEL TYPES - Future-proofed for SMS/WhatsApp
 // ============================================================================
@@ -169,6 +171,10 @@ export interface NotificationTemplate {
   created_at: string;
   updated_at: string;
   created_by: string | null;
+  /** Registry key of the email event this row stores wording for (#907). */
+  event: string | null;
+  /** Admin-edited fields only; empty means every field uses the code default. */
+  overrides: Record<string, string>;
 }
 
 /**
@@ -283,35 +289,6 @@ export interface EscalationState {
 // ============================================================================
 // INPUT/OPERATION TYPES
 // ============================================================================
-
-/**
- * Input for creating a new template
- */
-export interface CreateTemplateInput {
-  name: string;
-  display_name: string;
-  category: NotificationCategory;
-  channel: NotificationChannel;
-  subject_template?: string;
-  body_template: string;
-  html_template?: string;
-  variables?: TemplateVariable[];
-  is_active?: boolean;
-}
-
-/**
- * Input for updating a template
- */
-export interface UpdateTemplateInput {
-  display_name?: string;
-  category?: NotificationCategory;
-  channel?: NotificationChannel;
-  subject_template?: string;
-  body_template?: string;
-  html_template?: string;
-  variables?: TemplateVariable[];
-  is_active?: boolean;
-}
 
 /**
  * Input for creating a new schedule
@@ -510,6 +487,14 @@ export const REMINDER_ESCALATION_LABELS: Record<ReminderEscalationLevel, string>
   final: 'Final Notice',
   overdue: 'Overdue Alert',
 };
+
+/**
+ * Describe a step's offset: negative is before the due date, positive after.
+ */
+export function formatDaysFromDue(days: number): string {
+  if (days === 0) return 'On due date';
+  return `${formatDayCount(Math.abs(days))} ${days < 0 ? 'before' : 'after'}`;
+}
 
 /**
  * Configuration for a single reminder schedule step

@@ -35,8 +35,9 @@ export function useHouses(params: Partial<HouseSearchParams> = {}) {
  * Fetch houses with their active roles for filtering in resident forms.
  * Use this when you need to filter houses based on whether they have an owner/tenant.
  */
-export function useHousesWithRoles(params: Partial<HouseSearchParams> = {}) {
+export function useHousesWithRoles(params: Partial<HouseSearchParams> = {}, options: { enabled?: boolean } = {}) {
   return useQuery({
+    enabled: options.enabled ?? true,
     queryKey: ['houses-with-roles', params],
     queryFn: async () => {
       const result = await getHousesWithRoles(params);

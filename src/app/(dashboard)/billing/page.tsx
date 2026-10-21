@@ -267,18 +267,21 @@ export default function BillingPage() {
                             <RefreshCw className="mr-2 h-4 w-4" />
                             Refresh
                         </Button>
-                        <Button
-                            variant="outline"
-                            onClick={() => checkOverdueMutation.mutateAsync()}
-                            disabled={checkOverdueMutation.isPending}
-                        >
-                            {checkOverdueMutation.isPending ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            ) : (
-                                <AlertCircle className="mr-2 h-4 w-4" />
-                            )}
-                            Check Overdue
-                        </Button>
+                        {/* Rewrites invoice statuses. checkOverdueInvoices has no server permission check of its own, so this follows the other billing write on the page. */}
+                        <Can permission={PERMISSIONS.BILLING_CREATE_INVOICE}>
+                            <Button
+                                variant="outline"
+                                onClick={() => checkOverdueMutation.mutateAsync()}
+                                disabled={checkOverdueMutation.isPending}
+                            >
+                                {checkOverdueMutation.isPending ? (
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : (
+                                    <AlertCircle className="mr-2 h-4 w-4" />
+                                )}
+                                Check Overdue
+                            </Button>
+                        </Can>
                         <Can permission={PERMISSIONS.BILLING_CREATE_INVOICE}>
                             <Button
                                 asChild

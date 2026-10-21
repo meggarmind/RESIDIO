@@ -12,11 +12,8 @@ import {
   // Templates
   getTemplates,
   getTemplate,
-  createTemplate,
-  updateTemplate,
-  deleteTemplate,
-  toggleTemplateActive,
-  duplicateTemplate,
+  updateEventContent,
+  setEventChannelEnabled,
   // Schedules
   getSchedules,
   getSchedule,
@@ -28,7 +25,6 @@ import {
   getNotificationQueue,
   getQueueItem,
   getQueueStatistics,
-  queueNotificationFromTemplate,
   queueDirectNotification,
   cancelNotification,
   retryNotification,
@@ -47,10 +43,10 @@ import {
   toggleChannelNotifications,
   resetResidentPreferences,
   // Send
-  sendTemplateNotification,
   sendDirectNotification,
   sendBulkNotification,
 } from '@/actions/notifications';
+import type { EventKey } from '@/lib/notifications/event-content-registry';
 import { POLLING_INTERVALS } from '@/lib/config/polling';
 import type {
   NotificationTemplate,
@@ -58,8 +54,6 @@ import type {
   NotificationQueueItem,
   NotificationHistoryEntry,
   NotificationPreference,
-  CreateTemplateInput,
-  UpdateTemplateInput,
   CreateScheduleInput,
   UpdateScheduleInput,
   UpdatePreferencesInput,
@@ -121,101 +115,44 @@ export function useNotificationTemplate(id: string) {
   });
 }
 
-export function useCreateTemplate() {
+export function useUpdateEventContent() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: CreateTemplateInput) => {
-      const { data, error } = await createTemplate(input);
+    mutationFn: async (params: {
+      event: EventKey;
+      channel: NotificationChannel;
+      overrides: Record<string, string>;
+    }) => {
+      const { data, error } = await updateEventContent(params.event, params.channel, params.overrides);
       if (error) throw new Error(error);
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: notificationKeys.templates() });
-      toast.success('Template created successfully');
+      toast.success(variables.channel === 'whatsapp' ? 'WhatsApp wording saved' : 'Email wording saved');
     },
     onError: (error: Error) => {
-      toast.error(`Failed to create template: ${error.message}`);
+      toast.error(`Failed to save wording: ${error.message}`);
     },
   });
 }
 
-export function useUpdateTemplate() {
+export function useSetEventChannelEnabled() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, input }: { id: string; input: UpdateTemplateInput }) => {
-      const { data, error } = await updateTemplate(id, input);
+    mutationFn: async (params: { event: EventKey; channel: NotificationChannel; enabled: boolean }) => {
+      const { data, error } = await setEventChannelEnabled(params.event, params.channel, params.enabled);
       if (error) throw new Error(error);
       return data;
     },
-    onSuccess: (data) => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: notificationKeys.templates() });
-      if (data) {
-        queryClient.invalidateQueries({ queryKey: notificationKeys.template(data.id) });
-      }
-      toast.success('Template updated successfully');
+      toast.success(variables.enabled ? 'Channel switched on' : 'Channel switched off');
     },
     onError: (error: Error) => {
-      toast.error(`Failed to update template: ${error.message}`);
-    },
-  });
-}
-
-export function useDeleteTemplate() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { success, error } = await deleteTemplate(id);
-      if (!success) throw new Error(error || 'Failed to delete');
-      return id;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: notificationKeys.templates() });
-      toast.success('Template deleted successfully');
-    },
-    onError: (error: Error) => {
-      toast.error(`Failed to delete template: ${error.message}`);
-    },
-  });
-}
-
-export function useToggleTemplateActive() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { data, error } = await toggleTemplateActive(id);
-      if (error) throw new Error(error);
-      return data;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: notificationKeys.templates() });
-      const status = data?.is_active ? 'activated' : 'deactivated';
-      toast.success(`Template ${status}`);
-    },
-    onError: (error: Error) => {
-      toast.error(`Failed to toggle template: ${error.message}`);
-    },
-  });
-}
-
-export function useDuplicateTemplate() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ id, newName }: { id: string; newName: string }) => {
-      const { data, error } = await duplicateTemplate(id, newName);
-      if (error) throw new Error(error);
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: notificationKeys.templates() });
-      toast.success('Template duplicated successfully');
-    },
-    onError: (error: Error) => {
-      toast.error(`Failed to duplicate template: ${error.message}`);
+      toast.error(`Failed to change channel: ${error.message}`);
     },
   });
 }
@@ -358,33 +295,6 @@ export function useQueueStatistics() {
       return data;
     },
     refetchInterval: POLLING_INTERVALS.REALTIME, // Refresh every 30 seconds
-  });
-}
-
-export function useQueueNotificationFromTemplate() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (params: {
-      templateId: string;
-      recipientId: string;
-      variables: Record<string, unknown>;
-      priority?: number;
-      scheduledFor?: Date;
-      entityType?: string;
-      entityId?: string;
-    }) => {
-      const result = await queueNotificationFromTemplate(params);
-      if (!result.success) throw new Error(result.error);
-      return result;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: notificationKeys.queue() });
-      toast.success('Notification queued successfully');
-    },
-    onError: (error: Error) => {
-      toast.error(`Failed to queue notification: ${error.message}`);
-    },
   });
 }
 
@@ -632,30 +542,6 @@ export function useResetResidentPreferences() {
 // ============================================================================
 // SEND HOOKS
 // ============================================================================
-
-export function useSendTemplateNotification() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (params: {
-      templateId?: string;
-      templateName?: string;
-      recipientId: string;
-      variables: Record<string, unknown>;
-    }) => {
-      const result = await sendTemplateNotification(params);
-      if (!result.success) throw new Error(result.error);
-      return result;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: notificationKeys.history() });
-      toast.success('Notification sent');
-    },
-    onError: (error: Error) => {
-      toast.error(`Failed to send notification: ${error.message}`);
-    },
-  });
-}
 
 export function useSendDirectNotification() {
   const queryClient = useQueryClient();

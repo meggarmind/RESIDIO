@@ -4,7 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getResidents, getResidentOptions } from '@/actions/residents/get-residents';
 import { getResident } from '@/actions/residents/get-resident';
 import { getResidentStats, getContactVerificationStats } from '@/actions/residents/get-resident-stats';
-import { createResident } from '@/actions/residents/create-resident';
+import { createResident, type CreateResidentOptions } from '@/actions/residents/create-resident';
+import type { DuplicateResidentMatch } from '@/lib/residents/duplicate-match';
 import { updateResident } from '@/actions/residents/update-resident';
 import { updateResidentStatus } from '@/actions/residents/update-resident-status';
 import { deleteResident } from '@/actions/residents/delete-resident';
@@ -35,8 +36,9 @@ type UpdateResidentHouseData = {
   is_billing_responsible?: boolean;
 };
 
-export function useResidents(params: Partial<ResidentSearchParams> = {}) {
+export function useResidents(params: Partial<ResidentSearchParams> = {}, options: { enabled?: boolean } = {}) {
   return useQuery({
+    enabled: options.enabled ?? true,
     queryKey: ['residents', params],
     queryFn: async () => {
       const result = await getResidents(params);
@@ -121,12 +123,20 @@ export function useResident(id: string | undefined) {
   });
 }
 
+/** Thrown by useCreateResident when existing residents match; the form shows them for a choice (#820). */
+export class DuplicateResidentError extends Error {
+  constructor(public readonly matches: DuplicateResidentMatch[]) {
+    super('An existing resident matches');
+  }
+}
+
 export function useCreateResident() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (data: CreateResidentData) => {
-      const result = await createResident(data);
+    mutationFn: async ({ data, options }: { data: CreateResidentData; options?: CreateResidentOptions }) => {
+      const result = await createResident(data, options);
+      if (result.duplicates?.length) throw new DuplicateResidentError(result.duplicates);
       if (result.error) throw new Error(result.error);
       return result.data;
     },

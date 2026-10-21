@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Menu, ChevronRight, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { isIndexChild, type SettingsGroup, type SettingsItem } from '@/config/settings-nav';
+import { activeSettingsHref, flattenSettingsNav, settingsPageLabel, type SettingsGroup } from '@/config/settings-nav';
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation';
 import { useSettingsNavState } from '@/hooks/use-settings-nav-state';
 import { Button } from '@/components/ui/button';
@@ -18,35 +18,29 @@ import {
     SheetTrigger,
 } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { OpensSystemMark, SettingsSearchField, SettingsSearchResults, useSettingsSearch } from './settings-search';
 
-/** Index entries match exactly; see the note in settings-sidebar.tsx. */
-function isItemActive(pathname: string, item: SettingsItem, parent?: SettingsItem): boolean {
-    if (parent && isIndexChild(parent, item)) return pathname === item.href;
-    return pathname === item.href || pathname.startsWith(item.href + '/');
-}
-
-function isGroupActive(pathname: string, group: SettingsGroup): boolean {
-    return group.items.some((item) =>
-        item.children
-            ? item.children.some((child) => isItemActive(pathname, child, item))
-            : isItemActive(pathname, item)
-    );
+/** Does this group hold the page being viewed? See `activeSettingsHref`. */
+function isGroupActive(activeHref: string | null, group: SettingsGroup): boolean {
+    return activeHref !== null && flattenSettingsNav([group]).some((item) => item.href === activeHref);
 }
 
 export function SettingsMobileNav() {
     const pathname = usePathname();
     const [open, setOpen] = React.useState(false);
     const { groups } = useSettingsNavigation();
-    const activeGroupTitle = groups.find((g) => isGroupActive(pathname, g))?.title ?? null;
+    const activeHref = activeSettingsHref(pathname, groups);
+    const activeGroupTitle = groups.find((g) => isGroupActive(activeHref, g))?.title ?? null;
+    const currentTitle = settingsPageLabel(activeHref, groups);
+    const search = useSettingsSearch();
 
     // Same store as the desktop sidebar (`settings-sidebar.tsx`), so opening
     // or collapsing a group on one surface is reflected on the other, and
     // more than one group can be open at once here too — this used to be a
     // strict single-open accordion driven by local `overrideGroup` state,
     // which disagreed with desktop's "many groups open" model. See
-    // `use-settings-nav-state.ts` for why this lives outside React (the root
-    // `app/template.tsx` remounts this component on every navigation) and for
-    // the reopen-on-entry rule `activeGroupTitle` feeds.
+    // `use-settings-nav-state.ts` for the reopen-on-entry rule
+    // `activeGroupTitle` feeds.
     const { userToggled, setGroupOpen } = useSettingsNavState(activeGroupTitle);
 
     const toggleGroup = (title: string, isOpen: boolean) => {
@@ -56,10 +50,10 @@ export function SettingsMobileNav() {
     return (
         <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
-                <Button variant="outline" size="sm" className="lg:hidden w-full justify-between mb-4">
-                    <span className="flex items-center">
-                        <Menu className="mr-2 h-4 w-4" />
-                        Settings Menu
+                <Button variant="outline" className="lg:hidden w-full min-h-11 justify-between mb-4">
+                    <span className="flex min-w-0 items-center">
+                        <Menu className="mr-2 h-4 w-4 shrink-0" />
+                        <span className="truncate">{currentTitle ?? 'Settings Menu'}</span>
                     </span>
                     <ChevronDown className="h-4 w-4 opacity-50" />
                 </Button>
@@ -71,10 +65,18 @@ export function SettingsMobileNav() {
                         Navigate between administration settings areas.
                     </SheetDescription>
                 </SheetHeader>
-                <ScrollArea className="h-[calc(100vh-5rem)]">
+                <div className="p-4 pb-0">
+                    <SettingsSearchField search={search} onNavigate={() => setOpen(false)} />
+                </div>
+                <ScrollArea className="h-[calc(100vh-9rem)]">
+                    {search.active ? (
+                        <div className="p-4">
+                            <SettingsSearchResults search={search} onNavigate={() => setOpen(false)} />
+                        </div>
+                    ) : (
                     <div className="flex flex-col p-4 space-y-4">
                         {groups.map((group) => {
-                            const isActiveGroup = isGroupActive(pathname, group);
+                            const isActiveGroup = isGroupActive(activeHref, group);
                             // The active group stays open unless the reader closes it —
                             // same fallback as desktop's `isOpen` in settings-sidebar.tsx.
                             const isExpanded = userToggled[group.title] ?? isActiveGroup;
@@ -83,8 +85,9 @@ export function SettingsMobileNav() {
                                 <div key={group.title} className="space-y-1">
                                     <button
                                         onClick={() => toggleGroup(group.title, isExpanded)}
+                                        aria-expanded={isExpanded}
                                         className={cn(
-                                            "flex items-center justify-between w-full p-2 text-sm font-medium rounded-md transition-colors hover:bg-muted/50",
+                                            "flex min-h-11 items-center justify-between w-full p-2 text-sm font-medium rounded-md transition-colors hover:bg-muted/50",
                                             isActiveGroup && !isExpanded && "bg-muted/30 text-primary"
                                         )}
                                     >
@@ -110,7 +113,7 @@ export function SettingsMobileNav() {
                                         <div className="ml-11 space-y-1 border-l pl-2 animate-in slide-in-from-top-2 duration-200">
                                             {group.items.map((item) => {
                                                 if (item.children) {
-                                                    const parentActive = item.children.some(child => isItemActive(pathname, child, item));
+                                                    const parentActive = item.children.some((child) => child.href === activeHref);
                                                     return (
                                                         <div key={item.href} className="space-y-1">
                                                             <span className={cn(
@@ -118,10 +121,11 @@ export function SettingsMobileNav() {
                                                                 parentActive ? "text-primary" : "text-muted-foreground"
                                                             )}>
                                                                 {item.title}
+                                                                {item.opensSystem && <span className="ml-2 text-xs font-normal">Opens System</span>}
                                                             </span>
                                                             <div className="space-y-1">
                                                                 {item.children.map((child) => {
-                                                                    const active = isItemActive(pathname, child, item);
+                                                                    const active = child.href === activeHref;
                                                                     return (
                                                                         <Link
                                                                             key={child.href}
@@ -129,13 +133,14 @@ export function SettingsMobileNav() {
                                                                             onClick={() => setOpen(false)}
                                                                             aria-current={active ? 'page' : undefined}
                                                                             className={cn(
-                                                                                "block px-2 py-1.5 text-sm rounded-md transition-colors hover:bg-muted/50 hover:text-primary",
+                                                                                "flex min-h-11 items-center px-2 text-sm rounded-md transition-colors hover:bg-muted/50 hover:text-primary",
                                                                                 active
                                                                                     ? "bg-primary/5 font-medium text-primary"
                                                                                     : "text-muted-foreground"
                                                                             )}
                                                                         >
                                                                             {child.title}
+                                                                            {child.opensSystem && <OpensSystemMark />}
                                                                         </Link>
                                                                     );
                                                                 })}
@@ -148,9 +153,10 @@ export function SettingsMobileNav() {
                                                         key={item.href}
                                                         href={item.href}
                                                         onClick={() => setOpen(false)}
+                                                        aria-current={item.href === activeHref ? 'page' : undefined}
                                                         className={cn(
-                                                            "block px-2 py-1.5 text-sm rounded-md transition-colors hover:bg-muted/50 hover:text-primary",
-                                                            pathname === item.href
+                                                            "flex min-h-11 items-center px-2 text-sm rounded-md transition-colors hover:bg-muted/50 hover:text-primary",
+                                                            item.href === activeHref
                                                                 ? "bg-primary/5 font-medium text-primary"
                                                                 : "text-muted-foreground"
                                                         )}
@@ -165,6 +171,7 @@ export function SettingsMobileNav() {
                             );
                         })}
                     </div>
+                    )}
                 </ScrollArea>
             </SheetContent>
         </Sheet>

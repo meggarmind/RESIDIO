@@ -6,6 +6,7 @@ import { embed } from '@/lib/utils';
 import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
 import { getSettingValue } from '@/actions/settings/get-settings';
 import { WelcomeResidentEmail } from '@/emails';
+import { getEventContent, isEventChannelEnabled, renderEventText } from '@/lib/notifications/event-content';
 
 interface SendWelcomeEmailResult {
   success: boolean;
@@ -20,6 +21,9 @@ export async function sendWelcomeEmail(residentId: string): Promise<SendWelcomeE
   const enabled = await getSettingValue('email_welcome_enabled');
   if (enabled === false) {
     return { success: false, error: 'Welcome emails are disabled' };
+  }
+  if (!(await isEventChannelEnabled('welcome_resident', 'email'))) {
+    return { success: false, error: 'Welcome emails are switched off in message wording settings' };
   }
 
   const supabase = await createServerSupabaseClient();
@@ -65,14 +69,22 @@ export async function sendWelcomeEmail(residentId: string): Promise<SendWelcomeE
   // Get first house info if available
   const firstHouse = embed(embed(resident.resident_houses)?.house);
 
+  const copy = await getEventContent('welcome_resident');
+  const residentName = `${resident.first_name} ${resident.last_name}`;
+
   const result = await sendEmail({
     to: {
       email: resident.email,
-      name: `${resident.first_name} ${resident.last_name}`,
+      name: residentName,
       residentId: resident.id,
     },
-    subject: `Welcome to ${estateSettings.estateName}!`,
+    subject: renderEventText(copy.subject, {
+      resident_name: residentName,
+      resident_code: resident.resident_code,
+      estate_name: estateSettings.estateName,
+    }),
     react: WelcomeResidentEmail({
+      copy,
       residentName: `${resident.first_name} ${resident.last_name}`,
       residentCode: resident.resident_code,
       houseNumber: firstHouse?.house_number,

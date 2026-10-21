@@ -10,6 +10,7 @@ import '@testing-library/jest-dom/vitest';
 
 const mocks = vi.hoisted(() => ({
   authLoading: false,
+  snapshot: null as unknown,
   search: '',
   toastError: vi.fn(),
 }));
@@ -30,23 +31,23 @@ vi.mock('@/lib/auth/auth-provider', () => ({
 }));
 vi.mock('@/hooks/use-dashboard', () => ({
   useAdminDashboardSnapshot: () => ({
-    data: null,
+    data: mocks.snapshot,
     isLoading: false,
     isError: false,
     isStaleSnapshot: false,
     snapshotSavedAt: null,
   }),
-  useEstateMapStatus: () => ({ data: null, isLoading: false, error: null }),
+  useEstateMapStatus: () => ({ data: null, isPending: false, error: null }),
 }));
-vi.mock('@/hooks/use-smart-suggestions', () => ({ useSmartSuggestions: () => ({ suggestions: [] }) }));
 vi.mock('@/components/dashboard/offline-admin-banner', () => ({ OfflineAdminBanner: () => null }));
 
-import DashboardPage from '@/app/(dashboard)/dashboard/page';
+import { DashboardContent as DashboardPage } from '@/app/(dashboard)/dashboard/dashboard-content';
 import DashboardLoading from '@/app/(dashboard)/dashboard/loading';
 import DashboardPageError from '@/app/(dashboard)/dashboard/error';
 
 beforeEach(() => {
   mocks.authLoading = false;
+  mocks.snapshot = null;
   mocks.search = '';
   mocks.toastError.mockReset();
   vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -57,13 +58,29 @@ afterEach(() => {
 });
 
 describe('dashboard page states', () => {
-  it('shows only the auth skeleton while auth is loading', () => {
+  it('shows only the auth skeleton while auth is loading and nothing is hydrated', () => {
     mocks.authLoading = true;
     mocks.search = 'debug=true';
     const { container } = render(<DashboardPage />);
     expect(container.querySelector('[data-loading-state="auth"]')).toBeInTheDocument();
     expect(container.querySelector('[data-dashboard-state="ready"]')).toBeNull();
     expect(container.querySelector('[data-dashboard-debug]')).toBeNull();
+  });
+
+  it('renders the board at once while auth loads when the snapshot is already hydrated', () => {
+    mocks.authLoading = true;
+    mocks.snapshot = {
+      financialHealth: { totalCollected: 1000, totalOutstanding: 500, monthlyRevenue: 200, collectionRate: 67, overdueCount: 0, overdueAmount: 0, walletCredits: 0 },
+      actionMetrics: { unverifiedPayments: 0, pendingResidentVerifications: 0, expiringSecurityContacts: 0 },
+      quickStats: null,
+      securityAlerts: null,
+      recentActivity: [],
+      recentActivityUnavailable: false,
+      lastUpdated: '2026-10-18T10:00:00.000Z',
+    };
+    const { container } = render(<DashboardPage />);
+    expect(container.querySelector('[data-loading-state="auth"]')).toBeNull();
+    expect(screen.getByTestId('lane-money')).toHaveAttribute('data-lane-state', 'ready');
   });
 
   it('renders the ready wrapper without debug by default', () => {

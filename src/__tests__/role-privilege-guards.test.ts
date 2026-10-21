@@ -2,8 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Issue #503: the siblings of the #475 actions. Each action is driven against an
- * in-memory fake of the Supabase clients with a lower-ranked caller (refused, and
- * no write reached the "database") and a legitimate caller (still works).
+ * in-memory fake of the Supabase clients with a caller lacking the permission
+ * (refused, and no write reached the "database") and a legitimate caller (still
+ * works). The account guards (#826) read the caller's permissions from
+ * role_permissions: super_admin holds system.assign_roles and
+ * system.assign_board_roles, chairman holds system.assign_roles only.
  */
 
 type Row = Record<string, unknown>;
@@ -35,11 +38,18 @@ function fakeFrom(table: string) {
     (state.tables[table] ?? []).filter((row) => filters.every(([col, test]) => test(row[col])));
 
   const withEmbeds = (rows: Row[]): Row[] =>
-    rows.map((row) =>
-      table === 'profiles'
-        ? { ...row, app_roles: (state.tables.app_roles ?? []).find((r) => r.id === row.role_id) ?? null }
-        : row
-    );
+    rows.map((row) => {
+      if (table === 'profiles') {
+        return { ...row, app_roles: (state.tables.app_roles ?? []).find((r) => r.id === row.role_id) ?? null };
+      }
+      if (table === 'role_permissions') {
+        return {
+          ...row,
+          permission: (state.tables.app_permissions ?? []).find((p) => p.id === row.permission_id) ?? null,
+        };
+      }
+      return row;
+    });
 
   const execute = (): Row[] => {
     const rows = matching();
@@ -107,6 +117,7 @@ vi.mock('@/lib/email-imports/process-email-matching', () => ({
 }));
 
 import { removeRoleFromProfile } from '@/actions/roles/assign-role';
+import { CANNOT_CHANGE_ACCOUNT_ERROR } from '@/lib/auth/account-guards';
 import { createRole, createRoleWithPermissions, updateRole, updateRolePermissions } from '@/actions/roles/index';
 import { updateRoleAssignmentRule, batchUpdateRoleAssignmentRules } from '@/actions/roles/assignment-rules';
 import { toggleImpersonationEnabled } from '@/actions/impersonation/approval';
@@ -118,15 +129,17 @@ const ROLES: Record<string, Row> = {
   super_admin: { id: 'r-sa', name: 'super_admin', display_name: 'Super Admin', is_active: true, is_system_role: true },
   chairman: { id: 'r-ch', name: 'chairman', display_name: 'Chairman', is_active: true, is_system_role: true },
   secretary: { id: 'r-sec', name: 'secretary', display_name: 'Secretary', is_active: true, is_system_role: true },
-  resident: { id: 'r-res', name: 'resident', display_name: 'Resident', is_active: true, is_system_role: true },
   treasurer: { id: 'r-treasurer', name: 'treasurer', display_name: 'Treasurer', is_active: true, is_system_role: false },
   auditor: { id: 'r-auditor', name: 'auditor', display_name: 'Auditor', is_active: true, is_system_role: false },
+  trustee: { id: 'r-tr', name: 'trustee', display_name: 'Trustee', is_active: true, is_system_role: true },
 };
 
 const PERMS: Row[] = [
-  { id: 'p-view', name: 'x.view' },
-  { id: 'p-edit', name: 'x.edit' },
-  { id: 'p-admin', name: 'x.admin' },
+  { id: 'p-view', name: 'x.view', is_active: true },
+  { id: 'p-edit', name: 'x.edit', is_active: true },
+  { id: 'p-admin', name: 'x.admin', is_active: true },
+  { id: 'p-assign', name: 'system.assign_roles', is_active: true },
+  { id: 'p-board', name: 'system.assign_board_roles', is_active: true },
 ];
 
 function seed(caller: keyof typeof ROLES, target: keyof typeof ROLES | null = 'secretary', callerPerms: string[] = []) {
@@ -136,7 +149,12 @@ function seed(caller: keyof typeof ROLES, target: keyof typeof ROLES | null = 's
     app_roles: Object.values(ROLES).map((r) => ({ ...r })),
     app_permissions: PERMS.map((p) => ({ ...p })),
     // the custom auditor role already holds x.admin, which no non-super_admin caller below does
-    role_permissions: [{ role_id: 'r-auditor', permission_id: 'p-admin' }],
+    role_permissions: [
+      { role_id: 'r-auditor', permission_id: 'p-admin' },
+      { role_id: 'r-sa', permission_id: 'p-assign' },
+      { role_id: 'r-sa', permission_id: 'p-board' },
+      { role_id: 'r-ch', permission_id: 'p-assign' },
+    ],
     role_assignment_rules: [],
     profiles: [
       { id: 'caller', email: 'c@example.test', full_name: 'Caller', role_id: ROLES[caller].id, approval_status: 'active' },
@@ -172,11 +190,10 @@ beforeEach(() => {
 });
 
 describe('removeRoleFromProfile', () => {
-  it('refuses a lower-ranked caller removing a chairman role, and writes nothing', async () => {
-    seed('treasurer', 'chairman');
+  it.each(['treasurer', 'chairman'] as const)('refuses a %s removing a chairman role, and writes nothing', async (caller) => {
+    seed(caller, 'chairman');
     const result = await removeRoleFromProfile(TARGET);
-    expect(result.success).toBe(false);
-    expect(result.error).toMatch(/outranks/);
+    expect(result).toEqual({ success: false, error: CANNOT_CHANGE_ACCOUNT_ERROR });
     expect(writesTo('profiles')).toEqual([]);
     expect(profileOf(TARGET).role_id).toBe('r-ch');
   });
@@ -188,15 +205,23 @@ describe('removeRoleFromProfile', () => {
     expect(writesTo('profiles')).toEqual([]);
   });
 
-  it('still lets a chairman remove an ordinary role (drops to resident)', async () => {
+  it('still lets a chairman remove an ordinary role (a resident-linked account drops to no role, still active)', async () => {
     seed('chairman', 'secretary');
     expect(await removeRoleFromProfile(TARGET)).toEqual({ success: true });
-    expect(profileOf(TARGET).role_id).toBe('r-res');
+    expect(profileOf(TARGET).role_id).toBeNull();
+    expect(profileOf(TARGET).approval_status).toBe('active');
   });
 
   it('still lets a super_admin remove a chairman role', async () => {
     seed('super_admin', 'chairman');
     expect((await removeRoleFromProfile(TARGET)).success).toBe(true);
+  });
+
+  it('refuses when the caller permissions cannot be read, and writes nothing', async () => {
+    seed('super_admin', 'secretary');
+    state.failReads = ['role_permissions'];
+    expect((await removeRoleFromProfile(TARGET)).success).toBe(false);
+    expect(writesTo('profiles')).toEqual([]);
   });
 });
 
@@ -281,8 +306,8 @@ describe('createRoleWithPermissions', () => {
 });
 
 describe('role assignment rules', () => {
-  it.each(['chairman', 'super_admin'] as const)(
-    'refuses a non-super_admin allowing a rule that assigns %s, and writes nothing',
+  it.each(['chairman', 'super_admin', 'trustee'] as const)(
+    'refuses a chairman allowing a rule that assigns %s, and writes nothing',
     async (role) => {
       seed('chairman');
       const single = await updateRoleAssignmentRule('tenant' as never, ROLES[role].id as string, true);
@@ -363,14 +388,8 @@ describe('checkPaymentEmails', () => {
   });
 });
 
-describe('createRole level and category', () => {
+describe('createRole category', () => {
   const base = { name: 'auditor', display_name: 'Auditor' };
-
-  it.each([-1, 11, 1.5, Number.NaN])('refuses level %s and writes nothing', async (level) => {
-    seed('chairman');
-    expect((await createRole({ ...base, level })).success).toBe(false);
-    expect(writesTo('app_roles')).toEqual([]);
-  });
 
   it('refuses an unknown category and writes nothing', async () => {
     seed('chairman');
@@ -378,12 +397,12 @@ describe('createRole level and category', () => {
     expect(writesTo('app_roles')).toEqual([]);
   });
 
-  it.each([0, 5, 10])('keeps the legitimate level %s the form can send', async (level) => {
+  it('keeps a legitimate category and never writes the dropped level column (#826)', async () => {
     seed('chairman');
-    const result = await createRole({ ...base, level, category: 'exco' });
+    const result = await createRole({ ...base, category: 'exco', level: 3 } as never);
     expect(result.success).toBe(true);
-    expect((writesTo('app_roles')[0].values as Row).level).toBe(level);
     expect((writesTo('app_roles')[0].values as Row).category).toBe('exco');
+    expect(writesTo('app_roles')[0].values).not.toHaveProperty('level');
   });
 });
 
@@ -447,7 +466,7 @@ describe('role name guard (shared by createRole, createRoleWithPermissions, upda
     'financial_officer',
     'vice_chairman',
     'Secretary',
-    'resident', // an existing system role, caught via the database read
+    'resident', // retired by #825, reserved by the static list
   ];
 
   it.each(reservedVariants)('createRole refuses %j and writes nothing', async (name) => {
@@ -497,15 +516,10 @@ describe('updateRole on a custom role', () => {
       is_system_role: true,
       id: 'forged',
       created_by: 'forged',
+      level: 0,
     } as never);
     expect(result.success).toBe(true);
     expect(writesTo('app_roles')[0].values).toEqual({ display_name: 'Renamed' });
-  });
-
-  it.each([-1, 11, 2.5])('refuses level %s and writes nothing', async (level) => {
-    seed('chairman');
-    expect((await updateRole(auditor, { level })).success).toBe(false);
-    expect(writesTo('app_roles')).toEqual([]);
   });
 
   it('refuses an unknown category and writes nothing', async () => {
@@ -516,7 +530,7 @@ describe('updateRole on a custom role', () => {
 
   it('keeps the legitimate values the form sends', async () => {
     seed('chairman');
-    const body = { display_name: 'X', description: null, category: 'staff' as const, level: 3, is_active: false };
+    const body = { display_name: 'X', description: null, category: 'staff' as const, is_active: false };
     expect((await updateRole(auditor, body)).success).toBe(true);
     expect(writesTo('app_roles')[0].values).toEqual(body);
   });

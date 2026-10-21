@@ -6,6 +6,10 @@ set -euo pipefail
 set +x
 
 RCLONE_VERSION="v1.68.2"
+PG_BIN=/usr/lib/postgresql/17/bin
+
+# shellcheck source=scripts/backup/pg-major.sh
+. "$(dirname "${BASH_SOURCE[0]}")/pg-major.sh"
 
 sudo install -d /usr/share/postgresql-common/pgdg
 sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
@@ -16,6 +20,11 @@ echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] h
 
 sudo apt-get update -qq
 sudo apt-get install -y -qq postgresql-client-17 age
+
+# The runner image ships its own PostgreSQL 16 client first on PATH; put 17 ahead of it (#954).
+export PATH="${PG_BIN}:${PATH}"
+[ -z "${GITHUB_PATH:-}" ] || echo "$PG_BIN" >> "$GITHUB_PATH"
+require_pg_major "$(pg_dump --version)" 17
 
 # rclone: pinned release, verified against the published checksum list.
 tmp="$(mktemp -d)"

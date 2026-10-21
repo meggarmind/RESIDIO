@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { processInvoiceReminders } from '@/actions/notifications/invoice-reminders';
+import { processInvoiceReminders } from '@/lib/notifications/invoice-reminders';
 import { verifyCronAuth } from '@/lib/auth/cron-auth';
 import { withSystemLog, type SystemLogRun } from '@/lib/system-log/with-system-log';
 
-// Configure for Vercel
 export const runtime = 'nodejs';
 export const maxDuration = 120; // 2 minutes max for multi-channel processing
 
 /**
- * Vercel Cron endpoint for sending invoice payment reminders
- * Scheduled to run daily at 8 AM (configured in vercel.json)
+ * Cron endpoint for sending invoice payment reminders
+ * Scheduled daily at 08:00 as a Coolify scheduled task (see docs/deployment/hosting-plan.md)
  *
  * This endpoint processes the automated reminder escalation system:
- * - Sends reminders based on configurable schedule (7, 3, 1 days before; due date; 1, 3, 7 days after)
- * - Multi-channel delivery (email + SMS)
+ * - Sends reminders on the steps of the Reminder Schedule (settings/notifications/reminders)
+ * - Steps before the due date run only on the Billing reminder days, and the Email
+ *   "Payment Reminders" switch turns the email channel off (#846)
+ * - Delivers by email and WhatsApp (SMS is skipped until its provider is connected)
  * - Escalation level progression (friendly -> warning -> urgent -> final -> overdue)
  *
  * Authentication: Bearer token matching CRON_SECRET env var (timing-safe)

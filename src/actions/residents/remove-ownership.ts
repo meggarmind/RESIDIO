@@ -31,7 +31,7 @@ export async function removeOwnership(
   removalDate?: string,
   notes?: string
 ): Promise<RemoveOwnershipResponse> {
-  const auth = await authorizePermission(PERMISSIONS.HOUSES_ASSIGN_RESIDENT);
+  const auth = await authorizePermission(PERMISSIONS.HOUSES_UPDATE);
   if (!auth.authorized) {
     return { success: false, error: auth.error || 'Unauthorized' };
   }

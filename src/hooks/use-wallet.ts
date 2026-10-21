@@ -58,6 +58,7 @@ export function useCreditWallet() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['wallet', variables.residentId] });
       queryClient.invalidateQueries({ queryKey: ['wallet-transactions', variables.residentId] });
+      queryClient.invalidateQueries({ queryKey: ['yearly-wallet-transactions', variables.residentId] });
       toast.success('Wallet credited successfully');
     },
     onError: (error: Error) => {
@@ -90,6 +91,7 @@ export function useDebitWallet() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['wallet', variables.residentId] });
       queryClient.invalidateQueries({ queryKey: ['wallet-transactions', variables.residentId] });
+      queryClient.invalidateQueries({ queryKey: ['yearly-wallet-transactions', variables.residentId] });
       toast.success('Wallet debited successfully');
     },
     onError: (error: Error) => {

@@ -42,7 +42,7 @@ Hostinger KVM 2  (x86, 2 vCPU, 8 GB RAM, 100 GB NVMe)
 └── Coolify (Traefik terminates TLS)
     ├── residio-prod   -> app.<domain>    -> Supabase project Residio_Prod
     ├── residio-stage  -> stage.<domain>  -> Supabase project Residio_Stage
-    └── Scheduled tasks: the 9 cron routes (see "Scheduled tasks" below), prod only
+    └── Scheduled tasks: the 10 scheduled cron routes (see "Scheduled tasks" below), on prod and stage
 ```
 
 - Builds run on the VPS (8 GB covers Coolify ~1 GB, two app containers ~0.5-1 GB each, and a
@@ -57,13 +57,40 @@ Hostinger KVM 2  (x86, 2 vCPU, 8 GB RAM, 100 GB NVMe)
 ## Scheduled tasks (#399)
 
 `vercel.json` was the only definition of Residio's schedules and is inert off Vercel, so it has
-been removed. The nine schedules now live as **Coolify scheduled tasks on the `residio-prod`
-application**. Coolify configuration is not in the repo, so this section is the record; if a task
-is changed in Coolify, change it here in the same piece of work.
+been removed. The ten schedules now live as **Coolify scheduled tasks on both the `residio-prod`
+and the `residio-stage` application**, with the same container, frequency and command on each.
+Coolify configuration is not in the repo, so this section is the record; if a task is changed in
+Coolify, change it here in the same piece of work.
 
-**Prod only.** `residio-stage` runs no scheduled tasks. Do not create any there: stage has its own
-database, and a second set of jobs would email and message recipients from UAT data. To exercise a
-job against stage, trigger it by hand (below).
+### Stage runs the same tasks, behind the communications override (#713)
+
+Stage's database holds UAT data copied from the real roster, so its jobs would email and message
+real people. Stage still runs every task, because the **communications override** redirects what
+they send. This was verified on Stage on 2026-10-20 (#718, results recorded on #713) before any Stage task was created.
+
+- **What it does.** At send time, the email transport, SMS and WhatsApp seams send to the override
+  contacts instead of the real recipient (`src/lib/comms-override/`). Queue rows and UAT data keep
+  the real recipient. A redirected message names who it was meant for, and the log records both the
+  original and the actual recipient. If the override value the channel needs is blank, or the
+  settings cannot be read, the message is **blocked**, never sent to the real address. 2FA setup
+  and verify sends are exempt (they go to the signed-in user). In-app notifications are unchanged.
+- **Who it covers.** Every external recipient: residents, staff and admin alerts, report-schedule
+  recipients, security contacts and vendors. In a non-production environment the global switch is
+  on and cannot be turned off from the UI, so everyone is redirected except a resident an admin has
+  explicitly set to receive real messages.
+- **Where it is configured.** **Settings > Messages & Reminders > Redirect Messages (test mode)** (page heading "Communications override"; needs the general settings
+  permission): one override email, one phone in E.164 (SMS and WhatsApp), and an optional separate
+  WhatsApp number. Set them to the owner's own contacts before a Stage task runs. The same page holds
+  Debug Mode, which redirects everything on Prod for a limited time.
+- **Environment.** Production versus non-production comes from `NEXT_PUBLIC_APP_ENV`, a build
+  variable. It must be set on **both** applications: `production` on `residio-prod`, `staging` on
+  `residio-stage` (see "Phase 5: the two applications" below). Unset or unrecognised counts as
+  non-production, so a Prod build missing it would redirect every message.
+- **Known limits** (#713 decision 8, deliberately not redirected): WhatsApp Assistant replies go to
+  whoever messaged the number; Supabase Auth emails (password reset, invites) are sent by Supabase,
+  not by the app; Paystack customer receipts are sent by Paystack.
+- **Stage's own secret.** The Stage tasks read Stage's runtime `CRON_SECRET` from the Stage
+  container, never Prod's. The commands below are identical on both applications.
 
 ### The tasks
 
@@ -77,6 +104,7 @@ read from the container's environment by the command, so it is never written int
 | `fetch-emails` | `0 * * * *` | 300000 |
 | `refresh-payment-cadence` | `0 0 * * *` | 300000 |
 | `whatsapp-retention` | `15 0 * * *` | 60000 |
+| `whatsapp-chatmaid-reconcile` | `*/15 * * * *` | 120000 |
 | `generate-invoices` | `0 6 * * *` | 300000 |
 | `generate-reports` | `0 6 * * *` | 300000 |
 | `process-report-schedules` | `0 7 * * *` | 300000 |
@@ -117,6 +145,9 @@ node -e "fetch('http://127.0.0.1:3000/api/cron/refresh-payment-cadence',{headers
 # whatsapp-retention  (15 0 * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/whatsapp-retention',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(60000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
 
+# whatsapp-chatmaid-reconcile  (*/15 * * * *)
+node -e "fetch('http://127.0.0.1:3000/api/cron/whatsapp-chatmaid-reconcile',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(120000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
+
 # generate-invoices  (0 6 * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/generate-invoices',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(300000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
 
@@ -145,7 +176,8 @@ node -e "fetch('http://127.0.0.1:3000/api/cron/process-notifications',{headers:{
 | 120 s | `payment-reminders` | Declared `maxDuration`: multi-channel sends. |
 | 60 s | `process-notifications` | Declared `maxDuration`. |
 | 60 s | `expire-approvals` | One read, one set-based UPDATE inside `process_expired_approvals()` and one in-app notification per expired request (#558). Hourly, so the backlog is small. New route: the owner must create this Coolify task; nothing runs it until then. |
-| 60 s | `whatsapp-retention` | **Previously undeclared.** Two bulk `DELETE ... WHERE expires_at < cutoff` statements run in parallel (`src/lib/whatsapp/retention.ts`) and nothing else; it runs daily so the backlog is small. Anything near 60 s means something is wrong. |
+| 120 s | `whatsapp-chatmaid-reconcile` | New route (#511): at most 3 Chatmaid list calls (15 s timeout each) plus the Assistant reply for any message the webhook missed. Nothing runs it until the owner creates this Coolify task. |
+| 60 s | `whatsapp-retention` | **Previously undeclared.** Four bulk `DELETE ... WHERE <timestamp> < cutoff` statements run in parallel (`src/lib/whatsapp/retention.ts`) and nothing else; it runs daily so the backlog is small. Anything near 60 s means something is wrong. |
 
 A timeout aborts the caller, **not** the server-side work: the route handler keeps running in the
 container after the task gives up. Treat a timeout failure as "still running or stuck", and check
@@ -153,13 +185,13 @@ the app logs and the run history before re-triggering anything that creates reco
 
 ### Not scheduled: `apply-late-fees`
 
-There are ten cron routes and **nine** schedules. `src/app/api/cron/apply-late-fees` exists and
+There are eleven cron routes and **ten** schedules. `src/app/api/cron/apply-late-fees` exists and
 authenticates like the others, but it has **never had a `vercel.json` entry** (its handler comment
 says "7 AM UTC daily (configured in vercel.json)"; that was never true), so late fees have never
-run on a schedule in any environment. It is left unscheduled because #399 lists nine schedules.
+run on a schedule in any environment. It was left unscheduled because #399 listed nine schedules.
 Whether to schedule it (the handler's comment suggests `0 7 * * *`) is an owner decision rather
-than an infrastructure one, because it starts charging residents. If the owner says yes, add a
-tenth task with the same command (300000 ms) and update this table.
+than an infrastructure one, because it starts charging residents. If the owner says yes, add an
+eleventh task with the same command (300000 ms) and update this table.
 
 ### Failure visibility (owner, in Coolify)
 
@@ -170,7 +202,8 @@ Tasks tab; check that after the first run.
 
 ### Triggering a job by hand against stage
 
-Stage runs no schedules. App hostnames are DNS-only (decision 14), so there is no Cloudflare 100 s
+To run a job outside its schedule (for example to check a change before the next run), trigger it
+by hand. App hostnames are DNS-only (decision 14), so there is no Cloudflare 100 s
 cut and `curl` from any machine reaches Traefik directly:
 
 ```sh
@@ -179,8 +212,8 @@ curl -fsS -m 300 -H "Authorization: Bearer $STAGE_CRON_SECRET" https://stage.<do
 
 `$STAGE_CRON_SECRET` is stage's own `CRON_SECRET`, never prod's. Alternatively open a terminal on
 the stage container in Coolify and run the command above with the route and timeout substituted.
-Stage's `generate-invoices`, `payment-reminders` and `process-notifications` send real messages if
-stage holds real contact details.
+What a hand-triggered job sends goes through the communications override (above), exactly as a
+scheduled run does.
 
 ### The GitHub Actions safety net
 
@@ -294,8 +327,8 @@ Nightly:
 
 Storage files are **not** copied in full every night. They are synced incrementally (for
 example `rclone` with a `crypt` remote, so they are encrypted too) into one mirror, with changed
-or deleted files moved to a dated folder rather than lost. Only the database is snapshotted
-42 times.
+or deleted files moved to a dated folder rather than lost; those folders are purged after 30 days.
+Only the databases are snapshotted 42 times (each of Prod and Stage).
 
 ### R2 free-tier sizing (10 GB-month storage)
 
@@ -303,16 +336,50 @@ Measured on Residio_Stage 2026-10-10: `public` schema 17 MB (whole DB 35 MB incl
 catalogs); storage objects ~9.4 MB (233 email imports, 1 document). Prod was paused, so its size
 is unknown; these are planning estimates.
 
-| Scenario | DB dump (compressed) | x42 copies | Files mirror | Total |
-|---|---|---|---|---|
-| Today (stage-sized) | ~5 MB | ~0.2 GB | ~10 MB | **~0.2 GB** |
-| Year one, generous growth (DB 150 MB, files 300 MB) | ~40 MB | ~1.7 GB | ~0.3 GB | **~2 GB** |
-| Supabase free-plan ceiling (DB 500 MB, files 1 GB) | ~150 MB | ~6.3 GB | ~1 GB | **~7.3 GB** |
+Each environment keeps up to 42 dumps (30 daily + 12 monthly), and Stage is backed up too, so the
+dump column counts both. `deleted/` holds 30 days of changed and deleted files; the table assumes
+a quarter of the files mirror changes in that window (a guess, not a measurement).
 
-Every scenario fits in 10 GB because files are mirrored once. Copying files in full nightly
-would not fit at the ceiling (~48 GB). Beyond the free tier R2 charges ~$0.015 per GB-month, and
+| Scenario | DB dump (compressed) | Prod + Stage dumps (2 x 42) | Files mirror | `deleted/` (30 days) | Total |
+|---|---|---|---|---|---|
+| Today (stage-sized, Prod assumed alike) | ~5 MB | ~0.4 GB | ~10 MB | ~0 | **~0.4 GB** |
+| Year one, generous growth (DB 150 MB, files 300 MB) | ~40 MB | ~3.4 GB | ~0.3 GB | ~0.08 GB | **~3.8 GB** |
+| Supabase free-plan ceiling (DB 500 MB, files 1 GB) | ~150 MB | ~12.6 GB | ~1 GB | ~0.25 GB | **~13.9 GB** |
+
+At the ceiling the bucket does **not** fit in 10 GB: the 42-dump retention alone is 6.3 GB per
+environment. The size guard below warns at 7 GB and fails the job at 8.5 GB, long before that, so
+the owner decides then whether to shorten the dump retention or pay for the overage. Stage is
+backed up weekly, so its `daily/` folder holds 30 weekly dumps, about 210 days, not 30 days.
+
+The files are mirrored once; copying them in full nightly would not fit even before the dumps
+(~48 GB at the ceiling). Beyond the free tier R2 charges ~$0.015 per GB-month, and
 egress (downloading for a restore) is free. Cloudflare may require a payment method to enable
 R2; set a billing notification so any overage is noticed.
+
+### Retention and size guards
+
+Added in #963 so the bucket stays under the 10 GB free tier (R2 bills the overage, it does not stop
+writes). The decisions live in `scripts/backup/retention.mjs`, called through `retention.sh`; both
+are covered by `src/__tests__/integration/backup-retention.test.ts`.
+
+- **`deleted/` purge.** After a successful mirror sync, `files-sync.sh` lists `FILESCRYPT:deleted`
+  with `rclone lsd` (through the crypt remote, so the date names are readable) and runs
+  `rclone purge` on each date folder more than `DELETED_KEEP_DAYS` days old (default 30; a folder
+  exactly 30 days old is kept). Names that are not a real date are never purged. An R2 lifecycle
+  rule cannot do this, because the crypt remote encrypts the folder names. To change the window set
+  `DELETED_KEEP_DAYS` in the job's `env:`; zero or a non-number fails the step instead of purging
+  everything. A restore of a file changed or deleted more than 30 days ago is no longer possible
+  from the mirror (database dumps are unaffected).
+- **Size check.** At the end of `db-backup.sh` and `files-sync.sh`, `rclone size R2:<bucket> --json`
+  prints the whole bucket's size. Above 7 GB it logs a warning; above 8.5 GB the job fails, so
+  GitHub emails the owner. The check runs last, so a full bucket never costs that night's backup.
+  It counts stored objects, not incomplete multipart uploads (see below).
+- **Incomplete multipart uploads (owner step, Cloudflare dashboard).** They count toward storage and
+  nothing in the scripts cleans them. Cloudflare Dashboard, R2 Object Storage, the backup bucket,
+  **Settings**, **Object lifecycle rules**, **Add rule**: name it `abort-incomplete-multipart`,
+  leave the prefix empty (whole bucket), choose **Abort incomplete multipart uploads**, set it to
+  **1 day**, save. If the dashboard already lists a default multipart-abort rule, edit it to 1 day
+  rather than adding a second. Tick this off in the checklist below once done.
 
 ### Stage keep-awake
 
@@ -337,20 +404,22 @@ Implemented by `.github/workflows/backup-database.yml` (#415) and the scripts in
 
 | Job | Schedule | What it does |
 |---|---|---|
-| `prod` | nightly 02:23 UTC | `pg_dump -Fc` (PostgreSQL 17 client), `age` encrypt, upload to R2, prune; then incremental storage mirror |
-| `stage` | Mondays 03:41 UTC | `select 1` keep-awake, then the same dump, encrypt, upload, prune (database only) |
+| `prod` | nightly 02:23 UTC | `pg_dump -Fc` (PostgreSQL 17 client), `age` encrypt, upload to R2, prune, size check; then incremental storage mirror, `deleted/` purge, size check |
+| `stage` | Mondays 03:41 UTC | `select 1` keep-awake, then the same dump, encrypt, upload, prune, size check (database only) |
 
 Run either by hand from the Actions tab (Backup Database, Run workflow, choose `prod`, `stage` or
 `both`). Layout in the bucket:
 
 ```text
-db/<prod|stage>/daily/YYYY-MM-DD.dump.age     newest 30 kept
+db/<prod|stage>/daily/YYYY-MM-DD.dump.age     newest 30 kept (Stage runs weekly: about 210 days)
 db/<prod|stage>/monthly/YYYY-MM.dump.age      newest 12 kept; the first backup of each month is copied here
 files/prod/current/...                        storage mirror, file names and contents encrypted (rclone crypt)
-files/prod/deleted/YYYY-MM-DD/...             files changed or deleted that day (not pruned automatically)
+files/prod/deleted/YYYY-MM-DD/...             files changed or deleted that day; folders older than 30 days are purged after each sync
 ```
 
 ### Secrets to create
+
+Each job starts with a preflight (`scripts/backup/preflight.mjs`) that fails naming any unset secret above, so a missing one no longer shows up as a psql socket error.
 
 GitHub, Settings, Secrets and variables, Actions, **Repository secrets** (not variables):
 
@@ -430,6 +499,7 @@ For the files mirror, `rclone ls` through a crypt remote built with the same two
 - [ ] Backup Database run manually for `both`; both jobs green; objects visible in R2
 - [ ] **Owner has run the test restore above once and the data came back. #415 is not done until this is ticked.**
 - [ ] A second test restore is scheduled for three months out
+- [ ] R2 lifecycle rule "abort incomplete multipart uploads after 1 day" set on the backup bucket (see "Retention and size guards")
 
 ## KVM setup runbook (Coolify)
 
@@ -543,7 +613,8 @@ password manager first. **Never rotate `DATA_ENCRYPTION_KEY` once data exists.**
 18. Deploy stage; watch the build log (expect 3-6 min on 2 vCPU).
 19. Smoke test stage: login, dashboard, System, Cron Status.
 20. Deploy prod. It is unusable until #280 (configuration) and the owner's seeding task have run.
-21. Prod scheduled tasks (#399).
+21. Prod scheduled tasks (#399). Stage scheduled tasks too, once the communications override
+    contacts are set on Stage (#718).
 22. Coolify notifications (email) for failed deployments and scheduled tasks.
 23. Coolify's own database backup to the R2 bucket (separate prefix): it holds every secret above.
 
@@ -619,7 +690,8 @@ encrypts data at rest: losing it loses that data, so it belongs in the password 
 - Hostinger KVM 2 confirmed and the plan decided 2026-10-10; recorded on #269, #262 and #264.
 - Confirm current Hostinger pricing and what VPS snapshot/backup is included.
 - Backup workflow and stage keep-awake: #415.
-- Coolify scheduled tasks for the 9 crons: #399 (repurposed).
+- Coolify scheduled tasks for the 10 scheduled crons: #399 (repurposed); Stage tasks behind the
+  communications override: #713, #718.
 - Prod is one migration behind stage (`20260922100000_add_chatmaid_whatsapp_provider`) and holds
   no configuration or roster yet. #280 (configuration only), the owner's separate seeding task
   (houses, residents, financial history), then #282.

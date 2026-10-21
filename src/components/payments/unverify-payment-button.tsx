@@ -46,7 +46,7 @@ export function UnverifyPaymentButton({ paymentId, isVerified }: UnverifyPayment
     }
 
     return (
-        <Can permission={PERMISSIONS.EXPENDITURE_MANAGE}>
+        <Can permission={PERMISSIONS.PAYMENTS_VERIFY}>
             <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
                 <ShieldOff className="mr-2 h-3.5 w-3.5" />
                 Un-verify

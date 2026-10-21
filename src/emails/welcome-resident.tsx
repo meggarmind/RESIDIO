@@ -1,5 +1,6 @@
 import { Button, Heading, Hr, Section, Text } from '@react-email/components';
 import { EmailLayout } from './components/email-layout';
+import { makeCopy, splitParagraphs } from '@/lib/notifications/event-content-registry';
 
 interface WelcomeResidentEmailProps {
   residentName: string;
@@ -11,6 +12,8 @@ interface WelcomeResidentEmailProps {
   estatePhone?: string;
   estateAddress?: string;
   portalUrl?: string;
+  /** Admin-edited wording (merged templates). Omitted means the built-in text. */
+  copy?: Record<string, string>;
 }
 
 export function WelcomeResidentEmail({
@@ -23,7 +26,14 @@ export function WelcomeResidentEmail({
   estatePhone,
   estateAddress,
   portalUrl,
+  copy,
 }: WelcomeResidentEmailProps) {
+  const text = makeCopy('welcome_resident', copy, {
+    resident_name: residentName,
+    resident_code: residentCode,
+    estate_name: estateName,
+  });
+
   return (
     <EmailLayout
       preview={`Welcome to ${estateName}!`}
@@ -32,14 +42,15 @@ export function WelcomeResidentEmail({
       estatePhone={estatePhone}
       estateAddress={estateAddress}
     >
-      <Heading style={heading}>Welcome to {estateName}!</Heading>
+      <Heading style={heading}>{text('heading')}</Heading>
 
       <Text style={greeting}>Dear {residentName},</Text>
 
-      <Text style={paragraph}>
-        We are delighted to welcome you to our community. Your account has been successfully
-        created in the estate management system.
-      </Text>
+      {splitParagraphs(text('body')).map((p, i) => (
+        <Text key={i} style={paragraph}>
+          {p}
+        </Text>
+      ))}
 
       <Section style={infoBox}>
         <Text style={infoLabel}>Your Resident Code</Text>
@@ -88,7 +99,7 @@ export function WelcomeResidentEmail({
       </Text>
 
       <Text style={signoff}>
-        Welcome aboard!
+        {text('sign_off')}
         <br />
         <strong>{estateName} Management</strong>
       </Text>

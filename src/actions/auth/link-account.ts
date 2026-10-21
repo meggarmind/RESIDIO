@@ -4,7 +4,7 @@ import { createAdminClient, createServerSupabaseClient } from '@/lib/supabase/se
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
-import { ACCOUNT_NOT_FOUND_ERROR, assertCanManageTarget } from '@/lib/auth/role-rank';
+import { ACCOUNT_NOT_FOUND_ERROR, assertCanManageTarget } from '@/lib/auth/account-guards';
 import { z } from 'zod';
 
 // Types for auth account search results
@@ -261,7 +261,8 @@ export async function linkAuthAccountToResident(
       .eq('id', authUserId)
       .single();
 
-    // Target guard (#475). Read through the service role so RLS hiding the row
+    // Target guard (#475, #826): an account holding super_admin or chairman needs
+    // system.assign_board_roles. Read through the service role so RLS hiding the row
     // from the caller cannot turn into a bypass. "Not found" is tolerated only
     // because the insert path below provisions accounts that predate the
     // handle_new_user() trigger.
@@ -329,15 +330,9 @@ export async function linkAuthAccountToResident(
     // Linking an account to a resident is an explicit administrative act, so it
     // also approves the account — otherwise it would stay pending and remain
     // locked out of everything, including the portal it was just linked to.
-    // An account that already holds a role keeps it; only a role-less one is
-    // given the base 'resident' role, so linking never demotes an admin who
-    // also happens to live on the estate.
-    const { data: residentRole } = await supabase
-      .from('app_roles')
-      .select('id')
-      .eq('name', 'resident')
-      .single();
-
+    // An account that already holds a role keeps it, so linking never demotes
+    // an admin who also happens to live on the estate. A plain resident holds no
+    // role (role_id null): the 'resident' role was retired by #825.
     if (existingProfile) {
       // Written with the service role: profiles carries no RLS policy allowing
       // an administrator to update another account's row, so this write through
@@ -349,7 +344,7 @@ export async function linkAuthAccountToResident(
           resident_id: residentId,
           full_name: fullName,
           email: authUser.email,
-          role_id: existingProfile.role_id ?? residentRole?.id ?? null,
+          role_id: existingProfile.role_id ?? null,
           approval_status: 'active',
           approved_at: new Date().toISOString(),
           approved_by: auth.userId,
@@ -376,7 +371,7 @@ export async function linkAuthAccountToResident(
         resident_id: residentId,
         full_name: fullName,
         email: authUser.email,
-        role_id: residentRole?.id ?? null,
+        role_id: null,
         approval_status: 'active',
         approved_at: new Date().toISOString(),
         approved_by: auth.userId,
@@ -466,6 +461,13 @@ export async function unlinkAuthAccount(
 
     if (!profile.resident_id) {
       return { success: false, error: 'Account is not linked to any resident' };
+    }
+
+    // Target guard (#826): unlinking changes the account as much as linking it
+    // does, so it carries the same guard as linkAuthAccountToResident.
+    const targetGuard = await assertCanManageTarget(auth.userId!, authUserId);
+    if (!targetGuard.ok) {
+      return { success: false, error: targetGuard.error };
     }
 
     // The join returns an array, but there's only one resident per profile

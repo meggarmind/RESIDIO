@@ -65,6 +65,7 @@ function mockSupabaseChain(overrides: Record<string, unknown> = {}) {
     from: vi.fn().mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
+      is: vi.fn().mockReturnThis(),
       gte: vi.fn().mockReturnThis(),
       maybeSingle: vi.fn().mockResolvedValue({
         data: { id: 'optin-1' },
@@ -138,7 +139,8 @@ describe('WhatsApp outbound dispatch', () => {
       templateName: 'invoice_reminder',
       languageCode: 'en_US',
       parameters: ['Ada', 'INV-001', 'NGN 10,000', '1 September 2026'],
-    }, undefined, undefined);
+      idempotencySeed: 'queue-1',
+    }, undefined, undefined, expect.objectContaining({ purpose: 'notification', residentId: 'resident-1' }));
   });
 
   it('rejects WhatsApp sends when the daily cap is reached', async () => {
@@ -152,12 +154,14 @@ describe('WhatsApp outbound dispatch', () => {
           return {
             select: vi.fn().mockReturnThis(),
             eq: vi.fn().mockReturnThis(),
+            is: vi.fn().mockReturnThis(),
             gte: vi.fn().mockResolvedValue({ count: 1, error: null }),
           };
         }
         return {
           select: vi.fn().mockReturnThis(),
           eq: vi.fn().mockReturnThis(),
+          is: vi.fn().mockReturnThis(),
           maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'optin-1' }, error: null }),
         };
       }),
@@ -230,6 +234,7 @@ describe('WhatsApp outbound dispatch', () => {
       from: vi.fn().mockReturnValue({
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
+        is: vi.fn().mockReturnThis(),
         gte: vi.fn().mockReturnThis(),
         maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
       }),
@@ -382,6 +387,7 @@ describe('WhatsApp outbound dispatch', () => {
       from: vi.fn().mockReturnValue({
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
+        is: vi.fn().mockReturnThis(),
         gte: vi.fn().mockReturnThis(),
         maybeSingle: vi.fn().mockResolvedValue({ data: null, error: { message: 'db error' } }),
       }),
@@ -413,12 +419,14 @@ describe('WhatsApp outbound dispatch', () => {
           return {
             select: vi.fn().mockReturnThis(),
             eq: vi.fn().mockReturnThis(),
+            is: vi.fn().mockReturnThis(),
             gte: vi.fn().mockResolvedValue({ count: null, error: { message: 'db error' } }),
           };
         }
         return {
           select: vi.fn().mockReturnThis(),
           eq: vi.fn().mockReturnThis(),
+          is: vi.fn().mockReturnThis(),
           maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'optin-1' }, error: null }),
         };
       }),
@@ -462,7 +470,8 @@ describe('WhatsApp outbound dispatch', () => {
       templateName: 'payment_received',
       languageCode: 'en_US',
       parameters: ['Chidi Okonkwo', 'NGN 25,000', '15/08/2026', 'PAYSTACK-TXN-123'],
-    }, undefined, undefined);
+      idempotencySeed: 'queue-1',
+    }, undefined, undefined, expect.objectContaining({ purpose: 'notification', residentId: 'resident-1' }));
   });
 
   it('passes announcement template parameters correctly', async () => {
@@ -488,7 +497,8 @@ describe('WhatsApp outbound dispatch', () => {
       templateName: 'announcement',
       languageCode: 'en_US',
       parameters: ['Gate Maintenance', 'The main gate will be closed on Saturday.'],
-    }, undefined, undefined);
+      idempotencySeed: 'queue-1',
+    }, undefined, undefined, expect.objectContaining({ purpose: 'notification', residentId: 'resident-1' }));
   });
 
   // Issue #136: under cron, getSettingValue (RLS-bound) always returned
@@ -508,12 +518,14 @@ describe('WhatsApp outbound dispatch', () => {
           return {
             select: vi.fn().mockReturnThis(),
             eq: vi.fn().mockReturnThis(),
+            is: vi.fn().mockReturnThis(),
             gte: vi.fn().mockResolvedValue({ count: 10, error: null }),
           };
         }
         return {
           select: vi.fn().mockReturnThis(),
           eq: vi.fn().mockReturnThis(),
+          is: vi.fn().mockReturnThis(),
           maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'optin-1' }, error: null }),
         };
       }),
@@ -564,12 +576,14 @@ describe('WhatsApp outbound dispatch', () => {
           return {
             select: vi.fn().mockReturnThis(),
             eq: vi.fn().mockReturnThis(),
+            is: vi.fn().mockReturnThis(),
             gte: vi.fn().mockResolvedValue({ count, error: null }),
           };
         }
         return {
           select: vi.fn().mockReturnThis(),
           eq: vi.fn().mockReturnThis(),
+          is: vi.fn().mockReturnThis(),
           maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'optin-1' }, error: null }),
         };
       }),
@@ -612,6 +626,7 @@ describe('settings read layer (issue #136)', () => {
       from: vi.fn().mockReturnValue({
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
+        is: vi.fn().mockReturnThis(),
         maybeSingle: vi.fn().mockResolvedValue({ data: null, error: { message: 'db unavailable' } }),
       }),
     } as unknown as ReturnType<typeof createAdminClient>);
@@ -623,6 +638,7 @@ describe('settings read layer (issue #136)', () => {
       from: vi.fn().mockReturnValue({
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
+        is: vi.fn().mockReturnThis(),
         maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
       }),
     } as unknown as ReturnType<typeof createAdminClient>);
@@ -642,6 +658,7 @@ describe('settings read layer (issue #136)', () => {
       from: vi.fn().mockReturnValue({
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
+        is: vi.fn().mockReturnThis(),
         maybeSingle: vi.fn().mockResolvedValue({ data: { value: 500 }, error: null }),
       }),
     } as unknown as ReturnType<typeof createAdminClient>);

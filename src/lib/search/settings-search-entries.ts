@@ -1,5 +1,5 @@
 import { ROUTE_PERMISSIONS, type Permission } from '@/lib/auth/action-roles';
-import { settingsConfig, type SettingsItem } from '@/config/settings-nav';
+import { flattenSettingsNav, settingsConfig, type SettingsGroup, type SettingsItem } from '@/config/settings-nav';
 import { ADMIN_NAV_SECTIONS, type NavItem } from '@/config/navigation';
 
 /**
@@ -17,6 +17,8 @@ export interface SettingsSearchEntry {
   href: string;
   type: 'settings' | 'system';
   permissions: Permission[];
+  /** Opens a live-state page under /system, not a settings page. Shown as "Opens System". */
+  opensSystem?: boolean;
   /**
    * Hand-picked search aliases for a vocabulary gap no title/description/
    * group closes -- see `SETTINGS_SEARCH_KEYWORDS` below. Folded into
@@ -33,8 +35,8 @@ export interface SettingsSearchEntry {
    * tokens against: group title + parent item title (if nested) + this
    * entry's title + subtitle + keywords. Deliberately WIDER than what the
    * palette displays (title + subtitle only) -- a row titled just
-   * "Configuration" is only findable by "email" because its parent item's
-   * title, "Email Notifications", carries the meaning the row's own text
+   * "Levies" is only findable by "billing" because its parent item's
+   * title, "Billing Rules", carries the meaning the row's own text
    * doesn't. Never render this field.
    */
   searchText: string;
@@ -44,7 +46,7 @@ export interface SettingsSearchEntry {
  * shape `buildSearchShortcutIndex`'s doc comment describes these entries as
  * having (as opposed to Quick Actions' hand-picked ids). */
 function idFromHref(href: string): string {
-  return href.replace(/^\//, '').replace(/\//g, '-');
+  return href.replace(/^\//, '').replace(/[/?=&]/g, '-');
 }
 
 /**
@@ -57,7 +59,6 @@ function idFromHref(href: string): string {
 const SYSTEM_SUBTITLES: Record<string, string> = {
   '/system': 'System dashboard overview',
   '/system/audit-logs': 'System activity trail',
-  '/system/accounts': 'Role assignments and pending accounts',
   '/system/notification-queue': 'Outgoing notification queue',
   '/system/notification-history': 'Sent notification records',
   '/system/data-tools': 'Export and bulk data utilities',
@@ -70,7 +71,7 @@ const SYSTEM_SUBTITLES: Record<string, string> = {
  * only where the gap is real, not bulk-annotated across all 37 entries.
  *
  * `/settings/email-integration` is the motivating case (the issue's own
- * acceptance criterion): its group is "Integrations", not "Communications",
+ * acceptance criterion): its group is "Connections", not "Messages & Reminders",
  * and every label on the page says "Gmail", never "email" or "import" as a
  * literal pair a user would type for an inbox-import feature -- "Gmail
  * Import" contains "import" but not "email", so a token match still misses
@@ -110,11 +111,11 @@ function buildSearchText(parts: Array<string | undefined | string[]>): string {
  *
  * `groupTitle` and `parentTitle` are carried down so a child's `searchText`
  * still contains the context that gives its own title meaning -- e.g.
- * "Configuration" (a child of "Email Notifications", in the "Communications"
- * group) is only findable by "email" because that group/parent context is
+ * "Levies" (a child of "Billing Rules", in the "Money" group) is only
+ * findable by "billing" because that group/parent context is
  * folded in; its own title and description say nothing of the kind.
  */
-function flattenSettingsItems(
+export function flattenSettingsItems(
   items: SettingsItem[],
   groupTitle: string,
   parentTitle?: string
@@ -127,11 +128,27 @@ function flattenSettingsItems(
       title: item.title,
       subtitle: item.description,
       href: item.href,
-      type: 'settings',
+      // The Monitoring links keep the palette's System badge (#933).
+      type: item.opensSystem ? 'system' : 'settings',
       permissions: resolvePermissions(item.href, item.permissions),
+      opensSystem: item.opensSystem,
       keywords,
       searchText: buildSearchText([groupTitle, parentTitle, item.title, item.description, keywords]),
     });
+    for (const section of item.sections ?? []) {
+      for (const row of section.rows) {
+        out.push({
+          id: `settings-row-${row.id}`,
+          title: row.label,
+          subtitle: `${item.title} › ${section.title}`,
+          href: `${item.href}?row=${row.id}#${section.id}`,
+          type: 'settings',
+          permissions: section.permissions ?? resolvePermissions(item.href, item.permissions),
+          keywords: row.keywords,
+          searchText: buildSearchText([groupTitle, item.title, section.title, row.label, row.help, row.keywords]),
+        });
+      }
+    }
     if (item.children) {
       out.push(...flattenSettingsItems(item.children, groupTitle, item.title));
     }
@@ -231,4 +248,26 @@ export function matchSettingsEntries<T extends { searchText: string }>(
   const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return [];
   return entries.filter((entry) => tokens.every((token) => entry.searchText.includes(token)));
+}
+
+/**
+ * The entries one admin can act on from the Settings nav and Overview: a page entry whose
+ * href the permission-filtered `groups` link to (`/settings` itself excluded), plus a row
+ * entry whose page is linked and whose section permission `canSee` accepts.
+ *
+ * Nothing here widens access: pages come only from the filtered nav, rows only from pages
+ * already in it.
+ */
+export function matchVisibleSettingsEntries(
+  groups: SettingsGroup[],
+  query: string,
+  canSee: (permissions: Permission[]) => boolean
+): SettingsSearchEntry[] {
+  const pages = new Set(flattenSettingsNav(groups).map((item) => item.href));
+  pages.delete('/settings');
+  const visible = SETTINGS_SEARCH_ENTRIES.filter((entry) => {
+    if (pages.has(entry.href)) return true;
+    return entry.id.startsWith('settings-row-') && pages.has(entry.href.split(/[?#]/)[0]) && canSee(entry.permissions);
+  });
+  return matchSettingsEntries(visible, query);
 }

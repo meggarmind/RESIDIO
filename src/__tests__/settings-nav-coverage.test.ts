@@ -35,10 +35,16 @@ function navItems(): SettingsItem[] {
   return settingsConfig.flatMap((group) => flatten(group.items));
 }
 
+const systemDir = fileURLToPath(new URL('../app/(dashboard)/system', import.meta.url));
+const stripQuery = (href: string) => href.split('?')[0];
+
+// Hrefs as written in the nav config. The Monitoring links point into /system and may
+// carry a query string.
 const navHrefs = new Set(navItems().map((i) => i.href));
 
 /** The longest ROUTE_PERMISSIONS prefix matching a path — how middleware resolves. */
-function guardFor(href: string): string | undefined {
+function guardFor(rawHref: string): string | undefined {
+  const href = stripQuery(rawHref);
   return Object.keys(ROUTE_PERMISSIONS)
     .sort((a, b) => b.length - a.length)
     .find((route) => href === route || href.startsWith(route + '/'));
@@ -46,20 +52,19 @@ function guardFor(href: string): string | undefined {
 
 describe('settings navigation coverage', () => {
   it('links only to pages that exist', () => {
-    const onDisk = new Set(routesOnDisk());
-    const dangling = [...navHrefs].filter((href) => !onDisk.has(href)).sort();
+    const onDisk = new Set([...routesOnDisk(), ...routesOnDisk(systemDir, '/system')]);
+    const dangling = [...navHrefs].filter((href) => !onDisk.has(stripQuery(href))).sort();
 
     expect(dangling).toEqual([]);
   });
 
   it('lists every settings page that has one', () => {
-    // /settings/user-roles is a permanent redirect into /settings/roles, and
     // Every path here is a permanent redirect rather than a page of its own,
-    // so none should appear in the nav. All but one point into /system/*
-    // (ADR-0004: Settings is configuration-only); /settings/user-roles is an
-    // older redirect that now lands on /system/accounts too, since that is
-    // where role assignments moved.
+    // so none should appear in the nav. All point into /system/* (ADR-0004:
+    // Settings is configuration-only); /settings/roles and /settings/user-roles
+    // land on Roles & Access, now /settings/access (#912, #939).
     const REDIRECTS = new Set([
+      '/settings/roles',
       '/settings/user-roles',
       '/settings/audit-logs',
       '/settings/notification-queue',
@@ -67,13 +72,43 @@ describe('settings navigation coverage', () => {
       '/settings/data-management',
       '/settings/cron-status',
       '/settings/system/health',
-      '/settings/system',
       '/settings/system/maintenance',
       '/settings/system/data',
       // The Gmail import config sub-page merged into its parent (#178): both
       // rendered the same Gmail connection card, and the child configured no
       // rule despite the nav calling it "Email import rules".
       '/settings/email-integration/config',
+      // Notification Schedules is hidden (#787): nothing consumed what it configured.
+      '/settings/notifications/schedules',
+      // Merged into the four Messages task pages (#934, #791); each stub redirects to
+      // `new#section`, and its ROUTE_PERMISSIONS entry stays so the old URL keeps its guard (ADR-0004).
+      '/settings/notifications',
+      '/settings/notifications/reminders',
+      '/settings/notifications/reminders/schedule',
+      '/settings/notifications/templates',
+      '/settings/email',
+      '/settings/email/debug',
+      '/settings/comms-override',
+      '/settings/message-templates',
+      '/settings/announcement-categories',
+      '/settings/document-categories',
+      '/settings/document-taxonomy',
+      '/settings/security/categories',
+      // Billing sub-pages and the bank pages merged into Billing rules and Banking (#935, #791).
+      '/settings/billing/late-fees',
+      '/settings/billing/invoices',
+      '/settings/billing/development-levies',
+      '/settings/bank-accounts',
+      '/settings/transaction-tags',
+      // Merged into Maintenance & data (#938, #791); same arrangement as above.
+      '/settings/maintenance',
+      '/settings/data-retention',
+      // Merged into Estate Profile and Streets & houses (#936).
+      '/settings/estate-info',
+      '/settings/branding',
+      '/settings/appearance',
+      '/settings/streets',
+      '/settings/house-types',
     ]);
 
     const unlisted = routesOnDisk()

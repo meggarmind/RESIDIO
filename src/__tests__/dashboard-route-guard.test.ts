@@ -124,6 +124,7 @@ describe('dashboard route guard', () => {
             '/auth/callback',
             '/auth/verify-2fa',
             '/maintenance',
+            '/privacy-policy',
             '/api/health/cron-status',
         ]) {
             expect(isPublicRoute(pathname), `${pathname} must be reachable without a session`).toBe(true);

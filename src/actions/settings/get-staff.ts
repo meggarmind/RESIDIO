@@ -12,6 +12,7 @@ export async function getStaff() {
 
     const supabase = await createServerSupabaseClient();
 
+    // TODO(slice 3, #824): payee list, no permission is held by exactly super_admin and chairman. Revisit when roles are re-seeded.
     const { data, error } = await supabase
         .from('profiles')
         .select('id, full_name, email, role_id, app_roles!profiles_role_id_fkey!inner(name)')

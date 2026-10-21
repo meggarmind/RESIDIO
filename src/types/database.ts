@@ -12,12 +12,12 @@ import type { Database as GeneratedDatabase } from '@/types/database.generated';
 export type BuiltInRoleName =
   | 'super_admin'
   | 'chairman'
-  | 'vice_chairman'
   | 'financial_officer'
   | 'security_officer'
   | 'secretary'
-  | 'project_manager'
-  | 'resident';
+  | 'welfare_officer'
+  | 'trustee'
+  | 'security_guard_supervisor';
 
 /**
  * A value of app_roles.name.
@@ -54,7 +54,8 @@ export type PermissionCategory =
   | 'email_imports' // Gmail bank statement integration
   | 'two_factor'   // Two-factor authentication
   | 'finance'       // Expenditure and Petty Cash
-  | 'projects';     // Capital Projects
+  | 'projects'      // Capital Projects
+  | 'groups';       // Recipient groups (#819)
 
 // Account approval lifecycle (profiles.account_status).
 // Only 'active' resolves a role, resident link or permissions — the auth helpers
@@ -247,13 +248,20 @@ export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 // declared thirteen members, ten of which never existed in any migration --
 // every insert carrying one was rejected by Postgres at runtime (#107).
 // Widening it needs an enum migration; the extra workflows were dropped by owner decision (#306).
-export type ApprovalRequestType = GeneratedDatabase['public']['Enums']['approval_request_type'];
+// The last two values come from migration 20261022000000 (#816); drop them from this union once
+// `npm run db:types` has been re-run against a database that has it.
+export type ApprovalRequestType =
+  | GeneratedDatabase['public']['Enums']['approval_request_type']
+  | 'whatsapp_payment_report'
+  | 'clearance_certificate_request';
 
 // Labels for approval request types
 export const APPROVAL_REQUEST_TYPE_LABELS: Record<ApprovalRequestType, string> = {
   billing_profile_effective_date: 'Billing Profile Effective Date Change',
   house_plots_change: 'House Plots Change',
   late_fee_waiver: 'Late Fee Waiver Request',
+  whatsapp_payment_report: 'Payment Reported on WhatsApp',
+  clearance_certificate_request: 'Clearance Certificate Request',
 };
 
 // Phase 8: Audit Logging Types
@@ -303,6 +311,7 @@ export type AuditEntityType =
   | 'app_permissions'     // Phase 10: RBAC
   | 'role_permissions'    // Phase 10: RBAC
   | 'role_assignment_rules' // Role assignment restrictions
+  | 'admin_titles'        // Titles under an admin role (#823)
   | 'notification_templates'    // Phase 11: Notifications
   | 'notification_schedules'    // Phase 11: Notifications
   | 'notification_queue'        // Phase 11: Notifications
@@ -345,6 +354,7 @@ export type AuditEntityType =
   | 'whatsapp_link_tokens'          // One-time WhatsApp linking tokens
   | 'whatsapp_sessions'             // WhatsApp conversation sessions
   | 'whatsapp_provider_credentials' // WhatsApp provider connection (Meta/Twilio)
+  | 'recipient_groups'             // Named lists of residents to send to (#819)
   | 'visitor_vehicles'             // Visitor Vehicle Registration
   // Unified Expenditure Engine
   | 'expenses'                     // Expense records
@@ -401,6 +411,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   app_permissions: 'Permission',   // Phase 10: RBAC
   role_permissions: 'Role Permission', // Phase 10: RBAC
   role_assignment_rules: 'Role Assignment Rule',
+  admin_titles: 'Admin Title',     // Titles under an admin role (#823)
   notification_templates: 'Notification Template',    // Phase 11: Notifications
   notification_schedules: 'Notification Schedule',    // Phase 11: Notifications
   notification_queue: 'Queued Notification',          // Phase 11: Notifications
@@ -443,6 +454,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   whatsapp_link_tokens: 'WhatsApp Link Token',           // WhatsApp Assistant
   whatsapp_sessions: 'WhatsApp Session',                // WhatsApp Assistant
   whatsapp_provider_credentials: 'WhatsApp Connection', // WhatsApp Assistant
+  recipient_groups: 'Recipient Group',                  // Recipient groups (#819)
   visitor_vehicles: 'Visitor Vehicle',                  // Visitor Management Enhancement
   // Unified Expenditure Engine
   expenses: 'Expense',                                  // Expense Management
@@ -936,7 +948,8 @@ export interface Database {
           user_agent: string | null;
           created_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['audit_logs']['Row'], 'id' | 'created_at'>;
+        // A resident acting over WhatsApp (#816) has no admin profile, so the column is nullable (it is SET NULL on delete).
+        Insert: Omit<Database['public']['Tables']['audit_logs']['Row'], 'id' | 'created_at' | 'actor_id'> & { actor_id: string | null };
         Update: never; // Audit logs are immutable - no updates allowed
       };
 
@@ -1422,7 +1435,9 @@ export interface ApprovalRequest {
   current_values: Record<string, unknown>;
   reason: string | null;
   status: ApprovalStatus;
-  requested_by: string;
+  /** Null for a request a resident made over WhatsApp (#816); see requested_by_resident_id. */
+  requested_by: string | null;
+  requested_by_resident_id?: string | null;
   reviewed_by: string | null;
   reviewed_at: string | null;
   review_notes: string | null;
@@ -1950,7 +1965,6 @@ export interface AppRole {
   display_name: string;
   description: string | null;
   category: RoleCategory;
-  level: number;
   is_system_role: boolean;
   is_active: boolean;
   can_be_assigned_to_resident: boolean;
@@ -1964,7 +1978,6 @@ export interface AppRoleInsert {
   display_name: string;
   description?: string | null;
   category?: RoleCategory;
-  level?: number;
   is_system_role?: boolean;
   is_active?: boolean;
   can_be_assigned_to_resident?: boolean;
@@ -1974,7 +1987,6 @@ export interface AppRoleUpdate {
   display_name?: string;
   description?: string | null;
   category?: RoleCategory;
-  level?: number;
   is_active?: boolean;
   can_be_assigned_to_resident?: boolean;
 }
@@ -2002,6 +2014,27 @@ export interface RolePermission {
 // Role with permissions (for UI display)
 export interface AppRoleWithPermissions extends AppRole {
   permissions: AppPermission[];
+  /** Only a profile linked to a resident may hold the role (#823). Absent until the types are regenerated. */
+  requires_resident?: boolean;
+  /** Profiles holding the role; null when the count could not be read. Absent on single-role reads. */
+  user_count?: number | null;
+}
+
+// A title under an admin role, such as Vice Chairman under chairman (#823).
+// Hand-written: the generated types predate public.admin_titles.
+export interface AdminTitle {
+  id: string;
+  role_id: string;
+  name: string;
+  is_principal: boolean;
+  /** null means unlimited */
+  seats: number | null;
+  sort_order: number;
+}
+
+/** A title with the people holding it now, for seat-full display. */
+export interface AdminTitleWithHolders extends AdminTitle {
+  holders: Array<{ profile_id: string; name: string }>;
 }
 
 // Profile with role details (new RBAC)

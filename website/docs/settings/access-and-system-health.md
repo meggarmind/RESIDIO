@@ -5,15 +5,20 @@ sidebar_label: Access and system health
 residio_sources:
   - src/app/(dashboard)/settings/maintenance/**
   - src/app/(dashboard)/settings/data-retention/**
+  - src/app/(dashboard)/settings/system/**
+  - src/components/settings/system/**
   - src/app/(dashboard)/system/audit-logs/**
   - src/app/(dashboard)/system/action-log/**
+  - src/app/(dashboard)/settings/access/**
   - src/app/(dashboard)/settings/roles/**
+  - src/app/(dashboard)/settings/groups/**
+  - src/actions/groups/**
   - src/app/(dashboard)/system/accounts/**
   - src/app/(dashboard)/system/page.tsx
   - src/components/system/**
   - src/actions/system/**
-residio_verified_commit: 0d86eebb
-residio_verified_at: '2026-10-19'
+residio_verified_commit: 6bed011d
+residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---
 
@@ -25,30 +30,44 @@ Open **System** in the sidebar — or the status indicator next to the menu butt
 
 ## Roles and permissions
 
-This work is split across two places, because defining what a role *is* and
-working through who holds it are different jobs. Make changes only with an
-approved access request, and record the reason.
+Defining a role and giving it to a person are one task, so both live on one page. Open **Settings → People & Access → Roles & Access** (`/settings/access`). Old links to `/system/accounts`, `/settings/roles` and `/settings/user-roles` still land here, on the same tab. Make changes only with an approved access request, and record the reason.
 
-Open **Settings → Roles & Permissions** to define roles:
+| Tab | Use it for | Needs |
+| --- | --- | --- |
+| Administrators | Who currently holds an admin role and under which title, assigning one, and Change role or Remove role on each row | Assign roles |
+| Pending sign-ups | Sign-ups waiting to be approved or rejected | Assign roles |
+| Unlinked logins | Logins that are not linked to any resident. A login that already holds a role carries a *Holds role* badge | Assign roles |
+| Roles | Roles, the modules and privileges each one carries, how many people hold each, and the titles under each role with their seats | Manage roles |
+| Who can hold each role | Which resident types are eligible for each executive role | Manage roles |
 
-| Tab | Use it for |
-| --- | --- |
-| Role Definitions | Roles, and the modules and privileges each one carries |
-| Assignment Rules | Which resident types are eligible for each executive role |
+The tab is kept in the address (?tab=), so a link opens the tab you were on. The holder count on the Roles tab opens the Administrators tab filtered to that role; clear the filter from the *Showing* line.
 
-Open **System → Accounts** for the day-to-day account work:
+## Recipient groups
 
-| Tab | Use it for |
-| --- | --- |
-| Role Assignments | Who currently holds an admin role |
-| Pending Accounts | Sign-ups waiting to be approved or rejected |
-| Orphaned Accounts | Logins that are not linked to any resident |
+Open **Settings → Groups** to keep named lists of residents, such as the estate officials,
+that the estate sends copies to. Define a group once and select it wherever a copy is sent;
+after an election or handover, change the members in one place. Members are residents only:
+an admin login with no resident record cannot be added.
 
-The **Access** column on Role Definitions shows how many modules and privileges a role holds, and opens the picker where you grant or revoke them. [Roles and permissions](../getting-started/roles-and-permissions) covers creating a role.
+- **Add members** searches residents by name. A member's badge shows a warning when they
+  cannot receive a WhatsApp copy (`no WhatsApp number`, `not opted in`), or when they have
+  `moved out` or are `deactivated`. Moved-out and deactivated members stay listed but are
+  skipped when sending.
+- **Estate officials** is created empty and is the default group for clearance certificate
+  copies.
+- A group in use cannot be deleted. The delete dialog names what uses it, for example
+  `Used by: Clearance certificate copies`; select another group there first.
+- Viewing needs the View recipient groups permission and changes need Manage recipient groups;
+  both are granted to Super Admin and Chairman. Every create, rename, member change and delete
+  is written to the audit log.
 
-**Resident portal access per account.** On the **Role Assignments** tab, each administrator row and the account you select under *Assign Roles* carries a *Resident portal* control with three choices: **Inherit** (follow the estate-wide switch in Settings → Estate Information), **Enabled** and **Disabled**. The text beside it shows the effective result, for example "Inherit (currently off)". *Enabled* works while the estate-wide switch is off, so you can open the portal links to a pilot group first. Changing it needs the permission to assign roles; without it you see the effective state read-only. Every change is recorded in the audit log. This setting only controls whether links are shown: *My Portal* and *Resident Portal* also require the account to be linked to a resident, so an administrator with no resident record never sees them, and *View as Resident* additionally needs the impersonation permission.
+The **Access** column on the Roles tab shows how many modules and privileges a role holds, and opens the picker where you grant or revoke them. [Roles and permissions](../getting-started/roles-and-permissions) covers creating a role.
 
-Work the **Pending Accounts** queue, under System, as part of routine access review. A new sign-up has no access to anything until it is approved there, so a queue left unattended is a person locked out rather than a person with access they should not have. [Roles and permissions](../getting-started/roles-and-permissions) covers the approval and rejection steps.
+Deleting a role states how many users hold it. A role that anyone still holds cannot be deleted: reassign those users first. Defining roles needs the Manage roles permission; an admin who can only assign roles sees the first three tabs and never the Roles or Who can hold each role tabs.
+
+**Resident portal access per account.** On the **Administrators** tab, each administrator row and the account you select under *Assign Roles* carries a *Resident portal* control with three choices: **Inherit** (follow the estate-wide switch in Settings → Estate & Property → Estate Profile), **Enabled** and **Disabled**. The text beside it shows the effective result, for example "Inherit (currently off)". *Enabled* works while the estate-wide switch is off, so you can open the portal links to a pilot group first. Changing it needs the permission to assign roles; without it you see the effective state read-only. Every change is recorded in the audit log. This setting only controls whether links are shown: *My Portal* and *Resident Portal* also require the account to be linked to a resident, so an administrator with no resident record never sees them, and *View as Resident* additionally needs the impersonation permission.
+
+Work the **Pending sign-ups** queue, under Settings → Roles & Access, as part of routine access review. A new sign-up has no access to anything until it is approved there, so a queue left unattended is a person locked out rather than a person with access they should not have. [Roles and permissions](../getting-started/roles-and-permissions) covers the approval and rejection steps.
 
 ## Audit logs
 
@@ -56,15 +75,19 @@ Open **System → Audit Logs** to trace creates, updates, approvals, and adminis
 
 ## Action log
 
-Open **System → Action Log** to see what automated processes, such as scheduled jobs and incoming webhooks, did and whether it worked. Audit logs record what a signed-in person changed; the action log covers runs with nobody signed in. Each entry shows when it ran, its source, the action, an outcome (success, partial or failure), how long it took, any error message, and a collapsible summary of counts and ids. Filter by source, outcome, or date range; newest entries come first. Only super administrators see this page and its sidebar link. It is read-only. Entries older than 90 days are removed when someone runs **Prune Data** under **Settings → Data Retention**; nothing prunes them automatically.
+Open **System → Action Log** to see what automated processes, such as scheduled jobs and incoming webhooks, did and whether it worked. Audit logs record what a signed-in person changed; the action log covers runs with nobody signed in. Each entry shows when it ran, its source, the action, an outcome (success, partial or failure), how long it took, any error message, and a collapsible summary of counts and ids. Filter by source, outcome, or date range; newest entries come first. Only super administrators see this page and its sidebar link. It is read-only. Entries older than 90 days are removed when someone runs **Prune Data** under **Settings → Maintenance & Data → Data retention**; nothing prunes them automatically.
 
 ## System health
 
-Maintenance mode and data retention are configuration, so they stay under **Settings**. The things you only watch have moved to **System**: **System → Cron Status** for scheduled jobs, and **System → Notification Queue** for messages waiting to go out. A health warning is a prompt to investigate, not a reason to delete data.
+Maintenance mode and data retention (the two sections of **Settings → Maintenance & Data**; the duplicate transaction threshold sits under **Settings → Money → Banking**) are configuration, so they stay under **Settings**. The things you only watch have moved to **System**: **System → Cron Status** for scheduled jobs, and **System → Notification Queue** for messages waiting to go out. A health warning is a prompt to investigate, not a reason to delete data.
 
-Turning maintenance mode on asks first and lists how many active accounts, by role, would be sent to the maintenance page: everyone without the super admin role. It shows the saved maintenance message; unsaved edits to the message are not used until you save them. Turning it off takes effect at once. The other fields on the page (message, session timeout, duplicate threshold) are saved together from the save bar that appears when something has changed, and the page warns before you leave with unsaved changes.
+Turning maintenance mode on asks first and lists how many active accounts, by role, would be sent to the maintenance page: everyone without the super admin role. It shows the saved maintenance message; unsaved edits to the message are not used until you save them. Turning it off takes effect at once. While it is on, admins who can manage maintenance see a banner on every dashboard page saying non-admin users are locked out, so it is hard to leave on by mistake. The maintenance message is saved with the **Save Maintenance mode** button at the foot of the section, which lights up when the message has changed, and the page warns before you leave with unsaved changes. The section is marked **Needs attention** while maintenance mode is on. The switch and the message both need the manage maintenance permission.
 
-**Prune Data** under **Settings → Data Retention** shows how many audit log entries, notifications, search entries and system action log entries it would delete, and runs only after you type PRUNE. It deletes by fixed ages (audit logs over 6 months); the **Audit Log Retention** setting on the same page is not used yet.
+**Session timeout** is under **Settings → People & Access → Security rules**, in its own *Session timeout* section (it moved there from the Maintenance page). It sets how many minutes of inactivity sign a user out, from 5 to 1,440; 60 if never saved. The section has its own **Save** and **Discard**, and still needs the manage maintenance permission.
+
+**Prune Data** sits in the **Data retention** section of **Settings → Maintenance & Data**, which starts collapsed. It shows how many audit log entries, notifications, search entries and system action log entries it would delete, and runs only after you type PRUNE. It deletes audit logs older than the saved **Audit Log Retention** setting in the same section (30 to 3650 days; 365 if never saved; saved with **Save Data retention**), and the other data by fixed ages. Changing the retention setting and running **Prune Data** both need the manage data retention permission.
+
+The collapsed **Duplicate matching** section sets the confidence threshold (1 to 100; 90 if never saved) above which a transaction is flagged as a duplicate. It has its own **Save** and **Discard** and needs the manage maintenance permission.
 
 ## Safe maintenance sequence
 

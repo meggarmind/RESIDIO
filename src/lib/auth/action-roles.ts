@@ -50,6 +50,7 @@ export const PERMISSIONS = {
   PAYMENTS_DELETE: 'payments.delete',
   PAYMENTS_BULK_UPDATE: 'payments.bulk_update',
   PAYMENTS_EXPORT: 'payments.export',
+  PAYMENTS_VERIFY: 'payments.verify',
 
   // Billing Module
   BILLING_VIEW: 'billing.view',
@@ -88,6 +89,7 @@ export const PERMISSIONS = {
   SETTINGS_VIEW: 'settings.view',
   SETTINGS_MANAGE_GENERAL: 'settings.manage_general',
   SETTINGS_MANAGE_BILLING: 'settings.manage_billing',
+  SETTINGS_MANAGE_DEBT_STATUS: 'settings.manage_debt_status',
   SETTINGS_MANAGE_SECURITY: 'settings.manage_security',
   SETTINGS_MANAGE_REFERENCE: 'settings.manage_reference',
   SETTINGS_VIEW_AUDIT_LOGS: 'settings.view_audit_logs',
@@ -106,6 +108,9 @@ export const PERMISSIONS = {
   // System Module (Super Admin Only)
   SYSTEM_MANAGE_ROLES: 'system.manage_roles',
   SYSTEM_ASSIGN_ROLES: 'system.assign_roles',
+  // Granting super_admin, chairman or trustee, or changing an account holding
+  // super_admin or chairman (#822). Held by super_admin only.
+  SYSTEM_ASSIGN_BOARD_ROLES: 'system.assign_board_roles',
   SYSTEM_MANAGE_MAINTENANCE: 'system.manage_maintenance',
   SYSTEM_MANAGE_DATA_RETENTION: 'system.manage_data_retention',
   SYSTEM_VIEW_ALL_SETTINGS: 'system.view_all_settings',
@@ -150,6 +155,10 @@ export const PERMISSIONS = {
   WHATSAPP_VIEW: 'whatsapp.view',
   WHATSAPP_MANAGE: 'whatsapp.manage',
 
+  // Recipient groups: named lists of residents to send to (#819)
+  GROUPS_VIEW: 'groups.view',
+  GROUPS_MANAGE: 'groups.manage',
+
   // Report Subscriptions Module (Phase 16)
   REPORT_SUBSCRIPTIONS_VIEW: 'report_subscriptions.view',
   REPORT_SUBSCRIPTIONS_MANAGE: 'report_subscriptions.manage',
@@ -181,6 +190,25 @@ export const PERMISSIONS = {
   TWO_FACTOR_MANAGE_POLICIES: 'two_factor.manage_policies',
   TWO_FACTOR_VIEW_AUDIT_LOG: 'two_factor.view_audit_log',
   TWO_FACTOR_RESET_USER: 'two_factor.reset_user',
+
+  // Database-level (RLS) permissions (#63). Policies check these in place of hard-coded
+  // role-name lists; each was seeded to exactly the roles its literal named. No server
+  // action checks them, so the app's own checks above still decide what the UI allows.
+  HOUSES_MANAGE_RECORDS: 'houses.manage_records',
+  RESIDENTS_MANAGE_RECORDS: 'residents.manage_records',
+  RESIDENTS_DELETE_RECORDS: 'residents.delete_records',
+  SECURITY_VIEW_ACTIVE_RESIDENTS: 'security.view_active_residents',
+  SECURITY_MANAGE_RECORDS: 'security.manage_records',
+  SECURITY_OPERATE_RECORDS: 'security.operate_records',
+  SECURITY_WRITE_CONTACT_CATEGORIES: 'security.write_contact_categories',
+  BILLING_WRITE_PROFILES: 'billing.write_profiles',
+  NOTIFICATIONS_MANAGE_DELIVERY: 'notifications.manage_delivery',
+  PAYMENTS_MANAGE_REFERENCE_RECORDS: 'payments.manage_reference_records',
+  PAYMENTS_WRITE_TRANSACTION_TAGS: 'payments.write_transaction_tags',
+  SETTINGS_WRITE_PROPERTY_REFERENCE: 'settings.write_property_reference',
+  SETTINGS_WRITE_SYSTEM: 'settings.write_system',
+  SYSTEM_VIEW_ALL_PROFILES: 'system.view_all_profiles',
+  DOCUMENTS_VIEW_ALL: 'documents.view_all',
 } as const;
 
 export type Permission = typeof PERMISSIONS[keyof typeof PERMISSIONS];
@@ -242,10 +270,9 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   // System — fallback first, then the specific pages that override it.
   '/system': [PERMISSIONS.SYSTEM_VIEW_ALL_SETTINGS],
   '/system/audit-logs': [PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS],
-  // Role Assignments, Pending Accounts and Orphaned Accounts moved here from
-  // /settings/roles (#172, ADR-0004: day-to-day account work is not
-  // configuration). Narrower than /settings/roles: this page only needs to
-  // assign roles, not define them, so it does not require SYSTEM_MANAGE_ROLES.
+  // Now a redirect stub to /settings/access (#939), which carries the same
+  // guard; kept so the stub stays gated (ADR-0004). Narrower than /settings/roles:
+  // the page only needs to assign roles, not define them.
   '/system/accounts': [PERMISSIONS.SYSTEM_ASSIGN_ROLES],
   '/system/notification-queue': [PERMISSIONS.NOTIFICATIONS_MANAGE],
   '/system/notification-history': [PERMISSIONS.NOTIFICATIONS_MANAGE],
@@ -282,11 +309,19 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/settings/bank-accounts': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
   '/settings/document-categories': [PERMISSIONS.DOCUMENTS_MANAGE_CATEGORIES],
   '/settings/document-taxonomy': [PERMISSIONS.DOCUMENTS_MANAGE_TAGS, PERMISSIONS.DOCUMENTS_MANAGE_CUSTOM_FIELDS],
+  // Merged Documents task page (#937, #791): the OR of its sections. The two old routes above stay (ADR-0004).
+  '/settings/documents': [PERMISSIONS.DOCUMENTS_MANAGE_CATEGORIES, PERMISSIONS.DOCUMENTS_MANAGE_TAGS, PERMISSIONS.DOCUMENTS_MANAGE_CUSTOM_FIELDS],
 
   // Access & security
+  // Roles & Access moved here from /system/accounts (#939, ADR-0004 amendment) with the same guard. The
+  // /system/accounts, /settings/roles and /settings/user-roles keys stay: their redirect stubs run after middleware.
+  // Known #912 gap, kept as is: system.manage_roles without system.assign_roles is bounced.
+  '/settings/access': [PERMISSIONS.SYSTEM_ASSIGN_ROLES],
   '/settings/roles': [PERMISSIONS.SYSTEM_MANAGE_ROLES, PERMISSIONS.SYSTEM_ASSIGN_ROLES],
+  '/settings/groups': [PERMISSIONS.GROUPS_VIEW],
   '/settings/user-roles': [PERMISSIONS.SYSTEM_MANAGE_ROLES, PERMISSIONS.SYSTEM_ASSIGN_ROLES],
-  '/settings/security': [PERMISSIONS.SETTINGS_MANAGE_SECURITY, PERMISSIONS.SECURITY_MANAGE_CATEGORIES],
+  // Security rules task page (#937, #791): the OR of its sections (contact limits, contact categories, session timeout).
+  '/settings/security': [PERMISSIONS.SETTINGS_MANAGE_SECURITY, PERMISSIONS.SECURITY_MANAGE_CATEGORIES, PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE],
   '/settings/security/categories': [PERMISSIONS.SECURITY_MANAGE_CATEGORIES],
   // Retained after the move to /system/audit-logs: the redirect stub at this
   // path is a page component and runs after middleware, so this entry is what
@@ -295,8 +330,14 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/settings/audit-logs': [PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS],
 
   // Billing & finance
+  // /settings/billing is the merged Billing rules page (#935): general, invoices, late fees and levies all
+  // opened under this key already (the old sub-routes inherited it by prefix), so it is unchanged.
   '/settings/billing': [PERMISSIONS.SETTINGS_MANAGE_BILLING, PERMISSIONS.BILLING_MANAGE_PROFILES],
   '/settings/billing/profiles': [PERMISSIONS.BILLING_MANAGE_PROFILES],
+  '/settings/debt-status': [PERMISSIONS.SETTINGS_MANAGE_DEBT_STATUS],
+  // Merged Banking page (#935): the OR of bank accounts and tags (manage_reference) and duplicate matching
+  // (manage_maintenance). The old /settings/bank-accounts and /settings/transaction-tags keys stay (ADR-0004).
+  '/settings/banking': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE, PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE],
   '/settings/email-integration': [PERMISSIONS.EMAIL_IMPORTS_VIEW],
   '/settings/email-integration/config': [PERMISSIONS.EMAIL_IMPORTS_CONFIGURE],
 
@@ -305,20 +346,33 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/settings/comms-override': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
   '/settings/message-templates': [PERMISSIONS.ANNOUNCEMENTS_MANAGE_TEMPLATES],
   '/settings/announcement-categories': [PERMISSIONS.ANNOUNCEMENTS_MANAGE_CATEGORIES],
+  // Merged task pages (#934, #791): each opens for any one of its sections' permissions and the
+  // sections keep their own. The old routes above stay: their redirect stubs run after middleware,
+  // so those entries still decide who reaches them (ADR-0004).
+  '/settings/reminders': [PERMISSIONS.NOTIFICATIONS_MANAGE, PERMISSIONS.SETTINGS_MANAGE_GENERAL],
+  '/settings/wording': [PERMISSIONS.NOTIFICATIONS_MANAGE],
+  '/settings/sending': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
+  '/settings/announcements': [PERMISSIONS.ANNOUNCEMENTS_MANAGE_TEMPLATES, PERMISSIONS.ANNOUNCEMENTS_MANAGE_CATEGORIES],
+  // Merged task pages (#936): Estate Profile (details, logo, theme, assistant, portal, social) and
+  // Streets & houses (streets, house types). The old routes stay for the same reason.
+  '/settings/estate': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
+  '/settings/property': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
 
   // Maintenance & Data
   // Maintenance mode and data retention are genuine configuration and stay in
   // Settings (#176, ADR-0004) — moved up a level so they no longer sit beside
   // the new top-level /system dashboard, which means something entirely
-  // different. "Prune Data" stays on /settings/data-retention beside the
-  // retention rule it runs, per ADR-0004.
+  // different. "Prune Data" stays beside the retention rule it runs, per ADR-0004.
   '/settings/maintenance': [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE],
   '/settings/data-retention': [PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION],
-  // Retained after the move (#176): all three of these paths are now
+  // Merged task page (#938, #791): Maintenance & data opens for either section's permission and
+  // each section keeps its own. The two old routes above stay: their redirect stubs run after
+  // middleware, so those entries still decide who reaches them (ADR-0004).
+  '/settings/system': [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE, PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION],
+  // Retained after the move (#176): both of these paths are now
   // redirect stubs and each is a page component that runs after
   // middleware, so these entries are what gate who reaches them — deleting
-  // any would widen access to the generic /settings fallback. See ADR-0004.
-  '/settings/system': [PERMISSIONS.SYSTEM_VIEW_ALL_SETTINGS],
+  // either would widen access to the generic /settings fallback. See ADR-0004.
   '/settings/system/maintenance': [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE],
   '/settings/system/data': [PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION],
   // Retained after the move to /system/cron-status (#174): both of these
@@ -348,11 +402,12 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
 export const ADMIN_ROLE_NAMES: readonly BuiltInRoleName[] = [
   'super_admin',
   'chairman',
-  'vice_chairman',
   'financial_officer',
   'security_officer',
   'secretary',
-  'project_manager',
+  'welfare_officer',
+  'trustee',
+  'security_guard_supervisor',
 ] as const;
 
 /** A role as read from an `app_roles!profiles_role_id_fkey (name, category)` join. */

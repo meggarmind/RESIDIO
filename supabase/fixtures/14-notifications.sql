@@ -435,6 +435,22 @@ ON CONFLICT (id) DO UPDATE SET
   variables = EXCLUDED.variables,
   updated_at = NOW();
 
+-- #907: tag the five rows that real senders use with their event key, as migration
+-- 20261022090000_notification_event_content.sql does. The other ten rows are kept here (not deleted)
+-- because the history fixtures below reference them by id; the migration deletes them on a real database.
+UPDATE notification_templates SET event = 'invoice_generated'          WHERE id = 'ca000001-0001-0001-0001-000000000001'::uuid AND name = 'invoice_generated';
+UPDATE notification_templates SET event = 'payment_reminder'           WHERE name = 'invoice_reminder' AND id::text LIKE 'ca000001%';
+UPDATE notification_templates SET event = 'payment_reminder_escalated' WHERE name = 'invoice_overdue'  AND id::text LIKE 'ca000001%';
+UPDATE notification_templates SET event = 'payment_receipt'            WHERE name = 'payment_received' AND id::text LIKE 'ca000001%';
+UPDATE notification_templates SET event = 'welcome_resident'           WHERE name = 'welcome_resident' AND id::text LIKE 'ca000001%';
+
+-- #908: the two Chatmaid WhatsApp wording rows, as migration 20261022110000_whatsapp_event_content.sql inserts them.
+INSERT INTO notification_templates (name, display_name, category, channel, body_template, event, is_system, is_active)
+VALUES
+  ('payment_received_whatsapp', 'Payment receipt (WhatsApp)',          'payment', 'whatsapp', '', 'payment_receipt',  true, true),
+  ('invoice_reminder_whatsapp', 'Payment reminder, manual (WhatsApp)', 'invoice', 'whatsapp', '', 'payment_reminder', true, true)
+ON CONFLICT (event, channel) DO NOTHING;
+
 
 -- ============================================================================
 -- NOTIFICATION PREFERENCES (20 residents with custom preferences)

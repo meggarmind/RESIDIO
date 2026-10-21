@@ -145,7 +145,7 @@ const { recorded } = await recordAudit(
 
 **Failure policy: fail-safe.** `recordAudit` never throws. A missing actor, a sink error or an unexpected exception all return `{ recorded: false }` and the action being audited carries on. Failures are logged with an `[Audit] ...` prefix: a missing actor logs a plain message, and a sink error or unexpected exception logs an object of `{ entityType, entityId, action, error }`. Because the failure is only logged, a `recorded: false` result is the only signal that an entry was lost.
 
-**Not supported: system and sessionless actors.** An Audit Entry needs a user id. Cron, webhook and pre-auth flows have none, so their writes cannot be audited through the recorder; this is tracked in #538. The scanner's `AUDIT_ALLOWLIST` lists the pre-auth and cron flows that cannot be audited this way (for example `auth/register-resident-portal`, `two-factor/verify` and `analytics/refresh-payment-cadence-summary`).
+**Not supported: system and sessionless actors.** An Audit Entry needs a user id. Cron, webhook and pre-auth flows have none, so their writes cannot be audited through the recorder; this is tracked in #538. The scanner's `AUDIT_ALLOWLIST` lists the pre-auth and cron flows that cannot be audited this way (for example `auth/register-resident-portal` and `two-factor/verify`).
 
 ## Available Action Types
 
@@ -327,7 +327,7 @@ export async function generateMonthlyInvoices(month: string) {
 
 ## Viewing Audit Logs
 
-Audit logs can be viewed at `/system/audit-logs` by users with the `settings.view_audit_logs` permission. The `super_admin` and `vice_chairman` roles hold it; `chairman` does not.
+Audit logs can be viewed at `/system/audit-logs` by users with the `settings.view_audit_logs` permission. The `super_admin` and `chairman` roles hold it (#825).
 
 Features:
 - Filter by entity type, action type, actor, and date range

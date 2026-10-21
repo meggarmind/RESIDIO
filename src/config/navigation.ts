@@ -30,7 +30,6 @@ import {
   Archive,
   ListTodo,
   Send,
-  UserCog,
   Activity,
   LayoutDashboard,
   ScrollText,
@@ -276,18 +275,6 @@ const NAV_AUDIT_LOGS: NavItem = {
   permissions: [PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS],
 };
 
-// Role Assignments, Pending Accounts and Orphaned Accounts moved here from
-// /settings/roles (#172, ADR-0004). A flat item alongside NAV_AUDIT_LOGS and
-// NAV_SYSTEM, not nested under NAV_SYSTEM — see the comment on NAV_SYSTEM
-// for why.
-const NAV_ACCOUNTS: NavItem = {
-  id: 'system-accounts',
-  title: 'Accounts',
-  href: '/system/accounts',
-  icon: UserCog,
-  permissions: [PERMISSIONS.SYSTEM_ASSIGN_ROLES],
-};
-
 // Relocated out of /settings per ADR-0004: these show live/historical system
 // state (the outgoing queue and what was actually sent), not configuration.
 const NAV_NOTIFICATION_QUEUE: NavItem = {
@@ -390,7 +377,6 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
       NAV_SYSTEM,
       NAV_SETTINGS,
       NAV_AUDIT_LOGS,
-      NAV_ACCOUNTS,
       NAV_NOTIFICATION_QUEUE,
       NAV_NOTIFICATION_HISTORY,
       NAV_DATA_TOOLS,

@@ -9,11 +9,8 @@ export {
   getTemplates,
   getTemplate,
   getTemplateByName,
-  createTemplate,
-  updateTemplate,
-  deleteTemplate,
-  toggleTemplateActive,
-  duplicateTemplate,
+  updateEventContent,
+  setEventChannelEnabled,
 } from './templates';
 
 // Schedules
@@ -34,7 +31,6 @@ export {
   getNotificationQueue,
   getQueueItem,
   getQueueStatistics,
-  queueNotificationFromTemplate,
   queueDirectNotification,
   cancelNotification,
   retryNotification,
@@ -68,9 +64,6 @@ export {
 
 // Send
 export {
-  sendTemplateNotification,
   sendDirectNotification,
   sendBulkNotification,
-  sendWelcomeNotification,
-  sendInvoiceNotification,
 } from './send';

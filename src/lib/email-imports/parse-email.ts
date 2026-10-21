@@ -16,12 +16,17 @@ import {
   parseFirstBankPdf,
   extractAccountNumber,
 } from '@/lib/email-imports/parsers/first-bank-pdf';
-import { updateEmailImportStatus } from '@/actions/email-imports/create-email-import';
+import { writeEmailImportStatus } from '@/lib/email-imports/import-records';
 import type {
   EmailMessage,
   EmailTransaction,
   ParsedEmailTransaction,
 } from '@/types/database';
+
+/** `systemSource` is set only by the sessionless cron run, for stored PDF password reads (#884). */
+interface ParseOptions {
+  systemSource?: string;
+}
 
 // ============================================================
 // Get Email Content from Storage
@@ -106,7 +111,8 @@ async function createEmailTransaction(
 // ============================================================
 
 export async function parseEmailMessage(
-  emailMessageId: string
+  emailMessageId: string,
+  options?: ParseOptions
 ): Promise<{
   transactionsExtracted: number;
   error: string | null;
@@ -202,6 +208,7 @@ export async function parseEmailMessage(
         const { transactions, error: parseError, passwordRequired } =
           await parseFirstBankPdf(pdfBuffer, {
             accountLast4: accountLast4 || undefined,
+            systemSource: options?.systemSource,
           });
 
         if (parseError) {
@@ -277,7 +284,7 @@ export async function parseEmailMessage(
 
           if (!pdfBuffer) continue;
 
-          const { transactions } = await parseFirstBankPdf(pdfBuffer);
+          const { transactions } = await parseFirstBankPdf(pdfBuffer, { systemSource: options?.systemSource });
 
           for (const tx of transactions) {
             const { error: txError } = await createEmailTransaction({
@@ -346,7 +353,8 @@ export async function parseEmailMessage(
 // ============================================================
 
 export async function parseAllPendingEmails(
-  importId: string
+  importId: string,
+  options?: ParseOptions
 ): Promise<{
   messagesParsed: number;
   transactionsExtracted: number;
@@ -390,7 +398,7 @@ export async function parseAllPendingEmails(
 
   // Process each message
   for (const msg of messages) {
-    const result = await parseEmailMessage(msg.id);
+    const result = await parseEmailMessage(msg.id, options);
 
     if (result.error) {
       errored++;
@@ -412,7 +420,7 @@ export async function parseAllPendingEmails(
   }
 
   // Update import status
-  await updateEmailImportStatus({
+  await writeEmailImportStatus(adminClient, {
     importId,
     status: 'matching', // Ready for matching phase
     emailsParsed: messagesParsed,

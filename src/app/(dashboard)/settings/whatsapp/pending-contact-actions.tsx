@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
-import { updateWhatsAppPendingContact } from '@/actions/whatsapp/identity';
+import { clearWhatsAppDisputedContact, updateWhatsAppPendingContact } from '@/actions/whatsapp/identity';
 
 export function PendingContactActions({ phoneNumber }: { phoneNumber: string }) {
   const { hasPermission } = useAuth();
@@ -33,4 +33,19 @@ export function PendingContactActions({ phoneNumber }: { phoneNumber: string }) 
       <Button size="sm" variant="ghost" disabled={isPending} onClick={() => update('ignored')}>Ignore</Button>
     </div>
   );
+}
+
+export function DisputedContactActions({ phoneNumber }: { phoneNumber: string }) {
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(PERMISSIONS.WHATSAPP_MANAGE);
+  const [isPending, startTransition] = useTransition();
+  const clear = () => startTransition(async () => {
+    const result = await clearWhatsAppDisputedContact(phoneNumber);
+    if (!result.success) toast.error(result.error || 'Failed to clear disputed number');
+    else toast.success('Number cleared. It will be asked to confirm identity again.');
+  });
+
+  if (!canManage) return null;
+
+  return <Button size="sm" variant="outline" disabled={isPending} onClick={clear}>Clear dispute</Button>;
 }

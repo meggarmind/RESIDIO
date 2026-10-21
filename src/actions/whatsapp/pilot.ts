@@ -6,6 +6,7 @@ import { logAudit } from '@/lib/audit/logger';
 import { createAdminClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import type { WhatsAppRolloutMode } from '@/lib/whatsapp/rollout';
+import { fetchResidentOptions, type ResidentOption } from '@/lib/residents/resident-options';
 
 export type PilotSettings = {
   mode: WhatsAppRolloutMode;
@@ -17,6 +18,8 @@ export type PilotSettings = {
   financialLookupDailyCap: number;
   sessionRetentionDays: number;
   processedMessageRetentionDays: number;
+  surveyResponseRetentionDays: number;
+  outboundSendRetentionDays: number;
 };
 
 // Bounds mirror the clamp already applied in
@@ -25,6 +28,8 @@ export type PilotSettings = {
 // re-clamped to something else by the cron route later.
 const MIN_RETENTION_DAYS = 1;
 const MAX_RETENTION_DAYS = 30;
+const MAX_SURVEY_RETENTION_DAYS = 365;
+const MAX_OUTBOUND_SEND_RETENTION_DAYS = 365;
 
 function parseNumber(value: unknown, fallback: number): number {
   const number = typeof value === 'number' ? value : Number(value);
@@ -49,6 +54,8 @@ export async function getWhatsAppPilotSettings(): Promise<{
     'whatsapp_daily_financial_lookup_cap',
     'whatsapp_session_retention_days',
     'whatsapp_processed_message_retention_days',
+    'whatsapp_survey_retention_days',
+    'whatsapp_outbound_send_retention_days',
   ]);
   if (error) return { success: false, data: null, error: error.message };
   const values = Object.fromEntries((data || []).map((setting) => [setting.key, setting.value]));
@@ -67,59 +74,30 @@ export async function getWhatsAppPilotSettings(): Promise<{
       outboundDailyCap: parseNumber(values.whatsapp_outbound_daily_cap, 100),
       outboundBurstCap: parseNumber(values.whatsapp_outbound_burst_cap, 20),
       outboundBurstWindowMinutes: parseNumber(values.whatsapp_outbound_burst_window_minutes, 10),
-      financialLookupDailyCap: parseNumber(values.whatsapp_daily_financial_lookup_cap, 50),
+      financialLookupDailyCap: parseNumber(values.whatsapp_daily_financial_lookup_cap, 500),
       // Defaults match the compiled-in fallbacks in
       // src/app/api/cron/whatsapp-retention/route.ts (1 / 2 days) so the
       // settings page shows the value that is actually in effect when the
       // row is missing, not an arbitrary placeholder.
       sessionRetentionDays: parseNumber(values.whatsapp_session_retention_days, 1),
       processedMessageRetentionDays: parseNumber(values.whatsapp_processed_message_retention_days, 2),
+      surveyResponseRetentionDays: parseNumber(values.whatsapp_survey_retention_days, 90),
+      outboundSendRetentionDays: parseNumber(values.whatsapp_outbound_send_retention_days, 90),
     },
     error: null,
   };
 }
 
-export type PilotResidentOption = { id: string; name: string; detail: string };
+export type PilotResidentOption = ResidentOption;
 
-/**
- * Picker source for the pilot resident list (#801). Returns only the id, the
- * name and a non-contact disambiguator (resident code and active house), never
- * phone or email. Includes inactive residents so already-saved IDs still render
- * by name.
- */
+/** Picker source for the pilot resident list (#801). See fetchResidentOptions. */
 export async function getWhatsAppPilotResidentOptions(): Promise<{
   data: PilotResidentOption[];
   error: string | null;
 }> {
   const authorization = await authorizePermission(PERMISSIONS.WHATSAPP_VIEW);
   if (!authorization.authorized) return { data: [], error: authorization.error || 'Unauthorized' };
-  const { data, error } = await createAdminClient()
-    .from('residents')
-    .select('id, first_name, last_name, resident_code, resident_houses!resident_id(is_active, house:houses(house_number, street:streets(name)))')
-    .order('first_name')
-    .order('last_name')
-    // shortcut: capped at 1000 residents, so saved IDs past the cap show as Unknown; page or fetch saved IDs by .in('id') when an estate nears 1000.
-    .limit(1000);
-  if (error) return { data: [], error: error.message };
-  type Row = {
-    id: string;
-    first_name: string | null;
-    last_name: string | null;
-    resident_code: string | null;
-    resident_houses: Array<{ is_active: boolean; house: { house_number: string | null; street: { name: string | null } | null } | null }> | null;
-  };
-  return {
-    data: ((data || []) as unknown as Row[]).map((row) => {
-      const house = row.resident_houses?.find((link) => link.is_active)?.house;
-      const address = house ? [house.house_number, house.street?.name].filter(Boolean).join(' ') : '';
-      return {
-        id: row.id,
-        name: [row.first_name, row.last_name].filter(Boolean).join(' ') || 'Unnamed resident',
-        detail: [row.resident_code, address].filter(Boolean).join(' · '),
-      };
-    }),
-    error: null,
-  };
+  return fetchResidentOptions(createAdminClient());
 }
 
 export async function updateWhatsAppPilotSettings(input: PilotSettings): Promise<{ success: boolean; error: string | null }> {
@@ -142,6 +120,20 @@ export async function updateWhatsAppPilotSettings(input: PilotSettings): Promise
   ) {
     return { success: false, error: `Retention windows must be whole numbers between ${MIN_RETENTION_DAYS} and ${MAX_RETENTION_DAYS} days` };
   }
+  if (
+    !Number.isInteger(input.outboundSendRetentionDays) ||
+    input.outboundSendRetentionDays < MIN_RETENTION_DAYS ||
+    input.outboundSendRetentionDays > MAX_OUTBOUND_SEND_RETENTION_DAYS
+  ) {
+    return { success: false, error: `Outbound send retention must be a whole number between ${MIN_RETENTION_DAYS} and ${MAX_OUTBOUND_SEND_RETENTION_DAYS} days` };
+  }
+  if (
+    !Number.isInteger(input.surveyResponseRetentionDays) ||
+    input.surveyResponseRetentionDays < MIN_RETENTION_DAYS ||
+    input.surveyResponseRetentionDays > MAX_SURVEY_RETENTION_DAYS
+  ) {
+    return { success: false, error: `Survey retention must be a whole number between ${MIN_RETENTION_DAYS} and ${MAX_SURVEY_RETENTION_DAYS} days` };
+  }
   if (input.mode === 'estate') {
     const { data: current, error: currentError } = await createAdminClient()
       .from('system_settings')
@@ -162,6 +154,8 @@ export async function updateWhatsAppPilotSettings(input: PilotSettings): Promise
     whatsapp_daily_financial_lookup_cap: String(input.financialLookupDailyCap),
     whatsapp_session_retention_days: String(input.sessionRetentionDays),
     whatsapp_processed_message_retention_days: String(input.processedMessageRetentionDays),
+    whatsapp_survey_retention_days: String(input.surveyResponseRetentionDays),
+    whatsapp_outbound_send_retention_days: String(input.outboundSendRetentionDays),
   };
   const { data: savedRows, error } = await createAdminClient().from('system_settings').upsert(
     Object.entries(values).map(([key, value]) => ({ key, value, category: 'notifications' })),

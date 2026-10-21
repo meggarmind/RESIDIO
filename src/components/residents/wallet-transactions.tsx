@@ -198,7 +198,7 @@ export function WalletTransactions({ residentId }: WalletTransactionsProps) {
             <CardDescription className="text-xs">Wallet credits and debits</CardDescription>
           </div>
           <Select value={filter} onValueChange={(v) => setFilter(v as 'all' | 'credit' | 'debit')}>
-            <SelectTrigger className="w-[150px]">
+            <SelectTrigger className="w-[150px] min-h-11 md:min-h-0">
               <SelectValue placeholder="Filter" />
             </SelectTrigger>
             <SelectContent>

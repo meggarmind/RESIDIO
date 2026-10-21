@@ -1,16 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { notifyAdmins } from '@/lib/notifications/admin-notifier';
 import { recordInboundBatch, recordWebhookDelivery } from '@/lib/system-log/webhook';
-import {
-  canPerformWhatsAppFinancialLookup,
-  createSupabaseProcessedMessageStore,
-  createSupabaseWhatsAppFinancialRepository,
-  createSupabaseWhatsAppIdentityRepository,
-  handleFinancialMessage,
-  handleResidentMessage,
-  processInboundMessages,
-  resolveWhatsAppConfig,
-} from '@/lib/whatsapp';
+import { createSupabaseProcessedMessageStore, resolveWhatsAppConfig } from '@/lib/whatsapp';
 import {
   CHATMAID_HUMAN_TAKEOVER_PAUSE_MS,
   chatmaidEventDedupeKey,
@@ -20,6 +11,17 @@ import {
   isChatmaidManualOutgoing,
   verifyChatmaidSignature,
 } from '@/lib/whatsapp/providers/chatmaid-inbound';
+import { processChatmaidMessages } from '@/lib/whatsapp/providers/chatmaid-message-handler';
+import {
+  OUTBOUND_FAILURE_ALERT_THRESHOLD,
+  OUTBOUND_FAILURE_ALERT_WINDOW_MINUTES,
+  countRecentOutboundFailures,
+  outboundSendExists,
+  stripPhoneNumbers,
+  updateOutboundSendStatus,
+  type OutboundDeliveryStatus,
+} from '@/lib/whatsapp/outbound-sends';
+import { retryFailedStatementSend } from '@/lib/whatsapp/statement-delivery';
 
 /**
  * Chatmaid inbound webhook (#401).
@@ -80,36 +82,7 @@ async function runOnce(
 }
 
 async function handleMessageReceived(payload: unknown) {
-  const pauseStore = createSupabaseChatmaidSessionPauseStore();
-  let pausedCount = 0;
-
-  const result = await processInboundMessages(extractChatmaidMessages(payload), {
-    store: createSupabaseProcessedMessageStore(),
-    onMessage: async (message) => {
-      // Human takeover: an admin typed on the handset recently, so the
-      // Assistant stays quiet. The message is still claimed, so a retry does
-      // not answer it once the pause lapses.
-      const pausedUntil = await pauseStore.getPausedUntil(message.from);
-      if (pausedUntil && Date.now() < pausedUntil.getTime()) {
-        pausedCount += 1;
-        return;
-      }
-
-      await handleResidentMessage(message, {
-        repository: createSupabaseWhatsAppIdentityRepository(),
-        onIdentified: async (identifiedMessage, identity) => {
-          if (!identity.financialEligible) {
-            return;
-          }
-          await handleFinancialMessage(identifiedMessage, identity, {
-            repository: createSupabaseWhatsAppFinancialRepository(),
-            optedIn: true,
-            canLookup: canPerformWhatsAppFinancialLookup,
-          });
-        },
-      });
-    },
-  });
+  const { result, pausedCount } = await processChatmaidMessages(extractChatmaidMessages(payload));
 
   await recordInboundBatch(
     'whatsapp-chatmaid',
@@ -219,6 +192,106 @@ async function handlePhoneHealth(event: 'phone.disconnected' | 'phone.connected'
   }
 }
 
+class SendNotRecordedYet extends Error {}
+
+/** An unmatched status event is only worth a retry while it could still be the send-record race (#941). */
+const STATUS_EVENT_RETRY_WINDOW_MS = 2 * 60 * 1000;
+
+/** The provider's event time, or receipt time (now) when it is missing or unparseable. */
+function isRecentEvent(payload: unknown): boolean {
+  const at = Date.parse(String((payload as { timestamp?: unknown } | null)?.timestamp ?? ''));
+  return Number.isNaN(at) || Date.now() - at <= STATUS_EVENT_RETRY_WINDOW_MS;
+}
+
+function optionalText(value: unknown): string | null {
+  if (value === null || value === undefined || value === '') return null;
+  return stripPhoneNumbers(String(value)).slice(0, 500);
+}
+
+/**
+ * Delivery status for a send Residio made (#839). `sent` and `delivered` only
+ * move the stored send forward, so the log is not flooded; `failed` also
+ * writes a log row and, on repeated failures, alerts admins. Deduplicated per
+ * event body because Chatmaid retries webhooks.
+ */
+async function handleDeliveryStatus(event: 'message.sent' | 'message.delivered' | 'message.failed', payload: unknown, rawBody: string) {
+  const data = (payload as { data?: Record<string, unknown> } | null)?.data;
+  const messageId = typeof data?.messageId === 'string' && data.messageId.length > 0 ? data.messageId : null;
+  if (!messageId) {
+    console.warn('[chatmaid-webhook] Status event without a messageId; ignored', { event });
+    return NextResponse.json({ received: true, processed: false, ignored: 'no_message_id' });
+  }
+
+  const status = event.slice('message.'.length) as OutboundDeliveryStatus;
+  // Error text from the provider can quote the recipient, so numbers are stripped.
+  const errorCode = optionalText(data?.errorCode);
+  const errorMessage = optionalText(data?.errorMessage);
+
+  try {
+    let matched = false;
+    const outcome = await runOnce(chatmaidEventDedupeKey(event, rawBody), async () => {
+      matched = await updateOutboundSendStatus('chatmaid', messageId, status, { code: errorCode, message: errorMessage });
+      // The event can beat the send record by under a second (#941). Throwing releases the
+      // claim and answers 500, so Chatmaid's retry applies it once the record exists.
+      // The retry window is short (2 minutes) so ids Residio never sent (handset sends) only get a few 500s; after it, or for an id already stored, the event is dropped with a 200 so Chatmaid does not see an endless run of
+      // errors; a dropped `failed` still gets its outbound_failed log row below.
+      if (!matched && isRecentEvent(payload) && !(await outboundSendExists('chatmaid', messageId))) {
+        throw new SendNotRecordedYet();
+      }
+      // A statement PDF reply that failed is sent once more with a fresh signed URL (#804).
+      // Its failure must not fail this status event, which is already recorded.
+      if (status === 'failed' && matched) {
+        await retryFailedStatementSend('chatmaid', messageId).catch((error) => {
+          console.error('[chatmaid-webhook] Statement retry failed:', { messageId, error });
+        });
+      }
+      // Equality, not >=, so a burst raises one alert rather than one per further failure.
+      if (status === 'failed' && matched && (await countRecentOutboundFailures()) === OUTBOUND_FAILURE_ALERT_THRESHOLD) {
+        await notifyOrThrow({
+          title: 'WhatsApp replies are failing to deliver',
+          body:
+            `${OUTBOUND_FAILURE_ALERT_THRESHOLD} WhatsApp messages failed to deliver in the last ` +
+            `${OUTBOUND_FAILURE_ALERT_WINDOW_MINUTES} minutes. Residents are not receiving the Assistant's replies. ` +
+            'Check the failed sends in the WhatsApp operations console and the handset in the Chatmaid dashboard.',
+          category: 'system',
+          priority: 'high',
+          actionUrl: '/settings/whatsapp',
+          metadata: { source: 'chatmaid_webhook', event },
+        });
+      }
+    });
+
+    if (status === 'failed' && outcome !== 'duplicate') {
+      // Ids and error fields only: the payload also carries phone numbers.
+      console.warn('[chatmaid-webhook] Outbound message failed:', { messageId, errorCode, errorMessage });
+      await recordWebhookDelivery({
+        provider: 'whatsapp-chatmaid',
+        action: 'outbound_failed',
+        outcome: 'failure',
+        summary: { messageId, errorCode, errorMessage, matchedSend: matched },
+        error: errorMessage ?? errorCode ?? 'Outbound message failed',
+      });
+    }
+
+    return NextResponse.json({ received: true, processed: true, duplicate: outcome === 'duplicate' });
+  } catch (error) {
+    if (error instanceof SendNotRecordedYet) {
+      // Expected race, not a fault: no failure log row.
+      console.warn('[chatmaid-webhook] Status event arrived before its send was stored; asking for a retry', { event, messageId });
+      return processingFailed('Send not stored yet; retry');
+    }
+    console.error(`[chatmaid-webhook] Failed to handle ${event}:`, error);
+    await recordWebhookDelivery({
+      provider: 'whatsapp-chatmaid',
+      action: 'outbound_status',
+      outcome: 'failure',
+      summary: { event, messageId },
+      error: `${event} could not be processed`,
+    });
+    return processingFailed(`${event} could not be processed`);
+  }
+}
+
 export async function POST(request: NextRequest) {
   const resolved = await resolveWhatsAppConfig();
 
@@ -307,20 +380,10 @@ export async function POST(request: NextRequest) {
       return handlePhoneHealth(event, rawBody);
     case 'message.sent':
     case 'message.delivered':
-    case 'message.read':
     case 'message.failed':
-      // No provider updates delivery status on notification_history today
-      // (Meta and Twilio do not either), so there is nothing to mirror.
+      return handleDeliveryStatus(event, payload, rawBody);
+    case 'message.read':
       // `delivered` is terminal success; `read` is never waited on.
-      if (event === 'message.failed') {
-        // Ids and error fields only: the payload also carries phone numbers.
-        const data = (payload as { data?: Record<string, unknown> } | null)?.data;
-        console.warn('[chatmaid-webhook] Outbound message failed:', {
-          messageId: data?.messageId,
-          errorCode: data?.errorCode,
-          errorMessage: data?.errorMessage,
-        });
-      }
       return NextResponse.json({ received: true, processed: false, ignored: event });
     default:
       return NextResponse.json({ received: true, processed: false, ignored: event });

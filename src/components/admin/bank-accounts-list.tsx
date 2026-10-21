@@ -44,13 +44,18 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Plus, Loader2, Pencil, Trash2, CheckCircle, Clock, Info } from 'lucide-react';
+import { Plus, Loader2, Pencil, Trash2, CheckCircle, Clock, Info, Landmark } from 'lucide-react';
 import type { EstateBankAccount } from '@/types/database';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { SettingsEmptyState, SettingsSkeleton } from '@/components/settings/settings-states';
 
 type StatusFilter = 'all' | 'active' | 'inactive';
 
 export function BankAccountsList() {
   // Filter state
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(PERMISSIONS.SETTINGS_MANAGE_REFERENCE);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   const { data: canAutoApprove, isLoading: isLoadingPermission } = useCanAutoApprove();
@@ -58,7 +63,7 @@ export function BankAccountsList() {
   const includeInactive = Boolean(canAutoApprove) && (statusFilter === 'all' || statusFilter === 'inactive') && Boolean(canViewInactive?.authorized);
 
   // Data queries
-  const { data: accountsData, isLoading, refetch } = useBankAccounts(includeInactive);
+  const { data: accountsData, isLoading } = useBankAccounts(includeInactive);
 
   // Mutations
   const createMutation = useCreateBankAccount();
@@ -177,8 +182,8 @@ export function BankAccountsList() {
   return (
     <div className="space-y-4">
       {/* Header with filter and add button */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-4">
           <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
             <TabsList>
               <TabsTrigger value="all">{canAutoApprove ? 'All' : 'Active'}</TabsTrigger>
@@ -190,9 +195,10 @@ export function BankAccountsList() {
             <span className="text-sm text-muted-foreground">Inactive accounts require finance approval permission.</span>
           )}
         </div>
+        {canManage && (
         <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
           <DialogTrigger asChild>
-            <Button size="sm" onClick={openCreateDialog}>
+            <Button size="sm" className="min-h-11 md:min-h-8" onClick={openCreateDialog}>
               <Plus className="mr-2 h-4 w-4" />
               Add Account
             </Button>
@@ -207,15 +213,15 @@ export function BankAccountsList() {
             {!isLoadingPermission && (
               <>
                 {!canAutoApprove && (
-                  <Alert className="border-amber-200 bg-amber-50">
-                    <Clock className="h-4 w-4 text-amber-600" />
-                    <AlertDescription className="text-amber-800">This change will require approval from an admin or chairman.</AlertDescription>
+                  <Alert className="border-warning/20 bg-warning/10">
+                    <Clock className="h-4 w-4 text-warning" />
+                    <AlertDescription className="text-foreground">This change will require approval from an admin or chairman.</AlertDescription>
                   </Alert>
                 )}
                 {canAutoApprove && (
-                  <Alert className="border-green-200 bg-green-50">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <AlertDescription className="text-green-800">This change will be applied immediately.</AlertDescription>
+                  <Alert className="border-success/20 bg-success/10">
+                    <CheckCircle className="h-4 w-4 text-success" />
+                    <AlertDescription className="text-foreground">This change will be applied immediately.</AlertDescription>
                   </Alert>
                 )}
               </>
@@ -297,6 +303,7 @@ export function BankAccountsList() {
             </form>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       {/* Info message about account number validation */}
@@ -307,7 +314,7 @@ export function BankAccountsList() {
 
       {/* Table */}
       <div className="rounded-md border">
-        <Table>
+        <Table stack>
           <TableHeader>
             <TableRow>
               <TableHead>Account Name</TableHead>
@@ -315,38 +322,49 @@ export function BankAccountsList() {
               <TableHead>Bank</TableHead>
               <TableHead className="max-w-[200px]">Description</TableHead>
               <TableHead className="w-[100px]">Status</TableHead>
-              <TableHead className="w-[100px] text-right">Actions</TableHead>
+              {canManage && <TableHead className="w-[100px] text-right">Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
-                  <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                <TableCell colSpan={canManage ? 6 : 5}>
+                  <SettingsSkeleton />
                 </TableCell>
               </TableRow>
             ) : filteredAccounts.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
-                  No bank accounts found.
+                <TableCell colSpan={canManage ? 6 : 5}>
+                  <SettingsEmptyState
+                    icon={Landmark}
+                    title="No bank accounts here"
+                    description="Bank accounts receive statement imports and payments."
+                    action={canManage && (
+                      <Button size="sm" className="min-h-11 md:min-h-8" onClick={openCreateDialog}>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Account
+                      </Button>
+                    )}
+                  />
                 </TableCell>
               </TableRow>
             ) : (
               filteredAccounts.map((account) => (
                 <TableRow key={account.id}>
-                  <TableCell className="font-medium">{account.account_name}</TableCell>
-                  <TableCell className="font-mono text-sm">{account.account_number}</TableCell>
-                  <TableCell>{account.bank_name}</TableCell>
-                  <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">{truncateDescription(account.description)}</TableCell>
-                  <TableCell>
+                  <TableCell label="Account name" className="font-medium">{account.account_name}</TableCell>
+                  <TableCell label="Account number" className="font-mono text-sm">{account.account_number}</TableCell>
+                  <TableCell label="Bank">{account.bank_name}</TableCell>
+                  <TableCell label="Description" className="text-muted-foreground text-sm max-w-[200px] truncate">{truncateDescription(account.description)}</TableCell>
+                  <TableCell label="Status">
                     <Badge variant={account.is_active ? 'default' : 'secondary'}>{account.is_active ? 'Active' : 'Inactive'}</Badge>
                   </TableCell>
+                  {canManage && (
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8"
+                        className="size-11 md:size-8"
                         onClick={() => openEditDialog(account)}
                         aria-label={`Edit ${account.account_name}`}
                       >
@@ -355,7 +373,7 @@ export function BankAccountsList() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        className="size-11 md:size-8 text-destructive hover:text-destructive"
                         onClick={() => openDeleteDialog(account)}
                         disabled={deleteMutation.isPending}
                         aria-label={`Delete ${account.account_name}`}
@@ -364,6 +382,7 @@ export function BankAccountsList() {
                       </Button>
                     </div>
                   </TableCell>
+                  )}
                 </TableRow>
               )))
             }
@@ -379,7 +398,7 @@ export function BankAccountsList() {
             <AlertDialogDescription className="space-y-2">
               <span>Are you sure you want to delete &quot;{accountToDelete?.account_name}&quot;?</span>
               {!canAutoApprove && (
-                <span className="block text-amber-600">This action will be submitted for approval.</span>
+                <span className="block text-warning">This action will be submitted for approval.</span>
               )}
               <span className="block text-muted-foreground">If this account has import history, it will be deactivated instead of deleted.</span>
             </AlertDialogDescription>

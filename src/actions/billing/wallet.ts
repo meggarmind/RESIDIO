@@ -6,7 +6,8 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { callWalletPaymentRpc } from '@/lib/billing/wallet-payment-rpc';
-import { debitWalletForInvoiceAtomic } from '@/lib/billing/wallet-invoice-debit';
+import { debitWalletForInvoiceAtomic, type WalletInvoiceDebitResult } from '@/lib/billing/wallet-invoice-debit';
+import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
 
 export type WalletTransaction = {
     id: string;
@@ -330,6 +331,15 @@ export async function allocateWalletToInvoices(
     let invoicesPaid = 0;
     let totalAllocated = 0;
 
+    // The debit result carries the post-debit balance, so the wallet is re-read only
+    // when it does not (#778).
+    const walletEmptyAfterDebit = async (result: WalletInvoiceDebitResult) => {
+        if (result.newBalance !== null) return result.newBalance <= 0;
+        if (result.error === 'Insufficient wallet balance') return true;
+        const { data: wallet } = await getOrCreateWallet(residentId);
+        return !wallet || wallet.balance <= 0;
+    };
+
     // If priority house provided, get those invoices first
     if (priorityHouseId) {
         const { data: priorityInvoices, error: priorityError } = await supabase
@@ -350,9 +360,7 @@ export async function allocateWalletToInvoices(
                     console.log(`[Wallet] Allocated ₦${result.amountDebited} to priority house invoice ${invoice.invoice_number}`);
                 }
 
-                // Check if wallet is now empty
-                const { data: wallet } = await getOrCreateWallet(residentId);
-                if (!wallet || wallet.balance <= 0) {
+                if (await walletEmptyAfterDebit(result)) {
                     return { success: true, invoicesPaid, totalAllocated, error: null };
                 }
             }
@@ -385,9 +393,7 @@ export async function allocateWalletToInvoices(
             totalAllocated += result.amountDebited;
         }
 
-        // Check if wallet is now empty
-        const { data: wallet } = await getOrCreateWallet(residentId);
-        if (!wallet || wallet.balance <= 0) {
+        if (await walletEmptyAfterDebit(result)) {
             break;
         }
     }
@@ -429,8 +435,14 @@ export interface YearlyWalletTransactionSummary {
     total_debits: number;
     net_change: number;
     closing_balance: number;
-    transactions: WalletTransaction[];
+    transactions: YearlyWalletTransaction[];
 }
+
+// Only the columns the yearly Transaction History view renders (#837).
+const YEARLY_WALLET_TRANSACTION_COLUMNS =
+    'id, type, amount, balance_after, reference_type, reference_id, description, created_at';
+
+export type YearlyWalletTransaction = Omit<WalletTransaction, 'wallet_id'>;
 
 /**
  * Get the resident wallet ledger grouped by calendar year for the expandable
@@ -446,14 +458,19 @@ export async function getYearlyWalletTransactions(
         return { data: [], error: null };
     }
 
-    const { data, error } = await supabase
-        .from('wallet_transactions')
-        .select('*')
-        .eq('wallet_id', wallet.id)
-        .order('created_at', { ascending: false });
+    // Paged: a single read is capped at 1000 rows, which would silently truncate the ledger (#837).
+    const { data, error } = await fetchAllRows<YearlyWalletTransaction>((from, to) =>
+        supabase
+            .from('wallet_transactions')
+            .select(YEARLY_WALLET_TRANSACTION_COLUMNS)
+            .eq('wallet_id', wallet.id)
+            .order('created_at', { ascending: false })
+            .order('id', { ascending: false })
+            .range(from, to)
+    );
 
     if (error) {
-        return { data: [], error: error.message };
+        return { data: [], error };
     }
 
     const byYear = new Map<number, YearlyWalletTransactionSummary>();

@@ -131,6 +131,7 @@ describe('WhatsApp notification dispatch', () => {
       from: vi.fn().mockReturnValue({
          select: vi.fn().mockReturnThis(),
          eq: vi.fn().mockReturnThis(),
+         is: vi.fn().mockReturnThis(),
          gte: vi.fn().mockReturnThis(),
          maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'optin-1' }, error: null }),
       }),
@@ -186,7 +187,8 @@ describe('WhatsApp notification dispatch', () => {
       templateName: 'invoice_reminder',
       languageCode: 'en_US',
       parameters: ['Ada', 'INV-001', 'NGN 10,000', '1 Sep'],
-    }, undefined, undefined);
+      idempotencySeed: 'queue-1',
+    }, undefined, undefined, expect.objectContaining({ purpose: 'notification', residentId: 'resident-1' }));
   });
 
   it('rejects WhatsApp sends when the configured daily cap is reached', async () => {
@@ -200,12 +202,14 @@ describe('WhatsApp notification dispatch', () => {
           return {
             select: vi.fn().mockReturnThis(),
             eq: vi.fn().mockReturnThis(),
+            is: vi.fn().mockReturnThis(),
             gte: vi.fn().mockResolvedValue({ count: 1, error: null }),
           };
         }
         return {
           select: vi.fn().mockReturnThis(),
           eq: vi.fn().mockReturnThis(),
+          is: vi.fn().mockReturnThis(),
           maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'optin-1' }, error: null }),
         };
       }),
@@ -457,11 +461,13 @@ describe('WhatsApp notification dispatch', () => {
             ? {
                 select: vi.fn().mockReturnThis(),
                 eq: vi.fn().mockReturnThis(),
+                is: vi.fn().mockReturnThis(),
                 gte: vi.fn().mockResolvedValue({ count: 0, error: null }),
               }
             : {
                 select: vi.fn().mockReturnThis(),
                 eq: vi.fn().mockReturnThis(),
+                is: vi.fn().mockReturnThis(),
                 maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
               }
         ),
@@ -490,11 +496,13 @@ describe('WhatsApp notification dispatch', () => {
             ? {
                 select: vi.fn().mockReturnThis(),
                 eq: vi.fn().mockReturnThis(),
+                is: vi.fn().mockReturnThis(),
                 gte: vi.fn().mockResolvedValue({ count: 1, error: null }),
               }
             : {
                 select: vi.fn().mockReturnThis(),
                 eq: vi.fn().mockReturnThis(),
+                is: vi.fn().mockReturnThis(),
                 maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'optin-1' }, error: null }),
               }
         ),
@@ -531,6 +539,7 @@ describe('WhatsApp notification dispatch', () => {
           return {
             select: vi.fn().mockReturnValue({
               eq: vi.fn().mockReturnThis(),
+              is: vi.fn().mockReturnThis(),
               gte: vi.fn().mockResolvedValue({ count: 0, error: null }),
             }),
             insert: insertMock,
@@ -543,6 +552,7 @@ describe('WhatsApp notification dispatch', () => {
         return {
           select: vi.fn().mockReturnThis(),
           eq: vi.fn().mockReturnThis(),
+          is: vi.fn().mockReturnThis(),
           maybeSingle: vi.fn().mockResolvedValue({ data: optIn, error: null }),
         };
       });

@@ -1,6 +1,7 @@
 import type { Json } from '@/types/database.generated';
 import { getRawSettingsAsService } from '@/lib/settings/service';
 import type { OverrideSettings, SettingsSnapshot } from './types';
+import { parseSwitch } from './switch';
 import { DEBUG_DURATION_DEFAULT, DEBUG_DURATION_MAX, DEBUG_DURATION_MIN, isValidDebugDuration } from './limits';
 
 export const OVERRIDE_SETTING_KEYS = {
@@ -14,24 +15,12 @@ export const OVERRIDE_SETTING_KEYS = {
 
 /** Debug Mode duration setting and bounds (#717). Kept out of the send-time key list: the resolver never reads it. */
 export const DEBUG_DURATION_KEY = 'comms_debug_duration_minutes';
-export { DEBUG_DURATION_MIN, DEBUG_DURATION_MAX, DEBUG_DURATION_DEFAULT, isValidDebugDuration };
+export { DEBUG_DURATION_MIN, DEBUG_DURATION_MAX, DEBUG_DURATION_DEFAULT, isValidDebugDuration, parseSwitch };
 
 /** The stored default duration as a number; absent, malformed or out of bounds falls back to 60. */
 export function parseDebugDuration(value: Json | undefined): number {
   const n = typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;
   return isValidDebugDuration(n) ? n : DEBUG_DURATION_DEFAULT;
-}
-
-/**
- * A switch value. Absent is off; `true`/`'true'` is on; `false`/`'false'` is
- * off; anything else is unrecognised and counts as ON, so a corrupted value can
- * only ever widen the redirect.
- */
-export function parseSwitch(value: Json | undefined): boolean {
-  if (value === undefined || value === null) return false;
-  if (value === true || value === 'true') return true;
-  if (value === false || value === 'false') return false;
-  return true;
 }
 
 /** Strings only. A number (a phone that lost its leading zero) is treated as blank. */

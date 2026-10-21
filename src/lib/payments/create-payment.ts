@@ -10,6 +10,7 @@ import { shouldSendToResident } from '@/lib/notifications/preferences'
 import { buildPaymentReceivedWhatsApp } from '@/lib/whatsapp/outbound'
 import { isWhatsAppOptedIn } from '@/lib/whatsapp/opt-in'
 import { addToQueue } from '@/lib/notifications/queue'
+import { isEventChannelEnabled } from '@/lib/notifications/event-content'
 import { residentHasHouse } from '@/lib/payments/house-membership'
 
 // Extended schema to include import tracking fields, house association, and verification
@@ -167,11 +168,14 @@ export async function createPaymentCore(
         },
     })
 
-    const whatsappPreference = await shouldSendToResident({
-        residentId: result.data.resident_id,
-        category: 'payment',
-        channel: 'whatsapp',
-    })
+    // Admin channel switch (#909) first, then the resident's own preference and opt-in.
+    const whatsappPreference = (await isEventChannelEnabled('payment_receipt', 'whatsapp'))
+        ? await shouldSendToResident({
+            residentId: result.data.resident_id,
+            category: 'payment',
+            channel: 'whatsapp',
+        })
+        : { shouldSend: false }
     if (whatsappPreference.shouldSend) {
         const { data: paymentRecipient } = await supabase
             .from('residents')

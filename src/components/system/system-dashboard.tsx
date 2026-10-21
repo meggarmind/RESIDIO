@@ -150,7 +150,7 @@ export function SystemDashboard() {
           <StatusCard
             title="Accounts Awaiting Approval"
             description="New sign-ups needing review"
-            href="/system/accounts?tab=pending"
+            href="/settings/access?tab=pending"
             icon={UserCog}
             isLoading={accountsQuery.isLoading}
             errorMessage={accountsQuery.error ? accountsQuery.error.message : null}

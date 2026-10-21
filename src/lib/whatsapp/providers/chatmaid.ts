@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+import { getEventContent } from '@/lib/notifications/event-content';
+import { EVENT_KEYS, EVENT_REGISTRY, renderEventText } from '@/lib/notifications/event-content-registry';
 import type { ChatmaidWhatsAppConfig } from '@/lib/whatsapp/config';
 import type { WhatsAppProvider } from '@/lib/whatsapp/provider';
 import { isRetryableHttpStatus } from '@/lib/whatsapp/retry';
@@ -20,17 +22,22 @@ import type {
  * Three load-bearing decisions, each a direct consequence of a measured
  * failure mode:
  *
- * 1. **Idempotency key = sha256(fromNumber|to|content), never a domain id.**
+ * 1. **Idempotency key = sha256(fromNumber|to|seed|content), never a domain id alone.**
  *    Replaying Chatmaid's `idempotencyKey` with an unchanged body correctly
  *    dedupes. Replaying the SAME key with a DIFFERENT body returns `201`
  *    carrying the ORIGINAL message and silently drops the new one -- no
  *    `409`, no error. An adapter keyed on e.g. an invoice id would drop
  *    every corrected message while logging success. Hashing the body itself
  *    means a genuinely different message always gets a different key.
+ *    The optional `seed` (inbound message id, or notification queue id) is
+ *    mixed in so a legitimately REPEATED text, such as the standard menu
+ *    reply, is a distinct send rather than a silently dropped duplicate
+ *    (#842), while a retry of the same inbound message or queue item reuses
+ *    the same key and stays deduplicated.
  *
  * 2. **`sendTemplate` renders to plain text locally.** Chatmaid has no
  *    template/content-SID concept -- there is nothing to call. The
- *    `TEMPLATE_RENDERERS` map below turns the same `(templateName,
+ *    renderer below turns the same `(templateName,
  *    parameters)` pairs the Meta/Twilio providers receive into a plain-text
  *    rendering, then sends it exactly like `sendText`. This means Chatmaid
  *    sends are not template-gated the way Meta's are, which is fine --
@@ -159,6 +166,50 @@ function extractConnectionStatus(body: unknown): string {
   return 'unknown';
 }
 
+export type ChatmaidPhoneLookup =
+  | { ok: false; httpStatus: number }
+  | { ok: true; pairedNumbers: string[]; match: ChatmaidPhoneNumberEntry | null };
+
+/**
+ * The same `GET /v1/phone-numbers` lookup `resolveConnection` does at send
+ * time, exposed so the save path and the connection test can reject a
+ * from-number that is not paired to the account (#843) before it is stored.
+ * Network errors propagate; callers own the "could not reach" message.
+ */
+export async function lookupChatmaidPhone(
+  config: Pick<ChatmaidWhatsAppConfig, 'baseUrl' | 'apiKey' | 'fromNumber'>,
+  fetchImpl: typeof fetch = fetch
+): Promise<ChatmaidPhoneLookup> {
+  const response = await fetchImpl(`${config.baseUrl}/v1/phone-numbers`, {
+    headers: { Authorization: `Bearer ${config.apiKey}` },
+    cache: 'no-store',
+  });
+  if (!response.ok) {
+    return { ok: false, httpStatus: response.status };
+  }
+
+  const entries = extractPhoneNumberEntries(await safeJson(response));
+  const target = normalizePhoneForMatch(config.fromNumber);
+  return {
+    ok: true,
+    pairedNumbers: entries.map((entry) => entry.number),
+    match: entries.find((entry) => normalizePhoneForMatch(entry.number) === target) ?? null,
+  };
+}
+
+/** `connectionStatus` of one paired phone, or 'unknown' when Chatmaid does not say. */
+export async function fetchChatmaidConnectionStatus(
+  config: Pick<ChatmaidWhatsAppConfig, 'baseUrl' | 'apiKey'>,
+  phoneId: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<string> {
+  const response = await fetchImpl(`${config.baseUrl}/v1/phone-numbers/${phoneId}/status`, {
+    headers: { Authorization: `Bearer ${config.apiKey}` },
+    cache: 'no-store',
+  });
+  return response.ok ? extractConnectionStatus(await safeJson(response)) : 'unknown';
+}
+
 /**
  * Resolves whether `config.fromNumber` is currently connected, caching the
  * result (and the resolved dashboard phone id, needed only for the status
@@ -227,39 +278,59 @@ function invalidateConnectionCache(config: ChatmaidWhatsAppConfig): void {
 }
 
 /**
- * sha256 hex of `fromNumber|to|content`, which is already exactly 64 hex
+ * sha256 hex of `fromNumber|to|seed|content`, which is already exactly 64 hex
  * characters -- Chatmaid's `idempotencyKey` cap -- so the `.slice()` below
  * is a defensive no-op rather than lossy truncation. Keyed on the message
  * body (see file docblock point 1), never on a domain id such as an invoice
  * or notification-queue id.
  */
-function buildIdempotencyKey(fromNumber: string, to: string, content: string): string {
-  const hash = createHash('sha256').update(`${fromNumber}|${to}|${content}`, 'utf8').digest('hex');
+function buildIdempotencyKey(
+  fromNumber: string,
+  to: string,
+  content: string,
+  seed = ''
+): string {
+  const hash = createHash('sha256')
+    .update(`${fromNumber}|${to}|${seed}|${content}`, 'utf8')
+    .digest('hex');
   return hash.slice(0, CHATMAID_MAX_IDEMPOTENCY_KEY_LENGTH);
 }
 
 /**
- * Chatmaid has no template concept (file docblock point 2). Each renderer
- * takes the same positional `parameters` the Meta/Twilio Content templates
- * receive (see `src/lib/whatsapp/outbound.ts` for how each array is built)
- * and produces a plain-text equivalent.
+ * Chatmaid has no template concept (file docblock point 2). Payment reminders and receipts read their
+ * text from the editable wording (`getEventContent(event, 'whatsapp')`, #908): the same positional
+ * `parameters` the Meta/Twilio Content templates receive (see `src/lib/whatsapp/outbound.ts`) are
+ * named through the registry's `parameterOrder`. `announcement` is written per send, so it stays here.
  */
 const TEMPLATE_RENDERERS: Record<string, (parameters: string[]) => string> = {
-  // parameters: [residentName, invoiceNumber, amount, dueDate]
-  invoice_reminder: ([residentName, invoiceNumber, amount, dueDate]) =>
-    `Hi ${residentName || 'there'}, invoice ${invoiceNumber || ''} for ${amount || ''} is due ${
-      dueDate || 'soon'
-    }. Please make payment at your earliest convenience.`,
-  // parameters: [residentName, amount, paymentDate, referenceNumber]
-  payment_received: ([residentName, amount, paymentDate, referenceNumber]) =>
-    `Hi ${residentName || 'there'}, we've received your payment of ${amount || ''} on ${
-      paymentDate || ''
-    } (Ref: ${referenceNumber || 'Not provided'}). Thank you.`,
   // parameters: [title, summary]
   announcement: ([title, summary]) => `${title || 'Announcement'}\n\n${summary || ''}`,
 };
 
-function renderTemplateToText(templateName: string, parameters: string[]): string {
+/** What an empty parameter reads as, so a missing value never leaves a gap in the sentence. */
+const PARAMETER_FALLBACKS: Record<string, string> = {
+  resident_name: 'there',
+  due_date: 'soon',
+  reference_number: 'Not provided',
+};
+
+const EVENT_BY_TEMPLATE = new Map(
+  EVENT_KEYS.filter((key) => EVENT_REGISTRY[key].whatsapp).map((key) => [
+    EVENT_REGISTRY[key].templateName,
+    key,
+  ])
+);
+
+async function renderTemplateToText(templateName: string, parameters: string[]): Promise<string> {
+  const event = EVENT_BY_TEMPLATE.get(templateName);
+  const order = event && EVENT_REGISTRY[event].whatsapp?.parameterOrder;
+  if (event && order) {
+    const variables = Object.fromEntries(
+      order.map((name, index) => [name, parameters[index] || PARAMETER_FALLBACKS[name] || ''])
+    );
+    const content = await getEventContent(event, 'whatsapp');
+    return renderEventText(content.body, variables);
+  }
   const renderer = TEMPLATE_RENDERERS[templateName];
   if (renderer) {
     return renderer(parameters);
@@ -273,7 +344,12 @@ export function createChatmaidWhatsAppProvider(
   config: ChatmaidWhatsAppConfig,
   fetchImpl: typeof fetch = fetch
 ): WhatsAppProvider {
-  async function sendContent(to: string, content: string): Promise<WhatsAppSendResult> {
+  async function sendContent(
+    to: string,
+    content: string,
+    seed?: string,
+    mediaUrls?: string[]
+  ): Promise<WhatsAppSendResult> {
     if (content.length > CHATMAID_MAX_CONTENT_LENGTH) {
       return {
         success: false,
@@ -287,7 +363,7 @@ export function createChatmaidWhatsAppProvider(
       return { success: false, error: connection.error };
     }
 
-    const idempotencyKey = buildIdempotencyKey(config.fromNumber, to, content);
+    const idempotencyKey = buildIdempotencyKey(config.fromNumber, to, content, seed);
 
     let response: Response;
     try {
@@ -302,6 +378,7 @@ export function createChatmaidWhatsAppProvider(
           to,
           content,
           idempotencyKey,
+          ...(mediaUrls?.length ? { mediaUrls } : {}),
         }),
       });
     } catch {
@@ -349,11 +426,11 @@ export function createChatmaidWhatsAppProvider(
 
   return {
     async sendText(message: WhatsAppTextMessage) {
-      return sendContent(message.to, message.body);
+      return sendContent(message.to, message.body, message.idempotencySeed, message.mediaUrls);
     },
     async sendTemplate(message: WhatsAppTemplateMessage) {
-      const content = renderTemplateToText(message.templateName, message.parameters);
-      return sendContent(message.to, content);
+      const content = await renderTemplateToText(message.templateName, message.parameters);
+      return sendContent(message.to, content, message.idempotencySeed);
     },
   };
 }

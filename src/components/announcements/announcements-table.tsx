@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, memo } from 'react';
+import { useCan } from '@/components/auth/can';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import Link from 'next/link';
 import {
   Table,
@@ -77,12 +79,20 @@ const AnnouncementRow = memo(function AnnouncementRow({
   onUnpublish,
   onArchive,
   onDelete,
+  canUpdate,
+  canPublish,
+  canDelete,
 }: {
   announcement: Announcement;
   onPublish: (id: string) => void;
   onUnpublish: (id: string) => void;
   onArchive: (id: string) => void;
   onDelete: (id: string) => void;
+  /** announcements.update: edit and archive. */
+  canUpdate: boolean;
+  /** announcements.publish: publish, schedule changes and unpublish. */
+  canPublish: boolean;
+  canDelete: boolean;
 }) {
   return (
     <TableRow className="hover:bg-gray-50 dark:hover:bg-[#0F172A]">
@@ -151,7 +161,7 @@ const AnnouncementRow = memo(function AnnouncementRow({
                 View
               </Link>
             </DropdownMenuItem>
-            {announcement.status === 'draft' && (
+            {canUpdate && announcement.status === 'draft' && (
               <DropdownMenuItem asChild>
                 <Link href={`/announcements/${announcement.id}/edit`}>
                   <Pencil className="mr-2 h-4 w-4" />
@@ -160,31 +170,31 @@ const AnnouncementRow = memo(function AnnouncementRow({
               </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />
-            {(announcement.status === 'draft' || announcement.status === 'scheduled') && (
+            {canPublish && (announcement.status === 'draft' || announcement.status === 'scheduled') && (
               <DropdownMenuItem onClick={() => onPublish(announcement.id)}>
                 <Send className="mr-2 h-4 w-4" />
                 Publish Now
               </DropdownMenuItem>
             )}
-            {announcement.status === 'scheduled' && (
+            {canPublish && announcement.status === 'scheduled' && (
               <DropdownMenuItem onClick={() => onUnpublish(announcement.id)}>
                 <X className="mr-2 h-4 w-4" />
                 Cancel Schedule
               </DropdownMenuItem>
             )}
-            {announcement.status === 'published' && (
+            {canPublish && announcement.status === 'published' && (
               <DropdownMenuItem onClick={() => onUnpublish(announcement.id)}>
                 <X className="mr-2 h-4 w-4" />
                 Unpublish
               </DropdownMenuItem>
             )}
-            {(announcement.status === 'draft' || announcement.status === 'published') && (
+            {canUpdate && (announcement.status === 'draft' || announcement.status === 'published') && (
               <DropdownMenuItem onClick={() => onArchive(announcement.id)}>
                 <Archive className="mr-2 h-4 w-4" />
                 Archive
               </DropdownMenuItem>
             )}
-            {announcement.status === 'draft' && (
+            {canDelete && announcement.status === 'draft' && (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -223,6 +233,10 @@ function TableSkeleton() {
 }
 
 export function AnnouncementsTable() {
+  const canCreate = useCan(PERMISSIONS.ANNOUNCEMENTS_CREATE);
+  const canUpdate = useCan(PERMISSIONS.ANNOUNCEMENTS_UPDATE);
+  const canPublish = useCan(PERMISSIONS.ANNOUNCEMENTS_PUBLISH);
+  const canDelete = useCan(PERMISSIONS.ANNOUNCEMENTS_DELETE);
   const [params, setParams] = useState<AnnouncementListParams>({
     status: undefined,
     search: undefined,
@@ -349,12 +363,14 @@ export function AnnouncementsTable() {
               </Select>
             </div>
 
-            <Button asChild>
-              <Link href="/announcements/new">
-                <Plus className="mr-2 h-4 w-4" />
-                New Announcement
-              </Link>
-            </Button>
+            {canCreate && (
+              <Button asChild>
+                <Link href="/announcements/new">
+                  <Plus className="mr-2 h-4 w-4" />
+                  New Announcement
+                </Link>
+              </Button>
+            )}
           </div>
 
           <Tabs
@@ -383,13 +399,17 @@ export function AnnouncementsTable() {
           <div className="text-center py-12 text-muted-foreground">
             <Megaphone className="h-12 w-12 mx-auto mb-4 opacity-50" />
             <p className="text-lg font-medium">No announcements found</p>
-            <p className="text-sm">Create your first announcement to get started</p>
-            <Button asChild className="mt-4">
-              <Link href="/announcements/new">
-                <Plus className="mr-2 h-4 w-4" />
-                Create Announcement
-              </Link>
-            </Button>
+            {canCreate && (
+              <>
+                <p className="text-sm">Create your first announcement to get started</p>
+                <Button asChild className="mt-4">
+                  <Link href="/announcements/new">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create Announcement
+                  </Link>
+                </Button>
+              </>
+            )}
           </div>
         ) : (
           <>
@@ -415,6 +435,9 @@ export function AnnouncementsTable() {
                       onUnpublish={handleUnpublish}
                       onArchive={handleArchive}
                       onDelete={setDeleteId}
+                      canUpdate={canUpdate}
+                      canPublish={canPublish}
+                      canDelete={canDelete}
                     />
                   ))}
                 </TableBody>

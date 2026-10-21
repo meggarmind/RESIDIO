@@ -4,6 +4,8 @@ import {
   queueInvoiceGeneratedEmail,
 } from '@/lib/notifications/invoice-generation-email';
 import { addToQueue } from '@/lib/notifications/queue';
+import { InvoiceGeneratedEmail } from '@/emails';
+import { getEventContent, isEventChannelEnabled } from '@/lib/notifications/event-content';
 import { getSettingValueAsService } from '@/lib/settings/service';
 import { createAdminClient } from '@/lib/supabase/server';
 
@@ -12,6 +14,15 @@ vi.mock('@/emails', () => ({ InvoiceGeneratedEmail: vi.fn(() => null) }));
 vi.mock('@/lib/settings/service', () => ({ getSettingValueAsService: vi.fn() }));
 vi.mock('@/lib/email', () => ({ getEstateEmailSettings: vi.fn().mockResolvedValue({ estateName: 'Estate' }) }));
 vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
+// #907: the wording read is its own admin-client query; keep it out of this test's call counts.
+vi.mock('@/lib/notifications/event-content', async (importActual) => {
+  const actual = await importActual<typeof import('@/lib/notifications/event-content')>();
+  return {
+    ...actual,
+    getEventContent: vi.fn(async () => actual.getEventDefaults('invoice_generated')),
+    isEventChannelEnabled: vi.fn(async () => true),
+  };
+});
 vi.mock('@/lib/notifications/queue', () => ({
   addToQueue: vi.fn(),
   PRIORITY: { NORMAL: 5 },
@@ -49,6 +60,16 @@ describe('invoice generation email queue', () => {
     expect(invoiceGeneratedDeduplicationKey('invoice-1')).toBe('invoice-generated:invoice-1');
   });
 
+  it('does not queue when the admin has switched the invoice email channel off (#909)', async () => {
+    vi.mocked(isEventChannelEnabled).mockResolvedValueOnce(false);
+
+    const result = await queueInvoiceGeneratedEmail('invoice-1', 'candidate-1');
+
+    expect(isEventChannelEnabled).toHaveBeenCalledWith('invoice_generated', 'email');
+    expect(result.status).toBe('skipped');
+    expect(addToQueueMock).not.toHaveBeenCalled();
+  });
+
   it('does not queue when invoice notifications are disabled', async () => {
     settingsMock.mockResolvedValue(false);
     const result = await queueInvoiceGeneratedEmail('invoice-1', 'candidate-1');
@@ -68,6 +89,20 @@ describe('invoice generation email queue', () => {
       deduplication_key: 'invoice-generated:invoice-1',
       metadata: expect.objectContaining({ candidateId: 'candidate-1', invoiceId: 'invoice-1' }),
     }));
+  });
+
+  it('stored wording reaches the queued subject and the email component, property as "house, street" (#907)', async () => {
+    const stored = { subject: 'Bill {{invoice_number}} for {{property}}', heading: 'Custom' };
+    vi.mocked(getEventContent).mockResolvedValueOnce(stored);
+    adminClientMock.mockReturnValue(createClient() as unknown as ReturnType<typeof createAdminClient>);
+    addToQueueMock.mockResolvedValue({ success: true, queueId: 'queue-1' });
+
+    await queueInvoiceGeneratedEmail('invoice-1', 'candidate-1');
+
+    expect(addToQueueMock).toHaveBeenCalledWith(
+      expect.objectContaining({ subject: 'Bill INV-202608-A1 for A1, Main Street' })
+    );
+    expect(InvoiceGeneratedEmail).toHaveBeenCalledWith(expect.objectContaining({ copy: stored }));
   });
 
   it('reuses an existing queue item when a concurrent insert wins', async () => {

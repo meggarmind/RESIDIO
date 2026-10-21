@@ -3,18 +3,16 @@
 /**
  * Server Actions for Notification Templates
  *
- * CRUD operations for notification templates.
+ * Reads, plus the single write: editing the wording of one of the resident emails (#907).
  */
 
-import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
-import type {
-  NotificationTemplate,
-  CreateTemplateInput,
-  UpdateTemplateInput,
-} from '@/lib/notifications/types';
+import { z } from 'zod';
+import { EVENT_KEYS, getToggleableChannels, isEventKey, validateOverrides } from '@/lib/notifications/event-content-registry';
+import type { NotificationTemplate } from '@/lib/notifications/types';
 
 /**
  * Get all notification templates
@@ -95,272 +93,115 @@ export async function getTemplateByName(
   return { data: data as NotificationTemplate, error: null };
 }
 
+const updateEventContentSchema = z.object({
+  event: z.enum(EVENT_KEYS),
+  channel: z.enum(['email', 'whatsapp']),
+  overrides: z.record(z.string(), z.string().max(5000)),
+});
+
 /**
- * Create a new notification template
+ * Save the admin's wording for one event on one channel (email, or Chatmaid WhatsApp text). `overrides` replaces the stored map; a blank value
+ * (or a key left out) means "use the code default", which is how Reset to default works.
  */
-export async function createTemplate(
-  input: CreateTemplateInput
+export async function updateEventContent(
+  event: string,
+  channel: string,
+  overrides: Record<string, string>
 ): Promise<{ data: NotificationTemplate | null; error: string | null }> {
   const auth = await authorizePermission(PERMISSIONS.NOTIFICATIONS_MANAGE);
   if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
 
-  const supabase = await createServerSupabaseClient();
-
-  // Get current user
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { data: null, error: 'Not authenticated' };
+  const parsed = updateEventContentSchema.safeParse({ event, channel, overrides });
+  if (!parsed.success) {
+    return { data: null, error: parsed.error.issues[0]?.message || 'Invalid input' };
   }
 
-  const { data, error } = await supabase
-    .from('notification_templates')
-    .insert({
-      name: input.name,
-      display_name: input.display_name,
-      category: input.category,
-      channel: input.channel,
-      subject_template: input.subject_template || null,
-      body_template: input.body_template,
-      html_template: input.html_template || null,
-      variables: input.variables || [],
-      is_active: input.is_active ?? true,
-      is_system: false, // User-created templates are not system templates
-      created_by: user.id,
-    })
-    .select('*')
-    .single();
+  const checked = validateOverrides(parsed.data.event, parsed.data.overrides, parsed.data.channel);
+  if (!checked.ok) return { data: null, error: checked.errors.join('; ') };
 
-  if (error) {
-    return { data: null, error: error.message };
-  }
-
-  // Audit log
-  await logAudit({
-    action: 'CREATE',
-    entityType: 'notification_templates',
-    entityId: data.id,
-    entityDisplay: data.display_name,
-    newValues: data,
-  });
-
-  return { data: data as NotificationTemplate, error: null };
-}
-
-/**
- * Update an existing notification template
- */
-export async function updateTemplate(
-  id: string,
-  input: UpdateTemplateInput
-): Promise<{ data: NotificationTemplate | null; error: string | null }> {
-  const auth = await authorizePermission(PERMISSIONS.NOTIFICATIONS_MANAGE);
-  if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
+  const cleaned = Object.fromEntries(
+    Object.entries(parsed.data.overrides).filter(([, value]) => value.trim() !== '')
+  );
 
   const supabase = await createServerSupabaseClient();
 
-  // Get current template for audit
-  const { data: oldTemplate } = await supabase
+  const { data: oldRow, error: readError } = await supabase
     .from('notification_templates')
     .select('*')
-    .eq('id', id)
-    .single();
+    .eq('event', parsed.data.event)
+    .eq('channel', parsed.data.channel)
+    .maybeSingle();
 
-  if (!oldTemplate) {
-    return { data: null, error: 'Template not found' };
-  }
-
-  // Build update object
-  const updateData: Record<string, unknown> = {};
-  if (input.display_name !== undefined) updateData.display_name = input.display_name;
-  if (input.category !== undefined) updateData.category = input.category;
-  if (input.channel !== undefined) updateData.channel = input.channel;
-  if (input.subject_template !== undefined) updateData.subject_template = input.subject_template;
-  if (input.body_template !== undefined) updateData.body_template = input.body_template;
-  if (input.html_template !== undefined) updateData.html_template = input.html_template;
-  if (input.variables !== undefined) updateData.variables = input.variables;
-  if (input.is_active !== undefined) updateData.is_active = input.is_active;
+  if (readError) return { data: null, error: readError.message };
+  if (!oldRow) return { data: null, error: 'Template not found' };
 
   const { data, error } = await supabase
     .from('notification_templates')
-    .update(updateData)
-    .eq('id', id)
+    .update({ overrides: cleaned })
+    .eq('id', oldRow.id)
     .select('*')
     .single();
 
-  if (error) {
-    return { data: null, error: error.message };
-  }
+  if (error) return { data: null, error: error.message };
 
-  // Audit log
   await logAudit({
     action: 'UPDATE',
     entityType: 'notification_templates',
-    entityId: id,
+    entityId: oldRow.id,
     entityDisplay: data.display_name,
-    oldValues: oldTemplate,
-    newValues: data,
+    oldValues: { overrides: (oldRow as { overrides?: unknown }).overrides ?? {} },
+    newValues: { overrides: cleaned },
   });
 
-  return { data: data as NotificationTemplate, error: null };
+  return { data: data as unknown as NotificationTemplate, error: null };
 }
 
-/**
- * Delete a notification template
- */
-export async function deleteTemplate(
-  id: string
-): Promise<{ success: boolean; error: string | null }> {
-  const auth = await authorizePermission(PERMISSIONS.NOTIFICATIONS_MANAGE);
-  if (!auth.authorized) return { success: false, error: auth.error || 'Unauthorized' };
-
-  const supabase = await createServerSupabaseClient();
-
-  // Get template for audit and system check
-  const { data: template } = await supabase
-    .from('notification_templates')
-    .select('*')
-    .eq('id', id)
-    .single();
-
-  if (!template) {
-    return { success: false, error: 'Template not found' };
-  }
-
-  // Don't allow deleting system templates
-  if (template.is_system) {
-    return { success: false, error: 'Cannot delete system templates' };
-  }
-
-  const { error } = await supabase
-    .from('notification_templates')
-    .delete()
-    .eq('id', id);
-
-  if (error) {
-    return { success: false, error: error.message };
-  }
-
-  // Audit log
-  await logAudit({
-    action: 'DELETE',
-    entityType: 'notification_templates',
-    entityId: id,
-    entityDisplay: template.display_name,
-    oldValues: template,
-  });
-
-  return { success: true, error: null };
-}
 
 /**
- * Toggle template active status
+ * Switch one channel of a payment receipt, welcome or invoice message on or off (#909). Stored as
+ * `is_active` on that event's `notification_templates` row; senders read it through `isEventChannelEnabled`.
  */
-export async function toggleTemplateActive(
-  id: string
+export async function setEventChannelEnabled(
+  event: string,
+  channel: string,
+  enabled: boolean
 ): Promise<{ data: NotificationTemplate | null; error: string | null }> {
   const auth = await authorizePermission(PERMISSIONS.NOTIFICATIONS_MANAGE);
   if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
 
-  const supabase = await createServerSupabaseClient();
-
-  // Get current status
-  const { data: template } = await supabase
-    .from('notification_templates')
-    .select('is_active, display_name')
-    .eq('id', id)
-    .single();
-
-  if (!template) {
-    return { data: null, error: 'Template not found' };
+  if (!isEventKey(event) || !(getToggleableChannels(event) as string[]).includes(channel)) {
+    return { data: null, error: 'This channel cannot be switched for this message' };
   }
-
-  // Toggle
-  const newStatus = !template.is_active;
-  const { data, error } = await supabase
-    .from('notification_templates')
-    .update({ is_active: newStatus })
-    .eq('id', id)
-    .select('*')
-    .single();
-
-  if (error) {
-    return { data: null, error: error.message };
-  }
-
-  // Audit log
-  await logAudit({
-    action: newStatus ? 'ACTIVATE' : 'DEACTIVATE',
-    entityType: 'notification_templates',
-    entityId: id,
-    entityDisplay: data.display_name,
-    oldValues: { is_active: !newStatus },
-    newValues: { is_active: newStatus },
-  });
-
-  return { data: data as NotificationTemplate, error: null };
-}
-
-/**
- * Duplicate a template
- */
-export async function duplicateTemplate(
-  id: string,
-  newName: string
-): Promise<{ data: NotificationTemplate | null; error: string | null }> {
-  const auth = await authorizePermission(PERMISSIONS.NOTIFICATIONS_MANAGE);
-  if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
 
   const supabase = await createServerSupabaseClient();
 
-  // Get original template
-  const { data: original } = await supabase
+  const { data: oldRow, error: readError } = await supabase
     .from('notification_templates')
     .select('*')
-    .eq('id', id)
-    .single();
+    .eq('event', event)
+    .eq('channel', channel)
+    .maybeSingle();
 
-  if (!original) {
-    return { data: null, error: 'Template not found' };
-  }
+  if (readError) return { data: null, error: readError.message };
+  if (!oldRow) return { data: null, error: 'Template not found' };
 
-  // Get current user
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { data: null, error: 'Not authenticated' };
-  }
-
-  // Create copy
   const { data, error } = await supabase
     .from('notification_templates')
-    .insert({
-      name: newName,
-      display_name: `${original.display_name} (Copy)`,
-      category: original.category,
-      channel: original.channel,
-      subject_template: original.subject_template,
-      body_template: original.body_template,
-      html_template: original.html_template,
-      variables: original.variables,
-      is_active: false, // Start as inactive
-      is_system: false, // Copies are never system templates
-      created_by: user.id,
-    })
+    .update({ is_active: enabled })
+    .eq('id', oldRow.id)
     .select('*')
     .single();
 
-  if (error) {
-    return { data: null, error: error.message };
-  }
+  if (error) return { data: null, error: error.message };
 
-  // Audit log
   await logAudit({
-    action: 'CREATE',
+    action: enabled ? 'ACTIVATE' : 'DEACTIVATE',
     entityType: 'notification_templates',
-    entityId: data.id,
+    entityId: oldRow.id,
     entityDisplay: data.display_name,
-    newValues: data,
-    metadata: { duplicatedFrom: id },
+    oldValues: { is_active: oldRow.is_active },
+    newValues: { is_active: enabled },
   });
 
-  return { data: data as NotificationTemplate, error: null };
+  return { data: data as unknown as NotificationTemplate, error: null };
 }

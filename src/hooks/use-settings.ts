@@ -2,6 +2,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSettings, getBillingSettings, getCurrentDevelopmentLevyProfileId } from '@/actions/settings/get-settings';
 import { updateSetting, updateSettings, setCurrentDevelopmentLevyProfileId } from '@/actions/settings/update-setting';
 import { uploadEstateLogo, removeEstateLogo } from '@/actions/settings/upload-estate-logo';
+import { getClearanceCopyOptions } from '@/actions/groups/clearance-copy-options';
+import { getDebtStatusSettings, updateDebtStatusSettings } from '@/actions/settings/debt-status';
+import type { DebtStatusSettings } from '@/lib/billing/debt-status';
 import { generateRetroactiveLevies } from '@/actions/billing/generate-levies';
 import {
     getEffectiveSetting,
@@ -38,6 +41,50 @@ export function useBillingSettings() {
             return result.data;
         },
         staleTime: 5 * 60 * 1000, // 5 minutes - billing settings rarely change
+    });
+}
+
+/** The recipient groups the clearance certificate copies card offers, with their members' warnings (#816). */
+export function useClearanceCopyOptions() {
+    return useQuery({
+        queryKey: ['clearance-copy-options'],
+        queryFn: async () => {
+            const result = await getClearanceCopyOptions();
+            if (result.error) throw new Error(result.error);
+            return result.data ?? [];
+        },
+    });
+}
+
+/** The Debt Status settings page's values (#980). */
+export function useDebtStatusSettings() {
+    return useQuery({
+        queryKey: ['settings', 'debt-status'],
+        queryFn: async () => {
+            const result = await getDebtStatusSettings();
+            if (result.error || !result.data) throw new Error(result.error || 'Failed to load debt status settings');
+            return result.data;
+        },
+    });
+}
+
+export function useUpdateDebtStatusSettings() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (settings: DebtStatusSettings) => {
+            const result = await updateDebtStatusSettings(settings);
+            if (result.error || !result.data) throw new Error(result.error || 'Failed to save debt status settings');
+            return result.data;
+        },
+        onSuccess: (data) => {
+            toast.success('Debt status settings saved');
+            queryClient.setQueryData(['settings', 'debt-status'], data);
+            queryClient.invalidateQueries({ queryKey: ['settings'] });
+        },
+        onError: (error) => {
+            toast.error(error.message || 'Failed to save debt status settings');
+        },
     });
 }
 

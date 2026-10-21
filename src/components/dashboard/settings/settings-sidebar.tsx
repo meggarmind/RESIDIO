@@ -4,12 +4,13 @@ import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { isIndexChild, type SettingsGroup, type SettingsItem } from '@/config/settings-nav';
+import { activeSettingsHref, flattenSettingsNav, type SettingsGroup } from '@/config/settings-nav';
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation';
 import { useSettingsNavState } from '@/hooks/use-settings-nav-state';
 import { Button } from '@/components/ui/button';
 import { ChevronRight, ChevronDown } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { OpensSystemMark, SettingsSearchField, SettingsSearchResults, useSettingsSearch } from './settings-search';
 import {
     Collapsible,
     CollapsibleContent,
@@ -18,55 +19,43 @@ import {
 
 type SettingsSidebarProps = React.HTMLAttributes<HTMLElement>
 
-/**
- * Is this the page being viewed?
- *
- * An index entry — one whose href is its parent's — has to match exactly.
- * Matching on prefix made every ancestor look selected: on
- * /settings/security/categories both "Security Settings" and "Contact
- * Categories" lit up, and "Overview" was highlighted on every settings page.
- */
-function isItemActive(pathname: string, item: SettingsItem, parent?: SettingsItem): boolean {
-    if (parent && isIndexChild(parent, item)) return pathname === item.href;
-    return pathname === item.href || pathname.startsWith(item.href + '/');
-}
-
-function isGroupActive(pathname: string, group: SettingsGroup): boolean {
-    return group.items.some((item) =>
-        item.children
-            ? item.children.some((child) => isItemActive(pathname, child, item))
-            : isItemActive(pathname, item)
-    );
+/** Does this group hold the page being viewed? See `activeSettingsHref`. */
+function isGroupActive(activeHref: string | null, group: SettingsGroup): boolean {
+    return activeHref !== null && flattenSettingsNav([group]).some((item) => item.href === activeHref);
 }
 
 export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
     const pathname = usePathname();
     const { groups } = useSettingsNavigation();
-    const activeGroupTitle = groups.find((group) => isGroupActive(pathname, group))?.title ?? null;
+    const activeHref = activeSettingsHref(pathname, groups);
+    const activeGroupTitle = groups.find((group) => isGroupActive(activeHref, group))?.title ?? null;
 
     // Only groups the reader has opened or closed by hand. The group containing
     // the current page is always open, derived below rather than pushed into
     // state by an effect -- the effect version left the active group collapsed
     // on first paint, and only ever added, so every group visited stayed open.
     //
-    // Held outside React because the root `app/template.tsx` remounts this
-    // component on every navigation; as component state the reader's choice
-    // did not survive a single click. See `use-settings-nav-state.ts`. Passing
-    // `activeGroupTitle` lets the hook reopen a group the reader collapsed
+    // Held in a shared store so the mobile nav sees the same choices. See
+    // `use-settings-nav-state.ts`. Passing `activeGroupTitle` lets the hook reopen a group the reader collapsed
     // once they navigate into it from outside, rather than hiding the page
     // they are looking at.
     const { userToggled, setGroupOpen } = useSettingsNavState(activeGroupTitle);
+    const search = useSettingsSearch();
 
     const toggleGroup = (title: string, isOpen: boolean) => {
         setGroupOpen(title, !isOpen);
     };
 
     return (
-        <aside className={cn("lg:w-1/5 sticky top-8 h-[calc(100vh-8rem)]", className)} {...props}>
-            <ScrollArea className="h-full pr-4">
+        <aside className={cn("lg:w-1/5 sticky top-8 flex h-[calc(100vh-8rem)] flex-col gap-3", className)} {...props}>
+            <SettingsSearchField search={search} className="pr-4" />
+            <ScrollArea className="min-h-0 flex-1 pr-4">
+                {search.active ? (
+                    <SettingsSearchResults search={search} />
+                ) : (
                 <nav className="space-y-4 pb-10">
                     {groups.map((group) => {
-                        const isActiveGroup = isGroupActive(pathname, group);
+                        const isActiveGroup = isGroupActive(activeHref, group);
                         // The active group stays open unless the reader closes it.
                         const isOpen = userToggled[group.title] ?? isActiveGroup;
 
@@ -104,9 +93,7 @@ export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
                                     <div className="pt-1 space-y-1">
                                         {group.items.map((item) => {
                                             if (item.children) {
-                                                const parentActive = item.children.some((child) =>
-                                                    isItemActive(pathname, child, item)
-                                                );
+                                                const parentActive = item.children.some((child) => child.href === activeHref);
                                                 return (
                                                     <div key={item.href} className="space-y-1">
                                                         <p
@@ -116,9 +103,10 @@ export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
                                                             )}
                                                         >
                                                             {item.title}
+                                                            {item.opensSystem && <span className="ml-2 text-xs font-normal">Opens System</span>}
                                                         </p>
                                                         {item.children.map((child) => {
-                                                            const active = isItemActive(pathname, child, item);
+                                                            const active = child.href === activeHref;
                                                             return (
                                                                 <Button
                                                                     key={child.href}
@@ -132,6 +120,7 @@ export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
                                                                 >
                                                                     <Link href={child.href} aria-current={active ? 'page' : undefined}>
                                                                         {child.title}
+                                                                        {child.opensSystem && <OpensSystemMark />}
                                                                     </Link>
                                                                 </Button>
                                                             );
@@ -140,7 +129,7 @@ export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
                                                 );
                                             }
 
-                                            const active = isItemActive(pathname, item);
+                                            const active = item.href === activeHref;
                                             return (
                                                 <Button
                                                     key={item.href}
@@ -164,6 +153,7 @@ export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
                         )
                     })}
                 </nav>
+                )}
             </ScrollArea>
         </aside>
     );

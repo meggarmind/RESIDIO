@@ -9,7 +9,6 @@ interface SecurityLaneProps {
   actionMetrics: DashboardActionMetrics | null;
   securityAlerts?: SecurityAlerts | null;
   quickStats: QuickStats | null;
-  asOf?: string | null;
   isLoading?: boolean;
   isUnavailable?: boolean;
 }
@@ -19,7 +18,6 @@ export function SecurityLane({
   actionMetrics,
   securityAlerts,
   quickStats,
-  asOf,
   isLoading = false,
   isUnavailable = false,
 }: SecurityLaneProps) {
@@ -43,7 +41,6 @@ export function SecurityLane({
       title="Security and Access"
       state={state}
       tone={tone}
-      asOf={asOf}
       heroLabel="Contacts expiring soon"
       heroValue={actionMetrics ? String(expiring) : null}
       status={
@@ -66,9 +63,6 @@ export function SecurityLane({
         { key: 'flagged', label: 'Recent flagged entries', value: securityAlerts ? String(securityAlerts.recentFlaggedEntries) : null },
       ]}
       primary={{ label: 'Open security contacts', href: '/security/contacts', allowed: hasPermission(PERMISSIONS.SECURITY_VIEW) }}
-      secondary={[
-        { label: 'Add security contact', href: '/security/contacts/new', allowed: hasPermission(PERMISSIONS.SECURITY_REGISTER_CONTACTS) },
-      ]}
     />
   );
 }

@@ -26,11 +26,14 @@ const { authorizePermission, createServerSupabaseClient, createAdminClient, logA
   results: {} as Record<string, QueryResult>,
 }));
 
-vi.mock('@/lib/auth/authorize', () => ({ authorizePermission }));
+vi.mock('@/lib/auth/authorize', () => ({
+  authorizePermission,
+  authorizeAnyPermission: (permissions: string[]) => authorizePermission(permissions[0]),
+}));
 vi.mock('@/lib/supabase/server', () => ({ createServerSupabaseClient, createAdminClient }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
-vi.mock('@/lib/validators/setting-value', () => ({ settingValueError: () => null }));
+vi.mock('@/lib/validators/setting-value', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/validators/setting-value')>()), settingValueError: () => null }));
 vi.mock('@/lib/email-imports/gmail-client', () => ({
   getGmailAuthUrl: vi.fn(),
   exchangeAuthCode: vi.fn(async () => ({ accessToken: 'a', refreshToken: 'r', expiry: new Date() })),

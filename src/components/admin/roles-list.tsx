@@ -1,12 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import {
   useRolesWithPermissions,
   useCreateRoleWithPermissions,
   useUpdateRole,
   useDeleteRole,
   usePermissions,
+  useAdminTitles,
 } from '@/hooks/use-roles';
 import { Button } from '@/components/ui/button';
 import {
@@ -56,6 +58,9 @@ import {
 } from '@/components/ui/tooltip';
 import { Plus, Loader2, Pencil, Trash2, Shield, Lock } from 'lucide-react';
 import type { AppRoleWithPermissions, RoleCategory } from '@/types/database';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { ActiveStatusBadge, SettingsEmptyState, SettingsSkeleton } from '@/components/settings/settings-states';
 import { RolePermissionsDialog } from './role-permissions-dialog';
 import { PermissionPicker } from './permission-picker';
 import { resolvePermissionCategory } from '@/config/permission-categories';
@@ -76,8 +81,22 @@ function moduleCount(role: AppRoleWithPermissions): number {
   return new Set(role.permissions.map((p) => resolvePermissionCategory(p.category))).size;
 }
 
+function SystemBadge() {
+  return (
+    <Badge variant="secondary" className="gap-1 text-xs">
+      <Lock className="h-3 w-3" />
+      System
+    </Badge>
+  );
+}
+
 export function RolesList() {
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(PERMISSIONS.SYSTEM_MANAGE_ROLES);
   const { data: rolesData, isLoading } = useRolesWithPermissions();
+  const { data: allTitles } = useAdminTitles();
+  const titleNames = (role: AppRoleWithPermissions) =>
+    (allTitles ?? []).filter((t) => t.role_id === role.id).map((t) => t.name);
   const { data: allPermissions, isLoading: permissionsLoading } = usePermissions();
   const createMutation = useCreateRoleWithPermissions();
   const updateMutation = useUpdateRole();
@@ -102,7 +121,6 @@ export function RolesList() {
   const [formDisplayName, setFormDisplayName] = useState('');
   const [formDescription, setFormDescription] = useState('');
   const [formCategory, setFormCategory] = useState<RoleCategory>('exco');
-  const [formLevel, setFormLevel] = useState(5);
   const [formIsActive, setFormIsActive] = useState(true);
   // Permissions chosen while creating, and the role they were seeded from.
   const [formPermissionIds, setFormPermissionIds] = useState<Set<string>>(new Set());
@@ -118,7 +136,6 @@ export function RolesList() {
     setFormDisplayName('');
     setFormDescription('');
     setFormCategory('exco');
-    setFormLevel(5);
     setFormIsActive(true);
     setFormPermissionIds(new Set());
     setCloneFromId('none');
@@ -143,7 +160,6 @@ export function RolesList() {
     setFormDisplayName(role.display_name);
     setFormDescription(role.description || '');
     setFormCategory(role.category);
-    setFormLevel(role.level);
     setFormIsActive(role.is_active);
     setIsDialogOpen(true);
   };
@@ -177,7 +193,6 @@ export function RolesList() {
             // Only include these if not a system role
             ...(isSystemRole ? {} : {
               category: formCategory,
-              level: formLevel,
             }),
             is_active: formIsActive,
           },
@@ -191,7 +206,6 @@ export function RolesList() {
             display_name: formDisplayName,
             description: formDescription || undefined,
             category: formCategory,
-            level: formLevel,
             is_active: formIsActive,
           },
           permissionIds: Array.from(formPermissionIds),
@@ -218,13 +232,93 @@ export function RolesList() {
     setRoleToDelete(null);
   };
 
+  const accessButton = (role: AppRoleWithPermissions) => (
+    <Button
+      variant="outline"
+      size="sm"
+      className="min-h-11 gap-1.5 hover:border-primary hover:bg-primary/10 md:min-h-8"
+      onClick={() => openPermissionsDialog(role)}
+    >
+      <Shield className="h-4 w-4" />
+      <span>
+        {moduleCount(role)} module{moduleCount(role) !== 1 ? 's' : ''} ·{' '}
+        {role.permissions.length} privilege
+        {role.permissions.length !== 1 ? 's' : ''}
+      </span>
+    </Button>
+  );
+
+  // Resident-category roles are not administrators, so the Administrators tab would list nobody.
+  const holders = (role: AppRoleWithPermissions) =>
+    role.user_count == null ? (
+      <span className="text-sm text-muted-foreground">—</span>
+    ) : role.user_count > 0 && role.category !== 'resident' ? (
+      <Link
+        href={`/settings/access?tab=administrators&role=${encodeURIComponent(role.name)}`}
+        className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+        aria-label={`${role.user_count} ${role.user_count === 1 ? 'holder' : 'holders'} of ${role.display_name}`}
+      >
+        {role.user_count}
+      </Link>
+    ) : (
+      <span className="text-sm">{role.user_count}</span>
+    );
+
+  const roleActions = (role: AppRoleWithPermissions) => {
+    if (!canManage || role.name === 'super_admin') {
+      return <span className="text-sm text-muted-foreground">—</span>;
+    }
+    return (
+      <div className="flex justify-end gap-1">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-11 md:size-8"
+                onClick={() => openEditDialog(role)}
+                aria-label={`Edit role ${role.display_name}`}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Edit role</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        {!role.is_system_role && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-11 md:size-8 text-destructive hover:text-destructive"
+                  onClick={() => openDeleteDialog(role)}
+                  aria-label={`Delete role ${role.display_name}`}
+                  disabled={deleteMutation.isPending}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Delete role</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+      </div>
+    );
+  };
+
+  const holderCount = roleToDelete?.user_count;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-medium">Roles</h3>
+        {canManage && (
         <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
           <DialogTrigger asChild>
-            <Button size="sm" onClick={openCreateDialog}>
+            <Button size="sm" className="min-h-11 md:min-h-8" onClick={openCreateDialog}>
               <Plus className="mr-2 h-4 w-4" />
               Add Role
             </Button>
@@ -322,26 +416,6 @@ export function RolesList() {
                   </Select>
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="level" className="text-right">
-                    Level
-                  </Label>
-                  <div className="col-span-3 flex items-center gap-2">
-                    <Input
-                      id="level"
-                      type="number"
-                      min={0}
-                      max={10}
-                      value={formLevel}
-                      onChange={(e) => setFormLevel(parseInt(e.target.value) || 0)}
-                      className="w-20"
-                      disabled={isSystemRole}
-                    />
-                    <span className="text-sm text-muted-foreground">
-                      (0 = highest, 10 = lowest)
-                    </span>
-                  </div>
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="is_active" className="text-right">
                     Active
                   </Label>
@@ -411,133 +485,89 @@ export function RolesList() {
             </form>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Role</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead className="text-center">Level</TableHead>
-              <TableHead className="text-center">Access</TableHead>
-              <TableHead className="w-[100px]">Status</TableHead>
-              <TableHead className="w-[150px] text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
-                  <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-                </TableCell>
-              </TableRow>
-            ) : rolesData?.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
-                  No roles found.
-                </TableCell>
-              </TableRow>
-            ) : (
-              rolesData?.map((role) => (
-                <TableRow key={role.id}>
-                  <TableCell>
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{role.display_name}</span>
-                        {role.is_system_role && (
-                          <Badge variant="secondary" className="gap-1 text-xs">
-                            <Lock className="h-3 w-3" />
-                            System
-                          </Badge>
-                        )}
-                      </div>
-                      <code className="text-xs text-muted-foreground">
-                        {role.name}
-                      </code>
+      {isLoading ? (
+        <SettingsSkeleton rows={4} />
+      ) : !rolesData || rolesData.length === 0 ? (
+        <SettingsEmptyState icon={Shield} title="No roles yet" />
+      ) : (
+        <>
+          {/* Phone: one card per role so Edit and Delete are not last in a scrolled table (#788). */}
+          <ul className="space-y-3 md:hidden">
+            {rolesData.map((role) => (
+              <li key={role.id} className="rounded-md border p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium">{role.display_name}</span>
+                      {role.is_system_role && <SystemBadge />}
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-sm">{CATEGORY_LABELS[role.category]}</span>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Badge variant="outline">{role.level}</Badge>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1.5 hover:border-primary hover:bg-primary/10"
-                      onClick={() => openPermissionsDialog(role)}
-                    >
-                      <Shield className="h-4 w-4" />
-                      <span>
-                        {moduleCount(role)} module{moduleCount(role) !== 1 ? 's' : ''} ·{' '}
-                        {role.permissions.length} privilege
-                        {role.permissions.length !== 1 ? 's' : ''}
-                      </span>
-                    </Button>
-                  </TableCell>
-                  <TableCell>
-                    <span
-                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        role.is_active
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-                          : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
-                      }`}
-                    >
-                      {role.is_active ? 'Active' : 'Inactive'}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {role.name === 'super_admin' ? (
-                      <span className="text-sm text-muted-foreground">—</span>
-                    ) : (
-                      <div className="flex justify-end gap-1">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => openEditDialog(role)}
-                                aria-label={`Edit role ${role.display_name}`}
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Edit role</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                        {!role.is_system_role && (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-destructive hover:text-destructive"
-                                  onClick={() => openDeleteDialog(role)}
-                                  aria-label={`Delete role ${role.display_name}`}
-                                  disabled={deleteMutation.isPending}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Delete role</TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
+                    <p className="text-xs text-muted-foreground">
+                      {CATEGORY_LABELS[role.category]}
+                    </p>
+                    {titleNames(role).length > 0 && (
+                      <p className="text-xs text-muted-foreground">Titles: {titleNames(role).join(', ')}</p>
+                    )}
+                  </div>
+                  <ActiveStatusBadge active={role.is_active} />
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">Holders: {holders(role)}</p>
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  {accessButton(role)}
+                  {roleActions(role)}
+                </div>
+              </li>
+            ))}
+          </ul>
+          <div className="hidden rounded-md border md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Role</TableHead>
+                  <TableHead className="text-center">Access</TableHead>
+                  <TableHead className="w-[80px] text-center">Holders</TableHead>
+                  <TableHead className="w-[100px]">Status</TableHead>
+                  {canManage && <TableHead className="w-[100px] text-right">Actions</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rolesData.map((role) => (
+                  <TableRow key={role.id}>
+                    <TableCell className="whitespace-normal">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium">{role.display_name}</span>
+                          {role.is_system_role && <SystemBadge />}
+                        </div>
+                        <code className="text-xs text-muted-foreground">
+                          {role.name}
+                        </code>
+                        {/* Category lives here, not in its own column, so Actions fit the 1440 column (#788). */}
+                        <span className="text-xs text-muted-foreground">
+                          {CATEGORY_LABELS[role.category]}
+                        </span>
+                        {titleNames(role).length > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            Titles: {titleNames(role).join(', ')}
+                          </span>
                         )}
                       </div>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+                    </TableCell>
+                    <TableCell className="text-center">{accessButton(role)}</TableCell>
+                    <TableCell className="text-center">{holders(role)}</TableCell>
+                    <TableCell>
+                      <ActiveStatusBadge active={role.is_active} />
+                    </TableCell>
+                    {canManage && <TableCell className="text-right">{roleActions(role)}</TableCell>}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </>
+      )}
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -545,9 +575,11 @@ export function RolesList() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Role</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &quot;{roleToDelete?.display_name}&quot;?
-              This action cannot be undone. Any users assigned to this role will need
-              to be reassigned.
+              {holderCount
+                ? `${holderCount} ${holderCount === 1 ? 'user holds' : 'users hold'} "${roleToDelete?.display_name}". Reassign them before deleting the role.`
+                : holderCount === 0
+                  ? `No users hold "${roleToDelete?.display_name}". Deleting it cannot be undone.`
+                  : `Are you sure you want to delete "${roleToDelete?.display_name}"? This action cannot be undone. Any users assigned to this role will need to be reassigned.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -556,7 +588,7 @@ export function RolesList() {
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
-              disabled={deleteMutation.isPending}
+              disabled={deleteMutation.isPending || !!holderCount}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteMutation.isPending && (

@@ -6,8 +6,8 @@ description: Find, filter, and maintain resident records.
 residio_sources:
   - src/app/(dashboard)/residents/page.tsx
   - src/components/residents/**
-residio_verified_commit: 93ed5d0
-residio_verified_at: '2026-08-29'
+residio_verified_commit: ffcd7926
+residio_verified_at: '2026-10-20'
 residio_app_version: '0.4.0'
 ---
 
@@ -19,9 +19,11 @@ Open **Residents** from the sidebar to see the estate roster. Use the search and
 
 ## Find a resident
 
-1. Search by name, resident code, phone number, or email.
-2. Filter by active status, resident type, or property assignment.
-3. Open a row to inspect the resident profile, house assignments, invoices, wallet, and activity.
+1. Search by first or last name, phone number, or the full resident code (a code must match exactly).
+2. Filter by account status (active, inactive, suspended, archived), street, resident role (several can be ticked), and contact verification.
+3. Open a row to inspect the resident profile, house assignments, invoices, wallet, and activity. The eye button previews the resident without leaving the list.
+
+On a phone, each resident is shown as a card rather than a table row, with the same preview and edit buttons. **Add resident** and the edit button appear only for roles that can create or update residents.
 
 ## Directory hygiene
 

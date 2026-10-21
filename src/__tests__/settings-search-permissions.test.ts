@@ -21,7 +21,8 @@ import { SETTINGS_SEARCH_ENTRIES, matchSettingsEntries } from '@/lib/search/sett
  */
 
 /** The longest ROUTE_PERMISSIONS prefix matching a path — how middleware resolves. */
-function guardFor(href: string): string | undefined {
+function guardFor(rawHref: string): string | undefined {
+  const href = rawHref.split('?')[0];
   return Object.keys(ROUTE_PERMISSIONS)
     .sort((a, b) => b.length - a.length)
     .find((route) => href === route || route !== '/' && href.startsWith(route + '/'));
@@ -74,49 +75,152 @@ describe('Settings/System search entry permissions', () => {
 
   it('pins the full href -> permissions mapping, so a rename or a new page is a deliberate, reviewed change', () => {
     expect(
-      Object.fromEntries(SETTINGS_SEARCH_ENTRIES.map((e) => [e.href, [...e.permissions].sort()]))
+      Object.fromEntries(
+        SETTINGS_SEARCH_ENTRIES.filter((e) => !e.id.startsWith('settings-row-')).map((e) => [e.href, [...e.permissions].sort()])
+      )
     ).toEqual({
       '/settings': ['settings.view'],
-      '/settings/estate-info': ['settings.manage_general'],
-      '/settings/branding': ['settings.manage_general'],
-      '/settings/appearance': ['settings.manage_general'],
-      '/settings/streets': ['settings.manage_reference'],
-      '/settings/house-types': ['settings.manage_reference'],
-      '/settings/document-categories': ['documents.manage_categories'],
-      '/settings/document-taxonomy': ['documents.manage_custom_fields', 'documents.manage_tags'],
+      // Merged Estate task pages (#936): each is the OR of its sections' permissions.
+      '/settings/estate': ['settings.manage_general'],
+      '/settings/property': ['settings.manage_reference'],
       '/settings/billing': ['settings.manage_billing'],
-      '/settings/billing/late-fees': ['settings.manage_billing'],
-      '/settings/billing/invoices': ['settings.manage_billing'],
-      '/settings/billing/development-levies': ['settings.manage_billing'],
       '/settings/billing/profiles': ['billing.manage_profiles'],
-      '/settings/bank-accounts': ['settings.manage_reference'],
-      '/settings/transaction-tags': ['settings.manage_reference'],
-      '/settings/notifications': ['notifications.manage'],
-      '/settings/notifications/reminders': ['notifications.manage'],
-      '/settings/notifications/reminders/schedule': ['notifications.manage'],
-      '/settings/notifications/templates': ['notifications.manage'],
-      '/settings/notifications/schedules': ['notifications.manage'],
-      '/settings/email': ['settings.manage_general'],
-      '/settings/email/debug': ['settings.manage_general'],
-      '/settings/comms-override': ['settings.manage_general'],
-      '/settings/message-templates': ['announcements.manage_templates'],
-      '/settings/announcement-categories': ['announcements.manage_categories'],
-      '/settings/roles': ['system.assign_roles', 'system.manage_roles'],
-      '/settings/security': ['settings.manage_security'],
-      '/settings/security/categories': ['security.manage_categories'],
+      // Debt status labels, threshold and report (#980).
+      '/settings/debt-status': ['settings.manage_debt_status'],
+      // Merged Banking page (#935): the OR of bank accounts and tags (manage_reference) and duplicate matching.
+      '/settings/banking': ['settings.manage_reference', 'system.manage_maintenance'],
+      // Merged Messages task pages (#934): each is the OR of its sections' permissions.
+      '/settings/reminders': ['notifications.manage', 'settings.manage_general'],
+      '/settings/wording': ['notifications.manage'],
+      '/settings/sending': ['settings.manage_general'],
+      '/settings/announcements': ['announcements.manage_categories', 'announcements.manage_templates'],
+      // Roles & Access moved into Settings with its /system/accounts guard (#939).
+      '/settings/access': ['system.assign_roles'],
+      '/settings/groups': ['groups.view'],
+      // Merged Documents and Security rules task pages (#937): each is the OR of its sections' permissions.
+      '/settings/documents': ['documents.manage_categories', 'documents.manage_custom_fields', 'documents.manage_tags'],
+      '/settings/security': ['security.manage_categories', 'settings.manage_security', 'system.manage_maintenance'],
       '/settings/whatsapp': ['whatsapp.view'],
       '/settings/email-integration': ['email_imports.view'],
-      '/settings/maintenance': ['system.manage_maintenance'],
-      '/settings/data-retention': ['system.manage_data_retention'],
+      // Merged System page (#938): the OR of its sections' permissions.
+      '/settings/system': ['system.manage_data_retention', 'system.manage_maintenance'],
       '/system': ['system.view_all_settings'],
       '/system/audit-logs': ['settings.view_audit_logs'],
-      '/system/accounts': ['system.assign_roles'],
       '/system/notification-queue': ['notifications.manage'],
       '/system/notification-history': ['notifications.manage'],
       '/system/data-tools': ['settings.manage_general'],
       '/system/cron-status': ['system.monitor'],
       '/system/action-log': ['system.view_system_log'],
     });
+  });
+});
+
+describe('Settings row search entry permissions (#934, #935, #937)', () => {
+  const MANAGE_GENERAL = ['settings.manage_general'];
+  const NOTIFICATIONS = ['notifications.manage'];
+  const BILLING = ['settings.manage_billing'];
+  const REFERENCE = ['settings.manage_reference'];
+
+  it('pins each row of the merged task pages to the permission of its own section', () => {
+    expect(
+      Object.fromEntries(
+        SETTINGS_SEARCH_ENTRIES.filter((e) => e.id.startsWith('settings-row-')).map((e) => [e.id.slice('settings-row-'.length), [...e.permissions].sort()])
+      )
+    ).toEqual({
+      'reminders-enabled': NOTIFICATIONS,
+      'reminder-steps': NOTIFICATIONS,
+      'send-reminders-now': MANAGE_GENERAL,
+      'email-wording': NOTIFICATIONS,
+      'whatsapp-wording': NOTIFICATIONS,
+      'email-enabled': MANAGE_GENERAL,
+      'email-payment-reminders': MANAGE_GENERAL,
+      'email-invoice-notifications': MANAGE_GENERAL,
+      'email-welcome': MANAGE_GENERAL,
+      'redirect-all': MANAGE_GENERAL,
+      'override-contacts': MANAGE_GENERAL,
+      'debug-mode': MANAGE_GENERAL,
+      'test-email': MANAGE_GENERAL,
+      'announcement-templates': ['announcements.manage_templates'],
+      'announcement-categories': ['announcements.manage_categories'],
+      // #937
+      'document-categories': ['documents.manage_categories'],
+      'document-tags': ['documents.manage_custom_fields', 'documents.manage_tags'],
+      'document-custom-fields': ['documents.manage_custom_fields', 'documents.manage_tags'],
+      'auto-expire-contacts': ['settings.manage_security'],
+      'max-contacts-per-category': ['settings.manage_security'],
+      'expiry-warning-days': ['settings.manage_security'],
+      'reset-security-defaults': ['settings.manage_security'],
+      'contact-category-rules': ['security.manage_categories'],
+      'session-timeout-minutes': ['system.manage_maintenance'],
+      // Billing rules (#935): the page opens for manage_billing in the nav and its sections declare none of their own.
+      'bill-vacant-houses': BILLING,
+      'bill-under-renovation': BILLING,
+      'bill-under-construction': BILLING,
+      'auto-generate-levies': BILLING,
+      'pro-rata-first-month': BILLING,
+      'invoice-due-window': BILLING,
+      'payment-reminder-days': BILLING,
+      'clearance-copy-group': BILLING,
+      'auto-generate-invoices': BILLING,
+      'generation-day': BILLING,
+      'late-fee-enabled': BILLING,
+      'late-fee-type': BILLING,
+      'late-fee-amount': BILLING,
+      'grace-period-days': BILLING,
+      'late-fee-auto-apply': BILLING,
+      'late-fee-application-day': BILLING,
+      'apply-late-fees-now': BILLING,
+      'late-fee-waivers': BILLING,
+      'current-dev-levy': BILLING,
+      'retroactive-levies': BILLING,
+      // Debt Status (#980): one page permission, no section of its own.
+      'debt-label-arrears': ['settings.manage_debt_status'],
+      'debt-label-outstanding': ['settings.manage_debt_status'],
+      'debt-label-paid-in-full': ['settings.manage_debt_status'],
+      'debt-label-credit': ['settings.manage_debt_status'],
+      'debt-arrears-threshold': ['settings.manage_debt_status'],
+      'debt-report-footnote': ['settings.manage_debt_status'],
+      'debt-chat-pdf-house-limit': ['settings.manage_debt_status'],
+      // Banking (#935): each section keeps its own permission.
+      'estate-bank-accounts': REFERENCE,
+      'statement-passwords': REFERENCE,
+      'transaction-tags': REFERENCE,
+      'duplicate-threshold': ['system.manage_maintenance'],
+      'maintenance-mode': ['system.manage_maintenance'],
+      'maintenance-message': ['system.manage_maintenance'],
+      'audit-log-retention': ['system.manage_data_retention'],
+      'prune-data': ['system.manage_data_retention'],
+      // Estate task pages (#936).
+      'estate-name': MANAGE_GENERAL,
+      'estate-email': MANAGE_GENERAL,
+      'estate-address': MANAGE_GENERAL,
+      'estate-phone': MANAGE_GENERAL,
+      'estate-website': MANAGE_GENERAL,
+      'estate-office-hours': MANAGE_GENERAL,
+      'estate-logo': MANAGE_GENERAL,
+      'estate-theme': MANAGE_GENERAL,
+      'assistant-visible': MANAGE_GENERAL,
+      'assistant-greeting': MANAGE_GENERAL,
+      'assistant-name': MANAGE_GENERAL,
+      'resident-portal-links': MANAGE_GENERAL,
+      'social-facebook': MANAGE_GENERAL,
+      'social-twitter': MANAGE_GENERAL,
+      'social-instagram': MANAGE_GENERAL,
+      'street-list': REFERENCE,
+      'house-type-list': REFERENCE,
+    });
+  });
+
+  it('a late fee row is findable by the estate word "penalty"', () => {
+    expect(matchSettingsEntries(SETTINGS_SEARCH_ENTRIES, 'penalty').map((e) => e.id)).toEqual(
+      expect.arrayContaining(['settings-row-late-fee-enabled', 'settings-row-grace-period-days'])
+    );
+  });
+
+  it('a row is findable by an estate word kept in its keywords', () => {
+    expect(matchSettingsEntries(SETTINGS_SEARCH_ENTRIES, 'dues').map((e) => e.id)).toEqual(
+      expect.arrayContaining(['settings-row-reminders-enabled', 'settings-row-reminder-steps'])
+    );
   });
 });
 
@@ -132,7 +236,7 @@ describe('Settings/System search entry matching', () => {
 
   it('finds /settings/email-integration for "email import" -- the issue\'s own acceptance criterion (#179)', () => {
     // The page is titled "Gmail Import"; neither its title, its subtitle,
-    // nor its "Integrations" group name contains the word "email" on their
+    // nor its "Connections" group name contains the word "email" on their
     // own. Only the hand-picked keyword alias closes that gap.
     expect(hrefsFor('email import')).toContain('/settings/email-integration');
   });
@@ -144,15 +248,14 @@ describe('Settings/System search entry matching', () => {
 
   it('"email" alone finds both the email notification settings and the Gmail import page', () => {
     const hrefs = hrefsFor('email');
-    expect(hrefs).toContain('/settings/email');
+    expect(hrefs).toContain('/settings/sending');
     expect(hrefs).toContain('/settings/email-integration');
   });
 
-  it('"estate overview" finds /settings -- group/parent context recovers a generic child title', () => {
-    // The winning `/settings` entry is titled just "Overview" (see the
-    // dedupe rationale above); it is only findable by "estate" because its
-    // group title ("Estate") is folded into `searchText`.
-    expect(hrefsFor('estate overview')).toContain('/settings');
+  it('"setup overview" finds /settings -- group context recovers a generic title', () => {
+    // The `/settings` entry is titled just "Overview"; it is only findable
+    // by "setup" because its group title ("Setup") is folded into `searchText`.
+    expect(hrefsFor('setup overview')).toContain('/settings');
   });
 
   it('a query matching nothing returns no entries', () => {
@@ -161,7 +264,7 @@ describe('Settings/System search entry matching', () => {
 
   it('matching is case-insensitive', () => {
     expect(hrefsFor('EMAIL IMPORT')).toEqual(hrefsFor('email import'));
-    expect(hrefsFor('Estate Overview')).toEqual(hrefsFor('estate overview'));
+    expect(hrefsFor('Setup Overview')).toEqual(hrefsFor('setup overview'));
   });
 
   it('an empty (or all-whitespace) query matches nothing', () => {

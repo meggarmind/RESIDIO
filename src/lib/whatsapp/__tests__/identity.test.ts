@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { handleResidentMessage } from '@/lib/whatsapp/identity';
+import { handleResidentMessage, identityFingerprint } from '@/lib/whatsapp/identity';
 import type { WhatsAppIdentityRepository, WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
 import type { WhatsAppInboundMessage } from '@/lib/whatsapp/types';
 import { isWhatsAppMasterSwitchOn } from '@/lib/whatsapp/master-switch';
@@ -41,6 +41,22 @@ function repository(overrides: Partial<WhatsAppIdentityRepository> = {}): WhatsA
     rememberPendingContact: vi.fn().mockResolvedValue(undefined),
     consumeLinkToken: vi.fn().mockResolvedValue(null),
     attachPendingContact: vi.fn().mockResolvedValue(undefined),
+    // Identity confirmed and notice accepted: these tests cover what follows consent (#871 is in consent.test.ts).
+    getStreetName: vi.fn().mockResolvedValue('Palm Street'),
+    getConsentState: vi.fn().mockResolvedValue({
+      confirmedFingerprint: identityFingerprint(resident, 'Palm Street'),
+      privacy: { decision: 'privacy_accepted', version: 'v1' },
+      step: null,
+      pendingRequest: null,
+    }),
+    recordConsentDecision: vi.fn().mockResolvedValue(undefined),
+    saveConsentStep: vi.fn().mockResolvedValue(undefined),
+    isDisputed: vi.fn().mockResolvedValue(false),
+    markDisputed: vi.fn().mockResolvedValue(undefined),
+    notifyDisputed: vi.fn().mockResolvedValue(undefined),
+    getPrivacyNotice: vi.fn().mockResolvedValue({ version: 'v1', text: 'Notice' }),
+    getOfficeContactLine: vi.fn().mockResolvedValue(''),
+    optOutOfSurveys: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }
@@ -55,6 +71,7 @@ describe('WhatsApp identity and consent', () => {
     expect(result).toMatchObject({ status: 'identified', residentId: 'resident-1', optedIn: false, accessTier: 'financial' });
     expect(repo.setOptIn).not.toHaveBeenCalled();
     expect(send.mock.calls[0]?.[0].body).toContain('Reply YES');
+    expect(send.mock.calls[0]?.[0].idempotencySeed).toBe('wamid-hello');
   });
 
   it('records consent with YES and disables it with STOP', async () => {
@@ -66,6 +83,26 @@ describe('WhatsApp identity and consent', () => {
 
     expect(repo.setOptIn).toHaveBeenNthCalledWith(1, 'resident-1', '+2348000000000', true, 'in_chat');
     expect(repo.setOptIn).toHaveBeenNthCalledWith(2, 'resident-1', '+2348000000000', false, 'in_chat');
+  });
+
+  it('stores STOP SURVEYS as a survey opt-out and leaves the alerts opt-in alone (#872)', async () => {
+    const repo = repository({ getOptIn: vi.fn().mockResolvedValue(true) });
+    const send = vi.fn().mockResolvedValue({ success: true });
+
+    const result = await handleResidentMessage(message('stop surveys'), { repository: repo, send });
+
+    expect(repo.optOutOfSurveys).toHaveBeenCalledWith('resident-1');
+    expect(repo.setOptIn).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ status: 'identified', optedIn: true });
+    expect(send.mock.calls[0]?.[0].body).toBe("Done. I won't ask you for feedback again.");
+  });
+
+  it('still treats a plain STOP as an alerts opt-out, not a survey opt-out (#872)', async () => {
+    const repo = repository();
+    await handleResidentMessage(message('STOP'), { repository: repo, send: vi.fn().mockResolvedValue({ success: true }) });
+
+    expect(repo.optOutOfSurveys).not.toHaveBeenCalled();
+    expect(repo.setOptIn).toHaveBeenCalledWith('resident-1', '+2348000000000', false, 'in_chat');
   });
 
   it('re-enables consent with START after an opt-out', async () => {
@@ -102,6 +139,30 @@ describe('WhatsApp identity and consent', () => {
     expect(send.mock.calls[0]?.[0].body).not.toContain('balance');
   });
 
+  it('adds the estate office contact line to the invalid link code reply', async () => {
+    const send = vi.fn().mockResolvedValue({ success: true });
+    const estateContactLine = vi.fn().mockResolvedValue('Contact the estate office on 0803 699 6725.');
+
+    await handleResidentMessage(message('LINK 123456', '2348111111111'), { repository: repository({ findRosterMatches: vi.fn().mockResolvedValue([]) }), send, estateContactLine });
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[0]?.[0].body).toBe(
+      'That link code is invalid or expired. Ask the estate office for a new code.\nContact the estate office on 0803 699 6725.'
+    );
+  });
+
+  it('adds the estate office contact line to the unmatched number reply', async () => {
+    const send = vi.fn().mockResolvedValue({ success: true });
+    const estateContactLine = vi.fn().mockResolvedValue('Contact the estate office on 0803 699 6725.');
+
+    await handleResidentMessage(message('hello', '2348111111111'), { repository: repository({ findRosterMatches: vi.fn().mockResolvedValue([]) }), send, estateContactLine });
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[0]?.[0].body).toBe(
+      'Welcome to the Residio Assistant. We could not safely match this number to one Resident. Ask the estate office for a link code, or reply STOP.\nContact the estate office on 0803 699 6725.'
+    );
+  });
+
   it('links an unrostered number with a one-time code but waits for consent', async () => {
     const repo = repository({ consumeLinkToken: vi.fn().mockResolvedValue('resident-1') });
     const send = vi.fn().mockResolvedValue({ success: true });
@@ -109,7 +170,7 @@ describe('WhatsApp identity and consent', () => {
     const result = await handleResidentMessage(message('LINK 123456', '2348111111111'), { repository: repo, send });
 
     expect(result).toMatchObject({ status: 'linked', residentId: 'resident-1', optedIn: false });
-    expect(repo.setOptIn).toHaveBeenCalledWith('resident-1', '+2348111111111', false, 'in_chat');
+    expect(repo.setOptIn).toHaveBeenCalledWith('resident-1', '+2348111111111', false, 'in_chat', true);
     expect(repo.attachPendingContact).toHaveBeenCalledWith('+2348111111111', 'resident-1');
     expect(send.mock.calls[0]?.[0].body).toContain('Reply YES');
   });
@@ -126,6 +187,24 @@ describe('WhatsApp identity and consent', () => {
     expect(result).toMatchObject({ financialEligible: false, accessTier: 'community' });
     expect(send.mock.calls[0]?.[0].body).toContain('announcements and notices');
     expect(send.mock.calls[0]?.[0].body).not.toContain('balance');
+  });
+
+  it.each([
+    ['an opted-in community-tier resident', false, 'hello', true],
+    ['YES from a resident already opted in', true, 'YES', true],
+    ['YES from a community-tier resident opting in', false, 'YES', false],
+  ])('hands %s to the Assistant menu (#804)', async (_label, financialEligible, text, optedIn) => {
+    const repo = repository({
+      findRosterMatches: vi.fn().mockResolvedValue([{ ...resident, financialEligible }]),
+      getOptIn: vi.fn().mockResolvedValue(optedIn),
+    });
+    const send = vi.fn().mockResolvedValue({ success: true });
+    const onIdentified = vi.fn().mockResolvedValue(undefined);
+
+    await handleResidentMessage(message(text), { repository: repo, send, onIdentified });
+
+    expect(onIdentified).toHaveBeenCalledWith(expect.objectContaining({ text }), expect.objectContaining({ financialEligible }));
+    expect(send).not.toHaveBeenCalled();
   });
 });
 

@@ -65,7 +65,11 @@ const ALLOWED_OPEN_READS: Record<string, string> = {
   notification_templates: 'Declared reference data (#237): message templates, readable by any signed-in user.',
   notification_schedules: 'Declared reference data (#237): reminder schedule definitions, readable by any signed-in user.',
   security_contact_categories: 'Declared reference data (#237): dropdown of contact categories.',
+  admin_titles: 'Reference data (#823): the controlled title list, readable by any signed-in user so role pickers and title display work.',
 };
+
+/** Reviewed post-baseline open policies, keyed `table.policy`. */
+const REVIEWED_LATER_OPEN = new Set(['admin_titles.admin_titles_select']);
 
 /** The eight tables this slice restricts, with the permission each now requires. */
 const RESTRICTED: Record<string, string[]> = {
@@ -175,7 +179,7 @@ describe('#237: no USING (true) read policy for signed-in users beyond the allow
   });
 
   it('no migration after the baseline introduces a new open read policy', () => {
-    const later = introducedOpen.filter((p) => p.file > BASELINE);
+    const later = introducedOpen.filter((p) => p.file > BASELINE && !REVIEWED_LATER_OPEN.has(`${p.table}.${p.name}`));
     expect(
       later,
       `new USING (true) policies after ${BASELINE}: ${later.map((p) => `${p.file}:${p.table}.${p.name}`).join(', ')}`
@@ -189,9 +193,10 @@ describe('#237: no USING (true) read policy for signed-in users beyond the allow
     }
   });
 
-  it('the five declared reference tables are exactly the allowlist', () => {
+  it('the declared reference tables are exactly the allowlist', () => {
     expect(Object.keys(ALLOWED_OPEN_READS).sort()).toEqual(
       [
+        'admin_titles',
         'billing_items',
         'billing_profiles',
         'notification_schedules',
@@ -215,8 +220,9 @@ describe('#237: the eight restricted tables', () => {
       );
       expect(policies.length, `${table}: no SELECT policy from ${RESTRICT_MIGRATION}`).toBe(1);
       for (const permission of permissions) {
+        // #63 rewrote these USING clauses to the InitPlan form.
         expect(policies[0].using, `${table}: missing ${permission}`).toContain(
-          `has_permission('${permission}')`
+          `(select has_permission('${permission}'::text))`
         );
       }
     }
@@ -226,7 +232,7 @@ describe('#237: the eight restricted tables', () => {
     const policy = [...live.values()].find(
       (p) => p.table === 'notification_preferences' && p.name === 'notification_preferences_select'
     );
-    expect(policy?.using).toContain('resident_id = public.get_my_resident_id()');
+    expect(policy?.using).toContain('resident_id = (select get_my_resident_id())');
   });
 
   it('every has_permission() name used by the migration exists in a seeding migration', () => {
@@ -278,7 +284,9 @@ describe('#237: system_settings key split', () => {
 
   it('allows exactly the declared public keys, OR has_permission(settings.view)', () => {
     const using = policies[0].using ?? '';
-    const array = using.match(/^key = ANY \(ARRAY\[([^\]]*)\]\) OR public\.has_permission\('settings\.view'\)$/);
+    const array = using.match(
+      /^\(\(key = ANY \(ARRAY\[([^\]]*)\]\)\) OR \(select has_permission\('settings\.view'::text\)\)\)$/
+    );
     expect(array, `unexpected predicate shape: ${using}`).not.toBeNull();
     const keys = [...array![1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
     expect([...keys].sort()).toEqual([...SYSTEM_SETTINGS_PUBLIC_KEYS].sort());

@@ -17,6 +17,8 @@ const approvalsState = vi.hoisted(() => ({
   value: {} as Record<string, unknown>,
 }));
 
+// Every control renders: these tests are about behaviour, not permission gating (#788).
+vi.mock('@/lib/auth/auth-provider', () => ({ useAuth: () => ({ isLoading: false, hasPermission: () => true }) }));
 vi.mock('@/hooks/use-approvals', () => ({
   useApprovalRequests: () => approvalsState.value,
   useApproveRequest: () => ({ mutateAsync: vi.fn(), isPending: false }),

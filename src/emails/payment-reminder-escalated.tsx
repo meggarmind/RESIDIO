@@ -1,5 +1,11 @@
 import { Button, Heading, Hr, Section, Text } from '@react-email/components';
 import { EmailLayout } from './components/email-layout';
+import {
+  ESCALATION_DEFAULTS,
+  formatDueText,
+  makeCopy,
+  renderEventText,
+} from '@/lib/notifications/event-content-registry';
 
 /**
  * Escalation levels for payment reminders
@@ -24,89 +30,64 @@ interface PaymentReminderEscalatedProps {
   reminderCount?: number; // How many reminders have been sent
   lateFeesApplied?: number; // Late fees that have been or will be applied
   accessRestrictionDate?: string; // Date when access may be restricted
+  /** Admin-edited wording, flat `<level>.<field>` keys (merged templates). Omitted means the built-in text. */
+  copy?: Record<string, string>;
 }
 
 /**
- * Content configuration for each escalation level
+ * Content configuration for each escalation level. The editable wording (subject, message,
+ * closing) lives in the event registry so admins can override it.
  */
 const escalationContent: Record<
   ReminderEscalationLevel,
   {
-    subject: string;
     greeting: string;
-    mainMessage: (props: PaymentReminderEscalatedProps) => string;
     urgencyNote?: (props: PaymentReminderEscalatedProps) => string | undefined;
-    closingNote: string;
     boxStyle: 'normal' | 'warning' | 'urgent' | 'critical';
     buttonText: string;
     buttonStyle: 'primary' | 'warning' | 'danger';
   }
 > = {
   friendly: {
-    subject: 'Friendly Payment Reminder',
     greeting: 'Hello',
-    mainMessage: (props) =>
-      `This is a friendly reminder that your payment of ${formatCurrency(props.amountDue)} for ${formatProperty(props)} is due ${formatDueText(props.daysUntilDue)}. We wanted to give you advance notice so you can plan accordingly.`,
-    closingNote:
-      'If you have already made this payment, please disregard this message. We appreciate your prompt attention to this matter.',
     boxStyle: 'normal',
     buttonText: 'View Invoice',
     buttonStyle: 'primary',
   },
   warning: {
-    subject: 'Payment Reminder - Due Soon',
     greeting: 'Dear',
-    mainMessage: (props) =>
-      `Your payment of ${formatCurrency(props.amountDue)} for ${formatProperty(props)} is due ${formatDueText(props.daysUntilDue)}. Please ensure payment is made before the due date to avoid any late fees.`,
     urgencyNote: (props) =>
       props.lateFeesApplied
         ? `Please note: A late fee of ${formatCurrency(props.lateFeesApplied)} may be applied if payment is not received by the due date.`
         : undefined,
-    closingNote:
-      'To avoid any inconvenience, please make your payment at your earliest convenience.',
     boxStyle: 'warning',
     buttonText: 'Pay Now',
     buttonStyle: 'primary',
   },
   urgent: {
-    subject: 'URGENT: Payment Due Tomorrow',
     greeting: 'Dear',
-    mainMessage: (props) =>
-      `This is an urgent reminder that your payment of ${formatCurrency(props.amountDue)} for ${formatProperty(props)} is due ${formatDueText(props.daysUntilDue)}. Immediate action is required to avoid late fees and potential service restrictions.`,
     urgencyNote: (props) =>
       `This is reminder #${props.reminderCount || 1}. Late fees will be applied after the due date.`,
-    closingNote:
-      'Please make payment immediately to maintain good standing with the estate.',
     boxStyle: 'urgent',
     buttonText: 'Pay Immediately',
     buttonStyle: 'warning',
   },
   final: {
-    subject: 'FINAL NOTICE: Payment Due Today',
     greeting: 'Dear',
-    mainMessage: (props) =>
-      `This is your FINAL NOTICE. Your payment of ${formatCurrency(props.amountDue)} for ${formatProperty(props)} is due TODAY. Failure to pay may result in late fees and potential restrictions on estate services.`,
     urgencyNote: (props) =>
       props.accessRestrictionDate
         ? `Important: Estate access privileges may be affected starting ${props.accessRestrictionDate} if payment is not received.`
         : 'Important: Your account will be marked as overdue if payment is not received today.',
-    closingNote:
-      'Please make payment immediately to avoid any negative consequences. Contact estate management if you are experiencing difficulties.',
     boxStyle: 'critical',
     buttonText: 'Pay Now to Avoid Penalties',
     buttonStyle: 'danger',
   },
   overdue: {
-    subject: 'OVERDUE: Immediate Payment Required',
     greeting: 'Dear',
-    mainMessage: (props) =>
-      `Your payment of ${formatCurrency(props.amountDue)} for ${formatProperty(props)} is now ${Math.abs(props.daysUntilDue)} day(s) OVERDUE. This matter requires your immediate attention.`,
     urgencyNote: (props) =>
       props.lateFeesApplied
         ? `A late fee of ${formatCurrency(props.lateFeesApplied)} has been applied to your account. Additional penalties may accrue.`
         : 'Late fees have been applied to your account. Please settle this amount immediately.',
-    closingNote:
-      'Please contact estate management immediately if you are unable to make payment. We are here to help find a solution.',
     boxStyle: 'critical',
     buttonText: 'Settle Overdue Balance',
     buttonStyle: 'danger',
@@ -127,16 +108,6 @@ function formatProperty(props: PaymentReminderEscalatedProps): string {
     : props.houseNumber;
 }
 
-function formatDueText(daysUntilDue: number): string {
-  if (daysUntilDue < 0) {
-    const daysOverdue = Math.abs(daysUntilDue);
-    return daysOverdue === 1 ? 'yesterday' : `${daysOverdue} days ago`;
-  }
-  if (daysUntilDue === 0) return 'today';
-  if (daysUntilDue === 1) return 'tomorrow';
-  return `in ${daysUntilDue} days`;
-}
-
 export function PaymentReminderEscalatedEmail(props: PaymentReminderEscalatedProps) {
   const {
     residentName,
@@ -151,9 +122,20 @@ export function PaymentReminderEscalatedEmail(props: PaymentReminderEscalatedPro
     paymentUrl,
     escalationLevel,
     reminderCount,
+    copy,
   } = props;
 
   const content = escalationContent[escalationLevel];
+  const text = makeCopy('payment_reminder_escalated', copy, {
+    resident_name: residentName,
+    invoice_number: invoiceNumber,
+    amount: formatCurrency(amountDue),
+    due_date: dueDate,
+    due_text: formatDueText(daysUntilDue),
+    days_overdue: Math.abs(daysUntilDue),
+    property: formatProperty(props),
+    estate_name: estateName,
+  });
   const formattedAmount = formatCurrency(amountDue);
   const isOverdue = daysUntilDue < 0;
 
@@ -171,14 +153,14 @@ export function PaymentReminderEscalatedEmail(props: PaymentReminderEscalatedPro
       estateAddress={estateAddress}
     >
       <Heading style={getHeadingStyle(content.boxStyle)}>
-        {content.subject}
+        {text(`${escalationLevel}.subject`)}
       </Heading>
 
       <Text style={greeting}>
         {content.greeting} {residentName},
       </Text>
 
-      <Text style={paragraph}>{content.mainMessage(props)}</Text>
+      <Text style={paragraph}>{text(`${escalationLevel}.body`)}</Text>
 
       <Section style={getBoxStyle(content.boxStyle)}>
         <Text style={invoiceLabel}>Invoice Number</Text>
@@ -214,7 +196,7 @@ export function PaymentReminderEscalatedEmail(props: PaymentReminderEscalatedPro
 
       <Hr style={hr} />
 
-      <Text style={paragraph}>{content.closingNote}</Text>
+      <Text style={paragraph}>{text(`${escalationLevel}.closing`)}</Text>
 
       <Text style={signoff}>
         Thank you,
@@ -414,9 +396,14 @@ const signoff = {
  */
 export function getEscalatedReminderSubject(
   invoiceNumber: string,
-  escalationLevel: ReminderEscalationLevel
+  escalationLevel: ReminderEscalationLevel,
+  copy?: Record<string, string>,
+  variables: Record<string, string | number | undefined> = {}
 ): string {
-  const prefix = escalationContent[escalationLevel].subject;
+  const prefix = renderEventText(
+    copy?.[`${escalationLevel}.subject`] || ESCALATION_DEFAULTS[escalationLevel].subject,
+    { ...variables, invoice_number: invoiceNumber }
+  );
   return `${prefix}: Invoice ${invoiceNumber}`;
 }
 

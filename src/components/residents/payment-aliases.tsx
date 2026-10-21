@@ -53,6 +53,8 @@ import {
 } from '@/hooks/use-imports';
 import { paymentAliasFormSchema, type PaymentAliasFormData } from '@/lib/validators/import';
 import { toast } from 'sonner';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import type { ResidentPaymentAlias } from '@/types/database';
 
 interface PaymentAliasesProps {
@@ -73,6 +75,9 @@ export function PaymentAliases({ residentId, residentName }: PaymentAliasesProps
   const deleteMutation = useDeletePaymentAlias();
 
   const aliases = aliasesData?.data || [];
+  // CORE.md s6: alias writes need residents.update; viewers get a read-only list.
+  const { hasPermission } = useAuth();
+  const canUpdate = hasPermission(PERMISSIONS.RESIDENTS_UPDATE);
 
   const addForm = useForm<PaymentAliasFormData>({
     resolver: zodResolver(paymentAliasFormSchema),
@@ -199,10 +204,12 @@ export function PaymentAliases({ residentId, residentName }: PaymentAliasesProps
               Alternative names that may appear on bank transfers for this resident
             </CardDescription>
           </div>
-          <Button onClick={() => setShowAddDialog(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Alias
-          </Button>
+          {canUpdate && (
+            <Button onClick={() => setShowAddDialog(true)} className="min-h-11 md:min-h-0">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Alias
+            </Button>
+          )}
         </div>
       </CardHeader>
       <CardContent>
@@ -228,9 +235,10 @@ export function PaymentAliases({ residentId, residentName }: PaymentAliasesProps
                   )}
                 </div>
 
+                {canUpdate && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm">
+                    <Button variant="ghost" size="sm" className="min-h-11 md:min-h-0">
                       <MoreVertical className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -265,6 +273,7 @@ export function PaymentAliases({ residentId, residentName }: PaymentAliasesProps
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+                )}
               </div>
             ))}
           </div>
@@ -275,10 +284,12 @@ export function PaymentAliases({ residentId, residentName }: PaymentAliasesProps
             <p className="text-sm text-muted-foreground">
               Add aliases for names that may appear on bank transfers from {residentName}
             </p>
-            <Button variant="outline" className="mt-4" onClick={() => setShowAddDialog(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add First Alias
-            </Button>
+            {canUpdate && (
+              <Button variant="outline" className="mt-4 min-h-11 md:min-h-0" onClick={() => setShowAddDialog(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add First Alias
+              </Button>
+            )}
           </div>
         )}
       </CardContent>

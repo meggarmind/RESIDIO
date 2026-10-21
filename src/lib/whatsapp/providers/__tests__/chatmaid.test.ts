@@ -90,6 +90,17 @@ describe('Chatmaid WhatsApp provider', () => {
     });
   });
 
+  it('attaches mediaUrls when the message carries files (#871)', async () => {
+    const config = makeConfig({ apiKey: 'sk_test_media_attachment' });
+    const fetchImpl = fetchWithConnection(config, undefined, jsonResponse({ data: { id: 'msg_pdf' } }, 201));
+    const provider = createChatmaidWhatsAppProvider(config, fetchImpl);
+
+    await provider.sendText({ to: '+2348000000000', body: 'Notice', mediaUrls: ['https://storage.test/notice.pdf'] });
+
+    const body = JSON.parse((fetchImpl.mock.calls[2][1] as RequestInit).body as string);
+    expect(body).toMatchObject({ content: 'Notice', mediaUrls: ['https://storage.test/notice.pdf'] });
+  });
+
   it('resolves the phone id from /v1/phone-numbers and checks /v1/phone-numbers/:id/status', async () => {
     const config = makeConfig();
     const fetchImpl = fetchWithConnection(
@@ -110,11 +121,11 @@ describe('Chatmaid WhatsApp provider', () => {
   it('produces an identical idempotency key for an identical body and a different one when content changes', async () => {
     const config = makeConfig();
     const expectedForOriginal = createHash('sha256')
-      .update(`${config.fromNumber}|+2348000000000|Same body`, 'utf8')
+      .update(`${config.fromNumber}|+2348000000000||Same body`, 'utf8')
       .digest('hex')
       .slice(0, 64);
     const expectedForChanged = createHash('sha256')
-      .update(`${config.fromNumber}|+2348000000000|Different body`, 'utf8')
+      .update(`${config.fromNumber}|+2348000000000||Different body`, 'utf8')
       .digest('hex')
       .slice(0, 64);
     expect(expectedForOriginal).not.toBe(expectedForChanged);
@@ -146,6 +157,34 @@ describe('Chatmaid WhatsApp provider', () => {
     const thirdKey = sendKeys()[2];
     expect(thirdKey).toBe(expectedForChanged);
     expect(thirdKey).not.toBe(firstKey);
+  });
+
+  it('keys identical reply text on the inbound message id: new inbound gets a new key, a retry reuses it (#842)', async () => {
+    const config = makeConfig();
+    const fetchImpl = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async (url) => {
+      if (url.endsWith('/v1/phone-numbers')) return connectedPhoneNumbersResponse(config);
+      if (url.endsWith('/status')) return connectedStatusResponse();
+      return jsonResponse({ data: { id: 'msg_1' } }, 201);
+    });
+    const sendKeys = () =>
+      fetchImpl.mock.calls
+        .filter(([url]) => url.endsWith('/v1/messages/send'))
+        .map(([, init]) => JSON.parse((init as RequestInit).body as string).idempotencyKey);
+    const provider = createChatmaidWhatsAppProvider(config, fetchImpl as unknown as typeof fetch);
+    const menu = { to: '+2348000000000', body: 'Menu: 1 Balance 2 Statement' };
+
+    await provider.sendText({ ...menu, idempotencySeed: 'wamid.A' });
+    await provider.sendText({ ...menu, idempotencySeed: 'wamid.B' });
+    await provider.sendText({ ...menu, idempotencySeed: 'wamid.A' });
+    const [first, second, retry] = sendKeys();
+
+    expect(second).not.toBe(first);
+    expect(retry).toBe(first);
+    expect(first).toBe(
+      createHash('sha256')
+        .update(`${config.fromNumber}|+2348000000000|wamid.A|${menu.body}`, 'utf8')
+        .digest('hex')
+    );
   });
 
   it('does not attempt to send when the resolved phone is disconnected', async () => {

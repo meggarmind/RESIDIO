@@ -77,10 +77,6 @@ const PERMISSION_ALLOWLIST = [
   'paystack/verify-payment.ts',
   // Unauthenticated Paystack webhook: auth is the webhook signature.
   'paystack/webhook-handler.ts',
-  // Vercel cron (CRON_SECRET bearer auth, no user session) as well as manual
-  // triggers; a hard permission check would break the automated path.
-  'email-imports/create-email-import.ts',
-  'analytics/refresh-payment-cadence-summary.ts',
   // Pre-auth: runs before the caller has a session.
   'auth/register-resident-portal.ts',
   'two-factor/verify.ts',
@@ -125,9 +121,6 @@ const AUDIT_ALLOWLIST = [
   'auth/register-resident-portal.ts',
   // Pre-auth 2FA login flow: writes its own two_factor_audit_log instead.
   'two-factor/verify.ts',
-  // Vercel cron (CRON_SECRET bearer auth, no user session): recomputes an
-  // analytics cache table with no admin-attributable actor.
-  'analytics/refresh-payment-cadence-summary.ts',
 
   // ---- Reads that the write-pattern scan sees as writes.
   //
@@ -137,18 +130,6 @@ const AUDIT_ALLOWLIST = [
   // Per-resident read tracking. Auditing every announcement view would flood
   // the audit log without recording an administrative decision.
   'announcements/read-receipts.ts',
-
-  // ---- Pipeline progress writes (#556).
-  // Internal status/counter updates of an email-import run (fetching, parsing,
-  // matching, completed, failed). Its callers are the pipeline stages in
-  // src/lib/email-imports/*, reached both from the CRON_SECRET route
-  // (api/cron/fetch-emails, no session, so logAudit would write nothing) and from
-  // admin-triggered runs (whose trigger action is permission-checked). The
-  // import row's creation is audited in createEmailImport, and the one
-  // admin decision that changes status, cancelImport, audits itself. Auditing every
-  // stage transition would add rows only for session runs. Sessionless runs are
-  // for the System Action Log (#538).
-  'email-imports/create-email-import.ts::updateEmailImportStatus',
 
   // ---- Own-rows self-service or self-trail (#390 triage, #556).
   'report-subscriptions/update-subscription.ts::updateMyReportSubscription',
@@ -294,6 +275,24 @@ describe('Module Integration Compliance', () => {
         `Write actions missing audit logging:\n${violations.join('\n')}\n\n` +
           `Add logAudit calls or add 'path.ts::functionName' to AUDIT_ALLOWLIST in test file.`
       ).toHaveLength(0);
+    }, SCAN_TIMEOUT_MS);
+  });
+
+  describe('Bulk payment verification (#812)', () => {
+    it('scans bulkVerifyPayments as a guarded, audited write action with no allowlist entry', async () => {
+      const id = 'finance/manual-verification.ts::bulkVerifyPayments';
+      const { project } = await scanActions();
+      const fn = project
+        .get('finance/manual-verification.ts')
+        ?.functions.find((f) => f.name === 'bulkVerifyPayments');
+
+      expect(fn, `${id} was not found by the action scan`).toBeDefined();
+      expect(fn!.exported && fn!.isAsync && fn!.isWrite).toBe(true);
+      expect(fn!.guardPos).not.toBeNull();
+      expect(fn!.guardPos!).toBeLessThan(fn!.firstDbOpPos!);
+      expect(fn!.hasAudit).toBe(true);
+      expect(PERMISSION_ALLOWLIST).not.toContain(id);
+      expect(AUDIT_ALLOWLIST).not.toContain(id);
     }, SCAN_TIMEOUT_MS);
   });
 

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { resolveAccess, toAccessClient } from '@/lib/auth/access';
-import { getAccountStatement } from '@/actions/billing/get-account-statement';
+import { loadAccountStatement } from '@/lib/billing/account-statement-data';
+import { isResidentRollForwardEnabled } from '@/lib/billing/account-balance';
 import { getSettingValue } from '@/actions/settings/get-settings';
 import { AccountStatementPDF } from '@/lib/pdf/account-statement';
 import { format } from 'date-fns';
@@ -106,13 +107,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Generate statement data
-    const { data: statementData, error: statementError } = await getAccountStatement({
+    // Generate statement data: admins always see the roll-forward balance, residents once it is switched on (#863)
+    const { data: statementData, error: statementError } = await loadAccountStatement(supabase, {
       residentId,
       houseId: houseId || undefined,
       fromDate,
       toDate,
-    });
+    }, { rollForward: hasBillingPermission || await isResidentRollForwardEnabled() });
 
     if (statementError || !statementData) {
       return NextResponse.json(

@@ -1,10 +1,10 @@
 import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GET } from '../route';
-import { processInvoiceReminders } from '@/actions/notifications/invoice-reminders';
+import { processInvoiceReminders } from '@/lib/notifications/invoice-reminders';
 import { recordSystemAction } from '@/lib/system-log/recorder';
 
-vi.mock('@/actions/notifications/invoice-reminders', () => ({ processInvoiceReminders: vi.fn() }));
+vi.mock('@/lib/notifications/invoice-reminders', () => ({ processInvoiceReminders: vi.fn() }));
 vi.mock('@/lib/system-log/recorder', () => ({ recordSystemAction: vi.fn() }));
 
 const SECRET = 'cron-secret-for-tests';

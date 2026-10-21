@@ -5,7 +5,9 @@ import { createChatmaidWhatsAppProvider } from '@/lib/whatsapp/providers/chatmai
 import { decideSend } from '@/lib/comms-override/gate';
 import { prefixText } from '@/lib/comms-override/labels';
 import { blockedError, toLogRecord } from '@/lib/comms-override/resolver';
+import { samePhone } from '@/lib/comms-override/number-conflict';
 import type { CommsSendContext, OverrideLogRecord } from '@/lib/comms-override/types';
+import { recordOutboundSend, type OutboundSendTracking } from '@/lib/whatsapp/outbound-sends';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
 import type {
   WhatsAppSendResult,
@@ -85,7 +87,8 @@ type WhatsAppRedirect =
  */
 async function resolveWhatsAppRedirect(
   original: string,
-  context: CommsSendContext | undefined
+  context: CommsSendContext | undefined,
+  fromNumber: string | undefined
 ): Promise<WhatsAppRedirect> {
   const { result, envLabel } = await decideSend({
     channel: 'whatsapp',
@@ -106,13 +109,40 @@ async function resolveWhatsAppRedirect(
     };
   }
   if (!result.redirect) return { to: original, redirected: false, envLabel };
-  return { to: normalizePhoneNumber(result.to), redirected: true, envLabel, override };
+  const to = normalizePhoneNumber(result.to);
+  // A redirect to the sending number itself is accepted by the provider and never arrives (#904).
+  if (samePhone(to, fromNumber)) {
+    const reason = `override WhatsApp target ${to} is the WhatsApp from-number (the bridge phone itself); change the override number in Communications override settings`;
+    return {
+      blocked: {
+        success: false,
+        error: `comms override blocked: ${reason}`,
+        retryable: false,
+        override: { original, actual: null, reason, blocked: true },
+      },
+    };
+  }
+  return { to, redirected: true, envLabel, override };
+}
+
+/** Stores an accepted send for delivery tracking (#839); a stubbed provider (tests) has no config. */
+async function trackAcceptedSend(
+  result: WhatsAppSendResult,
+  config: WhatsAppConfig | null,
+  to: string,
+  context: CommsSendContext | undefined,
+  tracking: OutboundSendTracking | undefined
+): Promise<void> {
+  const purpose = context?.purpose ?? tracking?.purpose;
+  if (!result.success || !result.messageId || !config || !tracking || !purpose) return;
+  await recordOutboundSend({ ...tracking, purpose, provider: config.provider, providerMessageId: result.messageId, phoneNumber: to });
 }
 
 export async function sendWhatsAppMessage(
   message: WhatsAppTextMessage,
   provider?: WhatsAppProvider,
-  context?: CommsSendContext
+  context?: CommsSendContext,
+  tracking?: OutboundSendTracking
 ): Promise<WhatsAppSendResult> {
   const resolved = provider ? null : await resolveWhatsAppConfig();
 
@@ -133,7 +163,7 @@ export async function sendWhatsAppMessage(
 
   const config = resolved ? resolved.config : null;
 
-  const redirect = await resolveWhatsAppRedirect(message.to, context);
+  const redirect = await resolveWhatsAppRedirect(message.to, context, config && 'fromNumber' in config ? config.fromNumber : undefined);
   if ('blocked' in redirect) return redirect.blocked;
   // Free-form text can carry the label; the original is also in the log record.
   const outbound = redirect.redirected
@@ -142,6 +172,7 @@ export async function sendWhatsAppMessage(
 
   try {
     const result = await (provider || resolveProvider(config!)).sendText(outbound);
+    await trackAcceptedSend(result, config, message.to, context, tracking);
     return redirect.override ? { ...result, override: redirect.override } : result;
   } catch {
     return {
@@ -155,7 +186,8 @@ export async function sendWhatsAppMessage(
 export async function sendWhatsAppTemplate(
   message: WhatsAppTemplateMessage,
   provider?: WhatsAppProvider,
-  context?: CommsSendContext
+  context?: CommsSendContext,
+  tracking?: OutboundSendTracking
 ): Promise<WhatsAppSendResult> {
   const resolved = provider ? null : await resolveWhatsAppConfig();
 
@@ -176,7 +208,7 @@ export async function sendWhatsAppTemplate(
 
   const config = resolved ? resolved.config : null;
 
-  const redirect = await resolveWhatsAppRedirect(message.to, context);
+  const redirect = await resolveWhatsAppRedirect(message.to, context, config && 'fromNumber' in config ? config.fromNumber : undefined);
   if ('blocked' in redirect) return redirect.blocked;
   // KNOWN LIMIT: an approved template cannot be prefixed or bannered, so a
   // redirected template send carries no visible label. The original recipient is
@@ -185,6 +217,7 @@ export async function sendWhatsAppTemplate(
 
   try {
     const result = await (provider || resolveProvider(config!)).sendTemplate(outbound);
+    await trackAcceptedSend(result, config, message.to, context, tracking);
     return redirect.override ? { ...result, override: redirect.override } : result;
   } catch {
     return {

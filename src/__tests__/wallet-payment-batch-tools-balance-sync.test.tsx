@@ -50,6 +50,11 @@ vi.mock('@/actions/billing/settle-wallet-invoices', () => ({
   settleWalletInvoices: vi.fn(),
 }));
 
+// Settle is gated on billing.manage_wallets (#783); these tests act as a holder.
+vi.mock('@/lib/auth/auth-provider', () => ({
+  useAuth: () => ({ hasPermission: (permission: string) => permission === 'billing.manage_wallets' }),
+}));
+
 vi.mock('@/actions/billing/prepay-future-invoices', () => ({
   prepayFutureInvoices: vi.fn(),
 }));

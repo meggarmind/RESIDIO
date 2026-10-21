@@ -5,7 +5,7 @@
  * Not covered here (too large to mock sensibly; the ratchet in
  * integration/audit-entity-id-uuid.test.ts guards them): generateRetroactiveLevies,
  * sendBulkNotification, backfillOwnershipHistory, importWhatsAppOptIns,
- * sendPaymentReminders, processInvoiceReminders.
+ * sendPaymentReminders.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeRecordingSupabase, expectUuidEntityId, uid, type QueryResult } from '@/__tests__/helpers/recording-supabase';
@@ -50,7 +50,7 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 const boom = { message: 'boom' };
 const pilotInput = {
   mode: 'disabled' as const, residentIds: [], streetId: '', outboundDailyCap: 1, outboundBurstCap: 1,
-  outboundBurstWindowMinutes: 1, financialLookupDailyCap: 1, sessionRetentionDays: 7, processedMessageRetentionDays: 7,
+  outboundBurstWindowMinutes: 1, financialLookupDailyCap: 1, sessionRetentionDays: 7, processedMessageRetentionDays: 7, surveyResponseRetentionDays: 90, outboundSendRetentionDays: 90,
 };
 
 beforeEach(() => {

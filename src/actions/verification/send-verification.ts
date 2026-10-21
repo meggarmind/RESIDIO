@@ -1,86 +1,22 @@
 'use server';
 
-import { randomInt } from 'node:crypto';
 import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
 import { sendVerificationSms } from '@/lib/sms/send-sms';
 import { sendEmail } from '@/lib/email/send-email';
 import { VerificationCodeEmail } from '@/emails/verification-code';
 import { getEstateEmailSettings } from '@/lib/email/send-email';
 import { logAudit } from '@/lib/audit/logger';
-import type { VerificationType, SendVerificationResult } from '@/types/database';
+import type { SendVerificationResult } from '@/types/database';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { isChannelImplemented } from '@/lib/notifications/types';
 import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
-
-// Token expiry in minutes
-const TOKEN_EXPIRY_MINUTES = 30;
-
-// Rate limit: max tokens per hour per resident
-const MAX_TOKENS_PER_HOUR = 3;
-
-/**
- * Generate a uniformly random 6-digit OTP from a CSPRNG (Math.random is predictable).
- * Zero-padded: the token column accepts any 6 digits (^[0-9]{6}$).
- */
-function generateOTP(): string {
-  return randomInt(0, 1_000_000).toString().padStart(6, '0');
-}
-
-/**
- * Check rate limit for verification token generation
- */
-async function checkRateLimit(residentId: string, tokenType: VerificationType): Promise<{
-  allowed: boolean;
-  remainingAttempts: number;
-  waitMinutes?: number;
-}> {
-  const supabase = createAdminClient();
-
-  // Count tokens created in the last hour
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-
-  const { count } = await supabase
-    .from('verification_tokens')
-    .select('*', { count: 'exact', head: true })
-    .eq('resident_id', residentId)
-    .eq('token_type', tokenType)
-    .gte('created_at', oneHourAgo);
-
-  const tokensUsed = count || 0;
-  const remainingAttempts = MAX_TOKENS_PER_HOUR - tokensUsed;
-
-  if (remainingAttempts <= 0) {
-    return {
-      allowed: false,
-      remainingAttempts: 0,
-      waitMinutes: 60,
-    };
-  }
-
-  return {
-    allowed: true,
-    remainingAttempts,
-  };
-}
-
-/**
- * Invalidate any existing unused tokens for the same resident and type
- */
-async function invalidateExistingTokens(
-  residentId: string,
-  tokenType: VerificationType
-): Promise<void> {
-  const supabase = createAdminClient();
-
-  // Mark existing unused tokens as used (effectively invalidating them)
-  await supabase
-    .from('verification_tokens')
-    .update({ used_at: new Date().toISOString() })
-    .eq('resident_id', residentId)
-    .eq('token_type', tokenType)
-    .is('used_at', null);
-}
+import {
+  TOKEN_EXPIRY_MINUTES,
+  checkRateLimit,
+  generateOTP,
+  invalidateExistingTokens,
+} from '@/lib/verification/tokens';
 
 /**
  * Send email verification code to a resident

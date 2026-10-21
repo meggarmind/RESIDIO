@@ -6,12 +6,14 @@ description: A short recovery guide for common admin dashboard problems.
 residio_sources:
   - src/app/(dashboard)/settings/maintenance/**
   - src/app/(dashboard)/settings/data-retention/**
+  - src/app/(dashboard)/settings/system/**
+  - src/components/settings/system/**
   - src/app/(dashboard)/system/cron-status/**
   - src/app/api/health/**
   - src/actions/system/**
   - src/lib/system/**
-residio_verified_commit: fa851df
-residio_verified_at: '2026-10-15'
+residio_verified_commit: c2f2451f
+residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---
 
@@ -27,7 +29,7 @@ Clear filters, check the date range, and confirm the user has access to the rele
 
 ## A save fails
 
-Read the validation message, confirm required fields, and retry once. If the problem persists, capture the page, time, user role, and non-sensitive error text for support.
+Read the validation message, confirm required fields, and retry once. On a settings page, fields that are disabled and a missing Save button mean the role can open the page but not change it; ask an administrator who holds that area's permission. If the problem persists, capture the page, time, user role, and non-sensitive error text for support.
 
 ## A number looks wrong
 

@@ -67,6 +67,7 @@ vi.mock('@supabase/ssr', () => ({
                 const builder = {
                     select: () => builder,
                     eq: () => builder,
+                    in: async () => ({ data: [], error: null }),
                     single: () => single(table),
                 };
                 return builder;

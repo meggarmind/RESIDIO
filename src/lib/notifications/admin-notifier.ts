@@ -51,10 +51,11 @@ export async function notifyAdmins(params: AdminNotificationParams): Promise<{ s
         }
 
         // If no permission was specified, default to super_admin and chairman
+        // TODO(slice 3, #824): no permission is held by exactly these two roles (vice_chairman matches chairman). Revisit when roles are re-seeded.
         if (recipientIds.length === 0 && !params.requiredPermission) {
             const { data: profiles } = await adminClient
                 .from('profiles')
-                .select('id, app_roles!inner(name)')
+                .select('id, app_roles!profiles_role_id_fkey!inner(name)')
                 .in('app_roles.name', ['super_admin', 'chairman']);
 
             if (profiles) {

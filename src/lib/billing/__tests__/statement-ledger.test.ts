@@ -101,4 +101,28 @@ describe('buildStatementLedger', () => {
     expect(result.summary).toEqual({ totalInvoiced: 15000, totalPaid: 3000, totalCredits: 0, totalDebits: 500, netChange: 12500 });
     expect(result.closingBalance).toBe(14500);
   });
+
+  it('keeps Opening + Charges + Debits - Payments - Credits = Closing, and the last running balance on it, for varied rows (#863)', () => {
+    // Seeded so a failure reproduces; amounts in kobo so the expected sum is exact.
+    let seed = 863;
+    const next = (n: number) => { seed = (seed * 1103515245 + 12345) % 2 ** 31; return seed % n; };
+    const naira = () => (next(5_000_000) + 1) / 100;
+    for (let round = 0; round < 50; round++) {
+      const day = () => `2026-${String(next(12) + 1).padStart(2, '0')}-${String(next(28) + 1).padStart(2, '0')}`;
+      const invoices = Array.from({ length: next(6) }, (_, i) => invoice({ id: `i${i}`, amount_due: naira(), period_start: day() }));
+      const payments = Array.from({ length: next(6) }, (_, i) => payment({ id: `p${i}`, amount: naira(), payment_date: day() }));
+      const walletTransactions = Array.from({ length: next(6) }, (_, i) =>
+        walletTx({ id: `w${i}`, type: next(2) ? 'credit' : 'debit', amount: naira(), reference_type: ['payment', 'invoice', null, 'legacy_tracker_credit'][next(4)], created_at: `${day()}T10:00:00Z` }));
+      const openingBalance = (next(2_000_000) - 1_000_000) / 100;
+
+      const { summary, closingBalance, transactions } = buildStatementLedger({ openingBalance, invoices, payments, walletTransactions });
+
+      const kobo = (n: number) => Math.round(n * 100);
+      expect(kobo(openingBalance) + kobo(summary.totalInvoiced) + kobo(summary.totalDebits) - kobo(summary.totalPaid) - kobo(summary.totalCredits)).toBe(kobo(closingBalance));
+      expect(kobo(transactions.at(-1)?.balance ?? openingBalance)).toBe(kobo(closingBalance));
+      const counted = walletTransactions.filter((tx) => tx.reference_type !== 'payment' && tx.reference_type !== 'invoice');
+      expect(kobo(summary.totalCredits)).toBe(counted.filter((tx) => tx.type === 'credit').reduce((sum, tx) => sum + kobo(tx.amount), 0));
+      expect(kobo(summary.totalPaid)).toBe(payments.reduce((sum, p) => sum + kobo(p.amount ?? 0), 0));
+    }
+  });
 });

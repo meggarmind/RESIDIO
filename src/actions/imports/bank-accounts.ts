@@ -103,7 +103,7 @@ export async function createBankAccount(
 ): Promise<MutateBankAccountResponse> {
   const supabase = await createServerSupabaseClient();
 
-  const auth = await authorizePermission(PERMISSIONS.IMPORTS_CREATE);
+  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_REFERENCE);
   if (!auth.authorized) {
     return { data: null, error: auth.error || 'Unauthorized' };
   }
@@ -188,7 +188,7 @@ export async function updateBankAccount(
 ): Promise<MutateBankAccountResponse> {
   const supabase = await createServerSupabaseClient();
 
-  const auth = await authorizePermission(PERMISSIONS.IMPORTS_CREATE);
+  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_REFERENCE);
   if (!auth.authorized) {
     return { data: null, error: auth.error || 'Unauthorized' };
   }
@@ -278,7 +278,7 @@ export async function updateBankAccount(
 export async function toggleBankAccountStatus(id: string): Promise<MutateBankAccountResponse> {
   const supabase = await createServerSupabaseClient();
 
-  const auth = await authorizePermission(PERMISSIONS.IMPORTS_CREATE);
+  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_REFERENCE);
   if (!auth.authorized) {
     return { data: null, error: auth.error || 'Unauthorized' };
   }
@@ -347,7 +347,7 @@ export async function toggleBankAccountStatus(id: string): Promise<MutateBankAcc
 export async function deleteBankAccount(id: string): Promise<DeleteBankAccountResponse> {
   const supabase = await createServerSupabaseClient();
 
-  const auth = await authorizePermission(PERMISSIONS.IMPORTS_CREATE);
+  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_REFERENCE);
   if (!auth.authorized) {
     return { error: auth.error || 'Unauthorized' };
   }

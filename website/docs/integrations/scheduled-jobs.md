@@ -10,8 +10,8 @@ residio_sources:
   - src/actions/system/cron-status.ts
   - src/lib/system/cron-status.ts
   - src/app/(dashboard)/system/cron-status/**
-residio_verified_commit: 998f69e
-residio_verified_at: '2026-10-15'
+residio_verified_commit: b7aa8ecf
+residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---
 
@@ -30,16 +30,23 @@ Times are in UTC. Adjust for your estate's local time when reasoning about when 
 | Job | Runs | What it does |
 |---|---|---|
 | Payment cadence refresh | Daily, 00:00 | Recalculates resident payment cadence |
-| WhatsApp retention purge | Daily, 00:15 | Removes expired WhatsApp sessions and processed messages |
+| WhatsApp retention purge | Daily, 00:15 | Removes expired WhatsApp sessions, processed messages, survey answers and outbound send records |
 | Invoice generation | Daily, 06:00 | Generates recurring invoices that are due |
 | Report generation | Daily, 06:00 | Builds scheduled reports |
 | Report schedule processing | Daily, 07:00 | Delivers reports to their subscribers |
 | Payment reminders | Daily, 08:00 | Queues reminder messages for outstanding balances |
-| Notification processing | Daily, 09:00 | Sends what is waiting in the notification queue |
+| Notification processing | Every 15 minutes | Sends what is waiting in the notification queue, retrying failed sends with a backoff, alerts admins to Chatmaid WhatsApp messages still unconfirmed after 15 minutes, and deletes WhatsApp statement PDFs 12 hours after they were made |
 | Announcement publishing | Hourly | Publishes announcements whose scheduled time has arrived |
-| Email import | Hourly | Reads the connected mailbox for bank alerts and statements |
+| Email import | Hourly | Reads the connected mailbox for bank alerts and statements, and queues every transaction it finds for admin review (it posts no money) |
+| Approval expiry | Hourly | Rejects approval requests left pending past their 72-hour expiry and notifies the requester |
 
-These schedules run as scheduled tasks on the production server only. Test and staging environments run no scheduled jobs, so nothing arrives there on its own and an engineer has to trigger a job by hand.
+These schedules run as scheduled tasks on both the production and the staging server. On staging, every email, SMS and WhatsApp message a job sends goes to the contacts set on **Settings → Messages → Email & sending → Testing**, never to the real resident, staff member or report recipient; if the needed override contact is blank the message is blocked instead. See [Email and SMS channels](./email-and-sms) for how the override works.
+
+The override does not reach three kinds of message, which staging can still send to real people: WhatsApp Assistant replies (they go to whoever messaged the number), sign-in emails such as password resets and invites (sent by Supabase), and Paystack payment receipts (sent by Paystack).
+
+Invoice generation also has an off-server safety net: it checks production and staging and runs invoice generation only when the status page reports that job as Critical, so it normally does nothing.
+
+Each scheduled run is also recorded in **System → Action Log** with its outcome, duration and any error. See [Access and system health](../settings/access-and-system-health).
 
 A late fee job also exists as an endpoint but has never been on the schedule. If your estate charges late fees, confirm with an engineer how that run is triggered before assuming it is automatic.
 
@@ -56,16 +63,15 @@ A late fee job also exists as an endpoint but has never been on the schedule. If
 
 A warning is a prompt to look, not a reason to act. Check the status page before manually generating invoices or resending notifications — a job that is merely late will otherwise run afterwards and duplicate your manual work.
 
-### Two jobs report against the wrong expectation
+### One job reports against the wrong expectation
 
-The status page judges each job against a frequency it declares internally, and for two jobs that frequency does not match the schedule the platform actually runs.
+The status page judges each job against a frequency it declares internally, and for notification processing that frequency does not match the schedule the platform actually runs.
 
 | Job | Status page expects | Actually scheduled |
 |---|---|---|
-| Notification processing | Every 5 minutes | Daily, 09:00 |
-| Invoice generation | Monthly, from a set day | Daily, 06:00 |
+| Notification processing | Every 5 minutes (Warning after 10 minutes, Critical after 30) | Every 15 minutes |
 
-The practical effect is that **notification processing reports Critical almost permanently**, because it is measured against a five-minute window it was never scheduled to meet. Read that particular card against the queue itself rather than the badge: if **System → Notification Queue** is draining daily, the job is working.
+The practical effect is that **notification processing often reports Warning or Critical**: the card measures the time since the last message was sent, so it goes Critical whenever 30 minutes pass with nothing to send. Read that particular card against the queue itself rather than the badge: if **System → Notification Queue** is draining, the job is working.
 
 Treat this as a known reporting fault, not an outage. It is being tracked for repair.
 

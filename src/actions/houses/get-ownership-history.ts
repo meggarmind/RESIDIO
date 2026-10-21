@@ -27,11 +27,14 @@ const OWNERSHIP_EVENT_LABELS: Record<OwnershipEventType, string> = {
 };
 
 /**
- * Get the full ownership and occupancy history for a house
- * Returns all history events in chronological order (newest first)
+ * Get one page of the ownership and occupancy history for a house
+ * Returns history events in chronological order (newest first), `limit` per page from `offset`
  * Enriched with computed end_date from resident_houses move_out_date
  */
-export async function getOwnershipHistory(houseId: string): Promise<OwnershipHistoryResponse> {
+export async function getOwnershipHistory(
+  houseId: string,
+  { limit = 100, offset = 0 }: { limit?: number; offset?: number } = {}
+): Promise<OwnershipHistoryResponse> {
   const supabase = await createServerSupabaseClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -59,18 +62,23 @@ export async function getOwnershipHistory(houseId: string): Promise<OwnershipHis
     `)
     .eq('house_id', houseId)
     .order('event_date', { ascending: false })
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
 
   if (historyError) {
     console.error('[getOwnershipHistory] Error:', historyError);
     return { data: null, error: historyError.message };
   }
 
-  // Fetch resident_houses records to get move_out_date for end dates
-  const { data: residentHousesData } = await supabase
-    .from('resident_houses')
-    .select('resident_id, move_in_date, move_out_date, is_active')
-    .eq('house_id', houseId);
+  // Fetch resident_houses records to get move_out_date for end dates, only for residents on this page
+  const residentIds = [...new Set((historyData ?? []).map((r) => r.resident_id).filter((rid): rid is string => !!rid))];
+  const { data: residentHousesData } = residentIds.length
+    ? await supabase
+        .from('resident_houses')
+        .select('resident_id, move_in_date, move_out_date, is_active')
+        .eq('house_id', houseId)
+        .in('resident_id', residentIds)
+    : { data: [] };
 
   // Create a map of resident_id -> move_out_date for quick lookup
   const residentMoveOutMap = new Map<string, { move_out_date: string | null; is_active: boolean }>();

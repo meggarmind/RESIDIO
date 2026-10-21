@@ -1,430 +1,149 @@
 'use client';
 
 /**
- * Notification Template Form Component
+ * Wording editor for one event on one channel, email (#907) or Chatmaid WhatsApp (#908).
  *
- * Form for creating and editing notification templates.
+ * Each field shows the built-in text as its placeholder. Leaving a field empty, or pressing
+ * "Reset to default", means that field uses the built-in text.
  */
 
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import { useState } from 'react';
+import { toast } from 'sonner';
+import { RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { X, Plus, Info } from 'lucide-react';
-import { useCreateTemplate, useUpdateTemplate } from '@/hooks/use-notifications';
+import { useUpdateEventContent } from '@/hooks/use-notifications';
 import {
-  NOTIFICATION_CATEGORY_LABELS,
-  NOTIFICATION_CHANNEL_LABELS,
-  isChannelImplemented,
-} from '@/lib/notifications/types';
-import type {
-  NotificationTemplate,
-  NotificationCategory,
-  NotificationChannel,
-  TemplateVariable,
-} from '@/lib/notifications/types';
-
-type TemplateFormData = {
-  name: string;
-  display_name: string;
-  category: 'payment' | 'invoice' | 'security' | 'general';
-  channel: 'email' | 'sms' | 'whatsapp';
-  subject_template?: string;
-  body_template: string;
-  html_template?: string;
-  is_active: boolean;
-  variables: Array<{
-    name: string;
-    description: string;
-    required: boolean;
-  }>;
-};
-
-const templateSchema = z.object({
-  name: z.string().min(3, 'Name must be at least 3 characters').regex(/^[a-z_]+$/, 'Name must be lowercase with underscores only'),
-  display_name: z.string().min(3, 'Display name must be at least 3 characters'),
-  category: z.enum(['payment', 'invoice', 'security', 'general']),
-  channel: z.enum(['email', 'sms', 'whatsapp']),
-  subject_template: z.string().optional(),
-  body_template: z.string().min(10, 'Body must be at least 10 characters'),
-  html_template: z.string().optional(),
-  is_active: z.boolean(),
-  variables: z.array(z.object({
-    name: z.string(),
-    description: z.string(),
-    required: z.boolean(),
-  })),
-}) satisfies z.ZodType<TemplateFormData>;
+  WHATSAPP_MAX_CONTENT_LENGTH,
+  getChannelContent,
+  isEventKey,
+  validateOverrides,
+} from '@/lib/notifications/event-content-registry';
+import type { NotificationTemplate } from '@/lib/notifications/types';
 
 interface TemplateFormProps {
-  template?: NotificationTemplate;
+  template: NotificationTemplate;
   onSuccess?: () => void;
   onCancel?: () => void;
 }
 
 export function TemplateForm({ template, onSuccess, onCancel }: TemplateFormProps) {
-  const createTemplate = useCreateTemplate();
-  const updateTemplate = useUpdateTemplate();
+  const updateContent = useUpdateEventContent();
+  const event = template.event && isEventKey(template.event) ? template.event : null;
+  const channel = template.channel === 'whatsapp' ? 'whatsapp' : 'email';
+  const [values, setValues] = useState<Record<string, string>>(template.overrides ?? {});
 
-  const isEditing = !!template;
+  if (!event) {
+    return <p className="text-sm text-muted-foreground">This template is not editable.</p>;
+  }
 
-  const form = useForm<TemplateFormData>({
-    resolver: zodResolver(templateSchema),
-    defaultValues: {
-      name: template?.name || '',
-      display_name: template?.display_name || '',
-      category: (template?.category as NotificationCategory) || 'general',
-      channel: (template?.channel as NotificationChannel) || 'email',
-      subject_template: template?.subject_template || '',
-      body_template: template?.body_template || '',
-      html_template: template?.html_template || '',
-      is_active: template?.is_active ?? true,
-      variables: template?.variables || [],
-    },
-  });
+  const definition = getChannelContent(event, channel);
+  if (!definition) {
+    return <p className="text-sm text-muted-foreground">This template is not editable.</p>;
+  }
+  const groups = [...new Set(definition.fields.map((field) => field.group ?? ''))];
 
-  const variables = form.watch('variables');
-  const channel = form.watch('channel');
+  const setField = (key: string, value: string) => setValues((prev) => ({ ...prev, [key]: value }));
+  const resetField = (key: string) =>
+    setValues((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
 
-  const addVariable = () => {
-    const currentVars = form.getValues('variables');
-    form.setValue('variables', [
-      ...currentVars,
-      { name: '', description: '', required: false },
-    ]);
-  };
-
-  const removeVariable = (index: number) => {
-    const currentVars = form.getValues('variables');
-    form.setValue('variables', currentVars.filter((_, i) => i !== index));
-  };
-
-  const updateVariable = (index: number, field: keyof TemplateVariable, value: string | boolean) => {
-    const currentVars = form.getValues('variables');
-    const updated = [...currentVars];
-    updated[index] = { ...updated[index], [field]: value };
-    form.setValue('variables', updated);
-  };
-
-  const onSubmit = async (data: TemplateFormData) => {
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const overrides = Object.fromEntries(
+      Object.entries(values).filter(([, value]) => value.trim() !== '')
+    );
+    const checked = validateOverrides(event, overrides, channel);
+    if (!checked.ok) {
+      toast.error(checked.errors.join('; '));
+      return;
+    }
     try {
-      if (isEditing) {
-        await updateTemplate.mutateAsync({
-          id: template.id,
-          input: data,
-        });
-      } else {
-        await createTemplate.mutateAsync(data);
-      }
+      await updateContent.mutateAsync({ event, channel, overrides });
       onSuccess?.();
-    } catch (error) {
-      // Error is handled by the mutation
+    } catch {
+      // The mutation hook already toasts the error.
     }
   };
 
-  const categories = Object.entries(NOTIFICATION_CATEGORY_LABELS) as [NotificationCategory, string][];
-  const channels = Object.entries(NOTIFICATION_CHANNEL_LABELS) as [NotificationChannel, string][];
-
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        {/* Section 1: Basic Information */}
-        <Card>
-          <CardHeader className="pb-4">
-            <CardTitle className="text-base">Basic Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Internal Name</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        placeholder="payment_reminder_7day"
-                        disabled={isEditing}
-                      />
-                    </FormControl>
-                    <FormDescription>e.g., payment_reminder_7day</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="display_name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Display Name</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="Payment Reminder (7 Days)" />
-                    </FormControl>
-                    <FormDescription>Shown in template list</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="category"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Category</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select category" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {categories.map(([value, label]) => (
-                          <SelectItem key={value} value={value}>
-                            {label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="channel"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Channel</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select channel" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {channels.map(([value, label]) => (
-                          <SelectItem
-                            key={value}
-                            value={value}
-                            disabled={!isChannelImplemented(value)}
-                          >
-                            {label}
-                            {!isChannelImplemented(value) && ' (Coming soon)'}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Section 2: Template Content */}
-        <Card>
-          <CardHeader className="pb-4">
-            <CardTitle className="text-base">Template Content</CardTitle>
-            <CardDescription className="flex items-center gap-2">
-              <Info className="h-4 w-4" />
-              Use <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">{'{{variable_name}}'}</code> syntax for dynamic content
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {channel === 'email' && (
-              <FormField
-                control={form.control}
-                name="subject_template"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Subject Template</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="Payment Reminder: {{invoice_number}}" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
-
-            <FormField
-              control={form.control}
-              name="body_template"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Body Template</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      placeholder="Dear {{resident_name}},&#10;&#10;Your payment of ₦{{amount_due}} is due on {{due_date}}."
-                      rows={8}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {channel === 'email' && (
-              <FormField
-                control={form.control}
-                name="html_template"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>HTML Template (Optional)</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        {...field}
-                        placeholder="<p>Dear {{resident_name}},</p>"
-                        rows={4}
-                      />
-                    </FormControl>
-                    <FormDescription>For rich email formatting</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Section 3: Template Variables */}
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base">Template Variables</CardTitle>
-                <CardDescription>
-                  Define variables used in this template
-                </CardDescription>
-              </div>
-              <Button type="button" variant="outline" size="sm" onClick={addVariable}>
-                <Plus className="h-4 w-4 mr-1" />
-                Add Variable
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {variables.length === 0 ? (
-              <div className="text-sm text-muted-foreground flex items-center gap-2 py-4">
-                <Info className="h-4 w-4" />
-                No variables defined. Add variables to make your template dynamic.
-              </div>
-            ) : (
-              variables.map((variable, index) => (
-                <div key={index} className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
-                  <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <Input
-                      value={variable.name}
-                      onChange={(e) => updateVariable(index, 'name', e.target.value)}
-                      placeholder="variable_name"
-                    />
-                    <Input
-                      value={variable.description}
-                      onChange={(e) => updateVariable(index, 'description', e.target.value)}
-                      placeholder="Description"
-                    />
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        checked={variable.required}
-                        onCheckedChange={(checked) => updateVariable(index, 'required', checked)}
-                      />
-                      <span className="text-sm">Required</span>
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={variable.name ? `Remove variable ${variable.name}` : 'Remove variable'}
-                    onClick={() => removeVariable(index)}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))
-            )}
-            {variables.length > 0 && (
-              <div className="pt-2">
-                <p className="text-xs text-muted-foreground">
-                  Use these in your template: {variables.map(v => `{{${v.name}}}`).join(', ')}
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Section 4: Settings */}
-        <Card>
-          <CardContent className="pt-6">
-            <FormField
-              control={form.control}
-              name="is_active"
-              render={({ field }) => (
-                <FormItem className="flex items-center gap-3">
-                  <FormControl>
-                    <Switch checked={field.value} onCheckedChange={field.onChange} />
-                  </FormControl>
-                  <div>
-                    <FormLabel className="text-base mb-0">Active</FormLabel>
-                    <FormDescription className="mt-0.5">
-                      Only active templates can be used for sending notifications
-                    </FormDescription>
-                  </div>
-                </FormItem>
-              )}
-            />
-          </CardContent>
-        </Card>
-
-        {/* Action Buttons */}
-        <div className="flex gap-3 justify-end">
-          {onCancel && (
-            <Button type="button" variant="outline" onClick={onCancel}>
-              Cancel
-            </Button>
-          )}
-          <Button
-            type="submit"
-            disabled={createTemplate.isPending || updateTemplate.isPending}
-          >
-            {createTemplate.isPending || updateTemplate.isPending
-              ? 'Saving...'
-              : isEditing
-              ? 'Update Template'
-              : 'Create Template'}
-          </Button>
+    <form onSubmit={onSubmit} className="space-y-6">
+      <div className="space-y-2">
+        <p className="text-sm font-medium">Variables you can use</p>
+        <div className="flex flex-wrap gap-2">
+          {definition.variables.map((variable) => (
+            <Badge key={variable.name} variant="outline" title={variable.description}>
+              {`{{${variable.name}}}`}
+            </Badge>
+          ))}
         </div>
-      </form>
-    </Form>
+        <p className="text-xs text-muted-foreground">
+          Separate paragraphs with a blank line. Variables outside this list are rejected.
+        </p>
+      </div>
+
+      {groups.map((group) => (
+        <fieldset key={group} className="space-y-4">
+          {group && <legend className="text-sm font-semibold">{group}</legend>}
+          {definition.fields
+            .filter((field) => (field.group ?? '') === group)
+            .map((field) => {
+              const id = `field-${field.key}`;
+              const edited = (values[field.key] ?? '').trim() !== '';
+              return (
+                <div key={field.key} className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor={id}>{field.label}</Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={!edited}
+                      onClick={() => resetField(field.key)}
+                    >
+                      <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                      Reset to default
+                    </Button>
+                  </div>
+                  {field.multiline ? (
+                    <Textarea
+                      id={id}
+                      rows={4}
+                      maxLength={channel === 'whatsapp' ? WHATSAPP_MAX_CONTENT_LENGTH : undefined}
+                      value={values[field.key] ?? ''}
+                      placeholder={field.default}
+                      onChange={(e) => setField(field.key, e.target.value)}
+                    />
+                  ) : (
+                    <Input
+                      id={id}
+                      value={values[field.key] ?? ''}
+                      placeholder={field.default}
+                      onChange={(e) => setField(field.key, e.target.value)}
+                    />
+                  )}
+                </div>
+              );
+            })}
+        </fieldset>
+      ))}
+
+      <div className="flex justify-end gap-2">
+        {onCancel && (
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+        )}
+        <Button type="submit" disabled={updateContent.isPending}>
+          {updateContent.isPending ? 'Saving...' : 'Save wording'}
+        </Button>
+      </div>
+    </form>
   );
 }

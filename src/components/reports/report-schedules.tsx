@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { useCan } from '@/components/auth/can';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -97,10 +99,13 @@ function ScheduleCard({
     schedule,
     onToggle,
     onDelete,
+    canManage,
 }: {
     schedule: ReportSchedule;
     onToggle: (id: string, isActive: boolean) => void;
     onDelete: (id: string) => void;
+    /** reports.manage_schedules: the permission every schedule write enforces. */
+    canManage: boolean;
 }) {
     const reportType = reportTypeOptions.find((r) => r.value === schedule.report_type);
     const Icon = reportType?.icon || FileBarChart;
@@ -134,21 +139,23 @@ function ScheduleCard({
                             </div>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                        <Switch
-                            checked={schedule.is_active}
-                            onCheckedChange={(checked) => onToggle(schedule.id, checked)}
-                        />
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                            onClick={() => onDelete(schedule.id)}
-                            aria-label={`Delete schedule ${schedule.name}`}
-                        >
-                            <Trash2 className="h-4 w-4" />
-                        </Button>
-                    </div>
+                    {canManage && (
+                        <div className="flex items-center gap-2 shrink-0">
+                            <Switch
+                                checked={schedule.is_active}
+                                onCheckedChange={(checked) => onToggle(schedule.id, checked)}
+                            />
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                onClick={() => onDelete(schedule.id)}
+                                aria-label={`Delete schedule ${schedule.name}`}
+                            >
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    )}
                 </div>
             </CardContent>
         </Card>
@@ -374,6 +381,7 @@ function CreateScheduleDialog({
 // ============================================================
 
 export function ReportSchedulesPanel() {
+    const canManage = useCan(PERMISSIONS.REPORTS_MANAGE_SCHEDULES);
     const { data: schedules, isLoading } = useReportSchedules();
     const updateSchedule = useUpdateReportSchedule();
     const deleteSchedule = useDeleteReportSchedule();
@@ -416,10 +424,12 @@ export function ReportSchedulesPanel() {
                         Reports are generated automatically at 6 AM UTC
                     </p>
                 </div>
-                <Button onClick={() => setCreateDialogOpen(true)} size="sm">
-                    <Plus className="h-4 w-4 mr-1.5" />
-                    New Schedule
-                </Button>
+                {canManage && (
+                    <Button onClick={() => setCreateDialogOpen(true)} size="sm">
+                        <Plus className="h-4 w-4 mr-1.5" />
+                        New Schedule
+                    </Button>
+                )}
             </div>
 
             {schedules && schedules.length > 0 ? (
@@ -430,6 +440,7 @@ export function ReportSchedulesPanel() {
                             schedule={schedule}
                             onToggle={handleToggle}
                             onDelete={(id) => setDeleteConfirmId(id)}
+                            canManage={canManage}
                         />
                     ))}
                 </div>
@@ -438,18 +449,22 @@ export function ReportSchedulesPanel() {
                     <CardContent className="py-8 text-center">
                         <CalendarClock className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
                         <p className="font-medium text-sm">No schedules configured</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                            Create a schedule to automate report generation
-                        </p>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="mt-4"
-                            onClick={() => setCreateDialogOpen(true)}
-                        >
-                            <Plus className="h-4 w-4 mr-1.5" />
-                            Create First Schedule
-                        </Button>
+                        {canManage && (
+                            <>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    Create a schedule to automate report generation
+                                </p>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="mt-4"
+                                    onClick={() => setCreateDialogOpen(true)}
+                                >
+                                    <Plus className="h-4 w-4 mr-1.5" />
+                                    Create First Schedule
+                                </Button>
+                            </>
+                        )}
                     </CardContent>
                 </Card>
             )}

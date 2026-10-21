@@ -97,13 +97,12 @@ Community announcements, scheduling, read receipts
 
 #### notifications/
 Notification system - templates, schedules, queue, preferences
-- `templates` - CRUD for notification templates
+- `templates` - read and edit the wording overrides for the five resident emails (#907)
 - `schedules` - Notification trigger schedules
 - `queue` - Queue operations (the former `queue-management` module was retired in #173; `queue.ts` is the single backend)
 - `history` - Notification history queries
 - `preferences` - Per-resident notification preferences
 - `send` - Send notifications
-- `invoice-reminders` - Invoice reminder logic
 - `reminder-config` - Reminder configuration
 
 #### in-app-notifications/
@@ -126,7 +125,7 @@ Gmail integration for bank statements
 - `fetch-emails` - Retrieve emails
 - `parse-email` - Parse bank emails
 - `process-email-import` - Process imported transactions
-- `create-email-import` - Create import batch
+- `create-email-import` - Read import batches (writes live in `src/lib/email-imports/import-records.ts`)
 - `bank-passwords` - Encrypted PDF passwords
 
 #### expenses/ & expenditure/
@@ -336,17 +335,18 @@ shadcn/ui components - button, card, form, table, dialog, sheet, tabs, badge, al
 
 ### Settings Pages (/(dashboard)/settings/)
 - `/settings` - General settings
-- `/settings/appearance` - Theme settings
-- `/settings/billing` - Billing configuration
-- `/settings/security` - Security settings
-- `/settings/roles`, `/settings/user-roles` - Role management
-- `/settings/notifications/*` - Notification settings (templates, schedules, history, reminders)
+- `/settings/estate` - Estate Profile: details, logo, theme, assistant, resident portal, social links (old `/settings/estate-info`, `/settings/branding`, `/settings/appearance` redirect here)
+- `/settings/billing` - Billing rules (general, invoices & due dates, late fees, levies on one page); the old `/settings/billing/late-fees`, `/invoices` and `/development-levies` routes redirect to its sections
+- `/settings/debt-status` - Debt Status: the four status labels, the arrears threshold, the report footnote and the chat-PDF house limit (#980). The status rule is `get_debt_statuses`, wrapped by `src/lib/billing/debt-status.ts`
+- `/settings/security` - Security rules task page (contact limits, contact categories, session timeout); `/settings/security/categories` redirects to it
+- `/settings/access` - Roles & Access (administrators, pending sign-ups, unlinked logins, roles, who can hold each role; `?tab=`). `/system/accounts`, `/settings/roles` and `/settings/user-roles` redirect here
+- `/settings/reminders`, `/settings/wording`, `/settings/sending`, `/settings/announcements` - Messages task pages (reminders, email wording, email & sending, announcements); the old `/settings/notifications/*`, `/settings/email`, `/settings/comms-override` routes redirect to them
 - `/system/audit-logs` - Audit trail viewer
-- `/settings/maintenance` - Maintenance mode and messages
-- `/settings/data-retention` - Retention policies and pruning
-- `/settings/streets`, `/settings/house-types` - Reference data
-- `/settings/bank-accounts`, `/settings/transaction-tags` - Financial reference
-- `/settings/document-categories`, `/settings/announcement-categories` - Category management
+- `/settings/system` - Maintenance & data (maintenance mode and message, audit log retention and Prune Data); `/settings/maintenance` and `/settings/data-retention` redirect here
+- `/settings/property` - Streets & Houses (old `/settings/streets`, `/settings/house-types` redirect here)
+- `/settings/banking` - Bank accounts, transaction tags and duplicate matching on one page; the old `/settings/bank-accounts` and `/settings/transaction-tags` routes redirect to its sections
+- `/settings/documents` - Documents task page (categories, tags and custom fields); `/settings/document-categories` and `/settings/document-taxonomy` redirect to it
+- `/settings/announcement-categories` - redirects to `/settings/announcements#categories`
 - `/settings/email-integration`, `/settings/email` - Email configuration
 - `/settings/message-templates` - Message template library
 - `/settings/cron-status` - Cron job monitoring

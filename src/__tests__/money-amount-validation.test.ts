@@ -45,6 +45,7 @@ vi.mock('@/lib/supabase/server', () => ({
 }));
 vi.mock('@/lib/auth/authorize', () => ({
   authorizePermission: async () => ({ authorized: true, userId: 'user-1' }),
+  authorizeAnyPermission: async () => ({ authorized: true, userId: 'user-1' }),
 }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit: vi.fn(async () => undefined) }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
@@ -189,22 +190,31 @@ describe('createExpense', () => {
   };
 
   it.each(BAD_AMOUNTS)('rejects %s before touching the database', async (_l, amount) => {
-    await expect(createExpense({ ...input, amount })).rejects.toThrow();
+    const result = await createExpense({ ...input, amount });
+    expect(result.data).toBeNull();
+    expect(result.error).toMatch(/amount/i);
     expect(state.fromCalls).toEqual([]);
   });
 
   it.each(['', 'not-a-date', '2026-13-45'])('rejects date %j', async (expense_date) => {
-    await expect(createExpense({ ...input, expense_date, amount: 10 })).rejects.toThrow(/date/i);
+    const result = await createExpense({ ...input, expense_date, amount: 10 });
+    expect(result).toEqual({ data: null, error: 'Expense date must be a valid date' });
     expect(state.fromCalls).toEqual([]);
   });
 
   it('ignores a client-supplied is_verified on a manual expense', async () => {
     state.singles.expenses = { id: 'e1' };
-    await createExpense({ ...input, amount: 10, source_type: 'manual', is_verified: true });
+    const result = await createExpense({ ...input, amount: 10, source_type: 'manual', is_verified: true });
+    expect(result).toEqual({ data: { id: 'e1' }, error: null });
     const insert = state.writes.find((w) => w.table === 'expenses' && w.op === 'insert');
     const row = (insert!.payload as Array<Record<string, unknown>>)[0];
     expect(row.is_verified).toBe(false);
     expect(row.verified_at).toBeNull();
+  });
+
+  it('returns the insert failure instead of throwing', async () => {
+    const result = await createExpense({ ...input, amount: 10 });
+    expect(result).toEqual({ data: null, error: 'Failed to create expense' });
   });
 
   it('keeps bank imports auto-verified', async () => {
@@ -229,7 +239,7 @@ describe('requestLateFeeWaiver', () => {
       id: 'inv-1',
       invoice_number: 'INV-1',
       resident_id: 'r1',
-      invoice_items: [{ description: 'Late Fee (auto)', amount: 1000 }],
+      invoice_items: [{ amount: 1000, late_fee_applied_at: '2026-10-01T00:00:00Z' }],
     };
   });
 
@@ -295,7 +305,19 @@ describe('requestLateFeeWaiver', () => {
       id: 'inv-1',
       invoice_number: 'INV-1',
       resident_id: 'r1',
-      invoice_items: [{ description: 'Late Fee adjustment', amount: 1000 }],
+      invoice_items: [{ amount: 1000, late_fee_applied_at: null }],
+    };
+    const result = await requestLateFeeWaiver({ invoiceId: 'inv-1', reason: 'r', waiverType: 'full' });
+    expect(result).toEqual({ success: false, error: 'This invoice does not have a late fee applied' });
+    expect(state.writes).toEqual([]);
+  });
+
+  it('refuses a waiver on an admin line typed as the reserved late-fee description (#830)', async () => {
+    state.singles.invoices = {
+      id: 'inv-1',
+      invoice_number: 'INV-1',
+      resident_id: 'r1',
+      invoice_items: [{ description: 'Late Fee (auto)', amount: 1000, late_fee_applied_at: null }],
     };
     const result = await requestLateFeeWaiver({ invoiceId: 'inv-1', reason: 'r', waiverType: 'full' });
     expect(result).toEqual({ success: false, error: 'This invoice does not have a late fee applied' });

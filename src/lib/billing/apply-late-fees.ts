@@ -34,15 +34,16 @@ export function calculateLateFee(amountDue: number, lateFeeType: string, lateFee
   return lateFeeAmount;
 }
 
-// `invoices` has no metadata column (#806): the late-fee invoice item is the record that a fee was applied.
-// shortcut: a reserved description, not a durable marker; replace with one under #830.
+// The late-fee invoice item is the record that a fee was applied (#806). It is identified by
+// invoice_items.late_fee_applied_at, set only by the run (#830); the description is a display label
+// and admins can type the same text on their own lines.
 export const LATE_FEE_ITEM_DESCRIPTION = 'Late Fee (auto)';
 
-export type InvoiceItemRef = { description: string; amount: number };
+export type InvoiceItemRef = { amount: number; late_fee_applied_at: string | null };
 
 /** The invoice's late-fee item, if a late fee has been applied to it. */
 export function findLateFeeItem(items: InvoiceItemRef[] | null | undefined): InvoiceItemRef | undefined {
-  return items?.find((item) => item.description === LATE_FEE_ITEM_DESCRIPTION);
+  return items?.find((item) => !!item.late_fee_applied_at);
 }
 
 /**
@@ -91,7 +92,7 @@ export async function previewLateFeeApplication(): Promise<{ data: LateFeePrevie
 
   const { data: overdueInvoices, error } = await supabase
     .from('invoices')
-    .select('id, amount_due, invoice_items(description, amount)')
+    .select('id, amount_due, invoice_items(amount, late_fee_applied_at)')
     .in('status', ['unpaid', 'partially_paid'])
     .lt('due_date', cutoffDateStr);
   if (error) return { data: null, error: error.message };
@@ -163,7 +164,7 @@ export async function runLateFeeApplication(
   // Find overdue invoices that haven't had late fees applied yet
   const { data: overdueInvoices, error: fetchError } = await supabase
     .from('invoices')
-    .select('id, invoice_number, amount_due, due_date, status, invoice_items(description, amount)')
+    .select('id, invoice_number, amount_due, due_date, status, invoice_items(amount, late_fee_applied_at)')
     .in('status', ['unpaid', 'partially_paid'])
     .lt('due_date', cutoffDateStr)
     .order('due_date', { ascending: true });
@@ -236,6 +237,7 @@ export async function runLateFeeApplication(
         invoice_id: invoice.id,
         description: LATE_FEE_ITEM_DESCRIPTION,
         amount: lateFee,
+        late_fee_applied_at: new Date().toISOString(),
       })
       .select('id')
       .single();

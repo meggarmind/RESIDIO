@@ -7,9 +7,11 @@ import { sendEmail, getEstateEmailSettings } from '@/lib/email';
 import { embed } from '@/lib/utils';
 import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
 import { getSettingValue } from '@/actions/settings/get-settings';
+import { readPaymentReminderSettings } from '@/lib/notifications/payment-reminder-settings';
 import { updateSetting } from '@/actions/settings/update-setting';
 import { logAudit } from '@/lib/audit/logger';
 import { PaymentReminderEmail } from '@/emails';
+import { formatEventCurrency, formatEventProperty, getEventContent, renderEventText } from '@/lib/notifications/event-content';
 
 interface ReminderResult {
   success: boolean;
@@ -40,18 +42,10 @@ export async function sendPaymentReminders(): Promise<ReminderResult> {
     errors: [],
   };
 
-  // Check if reminders are enabled
-  const remindersEnabled = await getSettingValue('email_payment_reminders_enabled');
-  if (remindersEnabled === false) {
+  // Same settings the daily cron applies (#846)
+  const { emailEnabled, reminderDays } = await readPaymentReminderSettings(getSettingValue);
+  if (!emailEnabled) {
     return { ...result, errors: ['Payment reminders are disabled'] };
-  }
-
-  // Get reminder days configuration (e.g., [7, 3, 1])
-  const reminderDaysRaw = await getSettingValue('payment_reminder_days');
-  let reminderDays: number[] = [7, 3, 1]; // Default
-
-  if (Array.isArray(reminderDaysRaw)) {
-    reminderDays = reminderDaysRaw.map((d) => Number(d)).filter((d) => !isNaN(d));
   }
 
   if (reminderDays.length === 0) {
@@ -60,6 +54,7 @@ export async function sendPaymentReminders(): Promise<ReminderResult> {
 
   // Get estate settings for email template
   const estateSettings = await getEstateEmailSettings();
+  const copy = await getEventContent('payment_reminder');
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -139,8 +134,16 @@ export async function sendPaymentReminders(): Promise<ReminderResult> {
           name: `${resident.first_name} ${resident.last_name}`,
           residentId: resident.id,
         },
-        subject: `Payment Reminder: ${invoice.invoice_number}`,
+        subject: renderEventText(copy.subject, {
+          resident_name: `${resident.first_name} ${resident.last_name}`,
+          invoice_number: invoice.invoice_number,
+          amount: formatEventCurrency(amountRemaining),
+          due_date: formattedDueDate,
+          property: formatEventProperty(house?.house_number, embed(house?.street)?.name),
+          estate_name: estateSettings.estateName,
+        }),
         react: PaymentReminderEmail({
+          copy,
           residentName: `${resident.first_name} ${resident.last_name}`,
           invoiceNumber: invoice.invoice_number,
           amountDue: amountRemaining,
@@ -206,13 +209,10 @@ export async function previewPaymentReminders(): Promise<{
   if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
 
   const empty = { recipients: 0, invoices: 0, skipped: 0 };
-  if ((await getSettingValue('email_payment_reminders_enabled')) === false) {
+  const { emailEnabled, reminderDays } = await readPaymentReminderSettings(getSettingValue);
+  if (!emailEnabled) {
     return { data: { ...empty, disabledReason: 'Payment reminders are disabled' }, error: null };
   }
-  const reminderDaysRaw = await getSettingValue('payment_reminder_days');
-  const reminderDays = Array.isArray(reminderDaysRaw)
-    ? reminderDaysRaw.map((d) => Number(d)).filter((d) => !isNaN(d))
-    : [7, 3, 1];
   if (reminderDays.length === 0) {
     return { data: { ...empty, disabledReason: 'No reminder days configured' }, error: null };
   }

@@ -6,6 +6,7 @@ import {
   StyleSheet,
 } from '@react-pdf/renderer';
 import { format } from 'date-fns';
+import { formatPdfDate } from '@/lib/pdf/format-date';
 import type { ClearanceCertificate } from '@/actions/residents/move-out-renter';
 
 // Styles for PDF
@@ -201,6 +202,14 @@ interface ClearanceCertificatePDFProps {
   certificate: ClearanceCertificate;
   estateName?: string;
   estateAddress?: string;
+  /**
+   * `move_out` (default) is the move-out certificate: validity period, destination and the CSO notes.
+   * `financial` is a clearance a resident asked for over WhatsApp (#816): the same statement of
+   * financial clearance, with nothing about vacating the premises.
+   */
+  variant?: 'move_out' | 'financial';
+  /** Replaces the move-out destination line, for a move-out that is not leaving the estate. */
+  destinationText?: string;
 }
 
 /**
@@ -213,12 +222,15 @@ export function ClearanceCertificatePDF({
   certificate,
   estateName = 'Residio Estate',
   estateAddress = '',
+  variant = 'move_out',
+  destinationText: destinationOverride,
 }: ClearanceCertificatePDFProps) {
-  const clearanceDate = new Date(certificate.clearanceDate);
-  const validUntilDate = new Date(certificate.validUntil);
+  const moveOut = variant === 'move_out';
 
   const destinationText =
-    certificate.destination === 'leaving_estate'
+    destinationOverride
+      ? destinationOverride
+      : certificate.destination === 'leaving_estate'
       ? 'The resident is leaving the estate permanently.'
       : certificate.destinationHouse
       ? `Moving to: ${certificate.destinationHouse.address} as ${certificate.destinationHouse.role.replace(/_/g, ' ')}`
@@ -246,8 +258,8 @@ export function ClearanceCertificatePDF({
           {/* Opening statement */}
           <Text style={styles.statement}>
             This is to certify that the below-named resident has been cleared of all
-            financial obligations to {estateName} as of the date indicated below and
-            is hereby authorized to vacate the premises.
+            financial obligations to {estateName} as of the date indicated below
+            {moveOut ? ' and is hereby authorized to vacate the premises.' : '.'}
           </Text>
 
           {/* Resident Information */}
@@ -273,51 +285,61 @@ export function ClearanceCertificatePDF({
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Clearance Date:</Text>
               <Text style={styles.infoValue}>
-                {format(clearanceDate, 'MMMM d, yyyy')}
+                {formatPdfDate(certificate.clearanceDate)}
               </Text>
             </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Status:</Text>
-              <Text style={styles.infoValue}>
-                {certificate.status === 'confirmed'
-                  ? 'CONFIRMED'
-                  : certificate.status === 'expired'
-                  ? 'EXPIRED'
-                  : 'PENDING CONFIRMATION'}
-              </Text>
-            </View>
+            {moveOut && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Status:</Text>
+                <Text style={styles.infoValue}>
+                  {certificate.status === 'confirmed'
+                    ? 'CONFIRMED'
+                    : certificate.status === 'expired'
+                    ? 'EXPIRED'
+                    : 'PENDING CONFIRMATION'}
+                </Text>
+              </View>
+            )}
           </View>
 
-          {/* Validity Box */}
-          <View style={styles.validityBox}>
-            <Text style={styles.validityTitle}>VALIDITY PERIOD</Text>
-            <Text style={styles.validityText}>
-              This certificate is valid for {certificate.validityDays} days until:
-            </Text>
-            <Text style={styles.validityDate}>
-              {format(validUntilDate, 'MMMM d, yyyy')}
-            </Text>
-          </View>
+          {moveOut && (
+            <>
+              {/* Validity Box */}
+              <View style={styles.validityBox}>
+                <Text style={styles.validityTitle}>VALIDITY PERIOD</Text>
+                <Text style={styles.validityText}>
+                  This certificate is valid for {certificate.validityDays} days until:
+                </Text>
+                <Text style={styles.validityDate}>
+                  {formatPdfDate(certificate.validUntil)}
+                </Text>
+              </View>
 
-          {/* Destination */}
-          <View style={styles.destinationBox}>
-            <Text style={styles.destinationTitle}>MOVE-OUT DESTINATION</Text>
-            <Text style={styles.destinationText}>{destinationText}</Text>
-          </View>
+              {/* Destination */}
+              <View style={styles.destinationBox}>
+                <Text style={styles.destinationTitle}>MOVE-OUT DESTINATION</Text>
+                <Text style={styles.destinationText}>{destinationText}</Text>
+              </View>
+            </>
+          )}
 
           {/* Notes */}
           <View>
             <Text style={styles.notes}>
-              <Text style={styles.noteItem}>
-                • Physical move-out must be confirmed by Estate Security (CSO) before this
-                certificate is fully processed.
-              </Text>
-              {'\n'}
-              <Text style={styles.noteItem}>
-                • If the validity period expires without CSO confirmation, residency billing
-                may resume.
-              </Text>
-              {'\n'}
+              {moveOut && (
+                <>
+                  <Text style={styles.noteItem}>
+                    • Physical move-out must be confirmed by Estate Security (CSO) before this
+                    certificate is fully processed.
+                  </Text>
+                  {'\n'}
+                  <Text style={styles.noteItem}>
+                    • If the validity period expires without CSO confirmation, residency billing
+                    may resume.
+                  </Text>
+                  {'\n'}
+                </>
+              )}
               <Text style={styles.noteItem}>
                 • This certificate does not transfer any rights or obligations to third parties.
               </Text>
@@ -334,10 +356,12 @@ export function ClearanceCertificatePDF({
               <View style={styles.signatureLine} />
               <Text style={styles.signatureLabel}>Authorized Signature</Text>
             </View>
-            <View style={styles.signatureBlock}>
-              <View style={styles.signatureLine} />
-              <Text style={styles.signatureLabel}>CSO Confirmation</Text>
-            </View>
+            {moveOut && (
+              <View style={styles.signatureBlock}>
+                <View style={styles.signatureLine} />
+                <Text style={styles.signatureLabel}>CSO Confirmation</Text>
+              </View>
+            )}
           </View>
         </View>
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { SettingsPageHeader } from '@/components/settings/settings-page-header';
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -70,6 +71,9 @@ function EmailIntegrationSkeleton() {
 
 function EmailIntegrationContent() {
   const searchParams = useSearchParams();
+  // The route needs only email_imports.view; each control is gated on what its action enforces.
+  const canConfigure = useCan(PERMISSIONS.EMAIL_IMPORTS_CONFIGURE);
+  const canTrigger = useCan(PERMISSIONS.EMAIL_IMPORTS_TRIGGER);
   const { data: connectionStatus, isLoading, refetch } = useGmailConnectionStatus();
   const connectMutation = useConnectGmail();
   const disconnectMutation = useDisconnectGmail();
@@ -95,12 +99,7 @@ function EmailIntegrationContent() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Gmail Import</h1>
-        <p className="text-muted-foreground mt-1">
-          Connect your Gmail account to automatically import bank statements and transaction alerts.
-        </p>
-      </div>
+      <SettingsPageHeader description="Connect your Gmail account to automatically import bank statements and transaction alerts." />
 
       <Card>
         <CardHeader>
@@ -117,14 +116,15 @@ function EmailIntegrationContent() {
             </div>
           ) : connectionStatus?.connected ? (
             <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-900">
+              <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-success/10 rounded-lg border border-success/20">
                 <div className="flex items-center gap-3">
-                  <CheckCircle2 className="h-6 w-6 text-green-600" />
+                  <CheckCircle2 className="h-6 w-6 text-success" />
                   <div>
                     <p className="font-medium">Connected</p>
                     <p className="text-sm text-muted-foreground">{connectionStatus.email}</p>
                   </div>
                 </div>
+                {canConfigure && (
                 <ConfirmAction
                   trigger={
                     <Button variant="outline" disabled={disconnectMutation.isPending}>
@@ -137,6 +137,7 @@ function EmailIntegrationContent() {
                   destructive
                   onConfirm={() => disconnectMutation.mutate()}
                 />
+                )}
               </div>
               <Separator />
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -162,7 +163,7 @@ function EmailIntegrationContent() {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border">
+              <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-muted/50 rounded-lg border">
                 <div className="flex items-center gap-3">
                   <AlertCircle className="h-6 w-6 text-muted-foreground" />
                   <div>
@@ -170,13 +171,15 @@ function EmailIntegrationContent() {
                     <p className="text-sm text-muted-foreground">Connect your Gmail account to start importing emails</p>
                   </div>
                 </div>
-                <Button onClick={() => connectMutation.mutate()} disabled={connectMutation.isPending}>
-                  <LinkIcon className="h-4 w-4 mr-2" />
-                  {connectMutation.isPending ? 'Connecting...' : 'Connect Gmail'}
-                </Button>
+                {canConfigure && (
+                  <Button onClick={() => connectMutation.mutate()} disabled={connectMutation.isPending}>
+                    <LinkIcon className="h-4 w-4 mr-2" />
+                    {connectMutation.isPending ? 'Connecting...' : 'Connect Gmail'}
+                  </Button>
+                )}
               </div>
-              <div className="text-sm text-muted-foreground p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
-                <p className="font-medium text-blue-700 dark:text-blue-400 mb-2">How it works:</p>
+              <div className="text-sm text-muted-foreground p-4 bg-info/10 rounded-lg">
+                <p className="font-medium text-info mb-2">How it works:</p>
                 <ul className="list-disc list-inside space-y-1">
                   <li>You&apos;ll be redirected to Google to authorize read-only email access</li>
                   <li>Only emails from First Bank will be fetched</li>
@@ -203,10 +206,12 @@ function EmailIntegrationContent() {
               <Link href="/payments/email-imports" className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2">
                 <Clock className="h-4 w-4 mr-2" /> View Import History
               </Link>
-              <Button variant="outline" onClick={() => manualFetchMutation.mutate()} disabled={manualFetchMutation.isPending}>
-                <RefreshCw className={`h-4 w-4 mr-2 ${manualFetchMutation.isPending ? 'animate-spin' : ''}`} />
-                {manualFetchMutation.isPending ? 'Fetching...' : 'Manual Fetch'}
-              </Button>
+              {canTrigger && (
+                <Button variant="outline" onClick={() => manualFetchMutation.mutate()} disabled={manualFetchMutation.isPending}>
+                  <RefreshCw className={`h-4 w-4 mr-2 ${manualFetchMutation.isPending ? 'animate-spin' : ''}`} />
+                  {manualFetchMutation.isPending ? 'Fetching...' : 'Manual Fetch'}
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -222,7 +227,7 @@ function EmailIntegrationContent() {
               <p className="text-sm text-muted-foreground">Manage PDF passwords in the Bank Accounts settings.</p>
             </div>
             <Button variant="outline" asChild>
-              <a href="/settings/bank-accounts"><Settings className="h-4 w-4 mr-2" /> Bank Accounts</a>
+              <a href="/settings/banking#bank-accounts"><Settings className="h-4 w-4 mr-2" /> Bank Accounts</a>
             </Button>
           </div>
         </CardContent>

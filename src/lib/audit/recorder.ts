@@ -13,6 +13,11 @@ import { getChangedValues } from './helpers';
 /** Structurally satisfied by the Access result and by the authorize result. */
 export interface AuditActor {
   userId: string | null;
+  /**
+   * A resident acting through WhatsApp (#816) has no admin profile. With no `userId`, the entry is
+   * written with no actor and the resident named in its metadata.
+   */
+  residentId?: string;
 }
 
 export interface AuditEntry {
@@ -80,6 +85,7 @@ export const ENTITY_DISPLAY_FIELDS: Record<AuditEntityType, readonly (string | r
   app_permissions: DEFAULT_DISPLAY_FIELDS,
   role_permissions: DEFAULT_DISPLAY_FIELDS,
   role_assignment_rules: DEFAULT_DISPLAY_FIELDS,
+  admin_titles: ['name'],
   notification_templates: ['display_name', 'name'],
   notification_schedules: ['name'],
   notification_queue: DEFAULT_DISPLAY_FIELDS,
@@ -122,6 +128,7 @@ export const ENTITY_DISPLAY_FIELDS: Record<AuditEntityType, readonly (string | r
   whatsapp_link_tokens: DEFAULT_DISPLAY_FIELDS,
   whatsapp_sessions: DEFAULT_DISPLAY_FIELDS,
   whatsapp_provider_credentials: DEFAULT_DISPLAY_FIELDS,
+  recipient_groups: ['name'],
   visitor_vehicles: ['plate_number'],
   expenses: ['description'],
   payment_records: ['reference'],
@@ -155,7 +162,7 @@ export function resolveEntityDisplay(
   return undefined;
 }
 
-function buildRow(entry: AuditEntry, actorId: string): AuditLogInsert {
+function buildRow(entry: AuditEntry, actor: AuditActor): AuditLogInsert {
   let oldValues = entry.oldValues;
   let newValues = entry.newValues;
 
@@ -175,7 +182,7 @@ function buildRow(entry: AuditEntry, actorId: string): AuditLogInsert {
     entry.entityDisplay || resolveEntityDisplay(entry.entityType, entry.newRow ?? entry.oldRow);
 
   return {
-    actor_id: actorId,
+    actor_id: actor.userId,
     action: entry.action,
     entity_type: entry.entityType,
     entity_id: entry.entityId,
@@ -183,7 +190,9 @@ function buildRow(entry: AuditEntry, actorId: string): AuditLogInsert {
     old_values: (oldValues || null) as AuditLogInsert['old_values'],
     new_values: (newValues || null) as AuditLogInsert['new_values'],
     description: entry.description || null,
-    metadata: (entry.metadata || null) as AuditLogInsert['metadata'],
+    metadata: (actor.userId || !actor.residentId
+      ? entry.metadata || null
+      : { ...entry.metadata, actor_resident_id: actor.residentId, via: 'whatsapp' }) as AuditLogInsert['metadata'],
     ip_address: null, // Could be populated from request headers in future
     user_agent: null, // Could be populated from request headers in future
   };
@@ -199,12 +208,12 @@ export async function recordAudit(
   sink?: AuditSink
 ): Promise<{ recorded: boolean }> {
   try {
-    if (!actor.userId) {
+    if (!actor.userId && !actor.residentId) {
       console.error('[Audit] Cannot log audit: No authenticated user');
       return { recorded: false };
     }
 
-    const row = buildRow(entry, actor.userId);
+    const row = buildRow(entry, actor);
     const { error } = await (sink ?? createAuditSink()).insert(row);
 
     if (error) {

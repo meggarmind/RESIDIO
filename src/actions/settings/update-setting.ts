@@ -3,11 +3,12 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import type { SystemSetting } from '@/types/database';
-import { authorizePermission } from '@/lib/auth/authorize';
-import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { authorizeAnyPermission, authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS, type Permission } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { settingValueError } from '@/lib/validators/setting-value';
 import { EMAIL_AUTO_PROCESS_LIMIT_KEY } from '@/lib/email-imports/utils';
+import { ALL_DEBT_STATUS_SETTING_KEYS } from '@/lib/billing/debt-status';
 
 type UpdateSettingResponse = {
     data: SystemSetting | null;
@@ -25,9 +26,71 @@ function superAdminOnlyError(keys: string[], roleName: string | null): string | 
 }
 
 /**
- * Updates a system setting value
+ * Keys owned by a narrower settings area need that area's permission, the same
+ * one its route admits (owner decision on #840); every other key needs
+ * settings.manage_general.
  */
-export async function updateSetting(key: string, value: unknown): Promise<UpdateSettingResponse> {
+const SETTING_AREAS: { permissions: Permission[]; keys: string[] }[] = [
+    {
+        // /settings/billing, late fees and the development-levy profile
+        permissions: [PERMISSIONS.SETTINGS_MANAGE_BILLING, PERMISSIONS.BILLING_MANAGE_PROFILES],
+        keys: [
+            'bill_vacant_houses',
+            'bill_under_renovation_houses',
+            'bill_under_construction_houses',
+            'auto_generate_levies',
+            'pro_rata_first_month',
+            'invoice_due_window_days',
+            'payment_reminder_days',
+            'late_fee_enabled',
+            'late_fee_type',
+            'late_fee_amount',
+            'grace_period_days',
+            'late_fee_auto_apply',
+            'late_fee_application_day',
+            'current_development_levy_profile_id',
+            'clearance_copy_recipient_group_id',
+        ],
+    },
+    {
+        // /settings/debt-status (#980)
+        permissions: [PERMISSIONS.SETTINGS_MANAGE_DEBT_STATUS],
+        keys: ALL_DEBT_STATUS_SETTING_KEYS,
+    },
+    {
+        permissions: [PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION],
+        keys: ['audit_log_retention_days'],
+    },
+    {
+        permissions: [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE],
+        keys: ['maintenance_mode', 'maintenance_message', 'session_timeout_minutes', 'duplicate_matching_threshold'],
+    },
+    {
+        // Reminder config (src/actions/notifications/reminder-config.ts SETTINGS_KEYS)
+        permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE],
+        keys: ['invoice_reminder_schedule', 'invoice_reminders_enabled'],
+    },
+];
+
+const GENERAL_PERMISSIONS: Permission[] = [PERMISSIONS.SETTINGS_MANAGE_GENERAL];
+
+/** One permission set per area the keys touch; any one permission in a set satisfies it. */
+function permissionSetsFor(keys: string[]): Permission[][] {
+    const sets = new Set(
+        keys.map((key) => SETTING_AREAS.find((area) => area.keys.includes(key))?.permissions ?? GENERAL_PERMISSIONS)
+    );
+    return sets.size > 0 ? [...sets] : [GENERAL_PERMISSIONS];
+}
+
+/**
+ * Updates a system setting value. A key with no row fails, unless `createIfMissing` is given:
+ * then the row is inserted with that category (a setting no migration has seeded, #903).
+ */
+export async function updateSetting(
+    key: string,
+    value: unknown,
+    createIfMissing?: { category: string; description?: string }
+): Promise<UpdateSettingResponse> {
     const supabase = await createServerSupabaseClient();
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -35,8 +98,9 @@ export async function updateSetting(key: string, value: unknown): Promise<Update
         return { data: null, error: 'Unauthorized' };
     }
 
-    // Permission check
-    const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
+    // Permission check: the area permission for area keys (#840)
+    const checks = await Promise.all(permissionSetsFor([key]).map((set) => authorizeAnyPermission(set)));
+    const auth = checks.find((check) => !check.authorized) ?? checks[0];
     if (!auth.authorized) {
         return { data: null, error: auth.error || 'Unauthorized' };
     }
@@ -63,14 +127,25 @@ export async function updateSetting(key: string, value: unknown): Promise<Update
         storageValue = value.toString();
     }
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
         .from('system_settings')
         .update({ value: storageValue })
         .eq('key', key)
         .select()
         .single();
 
-    if (error) {
+    let created = false;
+    // PGRST116: the update matched no row
+    if (error?.code === 'PGRST116' && createIfMissing) {
+        ({ data, error } = await supabase
+            .from('system_settings')
+            .insert({ key, value: storageValue, description: createIfMissing.description ?? null, category: createIfMissing.category })
+            .select()
+            .single());
+        created = true;
+    }
+
+    if (error || !data) {
         console.error(`Update setting "${key}" error:`, error);
         return { data: null, error: 'Failed to update setting' };
     }
@@ -78,13 +153,13 @@ export async function updateSetting(key: string, value: unknown): Promise<Update
     // Audit log (audit_logs.entity_id is a uuid: use the row id, keep the key as the label)
     if (data?.id) {
         await logAudit({
-            action: 'UPDATE',
+            action: created ? 'CREATE' : 'UPDATE',
             entityType: 'system_settings',
             entityId: data.id,
             entityDisplay: key,
             oldValues: { key, value: oldSetting?.value },
             newValues: { key, value: storageValue },
-            description: `Updated setting: ${key}`,
+            description: `${created ? 'Created' : 'Updated'} setting: ${key}`,
         });
     }
 
@@ -104,8 +179,9 @@ export async function updateSettings(settings: Record<string, unknown>): Promise
         return { success: false, error: 'Unauthorized' };
     }
 
-    // Permission check
-    const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
+    // Permission check: every area the keys touch (#840)
+    const checks = await Promise.all(permissionSetsFor(Object.keys(settings)).map((set) => authorizeAnyPermission(set)));
+    const auth = checks.find((check) => !check.authorized) ?? checks[0];
     if (!auth.authorized) {
         return { success: false, error: auth.error || 'Unauthorized' };
     }

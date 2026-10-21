@@ -124,6 +124,19 @@ Follow `DESIGN_AGENTS.md` for all UI work: OKLCH colors, `new-york` shadcn style
 in `IconBox` wrappers, tactile micro-animations. Wrap raw shadcn components in semantic layout
 components rather than using them directly in pages.
 
+### Date format in messages and reports
+
+Write every month as a name, never a number. Numeric dates (`31/08/2026`, `08/31/2026`,
+`2026-08-31`) read as day-first to some residents and month-first to others; a month name cannot
+be misread.
+
+- **WhatsApp messages: `dd mmm yyyy`**, for example `31 Aug 2026`. This covers every resident-facing
+  text the assistant or the system sends: replies, reminders, receipts, statements, and template
+  parameters (`dueDate`, `paymentDate`, period labels).
+- **PDF reports: `dd mmmm yyyy`**, for example `31 August 2026`.
+
+Build dates through one shared formatter per format, not `toLocaleDateString` with a numeric locale.
+
 ### Testing
 
 - Unit/integration: Vitest under `src/__tests__`, no network.
@@ -255,7 +268,7 @@ known ones, and their sizes change as entries are removed, so the counts are not
 the two arrays. Some entries are permanent and deliberate: recipient-facing, cron, webhook and
 pre-auth flows (`payments/submit-payment-proof`, `billing/pay-*-with-wallet`,
 `paystack/initialize-payment`, `paystack/verify-payment`, `paystack/webhook-handler`,
-`email-imports/create-email-import`, `reports/process-schedules`, `two-factor/verify`,
+`reports/process-schedules`, `two-factor/verify`,
 `auth/register-resident-portal`) cannot take an admin RBAC guard because they authenticate as a
 resident, via `CRON_SECRET`, or by signature verification. **Do not add hard permission checks
 there.** Entries marked "not yet fixed" in that file (#556) are gaps to close, not precedent.

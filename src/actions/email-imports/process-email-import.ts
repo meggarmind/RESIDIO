@@ -22,7 +22,7 @@ import {
   isValidEmailAutoProcessLimit,
 } from '@/lib/email-imports/utils';
 import { createExpense } from '@/actions/expenses/create-expense';
-import { updateEmailImportStatus } from './create-email-import';
+import { writeEmailImportStatus } from '@/lib/email-imports/import-records';
 import type {
   EmailTransaction,
   ProcessEmailTransactionsOptions,
@@ -336,7 +336,7 @@ export async function processEmailTransactions(
   }
 
   // Update import status
-  await updateEmailImportStatus({
+  await writeEmailImportStatus(adminClient, {
     importId,
     status: result.errored > 0 ? 'failed' : 'completed',
     transactionsAutoProcessed: result.autoProcessed,
@@ -679,8 +679,8 @@ async function createExpenseFromTransaction(
     return { success: false, error: 'No expense category found' };
   }
 
-  // createExpense throws on invalid input (e.g. a zero or 3-decimal amount).
-  // Record that as a failed row instead of aborting the whole import.
+  // Record a rejected expense (e.g. a zero or 3-decimal amount) as a failed row
+  // instead of aborting the whole import.
   let result: Awaited<ReturnType<typeof createExpense>>;
   try {
     result = await createExpense({
@@ -701,11 +701,11 @@ async function createExpenseFromTransaction(
     };
   }
 
-  if (!result || !result.id) {
-    return { success: false, error: 'Failed to create expense' };
+  if (result.error || !result.data?.id) {
+    return { success: false, error: result.error || 'Failed to create expense' };
   }
 
-  return { success: true, expenseId: result.id };
+  return { success: true, expenseId: result.data.id };
 }
 
 // ============================================================

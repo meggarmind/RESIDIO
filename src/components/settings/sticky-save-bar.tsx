@@ -15,7 +15,7 @@ interface StickySaveBarProps {
 /** Keeps a page's Save in reach while it has unsaved changes (#790). */
 export function StickySaveBar({ isDirty, isSaving, canSave = true, onSave, onDiscard }: StickySaveBarProps) {
   if (!isDirty || typeof document === 'undefined') return null;
-  // fixed, not sticky: the dashboard <main> never scrolls itself, the window does.
+  // fixed, not sticky, so it stays in view whichever element scrolls.
   // Portalled to the end of <body> so, at the same z-50, it paints over the root-layout
   // assistant pill while dialogs (portalled later) still paint over it.
   return (

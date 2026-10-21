@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth/auth-provider';
+import { roleWithTitle } from '@/lib/auth/role-label';
 import { User, UserSearch, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { usePendingApprovalsCount } from '@/hooks/use-approvals';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +13,7 @@ import { useSectionedNavigation } from '@/hooks/use-navigation';
 import { useEstateLogo } from '@/hooks/use-estate-logo';
 import { useSidebarState } from '@/hooks/use-sidebar-state';
 import { useSidebarNavState } from '@/hooks/use-sidebar-nav-state';
+import { useOpsStatus } from '@/hooks/use-ops-status';
 import { formatBuildLabel, getBuildInfo } from '@/lib/version';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -27,6 +29,7 @@ export function Sidebar({ className }: SidebarProps) {
   const { data: pendingCount } = usePendingApprovalsCount();
   const { logoUrl } = useEstateLogo();
   const { isCollapsed, isExpanded, toggleCollapsed, setHoverExpanded } = useSidebarState();
+  const opsStatus = useOpsStatus();
   const build = getBuildInfo();
   const buildLabel = formatBuildLabel(build);
   const envBadge =
@@ -118,7 +121,8 @@ export function Sidebar({ className }: SidebarProps) {
           {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </button>
       </div>
-      <nav className={cn('flex-1 pb-4 space-y-4', isExpanded ? 'px-4' : 'px-2')}>
+      {/* The shell is h-dvh and the aside clips, so the nav must shrink and scroll itself (#1009). */}
+      <nav className={cn('min-h-0 flex-1 overflow-y-auto pb-4 space-y-4', isExpanded ? 'px-4' : 'px-2')}>
         <TooltipProvider delayDuration={0}>
           {sections.map((section, sectionIndex) => (
             <div key={section.id}>
@@ -142,6 +146,7 @@ export function Sidebar({ className }: SidebarProps) {
                   const isParentOfActive = hasActiveChild(item.children);
                   const isMenuExpanded = userToggled[item.id] ?? isParentOfActive;
                   const showBadgeCount = item.showBadge && typeof pendingCount === 'number' && pendingCount > 0;
+                  const showOpsDot = item.href === '/settings' && (opsStatus.maintenance || opsStatus.commsOverride);
 
                   const navLink = (
                     <div
@@ -189,6 +194,13 @@ export function Sidebar({ className }: SidebarProps) {
                             />
                           )}
                         </>
+                      )}
+                      {showOpsDot && (
+                        <span
+                          role="img"
+                          aria-label="Maintenance mode or communications override is on"
+                          className={cn('h-2 w-2 shrink-0 rounded-full bg-warning', !isExpanded && 'absolute right-1.5 top-1.5')}
+                        />
                       )}
                     </div>
                   );
@@ -395,7 +407,7 @@ export function Sidebar({ className }: SidebarProps) {
               <TooltipContent side="right">
                 <p className="font-medium">{profile?.full_name}</p>
                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  {profile?.role_display_name}
+                  {roleWithTitle(profile?.role_display_name, profile?.title_name)}
                 </p>
               </TooltipContent>
             </Tooltip>
@@ -421,7 +433,7 @@ export function Sidebar({ className }: SidebarProps) {
                   {profile?.full_name}
                 </p>
                 <p className="text-xs truncate whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
-                  {profile?.role_display_name}
+                  {roleWithTitle(profile?.role_display_name, profile?.title_name)}
                 </p>
               </div>
             </Link>

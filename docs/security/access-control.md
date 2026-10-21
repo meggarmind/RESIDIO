@@ -21,7 +21,7 @@ Signing up does **not** grant access. `handle_new_user()` provisions every new
 `auth.users` row with `approval_status = 'pending'`, no role and no resident link.
 
 `profiles.approval_status` is the single chokepoint: the SECURITY DEFINER helpers that
-`get_my_role_name()` (97 RLS policies across 36 tables), `get_my_resident_id()`,
+`get_my_role_name()`, `get_my_resident_id()`,
 `is_resident()`, `is_super_admin()`, `has_permission()` — all return NULL/false unless the
 status is `active`. A pending, rejected or suspended account is therefore denied at the
 database level, not merely redirected by middleware.
@@ -154,8 +154,10 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 ```
 
 It returns **NULL** for an account that is not `active` or has no role assigned — unlike the
-legacy `get_my_role()` it replaced, it does not fall back to `'authenticated'`. 97 RLS policies
-across 36 tables call it.
+legacy `get_my_role()` it replaced, it does not fall back to `'authenticated'`. No RLS policy
+calls it any more: #63 replaced every role-name comparison with `has_permission()`, adding
+dedicated database-level permissions (such as `houses.manage_records`) where no existing
+permission had the same roles.
 
 > **Epic #182 removed the legacy role vocabulary.** `profiles.role`, the `user_role` enum and
 > `get_my_role()` are gone as of slices #190, #214, #193 and #194. `get_my_role()` used to read
@@ -193,14 +195,15 @@ $$;
 This is an expansion, not a rename. The legacy `get_my_role()` collapsed `vice_chairman` into
 `chairman` and `financial_officer` into `financial_secretary`, so
 `get_my_role() IN ('admin', 'chairman', 'financial_secretary')` actually admitted **four**
-distinct RBAC roles. The `get_my_role_name()` equivalent has to list them explicitly:
+distinct RBAC roles. #63 then replaced the role list with a permission granted to exactly those
+roles, wrapped in `(select ...)` so it is evaluated once per statement:
 
 ```sql
--- Allow admins and chairmen to view all residents
-CREATE POLICY "Admins and chairmen can view residents"
+-- Allow admins, chairmen and the financial officer to view all residents
+CREATE POLICY "Admins chairmen fin sec can view all residents"
 ON residents FOR SELECT
 USING (
-  get_my_role_name() IN ('super_admin', 'chairman', 'vice_chairman', 'financial_officer')
+  (select has_permission('residents.manage_records'))
 );
 
 -- Allow admins to modify residents

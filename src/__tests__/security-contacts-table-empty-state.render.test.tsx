@@ -37,6 +37,9 @@ vi.mock('@/components/dashboard/enhanced-stat-card', () => ({
 let mockContacts: unknown[] = [];
 let mockExpiredCount: number | undefined = undefined;
 
+vi.mock('@/lib/auth/auth-provider', () => ({
+  useAuth: () => ({ isLoading: false, hasPermission: () => true }),
+}));
 vi.mock('@/hooks/use-security', () => ({
   useSecurityContacts: () => ({
     data: { data: mockContacts, count: mockContacts.length },

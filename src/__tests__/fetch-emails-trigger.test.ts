@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({
   authorizePermission: vi.fn(),
   runEmailFetch: vi.fn(),
   verifyCronAuth: vi.fn(),
-  getGmailConnectionStatus: vi.fn(),
+  getActiveGmailAddress: vi.fn(),
   parseAllPendingEmails: vi.fn(),
 }));
 
@@ -15,8 +15,8 @@ vi.mock('@/lib/auth/cron-auth', () => ({ verifyCronAuth: mocks.verifyCronAuth })
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn() }),
 }));
-vi.mock('@/actions/email-imports/gmail-oauth', () => ({
-  getGmailConnectionStatus: mocks.getGmailConnectionStatus,
+vi.mock('@/lib/email-imports/gmail-client', () => ({
+  getActiveGmailAddress: mocks.getActiveGmailAddress,
 }));
 vi.mock('@/lib/email-imports/parse-email', () => ({
   parseAllPendingEmails: mocks.parseAllPendingEmails,
@@ -24,8 +24,8 @@ vi.mock('@/lib/email-imports/parse-email', () => ({
 vi.mock('@/lib/email-imports/process-email-matching', () => ({
   matchEmailTransactions: vi.fn(),
 }));
-vi.mock('@/actions/email-imports/process-email-import', () => ({
-  processEmailTransactions: vi.fn(),
+vi.mock('@/lib/email-imports/queue-for-review', () => ({
+  queueEmailTransactionsForReview: vi.fn(),
 }));
 
 import { fetchNewEmails } from '@/actions/email-imports/fetch-emails';
@@ -93,7 +93,7 @@ describe('cron fetch-emails route (#488)', () => {
 
   it('runs the cron-trigger fetch only after verifyCronAuth passes', async () => {
     mocks.verifyCronAuth.mockReturnValue(null);
-    mocks.getGmailConnectionStatus.mockResolvedValue({ data: { connected: true, email: 'a@b.c' }, error: null });
+    mocks.getActiveGmailAddress.mockResolvedValue('a@b.c');
     mocks.runEmailFetch.mockResolvedValue(okResult);
 
     const res = await GET(request);
@@ -103,5 +103,20 @@ describe('cron fetch-emails route (#488)', () => {
     expect(mocks.verifyCronAuth.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.runEmailFetch.mock.invocationCallOrder[0],
     );
+  });
+
+  it('parses with the system password read, since the cron run has no session (#884)', async () => {
+    mocks.verifyCronAuth.mockReturnValue(null);
+    mocks.getActiveGmailAddress.mockResolvedValue('a@b.c');
+    mocks.runEmailFetch.mockResolvedValue({ ...okResult, emailsFetched: 1 });
+    mocks.parseAllPendingEmails.mockResolvedValue({
+      messagesParsed: 1, transactionsExtracted: 0, errored: 0, error: null,
+    });
+
+    await GET(request);
+
+    expect(mocks.parseAllPendingEmails).toHaveBeenCalledWith('imp-1', {
+      systemSource: 'cron:fetch-emails',
+    });
   });
 });

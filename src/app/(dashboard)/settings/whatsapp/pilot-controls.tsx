@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { promoteWhatsAppPilotToEstate, updateWhatsAppPilotSettings, type PilotResidentOption } from '@/actions/whatsapp/pilot';
-import { PilotResidentPicker } from '@/app/(dashboard)/settings/whatsapp/pilot-resident-picker';
+import { ResidentPicker } from '@/components/residents/resident-picker';
 import type { WhatsAppRolloutMode } from '@/lib/whatsapp/rollout';
 
 export function PilotControls({ initial, residentOptions, residentOptionsError }: { initial: {
@@ -19,6 +19,8 @@ export function PilotControls({ initial, residentOptions, residentOptionsError }
   financialLookupDailyCap: number;
   sessionRetentionDays: number;
   processedMessageRetentionDays: number;
+  surveyResponseRetentionDays: number;
+  outboundSendRetentionDays: number;
 }; residentOptions: PilotResidentOption[]; residentOptionsError?: string | null }) {
   const { hasPermission } = useAuth();
   const canManage = hasPermission(PERMISSIONS.WHATSAPP_MANAGE);
@@ -33,6 +35,8 @@ export function PilotControls({ initial, residentOptions, residentOptionsError }
   const [processedMessageRetentionDays, setProcessedMessageRetentionDays] = useState(
     String(initial.processedMessageRetentionDays)
   );
+  const [surveyRetentionDays, setSurveyRetentionDays] = useState(String(initial.surveyResponseRetentionDays));
+  const [outboundSendRetentionDays, setOutboundSendRetentionDays] = useState(String(initial.outboundSendRetentionDays));
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -48,6 +52,8 @@ export function PilotControls({ initial, residentOptions, residentOptionsError }
         financialLookupDailyCap: Number(lookupCap),
         sessionRetentionDays: Number(sessionRetentionDays),
         processedMessageRetentionDays: Number(processedMessageRetentionDays),
+        surveyResponseRetentionDays: Number(surveyRetentionDays),
+        outboundSendRetentionDays: Number(outboundSendRetentionDays),
       });
       setMessage(result.error || 'Pilot controls saved');
     });
@@ -62,13 +68,15 @@ export function PilotControls({ initial, residentOptions, residentOptionsError }
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">Rollout mode</span><select value={mode} onChange={(event) => setMode(event.target.value as WhatsAppRolloutMode)} className="h-9 w-full rounded-md border bg-background px-3"><option value="disabled">Disabled</option><option value="pilot">Pilot</option><option value="estate">Estate-wide</option></select></label>
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">Pilot street ID</span><Input value={streetId} onChange={(event) => setStreetId(event.target.value)} placeholder="Optional" /></label>
-        <div className="space-y-1 text-sm sm:col-span-2"><span className="text-muted-foreground">Pilot residents</span><PilotResidentPicker options={residentOptions} value={residentIds} onChange={setResidentIds} disabled={!canManage} error={residentOptionsError} /></div>
+        <div className="space-y-1 text-sm sm:col-span-2"><span className="text-muted-foreground">Pilot residents</span><ResidentPicker options={residentOptions} value={residentIds} onChange={setResidentIds} disabled={!canManage} error={residentOptionsError} triggerLabel="Choose pilot residents" /></div>
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">Daily outbound cap</span><Input type="number" min="0" value={outboundCap} onChange={(event) => setOutboundCap(event.target.value)} /></label>
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">Burst cap</span><Input type="number" min="0" value={burstCap} onChange={(event) => setBurstCap(event.target.value)} /></label>
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">Burst window (minutes)</span><Input type="number" min="1" value={burstWindow} onChange={(event) => setBurstWindow(event.target.value)} /></label>
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">Daily financial lookup cap</span><Input type="number" min="0" value={lookupCap} onChange={(event) => setLookupCap(event.target.value)} /></label>
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">Session retention (days)</span><Input type="number" min="1" max="30" value={sessionRetentionDays} onChange={(event) => setSessionRetentionDays(event.target.value)} /></label>
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">Processed message retention (days)</span><Input type="number" min="1" max="30" value={processedMessageRetentionDays} onChange={(event) => setProcessedMessageRetentionDays(event.target.value)} /></label>
+        <label className="space-y-1 text-sm"><span className="text-muted-foreground">Survey answer retention (days)</span><Input type="number" min="1" max="365" value={surveyRetentionDays} onChange={(event) => setSurveyRetentionDays(event.target.value)} /></label>
+        <label className="space-y-1 text-sm"><span className="text-muted-foreground">Outbound send record retention (days)</span><Input type="number" min="1" max="365" value={outboundSendRetentionDays} onChange={(event) => setOutboundSendRetentionDays(event.target.value)} /></label>
       </div>
       <div className="flex items-center gap-3"><Button type="button" size="sm" disabled={isPending || !canManage} onClick={save}>Save rollout controls</Button>{mode === 'pilot' ? <Button type="button" size="sm" variant="outline" disabled={isPending || !canManage} onClick={promote}>Promote estate-wide</Button> : null}{message ? <span className="text-xs text-muted-foreground">{message}</span> : null}</div>
     </div>

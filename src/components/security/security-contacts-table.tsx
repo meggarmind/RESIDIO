@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useCan } from '@/components/auth/can';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { useRouter } from 'next/navigation';
 import {
   Table,
@@ -237,6 +239,12 @@ function ContactActionsMenu({
   effectiveStatus: SecurityContactStatus;
   onNavigate: (href: string) => void;
 }) {
+  // The permissions the actions enforce: edit is update_contacts, codes are
+  // generate_codes, suspend and revoke are suspend_revoke.
+  const canUpdate = useCan(PERMISSIONS.SECURITY_UPDATE_CONTACTS);
+  const canGenerate = useCan(PERMISSIONS.SECURITY_GENERATE_CODES);
+  const canSuspendRevoke = useCan(PERMISSIONS.SECURITY_SUSPEND_REVOKE);
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -251,23 +259,27 @@ function ContactActionsMenu({
           <Eye className="mr-2 h-4 w-4" />
           View Details
         </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => onNavigate(`/security/contacts/${contactId}/edit`)}
-        >
-          <Pencil className="mr-2 h-4 w-4" />
-          Edit
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={() =>
-            onNavigate(`/security/contacts/${contactId}?action=generate-code`)
-          }
-        >
-          <Key className="mr-2 h-4 w-4" />
-          Generate Code
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        {effectiveStatus === 'active' && (
+        {canUpdate && (
+          <DropdownMenuItem
+            onClick={() => onNavigate(`/security/contacts/${contactId}/edit`)}
+          >
+            <Pencil className="mr-2 h-4 w-4" />
+            Edit
+          </DropdownMenuItem>
+        )}
+        {(canUpdate || canGenerate) && <DropdownMenuSeparator />}
+        {canGenerate && (
+          <DropdownMenuItem
+            onClick={() =>
+              onNavigate(`/security/contacts/${contactId}?action=generate-code`)
+            }
+          >
+            <Key className="mr-2 h-4 w-4" />
+            Generate Code
+          </DropdownMenuItem>
+        )}
+        {canSuspendRevoke && <DropdownMenuSeparator />}
+        {canSuspendRevoke && effectiveStatus === 'active' && (
           <DropdownMenuItem
             onClick={() =>
               onNavigate(`/security/contacts/${contactId}?action=suspend`)
@@ -278,15 +290,17 @@ function ContactActionsMenu({
             Suspend
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem
-          onClick={() =>
-            onNavigate(`/security/contacts/${contactId}?action=revoke`)
-          }
-          className="text-destructive"
-        >
-          <Trash2 className="mr-2 h-4 w-4" />
-          Revoke
-        </DropdownMenuItem>
+        {canSuspendRevoke && (
+          <DropdownMenuItem
+            onClick={() =>
+              onNavigate(`/security/contacts/${contactId}?action=revoke`)
+            }
+            className="text-destructive"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Revoke
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -351,6 +365,7 @@ export function SecurityContactsTable({
   showResidentColumn = true,
 }: SecurityContactsTableProps) {
   const router = useRouter();
+  const canRegister = useCan(PERMISSIONS.SECURITY_REGISTER_CONTACTS);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<SecurityContactStatus | typeof ALL_VALUE>(ALL_VALUE);
   const [categoryId, setCategoryId] = useState<string>(ALL_VALUE);
@@ -534,12 +549,14 @@ export function SecurityContactsTable({
               </SelectContent>
             </Select>
 
-            <Link href={residentId ? `/security/contacts/new?resident=${residentId}` : '/security/contacts/new'}>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Contact
-              </Button>
-            </Link>
+            {canRegister && (
+              <Link href={residentId ? `/security/contacts/new?resident=${residentId}` : '/security/contacts/new'}>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Contact
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
 
