@@ -95,6 +95,12 @@ describe('settings navigation coverage', () => {
       '/settings/document-categories',
       '/settings/document-taxonomy',
       '/settings/security/categories',
+      // Billing sub-pages and the bank pages merged into Billing rules and Banking (#935, #791).
+      '/settings/billing/late-fees',
+      '/settings/billing/invoices',
+      '/settings/billing/development-levies',
+      '/settings/bank-accounts',
+      '/settings/transaction-tags',
     ]);
 
     const unlisted = routesOnDisk()
