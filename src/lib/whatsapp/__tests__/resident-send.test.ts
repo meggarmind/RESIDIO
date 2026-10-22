@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createAdminClient } from '@/lib/supabase/server';
 import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
-import { isWhatsAppOptedIn } from '@/lib/whatsapp/opt-in';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
+import { evaluateSendPolicy } from '@/lib/whatsapp/send-policy';
 import { sendWhatsAppToResident } from '@/lib/whatsapp/resident-send';
 
 vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
 vi.mock('@/lib/comms-override/resident-flag', () => ({ resolveResidentOverride: vi.fn() }));
-vi.mock('@/lib/whatsapp/opt-in', () => ({ isWhatsAppOptedIn: vi.fn() }));
 vi.mock('@/lib/whatsapp/provider', () => ({ sendWhatsAppMessage: vi.fn() }));
+vi.mock('@/lib/whatsapp/send-policy', () => ({ evaluateSendPolicy: vi.fn(), createSendPolicyFacts: vi.fn(() => ({})) }));
 
 function mockResident(result: unknown) {
   const chain: Record<string, unknown> = {};
@@ -19,7 +19,7 @@ function mockResident(result: unknown) {
 
 beforeEach(() => {
   mockResident({ data: { phone_primary: '+2348000000000' }, error: null });
-  vi.mocked(isWhatsAppOptedIn).mockReset().mockResolvedValue(true);
+  vi.mocked(evaluateSendPolicy).mockReset().mockResolvedValue({ outcome: 'allow', normalizedPhone: '+2348000000000', template: { name: '', languageCode: 'en_US', parameters: [] } });
   vi.mocked(resolveResidentOverride).mockReset().mockResolvedValue({ ok: true, residentOverride: true });
   vi.mocked(sendWhatsAppMessage).mockReset().mockResolvedValue({ success: true });
 });
@@ -29,7 +29,6 @@ describe('sendWhatsAppToResident', () => {
     const result = await sendWhatsAppToResident('resident-1', 'Hello', { seed: 'seed-1', mediaUrls: ['https://files.test/a.pdf'] });
 
     expect(result).toEqual({ sent: true });
-    expect(isWhatsAppOptedIn).toHaveBeenCalledWith('resident-1', '+2348000000000');
     expect(sendWhatsAppMessage).toHaveBeenCalledWith(
       { to: '+2348000000000', body: 'Hello', idempotencySeed: 'seed-1', mediaUrls: ['https://files.test/a.pdf'] },
       undefined,
@@ -39,15 +38,15 @@ describe('sendWhatsAppToResident', () => {
   });
 
   it('sends nothing to a resident who has not opted in', async () => {
-    vi.mocked(isWhatsAppOptedIn).mockResolvedValue(false);
-    expect(await sendWhatsAppToResident('resident-1', 'Hello', { seed: 's' })).toEqual({ sent: false, reason: 'not opted in' });
+    vi.mocked(evaluateSendPolicy).mockResolvedValue({ outcome: 'refuse', reason: 'no_opt_in', message: 'WhatsApp recipient has not opted in' });
+    expect(await sendWhatsAppToResident('resident-1', 'Hello', { seed: 's' })).toEqual({ sent: false, reason: 'WhatsApp recipient has not opted in' });
     expect(sendWhatsAppMessage).not.toHaveBeenCalled();
   });
 
   it('sends nothing when there is no number', async () => {
     mockResident({ data: { phone_primary: ' ' }, error: null });
     expect(await sendWhatsAppToResident('resident-1', 'Hello', { seed: 's' })).toEqual({ sent: false, reason: 'no WhatsApp number' });
-    expect(isWhatsAppOptedIn).not.toHaveBeenCalled();
+    expect(evaluateSendPolicy).not.toHaveBeenCalled();
   });
 
   it('sends nothing when the override flag cannot be read', async () => {

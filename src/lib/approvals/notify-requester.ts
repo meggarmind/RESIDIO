@@ -13,19 +13,20 @@ function requestLabel(requestType: string): string {
 /**
  * Tells the requester of an approval request how it ended, in-app only (a resident's WhatsApp request is told by WhatsApp). Never throws and never
  * notifies when the requester is the one who made the decision. Does not include requested_changes.
+ * Returns why the resident's WhatsApp message was not sent, if it was not.
  */
 export async function notifyRequesterOfOutcome(params: {
     request: Pick<ApprovalRequest, 'id' | 'requested_by'> & { request_type: string };
     outcome: ApprovalOutcome;
     reviewerId?: string | null;
     reviewNotes?: string | null;
-}): Promise<void> {
+}): Promise<string | undefined> {
     const { request, outcome, reviewerId, reviewNotes } = params;
     // A request a resident made over WhatsApp has no admin requester: they hear by WhatsApp instead (#816).
-    await notifyResidentOfApprovalOutcome(request, outcome);
+    const warning = await notifyResidentOfApprovalOutcome(request, outcome);
     try {
-        if (!request.requested_by) return;
-        if (reviewerId && reviewerId === request.requested_by) return;
+        if (!request.requested_by) return warning;
+        if (reviewerId && reviewerId === request.requested_by) return warning;
 
         const label = requestLabel(request.request_type);
         const notes = reviewNotes?.trim();
@@ -47,4 +48,5 @@ export async function notifyRequesterOfOutcome(params: {
     } catch (error) {
         console.error(`[notifyRequesterOfOutcome] Failed for approval request ${request.id}:`, error);
     }
+    return warning;
 }

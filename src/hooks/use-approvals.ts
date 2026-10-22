@@ -63,8 +63,9 @@ export function useApproveRequest() {
             if (!result.success) throw new Error(result.error || 'Failed to approve request');
             return result;
         },
-        onSuccess: () => {
+        onSuccess: (result) => {
             toast.success('Request approved successfully');
+            if (result.warning) toast.warning(result.warning);
             queryClient.invalidateQueries({ queryKey: ['approval-requests'] });
             queryClient.invalidateQueries({ queryKey: ['pending-approvals-count'] });
             queryClient.invalidateQueries({ queryKey: ['billing-profiles'] });
@@ -86,8 +87,9 @@ export function useReapplyApprovedRequest() {
             if (!result.success) throw new Error(result.error || 'Failed to re-apply request');
             return result;
         },
-        onSuccess: () => {
+        onSuccess: (result) => {
             toast.success('Request re-applied successfully');
+            if (result.warning) toast.warning(result.warning);
             queryClient.invalidateQueries({ queryKey: ['approval-requests'] });
             queryClient.invalidateQueries({ queryKey: ['pending-approvals-count'] });
             queryClient.invalidateQueries({ queryKey: ['billing-profiles'] });
@@ -109,8 +111,9 @@ export function useRejectRequest() {
             if (!result.success) throw new Error(result.error || 'Failed to reject request');
             return result;
         },
-        onSuccess: () => {
+        onSuccess: (result) => {
             toast.success('Request rejected');
+            if (result.warning) toast.warning(result.warning);
             queryClient.invalidateQueries({ queryKey: ['approval-requests'] });
             queryClient.invalidateQueries({ queryKey: ['pending-approvals-count'] });
         },

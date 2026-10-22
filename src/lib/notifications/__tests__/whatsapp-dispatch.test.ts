@@ -132,6 +132,7 @@ describe('WhatsApp notification dispatch', () => {
          select: vi.fn().mockReturnThis(),
          eq: vi.fn().mockReturnThis(),
          is: vi.fn().mockReturnThis(),
+         not: vi.fn().mockReturnThis(),
          gte: vi.fn().mockReturnThis(),
          maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'optin-1' }, error: null }),
       }),
@@ -203,6 +204,7 @@ describe('WhatsApp notification dispatch', () => {
             select: vi.fn().mockReturnThis(),
             eq: vi.fn().mockReturnThis(),
             is: vi.fn().mockReturnThis(),
+            not: vi.fn().mockReturnThis(),
             gte: vi.fn().mockResolvedValue({ count: 1, error: null }),
           };
         }
@@ -210,6 +212,8 @@ describe('WhatsApp notification dispatch', () => {
           select: vi.fn().mockReturnThis(),
           eq: vi.fn().mockReturnThis(),
           is: vi.fn().mockReturnThis(),
+          not: vi.fn().mockReturnThis(),
+          gte: vi.fn().mockReturnThis(),
           maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'optin-1' }, error: null }),
         };
       }),
@@ -262,8 +266,8 @@ describe('WhatsApp notification dispatch', () => {
     });
     vi.mocked(createAdminClient).mockReturnValue({
       from: vi.fn().mockImplementation((table: string) => table === 'notification_history'
-        ? { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), gte: vi.fn().mockResolvedValue({ count: 1, error: null }) }
-        : { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'optin-1' }, error: null }) }),
+        ? { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), is: vi.fn().mockReturnThis(), not: vi.fn().mockReturnThis(), gte: vi.fn().mockResolvedValue({ count: 1, error: null }) }
+        : { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), is: vi.fn().mockReturnThis(), gte: vi.fn().mockReturnThis(), maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'optin-1' }, error: null }) }),
     } as unknown as ReturnType<typeof createAdminClient>);
 
     await expect(sendNotification({
@@ -462,12 +466,15 @@ describe('WhatsApp notification dispatch', () => {
                 select: vi.fn().mockReturnThis(),
                 eq: vi.fn().mockReturnThis(),
                 is: vi.fn().mockReturnThis(),
+                not: vi.fn().mockReturnThis(),
                 gte: vi.fn().mockResolvedValue({ count: 0, error: null }),
               }
             : {
                 select: vi.fn().mockReturnThis(),
                 eq: vi.fn().mockReturnThis(),
                 is: vi.fn().mockReturnThis(),
+                not: vi.fn().mockReturnThis(),
+                gte: vi.fn().mockReturnThis(),
                 maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
               }
         ),
@@ -497,12 +504,15 @@ describe('WhatsApp notification dispatch', () => {
                 select: vi.fn().mockReturnThis(),
                 eq: vi.fn().mockReturnThis(),
                 is: vi.fn().mockReturnThis(),
+                not: vi.fn().mockReturnThis(),
                 gte: vi.fn().mockResolvedValue({ count: 1, error: null }),
               }
             : {
                 select: vi.fn().mockReturnThis(),
                 eq: vi.fn().mockReturnThis(),
                 is: vi.fn().mockReturnThis(),
+                not: vi.fn().mockReturnThis(),
+                gte: vi.fn().mockReturnThis(),
                 maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'optin-1' }, error: null }),
               }
         ),
@@ -540,6 +550,7 @@ describe('WhatsApp notification dispatch', () => {
             select: vi.fn().mockReturnValue({
               eq: vi.fn().mockReturnThis(),
               is: vi.fn().mockReturnThis(),
+              not: vi.fn().mockReturnThis(),
               gte: vi.fn().mockResolvedValue({ count: 0, error: null }),
             }),
             insert: insertMock,
@@ -553,6 +564,8 @@ describe('WhatsApp notification dispatch', () => {
           select: vi.fn().mockReturnThis(),
           eq: vi.fn().mockReturnThis(),
           is: vi.fn().mockReturnThis(),
+          not: vi.fn().mockReturnThis(),
+          gte: vi.fn().mockReturnThis(),
           maybeSingle: vi.fn().mockResolvedValue({ data: optIn, error: null }),
         };
       });
