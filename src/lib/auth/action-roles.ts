@@ -155,6 +155,8 @@ export const PERMISSIONS = {
   // WhatsApp Assistant operations
   WHATSAPP_VIEW: 'whatsapp.view',
   WHATSAPP_MANAGE: 'whatsapp.manage',
+  // WhatsApp admin mode (#972): link a number and run approved admin lookups with an authenticator code.
+  WHATSAPP_ADMIN_QUERY: 'whatsapp_admin.query',
 
   // Recipient groups: named lists of residents to send to (#819)
   GROUPS_VIEW: 'groups.view',
@@ -302,6 +304,8 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/settings/notifications': [PERMISSIONS.NOTIFICATIONS_MANAGE],
   '/settings/notification-queue': [PERMISSIONS.NOTIFICATIONS_MANAGE],
   '/settings/whatsapp': [PERMISSIONS.WHATSAPP_VIEW],
+  // Each admin links their own number here (#972); longer than /settings/whatsapp, so it wins.
+  '/settings/whatsapp-admin': [PERMISSIONS.WHATSAPP_ADMIN_QUERY],
 
   // Estate configuration
   '/settings/streets': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
