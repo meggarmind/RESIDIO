@@ -95,7 +95,7 @@ export async function createPaymentCore(
         house_id: result.data.house_id,
         split_payment_group_id: result.data.split_payment_group_id,
         amount: result.data.amount,
-        payment_date: result.data.payment_date.toISOString(),
+        payment_date: lagosDateString(result.data.payment_date),
         status: 'paid', // Payments are always "paid" - they represent received funds
         method: result.data.method,
         reference_number: result.data.reference_number,
