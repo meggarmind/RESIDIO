@@ -76,7 +76,7 @@ beforeEach(() => {
         rec.updates.push(vals);
         return chain;
       };
-      chain.insert = () => {
+      chain.upsert = () => {
         op = 'insert';
         return chain;
       };
@@ -94,8 +94,8 @@ beforeEach(() => {
       };
       const settle = () => {
         if (op === 'insert' || op === 'delete') {
-          rec.writes.push(`write:${table}.${op}`);
-          return { data: null, error: null };
+          rec.writes.push(`write:${table}.${op === 'insert' ? 'upsert' : op}`);
+          return { data: op === 'insert' ? [{ id: 1 }] : null, error: null };
         }
         if (op === 'update') {
           rec.writes.push(`write:${table}.update`);
@@ -289,7 +289,7 @@ describe('createImportRows status guard (#627)', () => {
     const res = await createImportRows({ import_id: uid(1), rows });
     expect(res.error).toBeNull();
     expect(res.count).toBe(1);
-    expect(rec.writes).toEqual(['write:bank_statement_rows.insert', 'write:bank_statement_imports.update', 'audit']);
+    expect(rec.writes).toEqual(['write:bank_statement_rows.upsert', 'write:bank_statement_imports.update', 'audit']);
     expect(rec.updates[0]).toEqual({ status: 'processing' });
   });
 
@@ -305,7 +305,7 @@ describe('createImportRows status guard (#627)', () => {
     const res = await createImportRows({ import_id: uid(1), rows });
     expect(res).toEqual({ count: 0, error: RACE_ERROR });
     expect(rec.writes).toEqual([
-      'write:bank_statement_rows.insert',
+      'write:bank_statement_rows.upsert',
       'write:bank_statement_imports.update',
       'write:bank_statement_rows.delete',
     ]);

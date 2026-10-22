@@ -24,6 +24,8 @@ type CreateImportResponse = {
 
 type CreateImportRowsResponse = {
   count: number;
+  /** Lines left out because the same fingerprint (transaction_hash) is already stored. */
+  skipped?: number;
   error: string | null;
 }
 
@@ -257,18 +259,27 @@ export async function createImportRows(params: CreateImportRowsParams): Promise<
   // Insert in batches of 100 for better performance
   const batchSize = 100;
   let totalInserted = 0;
+  let totalSkipped = 0;
 
   for (let i = 0; i < dbRows.length; i += batchSize) {
     const batch = dbRows.slice(i, i + batchSize);
 
     try {
       // Retry with exponential backoff for transient network errors
-      await retryWithBackoff(async () => {
-        const { error } = await supabase.from('bank_statement_rows').insert(batch);
+      // transaction_hash is unique across all imports, so a line already stored (an overlapping
+      // statement, or a genuine repeat) is skipped rather than failing the whole upload.
+      const stored = await retryWithBackoff(async () => {
+        const { data, error } = await supabase
+          .from('bank_statement_rows')
+          .upsert(batch, { onConflict: 'transaction_hash', ignoreDuplicates: true })
+          .select('id');
         if (error) {
           throw new Error(error.message);
         }
+        return data?.length ?? 0;
       });
+      totalInserted += stored;
+      totalSkipped += batch.length - stored;
     } catch (err) {
       await rollbackImportRows(supabase, import_id);
       return {
@@ -277,7 +288,6 @@ export async function createImportRows(params: CreateImportRowsParams): Promise<
       };
     }
 
-    totalInserted += batch.length;
   }
 
   // Auto-tag rows based on keywords. The active tags are loaded once per distinct transaction
@@ -355,11 +365,12 @@ export async function createImportRows(params: CreateImportRowsParams): Promise<
     entityType: 'bank_statement_imports',
     entityId: import_id,
     entityDisplay: `Import rows: ${totalInserted}`,
-    newValues: { rows_created: totalInserted, status: 'processing' },
+    newValues: { rows_created: totalInserted, rows_skipped_duplicate: totalSkipped, status: 'processing' },
   });
 
   return {
     count: totalInserted,
+    skipped: totalSkipped,
     error: null,
   };
 }

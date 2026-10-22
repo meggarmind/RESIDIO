@@ -196,6 +196,8 @@ export type CreateImportRowsParams = {
 
 export type CreateImportRowsResponse = {
   count: number;
+  /** Lines left out because the same fingerprint (transaction_hash) is already stored. */
+  skipped?: number;
   error: string | null;
 };
 
