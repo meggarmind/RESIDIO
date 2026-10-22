@@ -6,26 +6,18 @@ import { sendVerificationSms } from '@/lib/sms/send-sms';
 import { getEstateEmailSettings } from '@/lib/email/send-email';
 import { VerificationCodeEmail } from '@/emails/verification-code';
 import type { TwoFactorVerifyResult, TwoFactorMethod, Verify2FAInput } from '@/types/database';
-import crypto from 'crypto';
 import { getTwoFactorSessionContext } from '@/lib/auth/two-factor-session';
+import { generateOtp, hashOtp, verifyBackupCodeHash } from '@/lib/auth/two-factor-secrets';
 import {
-  generateOtp,
-  hashOtp,
-  otpMatches,
-  readTotpSecret,
-  encryptTotpSecret,
-  isPlaintextTotpSecret,
-  verifyBackupCodeHash,
-} from '@/lib/auth/two-factor-secrets';
+  checkAccountCode,
+  claimTwoFactorTry,
+  clearTwoFactorTries,
+  isTwoFactorLocked,
+  tooManyTriesMessage,
+} from '@/lib/auth/two-factor-guard';
 
 // Token expiry in minutes
 const TOKEN_EXPIRY_MINUTES = 5;
-
-// Max failed attempts before lockout
-const MAX_FAILED_ATTEMPTS = 5;
-
-// Lockout duration in minutes
-const LOCKOUT_DURATION_MINUTES = 15;
 
 /**
  * Send 2FA verification code for login
@@ -56,10 +48,8 @@ export async function sendTwoFactorCode(
     return { success: false, message: 'Two-factor authentication is not enabled' };
   }
 
-  // Check for lockout
-  const isLockedOut = await checkLockout(userId);
-  if (isLockedOut) {
-    return { success: false, message: `Too many failed attempts. Please try again in ${LOCKOUT_DURATION_MINUTES} minutes.` };
+  if (await isTwoFactorLocked(userId, 'login')) {
+    return { success: false, message: tooManyTriesMessage() };
   }
 
   // For authenticator method, we don't need to send a code
@@ -154,40 +144,6 @@ export async function sendTwoFactorCode(
 }
 
 /**
- * Check if user is locked out due to failed attempts
- */
-async function checkLockout(userId: string): Promise<boolean> {
-  const adminClient = createAdminClient();
-  const lockoutWindow = new Date(Date.now() - LOCKOUT_DURATION_MINUTES * 60 * 1000).toISOString();
-
-  const { count } = await adminClient
-    .from('two_factor_audit_log')
-    .select('*', { count: 'exact', head: true })
-    .eq('profile_id', userId)
-    .eq('action', 'failed_login')
-    .gte('created_at', lockoutWindow);
-
-  return (count || 0) >= MAX_FAILED_ATTEMPTS;
-}
-
-/**
- * Get remaining attempts before lockout
- */
-async function getRemainingAttempts(userId: string): Promise<number> {
-  const adminClient = createAdminClient();
-  const lockoutWindow = new Date(Date.now() - LOCKOUT_DURATION_MINUTES * 60 * 1000).toISOString();
-
-  const { count } = await adminClient
-    .from('two_factor_audit_log')
-    .select('*', { count: 'exact', head: true })
-    .eq('profile_id', userId)
-    .eq('action', 'failed_login')
-    .gte('created_at', lockoutWindow);
-
-  return Math.max(0, MAX_FAILED_ATTEMPTS - (count || 0));
-}
-
-/**
  * Verify 2FA code during login
  */
 export async function verifyTwoFactorCode(
@@ -200,14 +156,10 @@ export async function verifyTwoFactorCode(
   const userId = session.userId;
   const adminClient = createAdminClient();
 
-  // Check for lockout
-  const isLockedOut = await checkLockout(userId);
-  if (isLockedOut) {
-    return {
-      success: false,
-      message: `Too many failed attempts. Please try again in ${LOCKOUT_DURATION_MINUTES} minutes.`,
-      remainingAttempts: 0,
-    };
+  // Take one try before checking the code, so parallel guesses cannot pass the limit (#1029).
+  const attempt = await claimTwoFactorTry(userId, 'login');
+  if (!attempt.allowed) {
+    return { success: false, message: tooManyTriesMessage(), remainingAttempts: 0 };
   }
 
   // Get profile with 2FA settings
@@ -226,61 +178,17 @@ export async function verifyTwoFactorCode(
   }
 
   const method = profile.two_factor_method as TwoFactorMethod;
-  let isValid = false;
-
-  if (method === 'authenticator') {
-    // Validate TOTP code
-    if (!profile.two_factor_secret_encrypted) {
-      return { success: false, message: '2FA not properly configured' };
-    }
-
-    try {
-      const secret = readTotpSecret(profile.two_factor_secret_encrypted);
-      isValid = validateTOTP(input.code, secret);
-
-      // Lazy re-encryption: a legacy plaintext secret is rewritten encrypted the
-      // first time its owner proves possession of it. Best effort, never blocks login.
-      if (isValid && isPlaintextTotpSecret(profile.two_factor_secret_encrypted)) {
-        try {
-          await adminClient
-            .from('profiles')
-            .update({ two_factor_secret_encrypted: encryptTotpSecret(secret) })
-            .eq('id', userId);
-        } catch (reencryptError) {
-          console.error('[2FA Verify] Could not re-encrypt legacy TOTP secret:', reencryptError instanceof Error ? reencryptError.message : reencryptError);
-        }
-      }
-    } catch (error) {
-      console.error('[2FA Verify] Could not read TOTP secret:', error instanceof Error ? error.message : error);
-      return { success: false, message: '2FA not properly configured' };
-    }
-  } else {
-    // Validate OTP from database
-    const { data: token } = await adminClient
-      .from('two_factor_tokens')
-      .select('*')
-      .eq('profile_id', userId)
-      .eq('purpose', 'login')
-      .eq('token_type', method)
-      .is('used_at', null)
-      .gt('expires_at', new Date().toISOString())
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (token && otpMatches(String(token.token), userId, input.code)) {
-      // Claim the token atomically: only the request that flips used_at wins, so a
-      // concurrent replay of the same code fails.
-      const { data: claimed } = await adminClient
-        .from('two_factor_tokens')
-        .update({ used_at: new Date().toISOString() })
-        .eq('id', token.id)
-        .is('used_at', null)
-        .select('id');
-
-      isValid = (claimed?.length ?? 0) > 0;
-    }
+  const checked = await checkAccountCode({
+    profileId: userId,
+    method,
+    secretEncrypted: profile.two_factor_secret_encrypted,
+    code: input.code,
+    tokenPurpose: 'login',
+  });
+  if (checked === 'misconfigured') {
+    return { success: false, message: '2FA not properly configured' };
   }
+  const isValid = checked;
 
   if (!isValid) {
     // Log failed attempt
@@ -291,14 +199,14 @@ export async function verifyTwoFactorCode(
       metadata: { code_attempted: input.code.substring(0, 2) + '****' },
     });
 
-    const remainingAttempts = await getRemainingAttempts(userId);
-
     return {
       success: false,
       message: 'Invalid verification code',
-      remainingAttempts,
+      remainingAttempts: attempt.remaining,
     };
   }
+
+  await clearTwoFactorTries(userId, 'login');
 
   // Update last verified timestamp
   await adminClient
@@ -334,14 +242,9 @@ export async function verifyBackupCode(
   const userId = session.userId;
   const adminClient = createAdminClient();
 
-  // Check for lockout
-  const isLockedOut = await checkLockout(userId);
-  if (isLockedOut) {
-    return {
-      success: false,
-      message: `Too many failed attempts. Please try again in ${LOCKOUT_DURATION_MINUTES} minutes.`,
-      remainingAttempts: 0,
-    };
+  const attempt = await claimTwoFactorTry(userId, 'login');
+  if (!attempt.allowed) {
+    return { success: false, message: tooManyTriesMessage(), remainingAttempts: 0 };
   }
 
   // Unused codes for this user (at most ~10). Salted hashes cannot be looked up
@@ -376,21 +279,27 @@ export async function verifyBackupCode(
       metadata: { backup_code_attempted: true },
     });
 
-    const remainingAttempts = await getRemainingAttempts(userId);
-
     return {
       success: false,
       message: 'Invalid backup code',
-      remainingAttempts,
+      remainingAttempts: attempt.remaining,
     };
   }
 
-  // Increment used backup codes count
+  await clearTwoFactorTries(userId, 'login');
+
+  // Used-codes count, from the codes themselves (the old increment RPC never existed).
+  const { count: usedCount } = await adminClient
+    .from('two_factor_backup_codes')
+    .select('*', { count: 'exact', head: true })
+    .eq('profile_id', userId)
+    .not('used_at', 'is', null);
+
   await adminClient
     .from('profiles')
     .update({
       two_factor_last_verified_at: new Date().toISOString(),
-      two_factor_recovery_codes_used: adminClient.rpc('increment_recovery_codes_used', { profile_id: userId }),
+      two_factor_recovery_codes_used: usedCount ?? 0,
     })
     .eq('id', userId);
 
@@ -409,69 +318,3 @@ export async function verifyBackupCode(
   };
 }
 
-/**
- * Validate a TOTP code against a secret
- */
-function validateTOTP(code: string, secret: string): boolean {
-  const currentTime = Math.floor(Date.now() / 1000 / 30);
-
-  // Allow 1 step before and after for clock drift
-  for (let i = -1; i <= 1; i++) {
-    const expectedCode = generateTOTPCode(secret, currentTime + i);
-    if (expectedCode === code) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-/**
- * Generate a TOTP code for a specific time
- */
-function generateTOTPCode(secret: string, timeCounter: number): string {
-  const key = base32Decode(secret);
-  const timeBuffer = Buffer.alloc(8);
-  timeBuffer.writeBigInt64BE(BigInt(timeCounter));
-
-  const hmac = crypto.createHmac('sha1', key);
-  hmac.update(timeBuffer);
-  const hash = hmac.digest();
-
-  const offset = hash[hash.length - 1] & 0xf;
-  const binary =
-    ((hash[offset] & 0x7f) << 24) |
-    ((hash[offset + 1] & 0xff) << 16) |
-    ((hash[offset + 2] & 0xff) << 8) |
-    (hash[offset + 3] & 0xff);
-
-  const otp = binary % 1000000;
-  return otp.toString().padStart(6, '0');
-}
-
-/**
- * Base32 decode a string
- */
-function base32Decode(encoded: string): Buffer {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-  const paddedEncoded = encoded.toUpperCase().replace(/=+$/, '');
-
-  let bits = 0;
-  let value = 0;
-  const output: number[] = [];
-
-  for (const char of paddedEncoded) {
-    const index = alphabet.indexOf(char);
-    if (index === -1) continue;
-
-    value = (value << 5) | index;
-    bits += 5;
-
-    if (bits >= 8) {
-      output.push((value >>> (bits - 8)) & 255);
-      bits -= 8;
-    }
-  }
-
-  return Buffer.from(output);
-}

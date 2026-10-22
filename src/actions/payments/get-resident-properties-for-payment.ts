@@ -2,6 +2,7 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { embed } from '@/lib/utils';
+import { DEBT_STATUS_DEFAULTS, getDebtStatuses, type DebtStatus } from '@/lib/billing/debt-status';
 
 export interface ResidentPropertyForPayment {
   houseId: string;
@@ -10,6 +11,9 @@ export interface ResidentPropertyForPayment {
   isCurrent: boolean;
   outstandingAmount: number;
   unpaidInvoiceCount: number;
+  /** The shared debt status (#980) of this resident at this property, and its editable label. */
+  debtStatus: DebtStatus;
+  debtStatusLabel: string;
 }
 
 export interface GetResidentPropertiesResult {
@@ -80,6 +84,14 @@ export async function getResidentPropertiesForPayment(
     }
   });
 
+  let statuses;
+  try {
+    statuses = await getDebtStatuses(supabase, { houseIds: residentHouses.map((rh) => rh.house_id), residentId });
+  } catch (e) {
+    return { data: null, error: e instanceof Error ? e.message : 'Debt status could not be read', hasPreviousPropertyDebts: false };
+  }
+  const statusByHouse = new Map(statuses.map((s) => [s.houseId, s]));
+
   // Build the result list
   const properties: ResidentPropertyForPayment[] = [];
   const seenHouseIds = new Set<string>();
@@ -101,6 +113,8 @@ export async function getResidentPropertiesForPayment(
       isCurrent,
       outstandingAmount: outstanding.amount,
       unpaidInvoiceCount: outstanding.count,
+      debtStatus: statusByHouse.get(rh.house_id)?.status ?? 'paid_in_full',
+      debtStatusLabel: statusByHouse.get(rh.house_id)?.label ?? DEBT_STATUS_DEFAULTS.labels.paid_in_full,
     });
   });
 
@@ -112,7 +126,7 @@ export async function getResidentPropertiesForPayment(
 
   // Check if there are previous properties with debts
   const hasPreviousPropertyDebts = properties.some(
-    (p) => !p.isCurrent && p.outstandingAmount > 0
+    (p) => !p.isCurrent && (p.debtStatus === 'outstanding' || p.debtStatus === 'arrears')
   );
 
   return { data: properties, error: null, hasPreviousPropertyDebts };

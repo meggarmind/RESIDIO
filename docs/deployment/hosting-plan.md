@@ -42,7 +42,7 @@ Hostinger KVM 2  (x86, 2 vCPU, 8 GB RAM, 100 GB NVMe)
 └── Coolify (Traefik terminates TLS)
     ├── residio-prod   -> app.<domain>    -> Supabase project Residio_Prod
     ├── residio-stage  -> stage.<domain>  -> Supabase project Residio_Stage
-    └── Scheduled tasks: the 10 scheduled cron routes (see "Scheduled tasks" below), on prod and stage
+    └── Scheduled tasks: the 11 scheduled cron routes (see "Scheduled tasks" below), on prod and stage
 ```
 
 - Builds run on the VPS (8 GB covers Coolify ~1 GB, two app containers ~0.5-1 GB each, and a
@@ -104,9 +104,9 @@ read from the container's environment by the command, so it is never written int
 | `fetch-emails` | `0 * * * *` | 300000 |
 | `refresh-payment-cadence` | `0 0 * * *` | 300000 |
 | `whatsapp-retention` | `15 0 * * *` | 60000 |
+| `purge-performance-events` | `30 0 * * *` | 60000 |
 | `whatsapp-chatmaid-reconcile` | `*/15 * * * *` | 120000 |
 | `generate-invoices` | `0 6 * * *` | 300000 |
-| `generate-reports` | `0 6 * * *` | 300000 |
 | `process-report-schedules` | `0 7 * * *` | 300000 |
 | `payment-reminders` | `0 8 * * *` | 120000 |
 | `process-notifications` | `*/15 * * * *` | 60000 |
@@ -151,9 +151,6 @@ node -e "fetch('http://127.0.0.1:3000/api/cron/whatsapp-chatmaid-reconcile',{hea
 # generate-invoices  (0 6 * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/generate-invoices',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(300000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
 
-# generate-reports  (0 6 * * *)
-node -e "fetch('http://127.0.0.1:3000/api/cron/generate-reports',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(300000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
-
 # process-report-schedules  (0 7 * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/process-report-schedules',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(300000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
 
@@ -163,6 +160,9 @@ node -e "fetch('http://127.0.0.1:3000/api/cron/payment-reminders',{headers:{Auth
 # expire-approvals  (0 * * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/expire-approvals',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(60000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
 
+# purge-performance-events  (30 0 * * *)
+node -e "fetch('http://127.0.0.1:3000/api/cron/purge-performance-events',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(60000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
+
 # process-notifications  (*/15 * * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/process-notifications',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(60000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
 ```
@@ -171,12 +171,13 @@ node -e "fetch('http://127.0.0.1:3000/api/cron/process-notifications',{headers:{
 
 | Timeout | Routes | Reason |
 |---|---|---|
-| 300 s | `generate-invoices`, `generate-reports`, `fetch-emails`, `publish-announcements`, `refresh-payment-cadence` | Their declared `maxDuration`, kept as the expected worst case. No margin is added: a run needing more than five minutes should fail loudly. |
-| 300 s | `process-report-schedules` | **Previously undeclared.** It loops over every due schedule and, per schedule, generates the report, renders a PDF, uploads it and sends email (`src/actions/reports/process-schedules.ts`), the same shape of work as `generate-reports`, so it gets the same ceiling. |
+| 300 s | `generate-invoices`, `fetch-emails`, `publish-announcements`, `refresh-payment-cadence` | Their declared `maxDuration`, kept as the expected worst case. No margin is added: a run needing more than five minutes should fail loudly. |
+| 300 s | `process-report-schedules` | **Previously undeclared.** It loops over every due schedule and, per schedule, generates the report, renders a PDF, uploads it and sends email (`src/actions/reports/process-schedules.ts`), the same shape of work as `generate-invoices`, so it gets the same ceiling. |
 | 120 s | `payment-reminders` | Declared `maxDuration`: multi-channel sends. |
 | 60 s | `process-notifications` | Declared `maxDuration`. |
 | 60 s | `expire-approvals` | One read, one set-based UPDATE inside `process_expired_approvals()` and one in-app notification per expired request (#558). Hourly, so the backlog is small. New route: the owner must create this Coolify task; nothing runs it until then. |
 | 120 s | `whatsapp-chatmaid-reconcile` | New route (#511): at most 3 Chatmaid list calls (15 s timeout each) plus the Assistant reply for any message the webhook missed. Nothing runs it until the owner creates this Coolify task. |
+| 60 s | `purge-performance-events` | New route (#957): one `DELETE ... WHERE occurred_at < now() - 30 days` on `performance_events`. Nothing runs it until the owner creates this Coolify task. |
 | 60 s | `whatsapp-retention` | **Previously undeclared.** Four bulk `DELETE ... WHERE <timestamp> < cutoff` statements run in parallel (`src/lib/whatsapp/retention.ts`) and nothing else; it runs daily so the backlog is small. Anything near 60 s means something is wrong. |
 
 A timeout aborts the caller, **not** the server-side work: the route handler keeps running in the
@@ -185,7 +186,7 @@ the app logs and the run history before re-triggering anything that creates reco
 
 ### Not scheduled: `apply-late-fees`
 
-There are eleven cron routes and **ten** schedules. `src/app/api/cron/apply-late-fees` exists and
+There are twelve cron routes and **eleven** schedules. `src/app/api/cron/apply-late-fees` exists and
 authenticates like the others, but it has **never had a `vercel.json` entry** (its handler comment
 says "7 AM UTC daily (configured in vercel.json)"; that was never true), so late fees have never
 run on a schedule in any environment. It was left unscheduled because #399 listed nine schedules.

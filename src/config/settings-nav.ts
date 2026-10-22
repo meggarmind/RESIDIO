@@ -581,6 +581,7 @@ export const settingsConfig: SettingsGroup[] = [
             // SYSTEM_ASSIGN_ROLES, so the entry asks for exactly that. The Roles and rules tabs also need
             // SYSTEM_MANAGE_ROLES and fall back to Administrators without it.
             { title: "Roles & Access", href: "/settings/access", description: "Administrators, roles and titles, pending sign-ups and unlinked logins", permissions: [PERMISSIONS.SYSTEM_ASSIGN_ROLES] },
+            { title: "Two-factor login", href: "/settings/two-factor", description: "Set up an authenticator app for your own sign-in, backup codes, and turning it off", permissions: [PERMISSIONS.TWO_FACTOR_ENABLE] },
             { title: "Groups", href: "/settings/groups", description: "Named lists of residents that messages and copies are sent to", permissions: [PERMISSIONS.GROUPS_VIEW] },
             {
                 title: "Security Rules",
@@ -662,6 +663,7 @@ export const settingsConfig: SettingsGroup[] = [
         icon: Plug,
         items: [
             { title: "WhatsApp", href: "/settings/whatsapp", description: "Provider credentials, rollout, consent, and pending contacts", permissions: [PERMISSIONS.WHATSAPP_VIEW] },
+            { title: "WhatsApp admin access", href: "/settings/whatsapp-admin", description: "Link your own WhatsApp number for admin mode, approved with your authenticator app", permissions: [PERMISSIONS.WHATSAPP_ADMIN_QUERY] },
             { title: "Gmail Import", href: "/settings/email-integration", description: "Connect Gmail, manage the connection, and trigger a manual sync", permissions: [PERMISSIONS.EMAIL_IMPORTS_VIEW] },
             // Paystack and SMS integrations are planned but not yet built.
         ]

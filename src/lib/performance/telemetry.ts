@@ -62,7 +62,7 @@ function safeTimestamp(clock: () => number): number {
   }
 }
 
-function sanitizeEvent(event: PerformanceEventInput, occurredAt: number): PerformanceEvent | null {
+export function sanitizeEvent(event: PerformanceEventInput, occurredAt: number): PerformanceEvent | null {
   if (!event || typeof event !== "object" || typeof event.type !== "string") return null;
 
   switch (event.type) {

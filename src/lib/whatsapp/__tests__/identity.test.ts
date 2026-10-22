@@ -62,6 +62,57 @@ function repository(overrides: Partial<WhatsAppIdentityRepository> = {}): WhatsA
 }
 
 describe('WhatsApp identity and consent', () => {
+  it('hands an exact ADMIN command to admin mode without reading resident records (#972)', async () => {
+    const repo = repository();
+    const adminRepository = { getLockedUntil: vi.fn().mockResolvedValue(null), findActiveBinding: vi.fn().mockResolvedValue(null) };
+    const send = vi.fn().mockResolvedValue({ success: true });
+
+    const result = await handleResidentMessage(message('ADMIN STATUS'), {
+      repository: repo,
+      adminRepository: adminRepository as never,
+      send,
+    });
+
+    expect(result.status).toBe('admin');
+    expect(repo.findLinkedResidents).not.toHaveBeenCalled();
+    expect(repo.findRosterMatches).not.toHaveBeenCalled();
+    expect(send.mock.calls[0]?.[0].body).toMatch(/not linked to an admin account/);
+  });
+
+  it('hands a street choice to admin mode only when an admin question is waiting (#982)', async () => {
+    const binding = { id: 'b1', profileId: 'p1', phoneNumber: '+2348000000000', boundAt: '2026-10-20T10:00:00Z', lastUsedAt: null, lastTotpStep: null, sessionExpiresAt: null, accountFingerprint: 'x' };
+    const repo = repository();
+    const send = vi.fn().mockResolvedValue({ success: true });
+    const waiting = { findActiveBinding: vi.fn().mockResolvedValue(binding), findPendingChoice: vi.fn().mockResolvedValue(null) };
+
+    // Linked number, nothing waiting: the reply stays with the resident assistant.
+    const idle = await handleResidentMessage(message('2'), { repository: repo, adminRepository: waiting as never, send });
+    expect(idle.status).not.toBe('admin');
+    expect(repo.findRosterMatches).toHaveBeenCalled();
+  });
+
+  it('carries a number on to the resident assistant when the admin lookup fails (#982)', async () => {
+    const repo = repository();
+    const send = vi.fn().mockResolvedValue({ success: true });
+    const broken = { findActiveBinding: vi.fn().mockRejectedValue(new Error('table missing')) };
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = await handleResidentMessage(message('2'), { repository: repo, adminRepository: broken as never, send });
+
+    expect(result.status).not.toBe('admin');
+    expect(repo.findRosterMatches).toHaveBeenCalled();
+  });
+
+  it('keeps other text starting with "admin" on the resident path (#972)', async () => {
+    const repo = repository();
+    const send = vi.fn().mockResolvedValue({ success: true });
+
+    const result = await handleResidentMessage(message('admin please call me'), { repository: repo, send });
+
+    expect(result.status).toBe('identified');
+    expect(repo.findRosterMatches).toHaveBeenCalled();
+  });
+
   it('resolves a registered resident without inferring consent', async () => {
     const repo = repository();
     const send = vi.fn().mockResolvedValue({ success: true });
@@ -83,6 +134,17 @@ describe('WhatsApp identity and consent', () => {
 
     expect(repo.setOptIn).toHaveBeenNthCalledWith(1, 'resident-1', '+2348000000000', true, 'in_chat');
     expect(repo.setOptIn).toHaveBeenNthCalledWith(2, 'resident-1', '+2348000000000', false, 'in_chat');
+  });
+
+  it('opts out every resident on a shared number when STOP arrives', async () => {
+    const other = { ...resident, id: 'resident-2', residentCode: 'RES002' };
+    const repo = repository({ findRosterMatches: vi.fn().mockResolvedValue([resident, other]) });
+    const send = vi.fn().mockResolvedValue({ success: true });
+
+    await handleResidentMessage(message('STOP'), { repository: repo, send });
+
+    expect(repo.setOptIn).toHaveBeenCalledWith('resident-1', '+2348000000000', false, 'in_chat');
+    expect(repo.setOptIn).toHaveBeenCalledWith('resident-2', '+2348000000000', false, 'in_chat');
   });
 
   it('stores STOP SURVEYS as a survey opt-out and leaves the alerts opt-in alone (#872)', async () => {

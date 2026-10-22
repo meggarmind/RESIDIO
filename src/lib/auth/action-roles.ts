@@ -155,6 +155,8 @@ export const PERMISSIONS = {
   // WhatsApp Assistant operations
   WHATSAPP_VIEW: 'whatsapp.view',
   WHATSAPP_MANAGE: 'whatsapp.manage',
+  // WhatsApp admin mode (#972): link a number and run approved admin lookups with an authenticator code.
+  WHATSAPP_ADMIN_QUERY: 'whatsapp_admin.query',
 
   // Recipient groups: named lists of residents to send to (#819)
   GROUPS_VIEW: 'groups.view',
@@ -211,6 +213,9 @@ export const PERMISSIONS = {
   SYSTEM_VIEW_ALL_PROFILES: 'system.view_all_profiles',
   DOCUMENTS_VIEW_ALL: 'documents.view_all',
 } as const;
+
+/** Either one lets a WhatsApp admin read finance information (ADMIN OWES, ADMIN DEBT). */
+export const FINANCE_VIEW_PERMISSIONS: string[] = [PERMISSIONS.BILLING_VIEW, PERMISSIONS.REPORTS_VIEW_FINANCIAL];
 
 export type Permission = typeof PERMISSIONS[keyof typeof PERMISSIONS];
 
@@ -302,6 +307,10 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/settings/notifications': [PERMISSIONS.NOTIFICATIONS_MANAGE],
   '/settings/notification-queue': [PERMISSIONS.NOTIFICATIONS_MANAGE],
   '/settings/whatsapp': [PERMISSIONS.WHATSAPP_VIEW],
+  // Each admin links their own number here (#972); longer than /settings/whatsapp, so it wins.
+  '/settings/whatsapp-admin': [PERMISSIONS.WHATSAPP_ADMIN_QUERY],
+  // Each admin turns two-factor on for their own account (#1029).
+  '/settings/two-factor': [PERMISSIONS.TWO_FACTOR_ENABLE],
 
   // Estate configuration
   '/settings/streets': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],

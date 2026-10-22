@@ -390,7 +390,6 @@ AccountStatus = 'active' | 'inactive' | 'suspended' | 'archived'
 
 ### Financial Types
 ```typescript
-PaymentStatus = 'current' | 'overdue' | 'suspended' | 'exempt'
 InvoiceStatus = 'unpaid' | 'paid' | 'void' | 'partially_paid' | 'overdue'
 InvoiceType = 'SERVICE_CHARGE' | 'LEVY' | 'ADJUSTMENT' | 'OTHER'
 BillingFrequency = 'monthly' | 'yearly' | 'one_off'

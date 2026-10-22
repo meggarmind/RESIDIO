@@ -6,8 +6,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { assertCanManageTarget } from '@/lib/auth/account-guards';
 import type { TwoFactorMethod } from '@/types/database';
-import { createHmac } from 'crypto';
-import { otpMatches, readTotpSecret } from '@/lib/auth/two-factor-secrets';
+import { checkAccountCode, claimTwoFactorTry, clearTwoFactorTries, tooManyTriesMessage } from '@/lib/auth/two-factor-guard';
 
 /**
  * Disable 2FA for the current user
@@ -44,45 +43,25 @@ export async function disableTwoFactor(
     return { success: false, message: 'Two-factor authentication is not enabled' };
   }
 
-  // Verify the code before disabling
-  const method = profile.two_factor_method as TwoFactorMethod;
-  let isValid = false;
-
-  if (method === 'authenticator') {
-    // Validate TOTP code
-    if (!profile.two_factor_secret_encrypted) {
-      return { success: false, message: '2FA not properly configured' };
-    }
-    try {
-      isValid = validateTOTP(verificationCode, readTotpSecret(profile.two_factor_secret_encrypted));
-    } catch (error) {
-      console.error('[2FA Disable] Could not read TOTP secret:', error instanceof Error ? error.message : error);
-      return { success: false, message: '2FA not properly configured' };
-    }
-  } else {
-    // For SMS/email, we need to send a disable code first
-    const { data: token } = await adminClient
-      .from('two_factor_tokens')
-      .select('*')
-      .eq('profile_id', user.id)
-      .eq('purpose', 'disable')
-      .eq('token_type', method)
-      .is('used_at', null)
-      .gt('expires_at', new Date().toISOString())
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (token && otpMatches(String(token.token), user.id, verificationCode)) {
-      isValid = true;
-
-      // Mark token as used
-      await adminClient
-        .from('two_factor_tokens')
-        .update({ used_at: new Date().toISOString() })
-        .eq('id', token.id);
-    }
+  // Take one try before checking the code (#1029).
+  const attempt = await claimTwoFactorTry(user.id, 'manage');
+  if (!attempt.allowed) {
+    return { success: false, message: tooManyTriesMessage() };
   }
+
+  // Verify a fresh code before disabling: an authenticator code is accepted once (#1029).
+  const method = profile.two_factor_method as TwoFactorMethod;
+  const checked = await checkAccountCode({
+    profileId: user.id,
+    method,
+    secretEncrypted: profile.two_factor_secret_encrypted,
+    code: verificationCode,
+    tokenPurpose: 'disable',
+  });
+  if (checked === 'misconfigured') {
+    return { success: false, message: '2FA not properly configured' };
+  }
+  const isValid = checked;
 
   if (!isValid) {
     // Log failed attempt
@@ -95,6 +74,8 @@ export async function disableTwoFactor(
 
     return { success: false, message: 'Invalid verification code' };
   }
+
+  await clearTwoFactorTries(user.id, 'manage');
 
   // Disable 2FA
   await adminClient
@@ -281,68 +262,3 @@ export async function requestDisableCode(): Promise<{ success: boolean; message:
   return result;
 }
 
-/**
- * Validate a TOTP code against a secret
- */
-function validateTOTP(code: string, secret: string): boolean {
-  const currentTime = Math.floor(Date.now() / 1000 / 30);
-
-  for (let i = -1; i <= 1; i++) {
-    const expectedCode = generateTOTPCode(secret, currentTime + i);
-    if (expectedCode === code) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-/**
- * Generate a TOTP code for a specific time
- */
-function generateTOTPCode(secret: string, timeCounter: number): string {
-  const key = base32Decode(secret);
-  const timeBuffer = Buffer.alloc(8);
-  timeBuffer.writeBigInt64BE(BigInt(timeCounter));
-
-  const hmac = createHmac('sha1', key);
-  hmac.update(timeBuffer);
-  const hash = hmac.digest();
-
-  const offset = hash[hash.length - 1] & 0xf;
-  const binary =
-    ((hash[offset] & 0x7f) << 24) |
-    ((hash[offset + 1] & 0xff) << 16) |
-    ((hash[offset + 2] & 0xff) << 8) |
-    (hash[offset + 3] & 0xff);
-
-  const otp = binary % 1000000;
-  return otp.toString().padStart(6, '0');
-}
-
-/**
- * Base32 decode a string
- */
-function base32Decode(encoded: string): Buffer {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-  const paddedEncoded = encoded.toUpperCase().replace(/=+$/, '');
-
-  let bits = 0;
-  let value = 0;
-  const output: number[] = [];
-
-  for (const char of paddedEncoded) {
-    const index = alphabet.indexOf(char);
-    if (index === -1) continue;
-
-    value = (value << 5) | index;
-    bits += 5;
-
-    if (bits >= 8) {
-      output.push((value >>> (bits - 8)) & 255);
-      bits -= 8;
-    }
-  }
-
-  return Buffer.from(output);
-}

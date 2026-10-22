@@ -591,8 +591,9 @@ describe('WhatsApp Assistant answers (#804 decisions 20, 21, 28)', () => {
 describe('WhatsApp financial lookup caps (#804 decision 26)', () => {
   function mockCounts(estate: number, resident: number) {
     const query = (count: number) => {
-      const chain = { select: vi.fn(), eq: vi.fn(), gte: vi.fn(), then: (resolve: (value: unknown) => unknown) => resolve({ count, error: null }) };
+      const chain = { select: vi.fn(), eq: vi.fn(), neq: vi.fn(), gte: vi.fn(), then: (resolve: (value: unknown) => unknown) => resolve({ count, error: null }) };
       chain.select.mockReturnValue(chain);
+      chain.neq.mockReturnValue(chain);
       chain.eq.mockImplementation(() => Object.assign(query(resident), {}));
       chain.gte.mockReturnValue(chain);
       return chain;
@@ -618,6 +619,29 @@ describe('WhatsApp financial lookup caps (#804 decision 26)', () => {
     vi.mocked(getSettingResultAsService).mockResolvedValue({ status: 'absent' });
     mockCounts(estate, resident);
     await expect(canPerformWhatsAppFinancialLookup('resident-1')).resolves.toBe(expected);
+  });
+
+  it('does not count admin lookups (#981) against the resident or the estate', async () => {
+    const rows = [
+      ...Array.from({ length: 500 }, () => ({ resident_id: 'resident-1', menu_item: 'admin_owes' })),
+      ...Array.from({ length: 19 }, () => ({ resident_id: 'resident-1', menu_item: 'what_i_owe' })),
+    ];
+    const from = vi.fn(() => {
+      const filters: ((row: (typeof rows)[number]) => boolean)[] = [];
+      const chain = {
+        select: () => chain,
+        gte: () => chain,
+        eq: (column: 'resident_id', value: string) => (filters.push((row) => row[column] === value), chain),
+        neq: (column: 'menu_item', value: string) => (filters.push((row) => row[column] !== value), chain),
+        then: (resolve: (value: unknown) => unknown) => resolve({ count: rows.filter((row) => filters.every((f) => f(row))).length, error: null }),
+      };
+      return chain;
+    });
+    vi.mocked(createAdminClient).mockReturnValue({ from } as unknown as ReturnType<typeof createAdminClient>);
+    vi.mocked(getSettingResultAsService).mockResolvedValue({ status: 'absent' });
+    await expect(canPerformWhatsAppFinancialLookup('resident-1')).resolves.toBe('ok');
+    rows.push({ resident_id: 'resident-1', menu_item: 'what_i_owe' });
+    await expect(canPerformWhatsAppFinancialLookup('resident-1')).resolves.toBe('resident_cap');
   });
 
   it('honours a configured estate cap', async () => {

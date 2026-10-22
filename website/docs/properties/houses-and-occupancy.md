@@ -7,7 +7,7 @@ residio_sources:
   - src/app/(dashboard)/houses/**
   - src/actions/houses/**
   - src/components/houses/**
-residio_verified_commit: ede18251
+residio_verified_commit: c94497ed
 residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'
 ---
@@ -36,8 +36,9 @@ whole estate's invoice run. Names already saved are never rewritten.
 ## The house page
 
 The header shows the house, its type and one status line: occupancy, the number of active
-residents and the amount outstanding. If the outstanding figure cannot be loaded, the line says
-so rather than showing nothing owed.
+residents and the house's debt status: Outstanding, Arrears, Paid in Full or Credit, with the
+amount owed beside it when there is one. If the status cannot be loaded, the line says "Debt
+status unavailable" rather than showing nothing owed.
 
 The page opens on **Residents**. **Billing** holds the payment status and yearly ledger, and
 **History** the ownership and occupancy timeline (the latest 100 events). Each tab is kept in the

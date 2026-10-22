@@ -6,6 +6,8 @@ residio_sources:
   - src/lib/auth/**
   - src/actions/roles/**
   - src/app/(dashboard)/settings/access/**
+  - src/app/(dashboard)/settings/two-factor/**
+  - src/actions/two-factor/**
   - src/app/(dashboard)/settings/roles/**
   - src/app/(dashboard)/settings/user-roles/**
   - src/app/(dashboard)/system/accounts/**
@@ -14,8 +16,8 @@ residio_sources:
   - src/components/admin/role-title-picker.tsx
   - src/components/admin/role-titles-manager.tsx
   - src/components/admin/pending-accounts-list.tsx
-residio_verified_commit: 6bed011d
-residio_verified_at: '2026-10-21'
+residio_verified_commit: 438c01df
+residio_verified_at: '2026-10-22'
 residio_app_version: '0.4.0'
 ---
 
@@ -40,9 +42,13 @@ Approval is the gate. Everyone in this queue is asking for access to resident na
 
 Two-factor authentication is optional: it applies only to accounts that have turned it on. For those accounts, entering the right password is not enough. After signing in, the person is taken to a verification page and sees nothing else until they enter a code from their chosen method (authenticator app, SMS or email). A backup code can be used instead if the device is unavailable; each backup code works once.
 
+- **Turning it on.** In **Settings → Two-factor login**, choose **Set up authenticator app**, add the key shown to an authenticator app (or use the link on a phone), and enter the 6-digit code the app shows. Ten backup codes are then shown once: save them before closing the dialog.
+- **Backup codes and turning it off.** On the same page, **Make new backup codes** replaces the old ones and **Turn off** removes two-factor and its backup codes. Both ask for a new code from the app.
+- Each authenticator code works once. A code already used, for signing in or on this page, is refused; wait for the next one.
 - The verification lasts for that sign-in. Signing in again, or waiting 24 hours, asks for a code again.
-- After five wrong codes in 15 minutes the account is locked out of verification for 15 minutes.
-- Accounts without two-factor turned on sign in exactly as before. No role is required to use it.
+- Until the code is entered, the account has no admin access in the database either, not only in the app.
+- After five wrong codes in 15 minutes code entry is locked for the rest of those 15 minutes. Making new backup codes and turning two-factor off have their own limit of five tries.
+- Accounts without two-factor turned on sign in exactly as before. Setting it up needs the `two_factor.enable` permission; turning it off needs `two_factor.disable`.
 
 ## Roles
 

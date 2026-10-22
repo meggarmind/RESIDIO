@@ -7,6 +7,7 @@ import {
   handleResidentMessage,
   processInboundMessages,
 } from '@/lib/whatsapp';
+import { isStopCommand } from '@/lib/whatsapp/identity';
 import { createSupabaseChatmaidSessionPauseStore } from '@/lib/whatsapp/providers/chatmaid-inbound';
 import type { InboundMessageResult, WhatsAppInboundMessage } from '@/lib/whatsapp/types';
 
@@ -36,6 +37,13 @@ export async function processChatmaidMessages(
       const pausedUntil = await pauseStore.getPausedUntil(message.from);
       if (pausedUntil && Date.now() < pausedUntil.getTime()) {
         pausedCount += 1;
+        // STOP is still honoured, silently, so the admin's conversation is not interrupted.
+        if (isStopCommand(message.text?.trim() || '')) {
+          await handleResidentMessage(message, {
+            repository: createSupabaseWhatsAppIdentityRepository(),
+            send: async () => ({ success: true }),
+          });
+        }
         return;
       }
 
