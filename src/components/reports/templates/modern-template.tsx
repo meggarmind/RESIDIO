@@ -1138,10 +1138,10 @@ function IndebtednessSummaryModern({ data }: { data: IndebtednessReportData }) {
                       fontWeight: '600',
                       padding: '4px 12px',
                       borderRadius: '12px',
-                      backgroundColor: house.isIndebted ? `${colors.danger}15` : `${colors.success}15`,
-                      color: house.isIndebted ? colors.danger : colors.success,
+                      backgroundColor: (house.status === 'arrears' || house.status === 'outstanding') ? `${colors.danger}15` : `${colors.success}15`,
+                      color: (house.status === 'arrears' || house.status === 'outstanding') ? colors.danger : colors.success,
                     }}>
-                      {house.isIndebted ? 'Indebted' : 'Non-Indebted'}
+                      {house.statusLabel}
                     </span>
                   </td>
                   {hasAmount && (

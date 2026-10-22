@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EnhancedTableCard } from '@/components/dashboard/enhanced-stat-card';
 import { formatCurrency, cn } from '@/lib/utils';
@@ -43,6 +44,7 @@ export function IndebtednessRankingTable({ title, description, data, isLoading, 
                   <p className="text-xs text-muted-foreground truncate">
                     {resident.residentCode}{resident.houseNumber ? ` · ${resident.houseNumber}` : ''}{resident.streetName ? ` ${resident.streetName}` : ''}
                   </p>
+                  {resident.statusLabel && <Badge variant="outline" className="mt-1 text-xs">{resident.statusLabel}</Badge>}
                 </div>
               </div>
               <span className={cn(
