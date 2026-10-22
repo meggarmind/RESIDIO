@@ -13,6 +13,7 @@ import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
 import { issueClearanceCertificate } from '@/lib/clearance/issue-certificate';
 import { MOVE_OUT_NOTIFY_ROLES } from '@/lib/residents/move-out-recipients';
 import type { ResidentRole } from '@/types/database';
+import { resolveSponsor } from './validation';
 
 // Supabase embeds a to-one join (street:streets(...)) as an object at runtime but
 // the untyped client types it as an array; normalize to the street name string.
@@ -319,6 +320,12 @@ export async function initiateRenterMoveOut(
       };
     }
 
+    // An occupant (co_resident) needs the destination's resident as sponsor (#1067)
+    const destSponsor = await resolveSponsor(supabase, destinationHouseId, destinationRole);
+    if (destSponsor.error) {
+      return { success: false, error: destSponsor.error };
+    }
+
     destinationHouseDetails = {
       id: destHouse.id,
       address: `${destHouse.short_name || destHouse.house_number}, ${streetName(destHouse.street)}`,
@@ -590,7 +597,26 @@ export async function confirmRenterMoveOut(
 
   const secondaryCount = secondaryResidents?.length || 0;
 
-  // 1. Deactivate the renter's assignment
+  // 1. Deactivate all secondary residents first, and stop on failure, so no occupant (co_resident) is left
+  //    active with a sponsor who no longer lives here (#1067)
+  if (secondaryCount > 0) {
+    const { error: cascadeError } = await supabase
+      .from('resident_houses')
+      .update({
+        is_active: false,
+        move_out_date: today,
+      })
+      .eq('house_id', houseId)
+      .eq('is_active', true)
+      .in('resident_role', ['co_resident', 'household_member', 'domestic_staff', 'caretaker', 'contractor']);
+
+    if (cascadeError) {
+      console.error('[confirmMoveOut] Error deactivating secondary residents:', cascadeError);
+      return { success: false, error: 'Failed to deactivate secondary residents' };
+    }
+  }
+
+  // 2. Deactivate the renter's assignment
   const { error: deactivateError } = await supabase
     .from('resident_houses')
     .update({
@@ -625,19 +651,6 @@ export async function confirmRenterMoveOut(
     description: 'Marked resident inactive after move-out',
   });
 
-  // 2. Deactivate all secondary residents
-  if (secondaryCount > 0) {
-    await supabase
-      .from('resident_houses')
-      .update({
-        is_active: false,
-        move_out_date: today,
-      })
-      .eq('house_id', houseId)
-      .eq('is_active', true)
-      .in('resident_role', ['co_resident', 'household_member', 'domestic_staff', 'caretaker', 'contractor']);
-  }
-
   // 3. Update house occupancy status
   await supabase
     .from('houses')
@@ -649,17 +662,23 @@ export async function confirmRenterMoveOut(
   const destinationRole = metadata?.destination_role;
 
   if (metadata?.destination === 'moving_within_estate' && destinationHouseId && destinationRole) {
+    // An occupant (co_resident) is sponsored by the destination's resident (#1067)
+    const destSponsor = await resolveSponsor(supabase, destinationHouseId, destinationRole);
+
     // Create new assignment at destination
-    const { error: assignError } = await supabase
-      .from('resident_houses')
-      .insert({
-        resident_id: residentId,
-        house_id: destinationHouseId,
-        resident_role: destinationRole,
-        is_primary: true,
-        is_active: true,
-        move_in_date: today,
-      });
+    const { error: assignError } = destSponsor.error
+      ? { error: { message: destSponsor.error } }
+      : await supabase
+          .from('resident_houses')
+          .insert({
+            resident_id: residentId,
+            house_id: destinationHouseId,
+            resident_role: destinationRole,
+            is_primary: true,
+            is_active: true,
+            move_in_date: today,
+            sponsor_resident_id: destSponsor.sponsorId,
+          });
 
     if (assignError) {
       console.error('[confirmMoveOut] Error assigning to destination:', assignError);

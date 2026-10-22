@@ -7,6 +7,7 @@ import { requiresSponsor } from '@/lib/validators/resident';
 import { logAudit } from '@/lib/audit/logger';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { resolveSponsor } from './validation';
 
 /**
  * Sponsored resident info for cascade operations
@@ -232,6 +233,14 @@ export async function processSponsorCascade(
       }
 
       case 'transfer': {
+        // A co-resident may only move to the house's Owner-Occupier or Renter (#1067)
+        if (role === 'co_resident') {
+          const sponsor = await resolveSponsor(supabase, houseId, role, action.new_sponsor_id);
+          if (sponsor.error) {
+            return { success: false, error: sponsor.error };
+          }
+        }
+
         // Verify new sponsor is a valid primary resident at this house
         const { data: newSponsor, error: sponsorError } = await supabase
           .from('resident_houses')

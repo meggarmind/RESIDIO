@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { EntityType, ResidentRole, PrimaryResidentRole, SecondaryResidentRole, CorporateRole } from '@/types/database';
+import { RESIDENT_ROLE_LABELS } from '@/types/database';
 
 // Entity type enum for validation (2 types only)
 const entityTypeEnum = z.enum(['individual', 'corporate']);
@@ -21,8 +22,8 @@ const primaryRoleEnum = z.enum(['resident_landlord', 'non_resident_landlord', 't
 const secondaryRoleEnum = z.enum(['co_resident', 'household_member', 'domestic_staff', 'caretaker', 'contractor']);
 const corporateRoleEnum = z.enum(['non_resident_landlord', 'tenant', 'developer']);
 
-// Roles that require a sponsor (domestic_staff, caretaker, and contractor)
-const sponsorRequiredRoles: ResidentRole[] = ['domestic_staff', 'caretaker', 'contractor'];
+// Roles that require a sponsor (co_resident since #1067, domestic_staff, caretaker, and contractor)
+const sponsorRequiredRoles: ResidentRole[] = ['co_resident', 'domestic_staff', 'caretaker', 'contractor'];
 
 // Residency roles (for "One Home" policy) - updated names
 const residencyRoles: ResidentRole[] = ['resident_landlord', 'tenant', 'co_resident'];
@@ -89,14 +90,14 @@ export const houseAssignmentSchema = z.object({
   sponsor_resident_id: z.string().uuid().optional().nullable(),
 }).refine(
   (data) => {
-    // domestic_staff and caretaker require a sponsor
+    // sponsor-required roles (see sponsorRequiredRoles)
     if (sponsorRequiredRoles.includes(data.resident_role as ResidentRole)) {
       return data.sponsor_resident_id != null && data.sponsor_resident_id !== '';
     }
     return true;
   },
   {
-    message: 'Domestic staff, caretakers, and contractors must have a sponsor',
+    message: 'Occupants, domestic staff, caretakers, and contractors must have a sponsor',
     path: ['sponsor_resident_id'],
   }
 );
@@ -157,7 +158,7 @@ export const createResidentSchema = createResidentBaseSchema.refine(
     return true;
   },
   {
-    message: 'Domestic staff, caretakers, and contractors must have a sponsor',
+    message: 'Occupants, domestic staff, caretakers, and contractors must have a sponsor',
     path: ['sponsor_resident_id'],
   }
 );
@@ -204,6 +205,21 @@ export function isResidencyRole(role: ResidentRole): boolean {
 
 export function requiresSponsor(role: ResidentRole): boolean {
   return sponsorRequiredRoles.includes(role);
+}
+
+// Roles that may sponsor the given role. A co-resident is sponsored only by the resident of the
+// house (#1067); a Property Owner may also sponsor staff, caretakers and contractors.
+export function sponsorRolesFor(role: ResidentRole): ResidentRole[] {
+  return role === 'co_resident'
+    ? ['resident_landlord', 'tenant']
+    : ['non_resident_landlord', 'resident_landlord', 'tenant'];
+}
+
+// "Owner-Occupier or Renter", for messages naming who may sponsor the given role
+export function describeSponsorRoles(role: ResidentRole): string {
+  return new Intl.ListFormat('en', { type: 'disjunction' }).format(
+    sponsorRolesFor(role).map((r) => RESIDENT_ROLE_LABELS[r])
+  );
 }
 
 export function isValidCorporateRole(role: ResidentRole): role is CorporateRole {

@@ -8,6 +8,7 @@ import { requiresSponsor } from '@/lib/validators/resident';
 import { logAudit, getChangedValues } from '@/lib/audit/logger';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { resolveSponsor } from './validation';
 
 type UpdateResidentHouseData = {
   resident_role?: ResidentRole;
@@ -72,6 +73,8 @@ export async function updateResidentHouse(
     };
   }
 
+  let sponsorUpdate = data.sponsor_resident_id;
+
   // If changing role, validate the new role
   if (data.resident_role && data.resident_role !== currentRole) {
     const newRole = data.resident_role;
@@ -84,60 +87,28 @@ export async function updateResidentHouse(
       };
     }
 
-    // Validate sponsor requirement for the new role
+    // Validate sponsor requirement for the new role (occupants (co_resident) default to the house's resident, #1067)
     if (requiresSponsor(newRole)) {
-      const sponsorId = data.sponsor_resident_id ?? assignment.sponsor_resident_id;
-      if (!sponsorId) {
-        return {
-          data: null,
-          error: `${RESIDENT_ROLE_LABELS[newRole]} must have a sponsor. Please select a sponsor.`
-        };
+      const sponsor = await resolveSponsor(
+        supabase,
+        houseId,
+        newRole,
+        data.sponsor_resident_id ?? assignment.sponsor_resident_id
+      );
+      if (sponsor.error) {
+        return { data: null, error: sponsor.error };
       }
-
-      // Verify sponsor is a primary resident of the same house
-      const { data: sponsorAssignment } = await supabase
-        .from('resident_houses')
-        .select('id, resident_role')
-        .eq('resident_id', sponsorId)
-        .eq('house_id', houseId)
-        .eq('is_active', true)
-        .in('resident_role', ['non_resident_landlord', 'resident_landlord', 'tenant'])
-        .single();
-
-      if (!sponsorAssignment) {
-        return {
-          data: null,
-          error: 'Sponsor must be an Owner-Occupier, Property Owner, or Renter of the same house.'
-        };
-      }
+      sponsorUpdate = sponsor.sponsorId;
     }
   }
 
   // If not changing role but role requires sponsor, validate sponsor
   if (!data.resident_role && requiresSponsor(currentRole) && data.sponsor_resident_id !== undefined) {
-    if (!data.sponsor_resident_id) {
-      return {
-        data: null,
-        error: `${RESIDENT_ROLE_LABELS[currentRole]} must have a sponsor.`
-      };
+    const sponsor = await resolveSponsor(supabase, houseId, currentRole, data.sponsor_resident_id);
+    if (sponsor.error) {
+      return { data: null, error: sponsor.error };
     }
-
-    // Verify sponsor is a primary resident of the same house
-    const { data: sponsorAssignment } = await supabase
-      .from('resident_houses')
-      .select('id, resident_role')
-      .eq('resident_id', data.sponsor_resident_id)
-      .eq('house_id', houseId)
-      .eq('is_active', true)
-      .in('resident_role', ['non_resident_landlord', 'resident_landlord', 'tenant'])
-      .single();
-
-    if (!sponsorAssignment) {
-      return {
-        data: null,
-        error: 'Sponsor must be an Owner-Occupier, Property Owner, or Renter of the same house.'
-      };
-    }
+    sponsorUpdate = sponsor.sponsorId;
   }
 
   // Build update object
@@ -146,8 +117,8 @@ export async function updateResidentHouse(
   if (data.resident_role !== undefined) {
     updateData.resident_role = data.resident_role;
   }
-  if (data.sponsor_resident_id !== undefined) {
-    updateData.sponsor_resident_id = data.sponsor_resident_id;
+  if (sponsorUpdate !== undefined) {
+    updateData.sponsor_resident_id = sponsorUpdate;
   }
 
   // Perform the update

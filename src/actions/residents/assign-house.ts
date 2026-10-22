@@ -4,14 +4,14 @@ import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/se
 import { revalidatePath } from 'next/cache';
 import type { ResidentHouse, ResidentRole } from '@/types/database';
 import type { HouseAssignmentData } from '@/lib/validators/resident';
-import { requiresSponsor, isResidencyRole, isValidCorporateRole } from '@/lib/validators/resident';
+import { isResidencyRole, isValidCorporateRole } from '@/lib/validators/resident';
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
 import { generateLeviesForHouse } from '@/actions/billing/generate-levies';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { reactivateResidentAfterAssignment } from '@/lib/residents/lifecycle';
-import { validateHouseAssignment } from './validation';
+import { resolveSponsor, validateHouseAssignment } from './validation';
 
 type AssignHouseResponse = {
   data: ResidentHouse | null;
@@ -91,31 +91,10 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
     return { data: null, error: validation.error || 'Invalid assignment' };
   }
 
-  // Validate sponsor requirement for domestic_staff and caretaker
-  if (requiresSponsor(role)) {
-    if (!formData.sponsor_resident_id) {
-      return {
-        data: null,
-        error: `${roleLabel} must have a sponsor. Please select a sponsor.`,
-      };
-    }
-
-    // Verify sponsor is a primary resident of the same house
-    const { data: sponsorAssignment } = await supabase
-      .from('resident_houses')
-      .select('id, resident_role')
-      .eq('resident_id', formData.sponsor_resident_id)
-      .eq('house_id', formData.house_id)
-      .eq('is_active', true)
-      .in('resident_role', ['non_resident_landlord', 'resident_landlord', 'tenant'])
-      .single();
-
-    if (!sponsorAssignment) {
-      return {
-        data: null,
-        error: 'Sponsor must be an Owner-Occupier, Property Owner, or Renter of the same house.',
-      };
-    }
+  // Sponsor rule (occupants (co_resident) default to the house's resident, #1067)
+  const sponsor = await resolveSponsor(supabase, formData.house_id, role, formData.sponsor_resident_id);
+  if (sponsor.error) {
+    return { data: null, error: sponsor.error };
   }
 
   // Check residency exclusivity ("One Home" policy) for residency roles
@@ -164,7 +143,7 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
           resident_role: formData.resident_role,
           move_in_date: formData.move_in_date || new Date().toISOString().split('T')[0],
           move_out_date: null,
-          sponsor_resident_id: formData.sponsor_resident_id || null,
+          sponsor_resident_id: sponsor.sponsorId,
         })
         .eq('id', existing.id)
         .select()
@@ -220,7 +199,7 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
       house_id: formData.house_id,
       resident_role: formData.resident_role,
       move_in_date: formData.move_in_date || today,
-      sponsor_resident_id: formData.sponsor_resident_id || null,
+      sponsor_resident_id: sponsor.sponsorId,
       created_by: user.id,
     })
     .select()

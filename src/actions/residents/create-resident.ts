@@ -4,14 +4,13 @@ import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/se
 import { revalidatePath } from 'next/cache';
 import type { Resident, ResidentRole } from '@/types/database';
 import type { CreateResidentData } from '@/lib/validators/resident';
-import { requiresSponsor, isValidCorporateRole } from '@/lib/validators/resident';
-import { RESIDENT_ROLE_LABELS } from '@/types/database';
+import { isValidCorporateRole } from '@/lib/validators/resident';
 import { sendWelcomeEmail } from '@/actions/email/send-welcome-email';
 import { sendEmailVerification, sendPhoneVerification } from '@/actions/verification/send-verification';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
-import { validateHouseAssignment } from './validation';
+import { resolveSponsor, validateHouseAssignment } from './validation';
 import { canManageResidentOverride } from '@/lib/comms-override/resident-flag';
 import { loadDuplicateMatches } from '@/lib/residents/find-duplicates';
 import type { DuplicateResidentMatch } from '@/lib/residents/duplicate-match';
@@ -75,6 +74,7 @@ export async function createResident(
   }
 
   // Pre-validate house assignment if provided to avoid creating resident then deleting
+  let sponsorId: string | null = formData.sponsor_resident_id || null;
   if (formData.house_id && formData.resident_role) {
     const role = formData.resident_role as ResidentRole;
     const entityType = formData.entity_type || 'individual';
@@ -87,13 +87,12 @@ export async function createResident(
       };
     }
 
-    // Validate sponsor requirement for domestic_staff and caretaker
-    if (requiresSponsor(role) && !formData.sponsor_resident_id) {
-      return {
-        data: null,
-        error: `${RESIDENT_ROLE_LABELS[role]} must have a sponsor. Please select a sponsor.`,
-      };
+    // Sponsor rule (co-residents default to the house's resident, #1067)
+    const sponsor = await resolveSponsor(supabase, formData.house_id, role, formData.sponsor_resident_id);
+    if (sponsor.error) {
+      return { data: null, error: sponsor.error };
     }
+    sponsorId = sponsor.sponsorId;
 
     // Validate occupancy rules (Single Owner, Single Renter, etc.)
     const validation = await validateHouseAssignment(supabase, formData.house_id, role);
@@ -155,7 +154,7 @@ export async function createResident(
         house_id: formData.house_id,
         resident_role: formData.resident_role,
         move_in_date: formData.move_in_date || new Date().toISOString().split('T')[0],
-        sponsor_resident_id: formData.sponsor_resident_id || null,
+        sponsor_resident_id: sponsorId,
         created_by: user.id,
       });
 

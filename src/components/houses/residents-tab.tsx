@@ -31,7 +31,7 @@ import { TransferOwnershipDialog } from '@/components/houses/transfer-ownership-
 import { ResidentRow, type ResidentAction } from '@/components/houses/resident-row';
 import { useUnassignHouse, useUpdateResidentHouse, useSwapResidentRoles, useRemoveOwnership } from '@/hooks/use-residents';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
-import { requiresSponsor } from '@/lib/validators/resident';
+import { requiresSponsor, sponsorRolesFor, describeSponsorRoles } from '@/lib/validators/resident';
 import { SECONDARY_ROLE_OPTIONS, RESIDENT_ROLE_LABELS } from '@/types/database';
 import type { HouseWithResidents, ResidentRole } from '@/types/database';
 import { AlertTriangle, Loader2, Plus, Users } from 'lucide-react';
@@ -246,7 +246,7 @@ export function ResidentsTab({ house, activeResidents }: ResidentsTabProps) {
         <EditAssignmentDialog
           houseId={houseId}
           rh={open.rh}
-          sponsors={activeResidents.filter((rh) => SPONSOR_ROLES.includes(rh.resident_role)).map((rh) => rh.resident)}
+          sponsors={activeResidents.filter((rh) => SPONSOR_ROLES.includes(rh.resident_role))}
           onClose={close}
         />
       )}
@@ -361,7 +361,7 @@ export function ResidentsTab({ house, activeResidents }: ResidentsTabProps) {
 interface EditAssignmentDialogProps {
   houseId: string;
   rh: ActiveResidentHouse;
-  sponsors: ActiveResidentHouse['resident'][];
+  sponsors: ActiveResidentHouse[];
   onClose: () => void;
 }
 
@@ -370,7 +370,13 @@ function EditAssignmentDialog({ houseId, rh, sponsors, onClose }: EditAssignment
   const [editRole, setEditRole] = useState<ResidentRole>(currentRole);
   const [editSponsorId, setEditSponsorId] = useState(rh.sponsor_resident_id || '');
   const updateMutation = useUpdateResidentHouse();
-  const availableSponsors = requiresSponsor(editRole) ? sponsors : [];
+  const availableSponsors = requiresSponsor(editRole)
+    ? sponsors.filter((s) => sponsorRolesFor(editRole).includes(s.resident_role as ResidentRole)).map((s) => s.resident)
+    : [];
+  // An occupant (co_resident) defaults to the house's resident as sponsor (#1067); a house has at most one
+  const effectiveSponsorId = availableSponsors.some((s) => s.id === editSponsorId)
+    ? editSponsorId
+    : editRole === 'co_resident' && availableSponsors.length === 1 ? availableSponsors[0].id : '';
 
   const handleSave = async () => {
     try {
@@ -379,7 +385,7 @@ function EditAssignmentDialog({ houseId, rh, sponsors, onClose }: EditAssignment
         houseId,
         data: {
           resident_role: editRole !== currentRole ? editRole : undefined,
-          sponsor_resident_id: requiresSponsor(editRole) ? editSponsorId : null,
+          sponsor_resident_id: requiresSponsor(editRole) ? effectiveSponsorId : null,
         },
       });
       toast.success('Resident assignment updated');
@@ -425,7 +431,7 @@ function EditAssignmentDialog({ houseId, rh, sponsors, onClose }: EditAssignment
           {requiresSponsor(editRole) && (
             <div className="grid gap-2">
               <Label>Sponsor *</Label>
-              <Select value={editSponsorId} onValueChange={setEditSponsorId} disabled={availableSponsors.length === 0}>
+              <Select value={effectiveSponsorId} onValueChange={setEditSponsorId} disabled={availableSponsors.length === 0}>
                 <SelectTrigger>
                   <SelectValue placeholder={availableSponsors.length === 0 ? 'No sponsors available' : 'Select a sponsor'} />
                 </SelectTrigger>
@@ -438,7 +444,7 @@ function EditAssignmentDialog({ houseId, rh, sponsors, onClose }: EditAssignment
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                {RESIDENT_ROLE_LABELS[editRole]} must be sponsored by a primary resident
+                {RESIDENT_ROLE_LABELS[editRole]} must be sponsored by the {describeSponsorRoles(editRole)} of this house
               </p>
             </div>
           )}
@@ -447,7 +453,7 @@ function EditAssignmentDialog({ houseId, rh, sponsors, onClose }: EditAssignment
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={updateMutation.isPending || (requiresSponsor(editRole) && !editSponsorId)}>
+          <Button onClick={handleSave} disabled={updateMutation.isPending || (requiresSponsor(editRole) && !effectiveSponsorId)}>
             {updateMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Save Changes
           </Button>

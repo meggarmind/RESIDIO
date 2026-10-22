@@ -62,7 +62,7 @@ Dependents or staff attached to primary residents.
 
 | Role | Display Name | Code | Description | Sponsor Required | Residency | Multi-House |
 |------|--------------|------|-------------|------------------|-----------|-------------|
-| **Occupant** | Co-Resident | `co_resident` | Adult living in unit (not on title/lease) | No | Yes | No |
+| **Occupant** | Co-Resident | `co_resident` | Adult living in unit (not on title/lease) | Yes (the house's Owner-Occupier or Renter, #1067) | Yes | No |
 | **Family Member** | Household Member | `household_member` | Family dependents (spouse, children) | No | No | No |
 | **Domestic Staff** | Domestic Staff | `domestic_staff` | Employees working/living at unit | Yes | No | Yes |
 | **Caretaker** | Caretaker | `caretaker` | Maintains a vacant unit | Yes | No | Yes |
@@ -333,7 +333,7 @@ When a primary resident (sponsor) leaves a property, their sponsored residents a
 | **Domestic Staff** | Yes | Remove from property |
 | **Caretaker** | Yes | Remove from property |
 | **Contractor** | Yes | Remove from property |
-| **Co-Resident** | No | Keep without sponsor |
+| **Co-Resident** | Yes (#1067) | Remove from property |
 | **Household Member** | No | Keep without sponsor |
 
 ### 9.2 Cascade Options
@@ -342,7 +342,7 @@ When a primary resident (sponsor) leaves a property, their sponsored residents a
 |--------|-------------|------------------|
 | **Remove** | Remove from property | All sponsored roles |
 | **Transfer** | Transfer to new sponsor | All sponsored roles |
-| **Keep Unsupported** | Keep without sponsor | `co_resident`, `household_member` only |
+| **Keep Unsupported** | Keep without sponsor | `household_member` only |
 
 ### 9.3 Promotion System
 
@@ -603,12 +603,13 @@ export type ResidencyRole = 'resident_landlord' | 'tenant' | 'co_resident';
 
 | Role | Requires Sponsor | Valid Sponsors |
 |------|-----------------|----------------|
+| `co_resident` | Yes | The house's active Owner-Occupier or Renter only; defaults to them (#1067) |
 | `domestic_staff` | Yes | Any primary resident at house |
 | `caretaker` | Yes | Property Owner, Developer |
 | `contractor` | Yes | Property Owner, Developer |
 | All others | No | N/A |
 
-**Implementation**: `sponsor_resident_id` field in `resident_houses` table
+**Implementation**: `sponsor_resident_id` field in `resident_houses` table, enforced by the `validate_sponsor_requirement` trigger; actions check it first through `resolveSponsor` (`src/actions/residents/validation.ts`)
 
 ### 13.5 Verification Requirements
 
@@ -718,7 +719,7 @@ export function isSecondaryRole(role: ResidentRole): role is SecondaryResidentRo
 }
 
 export function requiresSponsor(role: ResidentRole): boolean {
-  return ['domestic_staff', 'caretaker', 'contractor'].includes(role);
+  return ['co_resident', 'domestic_staff', 'caretaker', 'contractor'].includes(role);
 }
 
 export function isResidencyRole(role: ResidentRole): boolean {

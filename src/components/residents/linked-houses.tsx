@@ -36,7 +36,7 @@ import {
     CollapsibleContent,
     CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { requiresSponsor } from '@/lib/validators/resident';
+import { requiresSponsor, sponsorRolesFor, describeSponsorRoles } from '@/lib/validators/resident';
 import { ResidentRoleBadge } from './status-badge';
 import { formatPropertyDisplay, getPropertyShortname, cn } from '@/lib/utils';
 
@@ -124,23 +124,27 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
         return unlinkedHouses;
     })();
 
-    // Get sponsors (primary residents of selected house) for domestic_staff and caretaker
+    // Get sponsors of the selected house for sponsor-required roles (an occupant: Owner-Occupier or Renter only)
     const availableSponsors = useMemo(() => {
         if (!selectedHouseId || !requiresSponsor(selectedRole)) {
             return [];
         }
         const allResidents = residentsData?.data ?? [];
-        // Filter residents who are non_resident_landlord, resident_landlord, or tenant of the selected house
+        const sponsorRoles = sponsorRolesFor(selectedRole);
         return allResidents.filter(r => {
             if (r.id === resident.id) return false;
             const residentWithHouses = r as typeof resident;
             return residentWithHouses.resident_houses?.some(
                 rh => rh.house_id === selectedHouseId &&
                       rh.is_active &&
-                      ['non_resident_landlord', 'resident_landlord', 'tenant'].includes(rh.resident_role)
+                      sponsorRoles.includes(rh.resident_role)
             );
         });
     }, [selectedHouseId, selectedRole, residentsData?.data, resident.id]);
+
+    // An occupant (co_resident) defaults to the house's resident as sponsor (#1067); a house has at most one
+    const effectiveSponsorId = sponsorResidentId ||
+        (selectedRole === 'co_resident' && availableSponsors.length === 1 ? availableSponsors[0].id : '');
 
     // Check if selected house is occupied (has resident_landlord or tenant)
     const isSelectedHouseOccupied = useMemo(() => {
@@ -186,7 +190,7 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
         }
 
         // Validate sponsor for roles that require it
-        if (showSponsorField && !sponsorResidentId) {
+        if (showSponsorField && !effectiveSponsorId) {
             toast.error(`${RESIDENT_ROLE_LABELS[selectedRole]} must have a sponsor`);
             return;
         }
@@ -200,7 +204,7 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
                     house_id: selectedHouseId,
                     resident_role: selectedRole,
                     move_in_date: isSelectedHouseOccupied ? undefined : moveInDate,
-                    sponsor_resident_id: showSponsorField ? sponsorResidentId : null,
+                    sponsor_resident_id: showSponsorField ? effectiveSponsorId : null,
                 },
             });
             toast.success('House linked successfully');
@@ -336,12 +340,12 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
                                     </Select>
                                 </div>
 
-                                {/* Sponsor selection for domestic_staff and caretaker */}
+                                {/* Sponsor selection for sponsor-required roles */}
                                 {showSponsorField && (
                                     <div className="grid gap-2">
                                         <Label>Sponsor *</Label>
                                         <Select
-                                            value={sponsorResidentId}
+                                            value={effectiveSponsorId}
                                             onValueChange={setSponsorResidentId}
                                             disabled={!selectedHouseId || availableSponsors.length === 0}
                                         >
@@ -363,7 +367,7 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
                                             </SelectContent>
                                         </Select>
                                         <p className="text-xs text-muted-foreground">
-                                            {RESIDENT_ROLE_LABELS[selectedRole]} must be sponsored by a Property Owner, Owner-Occupier, or Renter
+                                            {RESIDENT_ROLE_LABELS[selectedRole]} must be sponsored by the {describeSponsorRoles(selectedRole)} of this house
                                         </p>
                                     </div>
                                 )}
