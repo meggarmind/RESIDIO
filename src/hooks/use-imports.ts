@@ -390,9 +390,12 @@ export function useCreateImportRows() {
       if (result.error) throw new Error(result.error);
       return result;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (result, variables) => {
       queryClient.invalidateQueries({ queryKey: ['import', variables.import_id] });
       queryClient.invalidateQueries({ queryKey: ['import-rows', variables.import_id] });
+      if (result.skipped) {
+        toast.info(`${result.skipped} line${result.skipped === 1 ? '' : 's'} skipped: already imported.`);
+      }
     },
     onError: (error) => {
       toast.error(error.message);
