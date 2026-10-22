@@ -6,6 +6,7 @@
  * Handles Gmail OAuth connection, disconnection, and status checking.
  */
 
+import { cookies } from 'next/headers';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
@@ -15,6 +16,11 @@ import {
   exchangeAuthCode,
   getGmailClient,
   GMAIL_SCOPES,
+  GMAIL_OAUTH_STATE_COOKIE,
+  GMAIL_OAUTH_STATE_COOKIE_PATH,
+  GMAIL_OAUTH_STATE_TTL_SECONDS,
+  createGmailOAuthState,
+  verifyGmailOAuthState,
 } from '@/lib/email-imports/gmail-client';
 import { encrypt, decrypt } from '@/lib/email-imports/oauth-encryption';
 import type { GmailConnectionStatus, GmailSyncCriteria } from '@/types/database';
@@ -29,12 +35,21 @@ export async function getGmailAuthUrl(): Promise<{
 }> {
   // Check permission
   const auth = await authorizePermission(PERMISSIONS.EMAIL_IMPORTS_CONFIGURE);
-  if (!auth.authorized) {
+  if (!auth.authorized || !auth.userId) {
     return { data: null, error: auth.error || 'Unauthorized' };
   }
 
   try {
-    const url = getAuthUrl();
+    const { state, cookieValue } = createGmailOAuthState(auth.userId);
+    const url = getAuthUrl(state);
+    const cookieStore = await cookies();
+    cookieStore.set(GMAIL_OAUTH_STATE_COOKIE, cookieValue, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax', // sent on Google's top-level redirect back to the callback
+      maxAge: GMAIL_OAUTH_STATE_TTL_SECONDS,
+      path: GMAIL_OAUTH_STATE_COOKIE_PATH,
+    });
     return { data: { url }, error: null };
   } catch (error) {
     console.error('Failed to generate Gmail auth URL:', error);
@@ -49,7 +64,7 @@ export async function getGmailAuthUrl(): Promise<{
 // Exchange OAuth Code for Tokens
 // ============================================================
 
-export async function exchangeGmailCode(code: string): Promise<{
+export async function exchangeGmailCode(code: string, state: string | null): Promise<{
   data: { email: string } | null;
   error: string | null;
 }> {
@@ -57,6 +72,17 @@ export async function exchangeGmailCode(code: string): Promise<{
   const auth = await authorizePermission(PERMISSIONS.EMAIL_IMPORTS_CONFIGURE);
   if (!auth.authorized) {
     return { data: null, error: auth.error || 'Unauthorized' };
+  }
+
+  // The code must come back to the admin who started this connect request (#997).
+  const cookieStore = await cookies();
+  const stateCookie = cookieStore.get(GMAIL_OAUTH_STATE_COOKIE)?.value;
+  cookieStore.delete({ name: GMAIL_OAUTH_STATE_COOKIE, path: GMAIL_OAUTH_STATE_COOKIE_PATH });
+  if (!verifyGmailOAuthState(state, stateCookie, auth.userId)) {
+    return {
+      data: null,
+      error: 'This Gmail connection request could not be verified. Please start the connection again.',
+    };
   }
 
   const supabase = await createServerSupabaseClient();
