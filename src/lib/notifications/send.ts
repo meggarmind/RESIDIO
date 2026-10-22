@@ -356,9 +356,15 @@ export async function sendNotification(
   return sender(item, context);
 }
 
-/** An email to an admin account (#982) has no resident flag: like the other staff emails it follows the global switch. */
-function sendAdminAddressedEmail(item: NotificationQueueItem): Promise<SendNotificationResult> {
-  return sendNotification(item);
+/**
+ * An email to an admin account (#982) has no resident flag: like the other staff emails it follows the global switch.
+ * A debt report that cannot be made or emailed is final and the admin is told on WhatsApp, never sent a text version.
+ */
+async function sendAdminAddressedEmail(item: NotificationQueueItem): Promise<SendNotificationResult> {
+  const result = await sendNotification(item);
+  if (result.success || !item.metadata?.whatsapp_debt_report) return result;
+  await (await import('@/lib/whatsapp/debt-report')).replyDebtReportFailed(item);
+  return { ...result, retryable: false };
 }
 
 /**

@@ -1,10 +1,11 @@
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import type { WhatsAppAdminAction } from '@/lib/whatsapp/admin';
 import {
+  countDebtReportHouses,
+  DEBT_REPORT_FAILED_REPLY,
   loadReportableHouses,
   parseStreetChoice,
   queueDebtReportEmail,
-  renderDebtStatusReport,
   streetOptions,
 } from '@/lib/whatsapp/debt-report';
 
@@ -15,7 +16,6 @@ interface ChoiceState extends Record<string, unknown> {
 
 export const DEBT_REPORT_NO_HOUSES_REPLY = 'There are no houses to report on right now.';
 export const DEBT_REPORT_NO_EMAIL_REPLY = 'Your account has no email address, so the report cannot be sent. Nothing was sent.';
-export const DEBT_REPORT_FAILED_REPLY = 'The debt status report could not be made, so nothing was sent. Try again later.';
 export const DEBT_REPORT_QUEUE_FAILED_REPLY = 'The debt status report could not be sent by email. Try again later.';
 
 /**
@@ -50,24 +50,24 @@ export const debtReportAction: WhatsAppAdminAction = {
     return { params: { all: false, streetIds: streets.filter((s) => choice.numbers.includes(s.number)).map((s) => s.id) } };
   },
 
-  async run({ account, params }) {
+  async run({ account, binding, params }) {
     const scope = { all: params.all === true, streetIds: Array.isArray(params.streetIds) ? (params.streetIds as string[]) : [] };
     const audit = { scope: scope.all ? 'ALL' : scope.streetIds };
     const email = account.email?.trim();
     if (!email) return { reply: DEBT_REPORT_NO_EMAIL_REPLY, audit: { ...audit, outcome: 'no_email' } };
 
+    // The PDF is drawn when the queue sends the email; a failure there is told to the admin on WhatsApp.
     let report;
     try {
-      report = await renderDebtStatusReport(scope);
+      report = await countDebtReportHouses(scope);
     } catch (error) {
-      // No text fallback: a report that cannot be drawn is not sent in any form.
-      console.error('[whatsapp-admin] Debt status report failed:', error instanceof Error ? error.message : error);
-      return { reply: DEBT_REPORT_FAILED_REPLY, audit: { ...audit, outcome: 'pdf_failed' } };
+      console.error('[whatsapp-admin] Debt status report houses could not be read:', error instanceof Error ? error.message : error);
+      return { reply: DEBT_REPORT_FAILED_REPLY, audit: { ...audit, outcome: 'read_failed' } };
     }
     if (report.houseCount === 0) return { reply: DEBT_REPORT_NO_HOUSES_REPLY, audit: { ...audit, outcome: 'no_houses' } };
 
     try {
-      await queueDebtReportEmail({ profileId: account.profileId, email, fullName: account.fullName, scope, scopeLabel: report.scopeLabel });
+      await queueDebtReportEmail({ profileId: account.profileId, email, fullName: account.fullName, phoneNumber: binding.phoneNumber, scope, scopeLabel: report.scopeLabel });
     } catch (error) {
       console.error('[whatsapp-admin] Debt status report email could not be queued:', error instanceof Error ? error.message : error);
       return { reply: DEBT_REPORT_QUEUE_FAILED_REPLY, audit: { ...audit, outcome: 'queue_failed' } };

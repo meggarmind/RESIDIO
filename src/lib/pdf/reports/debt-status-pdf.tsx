@@ -37,10 +37,10 @@ export function DebtStatusPdf({ data }: { data: DebtStatusPdfData }) {
         </View>
 
         {streets.map((street) => (
-          <View key={street} style={s.section} wrap={false}>
-            <Text style={s.sectionTitle}>{street}</Text>
+          <View key={street} style={s.section}>
+            <Text style={s.sectionTitle} minPresenceAhead={60}>{street}</Text>
             <View style={s.table}>
-              <View style={s.tableHeader}>
+              <View style={s.tableHeader} minPresenceAhead={24}>
                 <Text style={[s.tableHeaderCell, { flex: 2 }]}>House</Text>
                 <Text style={[s.tableHeaderCell, { flex: 2 }]}>Debt status</Text>
               </View>

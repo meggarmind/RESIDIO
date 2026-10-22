@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   addToQueue: vi.fn(),
   rowsError: null as { message: string } | null,
   pdfComponent: vi.fn(() => 'pdf-element'),
+  sendWhatsAppMessage: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -24,6 +25,7 @@ vi.mock('@/lib/billing/debt-status', () => ({
   readDebtStatusSettings: async () => ({ reportFootnote: 'Contact the Financial Secretary.' }),
 }));
 vi.mock('@/lib/notifications/queue', () => ({ addToQueue: mocks.addToQueue, PRIORITY: { NORMAL: 5 } }));
+vi.mock('@/lib/whatsapp/provider', () => ({ sendWhatsAppMessage: mocks.sendWhatsAppMessage }));
 vi.mock('@/lib/pdf/reports/debt-status-pdf', () => ({ DebtStatusPdf: mocks.pdfComponent }));
 vi.mock('@react-pdf/renderer', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@react-pdf/renderer')>()),
@@ -31,16 +33,20 @@ vi.mock('@react-pdf/renderer', async (importOriginal) => ({
 }));
 
 import {
+  countDebtReportHouses,
+  DEBT_REPORT_FAILED_REPLY,
   deliveryFor,
   isReportableHouse,
   loadReportableHouses,
   parseStreetChoice,
   queueDebtReportEmail,
   renderDebtStatusReport,
+  replyDebtReportFailed,
   streetOptions,
 } from '@/lib/whatsapp/debt-report';
+import type { NotificationQueueItem } from '@/lib/notifications/types';
 
-const link = { is_active: true, is_primary: true };
+const link = { is_active: true, resident_role: 'tenant' };
 function house(id: string, street: string, number: string, overrides: Record<string, unknown> = {}) {
   return {
     id,
@@ -67,8 +73,8 @@ beforeEach(() => {
     house('h6', 'Alpha Street', '13', { property_status: 'under_renovation' }),
     house('h7', 'Alpha Street', '14', { property_status: 'under_construction' }),
     house('h8', 'Alpha Street', '15', { resident_houses: [] }),
-    house('h9', 'Alpha Street', '16', { resident_houses: [{ is_active: false, is_primary: true }] }),
-    house('h10', 'Alpha Street', '17', { resident_houses: [{ is_active: true, is_primary: false }] }),
+    house('h9', 'Alpha Street', '16', { resident_houses: [{ is_active: false, resident_role: 'tenant' }] }),
+    house('h10', 'Alpha Street', '17', { resident_houses: [{ is_active: true, resident_role: 'domestic_staff' }] }),
   ];
   mocks.getDebtStatuses.mockImplementation(async (_c: unknown, p: { houseIds: string[] }) =>
     p.houseIds.map((houseId) => ({ houseId, label: 'Arrears', status: 'arrears' })));
@@ -82,15 +88,15 @@ describe('which houses are reported', () => {
     ['under_renovation', { property_status: 'under_renovation' }],
     ['under_construction', { property_status: 'under_construction' }],
     ['no resident link', { resident_houses: [] }],
-    ['inactive primary resident', { resident_houses: [{ is_active: false, is_primary: true }] }],
-    ['active non-primary resident only', { resident_houses: [{ is_active: true, is_primary: false }] }],
+    ['inactive primary resident', { resident_houses: [{ is_active: false, resident_role: 'tenant' }] }],
+    ['active non-primary role only', { resident_houses: [{ is_active: true, resident_role: 'domestic_staff' }] }],
     ['inactive house', { is_active: false }],
   ])('excludes a house with %s', (_label, overrides) => {
     expect(isReportableHouse(house('x', 'A', '1', overrides) as never)).toBe(false);
   });
 
-  it('keeps an occupied, verified house with an active primary resident', () => {
-    expect(isReportableHouse(house('x', 'A', '1') as never)).toBe(true);
+  it.each(['tenant', 'resident_landlord', 'non_resident_landlord'])('keeps an occupied, verified house with an active %s', (role) => {
+    expect(isReportableHouse(house('x', 'A', '1', { resident_houses: [{ is_active: true, resident_role: role }] }) as never)).toBe(true);
   });
 
   it('loads only reportable houses, ordered by street then natural house number', async () => {
@@ -162,20 +168,47 @@ describe('renderDebtStatusReport', () => {
   });
 });
 
+describe('countDebtReportHouses', () => {
+  it('counts the scope from the report query without drawing the PDF', async () => {
+    expect(await countDebtReportHouses({ all: true, streetIds: [] })).toEqual({ houseCount: 3, scopeLabel: 'Whole estate' });
+    expect(await countDebtReportHouses({ all: false, streetIds: ['s-Alpha Street'] })).toEqual({ houseCount: 2, scopeLabel: 'Alpha Street' });
+    expect(mocks.renderToBuffer).not.toHaveBeenCalled();
+    expect(mocks.getDebtStatuses).not.toHaveBeenCalled();
+  });
+});
+
+describe('replyDebtReportFailed', () => {
+  const item = (metadata: Record<string, unknown>) => ({ id: 'q1', metadata } as unknown as NotificationQueueItem);
+
+  it("sends only the failure reply to the admin's linked number", async () => {
+    mocks.sendWhatsAppMessage.mockResolvedValue({ success: true });
+    await replyDebtReportFailed(item({ admin_phone_number: '+2348000000001', whatsapp_debt_report: { all: true, streetIds: [] } }));
+    expect(mocks.sendWhatsAppMessage).toHaveBeenCalledTimes(1);
+    expect(mocks.sendWhatsAppMessage.mock.calls[0][0]).toMatchObject({ to: '+2348000000001', body: DEBT_REPORT_FAILED_REPLY });
+  });
+
+  it('sends nothing without a number, and never throws when the reply fails', async () => {
+    await replyDebtReportFailed(item({}));
+    expect(mocks.sendWhatsAppMessage).not.toHaveBeenCalled();
+    mocks.sendWhatsAppMessage.mockRejectedValue(new Error('down'));
+    await expect(replyDebtReportFailed(item({ admin_phone_number: '+234' }))).resolves.toBeUndefined();
+  });
+});
+
 describe('queueDebtReportEmail', () => {
   it('queues a recipient-less email carrying the admin profile and the scope', async () => {
     mocks.addToQueue.mockResolvedValue({ success: true, queueId: 'q1' });
-    await queueDebtReportEmail({ profileId: 'admin-1', email: 'ada@example.test', fullName: 'Ada Admin', scope: { all: false, streetIds: ['s1'] }, scopeLabel: 'S1' });
+    await queueDebtReportEmail({ profileId: 'admin-1', email: 'ada@example.test', fullName: 'Ada Admin', phoneNumber: '+2348000000001', scope: { all: false, streetIds: ['s1'] }, scopeLabel: 'S1' });
     expect(mocks.addToQueue).toHaveBeenCalledWith(expect.objectContaining({
       recipient_id: null,
       recipient_email: 'ada@example.test',
       channel: 'email',
-      metadata: expect.objectContaining({ admin_profile_id: 'admin-1', whatsapp_debt_report: { all: false, streetIds: ['s1'], scopeLabel: 'S1' } }),
+      metadata: expect.objectContaining({ admin_profile_id: 'admin-1', admin_phone_number: '+2348000000001', whatsapp_debt_report: { all: false, streetIds: ['s1'], scopeLabel: 'S1' } }),
     }));
   });
 
   it('throws when the queue refuses the row', async () => {
     mocks.addToQueue.mockResolvedValue({ success: false, error: 'nope' });
-    await expect(queueDebtReportEmail({ profileId: 'a', email: 'e@x.test', fullName: 'A', scope: { all: true, streetIds: [] }, scopeLabel: 'x' })).rejects.toThrow('nope');
+    await expect(queueDebtReportEmail({ profileId: 'a', email: 'e@x.test', fullName: 'A', phoneNumber: '+234', scope: { all: true, streetIds: [] }, scopeLabel: 'x' })).rejects.toThrow('nope');
   });
 });

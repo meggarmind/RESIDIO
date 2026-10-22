@@ -3,6 +3,7 @@ import { generateTOTPCode, totpStepAt } from '@/lib/auth/totp';
 
 const mocks = vi.hoisted(() => ({
   loadReportableHouses: vi.fn(),
+  countDebtReportHouses: vi.fn(),
   renderDebtStatusReport: vi.fn(),
   queueDebtReportEmail: vi.fn(),
 }));
@@ -10,6 +11,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/whatsapp/debt-report', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/whatsapp/debt-report')>()),
   loadReportableHouses: mocks.loadReportableHouses,
+  countDebtReportHouses: mocks.countDebtReportHouses,
   renderDebtStatusReport: mocks.renderDebtStatusReport,
   queueDebtReportEmail: mocks.queueDebtReportEmail,
 }));
@@ -25,11 +27,8 @@ import {
   type WhatsAppAdminBinding,
   type WhatsAppAdminRepository,
 } from '@/lib/whatsapp/admin';
-import {
-  DEBT_REPORT_FAILED_REPLY,
-  DEBT_REPORT_NO_EMAIL_REPLY,
-  debtReportAction,
-} from '@/lib/whatsapp/admin-debt-report';
+import { DEBT_REPORT_NO_EMAIL_REPLY, DEBT_REPORT_NO_HOUSES_REPLY, debtReportAction } from '@/lib/whatsapp/admin-debt-report';
+import { DEBT_REPORT_FAILED_REPLY } from '@/lib/whatsapp/debt-report';
 import type { WhatsAppInboundMessage } from '@/lib/whatsapp/types';
 
 const SECRET = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
@@ -102,7 +101,7 @@ beforeEach(() => {
     { id: 'h2', houseCode: '2', streetId: 's-a', streetName: 'Alpha Street' },
     { id: 'h3', houseCode: '1', streetId: 's-b', streetName: 'Bravo Street' },
   ]);
-  mocks.renderDebtStatusReport.mockResolvedValue({ pdf: Buffer.from('%PDF'), houseCount: 3, scopeLabel: 'Whole estate' });
+  mocks.countDebtReportHouses.mockResolvedValue({ houseCount: 3, scopeLabel: 'Whole estate' });
   mocks.queueDebtReportEmail.mockResolvedValue(undefined);
 });
 
@@ -176,13 +175,15 @@ describe('ADMIN DEBT: running with a fresh code', () => {
   const code = () => generateTOTPCode(SECRET, totpStepAt(NOW.getTime()));
   const params = { all: false, streetIds: ['s-a'] };
 
-  it('takes the code, emails the report, and audits who asked for what', async () => {
-    mocks.renderDebtStatusReport.mockResolvedValue({ pdf: Buffer.from('%PDF'), houseCount: 2, scopeLabel: 'Alpha Street' });
+  it('takes the code, queues the report without drawing it, replies with the count, and audits who asked for what', async () => {
+    mocks.countDebtReportHouses.mockResolvedValue({ houseCount: 2, scopeLabel: 'Alpha Street' });
     const repo = repository({ takePendingRequest: vi.fn().mockResolvedValue({ id: 'request-7', action: 'debt', params }) });
     const reply = await send(`ADMIN ${code()}`, repo);
 
-    expect(mocks.queueDebtReportEmail).toHaveBeenCalledWith(expect.objectContaining({ profileId: 'admin-1', email: 'ada@example.test', scope: params }));
-    expect(reply.mock.calls[0][0]).toContain('ada@example.test');
+    expect(mocks.countDebtReportHouses).toHaveBeenCalledWith(params);
+    expect(mocks.renderDebtStatusReport).not.toHaveBeenCalled();
+    expect(mocks.queueDebtReportEmail).toHaveBeenCalledWith(expect.objectContaining({ profileId: 'admin-1', email: 'ada@example.test', phoneNumber: PHONE, scope: params }));
+    expect(reply).toHaveBeenCalledWith('The debt status report for Alpha Street (2 houses) is on its way to ada@example.test.');
     expect(repo.audit).toHaveBeenCalledWith(
       expect.objectContaining({ entityId: 'request-7', metadata: expect.objectContaining({ action: 'debt', scope: ['s-a'], outcome: 'queued', house_count: 2 }) }),
       'admin-1'
@@ -195,21 +196,28 @@ describe('ADMIN DEBT: running with a fresh code', () => {
     expect(repo.audit).toHaveBeenCalledWith(expect.objectContaining({ metadata: expect.objectContaining({ scope: 'ALL' }) }), 'admin-1');
   });
 
-  it('a PDF failure gives the failure reply, queues nothing and sends no text version', async () => {
-    mocks.renderDebtStatusReport.mockRejectedValue(new Error('pdf broke'));
+  it('a scope with no houses left says so and queues nothing', async () => {
+    mocks.countDebtReportHouses.mockResolvedValue({ houseCount: 0, scopeLabel: 'Alpha Street' });
+    const result = await debtReportAction.run({ account, binding, now: NOW, params });
+    expect(result).toMatchObject({ reply: DEBT_REPORT_NO_HOUSES_REPLY });
+    expect(mocks.queueDebtReportEmail).not.toHaveBeenCalled();
+  });
+
+  it('a read failure gives the failure reply, queues nothing and sends no text version', async () => {
+    mocks.countDebtReportHouses.mockRejectedValue(new Error('db down'));
     const repo = repository({ takePendingRequest: vi.fn().mockResolvedValue({ id: 'r', action: 'debt', params }) });
     const reply = await send(`ADMIN ${code()}`, repo);
 
     expect(reply).toHaveBeenCalledTimes(1);
     expect(reply).toHaveBeenCalledWith(DEBT_REPORT_FAILED_REPLY);
     expect(mocks.queueDebtReportEmail).not.toHaveBeenCalled();
-    expect(repo.audit).toHaveBeenCalledWith(expect.objectContaining({ metadata: expect.objectContaining({ outcome: 'pdf_failed' }) }), 'admin-1');
+    expect(repo.audit).toHaveBeenCalledWith(expect.objectContaining({ metadata: expect.objectContaining({ outcome: 'read_failed' }) }), 'admin-1');
   });
 
   it('an admin without an account email gets that said and nothing is queued', async () => {
     const result = await debtReportAction.run({ account: { ...account, email: ' ' }, binding, now: NOW, params });
     expect(result).toMatchObject({ reply: DEBT_REPORT_NO_EMAIL_REPLY });
-    expect(mocks.renderDebtStatusReport).not.toHaveBeenCalled();
+    expect(mocks.countDebtReportHouses).not.toHaveBeenCalled();
     expect(mocks.queueDebtReportEmail).not.toHaveBeenCalled();
   });
 
@@ -226,7 +234,7 @@ describe('ADMIN DEBT: running with a fresh code', () => {
     });
     const reply = await send(`ADMIN ${code()}`, repo);
     expect(reply).toHaveBeenCalledWith(ADMIN_NOT_ALLOWED_REPLY);
-    expect(mocks.renderDebtStatusReport).not.toHaveBeenCalled();
+    expect(mocks.queueDebtReportEmail).not.toHaveBeenCalled();
   });
 });
 

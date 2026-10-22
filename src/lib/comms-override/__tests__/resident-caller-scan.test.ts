@@ -55,6 +55,7 @@ const NO_RESIDENT_CONTEXT: Allowed[] = [
   { file: 'lib/reports/process-schedules.ts', fn: 'processDueSchedules', sites: 1, reason: 'report_schedules.recipients are raw addresses' },
   { file: 'lib/whatsapp/admin.ts', fn: 'createSupabaseWhatsAppAdminRepository', sites: 1, reason: 'recipient is the admin account itself (profiles.email): follow the global switch' },
   { file: 'lib/notifications/send.ts', fn: 'sendAdminAddressedEmail', sites: 1, reason: 'queued email to an admin account (profiles.email, #982): follow the global switch' },
+  { file: 'lib/whatsapp/debt-report.ts', fn: 'replyDebtReportFailed', sites: 1, reason: "failure reply to the admin's linked WhatsApp number (#982): follow the global switch" },
   { file: 'actions/two-factor/setup.ts', fn: 'initiateTwoFactorSetup', sites: 2, purpose: 'self_auth_2fa', reason: 'self-addressed code to the signed-in user' },
   { file: 'actions/two-factor/verify.ts', fn: 'sendTwoFactorCode', sites: 2, purpose: 'self_auth_2fa', reason: 'self-addressed code to the signed-in user' },
   { file: 'lib/whatsapp/financial.ts', fn: 'sendFinancialReply', sites: 1, purpose: 'inbound_reply', reason: 'reply to whoever messaged us' },

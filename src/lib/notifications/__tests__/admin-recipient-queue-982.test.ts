@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   resendSend: vi.fn(),
   isEmailConfigured: vi.fn(),
   buildDebtReportEmail: vi.fn(),
+  replyDebtReportFailed: vi.fn(),
   resolveResidentOverride: vi.fn(),
 }));
 
@@ -32,7 +33,7 @@ vi.mock('@/lib/sms/send-sms', () => ({ sendSms: vi.fn() }));
 vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
 vi.mock('@/lib/comms-override/resident-flag', () => ({ resolveResidentOverride: mocks.resolveResidentOverride }));
 vi.mock('@/lib/whatsapp/statement-delivery', () => ({ buildStatementEmail: vi.fn(), markStatementEmailSent: vi.fn() }));
-vi.mock('@/lib/whatsapp/debt-report', () => ({ buildDebtReportEmail: mocks.buildDebtReportEmail }));
+vi.mock('@/lib/whatsapp/debt-report', () => ({ buildDebtReportEmail: mocks.buildDebtReportEmail, replyDebtReportFailed: mocks.replyDebtReportFailed }));
 
 import { createAdminClient } from '@/lib/supabase/server';
 import { sendAndRecordNotification, sendNotification } from '@/lib/notifications/send';
@@ -61,7 +62,7 @@ function adminRow(overrides: Row = {}): Row {
     last_attempt_at: null,
     sent_at: null,
     error_message: null,
-    metadata: { admin_profile_id: 'admin-1', whatsapp_debt_report: { all: true, streetIds: [] } },
+    metadata: { admin_profile_id: 'admin-1', admin_phone_number: '+2348000000001', whatsapp_debt_report: { all: true, streetIds: [] } },
     created_at: new Date().toISOString(),
     created_by: null,
     ...overrides,
@@ -93,6 +94,27 @@ describe('admin-addressed queue rows (#982)', () => {
     expect(mocks.resolveResidentOverride).not.toHaveBeenCalled();
     expect(mocks.buildDebtReportEmail).toHaveBeenCalledWith(expect.objectContaining({ admin_profile_id: 'admin-1' }));
     expect(mocks.resendSend.mock.calls[0][0]).toMatchObject({ react: 'debt-email', attachments: [{ filename: 'd.pdf' }] });
+    expect(mocks.replyDebtReportFailed).not.toHaveBeenCalled();
+  });
+
+  it('a send-time PDF failure sends no email, tells the admin on WhatsApp, and is final', async () => {
+    mocks.buildDebtReportEmail.mockRejectedValue(new Error('pdf broke'));
+    useFake(adminRow());
+    const result = await sendAndRecordNotification(asItem(adminRow()));
+
+    expect(result).toMatchObject({ success: false, retryable: false });
+    expect(mocks.resendSend).not.toHaveBeenCalled();
+    expect(mocks.replyDebtReportFailed).toHaveBeenCalledTimes(1);
+    expect(mocks.replyDebtReportFailed).toHaveBeenCalledWith(expect.objectContaining({ metadata: expect.objectContaining({ admin_phone_number: '+2348000000001' }) }));
+  });
+
+  it('a failed email send tells the admin on WhatsApp', async () => {
+    mocks.resendSend.mockResolvedValue({ data: null, error: { message: 'rejected', name: 'validation_error' } });
+    useFake(adminRow());
+    const result = await sendAndRecordNotification(asItem(adminRow()));
+
+    expect(result.success).toBe(false);
+    expect(mocks.replyDebtReportFailed).toHaveBeenCalledTimes(1);
   });
 
   it('still fails closed for a recipient-less row that is not an admin email', async () => {

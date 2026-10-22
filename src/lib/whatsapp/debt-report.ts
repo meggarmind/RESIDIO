@@ -6,6 +6,8 @@ import { getDebtStatuses, readDebtStatusSettings } from '@/lib/billing/debt-stat
 import { addToQueue, PRIORITY } from '@/lib/notifications/queue';
 import { DebtStatusPdf, type DebtStatusPdfRow } from '@/lib/pdf/reports/debt-status-pdf';
 import { formatPdfDate } from '@/lib/pdf/format-date';
+import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
+import type { NotificationQueueItem } from '@/lib/notifications/types';
 import { WhatsAppDebtReportEmail } from '@/emails/whatsapp-debt-report';
 
 /**
@@ -15,6 +17,11 @@ import { WhatsAppDebtReportEmail } from '@/emails/whatsapp-debt-report';
 
 /** Houses in these states are left out, with unverified identifiers and houses without an active primary resident. */
 export const DEBT_REPORT_EXCLUDED_PROPERTY_STATUSES = ['vacant', 'under_renovation', 'under_construction'];
+
+/** The primary resident roles, as get_debt_statuses picks the house's resident. */
+export const DEBT_REPORT_PRIMARY_ROLES = ['tenant', 'resident_landlord', 'non_resident_landlord'];
+
+export const DEBT_REPORT_FAILED_REPLY = 'The debt status report could not be made, so nothing was sent. Try again later.';
 
 export interface DebtReportHouse {
   id: string;
@@ -31,7 +38,7 @@ interface HouseRow {
   property_status: string;
   is_active: boolean;
   street: { id: string; name: string } | { id: string; name: string }[] | null;
-  resident_houses: { is_active: boolean; is_primary: boolean | null }[] | null;
+  resident_houses: { is_active: boolean; resident_role: string }[] | null;
 }
 
 /** The report's eligibility rule: an active, verified, lived-in house with an active primary resident. */
@@ -40,7 +47,7 @@ export function isReportableHouse(row: HouseRow): boolean {
     row.is_active &&
     !row.identifier_unverified &&
     !DEBT_REPORT_EXCLUDED_PROPERTY_STATUSES.includes(row.property_status) &&
-    (row.resident_houses ?? []).some((link) => link.is_active && link.is_primary === true)
+    (row.resident_houses ?? []).some((link) => link.is_active && DEBT_REPORT_PRIMARY_ROLES.includes(link.resident_role))
   );
 }
 
@@ -50,7 +57,7 @@ const byName = (a: string, b: string) => a.localeCompare(b, 'en', { numeric: tru
 export async function loadReportableHouses(): Promise<DebtReportHouse[]> {
   const { data, error } = await createAdminClient()
     .from('houses')
-    .select('id, house_number, short_name, identifier_unverified, property_status, is_active, street:streets(id, name), resident_houses(is_active, is_primary)')
+    .select('id, house_number, short_name, identifier_unverified, property_status, is_active, street:streets(id, name), resident_houses(is_active, resident_role)')
     .eq('is_active', true)
     .range(0, 4999);
   if (error) throw new Error(`Debt report houses could not be read: ${error.message}`);
@@ -110,11 +117,24 @@ export function scopeLabel(scope: DebtReportScope, options: DebtReportStreetOpti
   return options.filter((o) => scope.streetIds.includes(o.id)).map((o) => o.name).join(', ');
 }
 
+async function loadScope(scope: DebtReportScope) {
+  const all = await loadReportableHouses();
+  return {
+    houses: scope.all ? all : all.filter((house) => scope.streetIds.includes(house.streetId)),
+    scopeLabel: scopeLabel(scope, streetOptions(all)),
+  };
+}
+
+/** How many houses the report for a scope covers, read the same way the report reads them. */
+export async function countDebtReportHouses(scope: DebtReportScope): Promise<{ houseCount: number; scopeLabel: string }> {
+  const { houses, scopeLabel: label } = await loadScope(scope);
+  return { houseCount: houses.length, scopeLabel: label };
+}
+
 /** The report PDF for a scope; throws when the data cannot be read or the PDF cannot be drawn. */
 export async function renderDebtStatusReport(scope: DebtReportScope): Promise<{ pdf: Buffer; houseCount: number; scopeLabel: string }> {
   const admin = createAdminClient();
-  const all = await loadReportableHouses();
-  const houses = scope.all ? all : all.filter((house) => scope.streetIds.includes(house.streetId));
+  const { houses, scopeLabel: label } = await loadScope(scope);
   const [statuses, settings, estate] = await Promise.all([
     getDebtStatuses(admin, { houseIds: houses.map((house) => house.id) }),
     readDebtStatusSettings(admin),
@@ -126,7 +146,6 @@ export async function renderDebtStatusReport(scope: DebtReportScope): Promise<{ 
     return status ? [{ street: house.streetName, house: house.houseCode, status }] : [];
   });
   const name = estate.status === 'ok' ? estate.values.get('estate_name') : null;
-  const label = scopeLabel(scope, streetOptions(all));
   const pdf = await renderToBuffer(
     DebtStatusPdf({
       data: {
@@ -142,7 +161,7 @@ export async function renderDebtStatusReport(scope: DebtReportScope): Promise<{ 
 }
 
 /** Queues the report email to the admin's account address; the PDF is drawn when the queue sends it. */
-export async function queueDebtReportEmail(input: { profileId: string; email: string; fullName: string; scope: DebtReportScope; scopeLabel: string }): Promise<void> {
+export async function queueDebtReportEmail(input: { profileId: string; email: string; fullName: string; phoneNumber: string; scope: DebtReportScope; scopeLabel: string }): Promise<void> {
   const queued = await addToQueue({
     recipient_id: null,
     recipient_email: input.email,
@@ -153,6 +172,7 @@ export async function queueDebtReportEmail(input: { profileId: string; email: st
     metadata: {
       admin_profile_id: input.profileId,
       admin_name: input.fullName,
+      admin_phone_number: input.phoneNumber,
       whatsapp_debt_report: { ...input.scope, scopeLabel: input.scopeLabel },
     },
   });
@@ -175,4 +195,19 @@ export async function buildDebtReportEmail(metadata: Record<string, unknown>) {
     }),
     attachments: [{ filename: `debt-status-${new Date().toISOString().slice(0, 10)}.pdf`, content: pdf }],
   };
+}
+
+/** Tells the admin on their linked WhatsApp number that a queued report could not be made or emailed. Never a text version of the report. */
+export async function replyDebtReportFailed(item: NotificationQueueItem): Promise<void> {
+  const to = item.metadata?.admin_phone_number;
+  if (typeof to !== 'string' || !to) {
+    console.error('[whatsapp-debt-report] Failed report has no admin number to tell:', { queueId: item.id });
+    return;
+  }
+  try {
+    const result = await sendWhatsAppMessage({ to, body: DEBT_REPORT_FAILED_REPLY, idempotencySeed: `${item.id}:debt-report-failed` });
+    if (!result.success) console.error('[whatsapp-debt-report] Failure reply could not be sent:', { queueId: item.id, error: result.error });
+  } catch (error) {
+    console.error('[whatsapp-debt-report] Failure reply could not be sent:', { queueId: item.id, error });
+  }
 }
