@@ -236,14 +236,39 @@ export async function processQueue(options?: {
   // A row left in 'processing' by a run that stopped mid-batch is never picked
   // up again, so hand it back to the queue once it has been stuck long enough.
   // Rows from before last_attempt_at was stamped on claim have it null.
+  // Each reclaim counts as an attempt, so a row that keeps getting stuck ends
+  // up 'failed' (for manual retry) instead of being resent forever.
   const staleCutoff = new Date(Date.now() - STALE_PROCESSING_MINUTES * 60_000).toISOString();
-  const { error: reclaimError } = await supabase
+  const { data: stuck, error: stuckError } = await supabase
     .from('notification_queue')
-    .update({ status: 'pending' })
+    .select('id, attempts, max_attempts, last_attempt_at')
     .eq('status', 'processing')
     .or(`last_attempt_at.is.null,last_attempt_at.lt.${staleCutoff}`);
-  if (reclaimError) {
-    console.error('[Queue] Failed to reclaim stale processing items:', reclaimError);
+  if (stuckError) {
+    console.error('[Queue] Failed to read stale processing items:', stuckError);
+  }
+
+  for (const row of stuck ?? []) {
+    const attempts = row.attempts + 1;
+    const exhausted = attempts >= row.max_attempts;
+    // Match the row as it was read, so a row another run already reclaimed is left alone.
+    let reclaim = supabase
+      .from('notification_queue')
+      .update(
+        exhausted
+          ? { status: 'failed', attempts, error_message: 'Max attempts exceeded' }
+          : { status: 'pending', attempts }
+      )
+      .eq('id', row.id)
+      .eq('status', 'processing')
+      .eq('attempts', row.attempts);
+    reclaim = row.last_attempt_at === null
+      ? reclaim.is('last_attempt_at', null)
+      : reclaim.eq('last_attempt_at', row.last_attempt_at);
+    const { error: reclaimError } = await reclaim;
+    if (reclaimError) {
+      console.error(`[Queue] Failed to reclaim stale processing item ${row.id}:`, reclaimError);
+    }
   }
 
   // Build query
