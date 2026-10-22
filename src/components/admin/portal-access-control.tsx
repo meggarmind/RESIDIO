@@ -58,7 +58,8 @@ export function PortalAccessControl({
   if (!canEdit) {
     return (
       <span className="text-sm text-muted-foreground" data-testid="portal-access-readonly">
-        Resident portal: {effective}
+        <span className={labelClassName}>Resident portal: </span>
+        {effective}
       </span>
     );
   }
