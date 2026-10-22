@@ -18,7 +18,9 @@ export type PublishAnnouncementCoreResult =
 export async function publishAnnouncementCore(
   supabase: AnnouncementSupabase,
   id: string,
-  updatedBy: string | null
+  updatedBy: string | null,
+  // whatsapp_optins is closed to logged-in users, so the manual action passes the admin client here.
+  deliverySupabase: AnnouncementSupabase = supabase
 ): Promise<PublishAnnouncementCoreResult> {
   const { data: existing } = await supabase
     .from('announcements')
@@ -61,7 +63,7 @@ export async function publishAnnouncementCore(
   }
 
   // Deliver WhatsApp to the intended opted-in audience
-  const whatsappQueued = await deliverAnnouncementWhatsApp(supabase, data);
+  const whatsappQueued = await deliverAnnouncementWhatsApp(deliverySupabase, data);
 
   return { data: data as Announcement, previousStatus: existing.status, whatsappQueued, error: null };
 }
