@@ -20,7 +20,7 @@ const MAX_EVENTS = 50;
 const MAX_CLOCK_SKEW_MS = 24 * 60 * 60 * 1000;
 
 function toRow(event: PerformanceEvent) {
-  const e = event as Record<string, unknown>;
+  const e: Record<string, unknown> = { ...event };
   const num = (key: string) => (typeof e[key] === 'number' ? (e[key] as number) : null);
   const bool = (key: string) => (typeof e[key] === 'boolean' ? (e[key] as boolean) : null);
   return {
