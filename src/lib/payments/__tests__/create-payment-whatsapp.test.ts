@@ -83,6 +83,18 @@ beforeEach(() => {
   mocks.createServerSupabaseClient.mockResolvedValue(supabaseWith('+2348000000000'));
 });
 
+describe('createPaymentCore payment date (#1057)', () => {
+  it('stores and allocates the Lagos day for a payment at 00:30 Lagos', async () => {
+    const supabase = supabaseWith('+2348000000000');
+    mocks.createServerSupabaseClient.mockResolvedValue(supabase);
+    await createPaymentCore({ ...INPUT, payment_date: new Date('2026-10-01T23:30:00Z') });
+    const recordCall = supabase.from.mock.calls.findIndex(([table]) => table === 'payment_records');
+    const insert = (supabase.from.mock.results[recordCall].value as { insert: ReturnType<typeof vi.fn> }).insert;
+    expect(insert.mock.calls[0][0].payment_date).toBe('2026-10-02');
+    expect(mocks.allocateWalletToInvoices.mock.calls[0][2]).toBe('2026-10-02');
+  });
+});
+
 describe('createPaymentCore WhatsApp trigger (#6)', () => {
   it('queues a payment_received WhatsApp item for an eligible resident', async () => {
     const result = await createPaymentCore(INPUT);

@@ -255,7 +255,15 @@ async function generateLeviesForHouseInRun(
 
                 // Generate invoice number
                 const now = new Date();
-                const invoiceNumber = `LEV-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${houseId.substring(0, 8).toUpperCase()}`;
+                const levyNumberBase = `LEV-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${houseId.substring(0, 8).toUpperCase()}`;
+                // A later levy for the same house on the same day gets a -2, -3 ... suffix.
+                const { data: sameDayLevies } = await supabase
+                    .from('invoices')
+                    .select('invoice_number')
+                    .or(`invoice_number.eq.${levyNumberBase},invoice_number.like.${levyNumberBase}-%`);
+                const highestSuffix = (sameDayLevies ?? []).reduce((max, { invoice_number }) =>
+                    Math.max(max, invoice_number === levyNumberBase ? 1 : Number(invoice_number.slice(levyNumberBase.length + 1)) || 0), 0);
+                const invoiceNumber = highestSuffix ? `${levyNumberBase}-${highestSuffix + 1}` : levyNumberBase;
 
                 // Calculate due date using window-based approach
                 const dueDate = new Date(now);
