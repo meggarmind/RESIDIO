@@ -95,6 +95,8 @@ function statefulRepository(initialPinHash: string | null = null, allowance: Loo
     loadReceipt: vi.fn().mockResolvedValue(null),
     storeReceiptPdf: vi.fn(),
     requestClearance: vi.fn(),
+    getStatementPeriods: vi.fn().mockResolvedValue(['this_month', 'this_year', 'last_six_months', 'last_twelve_months', 'all_time', 'since_move_in']),
+    getEstateName: vi.fn().mockResolvedValue('Palm Estate'),
     loadStatement: vi.fn(),
     storeStatementPdf: vi.fn(),
     getResidentEmail: vi.fn().mockResolvedValue(null),
