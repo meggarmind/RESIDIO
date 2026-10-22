@@ -154,11 +154,13 @@ describe('createImportRows audit (#556)', () => {
     results['bank_statement_imports.select'] = { data: { status: 'pending' } };
     // The status write is conditional (#627): the update must report the row it changed.
     results['bank_statement_imports.update'] = { data: [{ id: uid(5) }] };
+    // Each 100-row batch reports 100 stored rows.
+    results['bank_statement_rows.upsert'] = { data: Array.from({ length: 100 }, (_, i) => ({ id: i })) };
   });
 
   it('writes ONE entry with the inserted count, after the inserts', async () => {
-    const res = await createImportRows({ import_id: uid(5), rows: parsed(250) } as never);
-    expect(res).toEqual({ count: 250, error: null });
+    const res = await createImportRows({ import_id: uid(5), rows: parsed(300) } as never);
+    expect(res).toEqual({ count: 300, skipped: 0, error: null });
     expect(logAudit).toHaveBeenCalledTimes(1);
     expectUuidEntityId(logAudit);
     expect(logAudit).toHaveBeenCalledWith(
@@ -166,14 +168,14 @@ describe('createImportRows audit (#556)', () => {
         action: 'CREATE',
         entityType: 'bank_statement_imports',
         entityId: uid(5),
-        newValues: expect.objectContaining({ rows_created: 250 }),
+        newValues: expect.objectContaining({ rows_created: 300 }),
       })
     );
     expect(calls.at(-1)).toBe('audit');
   });
 
   it('does not audit when an insert fails', async () => {
-    results['bank_statement_rows.insert'] = { error: boom };
+    results['bank_statement_rows.upsert'] = { error: boom };
     const res = await createImportRows({ import_id: uid(5), rows: parsed(3) } as never);
     expect(res.count).toBe(0);
     expect(logAudit).not.toHaveBeenCalled();

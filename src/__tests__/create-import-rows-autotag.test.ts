@@ -42,12 +42,15 @@ type Entry = {
   eqs: Array<[string, unknown]>;
   ins: Array<[string, unknown]>;
   orders: string[];
+  stored?: unknown[];
 };
 
 let log: Entry[];
 let rowsInsertError: { message: string } | null;
 let importStatus: string;
 let tagsError: { message: string } | null;
+let storedHashes: Set<string>;
+let upsertOpts: Array<Record<string, unknown>>;
 
 function makeSupabase() {
   return {
@@ -63,8 +66,16 @@ function makeSupabase() {
         setOp('select');
         return chain;
       };
-      chain.insert = () => {
+      chain.upsert = (batch: Array<{ transaction_hash: string | null }>, opts: Record<string, unknown>) => {
         setOp('insert');
+        upsertOpts.push(opts);
+        // Mirrors ON CONFLICT DO NOTHING: a hash already stored (or earlier in the batch) is dropped.
+        entry.stored = batch.filter((r) => {
+          if (r.transaction_hash === null) return true;
+          if (storedHashes.has(r.transaction_hash)) return false;
+          storedHashes.add(r.transaction_hash);
+          return true;
+        });
         return chain;
       };
       chain.update = (v: Record<string, unknown>) => {
@@ -93,7 +104,9 @@ function makeSupabase() {
           const type = entry.eqs.find(([c]) => c === 'transaction_type')?.[1] as string;
           return tagsError ? { data: null, error: tagsError } : { data: TAGS[type] ?? [], error: null };
         }
-        if (table === 'bank_statement_rows' && entry.op === 'insert') return { data: null, error: rowsInsertError };
+        if (table === 'bank_statement_rows' && entry.op === 'insert') {
+          return rowsInsertError ? { data: null, error: rowsInsertError } : { data: (entry.stored ?? []).map((_, i) => ({ id: i })), error: null };
+        }
         if (table === 'bank_statement_imports' && entry.op === 'select') return { data: { status: importStatus }, error: null };
         if (table === 'bank_statement_imports' && entry.op === 'update') return { data: [{ id: uid(1) }], error: null };
         return { data: null, error: null };
@@ -139,6 +152,8 @@ beforeEach(() => {
   rowsInsertError = null;
   importStatus = 'pending';
   tagsError = null;
+  storedHashes = new Set();
+  upsertOpts = [];
   authorizePermission.mockResolvedValue({ authorized: true, userId: 'user-1' });
   createServerSupabaseClient.mockImplementation(async () => makeSupabase());
   vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -148,7 +163,7 @@ describe('createImportRows auto-tag round trips (#649)', () => {
   for (const n of [3, 30]) {
     it(`issues at most 2 transaction_tags queries for ${n} rows of both types`, async () => {
       const res = await createImportRows({ import_id: uid(1), rows: makeRows(n) } as never);
-      expect(res).toEqual({ count: n, error: null });
+      expect(res).toEqual({ count: n, skipped: 0, error: null });
       expect(tagQueries().length).toBeLessThanOrEqual(2);
       expect(tagQueries().map((q) => q.eqs.find(([c]) => c === 'transaction_type')?.[1]).sort()).toEqual(['credit', 'debit']);
     });
@@ -192,7 +207,7 @@ describe('createImportRows auto-tag round trips (#649)', () => {
   it('leaves rows untagged (and still succeeds) when the tags lookup fails', async () => {
     tagsError = { message: 'down' };
     const res = await createImportRows({ import_id: uid(1), rows: makeRows(7) } as never);
-    expect(res).toEqual({ count: 7, error: null });
+    expect(res).toEqual({ count: 7, skipped: 0, error: null });
     expect(rowUpdates()).toHaveLength(0);
   });
 });
@@ -250,6 +265,37 @@ describe('createImportRows tag lookup and chunking (#649)', () => {
       expect((u.ins.find(([c]) => c === 'row_number')?.[1] as number[]).length).toBeLessThanOrEqual(200);
     }
     expect(sent.slice().sort((a, b) => a - b)).toEqual(rows.map((r) => r.row_number));
+  });
+});
+
+describe('createImportRows skips lines already stored (#1039)', () => {
+  const dated = (n: number, desc: (i: number) => string) =>
+    Array.from({ length: n }, (_, i) => ({
+      row_number: i + 1,
+      raw_data: {},
+      transaction_date: new Date('2026-01-05T00:00:00Z'),
+      description: desc(i),
+      amount: 100,
+      transaction_type: 'credit',
+      reference: 'REF',
+    }));
+
+  it('upserts on transaction_hash ignoring duplicates', async () => {
+    await createImportRows({ import_id: uid(1), rows: dated(2, (i) => `line ${i}`) } as never);
+    expect(upsertOpts).toEqual([{ onConflict: 'transaction_hash', ignoreDuplicates: true }]);
+  });
+
+  it('succeeds and reports skipped lines when hashes are already stored', async () => {
+    const first = await createImportRows({ import_id: uid(1), rows: dated(5, (i) => `line ${i}`) } as never);
+    expect(first).toEqual({ count: 5, skipped: 0, error: null });
+    // Overlapping upload: 5 old lines plus 3 new ones.
+    const second = await createImportRows({ import_id: uid(1), rows: dated(8, (i) => `line ${i}`) } as never);
+    expect(second).toEqual({ count: 3, skipped: 5, error: null });
+  });
+
+  it('counts a repeated identical line within one file as skipped', async () => {
+    const res = await createImportRows({ import_id: uid(1), rows: dated(2, () => 'same') } as never);
+    expect(res).toEqual({ count: 1, skipped: 1, error: null });
   });
 });
 
