@@ -14,6 +14,8 @@ import { fetchAccountBalance, isResidentRollForwardEnabled } from '@/lib/billing
 import {
   STATEMENT_CHAT_ROW_LIMIT,
   createStatementRequest,
+  estateName,
+  loadStatementPeriods,
   loadWhatsAppStatementForPeriod,
   queueStatementEmail,
   storeStatementPdf,
@@ -81,6 +83,10 @@ import {
 export { statementRange, type StatementPeriod };
 
 const SESSION_MINUTES = 15;
+/** Whole-message words that end the session on purpose, in any step (#1069). */
+const EXIT_WORDS = new Set(['exit', 'end', 'close', 'bye', 'goodbye', 'quit']);
+/** The node a session is left on after an exit word, so the next message is not told it timed out. */
+const ENDED_NODE = 'ended';
 // #891: 3 wrong in a row locks for 15 minutes; 6 wrong within 24 hours locks until the estate office resets it.
 const PIN_TRIES_IN_A_ROW = 3;
 const PIN_LOCK_MINUTES = 15;
@@ -240,6 +246,9 @@ export interface WhatsAppFinancialRepository {
   storeReceiptPdf(input: Parameters<typeof storeReceiptPdf>[0], receipt: PaymentReceiptData): Promise<string>;
   /** Files an approval request for a clearance certificate on this property (#816 decision 15). */
   requestClearance(input: Parameters<typeof requestClearanceCertificate>[0]): Promise<ClearanceRequestResult>;
+  /** The statement periods offered for this property (#1069). */
+  getStatementPeriods(residentId: string, houseId: string): Promise<StatementPeriod[]>;
+  getEstateName(): Promise<string>;
   /** The statement PDF for a period: the admin account statement, with its Lagos dates. */
   loadStatement(residentId: string, houseId: string, period: StatementPeriod, now: Date): Promise<{ fromDate: string; toDate: string; statement: AccountStatementData } | null>;
   /** Stores the PDF privately and returns a 1-hour signed URL for the reply. */
@@ -353,12 +362,12 @@ export function composeOweAnswer(figures: OwedFigures, houseLabel: string, showP
 export function composeRecentPaymentsAnswer(rows: PaymentRow[], houseLabel: string, hasContact: boolean): string {
   const lines = [`*Recent payments, ${houseLabel}*`];
   if (rows.length === 0) lines.push(`No payments recorded for ${houseLabel}.`);
-  for (const row of rows) {
+  for (const [index, row] of rows.entries()) {
     const parts = [formatDay(row.payment_date), formatNaira(Number(row.amount || 0)), row.method ? row.method.replaceAll('_', ' ') : 'payment'];
     const reference = maskReference(row.reference_number);
     if (reference) parts.push(reference);
     if (row.is_verified !== true) parts.push('(awaiting verification)');
-    lines.push(parts.join('  '));
+    lines.push(`${index + 1}. ${parts.join('  ')}`);
   }
   lines.push(answerFooter(hasContact));
   return lines.join('\n');
@@ -718,6 +727,8 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
     loadReceipt,
     storeReceiptPdf,
     requestClearance: requestClearanceCertificate,
+    getStatementPeriods: loadStatementPeriods,
+    getEstateName: estateName,
     loadStatement: loadWhatsAppStatementForPeriod,
     storeStatementPdf,
     askSurvey,
@@ -941,8 +952,9 @@ function propertyPrompt(houses: FinancialHouse[]): string {
   return ['Which property?', ...houses.map((house, index) => `${index + 1}. ${house.label}`), 'Reply with the property number.'].join('\n');
 }
 
-function statementPeriodPrompt(): string {
-  return ['Which period?', '1. This month', '2. This year', '3. Last 6 months', '4. Last 12 months', '5. All time', '6. Since move-in', 'Reply with the period number.'].join('\n');
+function statementPeriodPrompt(periods: StatementPeriod[]): string {
+  const label = (period: StatementPeriod) => PERIOD_LABELS[period].replace(/^\w/, (c) => c.toUpperCase());
+  return ['Which period?', ...periods.map((period, index) => `${index + 1}. ${label(period)}`), 'Reply with the period number.'].join('\n');
 }
 
 async function miss(turn: Turn, node: string): Promise<void> {
@@ -990,7 +1002,7 @@ async function enterFinancial(turn: Turn, target: Target, prefix?: string): Prom
     return;
   }
   if (target === 'statement') {
-    await respond(turn, `${lead}${statementPeriodPrompt()}`, 'statement_period');
+    await respond(turn, `${lead}${statementPeriodPrompt(await turn.options.repository.getStatementPeriods(turn.identity.id, selectedHouse(turn)!.id))}`, 'statement_period');
     return;
   }
   if (target === 'report') return startReport(turn, lead);
@@ -1624,7 +1636,16 @@ async function chooseProperty(turn: Turn, target: Target): Promise<void> {
   return enterFinancial(turn, target === 'switch' ? 'menu' : target);
 }
 
-async function converse(turn: Turn, expired: boolean): Promise<void> {
+async function endSession(turn: Turn): Promise<void> {
+  const wasUnlocked = turn.session.pinAuthenticated;
+  const name = await turn.options.repository.getEstateName();
+  const body = `Thank you for using the ${name} Assistant. Your session has ended.${wasUnlocked ? ' Your PIN is locked.' : ''} Send HI at any time to start again.`;
+  await sendFinancialReply(turn.message, body, turn.options.send, turn.identity.id);
+  Object.assign(turn.session, { currentNode: ENDED_NODE, pinAuthenticated: false, draft: null, pendingPinHash: null, expiresAt: new Date().toISOString() });
+  await turn.options.repository.saveSession(turn.session);
+}
+
+async function converse(turn: Turn, expired: boolean, endedOnPurpose = false): Promise<void> {
   const { text } = turn;
   const input = normalizeInput(text);
   let { node } = readNode(turn.session.currentNode);
@@ -1646,6 +1667,9 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
   // Update email asks for the PIN of every resident, so the community tier can answer it too (#816 decision 6).
   if (pinCommand && (turn.identity.financialEligible || node === 'pin:email')) return handlePin(turn, pinCommand[1], node);
 
+  if (EXIT_WORDS.has(input)) return endSession(turn);
+
+  if (endedOnPurpose) return showMain(turn);
   if (expired) {
     const pinClause = turn.identity.financialEligible && (await loadPinGate(turn)) ? ', so your PIN is needed again' : '';
     return showMain(turn, `Your session ended after ${SESSION_MINUTES} minutes without activity${pinClause}. Nothing was changed.`);
@@ -1710,10 +1734,13 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
   }
 
   if (node === 'statement_period') {
-    const period = /^[1-6]$/.test(input) ? PERIODS[Number(input) - 1] : /^since move[ -]in$/.test(input) ? 'since_move_in' : null;
-    if (!period) return miss(turn, node);
     await loadHouses(turn);
     if (!selectedHouse(turn)) return enterFinancial(turn, 'statement');
+    // Read against the list the resident saw, worked out the same way (#1069).
+    const offered = await turn.options.repository.getStatementPeriods(turn.identity.id, selectedHouse(turn)!.id);
+    const typed = /^since move[ -]in$/.test(input) ? 'since_move_in' : input === 'all time' ? (offered.includes('all_time') ? 'all_time' : 'since_move_in') : null;
+    const period = /^\d$/.test(input) ? offered[Number(input) - 1] : typed;
+    if (!period) return miss(turn, node);
     return deliverStatementPdf(turn, period);
   }
 
@@ -1816,7 +1843,7 @@ export async function handleFinancialMessage(
     }
     turn.settings = await options.repository.getAssistantSettings();
     turn.contact = contactLine({ phone: turn.settings.estatePhone, email: turn.settings.estateEmail, hours: turn.settings.officeHours }, new Date());
-    await converse(turn, expired);
+    await converse(turn, expired, expired && stored?.currentNode === ENDED_NODE);
   } catch (error) {
     if (error instanceof ReplySendError) throw error;
     console.error('WhatsApp Assistant lookup failed:', error);

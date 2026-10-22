@@ -10,6 +10,7 @@ import {
   statementRange,
   verifyPin,
 } from '@/lib/whatsapp/financial';
+import { offeredPeriods } from '@/lib/whatsapp/assistant-format';
 import type {
   AssistantSettings,
   FinancialHouse,
@@ -140,6 +141,8 @@ function repository(houses: FinancialHouse[] = [PALM], overrides: Partial<WhatsA
     loadReceipt: vi.fn().mockResolvedValue(null),
     storeReceiptPdf: vi.fn().mockResolvedValue('https://storage.test/signed/receipt.pdf'),
     requestClearance: vi.fn().mockResolvedValue({ status: 'requested', requestId: 'request-1' }),
+    getStatementPeriods: vi.fn().mockResolvedValue(['this_month', 'this_year', 'last_six_months', 'last_twelve_months', 'all_time', 'since_move_in']),
+    getEstateName: vi.fn().mockResolvedValue('Palm Estate'),
     loadStatement: vi.fn().mockResolvedValue({ fromDate: '2026-10-01', toDate: '2026-10-20', statement: statementData(3) }),
     storeStatementPdf: vi.fn().mockResolvedValue('https://storage.test/signed/statement.pdf'),
     getResidentEmail: vi.fn().mockResolvedValue('ada.example@gmail.com'),
@@ -581,8 +584,8 @@ describe('WhatsApp Assistant answers (#804 decisions 20, 21, 28)', () => {
 
     expect(body).toBe([
       '*Recent payments, 12 Palm Close*',
-      '12 Oct 2026  ₦50,000.00  bank transfer  ref ••••3456',
-      '1 Sep 2026  ₦20,000.00  payment  (awaiting verification)',
+      '1. 12 Oct 2026  ₦50,000.00  bank transfer  ref ••••3456',
+      '2. 1 Sep 2026  ₦20,000.00  payment  (awaiting verification)',
       FOOTER,
     ].join('\n'));
     expect(composeRecentPaymentsAnswer([], '12 Palm Close', true)).toContain('No payments recorded for 12 Palm Close.');
@@ -1882,5 +1885,107 @@ describe('What I owe roll-forward balance (#863)', () => {
       ['*What you owe, 12 Palm Close*', 'Outstanding: Nil', FOOTER].join('\n'));
     expect(composeOweAnswer({ ...base, outstanding: 1250.5, invoiceCount: 1, awaitingVerification: 300 }, '12 Palm Close', true, true)).toBe(
       ['*What you owe, 12 Palm Close*', 'Outstanding: ₦1,250.50 owed', 'Awaiting verification: ₦300.00', 'Reply PAY for how to pay', FOOTER].join('\n'));
+  });
+});
+
+describe('statement periods without a duplicate (#1069)', () => {
+  it('offers All time only with earlier activity, and Since move-in only with a move-in date', () => {
+    expect(offeredPeriods(true, true)).toEqual(['this_month', 'this_year', 'last_six_months', 'last_twelve_months', 'all_time', 'since_move_in']);
+    expect(offeredPeriods(true, false)).toEqual(['this_month', 'this_year', 'last_six_months', 'last_twelve_months', 'since_move_in']);
+    expect(offeredPeriods(false, false)).toEqual(['this_month', 'this_year', 'last_six_months', 'last_twelve_months', 'all_time']);
+    expect(offeredPeriods(false, true)).toEqual(offeredPeriods(false, false));
+  });
+
+  const NO_EARLIER = ['this_month', 'this_year', 'last_six_months', 'last_twelve_months', 'since_move_in'] as const;
+  const NO_MOVE_IN = ['this_month', 'this_year', 'last_six_months', 'last_twelve_months', 'all_time'] as const;
+  const withPeriods = (periods: readonly string[]) => repository([PALM], { getStatementPeriods: vi.fn().mockResolvedValue(periods) });
+
+  it('lists five items with Since move-in as 5 when nothing predates the move-in', async () => {
+    const replies = await chat(withPeriods(NO_EARLIER), ['statement']);
+    expect(replies[0]).toBe(['Which period?', '1. This month', '2. This year', '3. Last 6 months', '4. Last 12 months', '5. Since move-in', 'Reply with the period number.'].join('\n'));
+  });
+
+  it('lists All time and no Since move-in when there is no move-in date', async () => {
+    const replies = await chat(withPeriods(NO_MOVE_IN), ['statement']);
+    expect(replies[0]).toBe(['Which period?', '1. This month', '2. This year', '3. Last 6 months', '4. Last 12 months', '5. All time', 'Reply with the period number.'].join('\n'));
+  });
+
+  it('reads 5 against the list the resident saw, and 6 is then unrecognised', async () => {
+    const repo = withPeriods(NO_EARLIER);
+    await chat(repo, ['statement', '5']);
+    expect(repo.loadStatement).toHaveBeenCalledWith('resident-1', 'house-1', 'since_move_in', expect.any(Date));
+    const other = withPeriods(NO_EARLIER);
+    const replies = await chat(other, ['statement', '6']);
+    expect(other.loadStatement).not.toHaveBeenCalled();
+    expect(replies[1]).toMatch(/^I didn't catch that/);
+  });
+
+  it('gives Since move-in for a typed "all time" while All time is hidden, and All time when offered', async () => {
+    const hidden = withPeriods(NO_EARLIER);
+    await chat(hidden, ['statement', 'All Time']);
+    expect(hidden.loadStatement).toHaveBeenCalledWith('resident-1', 'house-1', 'since_move_in', expect.any(Date));
+    const shown = repository();
+    await chat(shown, ['statement', 'all time']);
+    expect(shown.loadStatement).toHaveBeenCalledWith('resident-1', 'house-1', 'all_time', expect.any(Date));
+  });
+});
+
+describe('ending the session with an exit word (#1069)', () => {
+  const stored = (currentNode: string, over: Partial<WhatsAppFinancialSession> = {}): WhatsAppFinancialSession => ({
+    phoneNumber: '+2348000000000', residentId: 'resident-1', currentNode, selectedHouseId: 'house-1', pinAuthenticated: true,
+    expiresAt: new Date(Date.now() + 600_000).toISOString(), draft: { houseId: 'house-1', amount: 5000 }, ...over,
+  });
+  const THANKS = 'Thank you for using the Palm Estate Assistant. Your session has ended. Your PIN is locked. Send HI at any time to start again.';
+
+  it.each(['exit', 'end', 'close', 'bye', 'goodbye', 'quit', ' QUIT ', 'Goodbye'])('%s ends an unlocked session in the main menu', async (word) => {
+    const repo = repository();
+    repo.setStoredSession(stored('main'));
+    const replies = await chat(repo, [word]);
+    expect(replies).toEqual([THANKS]);
+    const saved = vi.mocked(repo.saveSession).mock.calls.at(-1)![0];
+    expect(saved).toMatchObject({ pinAuthenticated: false, draft: null });
+    expect(Date.parse(saved.expiresAt)).toBeLessThanOrEqual(Date.now());
+  });
+
+  it('ends a session inside the free-text report reference step and drops the draft', async () => {
+    const repo = repository();
+    repo.setStoredSession(stored('report_reference'));
+    const replies = await chat(repo, ['bye']);
+    expect(replies).toEqual([THANKS]);
+    expect(repo.createPaymentReport).not.toHaveBeenCalled();
+    expect(vi.mocked(repo.saveSession).mock.calls.at(-1)![0].draft).toBeNull();
+  });
+
+  it('ends a session at the email address step without starting an email change', async () => {
+    const repo = repository();
+    const replies = await chat(repo, ['email', 'exit']);
+    expect(replies.at(-1)).toBe(THANKS.replace(' Your PIN is locked.', ''));
+    expect(repo.startEmailChange).not.toHaveBeenCalled();
+  });
+
+  it('leaves out the PIN line when the PIN was locked already', async () => {
+    const repo = repository();
+    repo.setStoredSession(stored('main', { pinAuthenticated: false }));
+    expect((await chat(repo, ['end']))[0]).not.toContain('PIN');
+  });
+
+  it.each(['hi', '1', 'statement'])('shows the main menu when %s follows, without the 15-minute note', async (next) => {
+    const repo = repository();
+    repo.setStoredSession(stored('main'));
+    const replies = await chat(repo, ['quit', next]);
+    expect(replies[1]).toBe(MAIN_MENU);
+    expect(replies[1]).not.toContain('15 minutes');
+  });
+
+  it('still tells a resident whose session timed out about the 15 minutes', async () => {
+    const repo = repository();
+    repo.setStoredSession(stored('main', { expiresAt: new Date(Date.now() - 1000).toISOString() }));
+    expect((await chat(repo, ['hi']))[0]).toMatch(/^Your session ended after 15 minutes/);
+  });
+
+  it('does not read a word inside a longer message as an exit', async () => {
+    const repo = repository();
+    repo.setStoredSession(stored('main'));
+    expect((await chat(repo, ['please end it']))[0]).not.toContain('session has ended');
   });
 });

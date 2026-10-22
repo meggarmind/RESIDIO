@@ -11,7 +11,7 @@ import { WhatsAppStatementEmail } from '@/emails/whatsapp-statement';
 import { addToQueue, PRIORITY } from '@/lib/notifications/queue';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
-import { earliestMoveIn, formatDay, formatNaira, PERIOD_LABELS, statementDates, type StatementPeriod } from '@/lib/whatsapp/assistant-format';
+import { earliestMoveIn, formatDay, formatNaira, offeredPeriods, PERIOD_LABELS, statementDates, type StatementPeriod } from '@/lib/whatsapp/assistant-format';
 
 /**
  * Statement PDF delivery for the WhatsApp Assistant (#804 decision 24, #917): every statement is a
@@ -47,7 +47,7 @@ export interface StatementRequestInput {
   inboundMessageId: string;
 }
 
-async function estateName(): Promise<string> {
+export async function estateName(): Promise<string> {
   const settings = await getRawSettingsAsService(['estate_name']);
   const value = settings.status === 'ok' ? settings.values.get('estate_name') : null;
   return typeof value === 'string' && value.trim() ? value.trim() : 'Residio Estate';
@@ -75,6 +75,24 @@ async function activeMoveIn(residentId: string, houseId: string): Promise<string
     .in('resident_role', [...BILLABLE_ROLES]);
   if (error) throw error;
   return earliestMoveIn((data || []).map((row) => row.move_in_date));
+}
+
+/** The periods offered for this house: All time only when an invoice or payment predates the move-in (#1069). */
+export async function loadStatementPeriods(residentId: string, houseId: string): Promise<StatementPeriod[]> {
+  const moveIn = await activeMoveIn(residentId, houseId);
+  if (!moveIn) return offeredPeriods(false, false);
+  const client = createAdminClient();
+  const startOfMoveIn = `${moveIn}T00:00:00+01:00`; // Africa/Lagos
+  let paymentQuery = client.from('payment_records').select('id').eq('resident_id', residentId).eq('house_id', houseId).eq('status', 'paid').lt('payment_date', moveIn);
+  if (await isResidentRollForwardEnabled()) paymentQuery = paymentQuery.eq('is_verified', true);
+  const [invoices, payments] = await Promise.all([
+    client.from('invoices').select('id').eq('resident_id', residentId).eq('house_id', houseId).neq('status', 'void')
+      .or(`period_start.lt.${moveIn},and(period_start.is.null,created_at.lt.${startOfMoveIn})`).limit(1),
+    paymentQuery.limit(1),
+  ]);
+  if (invoices.error) throw invoices.error;
+  if (payments.error) throw payments.error;
+  return offeredPeriods(true, (invoices.data?.length ?? 0) + (payments.data?.length ?? 0) > 0);
 }
 
 export async function loadWhatsAppStatementForPeriod(residentId: string, houseId: string, period: StatementPeriod, now: Date) {
