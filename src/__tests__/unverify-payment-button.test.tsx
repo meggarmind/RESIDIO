@@ -22,7 +22,6 @@ vi.mock('@/actions/payments/update-payment', () => ({ updatePayment: vi.fn() }))
 vi.mock('@/actions/payments/get-payments', () => ({ getPayments: vi.fn() }));
 vi.mock('@/actions/payments/get-payment', () => ({ getPayment: vi.fn() }));
 vi.mock('@/actions/payments/create-payment', () => ({ createPayment: vi.fn() }));
-vi.mock('@/actions/payments/create-split-payment', () => ({ createSplitPayment: vi.fn() }));
 vi.mock('@/actions/payments/delete-payment', () => ({ deletePayment: vi.fn() }));
 vi.mock('@/actions/payments/get-payment-stats', () => ({ getPaymentStats: vi.fn() }));
 vi.mock('@/actions/payments/bulk-update-payments', () => ({ bulkUpdatePayments: vi.fn() }));

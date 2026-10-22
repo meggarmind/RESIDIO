@@ -387,7 +387,6 @@ describe('#194 app scaffolding: the legacy type and map are gone', () => {
  * survive the column being dropped, and must not come back.
  */
 const VOCABULARY_SWAP_COMPONENTS = [
-  'src/components/resident-portal/portal-topbar.tsx',
   'src/components/dashboard/header.tsx',
 ];
 
@@ -399,14 +398,6 @@ describe('#194 app scaffolding: components speak one vocabulary', () => {
 
     expect(code).not.toMatch(LEGACY_ROLE_LITERALS);
     expect(code).not.toMatch(/\bUserRole\b/);
-  });
-
-  // header.tsx is excluded: #423 removed its `role_name === 'super_admin'` branch
-  // (the Resident Portal link now follows canSeeSelfPortalLinks from useAuth).
-  it.each(['src/components/resident-portal/portal-topbar.tsx'])('%s still gates on the RBAC vocabulary', (file) => {
-    const source = readSrc(file);
-
-    expect(source).toMatch(/\brole_name\s*===\s*['"]super_admin['"]/);
   });
 
   it('the legacy literal matcher does not false-positive on role_name', () => {

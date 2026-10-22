@@ -2,14 +2,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getPayments } from '@/actions/payments/get-payments';
 import { getPayment } from '@/actions/payments/get-payment';
 import { createPayment } from '@/actions/payments/create-payment';
-import { createSplitPayment } from '@/actions/payments/create-split-payment';
 import { updatePayment } from '@/actions/payments/update-payment';
 import { unverifyPayment, bulkVerifyPayments } from '@/actions/finance/manual-verification';
 import { deletePayment } from '@/actions/payments/delete-payment';
 import { getPaymentStats } from '@/actions/payments/get-payment-stats';
 import { bulkUpdatePayments } from '@/actions/payments/bulk-update-payments';
 import { getResidentPropertiesForPayment } from '@/actions/payments/get-resident-properties-for-payment';
-import type { PaymentSearchParams, PaymentFormData, SplitPaymentFormData } from '@/lib/validators/payment';
+import type { PaymentSearchParams, PaymentFormData } from '@/lib/validators/payment';
 import { toast } from 'sonner';
 
 // Type for bulk update input (defined inline since it's from 'use server' file)
@@ -155,28 +154,6 @@ export function useBulkVerifyPayments() {
             queryClient.invalidateQueries({ queryKey: ['payment'] });
             queryClient.invalidateQueries({ queryKey: ['payment-stats'] });
             toast.success(result.message);
-        },
-        onError: (error) => {
-            toast.error(error.message);
-        },
-    });
-}
-
-export function useCreateSplitPayment() {
-    const queryClient = useQueryClient();
-
-    return useMutation({
-        mutationFn: async (data: SplitPaymentFormData) => {
-            const result = await createSplitPayment(data);
-            if (result.error) throw new Error(result.error);
-            return result;
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['payments'] });
-            queryClient.invalidateQueries({ queryKey: ['payment-stats'] });
-            queryClient.invalidateQueries({ queryKey: ['residents'] });
-            queryClient.invalidateQueries({ queryKey: ['invoices'] });
-            toast.success('Split payment created successfully');
         },
         onError: (error) => {
             toast.error(error.message);

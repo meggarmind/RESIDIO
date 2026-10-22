@@ -70,7 +70,6 @@ const PERMISSION_ALLOWLIST = [
   // Business-rule authorization: validates the caller is the primary resident.
   'residents/add-household-member.ts',
   // Resident self-service: authorizes via auth.getUser() + resource ownership.
-  'payments/submit-payment-proof.ts',
   'billing/pay-invoice-with-wallet.ts',
   'billing/pay-multiple-invoices-with-wallet.ts',
   'paystack/initialize-payment.ts',
@@ -78,7 +77,6 @@ const PERMISSION_ALLOWLIST = [
   // Unauthenticated Paystack webhook: auth is the webhook signature.
   'paystack/webhook-handler.ts',
   // Pre-auth: runs before the caller has a session.
-  'auth/register-resident-portal.ts',
   'two-factor/verify.ts',
   // Read operations whose only write is their own access log / read receipt.
   'documents/download-document.ts',
@@ -117,8 +115,6 @@ const AUDIT_ALLOWLIST = [
   // logAudit() attributes an entry to the acting user from the session and
   // no-ops without one, so these flows cannot produce a meaningful entry here.
   //
-  // Pre-auth: runs before the caller has a session.
-  'auth/register-resident-portal.ts',
   // Pre-auth 2FA login flow: writes its own two_factor_audit_log instead.
   'two-factor/verify.ts',
 
