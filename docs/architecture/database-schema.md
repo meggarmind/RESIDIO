@@ -298,7 +298,7 @@ Defines the relationship a resident has to a property. Updated in Phase 15 to in
 'contractor'            -- External service providers (plumbers, electricians, etc.)
 ```
 
-**Sponsor Requirement**: `domestic_staff`, `caretaker`, and `contractor` roles require a `sponsor_resident_id` linking them to a primary resident.
+**Sponsor Requirement**: `co_resident`, `domestic_staff`, `caretaker`, and `contractor` roles require a `sponsor_resident_id` linking them to a primary resident; a `co_resident`'s sponsor must be the house's active `resident_landlord` or `tenant` (#1067). Valid sponsors per role: [resident-types-roles.md §13.4](./resident-types-roles.md).
 
 **Live-In Flag**: For `domestic_staff` role, `is_live_in` boolean distinguishes:
 - `true` = Live-in staff (resides at property)
