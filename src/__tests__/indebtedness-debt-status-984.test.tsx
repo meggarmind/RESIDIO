@@ -59,13 +59,35 @@ describe('getIndebtednessAnalytics', () => {
       house: { house_number: '1', street_id: null, house_type_id: null, street: { name: 'Main' } },
     });
     mocks.client.current = { from: (t: string) => table(t === 'invoices' ? [inv('r1', 'h1', 50), inv('r2', 'h2', 200)] : []) };
-    mocks.getDebtStatuses.mockResolvedValue([status('h1', 'outstanding', 'Outstanding'), status('h2', 'arrears', 'Arrears')]);
+    mocks.getDebtStatuses.mockImplementation(async (_c: unknown, p: { residentId: string }) =>
+      p.residentId === 'r2'
+        ? [{ ...status('h2', 'arrears', 'Arrears'), owedInvoiceCount: 4 }]
+        : [{ ...status('h1', 'outstanding', 'Outstanding'), owedInvoiceCount: 1 }],
+    );
 
     const { data } = await getIndebtednessAnalytics();
     expect(data!.topIndebted.map((r) => [r.residentId, r.outstanding, r.status])).toEqual([
       ['r2', 200, 'arrears'],
       ['r1', 50, 'outstanding'],
     ]);
+  });
+
+  it('combines a resident with invoices in two houses into one status', async () => {
+    const inv = (hid: string) => ({
+      resident_id: 'r1', house_id: hid, amount_due: 10, amount_paid: 0,
+      resident: { id: 'r1', first_name: 'N', last_name: 'r1', resident_code: 'r1' },
+      house: { house_number: hid, street_id: null, house_type_id: null, street: { name: 'Main' } },
+    });
+    mocks.client.current = { from: (t: string) => table(t === 'invoices' ? [inv('hA'), inv('hB')] : []) };
+    mocks.getDebtStatuses.mockResolvedValue([
+      { ...status('hA', 'outstanding', 'x'), owedInvoiceCount: 2 },
+      { ...status('hB', 'outstanding', 'x'), owedInvoiceCount: 2 },
+    ]);
+
+    const { data } = await getIndebtednessAnalytics();
+    expect(mocks.getDebtStatuses).toHaveBeenLastCalledWith(mocks.client.current, { houseIds: ['hA', 'hB'], residentId: 'r1' });
+    expect(data!.topIndebted).toHaveLength(1);
+    expect(data!.topIndebted[0]).toMatchObject({ status: 'arrears', statusLabel: 'Arrears' });
   });
 
   it('table shows the status label', () => {
