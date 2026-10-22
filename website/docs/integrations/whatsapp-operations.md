@@ -9,7 +9,7 @@ residio_sources:
   - src/app/(dashboard)/settings/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp-admin/**
   - src/app/api/whatsapp/**
-residio_verified_commit: 0951c347
+residio_verified_commit: fb936054
 residio_verified_at: '2026-10-22'
 residio_app_version: '0.4.0'
 ---
@@ -315,7 +315,7 @@ Caps protect residents from a runaway loop and protect the estate from provider 
 
 Each resident is also limited to 20 financial answers a day. Only the Financial standing answers count toward either financial cap (What I owe, Recent payments, Statement, Wallet, the Receipt list and each receipt PDF, and the Clearance certificate check), including each statement PDF and email; How to pay, notices and the contact line do not. Admin `ADMIN OWES` lookups are in the disclosure log but count toward neither; the admin's own daily limit applies instead (see *Admin mode*). Both reset at midnight Lagos time, and the resident is told which limit was reached.
 
-When a cap is reached, further sends are blocked and the event is counted in the console as a cap limit event. Repeated cap events mean the cap is wrong for the estate size or something is sending in a loop — investigate before raising the number.
+Queued notifications, clearance certificate copies and approval outcome messages all count toward the outbound caps, and all obey the master switch and rollout mode. When a cap is reached, further sends are blocked and the event is counted in the console as a cap limit event. A blocked certificate or outcome message is not sent later: the admin who made the decision is shown a warning saying the WhatsApp message was not sent and why. Repeated cap events mean the cap is wrong for the estate size or something is sending in a loop — investigate before raising the number.
 
 ## The operations console
 
@@ -327,7 +327,7 @@ The **Sent messages** card on the same page lists every WhatsApp message the app
 
 The **Statement requested, no email** list shows residents who asked for a statement too long for chat and have no email on file. Add their email to clear it.
 
-The **Clearance certificate copies not sent** list shows each copy of an issued certificate that did not reach a member of the copy group (not opted in, no WhatsApp number, or the provider refused), with the reason and the number of tries. With the WhatsApp manage permission each row has a **Retry**, which sends it again with a fresh link. A failed copy never holds up the resident's own certificate.
+The **Clearance certificate copies not sent** list shows each copy of an issued certificate that did not reach a member of the copy group (WhatsApp switched off, outside the rollout, a cap reached, not opted in, no WhatsApp number, or the provider refused), with the reason and the number of tries. With the WhatsApp manage permission each row has a **Retry**, which sends it again with a fresh link. A failed copy never holds up the resident's own certificate.
 
 The **disclosure log** records every occasion on which financial information was released over WhatsApp, with its channel: `chat` for an answer, `pdf` for a statement or receipt PDF sent in chat, and `email` for one sent by email. Treat it as an audit surface: it is the evidence that a disclosure was authorised, and it should never be cleared to tidy a screen.
 
