@@ -1,6 +1,6 @@
 'use server';
 
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createAdminClient, createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
@@ -23,7 +23,7 @@ export async function publishAnnouncement(id: string): Promise<PublishResponse> 
   }
 
   const supabase = await createServerSupabaseClient();
-  const result = await publishAnnouncementCore(supabase, id, auth.userId);
+  const result = await publishAnnouncementCore(supabase, id, auth.userId, createAdminClient());
   if (result.error !== null) {
     return { data: null, error: result.error };
   }
