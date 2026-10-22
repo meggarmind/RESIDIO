@@ -7,6 +7,7 @@ residio_sources:
   - src/lib/whatsapp/**
   - src/actions/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp/**
+  - src/app/(dashboard)/settings/whatsapp-admin/**
   - src/app/api/whatsapp/**
 residio_verified_commit: e2e278d8
 residio_verified_at: '2026-10-21'
@@ -280,6 +281,22 @@ The **Assistant replies** card in the Resident bot section holds the text the As
 - **Extra keywords**: one `phrase = item` per line, for example `service charge = owe`. Items are `owe`, `payments`, `statement`, `wallet`, `pay`, `notices`, `contact`, `email`, `reminders`, `report`, `receipt` and `clearance`.
 
 Each saves on its own and is written to the audit log.
+
+## Admin mode
+
+Admin mode lets an admin ask the WhatsApp Assistant for admin information from their own phone. Only `super_admin`, `chairman` and `financial_officer` accounts that hold **Use WhatsApp Admin Mode** (`whatsapp_admin.query`) and have authenticator app 2FA turned on can use it. The only request available today is `ADMIN STATUS`, which replies with the admin's name, role and when their admin session ends.
+
+**Linking a number.** Each admin links their own number under **Settings → WhatsApp admin access**, signed in with their authenticator code. **Create link code** shows a 6-digit code once; it works one time, for 10 minutes. From the phone, send `ADMIN LINK <code>` to the estate WhatsApp number. Linking a new number ends the old link, and **Unlink** ends it at any time. The admin gets an email each time a number is linked.
+
+**Approving a request.** Every request needs a code from the authenticator app: send the request (for example `ADMIN STATUS`), then `ADMIN <code>` within 5 minutes. A correct code opens a 15-minute session in which further lookups need no new code. A code works only once. A request marked as needing a fresh code (such as a future PDF) asks for one every time.
+
+**When a link ends.** A link ends when the admin's role, account status or authenticator app changes, 90 days after linking, or after 30 days without use. The admin then links the number again.
+
+**Limits.** At most 50 admin requests per admin per day (reset at midnight, Lagos time). Five wrong codes lock admin mode on that number for 30 minutes, and the admin gets an email.
+
+**Resident numbers.** A number that is also a resident's keeps the resident assistant. Only the exact `ADMIN` commands above start admin mode; any other message, including other text starting with "admin", gets the resident reply.
+
+Every link, unlink, approved or wrong code, ended link and answered request is in the audit log.
 
 ## Rate caps
 
