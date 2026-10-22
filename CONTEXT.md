@@ -97,7 +97,7 @@ A composed ledger — invoices issued against and payments received for a select
 _Avoid_: Balance report, account breakdown
 
 **Community Tier**:
-The WhatsApp Assistant's access level for any identified resident: estate information (announcements, notices, security updates) but no financial standing answers.
+The WhatsApp Assistant's access level for any identified resident allowed to use it (an active residence in a billable role or as co-resident): estate information (announcements, notices, security updates) but no financial standing answers.
 _Avoid_: Free tier, public mode
 
 **WhatsApp Session**:
