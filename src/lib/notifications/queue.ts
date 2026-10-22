@@ -74,7 +74,7 @@ export async function addToQueue(
     .insert({
       template_id: input.template_id,
       schedule_id: input.schedule_id,
-      // Generated types still say NOT NULL until 20261025110000 is applied and db:types re-run.
+      // Generated types still say NOT NULL until 20261025120000 is applied and db:types re-run.
       recipient_id: input.recipient_id as string,
       recipient_email: input.recipient_email,
       recipient_phone: input.recipient_phone,
