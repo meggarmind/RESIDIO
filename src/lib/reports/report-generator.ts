@@ -6,8 +6,8 @@
  * client-callable server action. Callers are responsible for authorization:
  *   - `generateReport` in `@/actions/reports/report-engine` (session client, gated by
  *     the report-view permission check), and
- *   - the CRON_SECRET-authenticated cron paths (`/api/cron/generate-reports` and
- *     `@/lib/reports/process-schedules`), which have no session and pass the admin client.
+ *   - the CRON_SECRET-authenticated cron path (`@/lib/reports/process-schedules`), which has
+ *     no session and passes the admin client.
  * See #483 (same pattern as #388).
  */
 
