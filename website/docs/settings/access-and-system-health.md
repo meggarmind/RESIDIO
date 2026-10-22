@@ -17,8 +17,8 @@ residio_sources:
   - src/app/(dashboard)/system/page.tsx
   - src/components/system/**
   - src/actions/system/**
-residio_verified_commit: 6bed011d
-residio_verified_at: '2026-10-21'
+residio_verified_commit: 6eff3279
+residio_verified_at: '2026-10-22'
 residio_app_version: '0.4.0'
 ---
 
@@ -65,7 +65,7 @@ The **Access** column on the Roles tab shows how many modules and privileges a r
 
 Deleting a role states how many users hold it. A role that anyone still holds cannot be deleted: reassign those users first. Defining roles needs the Manage roles permission; an admin who can only assign roles sees the first three tabs and never the Roles or Who can hold each role tabs.
 
-**Resident portal access per account.** On the **Administrators** tab, each administrator row and the account you select under *Assign Roles* carries a *Resident portal* control with three choices: **Inherit** (follow the estate-wide switch in Settings → Estate & Property → Estate Profile), **Enabled** and **Disabled**. The text beside it shows the effective result, for example "Inherit (currently off)". *Enabled* works while the estate-wide switch is off, so you can open the portal links to a pilot group first. Changing it needs the permission to assign roles; without it you see the effective state read-only. Every change is recorded in the audit log. This setting only controls whether links are shown: *My Portal* and *Resident Portal* also require the account to be linked to a resident, so an administrator with no resident record never sees them, and *View as Resident* additionally needs the impersonation permission.
+**Resident portal access per account.** On the **Administrators** tab, each administrator row and the account you select under *Assign Roles* carries a *Resident portal* control with three choices: **Inherit** (follow the estate-wide switch in Settings → Estate & Property → Estate Profile), **Enabled** and **Disabled**. The text beside it shows the effective result, for example "Inherit (currently off)". On a wide screen the list shows the control in a *Resident portal* column whose header states the estate-wide default, and the repeated label and effective text are left out of the rows. *Enabled* works while the estate-wide switch is off, so you can open the portal links to a pilot group first. Changing it needs the permission to assign roles; without it you see the effective state read-only. Every change is recorded in the audit log. This setting only controls whether links are shown: *My Portal* and *Resident Portal* also require the account to be linked to a resident, so an administrator with no resident record never sees them, and *View as Resident* additionally needs the impersonation permission.
 
 Work the **Pending sign-ups** queue, under Settings → Roles & Access, as part of routine access review. A new sign-up has no access to anything until it is approved there, so a queue left unattended is a person locked out rather than a person with access they should not have. [Roles and permissions](../getting-started/roles-and-permissions) covers the approval and rejection steps.
 
