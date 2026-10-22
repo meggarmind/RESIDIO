@@ -105,8 +105,8 @@ describe('processQueue claiming', () => {
     }
   });
 
-  it('puts a stuck row back to pending with one more attempt, only if it is unchanged', async () => {
-    const stuck = { id: 's1', attempts: 1, max_attempts: 3, last_attempt_at: '2026-10-22T11:00:00.000Z' };
+  it('puts a stuck row back to pending, counting the reclaim without raising attempts', async () => {
+    const stuck = { id: 's1', max_attempts: 3, last_attempt_at: '2026-10-22T11:00:00.000Z', metadata: { foo: 'bar' } };
     const db = client((calls) =>
       isStuckRead(calls) ? { data: [stuck], error: null } : isFetch(calls) ? { data: [], error: null } : { error: null }
     );
@@ -117,15 +117,14 @@ describe('processQueue claiming', () => {
     const reclaims = db.chains.filter(isReclaim);
     expect(reclaims).toHaveLength(1);
     const [reclaim] = reclaims;
-    expect(has(reclaim, 'update', { status: 'pending', attempts: 2 })).toBe(true);
+    expect(has(reclaim, 'update', { status: 'pending', metadata: { foo: 'bar', reclaim_count: 1 } })).toBe(true);
     expect(has(reclaim, 'eq', 'id', 's1')).toBe(true);
-    expect(has(reclaim, 'eq', 'attempts', 1)).toBe(true);
     expect(has(reclaim, 'eq', 'last_attempt_at', '2026-10-22T11:00:00.000Z')).toBe(true);
     expect(db.chains.indexOf(reclaim)).toBeLessThan(db.chains.findIndex(isFetch));
   });
 
-  it('fails a stuck row whose next attempt would reach max_attempts', async () => {
-    const stuck = { id: 's2', attempts: 2, max_attempts: 3, last_attempt_at: null };
+  it('fails a stuck row once its reclaim count reaches max_attempts', async () => {
+    const stuck = { id: 's2', max_attempts: 3, last_attempt_at: null, metadata: { reclaim_count: 2 } };
     const db = client((calls) =>
       isStuckRead(calls) ? { data: [stuck], error: null } : isFetch(calls) ? { data: [], error: null } : { error: null }
     );
@@ -134,8 +133,9 @@ describe('processQueue claiming', () => {
     await processQueue();
 
     const [reclaim] = db.chains.filter(isReclaim);
-    expect(has(reclaim, 'update', { status: 'failed', attempts: 3, error_message: 'Max attempts exceeded' })).toBe(true);
-    expect(has(reclaim, 'eq', 'attempts', 2)).toBe(true);
+    expect(
+      has(reclaim, 'update', { status: 'failed', metadata: { reclaim_count: 3 }, error_message: 'Max attempts exceeded' })
+    ).toBe(true);
     expect(has(reclaim, 'is', 'last_attempt_at', null)).toBe(true);
     expect(sendAndRecordNotification).not.toHaveBeenCalled();
   });

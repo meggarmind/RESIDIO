@@ -112,6 +112,27 @@ describe('retryQueueItem for a failed WhatsApp item (#6)', () => {
     expect(row.channel).toBe('whatsapp');
   });
 
+  it('starts a retried item afresh: attempts back to 0 and reclaim_count cleared', async () => {
+    const template = queueRow().metadata.whatsapp_template;
+    const fake = useFake({
+      notification_queue: [
+        queueRow({
+          status: 'failed',
+          attempts: 3,
+          error_message: 'Max attempts exceeded',
+          metadata: { whatsapp_template: template, reclaim_count: 3 },
+        }),
+      ],
+    });
+
+    await retryQueueItem('queue-1');
+
+    const row = fake.state.tables.notification_queue[0];
+    expect(row.status).toBe('pending');
+    expect(row.attempts).toBe(0);
+    expect(row.metadata).toEqual({ whatsapp_template: template });
+  });
+
   it('only retries failed items: a sent item is left alone', async () => {
     const fake = useFake({
       notification_queue: [queueRow({ status: 'sent', error_message: null })],
