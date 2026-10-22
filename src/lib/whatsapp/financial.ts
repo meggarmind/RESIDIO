@@ -1066,6 +1066,7 @@ async function capReply(turn: Turn): Promise<string | null> {
 
 /** One summary of every house: one lookup against the cap and one disclosure log row (#1073 decision 5). */
 async function answerAllProperties(turn: Turn): Promise<void> {
+  if ((await loadPinGate(turn)) && !turn.session.pinAuthenticated) return enterFinancial(turn, 'what_i_owe');
   const houses = turn.houses || [];
   const capped = await capReply(turn);
   if (capped) return respond(turn, capped, 'financial');

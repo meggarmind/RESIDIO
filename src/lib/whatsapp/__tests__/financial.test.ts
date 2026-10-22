@@ -2045,6 +2045,17 @@ describe('WhatsApp Assistant several houses (#1073)', () => {
     expect(repo.logDisclosure).toHaveBeenCalledWith(expect.objectContaining({ houseId: null, menuItem: 'what_i_owe', metadata: { scope: 'all_properties', houses: 2 } }));
   });
 
+  it('asks for the PIN when the gate was turned on after the property prompt', async () => {
+    const repo = twoHouseRepo();
+    await chat(repo, ['owe']);
+    vi.mocked(repo.getForcePin).mockResolvedValue(true);
+    const replies = await chat(repo, ['3']);
+
+    expect(replies[0]).toContain('A security PIN is required before viewing financial standing.');
+    expect(repo.getOwed).not.toHaveBeenCalled();
+    expect(repo.logDisclosure).not.toHaveBeenCalled();
+  });
+
   it('shows the cap reply, and looks nothing up, when the day is used up', async () => {
     const repo = twoHouseRepo();
     const replies = await chat(repo, ['owe', '3'], identity, { canLookup: vi.fn().mockResolvedValue('resident_cap') });

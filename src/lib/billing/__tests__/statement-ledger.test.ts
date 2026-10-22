@@ -26,6 +26,19 @@ function walletTx(overrides: Partial<LedgerWalletTransaction> = {}): LedgerWalle
 }
 
 describe('buildStatementLedger', () => {
+  it('names each invoice line by its charge, with the month for dues and the type when there is no profile', () => {
+    const { transactions } = buildStatementLedger({
+      openingBalance: 0,
+      invoices: [
+        invoice({ id: 'a', billing_profile_name: 'Security dues', period_start: '2026-10-01', period_end: '2026-10-31' }),
+        invoice({ id: 'b', invoice_number: 'LEV-1', invoice_type: 'LEVY', billing_profile_name: null, period_start: '2026-11-01', period_end: null }),
+      ],
+      payments: [],
+      walletTransactions: [],
+    });
+    expect(transactions.map((t) => t.description)).toEqual(['Invoice #LEGACY-IBB-1-2015-01 - Security dues, OCT 2026', 'Invoice #LEV-1 - Levy']);
+  });
+
   it('dates an invoice by the period it bills, not the day it was imported', () => {
     const { transactions } = buildStatementLedger({ openingBalance: 0, invoices: [invoice()], payments: [], walletTransactions: [] });
     expect(transactions[0].date).toBe('2015-01-01');
