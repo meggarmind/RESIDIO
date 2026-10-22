@@ -15,6 +15,7 @@ import { parseFirstBankAlert, isFirstBankAlert } from '@/lib/email-imports/parse
 import {
   parseFirstBankPdf,
   extractAccountNumber,
+  extractPdfText,
 } from '@/lib/email-imports/parsers/first-bank-pdf';
 import { writeEmailImportStatus } from '@/lib/email-imports/import-records';
 import type {
@@ -196,12 +197,12 @@ export async function parseEmailMessage(
         // First, try to get text without password (might fail if encrypted)
         let accountLast4: string | null = null;
         try {
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const pdfParse = require('pdf-parse');
-          const textData = await pdfParse(pdfBuffer);
-          accountLast4 = extractAccountNumber(textData.text);
-        } catch {
-          // PDF might be encrypted - we'll try with password lookup
+          // extractPdfText prefixes each item with its [x,y] position; strip it for text patterns
+          const text = (await extractPdfText(pdfBuffer)).replace(/\[-?\d+,-?\d+\]/g, '');
+          accountLast4 = extractAccountNumber(text);
+        } catch (error) {
+          // An encrypted PDF fails here; parseFirstBankPdf below retries with the password lookup
+          console.warn(`Could not read account number from ${att.name}:`, error);
         }
 
         // Parse the PDF
