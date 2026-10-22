@@ -46,7 +46,8 @@ describe('generateIndebtednessReport', () => {
     ]);
     expect(out.summary).toMatchObject({ totalHouses: 2, indebtedCount: 1, nonIndebtedCount: 1, totalOutstanding: 60 });
 
-    const html = renderToStaticMarkup(<TraditionalTemplate {...({ data: out, report: { type: 'indebtedness_summary', data: out } } as never)} />);
+    const props = { data: out, report: { type: 'indebtedness_summary', data: out } } as unknown as React.ComponentProps<typeof TraditionalTemplate>;
+    const html = renderToStaticMarkup(<TraditionalTemplate {...props} />);
     expect(html).toContain('Owing');
   });
 });
