@@ -194,7 +194,7 @@ export async function createPaymentCore(
                 residentPhone: paymentRecipient.phone_primary,
                 residentName: `${paymentRecipient.first_name} ${paymentRecipient.last_name}`,
                 amount: result.data.amount,
-                paymentDate: result.data.payment_date.toLocaleDateString('en-NG'),
+                paymentDate: result.data.payment_date,
                 referenceNumber: result.data.reference_number || null,
             }))
         }
