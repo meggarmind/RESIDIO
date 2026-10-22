@@ -511,3 +511,18 @@ describe('evaluateSendPolicy mutation gaps (#549)', () => {
     expect(facts.countWhatsAppSentSince).toHaveBeenNthCalledWith(2, '2031-03-05T23:49:59.999Z');
   });
 });
+
+describe('freeForm sends (#1037)', () => {
+  it('skips only the template check', async () => {
+    const decision = await evaluateSendPolicy({ ...baseInput, metadata: null, freeForm: true }, makeFacts());
+    expect(decision.outcome).toBe('allow');
+  });
+
+  it('still refuses when WhatsApp is off', async () => {
+    const decision = await evaluateSendPolicy(
+      { ...baseInput, metadata: null, freeForm: true },
+      makeFacts({ enabled: { status: 'ok', value: false } })
+    );
+    expect(decision).toMatchObject({ outcome: 'refuse', reason: 'whatsapp_disabled' });
+  });
+});

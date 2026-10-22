@@ -19,6 +19,8 @@ export interface SendPolicyInput {
   recipientId: string;
   recipientPhone: string | null | undefined;
   metadata: Record<string, unknown> | null | undefined;
+  /** A free-form message (certificate, receipt) has no template; only the template check is skipped. */
+  freeForm?: boolean;
 }
 
 export type SendDecision =
@@ -127,6 +129,10 @@ export async function evaluateSendPolicy(
   }
   if (!optIn.found) {
     return refuse('no_opt_in', 'WhatsApp recipient has not opted in');
+  }
+
+  if (input.freeForm) {
+    return { outcome: 'allow', normalizedPhone, template: { name: '', languageCode: 'en_US', parameters: [] } };
   }
 
   // Template approval.

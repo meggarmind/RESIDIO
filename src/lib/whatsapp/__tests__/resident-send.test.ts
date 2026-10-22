@@ -3,12 +3,14 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
 import { isWhatsAppOptedIn } from '@/lib/whatsapp/opt-in';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
+import { evaluateSendPolicy } from '@/lib/whatsapp/send-policy';
 import { sendWhatsAppToResident } from '@/lib/whatsapp/resident-send';
 
 vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
 vi.mock('@/lib/comms-override/resident-flag', () => ({ resolveResidentOverride: vi.fn() }));
 vi.mock('@/lib/whatsapp/opt-in', () => ({ isWhatsAppOptedIn: vi.fn() }));
 vi.mock('@/lib/whatsapp/provider', () => ({ sendWhatsAppMessage: vi.fn() }));
+vi.mock('@/lib/whatsapp/send-policy', () => ({ evaluateSendPolicy: vi.fn(), createSendPolicyFacts: vi.fn(() => ({})) }));
 
 function mockResident(result: unknown) {
   const chain: Record<string, unknown> = {};
@@ -19,6 +21,7 @@ function mockResident(result: unknown) {
 
 beforeEach(() => {
   mockResident({ data: { phone_primary: '+2348000000000' }, error: null });
+  vi.mocked(evaluateSendPolicy).mockReset().mockResolvedValue({ outcome: 'allow', normalizedPhone: '+2348000000000', template: { name: '', languageCode: 'en_US', parameters: [] } });
   vi.mocked(isWhatsAppOptedIn).mockReset().mockResolvedValue(true);
   vi.mocked(resolveResidentOverride).mockReset().mockResolvedValue({ ok: true, residentOverride: true });
   vi.mocked(sendWhatsAppMessage).mockReset().mockResolvedValue({ success: true });
