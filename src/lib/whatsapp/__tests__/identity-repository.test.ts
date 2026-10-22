@@ -21,6 +21,20 @@ function query(table: string) {
     gt: (column: string, value: string) => (filters.push((row) => String(row[column]) > value), builder),
     filter: (column: string, _op: 'eq', value: unknown) => (filters.push((row) => row[column] === value), builder),
     update: (values: Row) => ((patch = values), builder),
+    // Only the blocked-reply claim uses or(): null, or older than the cutoff.
+    or: (expression: string) => {
+      const cutoff = expression.split('blocked_reply_at.lt.')[1];
+      filters.push((row) => row.blocked_reply_at == null || String(row.blocked_reply_at) < cutoff);
+      return builder;
+    },
+    insert: async (values: Row) => {
+      const table_ = (db.tables[table] ||= []);
+      if (table_.some((row) => row.phone_number === values.phone_number)) {
+        return { error: { code: '23505' } };
+      }
+      table_.push({ id: `row-${table_.length}`, ...values });
+      return { error: null };
+    },
     upsert: async (values: Row) => {
       const existing = (db.tables[table] ||= []).find(
         (row) => row.resident_id === values.resident_id && row.phone_number === values.phone_number
@@ -177,5 +191,114 @@ describe('consumeLinkToken purpose (#890)', () => {
 
     expect(await createSupabaseWhatsAppIdentityRepository().consumeLinkToken('123456')).toBeNull();
     expect(db.tables.whatsapp_link_tokens[0].used_at).toBeNull();
+  });
+});
+
+describe('who may use the Assistant (#1070)', () => {
+  const houseRow = (role: string, overrides: Row = {}): Row => ({ resident_id: 'res-1', resident_role: role, is_active: true, ...overrides });
+
+  it.each([
+    ['resident_landlord', true],
+    ['non_resident_landlord', true],
+    ['tenant', true],
+    ['developer', true],
+    ['co_resident', false],
+  ])('allows %s (financial tier: %s)', async (role, financial) => {
+    db.tables.resident_houses = [houseRow(role)];
+
+    const [match] = await createSupabaseWhatsAppIdentityRepository().findRosterMatches(NUMBER);
+
+    expect(match).toMatchObject({ accessAllowed: true, financialEligible: financial });
+  });
+
+  it.each(['household_member', 'domestic_staff', 'caretaker', 'contractor'])('blocks a %s', async (role) => {
+    db.tables.resident_houses = [houseRow(role)];
+
+    const [match] = await createSupabaseWhatsAppIdentityRepository().findRosterMatches(NUMBER);
+
+    expect(match.accessAllowed).toBe(false);
+  });
+
+  it('blocks a person whose only in-scope row is no longer active', async () => {
+    db.tables.resident_houses = [houseRow('tenant', { is_active: false })];
+
+    const [match] = await createSupabaseWhatsAppIdentityRepository().findRosterMatches(NUMBER);
+
+    expect(match.accessAllowed).toBe(false);
+  });
+
+  it('blocks a person with no residency row', async () => {
+    db.tables.resident_houses = [];
+
+    const [match] = await createSupabaseWhatsAppIdentityRepository().findRosterMatches(NUMBER);
+
+    expect(match.accessAllowed).toBe(false);
+  });
+
+  it('allows a person who holds one blocked and one in-scope role', async () => {
+    db.tables.resident_houses = [houseRow('domestic_staff'), houseRow('tenant')];
+
+    const [match] = await createSupabaseWhatsAppIdentityRepository().findRosterMatches(NUMBER);
+
+    expect(match.accessAllowed).toBe(true);
+  });
+
+  it('applies the same rule to a LINK-code link, keeping its tier rule', async () => {
+    db.tables.resident_houses = [houseRow('caretaker')];
+
+    const [linked] = await createSupabaseWhatsAppIdentityRepository().findLinkedResidents(NUMBER);
+
+    expect(linked).toMatchObject({ accessAllowed: false, financialEligible: false });
+  });
+
+  it('keeps an unverified in-scope link at the community tier but allowed', async () => {
+    db.tables.residents = [resident({ phone_primary: '08000000009' })];
+    db.tables.resident_houses = [houseRow('tenant')];
+
+    const [linked] = await createSupabaseWhatsAppIdentityRepository().findLinkedResidents(NUMBER);
+
+    expect(linked).toMatchObject({ accessAllowed: true, financialEligible: false });
+  });
+});
+
+describe('claimBlockedReply (#1070)', () => {
+  const hoursAgo = (h: number) => new Date(Date.now() - h * 60 * 60 * 1000).toISOString();
+
+  it('claims the first reply for a number with no session and records it', async () => {
+    db.tables.whatsapp_sessions = [];
+
+    expect(await createSupabaseWhatsAppIdentityRepository().claimBlockedReply(NUMBER, 'res-1')).toBe(true);
+    expect(db.tables.whatsapp_sessions).toHaveLength(1);
+    expect(db.tables.whatsapp_sessions[0]).toMatchObject({ phone_number: NUMBER, resident_id: 'res-1' });
+    expect(db.tables.whatsapp_sessions[0].blocked_reply_at).toBeTruthy();
+  });
+
+  it('refuses a second claim inside 24 hours', async () => {
+    db.tables.whatsapp_sessions = [{ id: 's1', phone_number: NUMBER, blocked_reply_at: hoursAgo(23) }];
+
+    expect(await createSupabaseWhatsAppIdentityRepository().claimBlockedReply(NUMBER, 'res-1')).toBe(false);
+  });
+
+  it('claims again once 24 hours have passed, and restamps the row', async () => {
+    db.tables.whatsapp_sessions = [{ id: 's1', phone_number: NUMBER, blocked_reply_at: hoursAgo(25) }];
+
+    expect(await createSupabaseWhatsAppIdentityRepository().claimBlockedReply(NUMBER, 'res-1')).toBe(true);
+    expect(Date.now() - new Date(db.tables.whatsapp_sessions[0].blocked_reply_at as string).getTime()).toBeLessThan(60_000);
+  });
+
+  it('claims on an existing session that never had a blocked reply', async () => {
+    db.tables.whatsapp_sessions = [{ id: 's1', phone_number: NUMBER, blocked_reply_at: null }];
+
+    expect(await createSupabaseWhatsAppIdentityRepository().claimBlockedReply(NUMBER, 'res-1')).toBe(true);
+  });
+
+  it('stays silent when a concurrent message inserted the row first', async () => {
+    // The update finds nothing and the lookup finds nothing, then the insert hits the unique number.
+    db.tables.whatsapp_sessions = [];
+    const repository = createSupabaseWhatsAppIdentityRepository();
+
+    const [first, second] = [await repository.claimBlockedReply(NUMBER, 'res-1'), await repository.claimBlockedReply(NUMBER, 'res-1')];
+
+    expect([first, second]).toEqual([true, false]);
   });
 });
