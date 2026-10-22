@@ -119,9 +119,6 @@ export type OwnershipEventType =
   | 'move_out'            // Resident moved out of the property
   | 'role_change';        // Role changed (e.g., resident_landlord -> non_resident_landlord)
 
-// Legacy types (for future phases)
-export type PaymentStatus = 'current' | 'overdue' | 'suspended' | 'exempt';
-
 // Phase 6: Security Contact Types
 export type SecurityContactStatus = 'active' | 'suspended' | 'expired' | 'revoked';
 export type AccessCodeType = 'permanent' | 'one_time';
