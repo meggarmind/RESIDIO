@@ -7,8 +7,8 @@ residio_sources:
   - src/app/(dashboard)/houses/**
   - src/actions/houses/**
   - src/components/houses/**
-residio_verified_commit: c94497ed
-residio_verified_at: '2026-10-21'
+residio_verified_commit: e6bee6bb
+residio_verified_at: '2026-10-22'
 residio_app_version: '0.4.0'
 ---
 
@@ -52,6 +52,9 @@ Each resident row has one main action and a **…** menu for the rest:
 | Property Owner, Developer | Transfer | *update houses* |
 | Property Owner, Developer | Remove (ownership) | *update houses* |
 | Occupant and other secondary roles | Edit role, Promote (Occupant only), Remove from house | *assign residents* |
+
+An Occupant is always sponsored by the house's Owner-Occupier or Renter. **Link Existing** and
+**Edit role** fill that sponsor in, and refuse an Occupant while the house has neither.
 
 **Link Existing** needs *assign residents* and **Add New** needs *create residents*. **Edit** needs
 *update houses*. **Delete house** is in the **…** menu beside Edit and needs *delete houses*; it
