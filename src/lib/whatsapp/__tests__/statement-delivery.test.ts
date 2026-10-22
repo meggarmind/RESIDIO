@@ -211,7 +211,10 @@ describe('WhatsApp statement by email (#804 decision 24)', () => {
   });
 
   it('builds the email with the statement PDF attached, from the stored dates', async () => {
-    mockDb({ whatsapp_statement_requests: [{ data: { resident_id: 'resident-1', house_id: 'house-1', period: 'this_year', from_date: '2026-01-01', to_date: '2026-10-20' }, error: null }] });
+    mockDb({
+      whatsapp_statement_requests: [{ data: { resident_id: 'resident-1', house_id: 'house-1', period: 'this_year', from_date: '2026-01-01', to_date: '2026-10-20' }, error: null }],
+      resident_houses: [{ data: [], error: null }, { data: [{ id: 'row-1' }], error: null }],
+    });
     vi.mocked(loadAccountStatement).mockResolvedValue({ data: statement, error: null });
 
     const email = await buildStatementEmail('request-1');
@@ -242,6 +245,21 @@ describe('WhatsApp statement by email (#804 decision 24)', () => {
     await buildStatementEmail('request-1');
 
     expect(loadAccountStatement).toHaveBeenLastCalledWith(expect.anything(), { residentId: 'sponsor-1', houseId: 'house-1', fromDate: '2026-01-01', toDate: '2026-10-20' }, { rollForward: false });
+  });
+
+  it("refuses a co-resident's emailed statement once the sponsor has moved out (#1071 decision 7)", async () => {
+    mockDb({
+      whatsapp_statement_requests: [{ data: { resident_id: 'co-1', house_id: 'house-1', period: 'this_year', from_date: '2026-01-01', to_date: '2026-10-20' }, error: null }],
+      resident_houses: [
+        { data: [{ house_id: 'house-1', sponsor_resident_id: 'sponsor-1', house: null }], error: null },
+        { data: [], error: null },
+        { data: [], error: null },
+      ],
+    });
+    vi.mocked(loadAccountStatement).mockClear();
+
+    await expect(buildStatementEmail('request-1')).rejects.toThrow('no longer has access');
+    expect(loadAccountStatement).not.toHaveBeenCalled();
   });
 });
 

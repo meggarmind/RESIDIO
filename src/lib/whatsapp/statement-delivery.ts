@@ -253,6 +253,17 @@ export async function buildStatementEmail(requestId: string) {
 
   // A co-resident's request shows the sponsor's account, re-checked at send time (#1071).
   const sponsored = (await getSponsoredHouses(request.resident_id)).find((link) => link.houseId === request.house_id);
+  if (!sponsored) {
+    const { data: rows, error: rowsError } = await createAdminClient()
+      .from('resident_houses')
+      .select('id')
+      .eq('resident_id', request.resident_id)
+      .eq('house_id', request.house_id)
+      .eq('is_active', true)
+      .in('resident_role', [...BILLABLE_ROLES]);
+    if (rowsError) throw rowsError;
+    if (!rows?.length) throw new Error(`Statement request ${requestId} no longer has access to this property`);
+  }
   const statement = await loadWhatsAppStatement(sponsored?.sponsorId ?? request.resident_id, request.house_id, request.from_date, request.to_date);
   const [pdf, name, contact] = await Promise.all([
     renderStatementPdf(statement),
