@@ -28,6 +28,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ResidentForm } from '@/components/residents/resident-form';
 import { ResidentArchiveDialog } from '@/components/residents/resident-archive-dialog';
+import { ResidentMergeDialog } from '@/components/residents/resident-merge-dialog';
 import { AccountStatusBadge } from '@/components/residents/status-badge';
 import { useResident, useDeleteResident, useUpdateResidentStatus, useVerifyResident } from '@/hooks/use-residents';
 import { useVerificationStatus, useAdminVerifyContact } from '@/hooks/use-verification';
@@ -42,7 +43,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Pencil, Trash2, Phone, Mail, ArrowLeft, UserCircle, Link as LinkIcon, ShieldCheck, Shield, UserCheck, StickyNote, AlertCircle, UserRoundCheck, UserRoundX, Wallet, Loader2, Building2, CalendarClock, IdCard, MoreHorizontal } from 'lucide-react';
+import { Users, Pencil, Trash2, Phone, Mail, ArrowLeft, UserCircle, Link as LinkIcon, ShieldCheck, Shield, UserCheck, StickyNote, AlertCircle, UserRoundCheck, UserRoundX, Wallet, Loader2, Building2, CalendarClock, IdCard, MoreHorizontal, Merge } from 'lucide-react';
 import { toast } from 'sonner';
 
 // Only Overview renders on first paint; the other tabs load when opened (#783).
@@ -97,12 +98,17 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
   const [isVerifyDialogOpen, setIsVerifyDialogOpen] = useState(false);
+  const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false);
+  // Not in the generated types until #987's migrations are applied and db:types is re-run.
+  const mergedIntoId = (resident as { merged_into_resident_id?: string | null } | undefined)?.merged_into_resident_id ?? undefined;
+  const { data: mergedInto } = useResident(mergedIntoId);
 
   // Notes permissions
   const { hasPermission, isLoading: authLoading } = useAuth();
   const canUpdateResident = hasPermission(PERMISSIONS.RESIDENTS_UPDATE);
   const canDeleteResident = hasPermission(PERMISSIONS.RESIDENTS_DELETE);
   const canVerifyResident = hasPermission(PERMISSIONS.RESIDENTS_VERIFY);
+  const canMergeResidents = hasPermission(PERMISSIONS.RESIDENTS_MERGE);
   const canViewNotes = hasPermission(PERMISSIONS.NOTES_VIEW);
   const canCreateNotes = hasPermission(PERMISSIONS.NOTES_CREATE);
   const canEditNotes = hasPermission(PERMISSIONS.NOTES_UPDATE);
@@ -296,7 +302,7 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
               </Link>
             </Button>
           )}
-          {(canUpdateResident || canDeleteResident) && (
+          {(canUpdateResident || canDeleteResident || (canMergeResidents && !mergedIntoId)) && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className={headerButtonClass}>
@@ -311,7 +317,13 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
                     {resident.account_status === 'inactive' ? 'Reactivate' : 'Inactivate'}
                   </DropdownMenuItem>
                 )}
-                {canUpdateResident && canDeleteResident && <DropdownMenuSeparator />}
+                {canMergeResidents && !mergedIntoId && (
+                  <DropdownMenuItem onClick={() => setIsMergeDialogOpen(true)}>
+                    <Merge className="mr-2 h-4 w-4" />
+                    Merge residents
+                  </DropdownMenuItem>
+                )}
+                {(canUpdateResident || (canMergeResidents && !mergedIntoId)) && canDeleteResident && <DropdownMenuSeparator />}
                 {canDeleteResident && (
                   <DropdownMenuItem variant="destructive" onClick={() => setIsArchiveDialogOpen(true)} disabled={deleteMutation.isPending}>
                     <Trash2 className="mr-2 h-4 w-4" />
@@ -323,6 +335,27 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
           )}
         </div>
       </div>
+
+      {mergedIntoId && (
+        <div role="status" className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
+          <Merge className="h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
+          <span>Merged into {mergedInto?.resident_code ?? 'another record'}.</span>
+          <Link href={`/residents/${mergedIntoId}`} className="font-medium underline underline-offset-2">
+            Open the kept record
+          </Link>
+        </div>
+      )}
+
+      {canMergeResidents && !mergedIntoId && (
+        <ResidentMergeDialog
+          open={isMergeDialogOpen}
+          onOpenChange={setIsMergeDialogOpen}
+          resident={resident}
+          onMerged={(result) => {
+            if (result.kept_resident_id !== id) router.push(`/residents/${result.kept_resident_id}`);
+          }}
+        />
+      )}
 
       <AlertDialog open={isStatusDialogOpen} onOpenChange={setIsStatusDialogOpen}>
         <AlertDialogContent>
