@@ -9,7 +9,7 @@ residio_sources:
   - src/app/(dashboard)/settings/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp-admin/**
   - src/app/api/whatsapp/**
-residio_verified_commit: 34bdacae
+residio_verified_commit: a97a9f8f
 residio_verified_at: '2026-10-22'
 residio_app_version: '0.4.0'
 ---
@@ -311,7 +311,7 @@ Caps protect residents from a runaway loop and protect the estate from provider 
 | Burst window (minutes) | The window the burst cap is measured over |
 | Financial lookup daily cap | Maximum financial answers returned in a day, across the whole estate (default 500) |
 
-Each resident is also limited to 20 financial answers a day. Only the Financial standing answers count toward either financial cap (What I owe, Recent payments, Statement, Wallet, the Receipt list and each receipt PDF, and the Clearance certificate check), including each statement PDF and email; How to pay, notices and the contact line do not. Both reset at midnight Lagos time, and the resident is told which limit was reached.
+Each resident is also limited to 20 financial answers a day. Only the Financial standing answers count toward either financial cap (What I owe, Recent payments, Statement, Wallet, the Receipt list and each receipt PDF, and the Clearance certificate check), including each statement PDF and email; How to pay, notices and the contact line do not. Admin `ADMIN OWES` lookups are in the disclosure log but count toward neither; the admin's own daily limit applies instead (see *Admin mode*). Both reset at midnight Lagos time, and the resident is told which limit was reached.
 
 When a cap is reached, further sends are blocked and the event is counted in the console as a cap limit event. Repeated cap events mean the cap is wrong for the estate size or something is sending in a loop — investigate before raising the number.
 
