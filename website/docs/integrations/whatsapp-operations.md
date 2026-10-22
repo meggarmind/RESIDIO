@@ -99,6 +99,8 @@ Connecting a provider does not by itself let messages flow. A separate **master 
 
 This is distinct from the rollout mode described below: the master switch decides *whether the channel runs*; rollout mode decides *who receives messages once it does*. Both must be set correctly for residents to receive anything.
 
+While the switch is off, a resident who writes in gets one reply, "The estate Assistant is offline. Your message is saved and will be answered when it is back.", followed by the estate office contact line. A number gets this reply once until the switch is turned back on, however many messages it sends. When an admin turns the switch on, the saved messages are answered, oldest first and each once. A message saved more than 24 hours earlier is dropped instead of answered. A message that is only digits or starts with `PIN` is never saved, though the holding reply still goes out. Messages during a human takeover are not saved.
+
 ## Rollout modes
 
 | Mode | Who receives messages |
