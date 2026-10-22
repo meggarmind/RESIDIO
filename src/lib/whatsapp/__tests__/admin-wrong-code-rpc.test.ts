@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 const counts = new Map<string, number>();
-const rpc = vi.fn(async (_fn: string, args: { p_phone: string; p_now: string }) => {
+type RpcResult = { data: string | null; error: Error | null };
+const rpc = vi.fn(async (_fn: string, args: { p_phone: string; p_now: string }): Promise<RpcResult> => {
   const next = (counts.get(args.p_phone) ?? 0) + 1;
   if (next >= 5) {
     counts.set(args.p_phone, 0);
