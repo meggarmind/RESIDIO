@@ -14,8 +14,8 @@ residio_sources:
   - src/app/(dashboard)/settings/reminders/**
   - src/app/(dashboard)/settings/wording/**
   - src/components/settings/messages/**
-residio_verified_commit: dd9e1184
-residio_verified_at: '2026-10-21'
+residio_verified_commit: b54f2fb1
+residio_verified_at: '2026-10-22'
 residio_app_version: '0.4.0'
 ---
 
@@ -96,6 +96,8 @@ Editing is available only while Chatmaid is the connected WhatsApp provider. Wit
 
 **Settings → Messages → Reminders** turns automatic reminders on or off (**On or off**) and defines the steps (**Schedule**). Reminders are dispatched by a scheduled job rather than at the moment you save them, so a saved reminder that has not arrived yet is usually waiting for its next run, not broken. The Billing reminder days and the Email **Payment reminders** switch also limit what it sends; see [Billing and notifications](../settings/billing-and-notifications.md).
 
+The scheduled job sends at most one reminder per invoice per day, so running it again on the same day (for example after a timeout) does not resend. A reminder day that the job missed is not caught up later. If the job cannot read the schedule, the invoices or an invoice's reminder history, it reports the run as failed instead of sending nothing silently.
+
 Invoice reminders go out by email and WhatsApp only. SMS is switched off for reminders until the SMS provider (Termii) is connected, so an SMS step in a reminder schedule is skipped without an error. The default schedule is email only. The schedule editor offers Email and WhatsApp for each step; it does not offer SMS. A WhatsApp step reaches only residents who have opted in to WhatsApp.
 
 ## The notification queue
@@ -108,7 +110,7 @@ Invoice reminders go out by email and WhatsApp only. SMS is switched off for rem
 | Growing steadily | The processing job is not running — check **System → Cron Status** |
 | Stuck with failures | The provider is rejecting sends — check **System → Notification History** for the error |
 
-The processing job runs every 15 minutes. A send that fails for a temporary reason, such as a provider timeout or rate limit, goes back into the queue and is tried again after 15 minutes, then 1 hour, 6 hours and 24 hours, up to 5 attempts in all. Each failed attempt is still written to history as failed. A failure that is not known to be temporary is not retried, so a message is never sent twice by mistake.
+The processing job runs every 15 minutes. A send that fails for a temporary reason, such as a provider timeout or rate limit, goes back into the queue and is tried again after 15 minutes, then 1 hour, 6 hours and 24 hours, up to 5 attempts in all. Each failed attempt is still written to history as failed. A failure that is not known to be temporary is not retried. Each message is claimed before it is sent, so two runs that overlap, for example a manual run during the scheduled one, never send the same message twice. A message left marked processing for more than 30 minutes, because a run stopped part-way through, goes back into the queue and is sent on the next run. If the first run had already handed it to the provider, the resident may receive it once more: email is de-duplicated, WhatsApp is not. A message that keeps getting stuck is marked failed after as many tries as its attempt limit. Any failed message can be retried by hand, which starts its attempt count again from zero.
 
 Do not clear the queue to make a warning disappear. Clearing it discards messages residents were owed and destroys the evidence needed to diagnose the failure.
 
