@@ -228,6 +228,21 @@ describe('WhatsApp statement by email (#804 decision 24)', () => {
       closingBalance: '−₦2,000.00',
     });
   });
+
+  it("builds a co-resident's emailed statement from the sponsor's account for that house (#1071)", async () => {
+    mockDb({
+      whatsapp_statement_requests: [{ data: { resident_id: 'co-1', house_id: 'house-1', period: 'this_year', from_date: '2026-01-01', to_date: '2026-10-20' }, error: null }],
+      resident_houses: [
+        { data: [{ house_id: 'house-1', sponsor_resident_id: 'sponsor-1', house: null }], error: null },
+        { data: [{ resident_id: 'sponsor-1', house_id: 'house-1' }], error: null },
+      ],
+    });
+    vi.mocked(loadAccountStatement).mockResolvedValue({ data: statement, error: null });
+
+    await buildStatementEmail('request-1');
+
+    expect(loadAccountStatement).toHaveBeenLastCalledWith(expect.anything(), { residentId: 'sponsor-1', houseId: 'house-1', fromDate: '2026-01-01', toDate: '2026-10-20' }, { rollForward: false });
+  });
 });
 
 describe('Resident roll-forward setting (#863)', () => {
