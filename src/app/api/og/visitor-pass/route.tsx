@@ -1,4 +1,5 @@
 import { ImageResponse } from 'next/og';
+import { readSignedVisitorPass } from '@/lib/security/visitor-pass-link';
 
 export const runtime = 'edge';
 
@@ -6,11 +7,16 @@ export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
 
-        // Extract params from query
-        const visitorName = searchParams.get('visitorName')?.slice(0, 100) || 'Visitor';
-        const accessCode = searchParams.get('code') || '----';
-        const validUntil = searchParams.get('valid') || 'Today';
-        const estateName = searchParams.get('estate') || 'Residio Estate';
+        // Only a link signed by the app may draw a pass (#1063)
+        const pass = await readSignedVisitorPass(searchParams);
+        if (!pass) {
+            return new Response('Invalid or missing visitor-pass link', { status: 403 });
+        }
+
+        const visitorName = pass.visitorName.slice(0, 100) || 'Visitor';
+        const accessCode = pass.code || '----';
+        const validUntil = pass.valid || 'Today';
+        const estateName = pass.estate || 'Residio Estate';
 
         return new ImageResponse(
             (
@@ -84,8 +90,8 @@ export async function GET(request: Request) {
 
                         {/* Footer */}
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                            <div style={{ fontSize: 16, color: '#444' }}>
-                                Valid Until: <span style={{ fontWeight: 700 }}>{validUntil}</span>
+                            <div style={{ display: 'flex', fontSize: 16, color: '#444' }}>
+                                Valid Until:&nbsp;<span style={{ fontWeight: 700 }}>{validUntil}</span>
                             </div>
                         </div>
                     </div>
