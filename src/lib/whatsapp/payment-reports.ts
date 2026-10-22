@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/server';
 import { recordAudit } from '@/lib/audit/recorder';
 import { createResidentApprovalRequest } from '@/lib/approvals/create-resident-approval-request';
+import { SPONSOR_ROLES } from '@/lib/whatsapp/co-resident';
 import { formatNaira, lagosDateString, lagosMidnight, lagosParts } from '@/lib/whatsapp/assistant-format';
 
 /**
@@ -74,7 +75,10 @@ export function cleanReference(text: string): string | null {
 }
 
 export interface PaymentReportInput {
+  /** The account the payment is recorded against: the asker, or the sponsor when a co-resident reports (#1071). */
   residentId: string;
+  /** The co-resident who sent the report, when it is not the account holder; stored as the requester. */
+  reportedByResidentId?: string;
   houseId: string;
   houseLabel: string;
   amount: number;
@@ -110,16 +114,31 @@ export async function createPaymentReport(input: PaymentReportInput): Promise<Pa
   // generated types until migration 20261022000000 is applied.
   const admin = createAdminClient() as unknown as SupabaseClient;
 
+  const reporterId = input.reportedByResidentId ?? input.residentId;
   const { data: link, error: linkError } = await admin
     .from('resident_houses')
     .select('house_id')
     .eq('resident_id', input.residentId)
     .eq('house_id', input.houseId)
     .eq('is_active', true)
-    .in('resident_role', ['resident_landlord', 'non_resident_landlord', 'tenant', 'developer'])
+    .in('resident_role', input.reportedByResidentId ? SPONSOR_ROLES : ['resident_landlord', 'non_resident_landlord', 'tenant', 'developer'])
     .limit(1);
   if (linkError) throw linkError;
   if (!link?.length) return { status: 'not_your_property' };
+  if (input.reportedByResidentId) {
+    // The reporter must be a co-resident of this house named by this very sponsor, today.
+    const { data: sponsored, error: sponsoredError } = await admin
+      .from('resident_houses')
+      .select('house_id')
+      .eq('resident_id', input.reportedByResidentId)
+      .eq('house_id', input.houseId)
+      .eq('resident_role', 'co_resident')
+      .eq('sponsor_resident_id', input.residentId)
+      .eq('is_active', true)
+      .limit(1);
+    if (sponsoredError) throw sponsoredError;
+    if (!sponsored?.length) return { status: 'not_your_property' };
+  }
 
   // A rejected or expired report still counts toward the day's limit: its request row stays.
   const { year, month, day } = lagosParts(now);
@@ -127,12 +146,13 @@ export async function createPaymentReport(input: PaymentReportInput): Promise<Pa
     .from('approval_requests')
     .select('id', { count: 'exact', head: true })
     .eq('request_type', 'whatsapp_payment_report')
-    .eq('requested_by_resident_id', input.residentId)
+    .eq('requested_by_resident_id', reporterId)
     .gte('created_at', lagosMidnight(year, month, day).toISOString());
   if (countError) throw countError;
   if ((count || 0) >= REPORTS_PER_DAY) return { status: 'limit' };
 
-  const notes = input.screenshotAt ? `${REPORT_NOTE}. Screenshot sent to the estate phone at ${input.screenshotAt}.` : REPORT_NOTE;
+  const reportNote = input.reportedByResidentId ? `${REPORT_NOTE} by a co-resident (${input.reportedByResidentId})` : REPORT_NOTE;
+  const notes = input.screenshotAt ? `${reportNote}. Screenshot sent to the estate phone at ${input.screenshotAt}.` : reportNote;
   const { data: payment, error } = await admin
     .from('payment_records')
     .insert({
@@ -156,7 +176,7 @@ export async function createPaymentReport(input: PaymentReportInput): Promise<Pa
   }
 
   const request = await createResidentApprovalRequest({
-    residentId: input.residentId,
+    residentId: reporterId,
     request_type: 'whatsapp_payment_report',
     entity_type: 'payment_record',
     entity_id: payment.id,
@@ -178,7 +198,7 @@ export async function createPaymentReport(input: PaymentReportInput): Promise<Pa
       newValues: { amount: input.amount, payment_date: input.paymentDate, house_id: input.houseId, status: 'pending', approval_request_id: request.request_id },
       description: 'Payment reported by the resident over WhatsApp',
     },
-    { userId: null, residentId: input.residentId }
+    { userId: null, residentId: reporterId }
   );
   return { status: 'created', paymentId: payment.id, requestId: request.request_id };
 }

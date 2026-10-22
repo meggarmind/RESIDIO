@@ -12,6 +12,7 @@ import {
   type WhatsAppPrivacyNotice,
 } from '@/lib/whatsapp/privacy-notice';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
+import { getSponsoredHouses } from '@/lib/whatsapp/co-resident';
 import { contactLine } from '@/lib/whatsapp/assistant-format';
 import { createSupabaseWhatsAppFinancialRepository } from '@/lib/whatsapp/financial';
 import type { WhatsAppInboundMessage, WhatsAppTextMessage } from '@/lib/whatsapp/types';
@@ -137,8 +138,10 @@ async function getAccess(residentId: string): Promise<{ financialEligible: boole
     .eq('is_active', true);
 
   const roles = (data || []).map((assignment) => assignment.resident_role);
+  // A co-resident reaches the financial menu only through a live sponsor link (#1071).
+  const sponsored = roles.includes('co_resident') && (await getSponsoredHouses(residentId)).length > 0;
   return {
-    financialEligible: roles.some((role) => BILLABLE_ROLES.has(role)),
+    financialEligible: sponsored || roles.some((role) => BILLABLE_ROLES.has(role)),
     accessAllowed: roles.some((role) => ASSISTANT_ROLES.has(role)),
   };
 }

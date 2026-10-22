@@ -18,6 +18,7 @@ function query(table: string) {
     eq: (column: string, value: unknown) => (filters.push((row) => row[column] === value), builder),
     in: (column: string, values: unknown[]) => (filters.push((row) => values.includes(row[column])), builder),
     is: (column: string, value: unknown) => (filters.push((row) => (row[column] ?? null) === value), builder),
+    not: (column: string, _op: 'is', value: null) => (filters.push((row) => (row[column] ?? null) !== value), builder),
     gt: (column: string, value: string) => (filters.push((row) => String(row[column]) > value), builder),
     filter: (column: string, _op: 'eq', value: unknown) => (filters.push((row) => row[column] === value), builder),
     update: (values: Row) => ((patch = values), builder),
@@ -209,6 +210,28 @@ describe('who may use the Assistant (#1070)', () => {
     const [match] = await createSupabaseWhatsAppIdentityRepository().findRosterMatches(NUMBER);
 
     expect(match).toMatchObject({ accessAllowed: true, financialEligible: financial });
+  });
+
+  describe('co-resident financial tier (#1071)', () => {
+    const co = (overrides: Row = {}): Row => ({ resident_id: 'res-1', house_id: 'h1', resident_role: 'co_resident', sponsor_resident_id: 'sp-1', is_active: true, ...overrides });
+    const sponsor = (overrides: Row = {}): Row => ({ resident_id: 'sp-1', house_id: 'h1', resident_role: 'tenant', is_active: true, ...overrides });
+
+    it('is on while the sponsor still holds a resident role on the house', async () => {
+      db.tables.resident_houses = [co(), sponsor()];
+      const [match] = await createSupabaseWhatsAppIdentityRepository().findRosterMatches(NUMBER);
+      expect(match).toMatchObject({ accessAllowed: true, financialEligible: true });
+    });
+
+    it.each([
+      ['the sponsor moved out', [co(), sponsor({ is_active: false })]],
+      ['the sponsor holds another house only', [co(), sponsor({ house_id: 'h2' })]],
+      ['the sponsor is a non-resident landlord', [co(), sponsor({ resident_role: 'non_resident_landlord' })]],
+      ['no sponsor is named', [co({ sponsor_resident_id: null }), sponsor()]],
+    ])('is off when %s', async (_label, rows) => {
+      db.tables.resident_houses = rows;
+      const [match] = await createSupabaseWhatsAppIdentityRepository().findRosterMatches(NUMBER);
+      expect(match).toMatchObject({ accessAllowed: true, financialEligible: false });
+    });
   });
 
   it.each(['household_member', 'domestic_staff', 'caretaker', 'contractor'])('blocks a %s', async (role) => {
