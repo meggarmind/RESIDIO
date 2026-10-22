@@ -260,7 +260,7 @@ describe('failure classification', () => {
       useFake({
         whatsapp_optins: [{ resident_id: 'resident-1', phone_number: PHONE, opted_in: true }],
         notification_history: [
-          { channel: 'whatsapp', status: 'sent', sent_at: new Date(NOW.getTime() - MIN).toISOString() },
+          { channel: 'whatsapp', status: 'sent', queue_id: 'queue-0', sent_at: new Date(NOW.getTime() - MIN).toISOString() },
         ],
       });
     });
@@ -401,7 +401,7 @@ describe('sendAndRecordNotification requeue', () => {
       whatsapp_optins: [{ resident_id: 'resident-1', phone_number: PHONE, opted_in: true }],
       notification_queue: [whatsappRow()],
       notification_history: [
-        { channel: 'whatsapp', status: 'sent', sent_at: new Date(NOW.getTime() - MIN).toISOString() },
+        { channel: 'whatsapp', status: 'sent', queue_id: 'queue-0', sent_at: new Date(NOW.getTime() - MIN).toISOString() },
       ],
     });
 
