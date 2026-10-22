@@ -1,6 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/server';
 import { logAudit } from '@/lib/audit/logger';
-import { issueClearanceCertificate } from '@/lib/clearance/issue-certificate';
+import { DOCUMENTS_BUCKET, issueClearanceCertificate } from '@/lib/clearance/issue-certificate';
 import { formatNaira, lagosDateString } from '@/lib/whatsapp/assistant-format';
 import { sendWhatsAppToResident } from '@/lib/whatsapp/resident-send';
 import { storeChatPdf } from '@/lib/whatsapp/statement-delivery';
@@ -102,10 +102,10 @@ export async function issueApprovedClearance(
         { residentId, phoneNumber: phone, houseId, label: 'clearance', fromDate: today, toDate: today, rowCount: 1, inboundMessageId: trackingId, replyText: body },
         async () => issued.pdf
       );
-      const sent = await sendWhatsAppToResident(residentId, body, { seed: `clearance:${request.id}`, mediaUrls: [url], trackingId });
+      const sent = await sendWhatsAppToResident(residentId, body, { seed: `clearance:${request.id}`, mediaUrls: [url], trackingId, deferMedia: [{ bucket: DOCUMENTS_BUCKET, path: issued.filePath }] });
       if (!sent.sent) {
         console.error('[clearance] Certificate not sent to the resident:', { requestId: request.id, reason: sent.reason });
-        return { success: true, warning: `The certificate was issued, but the WhatsApp copy to the resident was not sent: ${sent.reason}` };
+        return { success: true, warning: `The certificate was issued, but the WhatsApp copy to the resident ${sent.deferred ? 'is held back' : 'was not sent'}: ${sent.reason}` };
       }
     }
   } catch (error) {

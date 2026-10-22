@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createAdminClient } from '@/lib/supabase/server';
 import { logAudit } from '@/lib/audit/logger';
 import { loadRecipientGroups, type RecipientGroup } from '@/lib/groups/recipient-groups';
-import { sendWhatsAppToResident } from '@/lib/whatsapp/resident-send';
+import { hasQueuedResidentSend, sendWhatsAppToResident } from '@/lib/whatsapp/resident-send';
 import { copyMessage, issueClearanceCertificate, retryClearanceCopy } from '@/lib/clearance/issue-certificate';
 import type { ClearanceCertificate } from '@/actions/residents/move-out-renter';
 
@@ -15,7 +15,7 @@ vi.mock('@/lib/groups/recipient-groups', async (importActual) => ({
   ...(await importActual<typeof import('@/lib/groups/recipient-groups')>()),
   loadRecipientGroups: vi.fn(),
 }));
-vi.mock('@/lib/whatsapp/resident-send', () => ({ sendWhatsAppToResident: vi.fn() }));
+vi.mock('@/lib/whatsapp/resident-send', () => ({ sendWhatsAppToResident: vi.fn(), hasQueuedResidentSend: vi.fn() }));
 
 import { getRawSettingsAsService } from '@/lib/settings/service';
 
@@ -80,6 +80,7 @@ const documentsOk = () => ({
 beforeEach(() => {
   vi.mocked(logAudit).mockClear();
   vi.mocked(sendWhatsAppToResident).mockReset().mockResolvedValue({ sent: true });
+  vi.mocked(hasQueuedResidentSend).mockReset().mockResolvedValue(false);
   vi.mocked(loadRecipientGroups).mockReset().mockResolvedValue(group([]));
   vi.mocked(getRawSettingsAsService).mockReset().mockResolvedValue({ status: 'ok', values: new Map([['estate_name', 'Palm Estate'], ['clearance_copy_recipient_group_id', 'group-1']]) } as never);
 });
@@ -146,7 +147,7 @@ describe('clearance certificate copies (#816 decisions 18-21, 24)', () => {
 
     const body = 'Clearance certificate issued: Ada Example, 12 Palm Close, 12 Oct 2026.';
     expect(sendWhatsAppToResident).toHaveBeenCalledTimes(2);
-    expect(sendWhatsAppToResident).toHaveBeenCalledWith('official-1', body, { seed: 'clearance-copy:doc-1:official-1', mediaUrls: ['https://storage.test/signed/certificate.pdf'] });
+    expect(sendWhatsAppToResident).toHaveBeenCalledWith('official-1', body, { seed: 'clearance-copy:doc-1:official-1', mediaUrls: ['https://storage.test/signed/certificate.pdf'], deferMedia: [{ bucket: 'documents', path: 'clearance-certificates/CLR-202610-3F9A1C.pdf' }] });
     expect(sendWhatsAppToResident).toHaveBeenCalledWith('official-2', body, expect.objectContaining({ mediaUrls: ['https://storage.test/signed/certificate.pdf'] }));
     const upserts = calls.filter((call) => call.op === 'upsert').map((call) => call.args[0]);
     expect(upserts).toEqual([
@@ -235,6 +236,15 @@ describe('retryClearanceCopy (#816 decision 24)', () => {
 
     expect(await retryClearanceCopy('copy-1')).toEqual({ sent: false, reason: 'not opted in', documentId: 'doc-1' });
     expect(calls.find((call) => call.op === 'upsert')!.args[0]).toMatchObject({ status: 'failed', error: 'not opted in', attempts: 2 });
+  });
+
+  it('does not resend a copy the cap held back and the queue will send (#1044)', async () => {
+    mockDb({ clearance_certificate_copies: [{ data: failed, error: null }] });
+    vi.mocked(hasQueuedResidentSend).mockResolvedValue(true);
+
+    expect(await retryClearanceCopy('copy-1')).toEqual({ sent: false, reason: 'copy is already scheduled to send automatically', documentId: 'doc-1' });
+    expect(hasQueuedResidentSend).toHaveBeenCalledWith('clearance-copy:doc-1:official-1');
+    expect(sendWhatsAppToResident).not.toHaveBeenCalled();
   });
 
   it('does not resend a copy that was already sent, or one that is missing', async () => {

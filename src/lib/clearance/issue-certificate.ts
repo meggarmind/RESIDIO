@@ -7,7 +7,7 @@ import { logAudit } from '@/lib/audit/logger';
 import { ClearanceCertificatePDF } from '@/lib/pdf/clearance-certificate';
 import { loadRecipientGroups, sendableMembers, type RecipientGroupMember } from '@/lib/groups/recipient-groups';
 import { formatDay } from '@/lib/whatsapp/assistant-format';
-import { sendWhatsAppToResident } from '@/lib/whatsapp/resident-send';
+import { hasQueuedResidentSend, sendWhatsAppToResident } from '@/lib/whatsapp/resident-send';
 import type { ClearanceCertificate } from '@/actions/residents/move-out-renter';
 
 /**
@@ -21,7 +21,7 @@ import type { ClearanceCertificate } from '@/actions/residents/move-out-renter';
 export const CLEARANCE_CATEGORY = 'Clearance certificates';
 /** The system setting that names the recipient group (seeded to "Estate officials" by migration 20261021000100). */
 export const CLEARANCE_COPY_SETTING = 'clearance_copy_recipient_group_id';
-const DOCUMENTS_BUCKET = 'documents';
+export const DOCUMENTS_BUCKET = 'documents';
 const SIGNED_URL_SECONDS = 60 * 60;
 
 export interface IssueCertificateInput {
@@ -155,15 +155,15 @@ async function sendCertificateCopies(documentId: string, filePath: string, certi
   const body = copyMessage(certificate);
   const url = await signedUrl(admin, filePath);
   for (const member of sendableMembers(group.members)) {
-    const outcome = await copyTo(member, documentId, body, url);
+    const outcome = await copyTo(member, documentId, body, url, filePath);
     await recordCopy(admin, documentId, member.residentId, body, outcome);
   }
 }
 
-async function copyTo(member: RecipientGroupMember, documentId: string, body: string, url: string) {
+async function copyTo(member: RecipientGroupMember, documentId: string, body: string, url: string, filePath: string) {
   // The settings page warns about the same cases (no number, not opted in); here they are logged.
   if (member.warning) return { sent: false as const, reason: member.warning };
-  return sendWhatsAppToResident(member.residentId, body, { seed: `clearance-copy:${documentId}:${member.residentId}`, mediaUrls: [url] });
+  return sendWhatsAppToResident(member.residentId, body, { seed: `clearance-copy:${documentId}:${member.residentId}`, mediaUrls: [url], deferMedia: [{ bucket: DOCUMENTS_BUCKET, path: filePath }] });
 }
 
 /** Sends a failed copy again with a fresh signed URL. Returns the new outcome; the console shows it. */
@@ -180,6 +180,10 @@ export async function retryClearanceCopy(copyId: string): Promise<({ sent: true 
   const document = Array.isArray(copy.document) ? copy.document[0] : copy.document;
   if (!document) return { sent: false, reason: 'certificate not found', documentId: copy.document_id };
 
+  // A copy held back by a cap is already scheduled (#1044); sending it again here would deliver it twice.
+  if (await hasQueuedResidentSend(`clearance-copy:${copy.document_id}:${copy.recipient_resident_id}`)) {
+    return { sent: false, reason: 'copy is already scheduled to send automatically', documentId: copy.document_id };
+  }
   const outcome = await sendWhatsAppToResident(copy.recipient_resident_id, copy.body, {
     seed: `clearance-copy:${copy.document_id}:${copy.recipient_resident_id}:${Date.now()}`,
     mediaUrls: [await signedUrl(admin, document.file_path)],
