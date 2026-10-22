@@ -9,6 +9,7 @@
  * callers are the permission-guarded email-import actions and the cron route.
  */
 
+import { randomBytes, timingSafeEqual } from 'crypto';
 import { google, gmail_v1 } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 import { decrypt, encrypt } from './oauth-encryption';
@@ -44,15 +45,44 @@ export function createOAuth2Client(): OAuth2Client {
 }
 
 /**
- * Generate the OAuth consent URL for Gmail access.
+ * OAuth `state` binding (#997): the connect action stores `<userId>.<state>` in an
+ * httpOnly cookie scoped to the callback; the callback accepts a code only when the
+ * returned state matches that cookie and the same admin is signed in. The cookie is
+ * cleared on every callback, so a state works once.
  */
-export function getGmailAuthUrl(): string {
+export const GMAIL_OAUTH_STATE_COOKIE = 'gmail_oauth_state';
+export const GMAIL_OAUTH_STATE_COOKIE_PATH = '/api/auth/gmail-callback';
+export const GMAIL_OAUTH_STATE_TTL_SECONDS = 10 * 60;
+
+export function createGmailOAuthState(userId: string): { state: string; cookieValue: string } {
+  const state = randomBytes(32).toString('base64url');
+  return { state, cookieValue: `${userId}.${state}` };
+}
+
+export function verifyGmailOAuthState(
+  returnedState: string | null | undefined,
+  cookieValue: string | null | undefined,
+  userId: string | null
+): boolean {
+  if (!returnedState || !cookieValue || !userId) return false;
+  const dot = cookieValue.indexOf('.');
+  if (dot < 0 || cookieValue.slice(0, dot) !== userId) return false;
+  const expected = Buffer.from(cookieValue.slice(dot + 1));
+  const actual = Buffer.from(returnedState);
+  return expected.length > 0 && expected.length === actual.length && timingSafeEqual(expected, actual);
+}
+
+/**
+ * Generate the OAuth consent URL for Gmail access, carrying the given `state`.
+ */
+export function getGmailAuthUrl(state: string): string {
   const oauth2Client = createOAuth2Client();
 
   return oauth2Client.generateAuthUrl({
     access_type: 'offline', // Required to get refresh token
     scope: GMAIL_SCOPES,
     prompt: 'consent', // Force consent to always get refresh token
+    state,
   });
 }
 
