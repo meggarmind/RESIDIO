@@ -201,9 +201,9 @@ The same `Dockerfile` runs unchanged. What moves is where the values come from.
 
 ## The reverse-proxy timeout trap
 
-Nine route handlers export `maxDuration` — `300` in most cases
+Eight route handlers export `maxDuration` — `300` in most cases
 (`src/app/api/cron/generate-invoices/route.ts`, `fetch-emails`, `publish-announcements`,
-`refresh-payment-cadence`, `generate-reports`, `apply-late-fees`,
+`refresh-payment-cadence`, `apply-late-fees`,
 `src/app/api/admin/generate-invoices/route.ts`; `payment-reminders` uses 120 and
 `process-notifications` 60).
 

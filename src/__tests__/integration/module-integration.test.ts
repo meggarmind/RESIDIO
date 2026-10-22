@@ -59,8 +59,8 @@ const PERMISSION_ALLOWLIST = [
   // live RLS INSERT policy on generated_reports, and uses the session client
   // only. The service-role cron writes (getDueSchedules, markScheduleExecuted,
   // saveScheduledReport) moved to src/lib/reports/scheduled-report-store.ts: a
-  // plain server lib, not a use-server module, imported only by the
-  // CRON_SECRET-authenticated /api/cron/generate-reports route. It sits outside
+  // plain server lib, not a use-server module, used only by
+  // trusted server code. It sits outside
   // this src/actions/** scan by design, so it is not, and must not become, an
   // allowlist entry.
 
