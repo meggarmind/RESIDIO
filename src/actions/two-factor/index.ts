@@ -1,5 +1,5 @@
-'use server';
-
+// Re-exports only: each module is its own 'use server' file, and a 'use server' barrel of
+// re-exports compiles to a module with no exports under Turbopack.
 export { getTwoFactorStatus, getTwoFactorPolicy, getAllTwoFactorPolicies } from './get-status';
 export { initiateTwoFactorSetup, confirmTwoFactorSetup } from './setup';
 export { verifyTwoFactorCode, verifyBackupCode } from './verify';

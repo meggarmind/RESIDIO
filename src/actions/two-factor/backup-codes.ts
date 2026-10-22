@@ -5,8 +5,8 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import crypto from 'crypto';
-import { validateTOTP } from '@/lib/auth/totp';
-import { otpMatches, readTotpSecret, hashBackupCode } from '@/lib/auth/two-factor-secrets';
+import { hashBackupCode } from '@/lib/auth/two-factor-secrets';
+import { checkAccountCode, claimTwoFactorTry, clearTwoFactorTries, tooManyTriesMessage } from '@/lib/auth/two-factor-guard';
 
 /**
  * Generate new backup codes for the current user
@@ -40,46 +40,36 @@ export async function generateBackupCodes(
     return { success: false, message: '2FA is not enabled' };
   }
 
-  // Verify the code
-  const method = profile.two_factor_method as 'sms' | 'authenticator' | 'email';
-  let isValid = false;
-
-  if (method === 'authenticator') {
-    if (!profile.two_factor_secret_encrypted) {
-      return { success: false, message: '2FA not properly configured' };
-    }
-    try {
-      isValid = validateTOTP(verificationCode, readTotpSecret(profile.two_factor_secret_encrypted));
-    } catch (error) {
-      console.error('[2FA Backup] Could not read TOTP secret:', error instanceof Error ? error.message : error);
-      return { success: false, message: '2FA not properly configured' };
-    }
-  } else {
-    // Validate OTP from database
-    const { data: token } = await adminClient
-      .from('two_factor_tokens')
-      .select('*')
-      .eq('profile_id', user.id)
-      .eq('purpose', 'recovery')
-      .eq('token_type', method)
-      .is('used_at', null)
-      .gt('expires_at', new Date().toISOString())
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (token && otpMatches(String(token.token), user.id, verificationCode)) {
-      isValid = true;
-      await adminClient
-        .from('two_factor_tokens')
-        .update({ used_at: new Date().toISOString() })
-        .eq('id', token.id);
-    }
+  // Take one try before checking the code (#1029): new backup codes are a recovery path.
+  const attempt = await claimTwoFactorTry(user.id, 'manage');
+  if (!attempt.allowed) {
+    return { success: false, message: tooManyTriesMessage() };
   }
+
+  const method = profile.two_factor_method as 'sms' | 'authenticator' | 'email';
+  const checked = await checkAccountCode({
+    profileId: user.id,
+    method,
+    secretEncrypted: profile.two_factor_secret_encrypted,
+    code: verificationCode,
+    tokenPurpose: 'recovery',
+  });
+  if (checked === 'misconfigured') {
+    return { success: false, message: '2FA not properly configured' };
+  }
+  const isValid = checked;
 
   if (!isValid) {
+    await adminClient.from('two_factor_audit_log').insert({
+      profile_id: user.id,
+      action: 'failed_login',
+      method,
+      metadata: { purpose: 'backup_codes', code_attempted: verificationCode.substring(0, 2) + '****' },
+    });
     return { success: false, message: 'Invalid verification code' };
   }
+
+  await clearTwoFactorTries(user.id, 'manage');
 
   // Generate new backup codes
   const codes = await generateAndStoreBackupCodes(user.id);

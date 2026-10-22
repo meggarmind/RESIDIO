@@ -309,6 +309,8 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/settings/whatsapp': [PERMISSIONS.WHATSAPP_VIEW],
   // Each admin links their own number here (#972); longer than /settings/whatsapp, so it wins.
   '/settings/whatsapp-admin': [PERMISSIONS.WHATSAPP_ADMIN_QUERY],
+  // Each admin turns two-factor on for their own account (#1029).
+  '/settings/two-factor': [PERMISSIONS.TWO_FACTOR_ENABLE],
 
   // Estate configuration
   '/settings/streets': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],

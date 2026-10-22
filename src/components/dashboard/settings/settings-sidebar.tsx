@@ -46,10 +46,12 @@ export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
         setGroupOpen(title, !isOpen);
     };
 
+    // Sticks inside <main>, the only scroller in the h-dvh shell. 12rem clears the header, an ops banner and main's padding.
+    // shortcut: a fixed offset, not <main>'s real height; switch to a measured height if the header grows again.
     return (
-        <aside className={cn("lg:w-1/5 sticky top-8 flex h-[calc(100vh-8rem)] flex-col gap-3", className)} {...props}>
+        <aside className={cn("lg:w-1/5 sticky top-0 flex h-[calc(100dvh-12rem)] flex-col gap-3", className)} {...props}>
             <SettingsSearchField search={search} className="pr-4" />
-            <ScrollArea className="min-h-0 flex-1 pr-4">
+            <ScrollArea type="auto" className="min-h-0 flex-1 pr-4">
                 {search.active ? (
                     <SettingsSearchResults search={search} />
                 ) : (

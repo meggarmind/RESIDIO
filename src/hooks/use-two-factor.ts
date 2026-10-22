@@ -7,6 +7,7 @@ import {
   confirmTwoFactorSetup,
   disableTwoFactor,
   getBackupCodesCount,
+  generateBackupCodes,
   requestDisableCode,
   getAllTwoFactorPolicies,
   updateTwoFactorPolicy,
@@ -150,6 +151,25 @@ export function useDisable2FA() {
   return useMutation({
     mutationFn: async (verificationCode: string) => {
       const result = await disableTwoFactor(verificationCode);
+      if (!result.success) throw new Error(result.message);
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.status });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.backupCodes });
+    },
+  });
+}
+
+/**
+ * Hook to make new backup codes; needs a fresh code
+ */
+export function useGenerateBackupCodes() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (verificationCode: string) => {
+      const result = await generateBackupCodes(verificationCode);
       if (!result.success) throw new Error(result.message);
       return result;
     },
