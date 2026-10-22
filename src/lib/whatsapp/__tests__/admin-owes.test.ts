@@ -159,6 +159,20 @@ describe('ADMIN OWES', () => {
     expect(expiresAt).toBe(new Date(NOW.getTime() + OWES_PICK_MINUTES * 60 * 1000).toISOString());
   });
 
+  it('audits the query and the houses listed', async () => {
+    const owes = owesRepo({ searchResidents: vi.fn().mockResolvedValue([candidate('KOA-1', 'Ada Obi'), candidate('KOA-2', 'Ada Bello')]) });
+    const repo = adminRepo();
+    await send('ADMIN OWES ada', repo, owes);
+    expect(repo.audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'whatsapp_admin_requests',
+        entityId: 'request-1',
+        metadata: expect.objectContaining({ query: 'ada', listed: [{ house_id: 'id-KOA-1', name: 'Ada Obi' }, { house_id: 'id-KOA-2', name: 'Ada Bello' }] }),
+      }),
+      'admin-1'
+    );
+  });
+
   it('asks to narrow when more than five match', async () => {
     const many = ['A', 'B', 'C', 'D', 'E', 'F'].map((code) => candidate(`KOA-${code}`, `Ada ${code}`));
     const owes = owesRepo({ searchResidents: vi.fn().mockResolvedValue(many) });
@@ -168,7 +182,8 @@ describe('ADMIN OWES', () => {
   });
 
   it('answers the house picked from a live list and drops the list', async () => {
-    const owes = owesRepo({ loadChoices: vi.fn().mockResolvedValue([candidate('KOA-1', 'Ada Obi'), candidate('KOA-2', 'Ada Bello')]) });
+    const expiresAt = new Date(NOW.getTime() + 1000).toISOString();
+    const owes = owesRepo({ loadChoices: vi.fn().mockResolvedValue({ choices: [candidate('KOA-1', 'Ada Obi'), candidate('KOA-2', 'Ada Bello')], expiresAt }) });
     const reply = await send('ADMIN 2', adminRepo(), owes);
     expect(owes.loadHouse).toHaveBeenCalledWith('id-KOA-2');
     expect(owes.clearChoices).toHaveBeenCalledWith('binding-1');
@@ -176,10 +191,17 @@ describe('ADMIN OWES', () => {
   });
 
   it('refuses a pick when the list has expired', async () => {
-    const owes = owesRepo({ loadChoices: vi.fn().mockResolvedValue(null) });
+    const owes = owesRepo({ loadChoices: vi.fn().mockResolvedValue({ choices: [candidate('KOA-1', 'Ada Obi')], expiresAt: NOW.toISOString() }) });
     const reply = await send('ADMIN 1', adminRepo(), owes);
-    expect(owes.loadChoices).toHaveBeenCalledWith('binding-1', NOW);
+    expect(owes.loadChoices).toHaveBeenCalledWith('binding-1');
     expect(reply.mock.calls[0][0]).toMatch(/no list to pick from, or it ran out after 5 minutes/);
+    expect(owes.loadHouse).not.toHaveBeenCalled();
+  });
+
+  it('refuses a pick when there is no list', async () => {
+    const owes = owesRepo();
+    const reply = await send('ADMIN 1', adminRepo(), owes);
+    expect(reply.mock.calls[0][0]).toMatch(/no list to pick from/);
     expect(owes.loadHouse).not.toHaveBeenCalled();
   });
 

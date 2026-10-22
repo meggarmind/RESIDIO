@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AuditEntry } from '@/lib/audit/recorder';
 import { getDebtStatuses } from '@/lib/billing/debt-status';
 import { ilikeAny } from '@/lib/postgrest-filter';
+import { sanitizeSearchInput } from '@/lib/utils';
 import { createAdminClient } from '@/lib/supabase/server';
 import { formatBalance, formatDay, formatNaira } from '@/lib/whatsapp/assistant-format';
 import { createSupabaseWhatsAppFinancialRepository, type OwedFigures } from '@/lib/whatsapp/financial';
@@ -45,8 +46,8 @@ export interface OwesRepository {
   loadHouse(houseId: string): Promise<OwesHouseData | null>;
   /** Keeps the pick-list on the request until `expiresAt`. */
   saveChoices(requestId: string, choices: OwesCandidate[], expiresAt: string): Promise<void>;
-  /** The binding's live pick-list, null when there is none or it has expired. */
-  loadChoices(bindingId: string, now: Date): Promise<OwesCandidate[] | null>;
+  /** The binding's latest pick-list and when it expires, null when there is none. */
+  loadChoices(bindingId: string): Promise<{ choices: OwesCandidate[]; expiresAt: string } | null>;
   clearChoices(bindingId: string): Promise<void>;
   logDisclosure(input: { residentId: string; phoneNumber: string; houseId: string; adminProfileId: string }): Promise<void>;
 }
@@ -136,7 +137,8 @@ export async function runAdminOwesLookup(input: OwesRunInput): Promise<string> {
   const { params, repository, now } = input;
 
   if (params.pick !== undefined) {
-    const choices = await repository.loadChoices(input.bindingId, now);
+    const list = await repository.loadChoices(input.bindingId);
+    const choices = list && Date.parse(list.expiresAt) > now.getTime() ? list.choices : null;
     if (!choices) return `There is no list to pick from, or it ran out after ${OWES_PICK_MINUTES} minutes. ${OWES_USAGE}`;
     const chosen = choices[params.pick - 1];
     if (!chosen) return `Pick a number from 1 to ${choices.length}.`;
@@ -168,6 +170,14 @@ export async function runAdminOwesLookup(input: OwesRunInput): Promise<string> {
   }
 
   await repository.saveChoices(input.requestId, matches, new Date(now.getTime() + OWES_PICK_MINUTES * 60 * 1000).toISOString());
+  await input.audit({
+    action: 'VERIFY',
+    entityType: 'whatsapp_admin_requests',
+    entityId: input.requestId,
+    entityDisplay: `WhatsApp admin owes list for "${term}"`,
+    description: 'Admin was shown a list of houses to pick from on WhatsApp',
+    metadata: { channel: 'whatsapp_admin', query: term, listed: matches.map(({ houseId, name }) => ({ house_id: houseId, name })) },
+  });
   return [
     `${matches.length} matches for "${term}". Send ADMIN and the number within ${OWES_PICK_MINUTES} minutes, for example ADMIN 1:`,
     ...matches.map(candidateLine),
@@ -192,14 +202,16 @@ export function createSupabaseOwesRepository(): OwesRepository {
 
   return {
     async searchHouseCodes(term) {
-      const { data, error } = await client()
-        .from('houses')
-        .select('id, short_name, house_number, street:streets(name)')
-        .eq('is_active', true)
-        .or(ilikeAny(['short_name'], term))
-        .limit(OWES_LIST_MAX + 1);
-      if (error) throw error;
-      return (data || []).map((row) => ({ houseId: row.id as string, houseLabel: houseLabel(row as unknown as HouseRow), code: (row.short_name as string | null) ?? null, name: null }));
+      const houses = () => client().from('houses').select('id, short_name, house_number, street:streets(name)').eq('is_active', true);
+      // The exact code is read on its own so the contains limit can never cut it off.
+      const [exact, contains] = await Promise.all([
+        houses().ilike('short_name', sanitizeSearchInput(term)).limit(1),
+        houses().or(ilikeAny(['short_name'], term)).limit(OWES_LIST_MAX + 1),
+      ]);
+      if (exact.error) throw exact.error;
+      if (contains.error) throw contains.error;
+      const rows = [...(exact.data || []), ...(contains.data || []).filter((row) => row.id !== exact.data?.[0]?.id)];
+      return rows.map((row) => ({ houseId: row.id as string, houseLabel: houseLabel(row as unknown as HouseRow), code: (row.short_name as string | null) ?? null, name: null }));
     },
 
     async searchResidents(words) {
@@ -282,7 +294,7 @@ export function createSupabaseOwesRepository(): OwesRepository {
       if (error) throw error;
     },
 
-    async loadChoices(bindingId, now) {
+    async loadChoices(bindingId) {
       const { data, error } = await client()
         .from('whatsapp_admin_requests')
         .select('params')
@@ -295,8 +307,8 @@ export function createSupabaseOwesRepository(): OwesRepository {
         .maybeSingle();
       if (error) throw error;
       const params = data?.params as { choices?: OwesCandidate[]; choicesExpiresAt?: string } | undefined;
-      if (!params?.choices || !params.choicesExpiresAt || Date.parse(params.choicesExpiresAt) <= now.getTime()) return null;
-      return params.choices;
+      if (!params?.choices || !params.choicesExpiresAt) return null;
+      return { choices: params.choices, expiresAt: params.choicesExpiresAt };
     },
 
     async clearChoices(bindingId) {

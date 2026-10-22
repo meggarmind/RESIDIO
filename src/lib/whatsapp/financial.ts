@@ -782,8 +782,8 @@ export async function canPerformWhatsAppFinancialLookup(residentId: string): Pro
   const startOfDay = lagosMidnight(year, month, day).toISOString();
   const client = createAdminClient();
   const [estate, resident] = await Promise.all([
-    client.from('whatsapp_disclosure_logs').select('id', { count: 'exact', head: true }).gte('created_at', startOfDay),
-    client.from('whatsapp_disclosure_logs').select('id', { count: 'exact', head: true }).eq('resident_id', residentId).gte('created_at', startOfDay),
+    client.from('whatsapp_disclosure_logs').select('id', { count: 'exact', head: true }).neq('menu_item', 'admin_owes').gte('created_at', startOfDay),
+    client.from('whatsapp_disclosure_logs').select('id', { count: 'exact', head: true }).eq('resident_id', residentId).neq('menu_item', 'admin_owes').gte('created_at', startOfDay),
   ]);
   if (estate.error) throw estate.error;
   if (resident.error) throw resident.error;
