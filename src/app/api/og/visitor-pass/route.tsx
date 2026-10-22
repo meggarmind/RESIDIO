@@ -90,8 +90,8 @@ export async function GET(request: Request) {
 
                         {/* Footer */}
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                            <div style={{ fontSize: 16, color: '#444' }}>
-                                Valid Until: <span style={{ fontWeight: 700 }}>{validUntil}</span>
+                            <div style={{ display: 'flex', fontSize: 16, color: '#444' }}>
+                                Valid Until:&nbsp;<span style={{ fontWeight: 700 }}>{validUntil}</span>
                             </div>
                         </div>
                     </div>
