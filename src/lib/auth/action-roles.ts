@@ -214,6 +214,9 @@ export const PERMISSIONS = {
   DOCUMENTS_VIEW_ALL: 'documents.view_all',
 } as const;
 
+/** Either one lets a WhatsApp admin read finance information (ADMIN OWES, ADMIN DEBT). */
+export const FINANCE_VIEW_PERMISSIONS: string[] = [PERMISSIONS.BILLING_VIEW, PERMISSIONS.REPORTS_VIEW_FINANCIAL];
+
 export type Permission = typeof PERMISSIONS[keyof typeof PERMISSIONS];
 
 /**

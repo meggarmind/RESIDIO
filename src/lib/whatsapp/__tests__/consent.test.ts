@@ -67,7 +67,13 @@ function repository(consent: WhatsAppConsentState, overrides: Partial<WhatsAppId
 
 async function run(text: string, repo: WhatsAppIdentityRepository, send = vi.fn().mockResolvedValue({ success: true })) {
   const onIdentified = vi.fn().mockResolvedValue(undefined);
-  const result = await handleResidentMessage(message(text), { repository: repo, send, onIdentified });
+  const result = await handleResidentMessage(message(text), {
+    repository: repo,
+    send,
+    onIdentified,
+    // A bare 1 or ALL could answer an admin question (#982); these numbers are not admins.
+    adminRepository: { findActiveBinding: vi.fn().mockResolvedValue(null) } as never,
+  });
   return { result, send, onIdentified, bodies: send.mock.calls.map((call) => call[0].body as string) };
 }
 
@@ -189,6 +195,7 @@ describe('a failed send is retried as the same inbound', () => {
     const onIdentified = vi.fn().mockRejectedValue(new Error('handler send failed'));
     await expect(handleResidentMessage(message('1'), {
       repository: repo, send: vi.fn().mockResolvedValue({ success: true }), onIdentified,
+      adminRepository: { findActiveBinding: vi.fn().mockResolvedValue(null) } as never,
     })).rejects.toThrow('handler send failed');
     expect(repo.recordConsentDecision).toHaveBeenCalledWith(expect.objectContaining({ decision: 'privacy_accepted' }));
     expect(repo.saveConsentStep).not.toHaveBeenCalled();

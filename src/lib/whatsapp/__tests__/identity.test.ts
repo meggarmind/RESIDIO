@@ -79,6 +79,30 @@ describe('WhatsApp identity and consent', () => {
     expect(send.mock.calls[0]?.[0].body).toMatch(/not linked to an admin account/);
   });
 
+  it('hands a street choice to admin mode only when an admin question is waiting (#982)', async () => {
+    const binding = { id: 'b1', profileId: 'p1', phoneNumber: '+2348000000000', boundAt: '2026-10-20T10:00:00Z', lastUsedAt: null, lastTotpStep: null, sessionExpiresAt: null, accountFingerprint: 'x' };
+    const repo = repository();
+    const send = vi.fn().mockResolvedValue({ success: true });
+    const waiting = { findActiveBinding: vi.fn().mockResolvedValue(binding), findPendingChoice: vi.fn().mockResolvedValue(null) };
+
+    // Linked number, nothing waiting: the reply stays with the resident assistant.
+    const idle = await handleResidentMessage(message('2'), { repository: repo, adminRepository: waiting as never, send });
+    expect(idle.status).not.toBe('admin');
+    expect(repo.findRosterMatches).toHaveBeenCalled();
+  });
+
+  it('carries a number on to the resident assistant when the admin lookup fails (#982)', async () => {
+    const repo = repository();
+    const send = vi.fn().mockResolvedValue({ success: true });
+    const broken = { findActiveBinding: vi.fn().mockRejectedValue(new Error('table missing')) };
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = await handleResidentMessage(message('2'), { repository: repo, adminRepository: broken as never, send });
+
+    expect(result.status).not.toBe('admin');
+    expect(repo.findRosterMatches).toHaveBeenCalled();
+  });
+
   it('keeps other text starting with "admin" on the resident path (#972)', async () => {
     const repo = repository();
     const send = vi.fn().mockResolvedValue({ success: true });
