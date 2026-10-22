@@ -19,6 +19,7 @@
 import { getEmailTransportError, sendViaResend } from '@/lib/email/transport';
 import { getSettingValueAsService } from '@/lib/settings/service';
 import { createAdminClient } from '@/lib/supabase/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   NotificationChannel,
   NotificationQueueItem,
@@ -516,6 +517,20 @@ export async function sendAndRecordNotification(
 
   if (queueError) {
     console.error('[Notifications] Failed to update queue item:', queueError);
+  }
+
+  // A clearance copy the cap held back (#1044) leaves 'scheduled' once it is delivered or finally fails.
+  const clearanceCopy = (item.metadata?.[RESIDENT_SEND_METADATA_KEY] as ResidentSendPayload | undefined)?.clearanceCopy;
+  if (clearanceCopy && !willRetry) {
+    // clearance_certificate_copies is not in the generated types until its migration is applied.
+    const { error: copyError } = await (supabase as unknown as SupabaseClient)
+      .from('clearance_certificate_copies')
+      .update({ status: result.success ? 'sent' : 'failed', error: result.success ? null : result.error || 'send failed', updated_at: new Date().toISOString() })
+      .eq('document_id', clearanceCopy.documentId)
+      .eq('recipient_resident_id', clearanceCopy.recipientId);
+    if (copyError) {
+      console.error('[Notifications] Failed to update clearance copy status:', { clearanceCopy, copyError });
+    }
   }
 
   const candidateId = item.metadata && typeof item.metadata.candidateId === 'string'

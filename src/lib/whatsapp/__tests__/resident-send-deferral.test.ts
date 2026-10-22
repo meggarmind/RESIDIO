@@ -21,8 +21,8 @@ vi.mock('@/lib/sms/send-sms', () => ({ sendSms: vi.fn() }));
 vi.mock('@/lib/email/transport', () => ({ getEmailTransportError: vi.fn(), sendViaResend: vi.fn() }));
 vi.mock('@/lib/notifications/deduplication', () => ({ shouldQueue: vi.fn(), generateDeduplicationKey: vi.fn() }));
 
-import { sendWhatsAppToResident } from '@/lib/whatsapp/resident-send';
-import { sendNotification } from '@/lib/notifications/send';
+import { hasQueuedResidentSend, sendWhatsAppToResident } from '@/lib/whatsapp/resident-send';
+import { sendAndRecordNotification, sendNotification } from '@/lib/notifications/send';
 import type { NotificationQueueItem } from '@/lib/notifications/types';
 
 const defer = { outcome: 'defer', reason: 'daily_limit_reached', message: 'WhatsApp daily outbound limit reached' };
@@ -85,6 +85,57 @@ describe('deferred resident send (#1044)', () => {
     expect(lost).toMatchObject({ sent: false });
     expect(lost).not.toHaveProperty('deferred');
     expect(queued()).toHaveLength(1);
+  });
+
+  describe('a held-back clearance copy (#1044)', () => {
+    const copyRow = () => fake.state.tables.clearance_certificate_copies[0];
+    async function dueCopy(maxAttempts = 3): Promise<NotificationQueueItem> {
+      fake.state.tables.clearance_certificate_copies = [{ id: 'c1', document_id: 'd1', recipient_resident_id: 'r1', status: 'scheduled', error: 'held back' }];
+      mocks.evaluateSendPolicy.mockResolvedValue(defer);
+      await sendWhatsAppToResident('r1', 'cert', {
+        seed: 'clearance-copy:d1:r1', mediaUrls: ['https://expiring'], deferMedia: [{ bucket: 'documents', path: 'c.pdf' }],
+        clearanceCopy: { documentId: 'd1', recipientId: 'r1' },
+      });
+      const row = queued()[0];
+      row.id = 'q1';
+      return { ...row, attempts: 0, max_attempts: maxAttempts } as unknown as NotificationQueueItem;
+    }
+
+    it('carries the copy in the queued payload', async () => {
+      const item = await dueCopy();
+      expect(item.metadata).toMatchObject({ whatsapp_resident_send: { clearanceCopy: { documentId: 'd1', recipientId: 'r1' } } });
+    });
+
+    it('marks the copy sent once the queue delivers it', async () => {
+      const item = await dueCopy();
+      mocks.evaluateSendPolicy.mockResolvedValue(allow);
+      await sendAndRecordNotification(item);
+      expect(copyRow()).toMatchObject({ status: 'sent', error: null });
+    });
+
+    it('marks the copy failed with the error when the send finally fails', async () => {
+      const item = await dueCopy(1);
+      mocks.evaluateSendPolicy.mockResolvedValue(allow);
+      mocks.sendWhatsAppMessage.mockResolvedValue({ success: false, error: 'provider down', retryable: true });
+      await sendAndRecordNotification(item);
+      expect(copyRow()).toMatchObject({ status: 'failed', error: 'provider down' });
+    });
+
+    it('keeps the copy scheduled while the queue will try again', async () => {
+      const item = await dueCopy();
+      await sendAndRecordNotification(item);
+      expect(queued()[0]).toMatchObject({ status: 'pending' });
+      expect(copyRow()).toMatchObject({ status: 'scheduled', error: 'held back' });
+    });
+
+    it('counts it as waiting for a retry check only while pending, not once sent', async () => {
+      await dueCopy();
+      const waiting = ['pending', 'processing'];
+      expect(await hasQueuedResidentSend('clearance-copy:d1:r1', waiting)).toBe(true);
+      queued()[0].status = 'sent';
+      expect(await hasQueuedResidentSend('clearance-copy:d1:r1', waiting)).toBe(false);
+      expect(await hasQueuedResidentSend('clearance-copy:d1:r1')).toBe(true);
+    });
   });
 
   describe('when the queue sends it the next day', () => {

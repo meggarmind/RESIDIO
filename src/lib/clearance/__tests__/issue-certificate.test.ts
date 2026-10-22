@@ -147,7 +147,7 @@ describe('clearance certificate copies (#816 decisions 18-21, 24)', () => {
 
     const body = 'Clearance certificate issued: Ada Example, 12 Palm Close, 12 Oct 2026.';
     expect(sendWhatsAppToResident).toHaveBeenCalledTimes(2);
-    expect(sendWhatsAppToResident).toHaveBeenCalledWith('official-1', body, { seed: 'clearance-copy:doc-1:official-1', mediaUrls: ['https://storage.test/signed/certificate.pdf'], deferMedia: [{ bucket: 'documents', path: 'clearance-certificates/CLR-202610-3F9A1C.pdf' }] });
+    expect(sendWhatsAppToResident).toHaveBeenCalledWith('official-1', body, { seed: 'clearance-copy:doc-1:official-1', mediaUrls: ['https://storage.test/signed/certificate.pdf'], deferMedia: [{ bucket: 'documents', path: 'clearance-certificates/CLR-202610-3F9A1C.pdf' }], clearanceCopy: { documentId: 'doc-1', recipientId: 'official-1' } });
     expect(sendWhatsAppToResident).toHaveBeenCalledWith('official-2', body, expect.objectContaining({ mediaUrls: ['https://storage.test/signed/certificate.pdf'] }));
     const upserts = calls.filter((call) => call.op === 'upsert').map((call) => call.args[0]);
     expect(upserts).toEqual([
@@ -180,6 +180,17 @@ describe('clearance certificate copies (#816 decisions 18-21, 24)', () => {
       expect.objectContaining({ recipient_resident_id: 'official-1', status: 'failed', error: 'provider down' }),
       expect.objectContaining({ recipient_resident_id: 'official-2', status: 'sent' }),
     ]);
+  });
+
+  it('records a copy held back by a cap as scheduled, not failed (#1044)', async () => {
+    const { calls } = mockDb({ ...documentsOk(), clearance_certificate_copies: [{ data: null, error: null }, { error: null }] });
+    vi.mocked(loadRecipientGroups).mockResolvedValue(group([member('official-1')]));
+    vi.mocked(sendWhatsAppToResident).mockResolvedValue({ sent: false, deferred: true, reason: 'cap reached. It is scheduled and will send automatically tomorrow' });
+
+    await issue();
+
+    const upserts = calls.filter((call) => call.op === 'upsert').map((call) => call.args[0]);
+    expect(upserts).toEqual([expect.objectContaining({ recipient_resident_id: 'official-1', status: 'scheduled', error: 'cap reached. It is scheduled and will send automatically tomorrow' })]);
   });
 
   it('does not fail the certificate when the recipient group cannot be loaded', async () => {
@@ -243,7 +254,14 @@ describe('retryClearanceCopy (#816 decision 24)', () => {
     vi.mocked(hasQueuedResidentSend).mockResolvedValue(true);
 
     expect(await retryClearanceCopy('copy-1')).toEqual({ sent: false, reason: 'copy is already scheduled to send automatically', documentId: 'doc-1' });
-    expect(hasQueuedResidentSend).toHaveBeenCalledWith('clearance-copy:doc-1:official-1');
+    expect(hasQueuedResidentSend).toHaveBeenCalledWith('clearance-copy:doc-1:official-1', ['pending', 'processing']);
+    expect(sendWhatsAppToResident).not.toHaveBeenCalled();
+  });
+
+  it('does not resend a copy recorded as scheduled', async () => {
+    mockDb({ clearance_certificate_copies: [{ data: { ...failed, status: 'scheduled' }, error: null }] });
+    expect(await retryClearanceCopy('copy-1')).toEqual({ sent: false, reason: 'copy is already scheduled to send automatically', documentId: 'doc-1' });
+    expect(hasQueuedResidentSend).not.toHaveBeenCalled();
     expect(sendWhatsAppToResident).not.toHaveBeenCalled();
   });
 

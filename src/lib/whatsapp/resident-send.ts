@@ -11,17 +11,19 @@ export interface DeferredMedia { bucket: string; path: string }
 
 /** Metadata key marking a queue row as a system message to a resident rather than a template notification. */
 export const RESIDENT_SEND_METADATA_KEY = 'whatsapp_resident_send';
-export interface ResidentSendPayload { seed: string; media?: DeferredMedia[]; trackingId?: string }
+/** The clearance copy row the queue marks sent or failed once it is delivered or finally fails. */
+export interface ClearanceCopyRef { documentId: string; recipientId: string }
+export interface ResidentSendPayload { seed: string; media?: DeferredMedia[]; trackingId?: string; clearanceCopy?: ClearanceCopyRef }
 
 const dedupKey = (seed: string) => `resident-send:${seed}`;
 
-/** True while a deferred send for this seed is waiting or already went out, so a second one is never queued. */
-export async function hasQueuedResidentSend(seed: string): Promise<boolean> {
+/** True while a deferred send for this seed is in one of `statuses`; by default waiting or already sent, so a second one is never queued. */
+export async function hasQueuedResidentSend(seed: string, statuses: string[] = ['pending', 'processing', 'sent']): Promise<boolean> {
   const { data, error } = await createAdminClient()
     .from('notification_queue')
     .select('id')
     .eq('deduplication_key', dedupKey(seed))
-    .in('status', ['pending', 'processing', 'sent'])
+    .in('status', statuses)
     .limit(1);
   if (error) throw error;
   return (data ?? []).length > 0;
@@ -31,7 +33,7 @@ async function deferResidentSend(
   residentId: string,
   phone: string,
   body: string,
-  options: { seed: string; deferMedia?: DeferredMedia[]; trackingId?: string },
+  options: { seed: string; deferMedia?: DeferredMedia[]; trackingId?: string; clearanceCopy?: ClearanceCopyRef },
   decision: { reason: string; message: string }
 ): Promise<ResidentSendResult> {
   // Lazy: the queue imports the sender, which imports this module's payload type.
@@ -57,6 +59,7 @@ async function deferResidentSend(
         seed: options.seed,
         ...(options.deferMedia ? { media: options.deferMedia } : {}),
         ...(options.trackingId ? { trackingId: options.trackingId } : {}),
+        ...(options.clearanceCopy ? { clearanceCopy: options.clearanceCopy } : {}),
       } satisfies ResidentSendPayload,
     },
   });
@@ -80,6 +83,7 @@ export async function sendWhatsAppToResident(
     trackingId?: string;
     /** The stored file behind `mediaUrls`. Without it a send with media is not deferred (its URL would expire). */
     deferMedia?: DeferredMedia[];
+    clearanceCopy?: ClearanceCopyRef;
   }
 ): Promise<ResidentSendResult> {
   try {
