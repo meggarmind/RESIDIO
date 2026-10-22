@@ -9,6 +9,7 @@ import { getRawSettingsAsService } from '@/lib/settings/service';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
 import { createAdminClient } from '@/lib/supabase/server';
 import { maskPhone } from '@/lib/utils';
+import { createSupabaseOwesRepository, runAdminOwesLookup, toOwesParams, type OwesRepository } from '@/lib/whatsapp/admin-owes';
 import { formatDay, lagosMidnight, lagosParts } from '@/lib/whatsapp/assistant-format';
 import { WhatsAppAdminAlertEmail, whatsAppAdminAlertSubject, type WhatsAppAdminAlertEvent } from '@/emails/whatsapp-admin-alert';
 import type { WhatsAppInboundMessage } from '@/lib/whatsapp/types';
@@ -102,12 +103,23 @@ export function hashAdminLinkCode(code: string): string {
 // ---------------------------------------------------------------------------
 // Commands
 
+export interface WhatsAppAdminActionContext {
+  account: WhatsAppAdminAccount;
+  binding: WhatsAppAdminBinding;
+  now: Date;
+  requestId: string;
+  /** What the admin sent with the command, e.g. the house code or name. */
+  params: Record<string, unknown>;
+  audit(entry: AuditEntry): Promise<void>;
+  owes: OwesRepository;
+}
+
 export interface WhatsAppAdminAction {
-  /** The action's own permission, checked on top of whatsapp_admin.query. */
-  permission: string;
+  /** The action's own permission (any one of them when a list), checked on top of whatsapp_admin.query. */
+  permission: string | string[];
   /** True when every run needs a new authenticator code, even inside a session (a PDF, #972 D2). */
   freshCode: boolean;
-  run(context: { account: WhatsAppAdminAccount; binding: WhatsAppAdminBinding; now: Date }): Promise<string>;
+  run(context: WhatsAppAdminActionContext): Promise<string>;
 }
 
 /** Lagos `HH:MM on dd mmm yyyy`. */
@@ -130,13 +142,29 @@ export const WHATSAPP_ADMIN_ACTIONS: Record<string, WhatsAppAdminAction> = {
       ].join('\n');
     },
   },
+  owes: {
+    permission: [PERMISSIONS.BILLING_VIEW, PERMISSIONS.REPORTS_VIEW_FINANCIAL],
+    freshCode: false,
+    run({ account, binding, now, requestId, params, audit, owes }) {
+      return runAdminOwesLookup({
+        params: toOwesParams(params),
+        repository: owes,
+        requestId,
+        adminProfileId: account.profileId,
+        phoneNumber: binding.phoneNumber,
+        bindingId: binding.id,
+        now,
+        audit,
+      });
+    },
+  },
 };
 
 export type WhatsAppAdminCommand =
   | { kind: 'help' }
   | { kind: 'link'; code: string }
   | { kind: 'code'; code: string }
-  | { kind: 'action'; action: string };
+  | { kind: 'action'; action: string; params?: Record<string, unknown> };
 
 /**
  * Admin mode starts only on these exact forms (#972 D6). Anything else, even text starting with
@@ -149,6 +177,11 @@ export function parseWhatsAppAdminCommand(text: string | null | undefined): What
   if (link) return { kind: 'link', code: link[1] };
   const code = value.match(/^ADMIN\s+(\d{6})$/i);
   if (code) return { kind: 'code', code: code[1] };
+  // Lookup of a house by code or name (#981), and the number picked from its list.
+  const owes = value.match(/^ADMIN\s+OWES\s+(\S.*)$/i);
+  if (owes) return { kind: 'action', action: 'owes', params: { query: owes[1].trim() } };
+  const pick = value.match(/^ADMIN\s+([1-5])$/i);
+  if (pick) return { kind: 'action', action: 'owes', params: { pick: Number(pick[1]) } };
   const action = value.match(/^ADMIN\s+([A-Z]+)$/i);
   if (action && Object.hasOwn(WHATSAPP_ADMIN_ACTIONS, action[1].toLowerCase())) {
     return { kind: 'action', action: action[1].toLowerCase() };
@@ -187,7 +220,7 @@ export interface WhatsAppAdminRepository {
   /** Inserts a request; a new pending request supersedes any earlier pending one on the binding. */
   createRequest(input: WhatsAppAdminRequestInput): Promise<string>;
   /** Marks the newest live pending request done and returns it, at most once. */
-  takePendingRequest(bindingId: string, now: Date): Promise<{ id: string; action: string } | null>;
+  takePendingRequest(bindingId: string, now: Date): Promise<{ id: string; action: string; params?: Record<string, unknown> } | null>;
   countDoneSince(profileId: string, since: string): Promise<number>;
   audit(entry: AuditEntry, actorId: string | null): Promise<void>;
   emailAdmin(account: WhatsAppAdminAccount, event: WhatsAppAdminAlertEvent, phoneNumber: string): Promise<void>;
@@ -416,7 +449,7 @@ export function createSupabaseWhatsAppAdminRepository(): WhatsAppAdminRepository
       const at = now.toISOString();
       const { data, error } = await supabase
         .from('whatsapp_admin_requests')
-        .select('id, action')
+        .select('id, action, params')
         .eq('binding_id', bindingId)
         .eq('status', 'pending')
         .gt('expires_at', at)
@@ -432,7 +465,7 @@ export function createSupabaseWhatsAppAdminRepository(): WhatsAppAdminRepository
         .eq('status', 'pending')
         .select('id');
       if (takeError) throw takeError;
-      return (taken || []).length === 1 ? { id: data.id as string, action: data.action as string } : null;
+      return (taken || []).length === 1 ? { id: data.id as string, action: data.action as string, params: (data.params as Record<string, unknown> | null) ?? {} } : null;
     },
 
     async countDoneSince(profileId, since) {
@@ -482,6 +515,7 @@ export const ADMIN_HELP_REPLY = [
   'Admin mode',
   'ADMIN LINK <code>: link this number with the code from the dashboard.',
   'ADMIN STATUS: show your admin status.',
+  'ADMIN OWES <house code or name>: show what a house owes.',
   'ADMIN <6-digit code>: approve with your authenticator app code.',
 ].join('\n');
 export const ADMIN_NOT_LINKED_REPLY = 'This number is not linked to an admin account. Link it from Settings > WhatsApp admin access in the dashboard.';
@@ -508,6 +542,7 @@ export interface WhatsAppAdminHandlerOptions {
   repository: WhatsAppAdminRepository;
   reply(body: string): Promise<void>;
   now?: () => Date;
+  owesRepository?: OwesRepository;
 }
 
 export async function handleWhatsAppAdminMessage(
@@ -612,9 +647,17 @@ export async function handleWhatsAppAdminMessage(
   }
   const admin = account!;
 
-  const run = async (actionName: string, live: WhatsAppAdminBinding, requestId: string) => {
+  const run = async (actionName: string, live: WhatsAppAdminBinding, requestId: string, params: Record<string, unknown>) => {
     const action = WHATSAPP_ADMIN_ACTIONS[actionName];
-    const answer = await action.run({ account: admin, binding: live, now });
+    const answer = await action.run({
+      account: admin,
+      binding: live,
+      now,
+      requestId,
+      params,
+      audit: (entry) => repository.audit(entry, admin.profileId),
+      owes: options.owesRepository ?? createSupabaseOwesRepository(),
+    });
     await repository.touchBinding(live.id, now);
     await repository.audit({
       action: 'VERIFY',
@@ -665,7 +708,7 @@ export async function handleWhatsAppAdminMessage(
     }
     const pending = await repository.takePendingRequest(binding.id, now);
     if (pending && Object.hasOwn(WHATSAPP_ADMIN_ACTIONS, pending.action)) {
-      await run(pending.action, live, pending.id);
+      await run(pending.action, live, pending.id, pending.params ?? {});
       return;
     }
     await repository.touchBinding(binding.id, now);
@@ -674,7 +717,7 @@ export async function handleWhatsAppAdminMessage(
   }
 
   const action = WHATSAPP_ADMIN_ACTIONS[command.action];
-  if (!admin.permissions.includes(action.permission)) {
+  if (![action.permission].flat().some((permission) => admin.permissions.includes(permission))) {
     await reply(ADMIN_NOT_ALLOWED_REPLY);
     return;
   }
@@ -689,7 +732,7 @@ export async function handleWhatsAppAdminMessage(
       bindingId: binding.id,
       profileId: admin.profileId,
       action: command.action,
-      params: {},
+      params: command.params ?? {},
       status: 'pending',
       expiresAt: new Date(now.getTime() + ADMIN_REQUEST_TTL_MINUTES * MINUTE).toISOString(),
       providerMessageId: message.id,
@@ -702,10 +745,10 @@ export async function handleWhatsAppAdminMessage(
     bindingId: binding.id,
     profileId: admin.profileId,
     action: command.action,
-    params: {},
+    params: command.params ?? {},
     status: 'done',
     expiresAt: binding.sessionExpiresAt!,
     providerMessageId: message.id,
   });
-  await run(command.action, binding, requestId);
+  await run(command.action, binding, requestId, command.params ?? {});
 }

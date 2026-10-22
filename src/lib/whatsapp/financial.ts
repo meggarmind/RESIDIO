@@ -123,7 +123,7 @@ const TEXT_ONLY_REPLY = 'I can only read text messages here. Please type your re
 const UNSUBSCRIBED_REPLY = "You've been unsubscribed from estate WhatsApp alerts. Reply START any time to re-subscribe.";
 
 /** Values written to whatsapp_disclosure_logs.menu_item (shown as-is in the operations console). */
-export type FinancialMenuItem = 'what_i_owe' | 'recent_payments' | 'statement' | 'wallet' | 'receipt' | 'clearance';
+export type FinancialMenuItem = 'what_i_owe' | 'recent_payments' | 'statement' | 'wallet' | 'receipt' | 'clearance' | 'admin_owes';
 export type LookupAllowance = 'ok' | 'resident_cap' | 'estate_cap';
 /** How a disclosure left the estate (#804 decision 25). */
 export type DisclosureChannel = 'chat' | 'pdf' | 'email';

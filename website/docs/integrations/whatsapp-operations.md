@@ -9,8 +9,8 @@ residio_sources:
   - src/app/(dashboard)/settings/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp-admin/**
   - src/app/api/whatsapp/**
-residio_verified_commit: e2e278d8
-residio_verified_at: '2026-10-21'
+residio_verified_commit: 34bdacae
+residio_verified_at: '2026-10-22'
 residio_app_version: '0.4.0'
 ---
 
@@ -284,7 +284,9 @@ Each saves on its own and is written to the audit log.
 
 ## Admin mode
 
-Admin mode lets an admin ask the WhatsApp Assistant for admin information from their own phone. Only `super_admin`, `chairman` and `financial_officer` accounts that hold **Use WhatsApp Admin Mode** (`whatsapp_admin.query`) and have authenticator app 2FA turned on can use it. The only request available today is `ADMIN STATUS`, which replies with the admin's name, role and when their admin session ends.
+Admin mode lets an admin ask the WhatsApp Assistant for admin information from their own phone. Only `super_admin`, `chairman` and `financial_officer` accounts that hold **Use WhatsApp Admin Mode** (`whatsapp_admin.query`) and have authenticator app 2FA turned on can use it. Two requests are available today. `ADMIN STATUS` replies with the admin's name, role and when their admin session ends. `ADMIN OWES <house code or name>` shows what a house owes.
+
+**What a house owes.** `ADMIN OWES KOA-18A` (a house code) or `ADMIN OWES Ada` (a name) needs **View billing** or **View financial reports** as well as the admin permission. The reply gives the outstanding figure the resident sees under "What I owe", the debt status, the oldest unpaid period and the wallet balance on its own line, not netted. A house with a landlord and a tenant shows the billed resident. One match answers at once; two to five matches come back as a numbered list, and the admin sends `ADMIN 1` to `ADMIN 5` within 5 minutes to choose. More than five matches ask for a longer name. The resident is not told. Each answer is written to the audit log and the WhatsApp disclosure log; a house with no billed resident shows no figure and has no disclosure entry.
 
 **Linking a number.** Each admin links their own number under **Settings → WhatsApp admin access**, signed in with their authenticator code. **Create link code** shows a 6-digit code once; it works one time, for 10 minutes. From the phone, send `ADMIN LINK <code>` to the estate WhatsApp number. Linking a new number ends the old link, and **Unlink** ends it at any time. The admin gets an email each time a number is linked.
 
