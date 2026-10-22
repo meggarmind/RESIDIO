@@ -38,7 +38,7 @@ vi.mock('@/actions/billing/wallet', () => ({
 vi.mock('@/lib/audit/logger', () => ({ logAudit: vi.fn() }));
 
 import { processPaystackWebhook } from '../webhook-handler';
-import { creditWallet } from '@/actions/billing/wallet';
+import { allocateWalletToInvoices, creditWallet } from '@/actions/billing/wallet';
 import { logAudit } from '@/lib/audit/logger';
 
 const sign = (body: string) => createHmac('sha512', SECRET).update(body).digest('hex');
@@ -84,7 +84,9 @@ describe('processPaystackWebhook (real handler)', () => {
     const result = await processPaystackWebhook(payload, sign(payload));
     expect(result).toMatchObject({ success: true, action: 'payment_created', payment_id: 'pay-1' });
     expect(state.inserted[0]).toMatchObject({ amount: 1500, method: 'online', paystack_reference: 'ref-1' });
+    expect(state.updates).toContainEqual({ table: 'paystack_transactions', data: { payment_id: 'pay-1' } });
     expect(creditWallet).toHaveBeenCalledWith('res-1', 1500, 'payment', 'pay-1', expect.any(String));
+    expect(allocateWalletToInvoices).toHaveBeenCalledWith('res-1', 'house-1');
     expect(logAudit).toHaveBeenCalledTimes(1);
   });
 
@@ -93,6 +95,7 @@ describe('processPaystackWebhook (real handler)', () => {
     const payload = body();
     const result = await processPaystackWebhook(payload, sign(payload));
     expect(result).toMatchObject({ success: true, action: 'already_processed' });
+    expect(state.updates).toHaveLength(0);
     expect(state.inserted).toHaveLength(0);
     expect(creditWallet).not.toHaveBeenCalled();
   });
