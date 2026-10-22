@@ -76,6 +76,16 @@ export const PERIOD_LABELS: Record<StatementPeriod, string> = {
 };
 export const PERIODS: StatementPeriod[] = ['this_month', 'this_year', 'last_six_months', 'last_twelve_months', 'all_time', 'since_move_in'];
 
+/**
+ * The periods one resident is offered for one house (#1069). All time repeats Since move-in unless
+ * something is dated before the move-in; with no move-in date there is no Since move-in at all.
+ */
+export function offeredPeriods(hasMoveIn: boolean, hasEarlierActivity: boolean): StatementPeriod[] {
+  const calendar = PERIODS.slice(0, 4);
+  if (!hasMoveIn) return [...calendar, 'all_time'];
+  return hasEarlierActivity ? PERIODS : [...calendar, 'since_move_in'];
+}
+
 /** Period boundaries in Africa/Lagos (#804 decisions 22-23); "last 6 months" is this month plus the 5 before. */
 export function statementRange(period: StatementPeriod, now: Date): { from: Date | null; to: Date } {
   const { year, month } = lagosParts(now);
