@@ -1969,10 +1969,10 @@ describe('ending the session with an exit word (#1069)', () => {
     expect((await chat(repo, ['end']))[0]).not.toContain('PIN');
   });
 
-  it('shows the main menu next, without the 15-minute note', async () => {
+  it.each(['hi', '1', 'statement'])('shows the main menu when %s follows, without the 15-minute note', async (next) => {
     const repo = repository();
     repo.setStoredSession(stored('main'));
-    const replies = await chat(repo, ['quit', 'hi']);
+    const replies = await chat(repo, ['quit', next]);
     expect(replies[1]).toBe(MAIN_MENU);
     expect(replies[1]).not.toContain('15 minutes');
   });

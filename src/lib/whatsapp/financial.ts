@@ -1669,7 +1669,8 @@ async function converse(turn: Turn, expired: boolean, endedOnPurpose = false): P
 
   if (EXIT_WORDS.has(input)) return endSession(turn);
 
-  if (expired && !endedOnPurpose) {
+  if (endedOnPurpose) return showMain(turn);
+  if (expired) {
     const pinClause = turn.identity.financialEligible && (await loadPinGate(turn)) ? ', so your PIN is needed again' : '';
     return showMain(turn, `Your session ended after ${SESSION_MINUTES} minutes without activity${pinClause}. Nothing was changed.`);
   }
