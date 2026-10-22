@@ -556,6 +556,7 @@ export const ADMIN_HELP_REPLY = [
   'ADMIN LINK <code>: link this number with the code from the dashboard.',
   'ADMIN STATUS: show your admin status.',
   'ADMIN OWES <house code or name>: show what a house owes.',
+  'ADMIN DEBT: email a debt status report for the estate or chosen streets.',
   'ADMIN <6-digit code>: approve with your authenticator app code.',
 ].join('\n');
 export const ADMIN_NOT_LINKED_REPLY = 'This number is not linked to an admin account. Link it from Settings > WhatsApp admin access in the dashboard.';

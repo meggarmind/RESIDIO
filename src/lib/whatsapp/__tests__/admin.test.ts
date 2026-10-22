@@ -4,6 +4,7 @@ import {
   ADMIN_BAD_LINK_REPLY,
   ADMIN_CAP_REPLY,
   ADMIN_DAILY_ACTION_CAP,
+  ADMIN_HELP_REPLY,
   ADMIN_NOT_LINKED_REPLY,
   ADMIN_WRONG_CODE_REPLY,
   accountFingerprint,
@@ -96,6 +97,14 @@ describe('TOTP checker', () => {
     // RFC 6238 appendix B, T = 59 s, secret "12345678901234567890", last 6 digits of 94287082.
     expect(generateTOTPCode('GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', 1)).toBe('287082');
     expect(validateTOTP(generateTOTPCode(SECRET, totpStepAt()), SECRET)).toBe(true);
+  });
+});
+
+describe('ADMIN_HELP_REPLY', () => {
+  it('lists every admin request, including ADMIN DEBT (#1077)', () => {
+    expect(ADMIN_HELP_REPLY).toContain('ADMIN STATUS:');
+    expect(ADMIN_HELP_REPLY).toContain('ADMIN OWES <house code or name>:');
+    expect(ADMIN_HELP_REPLY).toContain('ADMIN DEBT: email a debt status report');
   });
 });
 
