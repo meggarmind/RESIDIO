@@ -6,7 +6,8 @@
  *   non-resident landlord, unless it is flagged new and never occupied (then no invoice).
  * - `landlord`: resident landlord, else non-resident landlord, else developer. Never a tenant.
  *
- * `applicableRoles` may narrow the roles inside the class; it never adds a role to it.
+ * `applicableRoles` may narrow the roles inside the class; it never adds a role to it. Only
+ * resident-type profiles narrow: a house-type profile ignores any roles left in the column.
  */
 
 export type BillingPayer = 'occupant' | 'landlord';
@@ -25,11 +26,13 @@ export type PayerResolution<T extends PayerCandidate> =
 
 export function resolvePayer<T extends PayerCandidate>(input: {
   payer: BillingPayer;
+  targetType: string;
   house: { vacant: boolean; newNeverOccupied: boolean };
   applicableRoles: readonly string[] | null;
   residents: T[];
 }): PayerResolution<T> {
-  const { payer, house, applicableRoles, residents } = input;
+  const { payer, house, residents } = input;
+  const applicableRoles = input.targetType === 'resident' ? input.applicableRoles : null;
 
   let roles: readonly string[];
   if (payer === 'landlord') {

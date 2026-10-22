@@ -12,6 +12,7 @@ const profile: GenerationProfile = {
   id: 'profile-1',
   name: 'Monthly service charge',
   payer: 'occupant' as const,
+  targetType: 'resident',
   applicableRoles: ['tenant', 'resident_landlord'],
 };
 

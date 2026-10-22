@@ -157,7 +157,7 @@ async function generateLeviesForHouseInRun(
         const { data: oneTimeProfiles, error: profilesError } = await supabase
             .from('billing_profiles')
             .select(`
-                id, name, payer, applicable_roles, is_one_time, is_development_levy,
+                id, name, payer, target_type, applicable_roles, is_one_time, is_development_levy,
                 billing_items(id, name, amount, frequency, is_mandatory)
             `)
             .eq('is_active', true)
@@ -199,6 +199,7 @@ async function generateLeviesForHouseInRun(
                 // The profile's payer decides who is billed; a tenant never receives a landlord levy.
                 const { payer, reason } = resolvePayer({
                     payer: profile.payer as BillingPayer,
+                    targetType: profile.target_type,
                     house: { vacant: house.property_status === 'vacant', newNeverOccupied: house.is_new_never_occupied === true },
                     applicableRoles: profile.applicable_roles,
                     residents,
@@ -462,7 +463,7 @@ export async function previewRetroactiveLevies(): Promise<{ data: RetroactiveLev
         fetchAllRows<{ house_id: string; billing_profile_id: string }>((from, to) =>
             supabase.from('house_levy_history').select('house_id, billing_profile_id').order('id').range(from, to)),
         supabase.from('billing_profiles')
-            .select('id, name, payer, applicable_roles, is_development_levy, billing_items(amount)')
+            .select('id, name, payer, target_type, applicable_roles, is_development_levy, billing_items(amount)')
             .eq('is_active', true).eq('is_one_time', true),
     ]);
 

@@ -35,6 +35,7 @@ const profile: GenerationProfile = {
     id: 'profile-1',
     name: 'Standard 3-Bed Rate',
     payer: 'occupant',
+    targetType: 'house',
     applicableRoles: null,
 };
 

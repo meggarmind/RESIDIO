@@ -10,6 +10,7 @@ export type LevyPlanProfile = {
   id: string;
   name: string;
   payer: string;
+  target_type: string;
   applicable_roles: string[] | null;
   is_development_levy: boolean | null;
   billing_items: { amount: number | null }[] | null;
@@ -60,6 +61,7 @@ export function planRetroactiveLevies(input: {
     for (const profile of input.profiles) {
       const { payer, reason } = resolvePayer({
         payer: profile.payer as BillingPayer,
+        targetType: profile.target_type,
         house: { vacant: house.vacant, newNeverOccupied: house.newNeverOccupied },
         applicableRoles: profile.applicable_roles,
         residents,

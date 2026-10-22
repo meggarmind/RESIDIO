@@ -106,14 +106,14 @@ export async function generateInvoicesPreview(
   if (!profileIds.length) return { ...emptyResult(), summary: { ...emptyResult().summary, totalHouses: houses?.length || 0 } };
 
   const [{ data: profiles, error: profilesError }, { data: versions, error: versionsError }] = await Promise.all([
-    supabase.from('billing_profiles').select('id, name, payer, applicable_roles, is_one_time').in('id', profileIds).eq('is_active', true),
+    supabase.from('billing_profiles').select('id, name, payer, target_type, applicable_roles, is_one_time').in('id', profileIds).eq('is_active', true),
     supabase.from('billing_profile_versions').select('id, billing_profile_id, effective_from, billing_profile_version_items(id, name, amount, frequency, is_mandatory)').in('billing_profile_id', profileIds),
   ]);
   if (profilesError || versionsError) return emptyResult(profilesError?.message || versionsError?.message || 'Could not load billing profiles');
 
   const generationProfiles: GenerationProfile[] = (profiles || [])
     .filter((profile) => !profile.is_one_time)
-    .map((profile) => ({ id: profile.id, name: profile.name, payer: profile.payer as GenerationProfile['payer'], applicableRoles: profile.applicable_roles as GenerationProfile['applicableRoles'] }));
+    .map((profile) => ({ id: profile.id, name: profile.name, payer: profile.payer as GenerationProfile['payer'], targetType: profile.target_type, applicableRoles: profile.applicable_roles as GenerationProfile['applicableRoles'] }));
   const generationVersions: BillingProfileVersion[] = (versions || []).map((version) => ({
     id: version.id,
     billingProfileId: version.billing_profile_id,

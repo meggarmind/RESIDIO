@@ -45,15 +45,15 @@ describe('planLateFees', () => {
 
 describe('planRetroactiveLevies', () => {
   const devLevy: LevyPlanProfile = {
-    id: 'dev', name: 'Development Levy', payer: 'landlord', applicable_roles: null,
+    id: 'dev', name: 'Development Levy', payer: 'landlord', target_type: 'resident', applicable_roles: null,
     is_development_levy: true, billing_items: [{ amount: 500000 }],
   };
   const landlordOnly: LevyPlanProfile = {
-    id: 'gate', name: 'Gate Fee', payer: 'landlord', applicable_roles: ['resident_landlord'],
+    id: 'gate', name: 'Gate Fee', payer: 'landlord', target_type: 'resident', applicable_roles: ['resident_landlord'],
     is_development_levy: false, billing_items: [{ amount: 20000 }, { amount: 5000 }],
   };
   const free: LevyPlanProfile = {
-    id: 'free', name: 'Free', payer: 'landlord', applicable_roles: null,
+    id: 'free', name: 'Free', payer: 'landlord', target_type: 'resident', applicable_roles: null,
     is_development_levy: false, billing_items: [{ amount: 0 }],
   };
 

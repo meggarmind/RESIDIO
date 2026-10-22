@@ -56,6 +56,7 @@ export interface GenerationProfile {
   id: string;
   name: string;
   payer: BillingPayer;
+  targetType: string;
   applicableRoles: BillableRole[] | null;
 }
 
@@ -349,6 +350,7 @@ export function resolveBillableCandidates(input: ResolveBillableCandidatesInput)
     const eligibleResidents = house.residents.filter((resident) => !residentEligible(resident));
     const payerOf = (residents: GenerationResidentRole[]) => resolvePayer({
       payer: profile.payer,
+      targetType: profile.targetType,
       house: { vacant: house.propertyStatus === 'vacant', newNeverOccupied: house.newNeverOccupied === true },
       applicableRoles: profile.applicableRoles,
       residents,
