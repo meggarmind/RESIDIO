@@ -347,15 +347,21 @@ export function resolveBillableCandidates(input: ResolveBillableCandidatesInput)
     }
 
     const eligibleResidents = house.residents.filter((resident) => !residentEligible(resident));
-    const { payer: billable, reason } = resolvePayer({
+    const payerOf = (residents: GenerationResidentRole[]) => resolvePayer({
       payer: profile.payer,
       house: { vacant: house.propertyStatus === 'vacant', newNeverOccupied: house.newNeverOccupied === true },
       applicableRoles: profile.applicableRoles,
-      residents: eligibleResidents,
+      residents,
     });
+    const { payer: billable, reason } = payerOf(eligibleResidents);
     if (!billable) {
+      const blockedPayer = payerOf(house.residents).payer;
       const ineligibleReason = house.residents[0] ? residentEligible(house.residents[0]) : 'No active residents';
-      skips.push({ houseId: house.id, house: house.label, reason: eligibleResidents.length ? reason : ineligibleReason || reason });
+      skips.push({
+        houseId: house.id,
+        house: house.label,
+        reason: (blockedPayer && residentEligible(blockedPayer)) || (eligibleResidents.length ? reason : ineligibleReason || reason),
+      });
       continue;
     }
     if (request.residentId && billable.id !== request.residentId) {

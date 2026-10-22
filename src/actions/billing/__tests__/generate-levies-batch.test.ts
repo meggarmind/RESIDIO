@@ -180,6 +180,13 @@ describe('generateLeviesForHouse payer (#1068)', () => {
     expect(res.warnings).toEqual(['House H2: no landlord on record, so "Gate levy" was not raised']);
   });
 
+  it('does not warn about a missing landlord when the house was already charged the levy', async () => {
+    roster = [{ resident_id: 'tenant-1', resident_role: 'tenant' }];
+    const res = await generateLeviesForHouse(houseId(3));
+    expect(res.skipped).toBe(1);
+    expect(res.warnings).toEqual([]);
+  });
+
   it('falls back to the developer when no landlord is on record', async () => {
     roster = [{ resident_id: 'dev-1', resident_role: 'developer' }, { resident_id: 'tenant-1', resident_role: 'tenant' }];
     await generateLeviesForHouse(houseId(2));

@@ -183,6 +183,19 @@ async function generateLeviesForHouseInRun(
                 const isDevelopmentLevy = profile.is_development_levy === true ||
                     profile.name.toLowerCase().includes('development');
 
+                // Check if already applied (house_levy_history)
+                const { data: existingLevy } = await supabase
+                    .from('house_levy_history')
+                    .select('id')
+                    .eq('house_id', houseId)
+                    .eq('billing_profile_id', profile.id)
+                    .maybeSingle();
+
+                if (existingLevy) {
+                    result.skipped++;
+                    continue;
+                }
+
                 // The profile's payer decides who is billed; a tenant never receives a landlord levy.
                 const { payer, reason } = resolvePayer({
                     payer: profile.payer as BillingPayer,
@@ -198,19 +211,6 @@ async function generateLeviesForHouseInRun(
                     continue;
                 }
                 const targetResidentId = payer.id;
-
-                // Check if already applied (house_levy_history)
-                const { data: existingLevy } = await supabase
-                    .from('house_levy_history')
-                    .select('id')
-                    .eq('house_id', houseId)
-                    .eq('billing_profile_id', profile.id)
-                    .maybeSingle();
-
-                if (existingLevy) {
-                    result.skipped++;
-                    continue;
-                }
 
                 // Calculate total amount
                 const items = profile.billing_items || [];

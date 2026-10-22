@@ -58,6 +58,12 @@ const editProfileSchema = z.object({
         message: 'At least one role must be selected for resident-targeted profiles',
         path: ['applicable_roles'],
     }
+).refine(
+    (data) => !(data.payer === 'landlord' && data.applicable_roles?.includes('tenant')),
+    {
+        message: 'An owner-paid profile cannot apply to renters',
+        path: ['applicable_roles'],
+    }
 );
 
 type FormValues = z.infer<typeof editProfileSchema>;

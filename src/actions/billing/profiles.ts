@@ -255,6 +255,12 @@ export async function updateBillingProfile(
         return { success: false, error: 'Profile not found' };
     }
 
+    const nextPayer = data.payer ?? currentProfile.payer;
+    const nextRoles = data.applicable_roles !== undefined ? data.applicable_roles : currentProfile.applicable_roles;
+    if (nextPayer === 'landlord' && nextRoles?.includes('tenant')) {
+        return { success: false, error: 'A landlord-paid profile cannot apply to tenants' };
+    }
+
     // Check if effective_date is being changed to an earlier date
     const isEffectiveDateChange =
         data.effective_date &&
