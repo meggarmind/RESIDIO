@@ -217,7 +217,7 @@ export function createSupabaseOwesRepository(): OwesRepository {
     async searchResidents(words) {
       let query = client()
         .from('residents')
-        .select('first_name, last_name, resident_houses!inner(house_id, house:houses(short_name, house_number, street:streets(name)))')
+        .select('first_name, last_name, resident_houses!resident_houses_resident_id_fkey!inner(house_id, house:houses(short_name, house_number, street:streets(name)))')
         .eq('resident_houses.is_active', true)
         .in('resident_houses.resident_role', BILLABLE_ROLES);
       // Every word must match the first or the last name.
