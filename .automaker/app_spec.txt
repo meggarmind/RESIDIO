@@ -393,7 +393,7 @@ The platform addresses key challenges faced by Nigerian residential estates incl
         <location>src/app/api/cron/generate-invoices/route.ts</location>
         <location>src/app/api/cron/payment-reminders/route.ts</location>
         <location>src/app/api/cron/process-notifications/route.ts</location>
-        <location>src/app/api/cron/generate-reports/route.ts</location>
+        <location>src/app/api/cron/process-report-schedules/route.ts</location>
         <location>src/app/api/cron/publish-announcements/route.ts</location>
         <location>src/app/(dashboard)/settings/cron-status/page.tsx</location>
       </file_locations>

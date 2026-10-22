@@ -106,7 +106,6 @@ read from the container's environment by the command, so it is never written int
 | `whatsapp-retention` | `15 0 * * *` | 60000 |
 | `whatsapp-chatmaid-reconcile` | `*/15 * * * *` | 120000 |
 | `generate-invoices` | `0 6 * * *` | 300000 |
-| `generate-reports` | `0 6 * * *` | 300000 |
 | `process-report-schedules` | `0 7 * * *` | 300000 |
 | `payment-reminders` | `0 8 * * *` | 120000 |
 | `process-notifications` | `*/15 * * * *` | 60000 |
@@ -151,9 +150,6 @@ node -e "fetch('http://127.0.0.1:3000/api/cron/whatsapp-chatmaid-reconcile',{hea
 # generate-invoices  (0 6 * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/generate-invoices',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(300000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
 
-# generate-reports  (0 6 * * *)
-node -e "fetch('http://127.0.0.1:3000/api/cron/generate-reports',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(300000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
-
 # process-report-schedules  (0 7 * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/process-report-schedules',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(300000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
 
@@ -171,8 +167,8 @@ node -e "fetch('http://127.0.0.1:3000/api/cron/process-notifications',{headers:{
 
 | Timeout | Routes | Reason |
 |---|---|---|
-| 300 s | `generate-invoices`, `generate-reports`, `fetch-emails`, `publish-announcements`, `refresh-payment-cadence` | Their declared `maxDuration`, kept as the expected worst case. No margin is added: a run needing more than five minutes should fail loudly. |
-| 300 s | `process-report-schedules` | **Previously undeclared.** It loops over every due schedule and, per schedule, generates the report, renders a PDF, uploads it and sends email (`src/actions/reports/process-schedules.ts`), the same shape of work as `generate-reports`, so it gets the same ceiling. |
+| 300 s | `generate-invoices`, `fetch-emails`, `publish-announcements`, `refresh-payment-cadence` | Their declared `maxDuration`, kept as the expected worst case. No margin is added: a run needing more than five minutes should fail loudly. |
+| 300 s | `process-report-schedules` | **Previously undeclared.** It loops over every due schedule and, per schedule, generates the report, renders a PDF, uploads it and sends email (`src/actions/reports/process-schedules.ts`), the same shape of work as `generate-invoices`, so it gets the same ceiling. |
 | 120 s | `payment-reminders` | Declared `maxDuration`: multi-channel sends. |
 | 60 s | `process-notifications` | Declared `maxDuration`. |
 | 60 s | `expire-approvals` | One read, one set-based UPDATE inside `process_expired_approvals()` and one in-app notification per expired request (#558). Hourly, so the backlog is small. New route: the owner must create this Coolify task; nothing runs it until then. |
