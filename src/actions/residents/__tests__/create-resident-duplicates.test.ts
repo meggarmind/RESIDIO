@@ -26,7 +26,10 @@ vi.mock('@/actions/verification/send-verification', () => ({
   sendEmailVerification: vi.fn().mockResolvedValue(undefined),
   sendPhoneVerification: vi.fn().mockResolvedValue(undefined),
 }));
-vi.mock('@/actions/residents/validation', () => ({ validateHouseAssignment: vi.fn().mockResolvedValue({ valid: true }) }));
+vi.mock('@/actions/residents/validation', () => ({
+  validateHouseAssignment: vi.fn().mockResolvedValue({ valid: true }),
+  resolveSponsor: vi.fn(async (_s: unknown, _h: string, _r: string, sponsorId?: string | null) => ({ sponsorId: sponsorId || null })),
+}));
 vi.mock('@/lib/residents/find-duplicates', () => ({ loadDuplicateMatches: mocks.loadDuplicateMatches }));
 vi.mock('@/actions/residents/assign-house', () => ({ assignHouse: mocks.assignHouse }));
 

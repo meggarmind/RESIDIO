@@ -28,7 +28,7 @@ import { useCreateResident, useUpdateResident, useResidentOptions, DuplicateResi
 import { DuplicateResidentDialog } from '@/components/residents/duplicate-resident-dialog';
 import type { CreateResidentOptions } from '@/actions/residents/create-resident';
 import type { DuplicateResidentMatch } from '@/lib/residents/duplicate-match';
-import { createResidentBaseSchema, resolveSubmittedCorporateFields, type CreateResidentData, type ResidentFormData, requiresSponsor } from '@/lib/validators/resident';
+import { createResidentBaseSchema, resolveSubmittedCorporateFields, type CreateResidentData, type ResidentFormData, requiresSponsor, sponsorRolesFor, describeSponsorRoles } from '@/lib/validators/resident';
 import { toast } from 'sonner';
 import type { Resident, ResidentRole, EntityType } from '@/types/database';
 import { PRIMARY_ROLE_OPTIONS, SECONDARY_ROLE_OPTIONS, CORPORATE_ROLE_OPTIONS, ENTITY_TYPE_LABELS, RESIDENT_ROLE_LABELS, RESIDENT_TYPE_LABELS } from '@/types/database';
@@ -263,7 +263,7 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
 
   const otherResidents = residentsData?.data.filter(r => r.id !== resident?.id) ?? [];
 
-  // Get sponsors (primary residents of selected house) for domestic_staff and caretaker
+  // Get sponsors (primary residents of selected house) for sponsor-required roles
   // Uses house-specific query instead of filtering from all residents
   const availableSponsors = React.useMemo(() => {
     if (!selectedHouseId || !residentRole || !requiresSponsor(residentRole as ResidentRole)) {
@@ -272,12 +272,20 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
     if (!houseResidents) {
       return [];
     }
-    // Filter to only include primary roles that can sponsor (landlords and tenants)
+    // Filter to the roles that may sponsor this role (a co-resident: Owner-Occupier or Renter only)
+    const sponsorRoles = sponsorRolesFor(residentRole as ResidentRole);
     return houseResidents.filter(r =>
       r.id !== resident?.id &&
-      ['non_resident_landlord', 'resident_landlord', 'tenant'].includes(r.resident_role)
+      sponsorRoles.includes(r.resident_role)
     );
   }, [selectedHouseId, residentRole, houseResidents, resident?.id]);
+
+  // A co-resident defaults to the house's resident as sponsor (#1067); a house has at most one
+  React.useEffect(() => {
+    if (residentRole === 'co_resident' && availableSponsors.length === 1 && form.getValues('sponsor_resident_id') !== availableSponsors[0].id) {
+      form.setValue('sponsor_resident_id', availableSponsors[0].id);
+    }
+  }, [residentRole, availableSponsors, form]);
 
   // Clear house selection when role changes and house has conflicts
   React.useEffect(() => {
@@ -629,7 +637,7 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
                 />
               )}
 
-              {/* Sponsor selection for domestic_staff and caretaker */}
+              {/* Sponsor selection for sponsor-required roles */}
               {showSponsorField && (
                 <FormField
                   control={form.control}
@@ -662,7 +670,7 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
                         </SelectContent>
                       </Select>
                       <FormDescription>
-                        {RESIDENT_ROLE_LABELS[residentRole as ResidentRole]} must be sponsored by an Owner-Occupier, Property Owner, or Renter of the same house
+                        {RESIDENT_ROLE_LABELS[residentRole as ResidentRole]} must be sponsored by the {describeSponsorRoles(residentRole as ResidentRole)} of the same house
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
