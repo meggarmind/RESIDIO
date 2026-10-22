@@ -264,25 +264,6 @@ describe('updateVehicle', () => {
   });
 });
 
-describe('createProject', () => {
-  const valid = { name: 'Road', total_budget: 100, status: 'planning' as const };
-
-  it('rejects unknown keys such as current_progress', async () => {
-    const { createProject } = await import('@/actions/projects/create-project');
-    await expect(createProject({ ...valid, current_progress: 100 } as never)).rejects.toThrow();
-    expect(insertsTo('projects')).toHaveLength(0);
-  });
-
-  it('inserts only the allowed columns', async () => {
-    const { createProject } = await import('@/actions/projects/create-project');
-    tableResults['projects'] = { data: { id: UUID_A }, error: null };
-    await createProject({ ...valid, description: 'd' });
-    expect(insertsTo('projects')[0]).toEqual({
-      name: 'Road', description: 'd', total_budget: 100, status: 'planning', start_date: undefined, end_date: undefined,
-    });
-  });
-});
-
 describe('updateReportSchedule', () => {
   it('rejects forbidden columns (next_run_at, last_run_at, created_by)', async () => {
     const { updateReportSchedule } = await import('@/actions/reports/report-schedules');

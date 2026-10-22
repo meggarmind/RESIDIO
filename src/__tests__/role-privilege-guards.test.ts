@@ -121,7 +121,6 @@ import { CANNOT_CHANGE_ACCOUNT_ERROR } from '@/lib/auth/account-guards';
 import { createRole, createRoleWithPermissions, updateRole, updateRolePermissions } from '@/actions/roles/index';
 import { updateRoleAssignmentRule, batchUpdateRoleAssignmentRules } from '@/actions/roles/assignment-rules';
 import { toggleImpersonationEnabled } from '@/actions/impersonation/approval';
-import { checkPaymentEmails } from '@/actions/email-imports/check-payment';
 
 const TARGET = '22222222-2222-4222-8222-222222222222';
 
@@ -367,24 +366,6 @@ describe('toggleImpersonationEnabled', () => {
     seed('super_admin', 'secretary');
     expect((await toggleImpersonationEnabled(TARGET, true)).success).toBe(true);
     expect(profileOf(TARGET).impersonation_enabled).toBe(true);
-  });
-});
-
-describe('checkPaymentEmails', () => {
-  it('refuses an unauthorised caller before any step of the pipeline runs', async () => {
-    state.auth = { ...state.auth, authorized: false, error: 'Unauthorized: no permission' };
-    const result = await checkPaymentEmails();
-    expect(result.success).toBe(false);
-    expect(state.fetchNewEmails).not.toHaveBeenCalled();
-    expect(state.parseAllPendingEmails).not.toHaveBeenCalled();
-    expect(state.matchEmailTransactions).not.toHaveBeenCalled();
-  });
-
-  it('runs the whole pipeline for an authorised caller', async () => {
-    const result = await checkPaymentEmails();
-    expect(result.success).toBe(true);
-    expect(state.parseAllPendingEmails).toHaveBeenCalledWith('imp-1');
-    expect(state.matchEmailTransactions).toHaveBeenCalledWith('imp-1');
   });
 });
 

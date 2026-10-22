@@ -7,7 +7,7 @@ residio_sources:
   - docs/deployment/hosting-plan.md
   - src/lib/whatsapp/index.ts
   - src/lib/email/index.ts
-  - src/lib/sms/index.ts
+  - src/lib/sms/**
   - src/lib/paystack/index.ts
   - src/lib/email-imports/gmail-client.ts
 residio_verified_commit: 32105e9e
