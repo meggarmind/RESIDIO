@@ -13,7 +13,9 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { useHousePaymentStatus } from '@/hooks/use-billing';
+import { DebtStatusBadge } from '@/components/billing/debt-status-badge';
 import { formatCurrency } from '@/lib/utils';
+import type { DebtStatus } from '@/lib/billing/debt-status';
 import {
   Receipt,
   ChevronDown,
@@ -28,6 +30,8 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+const isOwed = (status: DebtStatus) => status === 'outstanding' || status === 'arrears';
 
 interface HousePaymentStatusProps {
   houseId: string;
@@ -106,7 +110,7 @@ export function HousePaymentStatus({ houseId, className }: HousePaymentStatusPro
     );
   }
 
-  const hasOutstanding = status.totalOutstanding > 0;
+  const hasOutstanding = isOwed(status.debtStatus);
   const hasOverdue = status.overdueCount > 0;
   const collectionRate = status.totalDue > 0
     ? Math.round((status.totalPaid / status.totalDue) * 100)
@@ -177,9 +181,10 @@ export function HousePaymentStatus({ houseId, className }: HousePaymentStatusPro
                   ? 'text-red-600 dark:text-red-400'
                   : 'text-green-600 dark:text-green-400'
               )}>
-                Outstanding
+                Debt Status
               </p>
             </div>
+            <DebtStatusBadge status={status.debtStatus} label={status.debtStatusLabel} className="mb-1" />
             <p className={cn(
               'text-lg sm:text-2xl font-semibold break-words',
               hasOutstanding
@@ -286,7 +291,7 @@ export function HousePaymentStatus({ houseId, className }: HousePaymentStatusPro
                   key={resident.residentId}
                   className={cn(
                     'flex items-center justify-between p-3 rounded-lg border transition-colors',
-                    resident.outstanding > 0
+                    isOwed(resident.debtStatus)
                       ? 'bg-red-50/50 dark:bg-red-950/10 border-red-100 dark:border-red-900/50'
                       : 'bg-muted/30 hover:bg-muted/50'
                   )}
@@ -294,7 +299,7 @@ export function HousePaymentStatus({ houseId, className }: HousePaymentStatusPro
                   <div className="flex items-center gap-3">
                     <div className={cn(
                       'w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium',
-                      resident.outstanding > 0
+                      isOwed(resident.debtStatus)
                         ? 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300'
                         : 'bg-muted text-muted-foreground'
                     )}>
@@ -315,18 +320,11 @@ export function HousePaymentStatus({ houseId, className }: HousePaymentStatusPro
                     </div>
                   </div>
                   <div className="text-right">
-                    {resident.outstanding > 0 ? (
-                      <>
-                        <p className="text-sm font-semibold text-red-600 dark:text-red-400">
-                          {formatCurrency(resident.outstanding)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">outstanding</p>
-                      </>
-                    ) : (
-                      <Badge className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 border-transparent">
-                        <CheckCircle2 className="h-3 w-3 mr-1" />
-                        Paid
-                      </Badge>
+                    <DebtStatusBadge status={resident.debtStatus} label={resident.debtStatusLabel} className="text-xs" />
+                    {resident.outstanding > 0 && (
+                      <p className="mt-1 text-sm font-semibold text-red-600 dark:text-red-400">
+                        {formatCurrency(resident.outstanding)}
+                      </p>
                     )}
                   </div>
                 </div>

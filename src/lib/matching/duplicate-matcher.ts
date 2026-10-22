@@ -57,11 +57,15 @@ export async function checkDuplicateGuardrail(
 
         // Expenses/Petty cash might not enforce unique Ref, but payments usually do.
         // If strict match on Ref, it's 100% duplicate.
-        const { data: exactRef } = await supabase
+        const { data: exactRef, error: exactRefError } = await supabase
             .from(table)
             .select('id')
             .eq('reference_number', transaction.reference)
+            .limit(1)
             .maybeSingle();
+        if (exactRefError) {
+            throw new Error(`Duplicate check failed: ${exactRefError.message}`);
+        }
 
         if (exactRef) {
             return {
@@ -77,9 +81,10 @@ export async function checkDuplicateGuardrail(
     // 3. Find Candidates (Amount + Date Window)
     const { startDate, endDate } = duplicateWindow(dateObj, toleranceDays);
 
+    // Only real columns: an unknown column makes PostgREST error, which read as "no duplicate" (#994).
     let query = supabase.from(
         entityType === 'expense' ? 'expenses' : 'payment_records'
-    ).select('id, description, amount, payment_date, expense_date');
+    ).select(entityType === 'expense' ? 'id, amount, expense_date, description' : 'id, amount, payment_date, description:notes');
 
     // Filter
     query = query
@@ -91,7 +96,10 @@ export async function checkDuplicateGuardrail(
         query = query.eq('resident_id', transaction.residentId);
     }
 
-    const { data: candidates } = await query;
+    const { data: candidates, error } = await query;
+    if (error) {
+        throw new Error(`Duplicate check failed: ${error.message}`);
+    }
 
     if (!candidates || candidates.length === 0) {
         return { isDuplicate: false, score: 0, matchType: 'none' };

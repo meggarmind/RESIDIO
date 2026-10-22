@@ -77,6 +77,32 @@ export async function reversePaymentAllocation(
 
   const supabase = await createServerSupabaseClient();
 
+  // A credit note's credit sits in the corrected invoice's amount_paid but was never wallet
+  // money, so only the rest of amount_paid can go back to the wallet (#995).
+  const { data: invoice } = await supabase
+    .from('invoices')
+    .select('amount_paid')
+    .eq('id', invoiceId)
+    .single();
+  if (invoice) {
+    const { data: creditNotes } = await supabase
+      .from('invoices')
+      .select('amount_due')
+      .eq('parent_invoice_id', invoiceId)
+      .eq('correction_type', 'credit_note')
+      .neq('status', 'void');
+    const credited = (creditNotes ?? []).reduce((sum, note) => sum - Number(note.amount_due), 0);
+    const reversible = Number(invoice.amount_paid) - credited;
+    if (amountToReverse > reversible + 0.005) {
+      return {
+        success: false,
+        amountReversed: 0,
+        newInvoiceStatus: null,
+        error: `Only ₦${Math.max(reversible, 0).toLocaleString()} of this invoice was paid; the rest is credit from a correction and cannot be refunded to the wallet`,
+      };
+    }
+  }
+
   // 3. Reverse atomically: reverse_invoice_payment_allocation locks the wallet then the
   // invoice, lowers amount_paid, recomputes status, credits the wallet and writes the
   // 'invoice_reversal' ledger row in ONE database transaction (no client-side
