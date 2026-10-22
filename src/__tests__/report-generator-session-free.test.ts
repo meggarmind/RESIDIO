@@ -138,51 +138,6 @@ describe('generateReport (interactive)', () => {
   });
 });
 
-describe('/api/cron/generate-reports', () => {
-  it('generates with the admin client, not the session-gated action', async () => {
-    vi.resetModules();
-    const adminClient = { admin: true };
-    mocks.createAdminClient.mockReturnValue(adminClient);
-    mocks.generateReportWithClient.mockResolvedValue({
-      success: true,
-      report: { type: 'invoice_aging', data: {} },
-    });
-    vi.doMock('@/lib/reports/report-generator', () => ({
-      generateReportWithClient: mocks.generateReportWithClient,
-    }));
-    vi.doMock('@/lib/auth/cron-auth', () => ({ verifyCronAuth: () => null }));
-    vi.doMock('@/lib/reports/scheduled-report-store', () => ({
-      getDueSchedules: async () => ({
-        data: [
-          {
-            id: 's1',
-            name: 'Aging',
-            report_type: 'invoice_aging',
-            period_preset: 'last_month',
-            frequency: 'monthly',
-            bank_account_ids: [],
-            include_charts: false,
-            include_summary: true,
-          },
-        ],
-        error: null,
-      }),
-      saveScheduledReport: async () => ({ data: { id: 'r1' }, error: null }),
-      markScheduleExecuted: async () => undefined,
-    }));
-    const { GET } = await import('@/app/api/cron/generate-reports/route');
-    const res = await GET({} as never);
-    const body = await res.json();
-    expect(body.succeeded).toBe(1);
-    expect(mocks.generateReportWithClient).toHaveBeenCalledTimes(1);
-    expect(mocks.generateReportWithClient.mock.calls[0][0]).toBe(adminClient);
-    expect(mocks.authorizePermission).not.toHaveBeenCalled();
-    vi.doUnmock('@/lib/reports/report-generator');
-    vi.doUnmock('@/lib/auth/cron-auth');
-    vi.doUnmock('@/lib/reports/scheduled-report-store');
-  });
-});
-
 describe('processDueSchedules (/api/cron/process-report-schedules)', () => {
   it('generates with the admin client and does not authorize', async () => {
     vi.resetModules();

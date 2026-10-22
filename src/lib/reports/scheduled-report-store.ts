@@ -3,8 +3,7 @@
  *
  * Deliberately NOT a server-action module (no directive): these functions use the admin
  * (service-role) client and must never be reachable as client-callable server
- * actions. Sole caller is the CRON_SECRET-authenticated route
- * `/api/cron/generate-reports`, which is responsible for authentication. See #388.
+ * actions. Callers are responsible for authorization. See #388.
  */
 
 import { createAdminClient } from '@/lib/supabase/server';

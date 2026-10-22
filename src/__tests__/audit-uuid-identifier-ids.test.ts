@@ -39,7 +39,11 @@ vi.mock('@/lib/email-imports/gmail-client', () => ({
   exchangeAuthCode: vi.fn(async () => ({ accessToken: 'a', refreshToken: 'r', expiry: new Date() })),
   getGmailClient: vi.fn(),
   GMAIL_SCOPES: ['scope-1'],
+  verifyGmailOAuthState: () => true,
+  GMAIL_OAUTH_STATE_COOKIE: 'gmail_oauth_state',
+  GMAIL_OAUTH_STATE_COOKIE_PATH: '/api/auth/gmail-callback',
 }));
+vi.mock('next/headers', () => ({ cookies: async () => ({ get: () => undefined, delete: vi.fn() }) }));
 vi.mock('@/lib/email-imports/oauth-encryption', () => ({ encrypt: (v: string) => `enc:${v}`, decrypt: (v: string) => v }));
 vi.mock('googleapis', () => ({
   google: {
@@ -163,15 +167,15 @@ describe('C. settings row sites', () => {
 describe('D. email-imports/gmail-oauth.ts exchangeGmailCode', () => {
   it('audits with the inserted credentials row id; the email stays in entityDisplay/newValues', async () => {
     results['gmail_oauth_credentials.insert'] = { data: { id: uid(7) } };
-    expect((await exchangeGmailCode('code')).error).toBeNull();
+    expect((await exchangeGmailCode('code', 'state')).error).toBeNull();
     expectAuditedOnce({ entityType: 'gmail_oauth_credentials', entityId: uid(7), entityDisplay: 'Gmail: a@b.test' });
     expect(logAudit.mock.calls[0][0].newValues).toMatchObject({ email: 'a@b.test' });
   });
   it('does not audit on insert failure or without a row id', async () => {
     results['gmail_oauth_credentials.insert'] = { error: boom };
-    expect((await exchangeGmailCode('code')).error).toBe('Failed to store credentials');
+    expect((await exchangeGmailCode('code', 'state')).error).toBe('Failed to store credentials');
     results['gmail_oauth_credentials.insert'] = { data: null };
-    await exchangeGmailCode('code');
+    await exchangeGmailCode('code', 'state');
     expect(logAudit).not.toHaveBeenCalled();
   });
 });

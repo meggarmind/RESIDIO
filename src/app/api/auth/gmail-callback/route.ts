@@ -36,7 +36,7 @@ export async function GET(request: Request) {
   }
 
   // Exchange code for tokens
-  const result = await exchangeGmailCode(code);
+  const result = await exchangeGmailCode(code, searchParams.get('state'));
 
   if (result.error) {
     return NextResponse.redirect(
