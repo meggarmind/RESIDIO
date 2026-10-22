@@ -111,7 +111,8 @@ export async function checkAccountCode(args: {
     // owner proves possession of it. Best effort, never blocks the caller.
     if (accepted && isPlaintextTotpSecret(args.secretEncrypted)) {
       try {
-        await db().from('profiles').update({ two_factor_secret_encrypted: encryptTotpSecret(secret) }).eq('id', args.profileId);
+        const admin = createAdminClient();
+        await admin.from('profiles').update({ two_factor_secret_encrypted: encryptTotpSecret(secret) }).eq('id', args.profileId);
       } catch (error) {
         console.error('[2FA] Could not re-encrypt legacy TOTP secret:', error instanceof Error ? error.message : error);
       }
