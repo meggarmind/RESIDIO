@@ -29,6 +29,8 @@ import { issueApprovedClearance } from '@/lib/whatsapp/clearance-approval';
 export interface ApprovalApplyResult {
   success: boolean;
   error: string | null;
+  /** The change applied, but something the admin should know about did not happen. */
+  warning?: string;
 }
 
 export interface ApprovalHandler<TChanges> {
@@ -201,7 +203,7 @@ const clearanceCertificateRequest: ApprovalHandler<z.infer<typeof clearanceReque
       return { success: false, error: auth.error || 'Unauthorized' };
     }
     const issued = await issueApprovedClearance(request, auth.userId);
-    return issued.success ? { success: true, error: null } : { success: false, error: issued.error };
+    return issued.success ? { success: true, error: null, warning: issued.warning } : { success: false, error: issued.error };
   },
 };
 

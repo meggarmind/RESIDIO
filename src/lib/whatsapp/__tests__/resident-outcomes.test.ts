@@ -74,10 +74,14 @@ describe('notifyResidentOfApprovalOutcome (#816 decision 13)', () => {
     expect(sendWhatsAppToResident).not.toHaveBeenCalled();
   });
 
+  it('returns why the message was not sent, so the deciding admin sees it (#1037)', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(sendWhatsAppToResident).mockResolvedValue({ sent: false, reason: 'WhatsApp daily outbound limit reached' });
+    await expect(notifyResidentOfApprovalOutcome(request, 'approved')).resolves.toBe('WhatsApp message to the resident was not sent: WhatsApp daily outbound limit reached');
+  });
+
   it('does not throw when the message cannot be sent (no opt-in, no number, provider down)', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.mocked(sendWhatsAppToResident).mockResolvedValue({ sent: false, reason: 'not opted in' });
-    await expect(notifyResidentOfApprovalOutcome(request, 'approved')).resolves.toBeUndefined();
     vi.mocked(sendWhatsAppToResident).mockRejectedValue(new Error('boom'));
     await expect(notifyResidentOfApprovalOutcome(request, 'approved')).resolves.toBeUndefined();
   });
