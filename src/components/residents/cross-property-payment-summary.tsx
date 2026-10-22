@@ -12,8 +12,10 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { useResidentCrossPropertyPaymentSummary } from '@/hooks/use-billing';
+import { useResidentCrossPropertyPaymentSummary, useResidentIndebtedness } from '@/hooks/use-billing';
+import { DebtStatusBadge } from '@/components/billing/debt-status-badge';
 import { formatCurrency } from '@/lib/utils';
+import type { DebtStatus } from '@/lib/billing/debt-status';
 import {
   Receipt,
   ChevronDown,
@@ -28,6 +30,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+const isOwed = (status: DebtStatus) => status === 'outstanding' || status === 'arrears';
+
 interface CrossPropertyPaymentSummaryProps {
   residentId: string;
   /** Wallet balance to display alongside invoice figures; omitted if not yet loaded. */
@@ -38,6 +42,7 @@ interface CrossPropertyPaymentSummaryProps {
 export function CrossPropertyPaymentSummary({ residentId, walletBalance, className }: CrossPropertyPaymentSummaryProps) {
   const [isPropertiesOpen, setIsPropertiesOpen] = useState(false);
   const { data: summary, isLoading, error } = useResidentCrossPropertyPaymentSummary(residentId);
+  const { data: indebtedness } = useResidentIndebtedness(residentId);
 
   const walletBalanceColor = walletBalance === undefined
     ? ''
@@ -115,7 +120,7 @@ export function CrossPropertyPaymentSummary({ residentId, walletBalance, classNa
     );
   }
 
-  const hasOutstanding = summary.totalOutstanding > 0;
+  const hasOutstanding = indebtedness ? isOwed(indebtedness.debtStatus) : summary.properties.some((p) => isOwed(p.debtStatus));
   const hasOverdueProperties = summary.properties.some(p => p.overdueCount > 0);
   const collectionRate = summary.totalDue > 0
     ? Math.round((summary.totalPaid / summary.totalDue) * 100)
@@ -143,8 +148,11 @@ export function CrossPropertyPaymentSummary({ residentId, walletBalance, classNa
         </div>
       </CardHeader>
       <CardContent className="space-y-3 flex-1 flex flex-col">
-        {/* Total Outstanding (Hero) */}
+        {/* Debt status (hero): the word for the resident, the naira amount beside it */}
         <div className="text-center py-1">
+          {indebtedness && (
+            <DebtStatusBadge status={indebtedness.debtStatus} label={indebtedness.debtStatusLabel} className="mb-1" />
+          )}
           <p className="text-xs text-muted-foreground mb-0.5">Total Outstanding</p>
           <p className={cn(
             'text-2xl font-bold',
@@ -236,7 +244,7 @@ export function CrossPropertyPaymentSummary({ residentId, walletBalance, classNa
                   key={property.houseId}
                   className={cn(
                     'relative p-3 rounded-lg border transition-colors',
-                    property.outstanding > 0
+                    isOwed(property.debtStatus)
                       ? 'bg-red-50/50 dark:bg-red-950/10 border-red-100 dark:border-red-900/50'
                       : 'bg-muted/30 hover:bg-muted/50'
                   )}
@@ -255,13 +263,13 @@ export function CrossPropertyPaymentSummary({ residentId, walletBalance, classNa
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div className={cn(
                         'w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0',
-                        property.outstanding > 0
+                        isOwed(property.debtStatus)
                           ? 'bg-red-100 dark:bg-red-900/50'
                           : 'bg-muted'
                       )}>
                         <Home className={cn(
                           'h-5 w-5',
-                          property.outstanding > 0
+                          isOwed(property.debtStatus)
                             ? 'text-red-600 dark:text-red-400'
                             : 'text-muted-foreground'
                         )} />
@@ -293,18 +301,11 @@ export function CrossPropertyPaymentSummary({ residentId, walletBalance, classNa
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      {property.outstanding > 0 ? (
-                        <>
-                          <p className="text-sm font-semibold text-red-600 dark:text-red-400">
-                            {formatCurrency(property.outstanding)}
-                          </p>
-                          <p className="text-xs text-muted-foreground">outstanding</p>
-                        </>
-                      ) : (
-                        <Badge variant="success" className="text-xs">
-                          <CheckCircle2 className="h-3 w-3 mr-1" />
-                          Paid
-                        </Badge>
+                      <DebtStatusBadge status={property.debtStatus} label={property.debtStatusLabel} className="text-xs" />
+                      {property.outstanding > 0 && (
+                        <p className="mt-1 text-sm font-semibold text-red-600 dark:text-red-400">
+                          {formatCurrency(property.outstanding)}
+                        </p>
                       )}
                     </div>
                   </div>
