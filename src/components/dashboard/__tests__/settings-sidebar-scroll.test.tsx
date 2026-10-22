@@ -39,6 +39,9 @@ describe('Settings sidebar scrolling (#1012)', () => {
     const aside = screen.getByRole('complementary');
     expect(aside).toHaveClass('hidden', 'lg:flex', 'flex-col');
     expect(aside).not.toHaveClass('lg:block');
+    // A fixed width, not lg:w-1/5: at 1411px that was 199px and clipped "WhatsApp admin access".
+    expect(aside).toHaveClass('lg:w-56', 'xl:w-64', 'lg:shrink-0');
+    expect(aside).not.toHaveClass('lg:w-1/5');
     expect(screen.getByTestId('settings-nav-scroll')).toHaveClass('min-h-0', 'flex-1', 'overflow-y-auto');
   });
 
@@ -47,6 +50,8 @@ describe('Settings sidebar scrolling (#1012)', () => {
     fireEvent.click(screen.getByRole('button', { name: /System/i }));
     // The arrow is an svg child, and Button size sm's has-[>svg]:px-2.5 beat a plain pl-12.
     expect(screen.getByRole('link', { name: /Audit Logs/ })).toHaveClass('pl-12', 'has-[>svg]:pl-12');
+    // A title too long for the column wraps rather than being clipped.
+    expect(screen.getByRole('link', { name: /Audit Logs/ })).toHaveClass('whitespace-normal', 'h-auto');
   });
 
   it('fits the aside to the visible part of <main> and refits on scroll, capped at the row foot', () => {

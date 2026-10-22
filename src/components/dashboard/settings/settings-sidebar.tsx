@@ -69,7 +69,7 @@ export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
     }, []);
 
     return (
-        <aside ref={asideRef} className={cn("lg:w-1/5 sticky top-0 flex h-[calc(100dvh-12rem)] flex-col gap-3", className)} {...props}>
+        <aside ref={asideRef} className={cn("lg:w-56 xl:w-64 sticky top-0 flex h-[calc(100dvh-12rem)] flex-col gap-3", className)} {...props}>
             <SettingsSearchField search={search} className="pr-4" />
             {/* Native overflow, not Radix ScrollArea: its scrollbar did not appear after a group expanded, so the cut-off list gave no sign it scrolls. */}
             <div data-testid="settings-nav-scroll" className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-4 [scrollbar-width:thin]">
@@ -94,7 +94,7 @@ export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
                                         variant="ghost"
                                         size="sm"
                                         className={cn(
-                                            "w-full justify-between font-semibold hover:bg-muted/50 group",
+                                            "h-auto min-h-8 py-1.5 w-full justify-between whitespace-normal text-left font-semibold hover:bg-muted/50 group",
                                             isActiveGroup ? "text-primary" : "text-muted-foreground"
                                         )}
                                     >
@@ -138,7 +138,7 @@ export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
                                                                     asChild
                                                                     className={cn(
                                                                         // has-[>svg]: the Opens System arrow is an svg child, and the size's has-[>svg]:px-2.5 would win over a plain pl-12.
-                                                                        "w-full justify-start pl-12 has-[>svg]:pl-12 h-8",
+                                                                        "h-auto min-h-8 py-1.5 w-full justify-start whitespace-normal text-left pl-12 has-[>svg]:pl-12",
                                                                         active && "bg-secondary/50 font-medium text-primary shadow-sm"
                                                                     )}
                                                                 >
@@ -161,7 +161,7 @@ export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
                                                     size="sm"
                                                     asChild
                                                     className={cn(
-                                                        "w-full justify-start pl-8 h-8",
+                                                        "h-auto min-h-8 py-1.5 w-full justify-start whitespace-normal text-left pl-8",
                                                         active && "bg-secondary/50 font-medium text-primary shadow-sm"
                                                     )}
                                                 >
