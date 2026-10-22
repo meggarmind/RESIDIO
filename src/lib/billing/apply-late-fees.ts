@@ -242,6 +242,12 @@ export async function runLateFeeApplication(
       .select('id')
       .single();
 
+    // 23505: another run stamped this invoice first (unique index, #1057), so it is already applied.
+    if (itemError?.code === '23505') {
+      skippedAlreadyApplied++;
+      continue;
+    }
+
     if (itemError || !item) {
       errors.push(`Failed to add late fee item to invoice ${invoice.invoice_number}: ${itemError?.message ?? 'no row returned'}`);
       continue;

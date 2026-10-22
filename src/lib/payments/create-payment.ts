@@ -11,6 +11,7 @@ import { buildPaymentReceivedWhatsApp } from '@/lib/whatsapp/outbound'
 import { isWhatsAppOptedIn } from '@/lib/whatsapp/opt-in'
 import { addToQueue } from '@/lib/notifications/queue'
 import { isEventChannelEnabled } from '@/lib/notifications/event-content'
+import { lagosDateString } from '@/lib/whatsapp/assistant-format'
 import { residentHasHouse } from '@/lib/payments/house-membership'
 
 // Extended schema to include import tracking fields, house association, and verification
@@ -120,7 +121,7 @@ export async function createPaymentCore(
     const allocateResult = await allocateWalletToInvoices(
         result.data.resident_id,
         result.data.house_id,
-        result.data.payment_date.toISOString().slice(0, 10),
+        lagosDateString(result.data.payment_date),
         {
             sourcePaymentId: paymentRecord?.id,
             batchAmount: result.data.amount,

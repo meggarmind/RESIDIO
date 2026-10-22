@@ -31,6 +31,7 @@ const PROFILE = { id: 'profile-1', name: 'Gate levy', target_type: 'house', appl
 
 let invoiceInserts: Array<Record<string, unknown>>;
 let houseSingleReads: number;
+let sameDayLevyCount: number;
 
 function fakeSupabase() {
   return {
@@ -52,13 +53,13 @@ function fakeSupabase() {
             ? { data: null, error: { message: 'insert failed' } }
             : { data: { id: `inv-${payload!.house_id}` }, error: null };
         }
-        if (table === 'invoices') return { data: [{ id: 'inv-first' }], error: null };
+        if (table === 'invoices') return { data: [{ id: 'inv-first' }], count: sameDayLevyCount, error: null };
         return { data: null, error: null };
       };
       chain.select = () => chain;
       chain.insert = (p: Record<string, unknown>) => { op = 'insert'; payload = p; return chain; };
       chain.eq = (col: string, val: unknown) => { filters[col] = val; return chain; };
-      for (const m of ['in', 'order', 'limit', 'gte']) chain[m] = () => chain;
+      for (const m of ['in', 'order', 'limit', 'gte', 'or']) chain[m] = () => chain;
       chain.single = async () => { if (table === 'houses') { op = 'single'; houseSingleReads++; } return settle(); };
       chain.maybeSingle = async () => settle();
       chain.then = (resolve: (v: unknown) => unknown) => Promise.resolve(settle()).then(resolve);
@@ -71,6 +72,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   invoiceInserts = [];
   houseSingleReads = 0;
+  sameDayLevyCount = 0;
   mocks.authorizePermission.mockResolvedValue({ authorized: true, userId: 'user-1' });
   mocks.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
   mocks.getSystemSetting.mockImplementation(async (_s: unknown, key: string) => (key === 'invoice_due_window_days' ? '"7"' : true));
@@ -104,6 +106,14 @@ describe('generateRetroactiveLevies (#778)', () => {
       expect(insert.invoice_number).toContain((insert.house_id as string).substring(0, 8).toUpperCase());
       expect(insert.due_date).toBe(due.toISOString().split('T')[0]);
       expect(insert.created_by).toBe('user-1');
+    }
+  });
+
+  it('suffixes the levy number when the house already has a levy number today (#1057)', async () => {
+    sameDayLevyCount = 1;
+    await generateRetroactiveLevies();
+    for (const insert of invoiceInserts) {
+      expect(insert.invoice_number).toMatch(/^LEV-\d{8}-[0-9A-F]{8}-2$/);
     }
   });
 
