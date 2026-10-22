@@ -786,10 +786,10 @@ function IndebtednessSummaryTraditional({ data }: { data: IndebtednessReportData
                 <td style={{ ...parseStyles(styles.td) }}>{house.primaryResidentName}</td>
                 <td style={{
                   ...parseStyles(styles.tdRight),
-                  color: house.isIndebted ? '#8B0000' : '#006400',
+                  color: house.status === 'arrears' || house.status === 'outstanding' ? '#8B0000' : '#006400',
                   fontWeight: 'bold'
                 }}>
-                  {house.isIndebted ? 'INDEBTED' : 'CLEAR'}
+                  {house.statusLabel}
                 </td>
                 {hasAmount && (
                   <td style={{

@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { ilikeAny } from '@/lib/postgrest-filter';
+import { DEBT_STATUS_DEFAULTS, getDebtStatuses, readDebtStatusSettings, type DebtStatus, type DebtStatusSettings } from '@/lib/billing/debt-status';
 import type { InvoiceWithDetails, InvoiceStatus, InvoiceType } from '@/types/database';
 
 // Note: InvoiceWithDetails is now imported from @/types/database directly where needed
@@ -254,7 +255,21 @@ export async function getInvoiceById(id: string): Promise<{ data: InvoiceWithDet
     return { data: data as unknown as InvoiceWithDetails, error: null };
 }
 
-type ResidentIndebtedness = {
+/** The shared debt status (#980) as the admin screens show it: the status, its editable label, and the facts behind it. */
+export type DebtStatusFields = {
+    debtStatus: DebtStatus;
+    debtStatusLabel: string;
+    owedInvoiceCount: number;
+    walletBalance: number;
+}
+
+type RawDebtStatusFields = Omit<DebtStatusFields, 'debtStatusLabel'>;
+
+function withDebtLabel<T extends RawDebtStatusFields>(row: T, settings: DebtStatusSettings): T & DebtStatusFields {
+    return { ...row, debtStatusLabel: settings.labels[row.debtStatus] };
+}
+
+type ResidentIndebtedness = DebtStatusFields & {
     totalUnpaid: number;
     invoiceCount: number;
     unpaidCount: number;
@@ -275,11 +290,16 @@ export async function getResidentIndebtedness(residentId: string): Promise<{ dat
         return { data: null, error: error.message };
     }
 
-    return { data: data as ResidentIndebtedness, error: null };
+    try {
+        const settings = await readDebtStatusSettings(supabase);
+        return { data: withDebtLabel(data as Omit<ResidentIndebtedness, 'debtStatusLabel'>, settings), error: null };
+    } catch (e) {
+        return { data: null, error: e instanceof Error ? e.message : 'Debt status could not be read' };
+    }
 }
 
 // House Payment Status - aggregate all invoices for a house across all residents
-export type HousePaymentStatus = {
+export type HousePaymentStatus = DebtStatusFields & {
     totalDue: number;
     totalPaid: number;
     totalOutstanding: number;
@@ -289,7 +309,7 @@ export type HousePaymentStatus = {
     paidCount: number;
     overdueCount: number;
     overdueAmount: number;
-    residents: Array<{
+    residents: Array<DebtStatusFields & {
         residentId: string;
         residentName: string;
         residentCode: string;
@@ -314,7 +334,18 @@ export async function getHousePaymentStatus(houseId: string): Promise<{ data: Ho
         return { data: null, error: error.message };
     }
 
-    return { data: data as HousePaymentStatus, error: null };
+    try {
+        const settings = await readDebtStatusSettings(supabase);
+        const raw = data as Omit<HousePaymentStatus, 'debtStatusLabel' | 'residents'> & {
+            residents: Array<Omit<HousePaymentStatus['residents'][number], 'debtStatusLabel'>>;
+        };
+        return {
+            data: { ...withDebtLabel(raw, settings), residents: raw.residents.map((r) => withDebtLabel(r, settings)) },
+            error: null,
+        };
+    } catch (e) {
+        return { data: null, error: e instanceof Error ? e.message : 'Debt status could not be read' };
+    }
 }
 
 // Cross-Property Payment Summary for a Resident
@@ -323,7 +354,7 @@ export type ResidentCrossPropertyPaymentSummary = {
     totalPaid: number;
     totalOutstanding: number;
     totalInvoices: number;
-    properties: Array<{
+    properties: Array<DebtStatusFields & {
         houseId: string;
         houseNumber: string;
         streetName: string;
@@ -351,5 +382,30 @@ export async function getResidentCrossPropertyPaymentSummary(residentId: string)
         return { data: null, error: error.message };
     }
 
-    return { data: data as ResidentCrossPropertyPaymentSummary, error: null };
+    const summary = data as Omit<ResidentCrossPropertyPaymentSummary, 'properties'> & {
+        properties: Array<Omit<ResidentCrossPropertyPaymentSummary['properties'][number], keyof DebtStatusFields>>;
+    };
+    let statuses;
+    try {
+        statuses = await getDebtStatuses(supabase, { houseIds: summary.properties.map((p) => p.houseId), residentId });
+    } catch (e) {
+        return { data: null, error: e instanceof Error ? e.message : 'Debt status could not be read' };
+    }
+    const byHouse = new Map(statuses.map((s) => [s.houseId, s]));
+    return {
+        data: {
+            ...summary,
+            properties: summary.properties.map((p) => {
+                const s = byHouse.get(p.houseId);
+                return {
+                    ...p,
+                    debtStatus: s?.status ?? 'paid_in_full',
+                    debtStatusLabel: s?.label ?? DEBT_STATUS_DEFAULTS.labels.paid_in_full,
+                    owedInvoiceCount: s?.owedInvoiceCount ?? 0,
+                    walletBalance: s?.walletBalance ?? 0,
+                };
+            }),
+        },
+        error: null,
+    };
 }

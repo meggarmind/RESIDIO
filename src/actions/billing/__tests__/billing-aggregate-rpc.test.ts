@@ -5,10 +5,11 @@ import {
   getResidentIndebtedness,
 } from '@/actions/billing/get-invoices';
 
-const { authorizePermission, rpc, createServerSupabaseClient } = vi.hoisted(() => ({
+const { authorizePermission, rpc, createServerSupabaseClient, settingRows } = vi.hoisted(() => ({
   authorizePermission: vi.fn(),
   rpc: vi.fn(),
   createServerSupabaseClient: vi.fn(),
+  settingRows: { current: [] as { key: string; value: unknown }[] },
 }));
 
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission }));
@@ -20,7 +21,11 @@ describe('billing aggregate RPC adapters', () => {
     rpc.mockReset();
     createServerSupabaseClient.mockReset();
     authorizePermission.mockResolvedValue({ authorized: true, error: null });
-    createServerSupabaseClient.mockResolvedValue({ rpc });
+    settingRows.current = [];
+    createServerSupabaseClient.mockResolvedValue({
+      rpc,
+      from: () => ({ select: () => ({ in: async () => ({ data: settingRows.current, error: null }) }) }),
+    });
   });
 
   it('rejects unauthorized aggregate reads before creating a data client', async () => {
@@ -43,18 +48,41 @@ describe('billing aggregate RPC adapters', () => {
   });
 
   it('uses the bounded resident indebtedness aggregate', async () => {
-    const data = { totalUnpaid: 10, invoiceCount: 1, unpaidCount: 1, partiallyPaidCount: 0 };
+    const data = { totalUnpaid: 10, invoiceCount: 1, unpaidCount: 1, partiallyPaidCount: 0, debtStatus: 'outstanding', owedInvoiceCount: 1, walletBalance: 0 };
     rpc.mockResolvedValue({ data, error: null });
 
-    await expect(getResidentIndebtedness('resident-1')).resolves.toEqual({ data, error: null });
+    await expect(getResidentIndebtedness('resident-1')).resolves.toEqual({
+      data: { ...data, debtStatusLabel: 'Outstanding' },
+      error: null,
+    });
     expect(rpc).toHaveBeenCalledWith('get_resident_indebtedness', { p_resident_id: 'resident-1' });
   });
 
-  it('uses the bounded house payment aggregate', async () => {
-    const data = { totalDue: 10, totalPaid: 5, totalOutstanding: 5, residents: [] };
+  it('labels a resident with 2 owed invoices in each of two houses as arrears', async () => {
+    const data = { totalUnpaid: 40, invoiceCount: 4, unpaidCount: 4, partiallyPaidCount: 0, debtStatus: 'arrears', owedInvoiceCount: 4, walletBalance: 0 };
     rpc.mockResolvedValue({ data, error: null });
 
-    await expect(getHousePaymentStatus('house-1')).resolves.toEqual({ data, error: null });
+    const result = await getResidentIndebtedness('resident-1');
+
+    expect(result.data).toMatchObject({ debtStatus: 'arrears', debtStatusLabel: 'Arrears', owedInvoiceCount: 4 });
+  });
+
+  it('uses the bounded house payment aggregate', async () => {
+    const data = {
+      totalDue: 10, totalPaid: 5, totalOutstanding: 5, debtStatus: 'arrears', owedInvoiceCount: 4, walletBalance: 0,
+      residents: [{ residentId: 'r1', debtStatus: 'credit', owedInvoiceCount: 0, walletBalance: 50 }],
+    };
+    rpc.mockResolvedValue({ data, error: null });
+    settingRows.current = [{ key: 'debt_status_label_arrears', value: 'Seriously behind' }];
+
+    await expect(getHousePaymentStatus('house-1')).resolves.toEqual({
+      data: {
+        ...data,
+        debtStatusLabel: 'Seriously behind',
+        residents: [{ ...data.residents[0], debtStatusLabel: 'Credit' }],
+      },
+      error: null,
+    });
     expect(rpc).toHaveBeenCalledWith('get_house_payment_status', { p_house_id: 'house-1' });
   });
 
@@ -64,6 +92,23 @@ describe('billing aggregate RPC adapters', () => {
 
     await expect(getResidentCrossPropertyPaymentSummary('resident-1')).resolves.toEqual({ data, error: null });
     expect(rpc).toHaveBeenCalledWith('get_resident_cross_property_payment_summary', { p_resident_id: 'resident-1' });
+  });
+
+  it('adds the shared debt status to each property of the cross-property summary', async () => {
+    const data = { totalInvoices: 2, properties: [{ houseId: 'h1' }, { houseId: 'h2' }] };
+    rpc.mockImplementation(async (name: string) =>
+      name === 'get_debt_statuses'
+        ? { data: [{ house_id: 'h1', resident_id: 'resident-1', status: 'arrears', owed_invoice_count: 4, wallet_balance: 0 }], error: null }
+        : { data, error: null },
+    );
+
+    const result = await getResidentCrossPropertyPaymentSummary('resident-1');
+
+    expect(rpc).toHaveBeenCalledWith('get_debt_statuses', { p_house_ids: ['h1', 'h2'], p_resident_id: 'resident-1' });
+    expect(result.data?.properties).toEqual([
+      { houseId: 'h1', debtStatus: 'arrears', debtStatusLabel: 'Arrears', owedInvoiceCount: 4, walletBalance: 0 },
+      { houseId: 'h2', debtStatus: 'paid_in_full', debtStatusLabel: 'Paid in Full', owedInvoiceCount: 0, walletBalance: 0 },
+    ]);
   });
 
   it('does not fall back to an unbounded invoice read when the aggregate fails', async () => {

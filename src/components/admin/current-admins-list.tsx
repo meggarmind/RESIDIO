@@ -10,7 +10,10 @@ import { usePortalAccessOverrides } from '@/hooks/use-portal-access';
 import { PortalAccessControl } from '@/components/admin/portal-access-control';
 import { AdminRoleActions } from '@/components/admin/admin-role-actions';
 import { roleWithTitle } from '@/lib/auth/role-label';
-import { Shield, User, Home, AlertCircle } from 'lucide-react';
+import { Shield, Home, AlertCircle } from 'lucide-react';
+
+// Administrator | Role | Resident portal (select only) | Actions (fits Change role + Remove role).
+const ROW_COLUMNS = '@4xl:grid-cols-[minmax(0,1fr)_minmax(0,13rem)_8.5rem_15rem]';
 
 export function CurrentAdminsList({
   roleFilter,
@@ -94,46 +97,70 @@ export function CurrentAdminsList({
       <div className="text-sm font-medium text-muted-foreground mb-3">
         {admins.length} administrator{admins.length !== 1 ? 's' : ''} assigned
       </div>
-      <div className="space-y-2">
-        {admins.map((admin) => (
-          <div
-            key={admin.profile_id}
-            className="flex flex-wrap items-center gap-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors"
-          >
-            <Avatar className="h-10 w-10">
-              <AvatarFallback className="bg-primary/10 text-primary">
-                {admin.first_name.charAt(0)}
-                {admin.last_name.charAt(0)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <div className="font-medium">
-                {`${admin.first_name} ${admin.last_name}`.trim()}
+      {/* Columns on a wide container, stacked rows below it (#1014). */}
+      <div className="@container">
+        <div
+          aria-hidden="true"
+          className={`hidden @4xl:grid ${ROW_COLUMNS} gap-x-4 px-3 pb-2 text-xs font-medium text-muted-foreground`}
+        >
+          <span>Administrator</span>
+          <span>Role</span>
+          <span>
+            Resident portal
+            <span className="block font-normal">Estate default: {generalEnabled ? 'on' : 'off'}</span>
+          </span>
+        </div>
+        <ul className="space-y-2">
+          {admins.map((admin) => (
+            <li
+              key={admin.profile_id}
+              data-testid="current-admin-row"
+              className={`flex flex-col gap-3 p-3 border rounded-lg @4xl:grid ${ROW_COLUMNS} @4xl:items-center @4xl:gap-x-4`}
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <Avatar className="h-10 w-10 shrink-0">
+                  <AvatarFallback className="bg-primary/10 text-primary">
+                    {admin.first_name.charAt(0)}
+                    {admin.last_name.charAt(0)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <div className="font-medium truncate">
+                    {`${admin.first_name} ${admin.last_name}`.trim()}
+                  </div>
+                  <div className="flex flex-wrap gap-x-3 text-sm text-muted-foreground">
+                    {admin.email && <span className="truncate max-w-full">{admin.email}</span>}
+                    {admin.house_address && (
+                      <span className="flex items-center gap-1 min-w-0 max-w-full">
+                        <Home className="h-3 w-3 shrink-0" aria-hidden="true" />
+                        <span className="truncate">{admin.house_address}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                {admin.email && (
-                  <span className="truncate">{admin.email}</span>
-                )}
-                {admin.house_address && (
-                  <span className="flex items-center gap-1">
-                    <Home className="h-3 w-3" />
-                    {admin.house_address}
-                  </span>
-                )}
+              {/* `contents` lets these cells join the row grid on wide containers. */}
+              <div className="flex flex-wrap items-center gap-2 sm:pl-13 @4xl:contents">
+                <div className="min-w-0">
+                  <Badge variant={getRoleBadgeVariant(admin.role_name)} className="max-w-full">
+                    <Shield className="h-3 w-3" />
+                    <span className="truncate">{roleWithTitle(admin.role_display_name, admin.title_name)}</span>
+                  </Badge>
+                </div>
+                <PortalAccessControl
+                  profileId={admin.profile_id}
+                  override={overrides?.[admin.profile_id] ?? null}
+                  generalEnabled={generalEnabled}
+                  labelClassName="@4xl:hidden"
+                  effectiveClassName="@4xl:hidden"
+                />
+                <div className="sm:ml-auto @4xl:ml-0 @4xl:justify-self-end">
+                  <AdminRoleActions admin={admin} />
+                </div>
               </div>
-            </div>
-            <PortalAccessControl
-              profileId={admin.profile_id}
-              override={overrides?.[admin.profile_id] ?? null}
-              generalEnabled={generalEnabled}
-            />
-            <Badge variant={getRoleBadgeVariant(admin.role_name)}>
-              <Shield className="h-3 w-3 mr-1" />
-              {roleWithTitle(admin.role_display_name, admin.title_name)}
-            </Badge>
-            <AdminRoleActions admin={admin} />
-          </div>
-        ))}
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   );
