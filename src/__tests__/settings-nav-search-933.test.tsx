@@ -4,7 +4,7 @@
 // group links to the /system monitoring pages marked "Opens System", and the mobile trigger
 // names the current page.
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
@@ -51,6 +51,16 @@ import { SettingsMobileNav } from '@/components/dashboard/settings/settings-mobi
 
 import * as search from '@/lib/search/settings-search-entries';
 
+// The sidebar's ScrollArea shows its scrollbar on overflow (#1012), which needs ResizeObserver.
+beforeAll(() => {
+  if (!globalThis.ResizeObserver) {
+    globalThis.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
+  }
+});
 afterEach(() => {
   cleanup();
   state.pathname = '/settings/billing';
