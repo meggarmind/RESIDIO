@@ -136,6 +136,11 @@ export async function loadSchema(migrations: string[] = laterMigrations()): Prom
       docPolicy('Users can download documents from storage', 'SELECT', 'USING', 'documents.view'),
       docPolicy('Users can delete documents from storage', 'DELETE', 'USING', 'documents.delete'),
       docPolicy('Users can update documents in storage', 'UPDATE', 'USING', 'documents.update'),
+      // logos bucket, as created by 20251229110000_add_logos_storage_bucket and altered by #1056.
+      `CREATE POLICY "Allow authenticated users to upload logos" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'logos');`,
+      `CREATE POLICY "Allow authenticated users to update logos" ON storage.objects FOR UPDATE TO authenticated USING (bucket_id = 'logos') WITH CHECK (bucket_id = 'logos');`,
+      `CREATE POLICY "Allow authenticated users to delete logos" ON storage.objects FOR DELETE TO authenticated USING (bucket_id = 'logos');`,
+      `CREATE POLICY "Allow public read access to logos" ON storage.objects FOR SELECT TO public USING (bucket_id = 'logos');`,
     ].join('\n')
   );
 
