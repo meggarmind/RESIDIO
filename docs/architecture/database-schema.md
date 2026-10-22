@@ -193,6 +193,7 @@ supabase/
 | `late_fee_waivers` | Resident requests for fee removal |
 | `house_ownership_history` | Property ownership transition history |
 | `two_factor_audit_log` | Two-factor authentication audit events |
+| `performance_events` | Admin load-time telemetry; server-written, kept 30 days (`/api/cron/purge-performance-events`) |
 
 ---
 
