@@ -6,7 +6,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { assertCanManageTarget } from '@/lib/auth/account-guards';
 import type { TwoFactorMethod } from '@/types/database';
-import { createHmac } from 'crypto';
+import { validateTOTP } from '@/lib/auth/totp';
 import { otpMatches, readTotpSecret } from '@/lib/auth/two-factor-secrets';
 
 /**
@@ -281,68 +281,3 @@ export async function requestDisableCode(): Promise<{ success: boolean; message:
   return result;
 }
 
-/**
- * Validate a TOTP code against a secret
- */
-function validateTOTP(code: string, secret: string): boolean {
-  const currentTime = Math.floor(Date.now() / 1000 / 30);
-
-  for (let i = -1; i <= 1; i++) {
-    const expectedCode = generateTOTPCode(secret, currentTime + i);
-    if (expectedCode === code) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-/**
- * Generate a TOTP code for a specific time
- */
-function generateTOTPCode(secret: string, timeCounter: number): string {
-  const key = base32Decode(secret);
-  const timeBuffer = Buffer.alloc(8);
-  timeBuffer.writeBigInt64BE(BigInt(timeCounter));
-
-  const hmac = createHmac('sha1', key);
-  hmac.update(timeBuffer);
-  const hash = hmac.digest();
-
-  const offset = hash[hash.length - 1] & 0xf;
-  const binary =
-    ((hash[offset] & 0x7f) << 24) |
-    ((hash[offset + 1] & 0xff) << 16) |
-    ((hash[offset + 2] & 0xff) << 8) |
-    (hash[offset + 3] & 0xff);
-
-  const otp = binary % 1000000;
-  return otp.toString().padStart(6, '0');
-}
-
-/**
- * Base32 decode a string
- */
-function base32Decode(encoded: string): Buffer {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-  const paddedEncoded = encoded.toUpperCase().replace(/=+$/, '');
-
-  let bits = 0;
-  let value = 0;
-  const output: number[] = [];
-
-  for (const char of paddedEncoded) {
-    const index = alphabet.indexOf(char);
-    if (index === -1) continue;
-
-    value = (value << 5) | index;
-    bits += 5;
-
-    if (bits >= 8) {
-      output.push((value >>> (bits - 8)) & 255);
-      bits -= 8;
-    }
-  }
-
-  return Buffer.from(output);
-}

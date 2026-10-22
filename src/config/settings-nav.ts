@@ -662,6 +662,7 @@ export const settingsConfig: SettingsGroup[] = [
         icon: Plug,
         items: [
             { title: "WhatsApp", href: "/settings/whatsapp", description: "Provider credentials, rollout, consent, and pending contacts", permissions: [PERMISSIONS.WHATSAPP_VIEW] },
+            { title: "WhatsApp admin access", href: "/settings/whatsapp-admin", description: "Link your own WhatsApp number for admin mode, approved with your authenticator app", permissions: [PERMISSIONS.WHATSAPP_ADMIN_QUERY] },
             { title: "Gmail Import", href: "/settings/email-integration", description: "Connect Gmail, manage the connection, and trigger a manual sync", permissions: [PERMISSIONS.EMAIL_IMPORTS_VIEW] },
             // Paystack and SMS integrations are planned but not yet built.
         ]

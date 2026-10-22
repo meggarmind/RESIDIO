@@ -15,6 +15,12 @@ import { createSupabaseWhatsAppFinancialRepository } from '@/lib/whatsapp/financ
 import type { WhatsAppInboundMessage, WhatsAppTextMessage } from '@/lib/whatsapp/types';
 import { SURVEY_OPT_OUT_REPLY, isSurveyStopCommand } from '@/lib/whatsapp/survey';
 import { optOutOfSurveys } from '@/lib/whatsapp/survey-db';
+import {
+  createSupabaseWhatsAppAdminRepository,
+  handleWhatsAppAdminMessage,
+  parseWhatsAppAdminCommand,
+  type WhatsAppAdminRepository,
+} from '@/lib/whatsapp/admin';
 
 const BILLABLE_ROLES = new Set([
   'resident_landlord',
@@ -484,6 +490,8 @@ export function createSupabaseWhatsAppIdentityRepository(): WhatsAppIdentityRepo
 
 export interface WhatsAppIdentityHandlerOptions {
   repository: WhatsAppIdentityRepository;
+  /** WhatsApp admin mode (#972); defaults to the Supabase repository. */
+  adminRepository?: WhatsAppAdminRepository;
   send?: (message: WhatsAppTextMessage) => Promise<{ success: boolean; error?: string }>;
   estateContactLine?: () => Promise<string | null>;
   onIdentified?: (
@@ -493,7 +501,7 @@ export interface WhatsAppIdentityHandlerOptions {
 }
 
 export interface WhatsAppIdentityResult {
-  status: 'identified' | 'linked' | 'ambiguous' | 'pending' | 'opted_out' | 'consent_pending' | 'disputed' | 'declined';
+  status: 'identified' | 'linked' | 'ambiguous' | 'pending' | 'opted_out' | 'consent_pending' | 'disputed' | 'declined' | 'admin';
   residentId: string | null;
   optedIn: boolean;
   financialEligible: boolean;
@@ -603,6 +611,18 @@ export async function handleResidentMessage(
 
   const phoneNumber = normalizePhoneNumber(message.from);
   const text = message.text?.trim() || '';
+
+  // Admin mode (#972 D6) starts only on an exact ADMIN command; every other message, from the same
+  // number too, keeps the resident behaviour below. No resident record is read for it.
+  const adminCommand = parseWhatsAppAdminCommand(text);
+  if (adminCommand) {
+    await handleWhatsAppAdminMessage(message, adminCommand, {
+      repository: options.adminRepository ?? createSupabaseWhatsAppAdminRepository(),
+      reply: (body) => sendReply(message, body, options.send),
+    });
+    return { status: 'admin', residentId: null, optedIn: false, financialEligible: false, accessTier: 'community' };
+  }
+
   const linked = await options.repository.findLinkedResidents(phoneNumber);
   const rosterMatches = linked.length > 0 ? linked : await options.repository.findRosterMatches(phoneNumber);
   const identity = rosterMatches.length === 1 ? rosterMatches[0] : null;

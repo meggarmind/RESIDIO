@@ -62,6 +62,33 @@ function repository(overrides: Partial<WhatsAppIdentityRepository> = {}): WhatsA
 }
 
 describe('WhatsApp identity and consent', () => {
+  it('hands an exact ADMIN command to admin mode without reading resident records (#972)', async () => {
+    const repo = repository();
+    const adminRepository = { getLockedUntil: vi.fn().mockResolvedValue(null), findActiveBinding: vi.fn().mockResolvedValue(null) };
+    const send = vi.fn().mockResolvedValue({ success: true });
+
+    const result = await handleResidentMessage(message('ADMIN STATUS'), {
+      repository: repo,
+      adminRepository: adminRepository as never,
+      send,
+    });
+
+    expect(result.status).toBe('admin');
+    expect(repo.findLinkedResidents).not.toHaveBeenCalled();
+    expect(repo.findRosterMatches).not.toHaveBeenCalled();
+    expect(send.mock.calls[0]?.[0].body).toMatch(/not linked to an admin account/);
+  });
+
+  it('keeps other text starting with "admin" on the resident path (#972)', async () => {
+    const repo = repository();
+    const send = vi.fn().mockResolvedValue({ success: true });
+
+    const result = await handleResidentMessage(message('admin please call me'), { repository: repo, send });
+
+    expect(result.status).toBe('identified');
+    expect(repo.findRosterMatches).toHaveBeenCalled();
+  });
+
   it('resolves a registered resident without inferring consent', async () => {
     const repo = repository();
     const send = vi.fn().mockResolvedValue({ success: true });

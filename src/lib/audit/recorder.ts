@@ -129,6 +129,8 @@ export const ENTITY_DISPLAY_FIELDS: Record<AuditEntityType, readonly (string | r
   whatsapp_link_tokens: DEFAULT_DISPLAY_FIELDS,
   whatsapp_sessions: DEFAULT_DISPLAY_FIELDS,
   whatsapp_provider_credentials: DEFAULT_DISPLAY_FIELDS,
+  whatsapp_admin_bindings: DEFAULT_DISPLAY_FIELDS,
+  whatsapp_admin_requests: ['action'],
   recipient_groups: ['name'],
   visitor_vehicles: ['plate_number'],
   expenses: ['description'],
