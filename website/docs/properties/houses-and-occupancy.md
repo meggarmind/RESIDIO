@@ -7,7 +7,7 @@ residio_sources:
   - src/app/(dashboard)/houses/**
   - src/actions/houses/**
   - src/components/houses/**
-residio_verified_commit: 952b0988
+residio_verified_commit: e1cc4f52
 residio_verified_at: '2026-10-22'
 residio_app_version: '0.4.0'
 ---

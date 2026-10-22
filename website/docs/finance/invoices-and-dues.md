@@ -7,7 +7,7 @@ residio_sources:
   - src/app/(dashboard)/billing/**
   - src/actions/billing/**
   - src/app/(dashboard)/settings/billing/**
-residio_verified_commit: 02d5a9b8
+residio_verified_commit: d551d379
 residio_verified_at: '2026-10-22'
 residio_app_version: '0.4.0'
 ---
