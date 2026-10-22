@@ -336,7 +336,7 @@ The **disclosure log** records every occasion on which financial information was
 
 WhatsApp operational state is short-lived by design and purged on a daily schedule.
 
-- Sessions are removed after they expire, by default the next day.
+- Sessions are removed after they expire, by default the next day. A session for a blocked number is kept until its 24-hour reply window has passed, so the number is not sent the "current residents" reply twice in a day.
 - Processed message records are removed after their expiry, by default two days.
 - Survey answers (the rating, the optional comment and the phone number) are removed after 90 days by default. Opt-out records are kept, because they record a resident's choice and hold no comment.
 - Outbound send records are removed after 90 days by default.

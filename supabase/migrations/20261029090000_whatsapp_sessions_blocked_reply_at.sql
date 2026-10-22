@@ -7,8 +7,8 @@
 -- WHY
 --   Owner decision 2026-10-22 (#1066 Q14): a number that may not use the Assistant gets one fixed
 --   reply at most once every 24 hours and silence otherwise. whatsapp_sessions is already one row
---   per phone number; a row created for a blocked number is born expired and is purged a day after
---   that (retention.ts), so the 24-hour window is never cut short by the purge.
+--   per phone number. The retention purge (retention.ts) skips any row whose blocked_reply_at is
+--   under 24 hours old, so the window is never cut short even when the row itself has expired.
 --
 -- WHO IS AFFECTED
 --   Nobody directly. whatsapp_sessions stays service_role only (RLS on, anon and authenticated

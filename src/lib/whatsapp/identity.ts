@@ -17,6 +17,7 @@ import { createSupabaseWhatsAppFinancialRepository } from '@/lib/whatsapp/financ
 import type { WhatsAppInboundMessage, WhatsAppTextMessage } from '@/lib/whatsapp/types';
 import { SURVEY_OPT_OUT_REPLY, isSurveyStopCommand } from '@/lib/whatsapp/survey';
 import { optOutOfSurveys } from '@/lib/whatsapp/survey-db';
+import { BLOCKED_REPLY_HOURS } from '@/lib/whatsapp/retention';
 import {
   createSupabaseWhatsAppAdminRepository,
   handleWhatsAppAdminChoice,
@@ -35,9 +36,6 @@ const BILLABLE_ROLES = new Set([
 
 /** Who may use the Assistant at all (#1070): the billable roles plus co-residents. Everyone else is blocked. */
 const ASSISTANT_ROLES = new Set([...BILLABLE_ROLES, 'co_resident']);
-
-/** A blocked number gets the same fixed reply at most once in this many hours (#1070). */
-const BLOCKED_REPLY_HOURS = 24;
 
 /** Wrong LINK codes a number may try within the window before it is locked out (#1058). */
 const LINK_TRIES_PER_WINDOW = 5;
