@@ -56,6 +56,17 @@ describe('notifyResidentOfApprovalOutcome (#816 decision 13)', () => {
     expect(closeReportedPayment).not.toHaveBeenCalled();
   });
 
+  it('names the houses the payment paid, from the invoices it settled (#1073)', async () => {
+    const item = (house: object) => ({ invoice: { house } });
+    mockDb({
+      approval_requests: [{ data: { entity_id: 'payment-1', requested_by_resident_id: 'resident-1' }, error: null }],
+      payment_records: [{ data: { amount: 50000, payment_date: '2026-10-12T11:00:00+00:00' }, error: null }],
+      wallet_payment_batches: [{ data: { wallet_payment_batch_items: [item({ house_number: '12', short_name: '12 Palm Close', street: null }), item({ house_number: '4', short_name: null, street: { name: 'Cedar Way' } }), item({ house_number: '12', short_name: '12 Palm Close', street: null })] }, error: null }],
+    });
+    await notifyResidentOfApprovalOutcome(request, 'approved');
+    expect(sendWhatsAppToResident).toHaveBeenCalledWith('resident-1', 'Your payment of ₦50,000.00 on 12 Oct 2026 was confirmed. It paid 12 Palm Close and 4, Cedar Way.', { seed: 'approval:request-1:approved' });
+  });
+
   it.each(['rejected', 'expired'] as const)('closes the payment and tells the resident it could not be confirmed when %s', async (outcome) => {
     await notifyResidentOfApprovalOutcome(request, outcome);
     expect(closeReportedPayment).toHaveBeenCalledWith('payment-1');

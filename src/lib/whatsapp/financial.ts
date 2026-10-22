@@ -60,6 +60,7 @@ import { answerSurvey, askSurvey } from '@/lib/whatsapp/survey-db';
 import {
   DEFAULT_KEYWORDS,
   answerFooter,
+  chargeLabel,
   contactLine,
   formatDay,
   formatBalance,
@@ -137,7 +138,13 @@ export type DisclosureChannel = 'chat' | 'pdf' | 'email';
 export interface FinancialHouse {
   id: string;
   label: string;
+  /** The person's active role in the house (resident_houses.resident_role). */
+  role: string;
 }
+
+/** Roles that live in the house: only these may ask for a clearance certificate (#1073 decision 6). */
+const OCCUPANT_ROLES = new Set(['tenant', 'resident_landlord']);
+const NOT_OCCUPANT_CLEARANCE_REPLY = 'A clearance certificate can only be requested for the property you live in.';
 
 export interface WhatsAppFinancialSession {
   phoneNumber: string;
@@ -194,8 +201,9 @@ export interface OwedFigures {
   invoiceCount: number;
   outstanding: number;
   rollForward?: boolean;
-  overdue: { total: number; count: number; oldestDue: string } | null;
-  next: { amount: number; dueDate: string; invoiceNumber: string } | null;
+  /** `charges` names each overdue invoice by what it is for (#1073 decision 2), oldest first. */
+  overdue: { total: number; count: number; oldestDue: string; charges: { label: string; amount: number }[] } | null;
+  next: { amount: number; dueDate: string; invoiceNumber: string; label: string } | null;
   awaitingVerification: number;
 }
 
@@ -330,15 +338,27 @@ function plural(count: number, word: string): string {
 // ---------------------------------------------------------------------------
 // Answer composition (pure, exported for tests)
 
+const OVERDUE_CHARGES_SHOWN = 5;
+
+function overdueLines(overdue: NonNullable<OwedFigures['overdue']>): string[] {
+  const shown = overdue.charges.slice(0, OVERDUE_CHARGES_SHOWN);
+  const hidden = overdue.charges.length - shown.length;
+  return [
+    `Overdue: ${formatNaira(overdue.total)} across ${plural(overdue.count, 'invoice')} (oldest due ${formatDay(overdue.oldestDue)})`,
+    ...shown.map((charge) => `- ${charge.label}: ${formatNaira(charge.amount)}`),
+    ...(hidden > 0 ? [`- and ${hidden} more`] : []),
+  ];
+}
+
 export function composeOweAnswer(figures: OwedFigures, houseLabel: string, showPay: boolean, hasContact: boolean): string {
   const lines = [`*What you owe, ${houseLabel}*`];
   if (figures.rollForward) {
     lines.push(`Outstanding: ${formatBalance(figures.outstanding)}`);
     if (figures.overdue) {
-      lines.push(`Overdue: ${formatNaira(figures.overdue.total)} across ${plural(figures.overdue.count, 'invoice')} (oldest due ${formatDay(figures.overdue.oldestDue)})`);
+      lines.push(...overdueLines(figures.overdue));
     }
     if (figures.next) {
-      lines.push(`Next due: ${formatNaira(figures.next.amount)} on ${formatDay(figures.next.dueDate)} (invoice ${figures.next.invoiceNumber})`);
+      lines.push(`Next due: ${formatNaira(figures.next.amount)} on ${formatDay(figures.next.dueDate)}, ${figures.next.label} (invoice ${figures.next.invoiceNumber})`);
     }
   } else if (figures.invoiceCount === 0) {
     lines.push(`No bills on record for ${houseLabel}.`);
@@ -347,10 +367,10 @@ export function composeOweAnswer(figures: OwedFigures, houseLabel: string, showP
   } else {
     lines.push(`Outstanding: ${formatNaira(figures.outstanding)}`);
     if (figures.overdue) {
-      lines.push(`Overdue: ${formatNaira(figures.overdue.total)} across ${plural(figures.overdue.count, 'invoice')} (oldest due ${formatDay(figures.overdue.oldestDue)})`);
+      lines.push(...overdueLines(figures.overdue));
     }
     if (figures.next) {
-      lines.push(`Next due: ${formatNaira(figures.next.amount)} on ${formatDay(figures.next.dueDate)} (invoice ${figures.next.invoiceNumber})`);
+      lines.push(`Next due: ${formatNaira(figures.next.amount)} on ${formatDay(figures.next.dueDate)}, ${figures.next.label} (invoice ${figures.next.invoiceNumber})`);
     }
   }
   if (figures.awaitingVerification > 0) lines.push(`Awaiting verification: ${formatNaira(figures.awaitingVerification)}`);
@@ -373,8 +393,26 @@ export function composeRecentPaymentsAnswer(rows: PaymentRow[], houseLabel: stri
   return lines.join('\n');
 }
 
-export function composeWalletAnswer(balance: number, hasContact: boolean): string {
-  return ['*Wallet*', `Balance: ${formatNaira(balance)}`, answerFooter(hasContact)].join('\n');
+/** One line per property with what is outstanding there, then the total (#1073 decision 1). */
+export function composeAllPropertiesOweAnswer(rows: { houseLabel: string; figures: OwedFigures }[], showPay: boolean, hasContact: boolean): string {
+  const amount = (value: number, rollForward?: boolean) => (rollForward ? formatBalance(value) : value > 0 ? formatNaira(value) : 'Nil');
+  const total = rows.reduce((sum, row) => sum + row.figures.outstanding, 0);
+  const awaiting = rows.reduce((sum, row) => sum + row.figures.awaitingVerification, 0);
+  const rollForward = rows.some((row) => row.figures.rollForward);
+  const lines = [
+    '*What you owe, all your properties*',
+    ...rows.map((row) => `${row.houseLabel}: ${amount(row.figures.outstanding, row.figures.rollForward)}`),
+    `Total: ${amount(total, rollForward)}`,
+  ];
+  if (awaiting > 0) lines.push(`Awaiting verification: ${formatNaira(awaiting)}`);
+  if (showPay && total > 0) lines.push('Reply PAY for how to pay');
+  lines.push(answerFooter(hasContact));
+  return lines.join('\n');
+}
+
+/** The wallet belongs to the person, not a house, so it is labelled so when they hold several (#1073 decision 3). */
+export function composeWalletAnswer(balance: number, hasContact: boolean, severalHouses = false): string {
+  return [severalHouses ? '*Wallet (all your properties)*' : '*Wallet*', `Balance: ${formatNaira(balance)}`, answerFooter(hasContact)].join('\n');
 }
 
 
@@ -595,7 +633,7 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
         const houseData = row.house as unknown as { house_number: string; short_name: string | null; street: { name: string } | { name: string }[] | null } | { house_number: string; short_name: string | null; street: { name: string } | { name: string }[] | null }[];
         const house = Array.isArray(houseData) ? houseData[0] : houseData;
         const street = Array.isArray(house.street) ? house.street[0]?.name : house.street?.name;
-        return { id: row.house_id, label: house.short_name || `${house.house_number}, ${street || 'Estate'}` };
+        return { id: row.house_id, label: house.short_name || `${house.house_number}, ${street || 'Estate'}`, role: row.resident_role };
       });
     },
 
@@ -638,7 +676,7 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
       const [unpaidResult, countResult, unverifiedResult, balance] = await Promise.all([
         supabase
           .from('invoices')
-          .select('invoice_number, amount_due, amount_paid, due_date')
+          .select('invoice_number, amount_due, amount_paid, due_date, invoice_type, period_start, billing_profile:billing_profiles(name)')
           .eq('resident_id', residentId)
           .eq('house_id', houseId)
           .in('status', ['unpaid', 'partially_paid'])
@@ -667,6 +705,10 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
       const unpaid = (unpaidResult.data || []).filter((invoice) => remaining(invoice) > 0);
       const overdue = unpaid.filter((invoice) => invoice.due_date.slice(0, 10) < today);
       const next = unpaid.find((invoice) => invoice.due_date.slice(0, 10) >= today);
+      const label = (invoice: (typeof unpaid)[number]) => {
+        const profile = Array.isArray(invoice.billing_profile) ? invoice.billing_profile[0] : invoice.billing_profile;
+        return chargeLabel({ invoice_type: invoice.invoice_type, profileName: profile?.name ?? null, periodStart: invoice.period_start });
+      };
       return {
         invoiceCount: countResult.count || 0,
         // Allocation-based (Σ amount_due − amount_paid) until balance_roll_forward_resident_enabled is
@@ -674,9 +716,9 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
         outstanding: balance ? balance.closingBalance : unpaid.reduce((sum, invoice) => sum + remaining(invoice), 0),
         ...(balance && { rollForward: true }),
         overdue: overdue.length
-          ? { total: overdue.reduce((sum, invoice) => sum + remaining(invoice), 0), count: overdue.length, oldestDue: overdue[0].due_date.slice(0, 10) }
+          ? { total: overdue.reduce((sum, invoice) => sum + remaining(invoice), 0), count: overdue.length, oldestDue: overdue[0].due_date.slice(0, 10), charges: overdue.map((invoice) => ({ label: label(invoice), amount: remaining(invoice) })) }
           : null,
-        next: next ? { amount: remaining(next), dueDate: next.due_date.slice(0, 10), invoiceNumber: next.invoice_number } : null,
+        next: next ? { amount: remaining(next), dueDate: next.due_date.slice(0, 10), invoiceNumber: next.invoice_number, label: label(next) } : null,
         awaitingVerification: balance
           ? balance.awaitingVerification
           : (unverifiedResult.data || []).reduce((sum, payment) => sum + Number(payment.amount || 0), 0),
@@ -942,14 +984,17 @@ function financialMenu(turn: Turn): string {
     '4. Wallet',
     '5. Receipt',
     '6. Report a payment',
-    '7. Clearance certificate',
+    ...(house && !OCCUPANT_ROLES.has(house.role) ? [] : ['7. Clearance certificate']),
     ...(multiple ? ['8. More'] : []),
     lastLine,
   ].join('\n');
 }
 
-function propertyPrompt(houses: FinancialHouse[]): string {
-  return ['Which property?', ...houses.map((house, index) => `${index + 1}. ${house.label}`), 'Reply with the property number.'].join('\n');
+const ALL_PROPERTIES = 'All my properties';
+
+/** What I owe offers a summary of every property, as the last choice (#1073 decision 1). */
+function propertyPrompt(houses: FinancialHouse[], withAll = false): string {
+  return ['Which property?', ...houses.map((house, index) => `${index + 1}. ${house.label}`), ...(withAll ? [`${houses.length + 1}. ${ALL_PROPERTIES}`] : []), 'Reply with the property number.'].join('\n');
 }
 
 function statementPeriodPrompt(periods: StatementPeriod[]): string {
@@ -975,7 +1020,7 @@ function emailPinPrompt(turn: Turn): string {
 }
 
 /** Enter Financial standing (or one of its items), passing the PIN gate and property choice first. */
-async function enterFinancial(turn: Turn, target: Target, prefix?: string): Promise<void> {
+async function enterFinancial(turn: Turn, target: Target, prefix?: string, propertyChosen = false): Promise<void> {
   const houses = turn.identity.financialEligible ? await loadHouses(turn) : [];
   if (houses.length === 0) {
     await showMain(turn, 'Financial standing is only available to residents billed for a property.');
@@ -991,8 +1036,8 @@ async function enterFinancial(turn: Turn, target: Target, prefix?: string): Prom
   }
 
   const lead = prefix ? `${prefix}\n\n` : '';
-  if (target === 'switch' || (!selectedHouse(turn) && houses.length > 1)) {
-    await respond(turn, `${lead}${propertyPrompt(houses)}`, `property:${target}`);
+  if (target === 'switch' || (!selectedHouse(turn) && houses.length > 1) || (target === 'what_i_owe' && houses.length > 1 && !propertyChosen)) {
+    await respond(turn, `${lead}${propertyPrompt(houses, target === 'what_i_owe')}`, `property:${target}`);
     return;
   }
   if (!selectedHouse(turn)) turn.session.selectedHouseId = houses[0].id;
@@ -1019,6 +1064,27 @@ async function capReply(turn: Turn): Promise<string | null> {
   return null;
 }
 
+/** One summary of every house: one lookup against the cap and one disclosure log row (#1073 decision 5). */
+async function answerAllProperties(turn: Turn): Promise<void> {
+  const houses = turn.houses || [];
+  const capped = await capReply(turn);
+  if (capped) return respond(turn, capped, 'financial');
+
+  const repository = turn.options.repository;
+  const rows = await Promise.all(houses.map(async (house) => ({ houseLabel: house.label, figures: await repository.getOwed(turn.identity.id, house.id) })));
+  const body = composeAllPropertiesOweAnswer(rows, !!turn.settings?.paymentInstructions, !!turn.contact);
+  await repository.logDisclosure({
+    residentId: turn.identity.id,
+    phoneNumber: turn.phoneNumber,
+    houseId: null,
+    menuItem: 'what_i_owe',
+    pinAuthenticated: turn.session.pinAuthenticated,
+    metadata: { scope: 'all_properties', houses: houses.length },
+  });
+  turn.answered = true;
+  await respond(turn, body, 'answer');
+}
+
 async function answerItem(turn: Turn, item: Exclude<FinancialMenuItem, 'statement'>, prefix?: string): Promise<void> {
   const house = selectedHouse(turn);
   if (!house) return;
@@ -1037,7 +1103,7 @@ async function answerItem(turn: Turn, item: Exclude<FinancialMenuItem, 'statemen
   } else if (item === 'recent_payments') {
     body = composeRecentPaymentsAnswer(await repository.getRecentPayments(turn.identity.id, house.id, RECENT_PAYMENT_COUNT), house.label, hasContact);
   } else {
-    body = composeWalletAnswer(await repository.getWalletBalance(turn.identity.id), hasContact);
+    body = composeWalletAnswer(await repository.getWalletBalance(turn.identity.id), hasContact, (turn.houses?.length ?? 0) > 1);
   }
 
   // Log before sending (#795): a failed log then discloses nothing, and a provider retry cannot repeat an answer.
@@ -1240,6 +1306,7 @@ async function pickReceipt(turn: Turn, input: string): Promise<void> {
 async function askForClearance(turn: Turn, lead: string): Promise<void> {
   const house = selectedHouse(turn);
   if (!house) return;
+  if (!OCCUPANT_ROLES.has(house.role)) return respond(turn, `${lead}${NOT_OCCUPANT_CLEARANCE_REPLY}\n${footer(turn)}`, 'answer');
   const capped = await capReply(turn);
   if (capped) return respond(turn, capped, 'financial');
 
@@ -1630,10 +1697,11 @@ async function handlePinStep(turn: Turn, step: string, arg: string | undefined, 
 
 async function chooseProperty(turn: Turn, target: Target): Promise<void> {
   const houses = await loadHouses(turn);
+  if (target === 'what_i_owe' && houses.length > 1 && (turn.text.trim() === String(houses.length + 1) || normalizeInput(turn.text) === 'all')) return answerAllProperties(turn);
   const house = /^\d+$/.test(turn.text) ? houses[Number(turn.text) - 1] : undefined;
   if (!house) return miss(turn, `property:${target}`);
   turn.session.selectedHouseId = house.id;
-  return enterFinancial(turn, target === 'switch' ? 'menu' : target);
+  return enterFinancial(turn, target === 'switch' ? 'menu' : target, undefined, true);
 }
 
 async function endSession(turn: Turn): Promise<void> {
