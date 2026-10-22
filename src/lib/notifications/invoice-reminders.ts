@@ -99,6 +99,8 @@ export async function processInvoiceReminders(): Promise<ProcessRemindersResult>
   const { data: schedule, error: scheduleError } = await getReminderSchedule();
   if (scheduleError || !schedule) {
     console.error('[InvoiceReminders] Failed to load schedule:', scheduleError);
+    result.failed++;
+    result.errors.push({ invoiceId: 'schedule', error: `Failed to load schedule: ${scheduleError ?? 'no schedule'}` });
     return result;
   }
 
@@ -113,6 +115,7 @@ export async function processInvoiceReminders(): Promise<ProcessRemindersResult>
   // Get today's date
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const todayStr = today.toISOString().split('T')[0];
 
   // Process each active step in the schedule
   for (const step of steps) {
@@ -126,7 +129,16 @@ export async function processInvoiceReminders(): Promise<ProcessRemindersResult>
     console.log(`[InvoiceReminders] Processing step: ${step.daysFromDue} days from due (target date: ${targetDateStr})`);
 
     // Find invoices due on this date
-    const invoices = await getInvoicesForReminder(targetDateStr, step.daysFromDue);
+    const { invoices, error: fetchError } = await getInvoicesForReminder(targetDateStr);
+    if (fetchError) {
+      // A failed read is a failed step, not an empty one: the cron route reports it.
+      result.failed++;
+      result.errors.push({
+        invoiceId: `step:${step.daysFromDue}`,
+        error: `Failed to fetch invoices: ${fetchError}`,
+      });
+      continue;
+    }
 
     for (const invoice of invoices) {
       result.processed++;
@@ -157,12 +169,22 @@ export async function processInvoiceReminders(): Promise<ProcessRemindersResult>
         continue;
       }
 
+      // A re-run on the same day (e.g. a manual retry after a timeout) must not resend.
+      if (
+        escalationState?.last_notified_at &&
+        new Date(escalationState.last_notified_at) >= today
+      ) {
+        result.skipped++;
+        continue;
+      }
+
       // Send reminders via configured channels
       const sendResults = await sendReminderToChannels({
         invoice,
         step,
         amountRemaining,
         estateSettings,
+        todayStr,
         reminderCount: (escalationState?.current_level || 0) + 1,
       });
 
@@ -199,9 +221,8 @@ export async function processInvoiceReminders(): Promise<ProcessRemindersResult>
  * Get invoices that need reminders for a specific due date
  */
 async function getInvoicesForReminder(
-  dueDateStr: string,
-  daysFromDue: number
-): Promise<InvoiceForReminder[]> {
+  dueDateStr: string
+): Promise<{ invoices: InvoiceForReminder[]; error?: string }> {
   const supabase = createAdminClient();
 
   // For overdue invoices (positive daysFromDue), we need to check multiple dates
@@ -236,10 +257,10 @@ async function getInvoicesForReminder(
 
   if (error) {
     console.error('[InvoiceReminders] Failed to fetch invoices:', error);
-    return [];
+    return { invoices: [], error: error.message };
   }
 
-  return (data || []) as unknown as InvoiceForReminder[];
+  return { invoices: (data || []) as unknown as InvoiceForReminder[] };
 }
 
 /**
@@ -250,6 +271,7 @@ async function sendReminderToChannels(params: {
   step: ReminderScheduleStep;
   amountRemaining: number;
   estateSettings: EstateEmailSettings;
+  todayStr: string;
   reminderCount: number;
 }): Promise<{
   email: boolean;
@@ -257,7 +279,7 @@ async function sendReminderToChannels(params: {
   whatsapp: boolean;
   errors: string[];
 }> {
-  const { invoice, step, amountRemaining, estateSettings, reminderCount } = params;
+  const { invoice, step, amountRemaining, estateSettings, todayStr, reminderCount } = params;
   const results = { email: false, sms: false, whatsapp: false, errors: [] as string[] };
 
   // Format due date for display
@@ -331,15 +353,18 @@ async function sendReminderToChannels(params: {
             break;
           }
 
-          const result = await addToQueue(buildInvoiceReminderWhatsApp({
-            invoiceId: invoice.id,
-            invoiceNumber: invoice.invoice_number,
-            residentId: invoice.resident.id,
-            residentPhone: invoice.resident.phone_primary,
-            residentName,
-            amountRemaining,
-            dueDate: formattedDueDate,
-          }));
+          const result = await addToQueue({
+            ...buildInvoiceReminderWhatsApp({
+              invoiceId: invoice.id,
+              invoiceNumber: invoice.invoice_number,
+              residentId: invoice.resident.id,
+              residentPhone: invoice.resident.phone_primary,
+              residentName,
+              amountRemaining,
+              dueDate: formattedDueDate,
+            }),
+            deduplication_key: `invoice-reminder:${invoice.id}:${todayStr}`,
+          });
           if (result.success) results.whatsapp = true;
           else results.errors.push(`WhatsApp: ${result.error}`);
         }
