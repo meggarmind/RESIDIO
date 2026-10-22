@@ -163,14 +163,21 @@ export function createSendPolicyFacts(): SendPolicyFacts {
     getWhatsAppEnabled: () => getSettingResultAsService('whatsapp_enabled'),
     isRecipientInRollout: (recipientId) => isWhatsAppRecipientAllowed(recipientId),
     getNumberSetting: (key) => getSettingValueAsService(key),
+    // Queued sends are counted from notification_history; every other accepted notification send
+    // (resident sends, sendImmediate) from whatsapp_outbound_sends. An immediate send is in both
+    // tables (history queue_id null, external_id = provider message id), so it is taken off once.
     async countWhatsAppSentSince(sinceIso) {
-      const { count, error } = await createAdminClient()
-        .from('notification_history')
-        .select('id', { count: 'exact', head: true })
-        .eq('channel', 'whatsapp')
-        .eq('status', 'sent')
-        .gte('sent_at', sinceIso);
-      return { count: count ?? null, failed: Boolean(error) };
+      const admin = createAdminClient();
+      const [history, outbound, immediate] = await Promise.all([
+        admin.from('notification_history').select('id', { count: 'exact', head: true })
+          .eq('channel', 'whatsapp').eq('status', 'sent').gte('sent_at', sinceIso),
+        admin.from('whatsapp_outbound_sends').select('id', { count: 'exact', head: true })
+          .eq('purpose', 'notification').is('notification_queue_id', null).gte('created_at', sinceIso),
+        admin.from('notification_history').select('id', { count: 'exact', head: true })
+          .eq('channel', 'whatsapp').eq('status', 'sent').is('queue_id', null).not('external_id', 'is', null).gte('sent_at', sinceIso),
+      ]);
+      if (history.error || outbound.error || immediate.error) return { count: null, failed: true };
+      return { count: (history.count ?? 0) + Math.max(0, (outbound.count ?? 0) - (immediate.count ?? 0)), failed: false };
     },
     async findOptIn(residentId, normalizedPhone) {
       const { data, error } = await createAdminClient()

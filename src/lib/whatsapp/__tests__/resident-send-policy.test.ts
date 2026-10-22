@@ -4,14 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   createAdminClient: vi.fn(),
   resolveResidentOverride: vi.fn(),
-  isWhatsAppOptedIn: vi.fn(),
   sendWhatsAppMessage: vi.fn(),
   evaluateSendPolicy: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/server', () => ({ createAdminClient: mocks.createAdminClient }));
 vi.mock('@/lib/comms-override/resident-flag', () => ({ resolveResidentOverride: mocks.resolveResidentOverride }));
-vi.mock('@/lib/whatsapp/opt-in', () => ({ isWhatsAppOptedIn: mocks.isWhatsAppOptedIn }));
 vi.mock('@/lib/whatsapp/provider', () => ({ sendWhatsAppMessage: mocks.sendWhatsAppMessage }));
 vi.mock('@/lib/whatsapp/send-policy', () => ({
   evaluateSendPolicy: mocks.evaluateSendPolicy,
@@ -25,7 +23,6 @@ beforeEach(() => {
   mocks.createAdminClient.mockReturnValue({
     from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: { phone_primary: '0801' }, error: null }) }) }) }),
   });
-  mocks.isWhatsAppOptedIn.mockResolvedValue(true);
   mocks.resolveResidentOverride.mockResolvedValue({ ok: true, residentOverride: undefined });
   mocks.sendWhatsAppMessage.mockResolvedValue({ success: true });
 });

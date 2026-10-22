@@ -119,8 +119,11 @@ describe('issueApprovedClearance (#816 decisions 15, 21, 22)', () => {
   it('still succeeds when the resident cannot be reached, because the certificate exists', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     db();
-    vi.mocked(sendWhatsAppToResident).mockResolvedValue({ sent: false, reason: 'not opted in' });
-    expect(await issueApprovedClearance(request, 'admin-1', NOW)).toEqual({ success: true });
+    vi.mocked(sendWhatsAppToResident).mockResolvedValue({ sent: false, reason: 'WhatsApp daily outbound limit reached' });
+    expect(await issueApprovedClearance(request, 'admin-1', NOW)).toEqual({
+      success: true,
+      warning: 'The certificate was issued, but the WhatsApp copy to the resident was not sent: WhatsApp daily outbound limit reached',
+    });
 
     db();
     vi.mocked(storeChatPdf).mockRejectedValue(new Error('storage down'));

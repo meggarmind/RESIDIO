@@ -1,6 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server';
 import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
-import { isWhatsAppOptedIn } from '@/lib/whatsapp/opt-in';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { createSendPolicyFacts, evaluateSendPolicy } from '@/lib/whatsapp/send-policy';
 
@@ -28,7 +27,6 @@ export async function sendWhatsAppToResident(
       createSendPolicyFacts()
     );
     if (decision.outcome !== 'allow') return { sent: false, reason: decision.message };
-    if (!(await isWhatsAppOptedIn(residentId, phone))) return { sent: false, reason: 'not opted in' };
 
     const override = await resolveResidentOverride([residentId]);
     if (!override.ok) return { sent: false, reason: override.error };
