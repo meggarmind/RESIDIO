@@ -85,6 +85,17 @@ describe('WhatsApp identity and consent', () => {
     expect(repo.setOptIn).toHaveBeenNthCalledWith(2, 'resident-1', '+2348000000000', false, 'in_chat');
   });
 
+  it('opts out every resident on a shared number when STOP arrives', async () => {
+    const other = { ...resident, id: 'resident-2', residentCode: 'RES002' };
+    const repo = repository({ findRosterMatches: vi.fn().mockResolvedValue([resident, other]) });
+    const send = vi.fn().mockResolvedValue({ success: true });
+
+    await handleResidentMessage(message('STOP'), { repository: repo, send });
+
+    expect(repo.setOptIn).toHaveBeenCalledWith('resident-1', '+2348000000000', false, 'in_chat');
+    expect(repo.setOptIn).toHaveBeenCalledWith('resident-2', '+2348000000000', false, 'in_chat');
+  });
+
   it('stores STOP SURVEYS as a survey opt-out and leaves the alerts opt-in alone (#872)', async () => {
     const repo = repository({ getOptIn: vi.fn().mockResolvedValue(true) });
     const send = vi.fn().mockResolvedValue({ success: true });

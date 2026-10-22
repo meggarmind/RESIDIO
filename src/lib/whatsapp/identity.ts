@@ -500,7 +500,7 @@ export interface WhatsAppIdentityResult {
   accessTier: 'community' | 'financial';
 }
 
-function isStopCommand(text: string): boolean {
+export function isStopCommand(text: string): boolean {
   // STOP SURVEYS only ends the feedback questions; it is not an alerts opt-out.
   return !isSurveyStopCommand(text) && /^(STOP|UNSUBSCRIBE|OPT\s*OUT)\b/i.test(text.trim());
 }
@@ -608,8 +608,9 @@ export async function handleResidentMessage(
   const identity = rosterMatches.length === 1 ? rosterMatches[0] : null;
 
   if (isStopCommand(text)) {
-    if (identity) {
-      await options.repository.setOptIn(identity.id, phoneNumber, false, 'in_chat');
+    // A shared number cannot say which resident typed STOP, so every match is opted out.
+    for (const match of rosterMatches) {
+      await options.repository.setOptIn(match.id, phoneNumber, false, 'in_chat');
     }
     await sendReply(
       message,
