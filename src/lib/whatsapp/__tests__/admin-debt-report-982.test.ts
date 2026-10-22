@@ -174,6 +174,20 @@ describe('ADMIN DEBT: choosing', () => {
     expect(reply).not.toHaveBeenCalled();
   });
 
+  it('leaves the message to the resident assistant when the lookup fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { reply, handled } = await choose('2', repository({ findPendingChoice: vi.fn().mockRejectedValue(new Error('db down')) }));
+    expect(handled).toBe(false);
+    expect(reply).not.toHaveBeenCalled();
+  });
+
+  it('a failure after the choice was taken is not hidden as a resident message', async () => {
+    const reply = vi.fn().mockRejectedValue(new Error('send failed'));
+    const repo = repository({ findPendingChoice: vi.fn().mockResolvedValue(waiting) });
+    await expect(handleWhatsAppAdminChoice(message('2'), { repository: repo, reply, now: () => NOW })).rejects.toThrow('send failed');
+    expect(repo.createRequest).toHaveBeenCalled();
+  });
+
   it('leaves the message alone from a number that is not a linked admin', async () => {
     const { handled } = await choose('2', repository({ findActiveBinding: vi.fn().mockResolvedValue(null) }));
     expect(handled).toBe(false);

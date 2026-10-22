@@ -628,15 +628,10 @@ export async function handleResidentMessage(
   // A plain reply to an admin question (street numbers, ALL) only belongs to admin mode when this
   // number has one waiting; otherwise it carries on to the resident assistant (#982).
   if (looksLikeAdminChoice(text)) {
-    let handled = false;
-    try {
-      handled = await handleWhatsAppAdminChoice(message, {
-        repository: options.adminRepository ?? createSupabaseWhatsAppAdminRepository(),
-        reply: (body) => sendReply(message, body, options.send),
-      });
-    } catch (error) {
-      console.error('[whatsapp-identity] Admin choice lookup failed; continuing as a resident message:', error);
-    }
+    const handled = await handleWhatsAppAdminChoice(message, {
+      repository: options.adminRepository ?? createSupabaseWhatsAppAdminRepository(),
+      reply: (body) => sendReply(message, body, options.send),
+    });
     if (handled) return { status: 'admin', residentId: null, optedIn: false, financialEligible: false, accessTier: 'community' };
   }
 

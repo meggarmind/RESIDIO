@@ -829,12 +829,18 @@ export async function handleWhatsAppAdminChoice(
 ): Promise<boolean> {
   const { repository, reply } = options;
   const now = options.now?.() ?? new Date();
-  const binding = await repository.findActiveBinding(normalizePhoneNumber(message.from));
-  if (!binding) return false;
-  const waiting = await repository.findPendingChoice(binding.id, now);
-  if (!waiting || !Object.hasOwn(WHATSAPP_ADMIN_ACTIONS, waiting.action)) return false;
+  let binding, waiting, account;
+  try {
+    binding = await repository.findActiveBinding(normalizePhoneNumber(message.from));
+    waiting = binding ? await repository.findPendingChoice(binding.id, now) : null;
+    account = waiting ? await repository.loadAccount(binding!.profileId) : null;
+  } catch (error) {
+    // A resident's plain number must not fail because the admin tables cannot be read.
+    console.error('[whatsapp-admin] Admin choice lookup failed; leaving the message to the resident assistant:', error);
+    return false;
+  }
+  if (!binding || !waiting || !Object.hasOwn(WHATSAPP_ADMIN_ACTIONS, waiting.action)) return false;
   const action = WHATSAPP_ADMIN_ACTIONS[waiting.action];
-  const account = await repository.loadAccount(binding.profileId);
   // A binding that must end is ended by the admin's next ADMIN command, not here.
   if (!account || bindingEndReason(binding, account, now) || !action.choose) return false;
 
