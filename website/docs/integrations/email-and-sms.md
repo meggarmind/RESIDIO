@@ -96,6 +96,8 @@ Editing is available only while Chatmaid is the connected WhatsApp provider. Wit
 
 **Settings → Messages → Reminders** turns automatic reminders on or off (**On or off**) and defines the steps (**Schedule**). Reminders are dispatched by a scheduled job rather than at the moment you save them, so a saved reminder that has not arrived yet is usually waiting for its next run, not broken. The Billing reminder days and the Email **Payment reminders** switch also limit what it sends; see [Billing and notifications](../settings/billing-and-notifications.md).
 
+The scheduled job sends at most one reminder per invoice per day, so running it again on the same day (for example after a timeout) does not resend. A reminder day that the job missed is not caught up later. If the job cannot read the schedule, the invoices or an invoice's reminder history, it reports the run as failed instead of sending nothing silently.
+
 Invoice reminders go out by email and WhatsApp only. SMS is switched off for reminders until the SMS provider (Termii) is connected, so an SMS step in a reminder schedule is skipped without an error. The default schedule is email only. The schedule editor offers Email and WhatsApp for each step; it does not offer SMS. A WhatsApp step reaches only residents who have opted in to WhatsApp.
 
 ## The notification queue
