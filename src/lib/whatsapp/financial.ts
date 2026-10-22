@@ -123,7 +123,7 @@ const TEXT_ONLY_REPLY = 'I can only read text messages here. Please type your re
 const UNSUBSCRIBED_REPLY = "You've been unsubscribed from estate WhatsApp alerts. Reply START any time to re-subscribe.";
 
 /** Values written to whatsapp_disclosure_logs.menu_item (shown as-is in the operations console). */
-export type FinancialMenuItem = 'what_i_owe' | 'recent_payments' | 'statement' | 'wallet' | 'receipt' | 'clearance';
+export type FinancialMenuItem = 'what_i_owe' | 'recent_payments' | 'statement' | 'wallet' | 'receipt' | 'clearance' | 'admin_owes';
 export type LookupAllowance = 'ok' | 'resident_cap' | 'estate_cap';
 /** How a disclosure left the estate (#804 decision 25). */
 export type DisclosureChannel = 'chat' | 'pdf' | 'email';
@@ -782,8 +782,8 @@ export async function canPerformWhatsAppFinancialLookup(residentId: string): Pro
   const startOfDay = lagosMidnight(year, month, day).toISOString();
   const client = createAdminClient();
   const [estate, resident] = await Promise.all([
-    client.from('whatsapp_disclosure_logs').select('id', { count: 'exact', head: true }).gte('created_at', startOfDay),
-    client.from('whatsapp_disclosure_logs').select('id', { count: 'exact', head: true }).eq('resident_id', residentId).gte('created_at', startOfDay),
+    client.from('whatsapp_disclosure_logs').select('id', { count: 'exact', head: true }).neq('menu_item', 'admin_owes').gte('created_at', startOfDay),
+    client.from('whatsapp_disclosure_logs').select('id', { count: 'exact', head: true }).eq('resident_id', residentId).neq('menu_item', 'admin_owes').gte('created_at', startOfDay),
   ]);
   if (estate.error) throw estate.error;
   if (resident.error) throw resident.error;
