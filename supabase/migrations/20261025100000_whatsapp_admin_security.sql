@@ -17,6 +17,9 @@
 --   4. Permission whatsapp_admin.query ("Use WhatsApp Admin Mode"), category notifications like the
 --      other WhatsApp permissions, granted to super_admin, chairman and financial_officer.
 --   All three tables are service_role only, like the other WhatsApp tables.
+--   5. CREATE FUNCTION public.whatsapp_admin_record_wrong_code(phone, now): counts a wrong code and
+--      locks the number in one statement, so parallel guesses cannot dodge the limit. At the fifth it
+--      sets locked_until 30 minutes ahead, resets the count and returns the lock end. service_role only.
 --
 -- WHY
 --   The WhatsApp provider gives only the sender's number, so a number alone proves nothing. Admin
@@ -26,6 +29,7 @@
 --
 -- ROLLBACK (loses every binding and request; export the tables first):
 --   BEGIN;
+--   DROP FUNCTION IF EXISTS public.whatsapp_admin_record_wrong_code(TEXT, TIMESTAMPTZ);
 --   DROP TABLE IF EXISTS public.whatsapp_admin_requests;
 --   DROP TABLE IF EXISTS public.whatsapp_admin_bindings;
 --   DROP TABLE IF EXISTS public.whatsapp_admin_number_locks;
@@ -117,6 +121,24 @@ CREATE POLICY "whatsapp_admin_requests_service_role_all"
 DROP POLICY IF EXISTS "whatsapp_admin_number_locks_service_role_all" ON public.whatsapp_admin_number_locks;
 CREATE POLICY "whatsapp_admin_number_locks_service_role_all"
   ON public.whatsapp_admin_number_locks FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE OR REPLACE FUNCTION public.whatsapp_admin_record_wrong_code(p_phone TEXT, p_now TIMESTAMPTZ)
+RETURNS TIMESTAMPTZ
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+  INSERT INTO public.whatsapp_admin_number_locks AS l (phone_number, failed_attempts, locked_until, updated_at)
+  VALUES (p_phone, 1, NULL, p_now)
+  ON CONFLICT (phone_number) DO UPDATE SET
+    failed_attempts = CASE WHEN l.failed_attempts + 1 >= 5 THEN 0 ELSE l.failed_attempts + 1 END,
+    locked_until = CASE WHEN l.failed_attempts + 1 >= 5 THEN p_now + interval '30 minutes' ELSE l.locked_until END,
+    updated_at = p_now
+  RETURNING CASE WHEN l.failed_attempts = 0 AND l.locked_until > p_now THEN l.locked_until END;
+$$;
+
+REVOKE ALL ON FUNCTION public.whatsapp_admin_record_wrong_code(TEXT, TIMESTAMPTZ) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.whatsapp_admin_record_wrong_code(TEXT, TIMESTAMPTZ) TO service_role;
 
 INSERT INTO public.app_permissions (name, display_name, description, category, is_active)
 VALUES (

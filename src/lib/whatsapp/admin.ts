@@ -285,29 +285,12 @@ export function createSupabaseWhatsAppAdminRepository(): WhatsAppAdminRepository
     },
 
     async recordWrongCode(phoneNumber, now) {
-      // shortcut: read-then-write, so two wrong codes in the same instant can count once; the
-      // webhook handles one number's messages one at a time. Move to an RPC if that changes.
-      const supabase = db();
-      const { data, error } = await supabase
-        .from('whatsapp_admin_number_locks')
-        .select('failed_attempts')
-        .eq('phone_number', phoneNumber)
-        .maybeSingle();
+      const { data, error } = await db().rpc('whatsapp_admin_record_wrong_code', {
+        p_phone: phoneNumber,
+        p_now: now.toISOString(),
+      });
       if (error) throw error;
-      const attempts = Number(data?.failed_attempts ?? 0) + 1;
-      const lockedUntil = attempts >= ADMIN_MAX_WRONG_CODES ? new Date(now.getTime() + ADMIN_LOCK_MINUTES * MINUTE).toISOString() : null;
-      const { error: writeError } = await supabase.from('whatsapp_admin_number_locks').upsert(
-        {
-          phone_number: phoneNumber,
-          // A lock starts the count again, so the next 5 wrong codes after it lock again.
-          failed_attempts: lockedUntil ? 0 : attempts,
-          ...(lockedUntil ? { locked_until: lockedUntil } : {}),
-          updated_at: now.toISOString(),
-        },
-        { onConflict: 'phone_number' }
-      );
-      if (writeError) throw writeError;
-      return { lockedUntil };
+      return { lockedUntil: (data as string | null) ?? null };
     },
 
     async clearWrongCodes(phoneNumber) {
