@@ -23,6 +23,7 @@ vi.mock('@/lib/notifications/deduplication', () => ({ shouldQueue: vi.fn(), gene
 
 import { hasQueuedResidentSend, sendWhatsAppToResident } from '@/lib/whatsapp/resident-send';
 import { sendAndRecordNotification, sendNotification } from '@/lib/notifications/send';
+import { cancelQueueItem, processQueue } from '@/lib/notifications/queue';
 import type { NotificationQueueItem } from '@/lib/notifications/types';
 
 const defer = { outcome: 'defer', reason: 'daily_limit_reached', message: 'WhatsApp daily outbound limit reached' };
@@ -126,6 +127,31 @@ describe('deferred resident send (#1044)', () => {
       await sendAndRecordNotification(item);
       expect(queued()[0]).toMatchObject({ status: 'pending' });
       expect(copyRow()).toMatchObject({ status: 'scheduled', error: 'held back' });
+    });
+
+    it('marks the copy failed when an admin cancels its queued send', async () => {
+      await dueCopy();
+      expect(await cancelQueueItem('q1', 'not needed')).toEqual({ success: true });
+      expect(queued()[0]).toMatchObject({ status: 'cancelled' });
+      expect(copyRow()).toMatchObject({ status: 'failed', error: 'not needed' });
+    });
+
+    it('marks the copy failed when the queue gives up on a row that keeps getting stuck', async () => {
+      await dueCopy();
+      Object.assign(queued()[0], { status: 'processing', last_attempt_at: null, max_attempts: 1 });
+      await processQueue();
+      expect(queued()[0]).toMatchObject({ status: 'failed' });
+      expect(copyRow()).toMatchObject({ status: 'failed', error: 'Max attempts exceeded' });
+      expect(mocks.sendWhatsAppMessage).not.toHaveBeenCalled();
+    });
+
+    it('marks the copy failed when the queue finds its attempts already used up', async () => {
+      await dueCopy();
+      Object.assign(queued()[0], { attempts: 3, max_attempts: 3, scheduled_for: '2026-10-22T00:00:00.000Z' });
+      await processQueue();
+      expect(queued()[0]).toMatchObject({ status: 'failed' });
+      expect(copyRow()).toMatchObject({ status: 'failed', error: 'Max attempts exceeded' });
+      expect(mocks.sendWhatsAppMessage).not.toHaveBeenCalled();
     });
 
     it('counts it as waiting for a retry check only while pending, not once sent', async () => {

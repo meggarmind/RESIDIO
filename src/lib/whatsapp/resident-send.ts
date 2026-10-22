@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/server';
 import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
@@ -16,6 +17,23 @@ export interface ClearanceCopyRef { documentId: string; recipientId: string }
 export interface ResidentSendPayload { seed: string; media?: DeferredMedia[]; trackingId?: string; clearanceCopy?: ClearanceCopyRef }
 
 const dedupKey = (seed: string) => `resident-send:${seed}`;
+
+/**
+ * Moves a clearance copy the cap held back (#1044) out of 'scheduled' once its queue row ends:
+ * 'sent' when `error` is null, otherwise 'failed' with the reason so the console lists it for retry.
+ */
+export async function settleClearanceCopy(metadata: Record<string, unknown> | null | undefined, error: string | null): Promise<void> {
+  const copy = (metadata?.[RESIDENT_SEND_METADATA_KEY] as ResidentSendPayload | undefined)?.clearanceCopy;
+  if (!copy) return;
+  // clearance_certificate_copies is not in the generated types until its migration is applied.
+  const { error: updateError } = await (createAdminClient() as unknown as SupabaseClient)
+    .from('clearance_certificate_copies')
+    .update({ status: error === null ? 'sent' : 'failed', error, updated_at: new Date().toISOString() })
+    .eq('document_id', copy.documentId)
+    .eq('recipient_resident_id', copy.recipientId)
+    .eq('status', 'scheduled');
+  if (updateError) console.error('[WhatsApp] Clearance copy status not updated:', { copy, updateError });
+}
 
 /** True while a deferred send for this seed is in one of `statuses`; by default waiting or already sent, so a second one is never queued. */
 export async function hasQueuedResidentSend(seed: string, statuses: string[] = ['pending', 'processing', 'sent']): Promise<boolean> {
