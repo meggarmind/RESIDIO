@@ -277,7 +277,7 @@ describe('generateRetroactiveLevies batch audit', () => {
     });
   });
   it('audits ONCE for the batch with the first created invoice id', async () => {
-    results['invoices.select'] = { data: [{ id: uid(33) }] };
+    results['invoices.select'] = { data: [{ id: uid(33), invoice_number: 'INV-OTHER' }] };
     const res = await generateRetroactiveLevies();
     expect(res.generated).toBe(1);
     expect(batchCalls()).toHaveLength(1);
