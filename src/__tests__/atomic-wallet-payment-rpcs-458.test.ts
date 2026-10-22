@@ -197,7 +197,9 @@ describe('static: flows hold no client-side wallet/invoice read-modify-write', (
         'reverse-payment-allocation.ts',
     ])('%s does not touch wallets, invoices or the ledger directly', (file) => {
         const src = readFileSync(new URL(`../actions/billing/${file}`, import.meta.url), 'utf8');
-        expect(src).not.toMatch(/\.from\(['"](resident_wallets|invoices|wallet_transactions)['"]\)/);
+        // reverse-payment-allocation reads invoices to cap the refund at real wallet money (#995)
+        const tables = file === 'reverse-payment-allocation.ts' ? 'resident_wallets|wallet_transactions' : 'resident_wallets|invoices|wallet_transactions';
+        expect(src).not.toMatch(new RegExp(`\\.from\\(['"](${tables})['"]\\)`));
         expect(src).not.toContain('getOrCreateWallet');
         expect(src).toContain('callWalletInvoiceRpc');
     });
