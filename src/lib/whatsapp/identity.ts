@@ -31,6 +31,20 @@ const BILLABLE_ROLES = new Set([
   'developer',
 ]);
 
+/** Wrong LINK codes a number may try within the window before it is locked out (#1058). */
+const LINK_TRIES_PER_WINDOW = 5;
+const LINK_WINDOW_MINUTES = 15;
+const LINK_LOCKED_REPLY = `Too many wrong link codes. Try again in ${LINK_WINDOW_MINUTES} minutes, or ask the estate office for a new code.`;
+
+/** The generated types do not know the #1058 functions until that migration is applied and `npm run db:types` is re-run. */
+interface LinkAttemptRpcClient {
+  rpc(
+    name: 'claim_whatsapp_link_try',
+    args: { p_phone_number: string; p_limit: number; p_window_minutes: number }
+  ): PromiseLike<{ data: boolean | null; error: unknown }>;
+  rpc(name: 'clear_whatsapp_link_tries', args: { p_phone_number: string }): PromiseLike<{ data: null; error: unknown }>;
+}
+
 export interface WhatsAppResidentIdentity {
   id: string;
   firstName: string;
@@ -54,6 +68,13 @@ export interface WhatsAppIdentityRepository {
   ): Promise<void>;
   rememberPendingContact(phoneNumber: string): Promise<void>;
   consumeLinkToken(token: string): Promise<string | null>;
+  /**
+   * Counts a LINK try as wrong before the code is checked (atomic, per number); false once the number
+   * has used up its tries in the window (#1058).
+   */
+  claimLinkAttempt(phoneNumber: string): Promise<boolean>;
+  /** A valid code was entered: the number's wrong-try count starts over. */
+  clearLinkAttempts(phoneNumber: string): Promise<void>;
   attachPendingContact(phoneNumber: string, residentId: string): Promise<void>;
   // Identity read-back and privacy consent (#871).
   getStreetName(residentId: string): Promise<string | null>;
@@ -272,6 +293,23 @@ export function createSupabaseWhatsAppIdentityRepository(): WhatsAppIdentityRepo
       if (error) {
         throw error;
       }
+    },
+
+    async claimLinkAttempt(phoneNumber) {
+      const { data, error } = await (createAdminClient() as unknown as LinkAttemptRpcClient).rpc('claim_whatsapp_link_try', {
+        p_phone_number: normalizePhoneNumber(phoneNumber),
+        p_limit: LINK_TRIES_PER_WINDOW,
+        p_window_minutes: LINK_WINDOW_MINUTES,
+      });
+      if (error) throw error;
+      return data === true;
+    },
+
+    async clearLinkAttempts(phoneNumber) {
+      const { error } = await (createAdminClient() as unknown as LinkAttemptRpcClient).rpc('clear_whatsapp_link_tries', {
+        p_phone_number: normalizePhoneNumber(phoneNumber),
+      });
+      if (error) throw error;
     },
 
     async consumeLinkToken(token) {
@@ -677,12 +715,18 @@ export async function handleResidentMessage(
       await sendReply(message, withLines(NOT_ME_REPLY, await options.repository.getOfficeContactLine()), options.send);
       return { status: 'disputed', residentId: null, optedIn: false, financialEligible: false, accessTier: 'community' };
     }
+    // Counted before the code is checked, so concurrent guesses cannot all be checked before the lock lands.
+    if (!(await options.repository.claimLinkAttempt(phoneNumber))) {
+      await sendReply(message, await withContact(LINK_LOCKED_REPLY, options), options.send);
+      return { status: 'pending', residentId: null, optedIn: false, financialEligible: false, accessTier: 'community' };
+    }
     const residentId = await options.repository.consumeLinkToken(linkMatch[1]);
     if (!residentId) {
       await sendReply(message, await withContact('That link code is invalid or expired. Ask the estate office for a new code.', options), options.send);
       return { status: 'pending', residentId: null, optedIn: false, financialEligible: false, accessTier: 'community' };
     }
 
+    await options.repository.clearLinkAttempts(phoneNumber);
     await options.repository.setOptIn(residentId, phoneNumber, false, 'in_chat', true);
     await options.repository.attachPendingContact(phoneNumber, residentId);
     await sendReply(

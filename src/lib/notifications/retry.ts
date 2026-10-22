@@ -4,6 +4,8 @@
  * `defer` should be tried again. Pure helpers so each rule is testable.
  */
 
+import { lagosMidnight, lagosParts } from '@/lib/whatsapp/assistant-format';
+
 /** Attempts a queued notification gets unless the caller passes its own `max_attempts`. */
 export const DEFAULT_MAX_ATTEMPTS = 5;
 
@@ -22,11 +24,10 @@ export function retryDelayMs(attemptNumber: number): number {
   return RETRY_DELAYS_MS[index];
 }
 
-/** The next 00:00:00 UTC strictly after `now`, when the daily send count resets. */
-export function nextUtcMidnight(now: Date): Date {
-  const next = new Date(now.getTime());
-  next.setUTCHours(24, 0, 0, 0);
-  return next;
+/** The next 00:00 Africa/Lagos strictly after `now`, when the daily send count resets. */
+export function nextLagosMidnight(now: Date): Date {
+  const { year, month, day } = lagosParts(now);
+  return lagosMidnight(year, month, day + 1);
 }
 
 /** Burst window in minutes, with the same validation and default (10) as the Send Policy. */

@@ -1,5 +1,6 @@
 import { PRIORITY } from '@/lib/notifications/queue';
 import { WHATSAPP_TEMPLATE_NAMES, whatsappTemplate } from '@/lib/whatsapp/templates';
+import { formatDay } from '@/lib/whatsapp/assistant-format';
 import type { QueueNotificationInput } from '@/lib/notifications/types';
 
 export function buildInvoiceReminderWhatsApp(input: {
@@ -9,14 +10,16 @@ export function buildInvoiceReminderWhatsApp(input: {
   residentPhone: string;
   residentName: string;
   amountRemaining: number;
-  dueDate: string;
+  /** A `YYYY-MM-DD` day or an instant; shown as `dd mmm yyyy` (CORE.md section 4). */
+  dueDate: string | Date;
 }): QueueNotificationInput {
+  const dueDate = formatDay(input.dueDate);
   const amount = `NGN ${input.amountRemaining.toLocaleString('en-NG')}`;
   return {
     recipient_id: input.residentId,
     recipient_phone: input.residentPhone,
     channel: 'whatsapp',
-    body: `Invoice ${input.invoiceNumber}: ${amount} due ${input.dueDate}.`,
+    body: `Invoice ${input.invoiceNumber}: ${amount} due ${dueDate}.`,
     metadata: {
       invoiceId: input.invoiceId,
       invoiceNumber: input.invoiceNumber,
@@ -24,7 +27,7 @@ export function buildInvoiceReminderWhatsApp(input: {
         input.residentName,
         input.invoiceNumber,
         amount,
-        input.dueDate,
+        dueDate,
       ]),
     },
   };
@@ -36,9 +39,10 @@ export function buildPaymentReceivedWhatsApp(input: {
   residentPhone: string;
   residentName: string;
   amount: number;
-  paymentDate: string;
+  paymentDate: string | Date;
   referenceNumber?: string | null;
 }): QueueNotificationInput {
+  const paymentDate = formatDay(input.paymentDate);
   const amount = `NGN ${input.amount.toLocaleString('en-NG')}`;
   return {
     recipient_id: input.residentId,
@@ -52,7 +56,7 @@ export function buildPaymentReceivedWhatsApp(input: {
       whatsapp_template: whatsappTemplate(WHATSAPP_TEMPLATE_NAMES.paymentReceived, [
         input.residentName,
         amount,
-        input.paymentDate,
+        paymentDate,
         input.referenceNumber || 'Not provided',
       ]),
     },

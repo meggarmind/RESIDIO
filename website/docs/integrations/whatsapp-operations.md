@@ -9,7 +9,7 @@ residio_sources:
   - src/app/(dashboard)/settings/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp-admin/**
   - src/app/api/whatsapp/**
-residio_verified_commit: ac4365cf
+residio_verified_commit: e7873bbc
 residio_verified_at: '2026-10-22'
 residio_app_version: '0.4.0'
 ---
@@ -203,7 +203,7 @@ Each opt-in row has two code actions. Both need the WhatsApp manage permission a
 | **Issue link code** | The resident replies `LINK` followed by the code from a number, and that number is linked to them with financial answers | 15 minutes |
 | **Issue setup code** | Lets the resident set their first WhatsApp PIN. Issuing a new one cancels any earlier unused setup code | 10 minutes |
 
-The code is shown **once**, with its expiry, in a dialog with a **Copy** button. Residio stores only a one-way hash of it, so closing the dialog loses it for good: issue a new one if needed. Each code works once. A setup code cannot be used with `LINK`. Issuing a code is written to the audit log without the code.
+The code is shown **once**, with its expiry, in a dialog with a **Copy** button. Residio stores only a one-way hash of it, so closing the dialog loses it for good: issue a new one if needed. Each code works once. A setup code cannot be used with `LINK`. After 5 wrong link codes within 15 minutes, a number is told **Too many wrong link codes** and even a valid code is refused until the oldest wrong try is 15 minutes old. If the code has expired by then, issue a new one. Issuing a code is written to the audit log without the code.
 
 **Confirm identity before issuing any code.** Do it in person, or by calling the resident from the estate phone and checking two facts from their record (house number, resident code, last payment amount). A call-back to the WhatsApp number alone does not count.
 
@@ -315,7 +315,7 @@ Caps protect residents from a runaway loop and protect the estate from provider 
 
 Each resident is also limited to 20 financial answers a day. Only the Financial standing answers count toward either financial cap (What I owe, Recent payments, Statement, Wallet, the Receipt list and each receipt PDF, and the Clearance certificate check), including each statement PDF and email; How to pay, notices and the contact line do not. Admin `ADMIN OWES` lookups are in the disclosure log but count toward neither; the admin's own daily limit applies instead (see *Admin mode*). Both reset at midnight Lagos time, and the resident is told which limit was reached.
 
-Queued notifications, clearance certificate copies and approval outcome messages all count toward the outbound caps, and all obey the master switch and rollout mode. When a cap is reached, further sends are blocked and the event is counted in the console as a cap limit event. A certificate or outcome message held back by a cap is queued and sent automatically after the daily count resets at 00:00 UTC (a burst-cap hold waits one burst window), if the switch, rollout, opt-in and caps still allow it then; the admin who made the decision is shown a warning saying it is held back and when it will send. A message refused for any other reason (switched off, not opted in, outside the rollout) is not retried: the warning says it was not sent and why. Repeated cap events mean the cap is wrong for the estate size or something is sending in a loop — investigate before raising the number.
+Queued notifications, clearance certificate copies and approval outcome messages all count toward the outbound caps, and all obey the master switch and rollout mode. When a cap is reached, further sends are blocked and the event is counted in the console as a cap limit event. A certificate or outcome message held back by a cap is queued and sent automatically after the daily count resets at midnight Lagos time (a burst-cap hold waits one burst window), if the switch, rollout, opt-in and caps still allow it then; the admin who made the decision is shown a warning saying it is held back and when it will send. A message refused for any other reason (switched off, not opted in, outside the rollout) is not retried: the warning says it was not sent and why. Repeated cap events mean the cap is wrong for the estate size or something is sending in a loop — investigate before raising the number.
 
 ## The operations console
 

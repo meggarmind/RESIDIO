@@ -40,6 +40,8 @@ function repository(overrides: Partial<WhatsAppIdentityRepository> = {}): WhatsA
     setOptIn: vi.fn().mockResolvedValue(undefined),
     rememberPendingContact: vi.fn().mockResolvedValue(undefined),
     consumeLinkToken: vi.fn().mockResolvedValue(null),
+    claimLinkAttempt: vi.fn().mockResolvedValue(true),
+    clearLinkAttempts: vi.fn().mockResolvedValue(undefined),
     attachPendingContact: vi.fn().mockResolvedValue(undefined),
     // Identity confirmed and notice accepted: these tests cover what follows consent (#871 is in consent.test.ts).
     getStreetName: vi.fn().mockResolvedValue('Palm Street'),
@@ -235,6 +237,28 @@ describe('WhatsApp identity and consent', () => {
     expect(repo.setOptIn).toHaveBeenCalledWith('resident-1', '+2348111111111', false, 'in_chat', true);
     expect(repo.attachPendingContact).toHaveBeenCalledWith('+2348111111111', 'resident-1');
     expect(send.mock.calls[0]?.[0].body).toContain('Reply YES');
+  });
+
+  it('clears the wrong-try count after a valid link code', async () => {
+    const repo = repository({ consumeLinkToken: vi.fn().mockResolvedValue('resident-1') });
+    await handleResidentMessage(message('LINK 123456', '2348111111111'), { repository: repo, send: vi.fn().mockResolvedValue({ success: true }) });
+    expect(repo.claimLinkAttempt).toHaveBeenCalledWith('+2348111111111');
+    expect(repo.clearLinkAttempts).toHaveBeenCalledWith('+2348111111111');
+  });
+
+  it('refuses a LINK code without checking it once the number is locked out (#1058)', async () => {
+    const repo = repository({
+      claimLinkAttempt: vi.fn().mockResolvedValue(false),
+      consumeLinkToken: vi.fn().mockResolvedValue('resident-1'),
+    });
+    const send = vi.fn().mockResolvedValue({ success: true });
+
+    const result = await handleResidentMessage(message('LINK 123456', '2348111111111'), { repository: repo, send });
+
+    expect(result.status).toBe('pending');
+    expect(repo.consumeLinkToken).not.toHaveBeenCalled();
+    expect(repo.setOptIn).not.toHaveBeenCalled();
+    expect(send.mock.calls[0]?.[0].body).toContain('Too many wrong link codes');
   });
 
   it('keeps non-billable residents in the community tier without financial data', async () => {
