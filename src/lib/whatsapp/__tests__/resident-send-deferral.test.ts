@@ -23,7 +23,7 @@ vi.mock('@/lib/notifications/deduplication', () => ({ shouldQueue: vi.fn(), gene
 
 import { hasQueuedResidentSend, sendWhatsAppToResident } from '@/lib/whatsapp/resident-send';
 import { sendAndRecordNotification, sendNotification } from '@/lib/notifications/send';
-import { cancelQueueItem, processQueue } from '@/lib/notifications/queue';
+import { cancelQueueItem, processQueue, retryQueueItem } from '@/lib/notifications/queue';
 import type { NotificationQueueItem } from '@/lib/notifications/types';
 
 const defer = { outcome: 'defer', reason: 'daily_limit_reached', message: 'WhatsApp daily outbound limit reached' };
@@ -152,6 +152,30 @@ describe('deferred resident send (#1044)', () => {
       expect(queued()[0]).toMatchObject({ status: 'failed' });
       expect(copyRow()).toMatchObject({ status: 'failed', error: 'Max attempts exceeded' });
       expect(mocks.sendWhatsAppMessage).not.toHaveBeenCalled();
+    });
+
+    it('puts a failed copy back to scheduled when an admin retries its queue row, and marks it sent once delivered', async () => {
+      await dueCopy();
+      Object.assign(queued()[0], { attempts: 3, max_attempts: 3, scheduled_for: '2026-10-22T00:00:00.000Z' });
+      await processQueue();
+      expect(copyRow()).toMatchObject({ status: 'failed' });
+
+      expect(await retryQueueItem('q1')).toEqual({ success: true });
+      expect(queued()[0]).toMatchObject({ status: 'pending', attempts: 0 });
+      expect(copyRow()).toMatchObject({ status: 'scheduled', error: null });
+
+      mocks.evaluateSendPolicy.mockResolvedValue(allow);
+      await processQueue();
+      expect(mocks.sendWhatsAppMessage).toHaveBeenCalledTimes(1);
+      expect(copyRow()).toMatchObject({ status: 'sent', error: null });
+    });
+
+    it('leaves a copy alone when the queue row was not failed and so was not retried', async () => {
+      await dueCopy();
+      copyRow().status = 'failed';
+      await retryQueueItem('q1');
+      expect(queued()[0]).toMatchObject({ status: 'pending' });
+      expect(copyRow()).toMatchObject({ status: 'failed' });
     });
 
     it('counts it as waiting for a retry check only while pending, not once sent', async () => {

@@ -15,7 +15,7 @@ import type {
 import { shouldQueue, generateDeduplicationKey } from './deduplication';
 import { sendAndRecordNotification } from './send';
 import { DEFAULT_MAX_ATTEMPTS } from './retry';
-import { settleClearanceCopy } from '@/lib/whatsapp/resident-send';
+import { rescheduleClearanceCopy, settleClearanceCopy } from '@/lib/whatsapp/resident-send';
 
 /**
  * Default priority levels
@@ -451,6 +451,8 @@ export async function retryQueueItem(
   if (error) {
     return { success: false, error: error.message };
   }
+
+  await rescheduleClearanceCopy(metadata);
 
   return { success: true };
 }

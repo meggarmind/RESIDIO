@@ -18,21 +18,30 @@ export interface ResidentSendPayload { seed: string; media?: DeferredMedia[]; tr
 
 const dedupKey = (seed: string) => `resident-send:${seed}`;
 
-/**
- * Moves a clearance copy the cap held back (#1044) out of 'scheduled' once its queue row ends:
- * 'sent' when `error` is null, otherwise 'failed' with the reason so the console lists it for retry.
- */
-export async function settleClearanceCopy(metadata: Record<string, unknown> | null | undefined, error: string | null): Promise<void> {
+async function moveClearanceCopy(metadata: Record<string, unknown> | null | undefined, from: string, status: string, error: string | null): Promise<void> {
   const copy = (metadata?.[RESIDENT_SEND_METADATA_KEY] as ResidentSendPayload | undefined)?.clearanceCopy;
   if (!copy) return;
   // clearance_certificate_copies is not in the generated types until its migration is applied.
   const { error: updateError } = await (createAdminClient() as unknown as SupabaseClient)
     .from('clearance_certificate_copies')
-    .update({ status: error === null ? 'sent' : 'failed', error, updated_at: new Date().toISOString() })
+    .update({ status, error, updated_at: new Date().toISOString() })
     .eq('document_id', copy.documentId)
     .eq('recipient_resident_id', copy.recipientId)
-    .eq('status', 'scheduled');
+    .eq('status', from);
   if (updateError) console.error('[WhatsApp] Clearance copy status not updated:', { copy, updateError });
+}
+
+/**
+ * Moves a clearance copy the cap held back (#1044) out of 'scheduled' once its queue row ends:
+ * 'sent' when `error` is null, otherwise 'failed' with the reason so the console lists it for retry.
+ */
+export async function settleClearanceCopy(metadata: Record<string, unknown> | null | undefined, error: string | null): Promise<void> {
+  await moveClearanceCopy(metadata, 'scheduled', error === null ? 'sent' : 'failed', error);
+}
+
+/** A failed queue row sent again by an admin puts its failed clearance copy back to 'scheduled' until it ends again. */
+export async function rescheduleClearanceCopy(metadata: Record<string, unknown> | null | undefined): Promise<void> {
+  await moveClearanceCopy(metadata, 'failed', 'scheduled', null);
 }
 
 /** True while a deferred send for this seed is in one of `statuses`; by default waiting or already sent, so a second one is never queued. */
