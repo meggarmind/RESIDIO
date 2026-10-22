@@ -100,13 +100,17 @@ async function sendViaEmail(
     const statement = typeof statementRequestId === 'string'
       ? await (await import('@/lib/whatsapp/statement-delivery')).buildStatementEmail(statementRequestId)
       : null;
+    // A WhatsApp admin debt report (#982) is drawn at send time the same way.
+    const debtReport = !statement && item.metadata?.whatsapp_debt_report && item.metadata.admin_profile_id
+      ? await (await import('@/lib/whatsapp/debt-report')).buildDebtReportEmail(item.metadata)
+      : null;
     const result = await sendViaResend(
       {
         to: item.recipient_email,
         subject: item.subject || 'Notification',
         // Prefer HTML if available, otherwise use plain text
-        ...(statement
-          ? statement
+        ...(statement ?? debtReport
+          ? (statement ?? debtReport)
           : item.html_body
             ? { html: item.html_body }
             : { text: item.body }),
@@ -172,6 +176,9 @@ async function sendViaWhatsApp(
   item: NotificationQueueItem,
   context?: CommsSendContext
 ): Promise<SendNotificationResult> {
+  if (!item.recipient_id) {
+    return { success: false, error: 'WhatsApp needs a resident recipient' };
+  }
   // Pre-send checks (kill switch, rollout, caps, opt-in, template) live in the
   // Send Policy module; anything other than 'allow' stops here.
   const decision = await evaluateSendPolicy(
@@ -350,11 +357,25 @@ export async function sendNotification(
 }
 
 /**
+ * An email to an admin account (#982) has no resident flag: like the other staff emails it follows the global switch.
+ * A debt report that cannot be made or emailed is final and the admin is told on WhatsApp, never sent a text version.
+ */
+async function sendAdminAddressedEmail(item: NotificationQueueItem): Promise<SendNotificationResult> {
+  const result = await sendNotification(item);
+  if (result.success || !item.metadata?.whatsapp_debt_report) return result;
+  await (await import('@/lib/whatsapp/debt-report')).replyDebtReportFailed(item);
+  return { ...result, retryable: false };
+}
+
+/**
  * Looks the queue row's resident flag up and sends. Fails closed: if the flag cannot be read the
  * message is NOT sent (never sent as if the flag were null), and the failure is retryable because
  * an unreadable table is transient.
  */
 async function sendWithResidentFlag(item: NotificationQueueItem): Promise<SendNotificationResult> {
+  if (!item.recipient_id && item.channel === 'email' && typeof item.metadata?.admin_profile_id === 'string') {
+    return sendAdminAddressedEmail(item);
+  }
   const override = item.recipient_id
     ? await resolveResidentOverride([item.recipient_id])
     : ({ ok: false, error: 'comms override: queue row has no resident to read the flag for' } as const);

@@ -93,6 +93,7 @@ function adminRepo(overrides: Partial<WhatsAppAdminRepository> = {}): WhatsAppAd
     touchBinding: vi.fn().mockResolvedValue(undefined),
     createRequest: vi.fn().mockResolvedValue('request-1'),
     takePendingRequest: vi.fn().mockResolvedValue(null),
+    findPendingChoice: vi.fn().mockResolvedValue(null),
     countDoneSince: vi.fn().mockResolvedValue(0),
     audit: vi.fn().mockResolvedValue(undefined),
     emailAdmin: vi.fn().mockResolvedValue(undefined),

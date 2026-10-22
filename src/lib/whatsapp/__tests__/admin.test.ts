@@ -65,6 +65,7 @@ function repository(overrides: Partial<WhatsAppAdminRepository> = {}): WhatsAppA
     touchBinding: vi.fn().mockResolvedValue(undefined),
     createRequest: vi.fn().mockResolvedValue('request-1'),
     takePendingRequest: vi.fn().mockResolvedValue(null),
+    findPendingChoice: vi.fn().mockResolvedValue(null),
     countDoneSince: vi.fn().mockResolvedValue(0),
     audit: vi.fn().mockResolvedValue(undefined),
     emailAdmin: vi.fn().mockResolvedValue(undefined),
@@ -172,7 +173,7 @@ describe('handleWhatsAppAdminMessage', () => {
   });
 
   it('runs the pending request once a correct code opens a session', async () => {
-    const repo = repository({ takePendingRequest: vi.fn().mockResolvedValue({ id: 'request-9', action: 'status' }) });
+    const repo = repository({ takePendingRequest: vi.fn().mockResolvedValue({ id: 'request-9', action: 'status', params: {} }) });
     const reply = await send(`ADMIN ${currentCode()}`, repo);
 
     const step = totpStepAt(NOW.getTime());

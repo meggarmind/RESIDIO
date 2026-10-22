@@ -9,7 +9,7 @@ residio_sources:
   - src/app/(dashboard)/settings/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp-admin/**
   - src/app/api/whatsapp/**
-residio_verified_commit: a97a9f8f
+residio_verified_commit: 0951c347
 residio_verified_at: '2026-10-22'
 residio_app_version: '0.4.0'
 ---
@@ -284,13 +284,15 @@ Each saves on its own and is written to the audit log.
 
 ## Admin mode
 
-Admin mode lets an admin ask the WhatsApp Assistant for admin information from their own phone. Only `super_admin`, `chairman` and `financial_officer` accounts that hold **Use WhatsApp Admin Mode** (`whatsapp_admin.query`) and have authenticator app 2FA turned on can use it. Two requests are available today. `ADMIN STATUS` replies with the admin's name, role and when their admin session ends. `ADMIN OWES <house code or name>` shows what a house owes.
+Admin mode lets an admin ask the WhatsApp Assistant for admin information from their own phone. Only `super_admin`, `chairman` and `financial_officer` accounts that hold **Use WhatsApp Admin Mode** (`whatsapp_admin.query`) and have authenticator app 2FA turned on can use it. Three requests are available. `ADMIN STATUS` replies with the admin's name, role and when their admin session ends. `ADMIN OWES <house code or name>` shows what a house owes. `ADMIN DEBT` sends a debt status report (below).
 
 **What a house owes.** `ADMIN OWES KOA-18A` (a house code) or `ADMIN OWES Ada` (a name) needs **View billing** or **View financial reports** as well as the admin permission. The reply gives the outstanding figure the resident sees under "What I owe", the debt status, the oldest unpaid period and the wallet balance on its own line, not netted. A house with a landlord and a tenant shows the billed resident. One match answers at once; two to five matches come back as a numbered list, and the admin sends `ADMIN 1` to `ADMIN 5` within 5 minutes to choose. More than five matches ask for a longer name. The resident is not told. Each answer is written to the audit log and the WhatsApp disclosure log; a house with no billed resident shows no figure and has no disclosure entry.
 
 **Linking a number.** Each admin links their own number under **Settings → WhatsApp admin access**, signed in with their authenticator code. **Create link code** shows a 6-digit code once; it works one time, for 10 minutes. From the phone, send `ADMIN LINK <code>` to the estate WhatsApp number. Linking a new number ends the old link, and **Unlink** ends it at any time. The admin gets an email each time a number is linked.
 
 **Approving a request.** Every request needs a code from the authenticator app: send the request (for example `ADMIN STATUS`), then `ADMIN <code>` within 5 minutes. A correct code opens a 15-minute session in which further lookups need no new code. A code works only once. A request marked as needing a fresh code (such as a future PDF) asks for one every time.
+
+**Debt status report.** Send `ADMIN DEBT`. The assistant lists the streets that have reportable houses, each with a number, and `ALL`. Reply `ALL` or street numbers such as `2,3`, then send `ADMIN <code>` with a new authenticator code; a session never skips this code. The PDF lists each house with its debt status, with no amounts and no resident names, and ends with the footnote from **Settings → Debt Status**. Houses with an unverified identifier, a vacant, under renovation or under construction property status, or no active tenant, resident landlord or non-resident landlord are left out. The role needs **View billing** or **View financial reports** as well as `whatsapp_admin.query`. Document sending over WhatsApp does not exist yet, so every report is emailed to the admin's account email address. The reply gives the number of houses in the report; the PDF is drawn when the email is sent, and if it cannot be drawn or emailed the admin gets a WhatsApp message saying nothing was sent. Each request is recorded in the audit log with the admin, the scope and the time.
 
 **When a link ends.** A link ends when the admin's role, account status or authenticator app changes, 90 days after linking, or after 30 days without use. The admin then links the number again.
 

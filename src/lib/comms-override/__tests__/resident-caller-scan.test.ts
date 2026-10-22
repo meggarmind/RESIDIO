@@ -54,6 +54,8 @@ const NO_RESIDENT_CONTEXT: Allowed[] = [
   { file: 'actions/email/test-email.ts', fn: 'testEmail', sites: 1, reason: 'admin-typed test address, not a resident' },
   { file: 'lib/reports/process-schedules.ts', fn: 'processDueSchedules', sites: 1, reason: 'report_schedules.recipients are raw addresses' },
   { file: 'lib/whatsapp/admin.ts', fn: 'createSupabaseWhatsAppAdminRepository', sites: 1, reason: 'recipient is the admin account itself (profiles.email): follow the global switch' },
+  { file: 'lib/notifications/send.ts', fn: 'sendAdminAddressedEmail', sites: 1, reason: 'queued email to an admin account (profiles.email, #982): follow the global switch' },
+  { file: 'lib/whatsapp/debt-report.ts', fn: 'replyDebtReportFailed', sites: 1, reason: "failure reply to the admin's linked WhatsApp number (#982): follow the global switch" },
   { file: 'actions/two-factor/setup.ts', fn: 'initiateTwoFactorSetup', sites: 2, purpose: 'self_auth_2fa', reason: 'self-addressed code to the signed-in user' },
   { file: 'actions/two-factor/verify.ts', fn: 'sendTwoFactorCode', sites: 2, purpose: 'self_auth_2fa', reason: 'self-addressed code to the signed-in user' },
   { file: 'lib/whatsapp/financial.ts', fn: 'sendFinancialReply', sites: 1, purpose: 'inbound_reply', reason: 'reply to whoever messaged us' },
@@ -303,6 +305,6 @@ describe('every send-seam call site passes the resident stored flag (#716)', () 
     expect(source.match(/await sendWithResidentFlag\(/g)).toHaveLength(2);
     // ... and the only other sendNotification call is the one inside it, which passes the looked-up flag.
     const direct = findCallSites(source).filter((s) => s.seam === 'sendNotification');
-    expect(direct.filter((s) => !passesStoredFlag('lib/notifications/send.ts', source, s))).toHaveLength(0);
+    expect(direct.filter((s) => !isAllowed('lib/notifications/send.ts', s.fn) && !passesStoredFlag('lib/notifications/send.ts', source, s))).toHaveLength(0);
   }, 30000);
 });

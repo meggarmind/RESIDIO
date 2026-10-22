@@ -17,7 +17,9 @@ import { SURVEY_OPT_OUT_REPLY, isSurveyStopCommand } from '@/lib/whatsapp/survey
 import { optOutOfSurveys } from '@/lib/whatsapp/survey-db';
 import {
   createSupabaseWhatsAppAdminRepository,
+  handleWhatsAppAdminChoice,
   handleWhatsAppAdminMessage,
+  looksLikeAdminChoice,
   parseWhatsAppAdminCommand,
   type WhatsAppAdminRepository,
 } from '@/lib/whatsapp/admin';
@@ -621,6 +623,16 @@ export async function handleResidentMessage(
       reply: (body) => sendReply(message, body, options.send),
     });
     return { status: 'admin', residentId: null, optedIn: false, financialEligible: false, accessTier: 'community' };
+  }
+
+  // A plain reply to an admin question (street numbers, ALL) only belongs to admin mode when this
+  // number has one waiting; otherwise it carries on to the resident assistant (#982).
+  if (looksLikeAdminChoice(text)) {
+    const handled = await handleWhatsAppAdminChoice(message, {
+      repository: options.adminRepository ?? createSupabaseWhatsAppAdminRepository(),
+      reply: (body) => sendReply(message, body, options.send),
+    });
+    if (handled) return { status: 'admin', residentId: null, optedIn: false, financialEligible: false, accessTier: 'community' };
   }
 
   const linked = await options.repository.findLinkedResidents(phoneNumber);
