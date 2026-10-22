@@ -28,7 +28,7 @@ export const debtReportAction: WhatsAppAdminAction = {
 
   async begin() {
     const options = streetOptions(await loadReportableHouses());
-    if (options.length === 0) return { reply: DEBT_REPORT_NO_HOUSES_REPLY, state: { streets: [] } };
+    if (options.length === 0) return { reply: DEBT_REPORT_NO_HOUSES_REPLY };
     const total = options.reduce((sum, o) => sum + o.houseCount, 0);
     return {
       reply: [

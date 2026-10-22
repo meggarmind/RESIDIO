@@ -122,9 +122,9 @@ export interface WhatsAppAdminAction {
   freshCode: boolean;
   /**
    * Asks a question before the code step (#982). The reply is sent as is, the state is kept with the
-   * request, and the admin's next plain reply goes to `choose`.
+   * request, and the admin's next plain reply goes to `choose`. No state means there is nothing to choose.
    */
-  begin?(context: { account: WhatsAppAdminAccount; binding: WhatsAppAdminBinding; now: Date }): Promise<{ reply: string; state: Record<string, unknown> }>;
+  begin?(context: { account: WhatsAppAdminAccount; binding: WhatsAppAdminBinding; now: Date }): Promise<{ reply: string; state?: Record<string, unknown> }>;
   /** Turns the admin's reply into the request params, or says why it was not understood. */
   choose?(text: string, state: Record<string, unknown>): { params: Record<string, unknown> } | { retry: string };
   /** A string is the reply; the object form also adds `audit` to the request's audit entry (scope, outcome). */
@@ -774,6 +774,10 @@ export async function handleWhatsAppAdminMessage(
 
   if (action.begin) {
     const started = await action.begin({ account: admin, binding, now });
+    if (!started.state) {
+      await reply(started.reply);
+      return;
+    }
     await repository.createRequest({
       bindingId: binding.id,
       profileId: admin.profileId,

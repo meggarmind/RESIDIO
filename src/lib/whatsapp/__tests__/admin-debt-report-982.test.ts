@@ -118,6 +118,15 @@ describe('ADMIN DEBT: asking', () => {
     expect(mocks.renderDebtStatusReport).not.toHaveBeenCalled();
   });
 
+  it('with no reportable houses says so and leaves no question waiting', async () => {
+    mocks.loadReportableHouses.mockResolvedValue([]);
+    const repo = repository();
+    const reply = await send('ADMIN DEBT', repo);
+
+    expect(reply).toHaveBeenCalledWith(DEBT_REPORT_NO_HOUSES_REPLY);
+    expect(repo.createRequest).not.toHaveBeenCalled();
+  });
+
   it('refuses a role without the finance view permission, even with whatsapp_admin.query', async () => {
     const repo = repository({ loadAccount: vi.fn().mockResolvedValue({ ...account, permissions: ['whatsapp_admin.query'] }) });
     const reply = await send('ADMIN DEBT', repo);

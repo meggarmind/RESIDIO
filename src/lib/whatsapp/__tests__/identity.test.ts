@@ -91,6 +91,18 @@ describe('WhatsApp identity and consent', () => {
     expect(repo.findRosterMatches).toHaveBeenCalled();
   });
 
+  it('carries a number on to the resident assistant when the admin lookup fails (#982)', async () => {
+    const repo = repository();
+    const send = vi.fn().mockResolvedValue({ success: true });
+    const broken = { findActiveBinding: vi.fn().mockRejectedValue(new Error('table missing')) };
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = await handleResidentMessage(message('2'), { repository: repo, adminRepository: broken as never, send });
+
+    expect(result.status).not.toBe('admin');
+    expect(repo.findRosterMatches).toHaveBeenCalled();
+  });
+
   it('keeps other text starting with "admin" on the resident path (#972)', async () => {
     const repo = repository();
     const send = vi.fn().mockResolvedValue({ success: true });
