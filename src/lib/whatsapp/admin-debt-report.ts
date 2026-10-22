@@ -1,4 +1,4 @@
-import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { FINANCE_VIEW_PERMISSIONS } from '@/lib/auth/action-roles';
 import type { WhatsAppAdminAction } from '@/lib/whatsapp/admin';
 import {
   countDebtReportHouses,
@@ -23,7 +23,7 @@ export const DEBT_REPORT_QUEUE_FAILED_REPLY = 'The debt status report could not 
  * debt status PDF (house and status, no amounts or names) is emailed to their account address.
  */
 export const debtReportAction: WhatsAppAdminAction = {
-  permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL,
+  permission: FINANCE_VIEW_PERMISSIONS,
   freshCode: true,
 
   async begin() {

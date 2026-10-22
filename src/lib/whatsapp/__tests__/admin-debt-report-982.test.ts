@@ -129,6 +129,12 @@ describe('ADMIN DEBT: asking', () => {
     expect(repo.createRequest).not.toHaveBeenCalled();
   });
 
+  it.each([['billing.view'], ['reports.view_financial']])('allows a role with %s only', async (permission) => {
+    const repo = repository({ loadAccount: vi.fn().mockResolvedValue({ ...account, permissions: ['whatsapp_admin.query', permission] }) });
+    await send('ADMIN DEBT', repo);
+    expect(repo.createRequest).toHaveBeenCalledWith(expect.objectContaining({ action: 'debt:choose' }));
+  });
+
   it('refuses a role without the finance view permission, even with whatsapp_admin.query', async () => {
     const repo = repository({ loadAccount: vi.fn().mockResolvedValue({ ...account, permissions: ['whatsapp_admin.query'] }) });
     const reply = await send('ADMIN DEBT', repo);
@@ -253,6 +259,15 @@ describe('ADMIN DEBT: running with a fresh code', () => {
     mocks.queueDebtReportEmail.mockRejectedValue(new Error('queue down'));
     const result = await debtReportAction.run(context());
     expect(result).toMatchObject({ audit: expect.objectContaining({ outcome: 'queue_failed' }) });
+  });
+
+  it.each([['billing.view'], ['reports.view_financial']])('runs at code time for a role with %s only', async (permission) => {
+    const repo = repository({
+      loadAccount: vi.fn().mockResolvedValue({ ...account, permissions: ['whatsapp_admin.query', permission] }),
+      takePendingRequest: vi.fn().mockResolvedValue({ id: 'r', action: 'debt', params }),
+    });
+    await send(`ADMIN ${code()}`, repo);
+    expect(mocks.queueDebtReportEmail).toHaveBeenCalled();
   });
 
   it('refuses at code time when the role lost the finance permission since the request', async () => {

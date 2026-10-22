@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { PERMISSIONS, extractRoleName } from '@/lib/auth/action-roles';
+import { FINANCE_VIEW_PERMISSIONS, PERMISSIONS, extractRoleName } from '@/lib/auth/action-roles';
 import { readTotpSecret } from '@/lib/auth/two-factor-secrets';
 import { matchTotpStep } from '@/lib/auth/totp';
 import { recordAudit, type AuditEntry } from '@/lib/audit/recorder';
@@ -152,7 +152,7 @@ export const WHATSAPP_ADMIN_ACTIONS: Record<string, WhatsAppAdminAction> = {
     },
   },
   owes: {
-    permission: [PERMISSIONS.BILLING_VIEW, PERMISSIONS.REPORTS_VIEW_FINANCIAL],
+    permission: FINANCE_VIEW_PERMISSIONS,
     freshCode: false,
     run({ account, binding, now, requestId, params, audit, owes }) {
       return runAdminOwesLookup({
