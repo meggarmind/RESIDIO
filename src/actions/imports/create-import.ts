@@ -5,7 +5,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { findMatchingTag } from '@/lib/imports/auto-tag';
-import type { BankStatementImport, BankStatementRow, ColumnMapping, TransactionFilter, TransactionTag, TransactionTagType } from '@/types/database';
+import type { BankStatementImport, ColumnMapping, TransactionFilter, TransactionTag, TransactionTagType } from '@/types/database';
 import type { ParsedRow } from '@/lib/validators/import';
 import { generateTransactionHash } from '@/lib/utils/hashing';
 import { MAX_IMPORT_ROWS } from '@/lib/uploads';
@@ -287,7 +287,6 @@ export async function createImportRows(params: CreateImportRowsParams): Promise<
         error: `Failed to insert rows ${i + 1}-${i + batch.length} after 3 retries: ${err instanceof Error ? err.message : 'Unknown error'}`,
       };
     }
-
   }
 
   // Auto-tag rows based on keywords. The active tags are loaded once per distinct transaction
