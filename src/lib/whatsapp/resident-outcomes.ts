@@ -27,7 +27,7 @@ export async function notifyResidentOfApprovalOutcome(request: { id: string; req
       const property = (approval.requested_changes as { property?: string } | null)?.property ?? 'your property';
       const sent = await sendWhatsAppToResident(approval.requested_by_resident_id, `Your clearance certificate request for ${property} was not approved. Contact the estate office.`, { seed: `approval:${request.id}:${outcome}` });
       if (!sent.sent) console.error('[WhatsApp] Clearance outcome not sent:', { requestId: request.id, outcome, reason: sent.reason });
-      return sent.sent ? undefined : `WhatsApp message to the resident was not sent: ${sent.reason}`;
+      return sent.sent ? undefined : `WhatsApp message to the resident ${sent.deferred ? 'is held back' : 'was not sent'}: ${sent.reason}`;
     }
 
     const { data: payment } = await admin.from('payment_records').select('amount, payment_date').eq('id', approval.entity_id).maybeSingle();
@@ -38,7 +38,7 @@ export async function notifyResidentOfApprovalOutcome(request: { id: string; req
     const body = outcome === 'approved' ? `${what} was confirmed.` : `${what} could not be confirmed. Contact the estate office.`;
     const sent = await sendWhatsAppToResident(approval.requested_by_resident_id, body, { seed: `approval:${request.id}:${outcome}` });
     if (!sent.sent) console.error('[WhatsApp] Payment outcome not sent:', { requestId: request.id, outcome, reason: sent.reason });
-    return sent.sent ? undefined : `WhatsApp message to the resident was not sent: ${sent.reason}`;
+    return sent.sent ? undefined : `WhatsApp message to the resident ${sent.deferred ? 'is held back' : 'was not sent'}: ${sent.reason}`;
   } catch (error) {
     console.error('[WhatsApp] Payment outcome failed:', { requestId: request.id, outcome, error });
   }

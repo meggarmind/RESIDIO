@@ -8,7 +8,7 @@ import { certificateNumberFor, getOutstanding, issueApprovedClearance } from '@/
 
 vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit: vi.fn().mockResolvedValue(undefined) }));
-vi.mock('@/lib/clearance/issue-certificate', () => ({ issueClearanceCertificate: vi.fn() }));
+vi.mock('@/lib/clearance/issue-certificate', () => ({ issueClearanceCertificate: vi.fn(), DOCUMENTS_BUCKET: 'documents' }));
 vi.mock('@/lib/whatsapp/resident-send', () => ({ sendWhatsAppToResident: vi.fn() }));
 vi.mock('@/lib/whatsapp/statement-delivery', () => ({ storeChatPdf: vi.fn() }));
 
@@ -88,6 +88,8 @@ describe('issueApprovedClearance (#816 decisions 15, 21, 22)', () => {
       seed: `clearance:${request.id}`,
       mediaUrls: ['https://storage.test/signed/clearance.pdf'],
       trackingId: `clearance:${request.id}`,
+      // A held-back copy is re-signed from the permanent file, not the 12-hour chat file (#1044).
+      deferMedia: [{ bucket: 'documents', path: 'clearance-certificates/x.pdf' }],
     });
   });
 
@@ -114,6 +116,16 @@ describe('issueApprovedClearance (#816 decisions 15, 21, 22)', () => {
     expect(await issueApprovedClearance(request, 'admin-1', NOW)).toEqual({ success: true });
     expect(logAudit).not.toHaveBeenCalled();
     expect(sendWhatsAppToResident).not.toHaveBeenCalled();
+  });
+
+  it('tells the admin a held-back certificate copy is scheduled, not lost (#1044)', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    db();
+    vi.mocked(sendWhatsAppToResident).mockResolvedValue({ sent: false, deferred: true, reason: 'WhatsApp daily outbound limit reached. It is scheduled and will send automatically tomorrow, after 00:00 UTC' });
+    expect(await issueApprovedClearance(request, 'admin-1', NOW)).toEqual({
+      success: true,
+      warning: 'The certificate was issued, but the WhatsApp copy to the resident is held back: WhatsApp daily outbound limit reached. It is scheduled and will send automatically tomorrow, after 00:00 UTC',
+    });
   });
 
   it('still succeeds when the resident cannot be reached, because the certificate exists', async () => {

@@ -15,6 +15,7 @@ import type {
 import { shouldQueue, generateDeduplicationKey } from './deduplication';
 import { sendAndRecordNotification } from './send';
 import { DEFAULT_MAX_ATTEMPTS } from './retry';
+import { rescheduleClearanceCopy, settleClearanceCopy } from '@/lib/whatsapp/resident-send';
 
 /**
  * Default priority levels
@@ -271,6 +272,8 @@ export async function processQueue(options?: {
     const { error: reclaimError } = await reclaim;
     if (reclaimError) {
       console.error(`[Queue] Failed to reclaim stale processing item ${row.id}:`, reclaimError);
+    } else if (exhausted) {
+      await settleClearanceCopy(metadata, 'Max attempts exceeded');
     }
   }
 
@@ -350,6 +353,7 @@ export async function processQueue(options?: {
           error_message: 'Max attempts exceeded',
         })
         .eq('id', item.id);
+      await settleClearanceCopy(item.metadata, 'Max attempts exceeded');
       result.failed++;
       result.errors.push({
         queueId: item.id,
@@ -386,17 +390,22 @@ export async function cancelQueueItem(
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = createAdminClient();
 
-  const { error } = await supabase
+  const { data: cancelled, error } = await supabase
     .from('notification_queue')
     .update({
       status: 'cancelled',
       error_message: reason || 'Cancelled by user',
     })
     .eq('id', queueId)
-    .in('status', ['pending', 'processing']); // Only cancel if not already sent
+    .in('status', ['pending', 'processing']) // Only cancel if not already sent
+    .select('metadata');
 
   if (error) {
     return { success: false, error: error.message };
+  }
+
+  for (const row of cancelled ?? []) {
+    await settleClearanceCopy(row.metadata as Record<string, unknown> | null, reason || 'Cancelled by user');
   }
 
   return { success: true };
@@ -442,6 +451,8 @@ export async function retryQueueItem(
   if (error) {
     return { success: false, error: error.message };
   }
+
+  await rescheduleClearanceCopy(metadata);
 
   return { success: true };
 }
