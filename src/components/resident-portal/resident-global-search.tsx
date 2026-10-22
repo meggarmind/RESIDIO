@@ -49,14 +49,7 @@ const HOME_ACTIONS: SearchResult[] = [
         type: 'action',
         icon: CreditCard,
     },
-    {
-        id: 'top-up',
-        title: 'Top Up Wallet',
-        subtitle: 'Add funds to your wallet',
-        href: '/portal/wallet', // In future: ?action=topup
-        type: 'action',
-        icon: Wallet,
-    },
+    // Top Up Wallet hidden until online payments are fixed (audit finding 10).
     {
         id: 'visitor',
         title: 'Register Visitor',
