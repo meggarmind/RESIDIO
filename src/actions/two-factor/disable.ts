@@ -6,8 +6,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { assertCanManageTarget } from '@/lib/auth/account-guards';
 import type { TwoFactorMethod } from '@/types/database';
-import { validateTOTP } from '@/lib/auth/totp';
-import { otpMatches, readTotpSecret } from '@/lib/auth/two-factor-secrets';
+import { checkAccountCode, claimTwoFactorTry, clearTwoFactorTries, tooManyTriesMessage } from '@/lib/auth/two-factor-guard';
 
 /**
  * Disable 2FA for the current user
@@ -44,45 +43,25 @@ export async function disableTwoFactor(
     return { success: false, message: 'Two-factor authentication is not enabled' };
   }
 
-  // Verify the code before disabling
-  const method = profile.two_factor_method as TwoFactorMethod;
-  let isValid = false;
-
-  if (method === 'authenticator') {
-    // Validate TOTP code
-    if (!profile.two_factor_secret_encrypted) {
-      return { success: false, message: '2FA not properly configured' };
-    }
-    try {
-      isValid = validateTOTP(verificationCode, readTotpSecret(profile.two_factor_secret_encrypted));
-    } catch (error) {
-      console.error('[2FA Disable] Could not read TOTP secret:', error instanceof Error ? error.message : error);
-      return { success: false, message: '2FA not properly configured' };
-    }
-  } else {
-    // For SMS/email, we need to send a disable code first
-    const { data: token } = await adminClient
-      .from('two_factor_tokens')
-      .select('*')
-      .eq('profile_id', user.id)
-      .eq('purpose', 'disable')
-      .eq('token_type', method)
-      .is('used_at', null)
-      .gt('expires_at', new Date().toISOString())
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (token && otpMatches(String(token.token), user.id, verificationCode)) {
-      isValid = true;
-
-      // Mark token as used
-      await adminClient
-        .from('two_factor_tokens')
-        .update({ used_at: new Date().toISOString() })
-        .eq('id', token.id);
-    }
+  // Take one try before checking the code (#1029).
+  const attempt = await claimTwoFactorTry(user.id, 'manage');
+  if (!attempt.allowed) {
+    return { success: false, message: tooManyTriesMessage() };
   }
+
+  // Verify a fresh code before disabling: an authenticator code is accepted once (#1029).
+  const method = profile.two_factor_method as TwoFactorMethod;
+  const checked = await checkAccountCode({
+    profileId: user.id,
+    method,
+    secretEncrypted: profile.two_factor_secret_encrypted,
+    code: verificationCode,
+    tokenPurpose: 'disable',
+  });
+  if (checked === 'misconfigured') {
+    return { success: false, message: '2FA not properly configured' };
+  }
+  const isValid = checked;
 
   if (!isValid) {
     // Log failed attempt
@@ -95,6 +74,8 @@ export async function disableTwoFactor(
 
     return { success: false, message: 'Invalid verification code' };
   }
+
+  await clearTwoFactorTries(user.id, 'manage');
 
   // Disable 2FA
   await adminClient
