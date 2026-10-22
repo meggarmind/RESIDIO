@@ -42,6 +42,8 @@ export async function processChatmaidMessages(
           await handleResidentMessage(message, {
             repository: createSupabaseWhatsAppIdentityRepository(),
             send: async () => ({ success: true }),
+            // The takeover drops the message: it is not held for replay while the switch is off (#1075).
+            holdWhenOff: false,
           });
         }
         return;

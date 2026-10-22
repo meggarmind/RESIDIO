@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { logAudit } from '@/lib/audit/logger';
 import { createAdminClient } from '@/lib/supabase/server';
-import { getWhatsAppPilotResidentOptions, promoteWhatsAppPilotToEstate, updateWhatsAppPilotSettings, type PilotSettings } from '../pilot';
+import { replayHeldWhatsAppMessages } from '@/lib/whatsapp/held-replay';
+import { getWhatsAppPilotResidentOptions, promoteWhatsAppPilotToEstate, setWhatsAppEnabled, updateWhatsAppPilotSettings, type PilotSettings } from '../pilot';
 
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: vi.fn() }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit: vi.fn() }));
 vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+vi.mock('@/lib/whatsapp/held-replay', () => ({ replayHeldWhatsAppMessages: vi.fn() }));
 vi.mock('@/lib/auth/action-roles', () => ({ PERMISSIONS: { WHATSAPP_MANAGE: 'whatsapp.manage', WHATSAPP_VIEW: 'whatsapp.view' } }));
 
 const ROW_ID = '55555555-5555-4555-8555-555555555555'; // audit entity_id is a uuid (#594)
@@ -50,6 +52,41 @@ describe('WhatsApp pilot promotion', () => {
     vi.mocked(createAdminClient).mockReturnValue({ from: vi.fn().mockReturnValue(current) } as never);
     await expect(promoteWhatsAppPilotToEstate()).resolves.toEqual({ success: false, error: 'Only an active pilot can be promoted estate-wide' });
     expect(logAudit).not.toHaveBeenCalled();
+  });
+});
+
+describe('WhatsApp master switch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(authorizePermission).mockResolvedValue(authorized as never);
+    vi.mocked(replayHeldWhatsAppMessages).mockResolvedValue({ replayed: 0 });
+  });
+
+  function switchClient() {
+    const previous = query({ data: { value: 'false' }, error: null });
+    const saved = { upsert: vi.fn(), select: vi.fn(), single: vi.fn().mockResolvedValue({ data: { id: ROW_ID }, error: null }) };
+    saved.upsert.mockReturnValue(saved);
+    saved.select.mockReturnValue(saved);
+    vi.mocked(createAdminClient).mockReturnValue({ from: vi.fn().mockReturnValueOnce(previous).mockReturnValueOnce(saved) } as never);
+  }
+
+  it('answers the held messages when the switch is turned on (#1075)', async () => {
+    switchClient();
+    await expect(setWhatsAppEnabled(true)).resolves.toEqual({ success: true, error: null });
+    expect(replayHeldWhatsAppMessages).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not replay when the switch is turned off', async () => {
+    switchClient();
+    await expect(setWhatsAppEnabled(false)).resolves.toEqual({ success: true, error: null });
+    expect(replayHeldWhatsAppMessages).not.toHaveBeenCalled();
+  });
+
+  it('keeps the switch on when the replay fails', async () => {
+    switchClient();
+    vi.mocked(replayHeldWhatsAppMessages).mockRejectedValue(new Error('down'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    await expect(setWhatsAppEnabled(true)).resolves.toEqual({ success: true, error: null });
   });
 });
 
