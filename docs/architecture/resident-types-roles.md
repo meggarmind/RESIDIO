@@ -149,7 +149,7 @@ Portal features are access-controlled based on resident role categories.
 | **Developer** | Property has active tenant | Limited to property info, no resident management |
 | **Property Owner** | Property has active tenant | Limited to property info, no security contact changes |
 
-**Implementation**: `src/lib/portal/permissions.ts`
+**Implementation**: not implemented in live code; the unused `src/lib/portal/permissions.ts` was removed (#1065).
 
 ---
 
@@ -367,7 +367,7 @@ When a Renter joins a property with existing Property Owner domestic staff:
 4b. If no → Staff remains with Property Owner (limited access during tenancy)
 ```
 
-**Implementation**: `src/actions/residents/sponsor-cascade.ts`, `src/actions/residents/inherit-domestic-staff.ts`
+**Implementation**: not implemented in live code; the unused `sponsor-cascade.ts` and `inherit-domestic-staff.ts` actions were removed (#1065).
 
 ---
 
@@ -689,15 +689,11 @@ export type AccountStatus = 'active' | 'inactive' | 'suspended' | 'archived';
 |------|---------|
 | `src/types/database.ts` | All type definitions and labels |
 | `src/lib/validators/resident.ts` | Zod validation schemas and business rules |
-| `src/lib/portal/permissions.ts` | Portal feature access control |
 | `src/lib/auth/action-roles.ts` | Permission constants and legacy role config |
 | `src/lib/auth/authorize.ts` | Authorization functions |
 | `src/actions/roles/index.ts` | Role CRUD operations |
 | `src/actions/roles/assignment-rules.ts` | Role assignment restrictions |
 | `src/actions/residents/verify-resident.ts` | Verification workflow |
-| `src/actions/residents/sponsor-cascade.ts` | Sponsor departure handling |
-| `src/actions/residents/inherit-domestic-staff.ts` | Staff inheritance on occupier change |
-| `src/actions/houses/property-transition.ts` | Property sale/lease workflows |
 | `src/actions/billing/generate-invoices.ts` | Billing priority logic |
 | `src/actions/approvals/` | Approval workflow actions |
 
@@ -729,17 +725,6 @@ export function isResidencyRole(role: ResidentRole): boolean {
 export function isCorporateAllowedRole(role: ResidentRole): boolean {
   return ['non_resident_landlord', 'tenant', 'developer'].includes(role);
 }
-```
-
-### Portal Permissions
-
-```typescript
-// src/lib/portal/permissions.ts
-
-export function getRoleCategory(role: ResidentRole): RoleCategory;
-export function hasPortalFeatureAccess(role: ResidentRole, feature: PortalFeature): boolean;
-export function getPortalFeaturesForRole(role: ResidentRole): PortalFeature[];
-export function getHighestPrivilegeRole(roles: ResidentRole[]): ResidentRole | null;
 ```
 
 ---

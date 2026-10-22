@@ -268,7 +268,7 @@ Gently rounded, never sharp, never pill-shaped except for status. The base radiu
 - **Do** gate every action button on its write permission, and render a clear "no access" or empty state rather than a blank area.
 
 ### Don't:
-- **Don't** hard-code the Modern theme's palette in components. `modern` is a registered, user-selectable visual theme (`src/lib/themes/modern.ts`: blue-teal accents, dark navy sidebar, rounder components), but components express it through `isModern` branches, the `modern*` button variants and the `modern` input variant, using sky blue (#0EA5E9) and gray hex literals that bypass theme tokens. The theme is legitimate; the hard-coding is the drift. New work reads theme tokens so Modern and every other theme repaint without a per-component branch, and existing `isModern` branches are to be migrated, not copied.
+- **Don't** hard-code a theme's palette in components. The old Modern theme (sky blue #0EA5E9, `isModern` branches, `modern*` button and input variants) is gone: `modern` is now a legacy ID that migrates to the default theme (`src/contexts/visual-theme-context.tsx`), and `src/__tests__/modern-theme-dead-code.test.ts` keeps the branches deleted. New work reads theme tokens so every theme repaints without a per-component branch.
 - **Don't** use raw hex colors, inline `style` colors, or fixed Tailwind palette steps (such as `bg-blue-500`) for brand or surface color. Status badge tints are the only documented exception.
 - **Don't** introduce a second display typeface or hard-code a font; fonts come from the theme.
 - **Don't** put hover lift or entrance animation on data that people are reconciling (tables of amounts); keep motion to cards, buttons and overlays.
