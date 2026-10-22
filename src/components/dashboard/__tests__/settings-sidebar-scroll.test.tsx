@@ -2,11 +2,12 @@
 //
 // Issue #1012: the settings layout passed `hidden lg:block` to SettingsSidebar, and
 // tailwind-merge dropped the sidebar's own `flex`, so the <aside> was a block box. Its
-// ScrollArea (`min-h-0 flex-1`) then grew to its content and never scrolled. jsdom has no
-// layout, so this pins the merged classes that keep the aside a flex column.
+// nav box (`min-h-0 flex-1`) then grew to its content and never scrolled. jsdom has no
+// layout, so this pins the merged classes that keep the aside a flex column. The box is
+// native overflow: Radix ScrollArea's scrollbar did not appear after a group expanded.
 
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 
 vi.mock('next/navigation', () => ({
@@ -30,15 +31,6 @@ vi.mock('@/components/ui/page-transition', () => ({
 
 import SettingsLayout from '@/app/(dashboard)/settings/layout';
 
-beforeAll(() => {
-  if (!globalThis.ResizeObserver) {
-    globalThis.ResizeObserver = class {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    } as unknown as typeof ResizeObserver;
-  }
-});
 afterEach(cleanup);
 
 describe('Settings sidebar scrolling (#1012)', () => {
@@ -47,6 +39,13 @@ describe('Settings sidebar scrolling (#1012)', () => {
     const aside = screen.getByRole('complementary');
     expect(aside).toHaveClass('hidden', 'lg:flex', 'flex-col');
     expect(aside).not.toHaveClass('lg:block');
-    expect(aside.querySelector('[data-slot="scroll-area"]')).toHaveClass('min-h-0', 'flex-1');
+    expect(screen.getByTestId('settings-nav-scroll')).toHaveClass('min-h-0', 'flex-1', 'overflow-y-auto');
+  });
+
+  it('indents System links that carry the Opens System arrow like their siblings', () => {
+    render(<SettingsLayout>page</SettingsLayout>);
+    fireEvent.click(screen.getByRole('button', { name: /System/i }));
+    // The arrow is an svg child, and Button size sm's has-[>svg]:px-2.5 beat a plain pl-12.
+    expect(screen.getByRole('link', { name: /Audit Logs/ })).toHaveClass('pl-12', 'has-[>svg]:pl-12');
   });
 });

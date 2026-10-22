@@ -9,7 +9,6 @@ import { useSettingsNavigation } from '@/hooks/use-settings-navigation';
 import { useSettingsNavState } from '@/hooks/use-settings-nav-state';
 import { Button } from '@/components/ui/button';
 import { ChevronRight, ChevronDown } from 'lucide-react';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { OpensSystemMark, SettingsSearchField, SettingsSearchResults, useSettingsSearch } from './settings-search';
 import {
     Collapsible,
@@ -46,12 +45,34 @@ export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
         setGroupOpen(title, !isOpen);
     };
 
-    // Sticks inside <main>, the only scroller in the h-dvh shell. 12rem clears the header, an ops banner and main's padding.
-    // shortcut: a fixed offset, not <main>'s real height; switch to a measured height if the header grows again.
+    // Sticks inside <main>, the only scroller in the h-dvh shell. A fixed height cannot fit both states: at the
+    // top of the page the aside starts below the title and its foot falls off screen. So fit it to what is
+    // visible of <main> on every scroll and resize; the class height is only the first-paint fallback.
+    const asideRef = React.useRef<HTMLElement>(null);
+    React.useLayoutEffect(() => {
+        const aside = asideRef.current;
+        const main = aside?.closest('main');
+        if (!aside || !main) return;
+        const fit = () => {
+            const visibleBottom = main.getBoundingClientRect().bottom - parseFloat(getComputedStyle(main).paddingBottom);
+            // Also stop at the row's foot: past it, sticky pushes the aside up and each fit would grow it again.
+            const rowBottom = aside.parentElement?.getBoundingClientRect().bottom ?? visibleBottom;
+            aside.style.height = `${Math.max(240, Math.min(visibleBottom, rowBottom) - aside.getBoundingClientRect().top)}px`;
+        };
+        fit();
+        main.addEventListener('scroll', fit, { passive: true });
+        window.addEventListener('resize', fit);
+        return () => {
+            main.removeEventListener('scroll', fit);
+            window.removeEventListener('resize', fit);
+        };
+    }, []);
+
     return (
-        <aside className={cn("lg:w-1/5 sticky top-0 flex h-[calc(100dvh-12rem)] flex-col gap-3", className)} {...props}>
+        <aside ref={asideRef} className={cn("lg:w-1/5 sticky top-0 flex h-[calc(100dvh-12rem)] flex-col gap-3", className)} {...props}>
             <SettingsSearchField search={search} className="pr-4" />
-            <ScrollArea type="auto" className="min-h-0 flex-1 pr-4">
+            {/* Native overflow, not Radix ScrollArea: its scrollbar did not appear after a group expanded, so the cut-off list gave no sign it scrolls. */}
+            <div data-testid="settings-nav-scroll" className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-4 [scrollbar-width:thin]">
                 {search.active ? (
                     <SettingsSearchResults search={search} />
                 ) : (
@@ -116,7 +137,8 @@ export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
                                                                     size="sm"
                                                                     asChild
                                                                     className={cn(
-                                                                        "w-full justify-start pl-12 h-8",
+                                                                        // has-[>svg]: the Opens System arrow is an svg child, and the size's has-[>svg]:px-2.5 would win over a plain pl-12.
+                                                                        "w-full justify-start pl-12 has-[>svg]:pl-12 h-8",
                                                                         active && "bg-secondary/50 font-medium text-primary shadow-sm"
                                                                     )}
                                                                 >
@@ -156,7 +178,7 @@ export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
                     })}
                 </nav>
                 )}
-            </ScrollArea>
+            </div>
         </aside>
     );
 }
