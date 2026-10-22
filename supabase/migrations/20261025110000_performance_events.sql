@@ -49,7 +49,7 @@ CREATE POLICY "Super admins can view performance events"
     ON public.performance_events
     FOR SELECT
     TO authenticated
-    USING (public.has_permission('system.view_system_log'));
+    USING ((select public.has_permission('system.view_system_log')));
 
 REVOKE ALL ON public.performance_events FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.performance_events TO authenticated;
