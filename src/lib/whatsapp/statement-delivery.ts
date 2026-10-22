@@ -83,10 +83,12 @@ export async function loadStatementPeriods(residentId: string, houseId: string):
   if (!moveIn) return offeredPeriods(false, false);
   const client = createAdminClient();
   const startOfMoveIn = `${moveIn}T00:00:00+01:00`; // Africa/Lagos
+  let paymentQuery = client.from('payment_records').select('id').eq('resident_id', residentId).eq('house_id', houseId).eq('status', 'paid').lt('payment_date', moveIn);
+  if (await isResidentRollForwardEnabled()) paymentQuery = paymentQuery.eq('is_verified', true);
   const [invoices, payments] = await Promise.all([
     client.from('invoices').select('id').eq('resident_id', residentId).eq('house_id', houseId).neq('status', 'void')
       .or(`period_start.lt.${moveIn},and(period_start.is.null,created_at.lt.${startOfMoveIn})`).limit(1),
-    client.from('payment_records').select('id').eq('resident_id', residentId).eq('house_id', houseId).eq('status', 'paid').lt('payment_date', moveIn).limit(1),
+    paymentQuery.limit(1),
   ]);
   if (invoices.error) throw invoices.error;
   if (payments.error) throw payments.error;
