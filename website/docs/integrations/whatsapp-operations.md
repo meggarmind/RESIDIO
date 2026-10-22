@@ -9,7 +9,7 @@ residio_sources:
   - src/app/(dashboard)/settings/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp-admin/**
   - src/app/api/whatsapp/**
-residio_verified_commit: e7873bbc
+residio_verified_commit: 359af1ba
 residio_verified_at: '2026-10-22'
 residio_app_version: '0.4.0'
 ---
@@ -150,6 +150,7 @@ A number linked to a resident (by matching their record or with a link code) kee
 - **Changing a resident's phone deactivates the old number's link.** When a resident's primary or secondary phone is edited, the links for any number removed from their record stop working. Whoever holds the old number is treated as an unknown contact until it is linked again with a fresh link code.
 - **Archived and suspended residents are not answered** over a linked number.
 - **Financial answers need a verified link.** A link is verified when the number is the resident's primary or secondary phone, or when it was linked with a link code — for example a spouse's phone. A number linked with a code before this rule shipped keeps its verified link only if its pending-contact record is still attached to that resident; any other number linked that way, if it is not on the resident's record, needs a fresh link code. Any other linked number gets estate announcements and notices only. Archived and suspended residents never get financial answers.
+- **Only current residents may use the assistant.** A person needs an active residence as resident landlord, non-resident landlord, tenant, developer or co-resident. Household members, domestic staff, caretakers, contractors and people with no active residence get one reply, "This service is for current residents of \{estate name\}. Please contact the estate office.", at most once every 24 hours; their other messages get no reply. `STOP` still works for them, and the admin WhatsApp flow is not affected.
 - **Deactivated links get nothing.** A deactivated link receives no announcements or notices, and shows as **Deactivated** in the opt-in registry. A link code re-activates it.
 
 ## Financial PIN policy
@@ -335,7 +336,7 @@ The **disclosure log** records every occasion on which financial information was
 
 WhatsApp operational state is short-lived by design and purged on a daily schedule.
 
-- Sessions are removed after they expire, by default the next day.
+- Sessions are removed after they expire, by default the next day. A session for a blocked number is kept until its 24-hour reply window has passed, so the number is not sent the "current residents" reply twice in a day.
 - Processed message records are removed after their expiry, by default two days.
 - Survey answers (the rating, the optional comment and the phone number) are removed after 90 days by default. Opt-out records are kept, because they record a resident's choice and hold no comment.
 - Outbound send records are removed after 90 days by default.
