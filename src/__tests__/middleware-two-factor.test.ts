@@ -77,6 +77,7 @@ function verifyRedirect(res: Response) {
 }
 
 beforeEach(() => {
+  vi.stubEnv('DATA_ENCRYPTION_KEY', 'test-2fa-marker-key');
   state.user = USER;
   state.sessionId = SESSION_ID;
   state.profile = activeProfile({ two_factor_enabled: true });
