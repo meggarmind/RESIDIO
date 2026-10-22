@@ -192,7 +192,7 @@ export function PaymentForm({ initialData, residentId, onSuccess }: PaymentFormP
                                                         {property.isCurrent && (
                                                             <MapPin className="h-3 w-3 text-primary" />
                                                         )}
-                                                        {!property.isCurrent && property.outstandingAmount > 0 && (
+                                                        {!property.isCurrent && (property.debtStatus === 'outstanding' || property.debtStatus === 'arrears') && (
                                                             <AlertTriangle className="h-3 w-3 text-amber-500" />
                                                         )}
                                                         <span>{property.houseNumber} {property.streetName}</span>
@@ -200,11 +200,10 @@ export function PaymentForm({ initialData, residentId, onSuccess }: PaymentFormP
                                                             <Badge variant="outline" className="text-xs py-0">Current</Badge>
                                                         )}
                                                     </div>
-                                                    {property.outstandingAmount > 0 && (
-                                                        <span className="text-xs text-muted-foreground">
-                                                            {formatCurrency(property.outstandingAmount)} due
-                                                        </span>
-                                                    )}
+                                                    <span className="text-xs text-muted-foreground">
+                                                        {property.debtStatusLabel}
+                                                        {property.outstandingAmount > 0 && ` · ${formatCurrency(property.outstandingAmount)}`}
+                                                    </span>
                                                 </div>
                                             </SelectItem>
                                         ))}
@@ -212,7 +211,7 @@ export function PaymentForm({ initialData, residentId, onSuccess }: PaymentFormP
                                 </Select>
                                 <FormDescription className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
                                     <AlertTriangle className="h-3 w-3" />
-                                    Outstanding balances exist at previous properties
+                                    A previous property has an owed balance
                                 </FormDescription>
                                 <FormMessage />
                             </FormItem>

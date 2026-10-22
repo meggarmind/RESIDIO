@@ -88,10 +88,47 @@ describe('PortalAccessControl', () => {
     expect(screen.getByTestId('portal-access-readonly').textContent).toContain('Inherit (currently off)');
   });
 
+  it('passes the label and effective class slots through in both modes (#1014)', () => {
+    permissions = [];
+    const client = new QueryClient();
+    const { rerender } = render(
+      <QueryClientProvider client={client}>
+        <PortalAccessControl profileId={PROFILE_ID} override={null} generalEnabled={false} labelClassName="lbl" effectiveClassName="eff" />
+      </QueryClientProvider>
+    );
+    expect(screen.getByText('Resident portal:').className).toContain('lbl');
+    permissions = [PERMISSIONS.SYSTEM_ASSIGN_ROLES];
+    rerender(
+      <QueryClientProvider client={client}>
+        <PortalAccessControl profileId={PROFILE_ID} override={null} generalEnabled={false} labelClassName="lbl" effectiveClassName="eff" />
+      </QueryClientProvider>
+    );
+    expect(screen.getByText('Resident portal').className).toContain('lbl');
+    expect(screen.getByTestId('portal-access-effective').className).toContain('eff');
+  });
+
   it('shows the effective state next to the select with the permission', () => {
     permissions = [PERMISSIONS.SYSTEM_ASSIGN_ROLES];
     renderControl({ override: null, generalEnabled: true });
     expect(screen.getByTestId('portal-access-effective').textContent).toBe('Inherit (currently on)');
+  });
+
+  it('applies the label and effective class slots (#1014)', () => {
+    permissions = [PERMISSIONS.SYSTEM_ASSIGN_ROLES];
+    const { container } = render(
+      <QueryClientProvider client={new QueryClient()}>
+        <PortalAccessControl
+          profileId={PROFILE_ID}
+          override={null}
+          generalEnabled={true}
+          labelClassName="hide-label"
+          effectiveClassName="hide-effective"
+        />
+      </QueryClientProvider>
+    );
+    expect(screen.getByText('Resident portal').className).toContain('hide-label');
+    expect(screen.getByTestId('portal-access-effective').className).toContain('hide-effective');
+    expect(container.querySelector('.hide-label')).not.toBeNull();
   });
 
   it('calls setPortalAccessOverride with the chosen value, and null for inherit', async () => {

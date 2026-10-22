@@ -27,6 +27,7 @@ Open **Settings → Connections → Gmail Import**.
 
 1. Select **Connect** and complete the Google consent screen.
 2. Grant access with the mailbox that actually receives the bank alerts, not a personal account.
+   Finish the connection in the same browser and signed-in session that started it, within 10 minutes. If you are signed in as a different admin, the link is reused, or it has expired, Residio refuses it and asks you to select **Connect** again.
 3. Confirm the page returns showing a connected status and a mailbox address.
 4. Check the sync criteria so Residio reads only the relevant mail.
 5. Wait for the first sync, then confirm imports appear.

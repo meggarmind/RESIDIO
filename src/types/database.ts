@@ -119,9 +119,6 @@ export type OwnershipEventType =
   | 'move_out'            // Resident moved out of the property
   | 'role_change';        // Role changed (e.g., resident_landlord -> non_resident_landlord)
 
-// Legacy types (for future phases)
-export type PaymentStatus = 'current' | 'overdue' | 'suspended' | 'exempt';
-
 // Phase 6: Security Contact Types
 export type SecurityContactStatus = 'active' | 'suspended' | 'expired' | 'revoked';
 export type AccessCodeType = 'permanent' | 'one_time';
@@ -305,6 +302,7 @@ export type AuditEntityType =
   | 'system_settings'
   | 'bank_statement_imports'
   | 'resident_payment_aliases'
+  | 'resident_merges'             // Merge residents (#987)
   | 'estate_bank_accounts'
   | 'transaction_tags'
   | 'app_roles'           // Phase 10: RBAC
@@ -354,6 +352,8 @@ export type AuditEntityType =
   | 'whatsapp_link_tokens'          // One-time WhatsApp linking tokens
   | 'whatsapp_sessions'             // WhatsApp conversation sessions
   | 'whatsapp_provider_credentials' // WhatsApp provider connection (Meta/Twilio)
+  | 'whatsapp_admin_bindings'       // WhatsApp number pinned to an admin account (#972)
+  | 'whatsapp_admin_requests'       // Admin actions asked for on WhatsApp (#972)
   | 'recipient_groups'             // Named lists of residents to send to (#819)
   | 'visitor_vehicles'             // Visitor Vehicle Registration
   // Unified Expenditure Engine
@@ -405,6 +405,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   system_settings: 'System Setting',
   bank_statement_imports: 'Bank Statement Import',
   resident_payment_aliases: 'Payment Alias',
+  resident_merges: 'Resident Merge',              // Merge residents (#987)
   estate_bank_accounts: 'Estate Bank Account',
   transaction_tags: 'Transaction Tag',
   app_roles: 'Role',               // Phase 10: RBAC
@@ -454,6 +455,8 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   whatsapp_link_tokens: 'WhatsApp Link Token',           // WhatsApp Assistant
   whatsapp_sessions: 'WhatsApp Session',                // WhatsApp Assistant
   whatsapp_provider_credentials: 'WhatsApp Connection', // WhatsApp Assistant
+  whatsapp_admin_bindings: 'WhatsApp Admin Link',       // WhatsApp admin mode (#972)
+  whatsapp_admin_requests: 'WhatsApp Admin Request',    // WhatsApp admin mode (#972)
   recipient_groups: 'Recipient Group',                  // Recipient groups (#819)
   visitor_vehicles: 'Visitor Vehicle',                  // Visitor Management Enhancement
   // Unified Expenditure Engine

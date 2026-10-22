@@ -24,6 +24,9 @@ const mocks = vi.hoisted(() => ({
   raceOnClaim: false,
   cookieSet: vi.fn(),
   failedLogins: 0,
+  claims: 0,
+  lastStep: null as number | null,
+  sessions: [] as Row[],
   sentOtps: [] as string[],
 }));
 
@@ -39,8 +42,22 @@ vi.mock('@/lib/supabase/server', () => ({
     },
   }),
   createAdminClient: () => ({
-    // verifyBackupCode passes this builder straight into an update payload (pre-existing oddity).
-    rpc: () => ({}),
+    // The #1029 try limit and single-use authenticator steps.
+    rpc: async (fn: string, args: Row) => {
+      if (fn === 'two_factor_claim_attempt') {
+        mocks.claims++;
+        const allowed = mocks.failedLogins < 5;
+        if (allowed) mocks.failedLogins++;
+        return { data: [{ allowed, remaining: allowed ? 5 - mocks.failedLogins : 0, retry_at: null }], error: null };
+      }
+      if (fn === 'two_factor_accept_totp_step') {
+        const step = Number(args.p_step);
+        if (mocks.lastStep !== null && step <= mocks.lastStep) return { data: false, error: null };
+        mocks.lastStep = step;
+        return { data: true, error: null };
+      }
+      return { data: null, error: { message: `unexpected rpc ${fn}` } };
+    },
     from: (table: string) => {
       let op: 'select' | 'update' = 'select';
       let payload: Row = {};
@@ -61,6 +78,20 @@ vi.mock('@/lib/supabase/server', () => ({
           op = 'update';
           payload = p;
           return b;
+        },
+        upsert: async (p: Row) => {
+          if (table === 'two_factor_verified_sessions') mocks.sessions.push(p);
+          return { error: null };
+        },
+        delete: () => {
+          if (table === 'two_factor_attempts') mocks.failedLogins = 0;
+          return b;
+        },
+        not: () => b,
+        maybeSingle: async () => {
+          if (table === 'two_factor_attempts') return { data: { attempts: mocks.failedLogins }, error: null };
+          if (table === 'two_factor_tokens') return { data: mocks.tokenRows.find(matches) ?? null, error: null };
+          return { data: null, error: null };
         },
         insert: async (p: Row | Row[]) => {
           (mocks.inserts[table] ??= []).push(...(Array.isArray(p) ? p : [p]));
@@ -125,7 +156,14 @@ vi.mock('@/emails/verification-code', () => ({
   },
 }));
 
+vi.mock('@/lib/auth/authorize', () => ({
+  authorizePermission: vi.fn(async () => ({ authorized: true, userId: 'session-user', error: null })),
+}));
+vi.mock('@/lib/audit/logger', () => ({ logAudit: vi.fn(async () => undefined) }));
+
 const { sendTwoFactorCode, verifyTwoFactorCode, verifyBackupCode } = await import('@/actions/two-factor/verify');
+const { generateBackupCodes } = await import('@/actions/two-factor/backup-codes');
+const { disableTwoFactor } = await import('@/actions/two-factor/disable');
 const { POST: sendCodeRoute } = await import('@/app/api/auth/2fa/send-code/route');
 const { POST: verifyRoute } = await import('@/app/api/auth/2fa/verify/route');
 const { POST: verifyBackupRoute } = await import('@/app/api/auth/2fa/verify-backup/route');
@@ -174,6 +212,9 @@ beforeEach(() => {
   mocks.raceOnClaim = false;
   mocks.cookieSet.mockReset();
   mocks.failedLogins = 0;
+  mocks.claims = 0;
+  mocks.lastStep = null;
+  mocks.sessions = [];
   mocks.sentOtps = [];
 });
 afterEach(() => vi.unstubAllEnvs());
@@ -395,5 +436,68 @@ describe('lazy TOTP re-encryption', () => {
     mocks.profile = profileFor('authenticator', encryptTotpSecret(SECRET));
     expect((await verifyTwoFactorCode({ code: currentTotp() })).verified).toBe(true);
     expect(mocks.profileUpdates.some((u) => 'two_factor_secret_encrypted' in u)).toBe(false);
+  });
+});
+
+describe('finish two-factor login (#1029)', () => {
+  it('an authenticator code works once: a replay of the same code is refused', async () => {
+    const code = currentTotp();
+    expect((await verifyTwoFactorCode({ code })).verified).toBe(true);
+    expect((await verifyTwoFactorCode({ code })).success).toBe(false);
+  });
+
+  it('parallel guesses cannot pass the limit: the correct sixth code is refused', async () => {
+    const guesses = ['000001', '000002', '000003', '000004', '000005'].map((code) => verifyTwoFactorCode({ code }));
+    const results = await Promise.all([...guesses, verifyTwoFactorCode({ code: currentTotp() })]);
+    expect(results.every((r) => !r.success)).toBe(true);
+    expect(results[5].message).toMatch(/too many/i);
+    expect(mocks.claims).toBe(6);
+  });
+
+  it('a correct code clears the tries', async () => {
+    await verifyTwoFactorCode({ code: '000001' });
+    expect(mocks.failedLogins).toBe(1);
+    expect((await verifyTwoFactorCode({ code: currentTotp() })).verified).toBe(true);
+    expect(mocks.failedLogins).toBe(0);
+  });
+
+  it('the verify route records this login token session for the database check', async () => {
+    await verifyRoute(post('/api/auth/2fa/verify', { code: currentTotp() }));
+    expect(mocks.sessions).toHaveLength(1);
+    expect(mocks.sessions[0]).toMatchObject({ session_id: 'sess-1', profile_id: 'session-user' });
+  });
+
+  it('no session record and no cookie on a wrong code', async () => {
+    await verifyRoute(post('/api/auth/2fa/verify', { code: '000000' }));
+    expect(mocks.sessions).toHaveLength(0);
+    expect(mocks.cookieSet).not.toHaveBeenCalled();
+  });
+
+  it('making new backup codes has a try limit and refuses a correct code once locked', async () => {
+    mocks.failedLogins = 5;
+    const result = await generateBackupCodes(currentTotp());
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/too many/i);
+    expect(mocks.inserts.two_factor_backup_codes).toBeUndefined();
+  });
+
+  it('making new backup codes takes one try per code and needs a fresh code', async () => {
+    const code = currentTotp();
+    expect((await verifyTwoFactorCode({ code })).verified).toBe(true);
+    const reused = await generateBackupCodes(code);
+    expect(reused.success).toBe(false);
+    expect(mocks.claims).toBe(2);
+    expect(mocks.inserts.two_factor_backup_codes).toBeUndefined();
+  });
+
+  it('turning two-factor off refuses a used code and is limited', async () => {
+    const code = currentTotp();
+    expect((await verifyTwoFactorCode({ code })).verified).toBe(true);
+    expect((await disableTwoFactor(code)).success).toBe(false);
+    expect(mocks.profileUpdates.some((u) => u.two_factor_enabled === false)).toBe(false);
+
+    mocks.failedLogins = 5;
+    mocks.lastStep = null;
+    expect((await disableTwoFactor(currentTotp())).message).toMatch(/too many/i);
   });
 });

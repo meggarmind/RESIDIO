@@ -6,14 +6,15 @@
  * client-callable server action. Callers are responsible for authorization:
  *   - `generateReport` in `@/actions/reports/report-engine` (session client, gated by
  *     the report-view permission check), and
- *   - the CRON_SECRET-authenticated cron paths (`/api/cron/generate-reports` and
- *     `@/lib/reports/process-schedules`), which have no session and pass the admin client.
+ *   - the CRON_SECRET-authenticated cron path (`@/lib/reports/process-schedules`), which has
+ *     no session and passes the admin client.
  * See #483 (same pattern as #388).
  */
 
 import type { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
 import type { ReportRequestFormData } from '@/lib/validators/reports';
 import { getDateRangeFromPreset } from '@/lib/validators/reports';
+import { DEBT_STATUS_DEFAULTS, getDebtStatuses, type DebtStatus } from '@/lib/billing/debt-status';
 
 /** Either the cookie-bound session client or the service-role admin client. */
 export type ReportSupabaseClient =
@@ -177,7 +178,10 @@ export interface HouseIndebtednessRow {
   streetName: string;
   primaryResidentName: string;
   primaryResidentId: string | null;
-  isIndebted: boolean;
+  /** Shared debt status (#980) of the house. */
+  status: DebtStatus;
+  /** The editable label of `status`. */
+  statusLabel: string;
   outstandingAmount?: number;
 }
 
@@ -1021,7 +1025,7 @@ async function generateDebtorsReport(
 // Indebtedness Summary Report
 // ============================================================
 
-async function generateIndebtednessReport(
+export async function generateIndebtednessReport(
   supabase: ReportSupabaseClient,
   includeUnoccupied: boolean = false,
   includeAmount: boolean = false
@@ -1081,6 +1085,10 @@ async function generateIndebtednessReport(
     }
   }
 
+  const debtStatuses = new Map(
+    (await getDebtStatuses(supabase, { houseIds: (houses || []).map((h) => h.id) })).map((d) => [d.houseId, d]),
+  );
+
   // Process houses
   const rows: HouseIndebtednessRow[] = [];
   let totalOutstanding = 0;
@@ -1116,7 +1124,8 @@ async function generateIndebtednessReport(
         ? `${primaryAssignment.resident.first_name} ${primaryAssignment.resident.last_name}`
         : 'No Primary Resident',
       primaryResidentId: primaryAssignment?.resident?.id || null,
-      isIndebted: outstanding > 0,
+      status: debtStatuses.get(house.id)?.status ?? 'paid_in_full',
+      statusLabel: debtStatuses.get(house.id)?.label ?? DEBT_STATUS_DEFAULTS.labels.paid_in_full,
     };
 
     if (includeAmount) {
@@ -1136,7 +1145,7 @@ async function generateIndebtednessReport(
     return numA - numB;
   });
 
-  const indebtedCount = rows.filter(r => r.isIndebted).length;
+  const indebtedCount = rows.filter(r => r.status === 'arrears' || r.status === 'outstanding').length;
 
   return {
     summary: {

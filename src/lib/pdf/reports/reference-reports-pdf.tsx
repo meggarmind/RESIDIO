@@ -100,7 +100,7 @@ export function IndebtednessReportPdf({ data }: { data: IndebtednessReportData }
             <Text style={[s.tableHeaderCell, { flex: 2 }]}>House</Text>
             <Text style={[s.tableHeaderCell, { flex: 2 }]}>Street</Text>
             <Text style={[s.tableHeaderCell, { flex: 3 }]}>Resident</Text>
-            <Text style={[s.tableHeaderCell, { flex: 2 }]}>Indebted</Text>
+            <Text style={[s.tableHeaderCell, { flex: 2 }]}>Status</Text>
             {typeof data.houses[0]?.outstandingAmount === 'number' && <Text style={[s.tableHeaderCell, s.amountRight, { flex: 2 }]}>Amount</Text>}
           </View>
           {data.houses.map((h, i) => (
@@ -108,7 +108,7 @@ export function IndebtednessReportPdf({ data }: { data: IndebtednessReportData }
               <Text style={[s.tableCell, { flex: 2 }]}>{h.houseNumber}</Text>
               <Text style={[s.tableCell, { flex: 2 }]}>{h.streetName}</Text>
               <Text style={[s.tableCell, { flex: 3 }]}>{h.primaryResidentName || 'Vacant'}</Text>
-              <Text style={[s.tableCell, { flex: 2 }, h.isIndebted ? s.amountNegative : s.amountPositive]}>{h.isIndebted ? 'Yes' : 'No'}</Text>
+              <Text style={[s.tableCell, { flex: 2 }, h.status === 'arrears' || h.status === 'outstanding' ? s.amountNegative : s.amountPositive]}>{h.statusLabel}</Text>
               {typeof h.outstandingAmount === 'number' && <Text style={[s.tableCell, s.amountRight, { flex: 2 }, {}]}>{formatPdfCurrency(h.outstandingAmount || 0)}</Text>}
             </View>
           ))}

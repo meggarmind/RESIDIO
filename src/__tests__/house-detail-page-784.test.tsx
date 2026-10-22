@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
   replace: vi.fn(),
   residentsCalls: [] as { enabled?: boolean }[],
   historyCalls: 0,
-  paymentStatus: { data: { totalOutstanding: 0 } as { totalOutstanding: number } | undefined, isLoading: false, isError: false },
+  paymentStatus: { data: { totalOutstanding: 0, debtStatus: 'paid_in_full', debtStatusLabel: 'Paid in Full' } as { totalOutstanding: number; debtStatus: string; debtStatusLabel: string } | undefined, isLoading: false, isError: false },
   assign: vi.fn(),
   transfer: vi.fn(),
   unassign: vi.fn(),
@@ -140,7 +140,7 @@ beforeEach(() => {
   mocks.roles = ['resident_landlord', 'co_resident', 'non_resident_landlord'];
   mocks.residentsCalls.length = 0;
   mocks.historyCalls = 0;
-  mocks.paymentStatus = { data: { totalOutstanding: 0 }, isLoading: false, isError: false };
+  mocks.paymentStatus = { data: { totalOutstanding: 0, debtStatus: 'paid_in_full', debtStatusLabel: 'Paid in Full' }, isLoading: false, isError: false };
   for (const fn of [mocks.replace, mocks.assign, mocks.transfer, mocks.unassign, mocks.removeOwnership, mocks.deleteHouse]) {
     fn.mockReset();
     fn.mockResolvedValue({});
@@ -264,20 +264,21 @@ describe('Delete', () => {
 });
 
 describe('header status line', () => {
-  it('shows occupancy, residents and the outstanding amount', () => {
-    mocks.paymentStatus = { data: { totalOutstanding: 720000 }, isLoading: false, isError: false };
+  it('shows occupancy, residents, the debt status word and the amount beside it', () => {
+    mocks.paymentStatus = { data: { totalOutstanding: 720000, debtStatus: 'arrears', debtStatusLabel: 'Arrears' }, isLoading: false, isError: false };
     renderPage();
     const line = screen.getByTestId('house-status-line');
     expect(line).toHaveTextContent('Occupied');
     expect(line).toHaveTextContent('3 residents');
-    expect(line).toHaveTextContent(/720,000\.00 outstanding/);
+    expect(line).toHaveTextContent('Arrears');
+    expect(line).toHaveTextContent(/720,000\.00/);
   });
 
-  it('never reports "no outstanding dues" when the figure failed to load', () => {
+  it('never reports a debt status when the figure failed to load', () => {
     mocks.paymentStatus = { data: undefined, isLoading: false, isError: true };
     renderPage();
     const line = screen.getByTestId('house-status-line');
-    expect(line).toHaveTextContent('Outstanding unavailable');
-    expect(line).not.toHaveTextContent('No outstanding dues');
+    expect(line).toHaveTextContent('Debt status unavailable');
+    expect(line).not.toHaveTextContent('Paid in Full');
   });
 });

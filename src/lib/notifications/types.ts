@@ -203,7 +203,8 @@ export interface NotificationQueueItem {
   id: string;
   template_id: string | null;
   schedule_id: string | null;
-  recipient_id: string;
+  /** Null only for a row addressed to an admin account (metadata.admin_profile_id, #982). */
+  recipient_id: string | null;
   recipient_email: string | null;
   recipient_phone: string | null;
   channel: NotificationChannel;
@@ -328,7 +329,8 @@ export interface UpdateScheduleInput {
 export interface QueueNotificationInput {
   template_id?: string;
   schedule_id?: string;
-  recipient_id: string;
+  /** Null only for an admin-addressed row; it then needs metadata.admin_profile_id (#982). */
+  recipient_id: string | null;
   recipient_email?: string;
   recipient_phone?: string;
   channel: NotificationChannel;

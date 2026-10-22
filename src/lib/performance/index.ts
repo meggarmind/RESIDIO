@@ -1,4 +1,4 @@
-export { configurePerformanceTelemetry, getPerformanceTelemetry, PerformanceTelemetry, recordPerformanceEvent } from "./telemetry";
+export { configurePerformanceTelemetry, getPerformanceTelemetry, PerformanceTelemetry, recordPerformanceEvent, sanitizeEvent } from "./telemetry";
 export type {
   CacheEvent,
   MutationFailureEvent,

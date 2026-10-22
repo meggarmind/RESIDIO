@@ -13,6 +13,10 @@ The system calculates a "Duplicate Confidence Score" (0-100%) based on:
     - Exact match: 100% score.
     - Fuzzy match (Fuse.js): Scaled score based on similarity.
     - Score Formula: `50 (Base) + (SimilarityScore * 50)`.
+    - Compared against `payment_records.notes` for payments and `expenses.description` for expenses.
+
+### Failed lookups
+A failed duplicate lookup (candidate, exact-reference or hash query) throws `Duplicate check failed: ...` rather than answering "not a duplicate". Several rows sharing a reference count as a duplicate, not an error.
 
 ### Threshold
 The blocking threshold is configurable in **Settings > Money > Banking > Duplicate matching**.

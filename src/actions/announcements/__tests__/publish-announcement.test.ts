@@ -6,13 +6,17 @@ const mocks = vi.hoisted(() => ({
   addToQueue: vi.fn(),
   buildAnnouncementWhatsApp: vi.fn(),
   createServerSupabaseClient: vi.fn(),
+  createAdminClient: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: mocks.authorizePermission }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit: mocks.logAudit }));
 vi.mock('@/lib/notifications/queue', () => ({ addToQueue: mocks.addToQueue }));
 vi.mock('@/lib/whatsapp/outbound', () => ({ buildAnnouncementWhatsApp: mocks.buildAnnouncementWhatsApp }));
-vi.mock('@/lib/supabase/server', () => ({ createServerSupabaseClient: mocks.createServerSupabaseClient }));
+vi.mock('@/lib/supabase/server', () => ({
+  createServerSupabaseClient: mocks.createServerSupabaseClient,
+  createAdminClient: mocks.createAdminClient,
+}));
 
 import { publishAnnouncement } from '../publish-announcement';
 
@@ -71,20 +75,19 @@ function setupFullMock({
     resident_role: 'tenant',
   }));
 
+  // The session client is blocked by RLS from the delivery tables (whatsapp_optins), so it
+  // only serves the announcement; the admin client serves the delivery reads.
   mocks.createServerSupabaseClient.mockResolvedValue({
+    from: vi.fn((table: string) =>
+      table === 'announcements'
+        ? chain({ data: announcement, error: null })
+        : chain({ data: [], error: null })),
+  });
+  mocks.createAdminClient.mockReturnValue({
     from: vi.fn((table: string) => {
-      if (table === 'announcements') {
-        return chain({ data: announcement, error: null });
-      }
-      if (table === 'whatsapp_optins') {
-        return chain({ data: optIns, error: null });
-      }
-      if (table === 'residents') {
-        return chain({ data: defaultResidents, error: null });
-      }
-      if (table === 'resident_houses') {
-        return chain({ data: residentHouses, error: null });
-      }
+      if (table === 'whatsapp_optins') return chain({ data: optIns, error: null });
+      if (table === 'residents') return chain({ data: defaultResidents, error: null });
+      if (table === 'resident_houses') return chain({ data: residentHouses, error: null });
       return chain({ data: null, error: null });
     }),
   });
@@ -201,7 +204,7 @@ describe('publishAnnouncement', () => {
   });
   it('applies the opt-in filter in the query itself (.eq opted_in = true)', async () => {
     setupFullMock({ optIns: [{ resident_id: 'r-1', phone_number: '+234801' }] });
-    const client = await mocks.createServerSupabaseClient();
+    const client = mocks.createAdminClient();
     const optInChains: Array<Record<string, ReturnType<typeof vi.fn>>> = [];
     const originalFrom = client.from;
     client.from = vi.fn((table: string) => {

@@ -27,6 +27,9 @@ export const PRIORITY = {
   BULK: 9,
 } as const;
 
+/** A row in 'processing' longer than this is treated as abandoned and re-queued. */
+export const STALE_PROCESSING_MINUTES = 30;
+
 /**
  * Add a notification to the queue
  *
@@ -46,7 +49,8 @@ export async function addToQueue(
   // Generate deduplication key if we have the necessary info
   let deduplicationKey = input.deduplication_key;
 
-  if (!deduplicationKey && options?.entityType && options?.entityId && options?.category) {
+  // A recipient-less admin row (#982) has no resident to dedupe on.
+  if (!deduplicationKey && input.recipient_id && options?.entityType && options?.entityId && options?.category) {
     const dedupCheck = await shouldQueue({
       channel: input.channel,
       category: options.category,
@@ -73,7 +77,8 @@ export async function addToQueue(
     .insert({
       template_id: input.template_id,
       schedule_id: input.schedule_id,
-      recipient_id: input.recipient_id,
+      // Generated types still say NOT NULL until 20261025120000 is applied and db:types re-run.
+      recipient_id: input.recipient_id as string,
       recipient_email: input.recipient_email,
       recipient_phone: input.recipient_phone,
       channel: input.channel,
@@ -129,7 +134,7 @@ export async function addBatchToQueue(
   const toInsert: Array<{
     template_id: string | undefined;
     schedule_id: string | undefined;
-    recipient_id: string;
+    recipient_id: string | null;
     recipient_email: string | undefined;
     recipient_phone: string | undefined;
     channel: NotificationChannel;
@@ -152,7 +157,7 @@ export async function addBatchToQueue(
     let deduplicationKey = item.deduplication_key;
 
     // Generate dedup key and check if needed
-    if (!options?.skipDedup && item.entityType && item.entityId && item.category) {
+    if (!options?.skipDedup && item.recipient_id && item.entityType && item.entityId && item.category) {
       const dedupCheck = await shouldQueue({
         channel: item.channel,
         category: item.category,
@@ -192,7 +197,9 @@ export async function addBatchToQueue(
 
   // Batch insert
   if (toInsert.length > 0) {
-    const { error } = await supabase.from('notification_queue').insert(toInsert);
+    const { error } = await supabase.from('notification_queue').insert(
+      toInsert as Array<(typeof toInsert)[number] & { recipient_id: string }>
+    );
 
     if (error) {
       errors.push(error.message);
@@ -225,6 +232,45 @@ export async function processQueue(options?: {
   const supabase = createAdminClient();
   const batchSize = options?.batchSize ?? 50;
   const now = new Date().toISOString();
+
+  // A row left in 'processing' by a run that stopped mid-batch is never picked
+  // up again, so hand it back to the queue once it has been stuck long enough.
+  // Rows from before last_attempt_at was stamped on claim have it null.
+  // Reclaims are counted in metadata.reclaim_count rather than attempts, so the
+  // email idempotency key stays the same and a resend is de-duplicated. A row
+  // that keeps getting stuck ends up 'failed' (for manual retry), not resent forever.
+  const staleCutoff = new Date(Date.now() - STALE_PROCESSING_MINUTES * 60_000).toISOString();
+  const { data: stuck, error: stuckError } = await supabase
+    .from('notification_queue')
+    .select('id, max_attempts, last_attempt_at, metadata')
+    .eq('status', 'processing')
+    .or(`last_attempt_at.is.null,last_attempt_at.lt.${staleCutoff}`);
+  if (stuckError) {
+    console.error('[Queue] Failed to read stale processing items:', stuckError);
+  }
+
+  for (const row of stuck ?? []) {
+    const metadata = (row.metadata ?? {}) as Record<string, unknown>;
+    const reclaimCount = (Number(metadata.reclaim_count) || 0) + 1;
+    const exhausted = reclaimCount >= row.max_attempts;
+    // Match the row as it was read, so a row another run already reclaimed is left alone.
+    let reclaim = supabase
+      .from('notification_queue')
+      .update({
+        status: exhausted ? 'failed' : 'pending',
+        metadata: { ...metadata, reclaim_count: reclaimCount },
+        ...(exhausted ? { error_message: 'Max attempts exceeded' } : {}),
+      })
+      .eq('id', row.id)
+      .eq('status', 'processing');
+    reclaim = row.last_attempt_at === null
+      ? reclaim.is('last_attempt_at', null)
+      : reclaim.eq('last_attempt_at', row.last_attempt_at);
+    const { error: reclaimError } = await reclaim;
+    if (reclaimError) {
+      console.error(`[Queue] Failed to reclaim stale processing item ${row.id}:`, reclaimError);
+    }
+  }
 
   // Build query
   let query = supabase
@@ -274,13 +320,24 @@ export async function processQueue(options?: {
 
   // Process each item
   for (const item of items) {
-    result.processed++;
-
-    // Mark as processing
-    await supabase
+    // Claim the row only if it is still pending, so an overlapping run that
+    // read the same row cannot send it a second time.
+    const { data: claimed, error: claimError } = await supabase
       .from('notification_queue')
-      .update({ status: 'processing' })
-      .eq('id', item.id);
+      .update({ status: 'processing', last_attempt_at: new Date().toISOString() })
+      .eq('id', item.id)
+      .eq('status', 'pending')
+      .select('id');
+
+    if (claimError || !claimed || claimed.length === 0) {
+      if (claimError) {
+        console.error(`[Queue] Failed to claim queue item ${item.id}:`, claimError);
+      }
+      result.skipped++;
+      continue;
+    }
+
+    result.processed++;
 
     // Check max attempts
     if (item.attempts >= item.max_attempts) {
@@ -351,13 +408,31 @@ export async function retryQueueItem(
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = createAdminClient();
 
-  // Reset status and clear error
+  const { data: item, error: readError } = await supabase
+    .from('notification_queue')
+    .select('metadata')
+    .eq('id', queueId)
+    .eq('status', 'failed')
+    .maybeSingle();
+
+  if (readError) {
+    return { success: false, error: readError.message };
+  }
+  if (!item) {
+    return { success: true };
+  }
+
+  // An admin retry is a fresh start: reset the attempt and reclaim counts.
+  const metadata = { ...(item.metadata ?? {}) } as Record<string, unknown>;
+  delete metadata.reclaim_count;
   const { error } = await supabase
     .from('notification_queue')
     .update({
       status: 'pending',
       error_message: null,
       scheduled_for: new Date().toISOString(),
+      attempts: 0,
+      metadata,
     })
     .eq('id', queueId)
     .eq('status', 'failed'); // Only retry failed items

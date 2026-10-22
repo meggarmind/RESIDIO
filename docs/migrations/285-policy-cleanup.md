@@ -62,7 +62,7 @@ Both writers are in `src/actions/reports/report-schedules.ts`:
 | `saveGeneratedReport`, any other trigger | 377-379 | `createServerSupabaseClient()` — user-scoped |
 | `createReportVersion` | 474 | `createServerSupabaseClient()` — user-scoped |
 
-So the cron path (`src/app/api/cron/generate-reports/route.ts:88`) is untouched by this migration,
+So the scheduled cron path (`process-report-schedules`; the former `generate-reports` route was removed in #999) is untouched by this migration,
 but the manual path from `src/hooks/use-reports.ts:139` is not.
 
 **`has_permission('reports.view_financial')` is non-breaking, not merely plausible.** Each insert
