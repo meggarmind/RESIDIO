@@ -10,6 +10,8 @@ import { AiAssistantProvider } from '@/contexts/ai-assistant-context';
 import { assertOnlineForMutation } from '@/lib/offline/network-status';
 import { clearAdminReadCache } from '@/lib/offline/admin-read-cache';
 import { useAuth } from '@/lib/auth/auth-provider';
+import { configurePerformanceTelemetry } from '@/lib/performance';
+import { createBeaconSink } from '@/lib/performance/beacon-sink';
 
 function SessionQueryIsolation({ queryClient }: { queryClient: QueryClient }) {
   const { user } = useAuth();
@@ -23,6 +25,25 @@ function SessionQueryIsolation({ queryClient }: { queryClient: QueryClient }) {
     }
     previousUserId.current = nextUserId;
   }, [queryClient, user?.id]);
+
+  return null;
+}
+
+/** Sends admin load-time metrics to the ingest route, which refuses anyone who is not a signed-in admin (#957). */
+function PerformanceTelemetryWiring() {
+  useEffect(() => {
+    const sink = createBeaconSink();
+    const restore = configurePerformanceTelemetry({ sink });
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') sink.flush();
+    };
+    document.addEventListener('visibilitychange', onHide);
+    return () => {
+      document.removeEventListener('visibilitychange', onHide);
+      sink.flush();
+      restore();
+    };
+  }, []);
 
   return null;
 }
@@ -59,6 +80,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <SessionQueryIsolation queryClient={queryClient} />
+            <PerformanceTelemetryWiring />
             <AiAssistantProvider>
               {children}
               <Toaster />
