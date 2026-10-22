@@ -15,8 +15,10 @@
 --      profiles/role_permissions join rather than through (3): role_assignment_rules (4),
 --      document_access_logs (1), document_categories (4), documents (3), entity_notes (4) and
 --      report_archive (1). Each inline check now also requires (2). With (3) and (6), every admin
---      RLS policy and SECURITY DEFINER permission check requires the second step, so a session that
---      skipped it gets no admin rows from the database, not only a web redirect.
+--      public-schema RLS policy and SECURITY DEFINER permission check requires the second step, so a
+--      session that skipped it gets no admin rows from the database, not only a web redirect. The
+--      four storage.objects policies for the documents bucket are covered by
+--      20261026100000_two_factor_storage_documents_policies (#1041).
 --   4. CREATE TABLE public.two_factor_attempts and FUNCTION public.two_factor_claim_attempt(profile,
 --      purpose, now): claims one code try in a single statement BEFORE the code is checked, so
 --      parallel guesses cannot exceed 5 tries per 15 minutes. Purposes: 'login' (sign-in codes and
