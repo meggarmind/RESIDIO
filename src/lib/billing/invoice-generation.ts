@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { resolvePayer, type BillingPayer } from '@/lib/billing/payer';
 
 const monthString = z.string().regex(/^\d{4}-\d{2}-01$/, 'Month must be the first day of a month');
 
@@ -54,7 +55,8 @@ export interface BillingProfileVersion {
 export interface GenerationProfile {
   id: string;
   name: string;
-  targetType: 'house' | 'resident';
+  payer: BillingPayer;
+  targetType: string;
   applicableRoles: BillableRole[] | null;
 }
 
@@ -73,6 +75,7 @@ export interface GenerationHouse {
   streetId?: string | null;
   billingProfileId: string | null;
   propertyStatus: HouseStatus;
+  newNeverOccupied?: boolean;
   isActive: boolean;
   residents: GenerationResidentRole[];
 }
@@ -163,8 +166,6 @@ export function resolveInvoiceGenerationEligibility(
   };
 }
 
-const ROLE_PRIORITY: BillableRole[] = ['tenant', 'resident_landlord'];
-
 function parseMonth(month: string): Date {
   if (!/^\d{4}-\d{2}-01$/.test(month)) throw new Error('Month must be the first day of a month');
   const date = new Date(`${month}T00:00:00.000Z`);
@@ -250,10 +251,9 @@ function isHouseEligible(house: GenerationHouse, eligibility: InvoiceGenerationE
   return null;
 }
 
-function residentEligible(resident: GenerationResidentRole, profile: GenerationProfile): string | null {
+function residentEligible(resident: GenerationResidentRole): string | null {
   if (!resident.isActive) return 'Resident-house role is inactive';
   if (resident.accountStatus !== 'active') return `Resident is ${resident.accountStatus}`;
-  if (profile.applicableRoles && !profile.applicableRoles.includes(resident.role)) return 'Resident role is not applicable';
   return null;
 }
 
@@ -342,58 +342,45 @@ export function resolveBillableCandidates(input: ResolveBillableCandidatesInput)
     }
     const profile = profiles.get(house.billingProfileId)!;
     const profileVersions = input.versions.filter((item) => item.billingProfileId === profile.id);
-    const residentRoles = house.residents.filter((resident) => !request.residentId || resident.id === request.residentId);
-    if (request.residentId && !residentRoles.length) {
+    if (request.residentId && !house.residents.some((resident) => resident.id === request.residentId)) {
       skips.push({ houseId: house.id, house: house.label, reason: 'Not in selected resident scope' });
       continue;
     }
 
-    const eligibleResidents = residentRoles.filter((resident) => !residentEligible(resident, profile));
-    if (profile.targetType === 'house') {
-      const housePriority = house.propertyStatus === 'vacant'
-        ? [...ROLE_PRIORITY, 'non_resident_landlord' as const]
-        : ROLE_PRIORITY;
+    const eligibleResidents = house.residents.filter((resident) => !residentEligible(resident));
+    const payerOf = (residents: GenerationResidentRole[]) => resolvePayer({
+      payer: profile.payer,
+      targetType: profile.targetType,
+      house: { vacant: house.propertyStatus === 'vacant', newNeverOccupied: house.newNeverOccupied === true },
+      applicableRoles: profile.applicableRoles,
+      residents,
+    });
+    const { payer: billable } = payerOf(eligibleResidents);
+    if (!billable) {
+      const activeLinks = house.residents.filter((resident) => resident.isActive);
+      const blocked = payerOf(activeLinks);
+      skips.push({
+        houseId: house.id,
+        house: house.label,
+        reason: !activeLinks.length ? 'No active residents' : blocked.payer ? residentEligible(blocked.payer)! : blocked.reason,
+      });
+      continue;
+    }
+    if (request.residentId && billable.id !== request.residentId) {
+      skips.push({ houseId: house.id, house: house.label, reason: 'Not in selected resident scope' });
+      continue;
+    }
 
-      const billable = housePriority
-        .map((role) => eligibleResidents.find((resident) => resident.role === role))
-        .find(Boolean);
-
-      if (!billable) {
-        const firstReason = residentRoles[0] ? residentEligible(residentRoles[0], profile) : 'No active residents';
-        skips.push({ houseId: house.id, house: house.label, reason: firstReason || 'No billable resident found' });
+    for (const period of periods) {
+      const resolved = resolveVersionForPeriod(period, profileVersions);
+      if (!resolved.version) {
+        skips.push({ houseId: house.id, house: house.label, reason: resolved.skipReason! });
         continue;
       }
-
-      for (const period of periods) {
-        const resolved = resolveVersionForPeriod(period, profileVersions);
-        if (!resolved.version) {
-          skips.push({ houseId: house.id, house: house.label, reason: resolved.skipReason! });
-          continue;
-        }
-        if (resolved.usedFallback) recordFallback(house, profile, period, resolved.version);
-        const evaluation = evaluateCandidate(billable, house, profile, resolved.version, period, eligibility.dueWindowDays);
-        if (evaluation.candidate) candidates.push(evaluation.candidate);
-        else if (evaluation.skipReason) skips.push({ houseId: house.id, house: house.label, reason: evaluation.skipReason });
-      }
-      continue;
-    }
-
-    if (!eligibleResidents.length) {
-      skips.push({ houseId: house.id, house: house.label, reason: residentRoles.length ? 'No eligible resident roles' : 'No active residents' });
-      continue;
-    }
-    for (const resident of eligibleResidents) {
-      for (const period of periods) {
-        const resolved = resolveVersionForPeriod(period, profileVersions);
-        if (!resolved.version) {
-          skips.push({ houseId: house.id, house: house.label, reason: resolved.skipReason! });
-          continue;
-        }
-        if (resolved.usedFallback) recordFallback(house, profile, period, resolved.version);
-        const evaluation = evaluateCandidate(resident, house, profile, resolved.version, period, eligibility.dueWindowDays);
-        if (evaluation.candidate) candidates.push(evaluation.candidate);
-        else if (evaluation.skipReason) skips.push({ houseId: house.id, house: house.label, reason: evaluation.skipReason });
-      }
+      if (resolved.usedFallback) recordFallback(house, profile, period, resolved.version);
+      const evaluation = evaluateCandidate(billable, house, profile, resolved.version, period, eligibility.dueWindowDays);
+      if (evaluation.candidate) candidates.push(evaluation.candidate);
+      else if (evaluation.skipReason) skips.push({ houseId: house.id, house: house.label, reason: evaluation.skipReason });
     }
   }
   return { candidates, skips, versionFallbacks };

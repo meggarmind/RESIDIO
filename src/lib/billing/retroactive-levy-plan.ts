@@ -1,4 +1,4 @@
-import { Constants } from '@/types/database.generated';
+import { resolvePayer, type BillingPayer } from '@/lib/billing/payer';
 
 /**
  * Dry run of `generateRetroactiveLevies` (#790): which houses would be charged which
@@ -6,17 +6,11 @@ import { Constants } from '@/types/database.generated';
  * `generateLeviesForHouse` in '@/actions/billing/generate-levies' -- keep them in step.
  */
 
-export const LEVY_BILLABLE_ROLES = ['resident_landlord', 'non_resident_landlord', 'developer', 'tenant'] as const;
-
-// `generateLeviesForHouse` picks the house's billable resident with
-// `.order('resident_role', { ascending: true }).limit(1)`: Postgres sorts an enum by its
-// declaration order, which Constants lists in the same order.
-const ROLE_ORDER: readonly string[] = Constants.public.Enums.resident_role;
-
 export type LevyPlanProfile = {
   id: string;
   name: string;
-  target_type: string | null;
+  payer: string;
+  target_type: string;
   applicable_roles: string[] | null;
   is_development_levy: boolean | null;
   billing_items: { amount: number | null }[] | null;
@@ -29,44 +23,55 @@ export type RetroactiveLevyPlan = {
   invoices: number;
   totalAmount: number;
   alreadyCharged: number;
+  /** Houses where a landlord-paid levy was not raised because no landlord is on record. */
+  warnings: string[];
 };
 
 export function planRetroactiveLevies(input: {
   autoGenerateEnabled: boolean;
-  houseIds: string[];
-  residentLinks: { house_id: string; resident_role: string }[];
+  houses: { id: string; label: string; vacant: boolean; newNeverOccupied: boolean }[];
+  residentLinks: { house_id: string; resident_id: string; resident_role: string }[];
   profiles: LevyPlanProfile[];
   history: { house_id: string; billing_profile_id: string }[];
 }): RetroactiveLevyPlan {
   const plan: RetroactiveLevyPlan = {
     autoGenerateEnabled: input.autoGenerateEnabled,
-    housesChecked: input.houseIds.length,
+    housesChecked: input.houses.length,
     houses: 0,
     invoices: 0,
     totalAmount: 0,
     alreadyCharged: 0,
+    warnings: [],
   };
   // Every house returns early when the setting is off, so nothing is generated.
   if (!input.autoGenerateEnabled) return plan;
 
-  const primaryRole = new Map<string, string>();
+  const residentsByHouse = new Map<string, { id: string; role: string }[]>();
   for (const link of input.residentLinks) {
-    if (!(LEVY_BILLABLE_ROLES as readonly string[]).includes(link.resident_role)) continue;
-    const current = primaryRole.get(link.house_id);
-    if (current === undefined || ROLE_ORDER.indexOf(link.resident_role) < ROLE_ORDER.indexOf(current)) {
-      primaryRole.set(link.house_id, link.resident_role);
-    }
+    const list = residentsByHouse.get(link.house_id) ?? [];
+    list.push({ id: link.resident_id, role: link.resident_role });
+    residentsByHouse.set(link.house_id, list);
   }
   const charged = new Set(input.history.map((h) => `${h.house_id}:${h.billing_profile_id}`));
 
-  for (const houseId of input.houseIds) {
-    const role = primaryRole.get(houseId);
-    if (!role) continue;
+  for (const house of input.houses) {
+    const houseId = house.id;
+    const residents = residentsByHouse.get(houseId) ?? [];
     let houseInvoices = 0;
     for (const profile of input.profiles) {
-      const isDevelopmentLevy = profile.is_development_levy === true || profile.name.toLowerCase().includes('development');
-      if (isDevelopmentLevy && role === 'tenant') continue;
-      if (profile.target_type === 'resident' && profile.applicable_roles && !profile.applicable_roles.includes(role)) continue;
+      const { payer, reason } = resolvePayer({
+        payer: profile.payer as BillingPayer,
+        targetType: profile.target_type,
+        house: { vacant: house.vacant, newNeverOccupied: house.newNeverOccupied },
+        applicableRoles: profile.applicable_roles,
+        residents,
+      });
+      if (!payer) {
+        if (reason === 'No landlord on record' && !charged.has(`${houseId}:${profile.id}`)) {
+          plan.warnings.push(`House ${house.label}: no landlord on record, so "${profile.name}" would not be raised`);
+        }
+        continue;
+      }
       if (charged.has(`${houseId}:${profile.id}`)) {
         plan.alreadyCharged++;
         continue;

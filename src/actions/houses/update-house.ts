@@ -104,6 +104,7 @@ export async function updateHouse(id: string, formData: HouseFormData): Promise<
           // omits it should not silently clear a recorded doubt.
           identifier_unverified: formData.identifier_unverified ?? currentHouse.identifier_unverified,
           identifier_note: formData.identifier_note || null,
+          is_new_never_occupied: formData.is_new_never_occupied ?? currentHouse.is_new_never_occupied,
           // Don't update number_of_plots - pending approval
         })
         .eq('id', id)
@@ -160,6 +161,7 @@ export async function updateHouse(id: string, formData: HouseFormData): Promise<
       // omits it should not silently clear a recorded doubt.
       identifier_unverified: formData.identifier_unverified ?? currentHouse.identifier_unverified,
       identifier_note: formData.identifier_note || null,
+      is_new_never_occupied: formData.is_new_never_occupied ?? currentHouse.is_new_never_occupied,
     })
     .eq('id', id)
     .select(`

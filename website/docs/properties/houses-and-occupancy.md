@@ -7,7 +7,7 @@ residio_sources:
   - src/app/(dashboard)/houses/**
   - src/actions/houses/**
   - src/components/houses/**
-residio_verified_commit: 952b0988
+residio_verified_commit: e1cc4f52
 residio_verified_at: '2026-10-22'
 residio_app_version: '0.4.0'
 ---
@@ -89,3 +89,7 @@ still readable, but the confirm button is not shown.
 
 When adding or editing a house, tick **Identifier needs confirmation** and describe what is
 uncertain if you are recording a house number you could not verify.
+
+## New, never occupied
+
+Tick **New, never occupied** on the house form for a brand-new house that has never had a resident. While it is vacant, it is not billed occupant dues such as security dues. Assigning its first Renter or Owner-Occupier clears the tick automatically, and the change is written to the audit log.

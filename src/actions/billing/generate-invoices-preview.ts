@@ -87,7 +87,7 @@ export async function generateInvoicesPreview(
 
   const supabase = await createServerSupabaseClient();
   let housesQuery = supabase.from('houses').select(`
-    id, house_number, street_id, house_type_id, billing_profile_id, property_status, is_active,
+    id, house_number, street_id, house_type_id, billing_profile_id, property_status, is_new_never_occupied, is_active,
     street:streets(name), resident_houses(id, resident_id, resident_role, move_in_date, is_active,
       resident:residents!resident_id(id, first_name, last_name, resident_code, account_status))
   `).eq('is_active', true);
@@ -106,14 +106,14 @@ export async function generateInvoicesPreview(
   if (!profileIds.length) return { ...emptyResult(), summary: { ...emptyResult().summary, totalHouses: houses?.length || 0 } };
 
   const [{ data: profiles, error: profilesError }, { data: versions, error: versionsError }] = await Promise.all([
-    supabase.from('billing_profiles').select('id, name, target_type, applicable_roles, is_one_time').in('id', profileIds).eq('is_active', true),
+    supabase.from('billing_profiles').select('id, name, payer, target_type, applicable_roles, is_one_time').in('id', profileIds).eq('is_active', true),
     supabase.from('billing_profile_versions').select('id, billing_profile_id, effective_from, billing_profile_version_items(id, name, amount, frequency, is_mandatory)').in('billing_profile_id', profileIds),
   ]);
   if (profilesError || versionsError) return emptyResult(profilesError?.message || versionsError?.message || 'Could not load billing profiles');
 
   const generationProfiles: GenerationProfile[] = (profiles || [])
     .filter((profile) => !profile.is_one_time)
-    .map((profile) => ({ id: profile.id, name: profile.name, targetType: profile.target_type as GenerationProfile['targetType'], applicableRoles: profile.applicable_roles as GenerationProfile['applicableRoles'] }));
+    .map((profile) => ({ id: profile.id, name: profile.name, payer: profile.payer as GenerationProfile['payer'], targetType: profile.target_type, applicableRoles: profile.applicable_roles as GenerationProfile['applicableRoles'] }));
   const generationVersions: BillingProfileVersion[] = (versions || []).map((version) => ({
     id: version.id,
     billingProfileId: version.billing_profile_id,
@@ -125,7 +125,7 @@ export async function generateInvoicesPreview(
     label: house.house_number,
     streetId: house.street_id,
     billingProfileId: house.billing_profile_id || profileForHouseType.get(house.house_type_id || '') || null,
-    propertyStatus: house.property_status || 'occupied',
+    propertyStatus: house.property_status || 'occupied', newNeverOccupied: house.is_new_never_occupied === true,
     isActive: house.is_active,
     residents: (house.resident_houses || []).map((link) => {
       const resident = Array.isArray(link.resident) ? link.resident[0] : link.resident;
