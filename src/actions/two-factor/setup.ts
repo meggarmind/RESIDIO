@@ -10,8 +10,9 @@ import { getEstateEmailSettings } from '@/lib/email/send-email';
 import { VerificationCodeEmail } from '@/emails/verification-code';
 import type { TwoFactorSetupResult, TwoFactorMethod, Enable2FAInput } from '@/types/database';
 import crypto from 'crypto';
-import { validateTOTP } from '@/lib/auth/totp';
 import { generateOtp, hashOtp, otpMatches, encryptTotpSecret, readTotpSecret, hashBackupCode } from '@/lib/auth/two-factor-secrets';
+import { acceptAuthenticatorCode, claimTwoFactorTry, clearTwoFactorTries, tooManyTriesMessage } from '@/lib/auth/two-factor-guard';
+import { issueTwoFactorMarkerCookie } from '@/lib/auth/two-factor-session';
 
 // Token expiry in minutes
 const TOKEN_EXPIRY_MINUTES = 10;
@@ -347,6 +348,12 @@ export async function confirmTwoFactorSetup(
     return { success: false, message: 'No valid setup token found. Please restart the setup process.' };
   }
 
+  // Take one try before checking the code (#1029).
+  const attempt = await claimTwoFactorTry(user.id, 'manage');
+  if (!attempt.allowed) {
+    return { success: false, message: tooManyTriesMessage() };
+  }
+
   let isValid = false;
 
   if (method === 'authenticator') {
@@ -362,7 +369,7 @@ export async function confirmTwoFactorSetup(
     }
 
     try {
-      isValid = validateTOTP(code, readTotpSecret(profile.two_factor_secret_encrypted));
+      isValid = await acceptAuthenticatorCode(user.id, readTotpSecret(profile.two_factor_secret_encrypted), code);
     } catch (error) {
       console.error('[2FA Setup] Could not read TOTP secret:', error instanceof Error ? error.message : error);
       return { success: false, message: 'Setup not initialized properly' };
@@ -384,6 +391,8 @@ export async function confirmTwoFactorSetup(
     return { success: false, message: 'Invalid verification code' };
   }
 
+  await clearTwoFactorTries(user.id, 'manage');
+
   // Mark token as used
   await adminClient
     .from('two_factor_tokens')
@@ -402,6 +411,10 @@ export async function confirmTwoFactorSetup(
     })
     .eq('id', user.id);
 
+  // The code just checked is this session's second step: without the marker and the
+  // database record, the next page load would send the admin to the sign-in code screen.
+  const sessionRecorded = await issueTwoFactorMarkerCookie();
+
   // Generate backup codes
   const backupCodes = await generateAndStoreBackupCodes(user.id);
 
@@ -410,7 +423,7 @@ export async function confirmTwoFactorSetup(
     profile_id: user.id,
     action: 'enabled',
     method,
-    metadata: { backup_codes_generated: backupCodes.length },
+    metadata: { backup_codes_generated: backupCodes.length, session_recorded: sessionRecorded },
   });
 
   // Audit log

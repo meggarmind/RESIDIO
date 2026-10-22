@@ -7,6 +7,7 @@ import {
     TWO_FACTOR_MARKER_TTL_SECONDS,
     verifyTwoFactorMarker,
 } from '@/lib/auth/two-factor-marker';
+import { recordVerifiedSession } from '@/lib/auth/two-factor-guard';
 
 export interface TwoFactorSessionContext {
     userId: string;
@@ -28,9 +29,10 @@ export async function getTwoFactorSessionContext(): Promise<TwoFactorSessionCont
 }
 
 /**
- * Mint the signed second-factor marker cookie for the CURRENT session. Call only
- * after a code check has succeeded. Returns false (no cookie set) if there is no
- * session id to bind to or the signing secret is unavailable: fail closed.
+ * Mint the signed second-factor marker cookie for the CURRENT session, and record the
+ * session in the database so row-level security sees it too (#1029). Call only after a
+ * code check has succeeded. Returns false (no cookie set) if there is no session id to
+ * bind to, the record cannot be written, or the signing secret is unavailable: fail closed.
  */
 export async function issueTwoFactorMarkerCookie(): Promise<boolean> {
     try {
@@ -38,6 +40,8 @@ export async function issueTwoFactorMarkerCookie(): Promise<boolean> {
         if (!ctx?.sessionId) return false;
 
         const marker = await signTwoFactorMarker({ userId: ctx.userId, sessionId: ctx.sessionId });
+        const expiresAt = new Date(Date.now() + TWO_FACTOR_MARKER_TTL_SECONDS * 1000);
+        if (!(await recordVerifiedSession(ctx.userId, ctx.sessionId, expiresAt))) return false;
         const cookieStore = await cookies();
         cookieStore.set(TWO_FACTOR_COOKIE, marker, {
             httpOnly: true,

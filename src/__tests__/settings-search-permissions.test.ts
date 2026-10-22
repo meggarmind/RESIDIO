@@ -96,6 +96,7 @@ describe('Settings/System search entry permissions', () => {
       '/settings/announcements': ['announcements.manage_categories', 'announcements.manage_templates'],
       // Roles & Access moved into Settings with its /system/accounts guard (#939).
       '/settings/access': ['system.assign_roles'],
+      '/settings/two-factor': ['two_factor.enable'],
       '/settings/groups': ['groups.view'],
       // Merged Documents and Security rules task pages (#937): each is the OR of its sections' permissions.
       '/settings/documents': ['documents.manage_categories', 'documents.manage_custom_fields', 'documents.manage_tags'],

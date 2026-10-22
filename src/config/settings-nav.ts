@@ -581,6 +581,7 @@ export const settingsConfig: SettingsGroup[] = [
             // SYSTEM_ASSIGN_ROLES, so the entry asks for exactly that. The Roles and rules tabs also need
             // SYSTEM_MANAGE_ROLES and fall back to Administrators without it.
             { title: "Roles & Access", href: "/settings/access", description: "Administrators, roles and titles, pending sign-ups and unlinked logins", permissions: [PERMISSIONS.SYSTEM_ASSIGN_ROLES] },
+            { title: "Two-factor login", href: "/settings/two-factor", description: "Set up an authenticator app for your own sign-in, backup codes, and turning it off", permissions: [PERMISSIONS.TWO_FACTOR_ENABLE] },
             { title: "Groups", href: "/settings/groups", description: "Named lists of residents that messages and copies are sent to", permissions: [PERMISSIONS.GROUPS_VIEW] },
             {
                 title: "Security Rules",
