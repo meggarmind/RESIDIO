@@ -63,6 +63,7 @@ export function HouseForm({ house, onSuccess }: HouseFormProps) {
       // Issue #119: the recorded identifier is never rewritten; the doubt
       // about it is captured here instead.
       identifier_unverified: house?.identifier_unverified ?? false,
+      is_new_never_occupied: house?.is_new_never_occupied ?? false,
       identifier_note: house?.identifier_note ?? '',
     },
   });
@@ -369,6 +370,29 @@ export function HouseForm({ house, onSuccess }: HouseFormProps) {
                 <FormLabel className="font-normal cursor-pointer">
                   Identifier needs confirmation
                 </FormLabel>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="is_new_never_occupied"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center gap-3 space-y-0">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value ?? false}
+                    onCheckedChange={(checked) => field.onChange(checked === true)}
+                    aria-label="New, never occupied"
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <FormLabel className="font-normal cursor-pointer">New, never occupied</FormLabel>
+                  <FormDescription>
+                    No security dues are billed while the house is vacant. Assigning its first tenant or resident landlord clears this.
+                  </FormDescription>
+                </div>
                 <FormMessage />
               </FormItem>
             )}

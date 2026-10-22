@@ -45,28 +45,30 @@ describe('planLateFees', () => {
 
 describe('planRetroactiveLevies', () => {
   const devLevy: LevyPlanProfile = {
-    id: 'dev', name: 'Development Levy', target_type: 'house', applicable_roles: null,
+    id: 'dev', name: 'Development Levy', payer: 'landlord', target_type: 'resident', applicable_roles: null,
     is_development_levy: true, billing_items: [{ amount: 500000 }],
   };
   const landlordOnly: LevyPlanProfile = {
-    id: 'gate', name: 'Gate Fee', target_type: 'resident', applicable_roles: ['resident_landlord'],
+    id: 'gate', name: 'Gate Fee', payer: 'landlord', target_type: 'resident', applicable_roles: ['resident_landlord'],
     is_development_levy: false, billing_items: [{ amount: 20000 }, { amount: 5000 }],
   };
   const free: LevyPlanProfile = {
-    id: 'free', name: 'Free', target_type: 'house', applicable_roles: null,
+    id: 'free', name: 'Free', payer: 'landlord', target_type: 'resident', applicable_roles: null,
     is_development_levy: false, billing_items: [{ amount: 0 }],
   };
 
+  const house = (id: string, over = {}) => ({ id, label: id.toUpperCase(), vacant: false, newNeverOccupied: false, ...over });
   const base = {
     autoGenerateEnabled: true,
-    houseIds: ['h1', 'h2', 'h3', 'h4'],
+    houses: [house('h1'), house('h2'), house('h3'), house('h4')],
     residentLinks: [
-      { house_id: 'h1', resident_role: 'resident_landlord' },
-      { house_id: 'h2', resident_role: 'tenant' },
-      // tenant sorts before resident_landlord in the enum, so the tenant is billed.
-      { house_id: 'h3', resident_role: 'resident_landlord' },
-      { house_id: 'h3', resident_role: 'tenant' },
-      { house_id: 'h4', resident_role: 'co_resident' },
+      { house_id: 'h1', resident_id: 'a', resident_role: 'resident_landlord' },
+      // h2 has only a tenant: no landlord, so nothing is raised and the admin is warned.
+      { house_id: 'h2', resident_id: 'b', resident_role: 'tenant' },
+      // h3: a levy goes to the landlord even though a tenant lives there.
+      { house_id: 'h3', resident_id: 'c', resident_role: 'resident_landlord' },
+      { house_id: 'h3', resident_id: 'd', resident_role: 'tenant' },
+      { house_id: 'h4', resident_id: 'e', resident_role: 'co_resident' },
     ],
     profiles: [devLevy, landlordOnly, free],
     history: [] as { house_id: string; billing_profile_id: string }[],
@@ -76,24 +78,45 @@ describe('planRetroactiveLevies', () => {
     expect(planRetroactiveLevies(base)).toEqual({
       autoGenerateEnabled: true,
       housesChecked: 4,
-      houses: 1,
-      invoices: 2,
-      totalAmount: 525000,
+      houses: 2,
+      invoices: 4,
+      totalAmount: 1050000,
       alreadyCharged: 0,
+      warnings: [
+        'House H2: no landlord on record, so "Development Levy" would not be raised',
+        'House H2: no landlord on record, so "Gate Fee" would not be raised',
+        'House H2: no landlord on record, so "Free" would not be raised',
+        'House H4: no landlord on record, so "Development Levy" would not be raised',
+        'House H4: no landlord on record, so "Gate Fee" would not be raised',
+        'House H4: no landlord on record, so "Free" would not be raised',
+      ],
     });
   });
 
   it('skips levies already charged, so a second run adds nothing for them', () => {
     const plan = planRetroactiveLevies({
       ...base,
-      history: [{ house_id: 'h1', billing_profile_id: 'dev' }, { house_id: 'h1', billing_profile_id: 'gate' }],
+      history: [
+        { house_id: 'h1', billing_profile_id: 'dev' }, { house_id: 'h1', billing_profile_id: 'gate' },
+        { house_id: 'h3', billing_profile_id: 'dev' }, { house_id: 'h3', billing_profile_id: 'gate' },
+      ],
     });
-    expect(plan).toMatchObject({ houses: 0, invoices: 0, totalAmount: 0, alreadyCharged: 2 });
+    expect(plan).toMatchObject({ houses: 0, invoices: 0, totalAmount: 0, alreadyCharged: 4 });
   });
 
   it('creates nothing while auto-generate levies is off', () => {
     expect(planRetroactiveLevies({ ...base, autoGenerateEnabled: false })).toMatchObject({
       autoGenerateEnabled: false, houses: 0, invoices: 0, totalAmount: 0,
     });
+  });
+
+  it('bills a landlord levy to a developer when no landlord is on record, and never to a tenant', () => {
+    const plan = planRetroactiveLevies({
+      ...base,
+      houses: [house('h5')],
+      residentLinks: [{ house_id: 'h5', resident_id: 'f', resident_role: 'developer' }, { house_id: 'h5', resident_id: 'g', resident_role: 'tenant' }],
+      profiles: [devLevy],
+    });
+    expect(plan).toMatchObject({ houses: 1, invoices: 1, totalAmount: 500000, warnings: [] });
   });
 });

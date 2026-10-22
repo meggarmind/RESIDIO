@@ -11,7 +11,6 @@ import { WhatsAppStatementEmail } from '@/emails/whatsapp-statement';
 import { addToQueue, PRIORITY } from '@/lib/notifications/queue';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
-import { LEVY_BILLABLE_ROLES } from '@/lib/billing/retroactive-levy-plan';
 import { earliestMoveIn, formatDay, formatNaira, PERIOD_LABELS, statementDates, type StatementPeriod } from '@/lib/whatsapp/assistant-format';
 
 /**
@@ -26,6 +25,8 @@ export const STATEMENT_FILE_HOURS = 12;
 /** Shared with the privacy notice (#871); statements live under statements/. */
 const MEDIA_BUCKET = 'whatsapp-media';
 const SIGNED_URL_SECONDS = 60 * 60;
+/** Roles whose tenancy at a house starts a 'since move-in' statement. */
+const BILLABLE_ROLES = ['resident_landlord', 'non_resident_landlord', 'developer', 'tenant'] as const;
 
 /**
  * whatsapp_statement_requests and whatsapp_disclosure_logs.channel are not in the generated types
@@ -71,7 +72,7 @@ async function activeMoveIn(residentId: string, houseId: string): Promise<string
     .eq('resident_id', residentId)
     .eq('house_id', houseId)
     .eq('is_active', true)
-    .in('resident_role', [...LEVY_BILLABLE_ROLES]);
+    .in('resident_role', [...BILLABLE_ROLES]);
   if (error) throw error;
   return earliestMoveIn((data || []).map((row) => row.move_in_date));
 }

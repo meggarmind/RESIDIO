@@ -11,7 +11,8 @@ import {
 const profile: GenerationProfile = {
   id: 'profile-1',
   name: 'Monthly service charge',
-  targetType: 'house' as const,
+  payer: 'occupant' as const,
+  targetType: 'resident',
   applicableRoles: ['tenant', 'resident_landlord'],
 };
 
@@ -130,7 +131,7 @@ describe('invoice generation period and rate selection', () => {
   it('assigns invoices to period-specific residents during a multi-tenant backfill', () => {
     const result = resolveBillableCandidates({
       request: { mode: 'backfill', fromMonth: '2024-01-01', targetMonth: '2025-12-01', trigger: 'manual' },
-      profiles: [{ ...profile, targetType: 'house' }],
+      profiles: [{ ...profile, payer: 'occupant' }],
       versions: [
         { ...version, id: 'v-2024', effectiveFrom: '2024-01-01' },
         { ...version, id: 'v-2025', effectiveFrom: '2025-01-01', items: [{ ...version.items[0], amount: 10_000 }] },
@@ -216,7 +217,7 @@ describe('invoice generation candidates', () => {
   it('does not bill a non-resident owner for an occupied house', () => {
     const result = resolveBillableCandidates({
       request: { mode: 'selected_month', targetMonth: '2026-08-01', trigger: 'manual' },
-      profiles: [{ ...profile, applicableRoles: ['non_resident_landlord'] }], versions: [version],
+      profiles: [{ ...profile, applicableRoles: null }], versions: [version],
       houses: [{
         id: 'house-1', label: 'A1', billingProfileId: profile.id, propertyStatus: 'occupied', isActive: true,
         residents: [{ id: 'owner', name: 'Owner', accountStatus: 'active', role: 'non_resident_landlord', moveInDate: '2025-01-01', isActive: true }],
@@ -226,21 +227,95 @@ describe('invoice generation candidates', () => {
     expect(result.skips).toMatchObject([{ reason: 'No billable resident found' }]);
   });
 
-  it('creates one candidate per matching resident-house role for a resident profile', () => {
-    const residentProfile: GenerationProfile = { ...profile, id: 'profile-2', targetType: 'resident', applicableRoles: ['tenant'] };
-    const result = resolveBillableCandidates({
-      request: { mode: 'selected_month', targetMonth: '2026-08-01', trigger: 'manual' },
-      profiles: [residentProfile], versions: [{ ...version, billingProfileId: residentProfile.id }],
-      houses: [{
-        id: 'house-1', label: 'A1', billingProfileId: residentProfile.id, propertyStatus: 'occupied', isActive: true,
-        residents: [
-          { id: 'tenant-1', name: 'Tenant one', accountStatus: 'active', role: 'tenant', moveInDate: '2025-01-01', isActive: true },
-          { id: 'tenant-2', name: 'Tenant two', accountStatus: 'active', role: 'tenant', moveInDate: '2025-01-01', isActive: true },
-          { id: 'member', name: 'Member', accountStatus: 'active', role: 'household_member', moveInDate: '2025-01-01', isActive: true },
-        ],
-      }],
+  describe('payer (#1068)', () => {
+    const person = (id: string, role: GenerationProfile['applicableRoles'] extends (infer R)[] | null ? R : never, over = {}) =>
+      ({ id, name: id, accountStatus: 'active', role, moveInDate: '2025-01-01', isActive: true, ...over });
+    const run = (p: GenerationProfile, residents: ReturnType<typeof person>[], house: Record<string, unknown> = {}) =>
+      resolveBillableCandidates({
+        request: { mode: 'selected_month', targetMonth: '2026-08-01', trigger: 'manual' },
+        profiles: [p], versions: [{ ...version, billingProfileId: p.id }],
+        eligibility: { billVacantHouses: true },
+        houses: [{ id: 'house-1', label: 'A1', billingProfileId: p.id, propertyStatus: 'occupied', isActive: true, residents, ...house }],
+      });
+    const occupant: GenerationProfile = { ...profile, applicableRoles: null };
+    const landlord: GenerationProfile = { ...profile, id: 'profile-2', name: 'Estate levy', payer: 'landlord', applicableRoles: null };
+    const billed = (r: ReturnType<typeof run>) => r.candidates.map((c) => c.residentId);
+
+    it('bills the tenant, not the non-resident landlord, for occupant dues', () => {
+      expect(billed(run(occupant, [person('nrl', 'non_resident_landlord'), person('tenant', 'tenant')]))).toEqual(['tenant']);
     });
-    expect(result.candidates.map((candidate) => candidate.residentId)).toEqual(['tenant-1', 'tenant-2']);
+
+    it('bills a tenant-only house to the tenant for occupant dues', () => {
+      expect(billed(run(occupant, [person('tenant', 'tenant')]))).toEqual(['tenant']);
+    });
+
+    it('bills the non-resident landlord for occupant dues on a vacant house', () => {
+      expect(billed(run(occupant, [person('nrl', 'non_resident_landlord')], { propertyStatus: 'vacant' }))).toEqual(['nrl']);
+    });
+
+    it('bills no one on a vacant house flagged new and never occupied', () => {
+      const result = run(occupant, [person('nrl', 'non_resident_landlord')], { propertyStatus: 'vacant', newNeverOccupied: true });
+      expect(result.candidates).toEqual([]);
+      expect(result.skips).toMatchObject([{ house: 'A1', reason: 'New house, never occupied' }]);
+    });
+
+    it('never bills a developer for occupant dues', () => {
+      const result = run(occupant, [person('dev', 'developer')]);
+      expect(result.candidates).toEqual([]);
+    });
+
+    it('bills a recurring landlord charge to the resident landlord, never the tenant', () => {
+      expect(billed(run(landlord, [person('tenant', 'tenant'), person('nrl', 'non_resident_landlord'), person('rl', 'resident_landlord')]))).toEqual(['rl']);
+    });
+
+    it('bills a recurring landlord charge to the non-resident landlord, then the developer', () => {
+      expect(billed(run(landlord, [person('tenant', 'tenant'), person('nrl', 'non_resident_landlord'), person('dev', 'developer')]))).toEqual(['nrl']);
+      expect(billed(run(landlord, [person('tenant', 'tenant'), person('dev', 'developer')]))).toEqual(['dev']);
+    });
+
+    it('raises no landlord charge and names the house when only a tenant is on record', () => {
+      const result = run(landlord, [person('tenant', 'tenant')]);
+      expect(result.candidates).toEqual([]);
+      expect(result.skips).toMatchObject([{ house: 'A1', reason: 'No landlord on record' }]);
+    });
+
+    it('names the inactive landlord, not a missing one, when the only landlord on record is not active', () => {
+      const result = run(landlord, [person('tenant', 'tenant'), person('nrl', 'non_resident_landlord', { accountStatus: 'suspended' })]);
+      expect(result.candidates).toEqual([]);
+      expect(result.skips).toMatchObject([{ house: 'A1', reason: 'Resident is suspended' }]);
+    });
+
+    it('still reports no landlord on record when the only landlord link has ended', () => {
+      const result = run(landlord, [person('tenant', 'tenant'), person('nrl', 'non_resident_landlord', { isActive: false })]);
+      expect(result.candidates).toEqual([]);
+      expect(result.skips).toMatchObject([{ house: 'A1', reason: 'No landlord on record' }]);
+    });
+
+    it('reports no landlord on record when the only active resident is a suspended tenant', () => {
+      const result = run(landlord, [person('tenant', 'tenant', { accountStatus: 'suspended' })]);
+      expect(result.candidates).toEqual([]);
+      expect(result.skips).toMatchObject([{ house: 'A1', reason: 'No landlord on record' }]);
+    });
+
+    it('never adds a tenant to a landlord profile through applicableRoles', () => {
+      const result = run({ ...landlord, applicableRoles: ['tenant'] }, [person('tenant', 'tenant'), person('rl', 'resident_landlord')]);
+      expect(result.candidates).toEqual([]);
+    });
+
+    it('lets applicableRoles narrow the landlord class', () => {
+      expect(billed(run({ ...landlord, applicableRoles: ['non_resident_landlord'] }, [person('rl', 'resident_landlord'), person('nrl', 'non_resident_landlord')]))).toEqual(['nrl']);
+    });
+
+    it('bills the payer even when the generation is scoped to another resident of the house', () => {
+      const result = resolveBillableCandidates({
+        request: { mode: 'selected_month', targetMonth: '2026-08-01', trigger: 'manual', residentId: '00000000-0000-4000-8000-000000000009' },
+        profiles: [occupant], versions: [version],
+        houses: [{ id: 'house-1', label: 'A1', billingProfileId: occupant.id, propertyStatus: 'occupied', isActive: true,
+          residents: [person('tenant', 'tenant'), person('00000000-0000-4000-8000-000000000009', 'resident_landlord')] }],
+      });
+      expect(result.candidates).toEqual([]);
+      expect(result.skips).toMatchObject([{ reason: 'Not in selected resident scope' }]);
+    });
   });
 
   it('uses scope to narrow without bypassing eligibility and explains exclusions', () => {
