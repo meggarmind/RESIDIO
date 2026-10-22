@@ -12,6 +12,7 @@ type Filter =
   | { kind: 'lte'; column: string; value: unknown }
   | { kind: 'lt'; column: string; value: unknown }
   | { kind: 'is'; column: string; value: unknown }
+  | { kind: 'notIs'; column: string; value: unknown }
   | { kind: 'or'; any: Filter[] };
 
 export interface FakeSupabaseState {
@@ -47,6 +48,8 @@ export function createFakeSupabase(initial: Record<string, Row[]> = {}) {
           return v != null && String(v) < String(f.value);
         case 'is':
           return (v ?? null) === f.value;
+        case 'notIs':
+          return (v ?? null) !== f.value;
       }
     });
   }
@@ -155,6 +158,11 @@ export function createFakeSupabase(initial: Record<string, Row[]> = {}) {
         return kind === 'is' ? { kind: 'is', column, value: value === 'null' ? null : value } : { kind: 'lt', column, value };
       });
       filters.push({ kind: 'or', any });
+      return builder;
+    };
+    // Only the `not(column, 'is', value)` form is used by the notification paths.
+    builder.not = (column: string, _operator: 'is', value: unknown) => {
+      filters.push({ kind: 'notIs', column, value });
       return builder;
     };
     builder.maybeSingle = async () => {
