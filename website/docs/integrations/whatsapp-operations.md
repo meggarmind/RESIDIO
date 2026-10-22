@@ -9,7 +9,7 @@ residio_sources:
   - src/app/(dashboard)/settings/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp-admin/**
   - src/app/api/whatsapp/**
-residio_verified_commit: a97a9f8f
+residio_verified_commit: 6ad46a81
 residio_verified_at: '2026-10-22'
 residio_app_version: '0.4.0'
 ---
@@ -284,9 +284,7 @@ Each saves on its own and is written to the audit log.
 
 ## Admin mode
 
-Admin mode lets an admin ask the WhatsApp Assistant for admin information from their own phone. Only `super_admin`, `chairman` and `financial_officer` accounts that hold **Use WhatsApp Admin Mode** (`whatsapp_admin.query`) and have authenticator app 2FA turned on can use it. Three requests are available. `ADMIN STATUS` replies with the admin's name, role and when their admin session ends. `ADMIN OWES <house code or name>` shows what a house owes. `ADMIN DEBT` sends a debt status report (below).
-
-**What a house owes.** `ADMIN OWES KOA-18A` (a house code) or `ADMIN OWES Ada` (a name) needs **View billing** or **View financial reports** as well as the admin permission. The reply gives the outstanding figure the resident sees under "What I owe", the debt status, the oldest unpaid period and the wallet balance on its own line, not netted. A house with a landlord and a tenant shows the billed resident. One match answers at once; two to five matches come back as a numbered list, and the admin sends `ADMIN 1` to `ADMIN 5` within 5 minutes to choose. More than five matches ask for a longer name. The resident is not told. Each answer is written to the audit log and the WhatsApp disclosure log; a house with no billed resident shows no figure and has no disclosure entry.
+Admin mode lets an admin ask the WhatsApp Assistant for admin information from their own phone. Only `super_admin`, `chairman` and `financial_officer` accounts that hold **Use WhatsApp Admin Mode** (`whatsapp_admin.query`) and have authenticator app 2FA turned on can use it. Two requests are available: `ADMIN STATUS`, which replies with the admin's name, role and when their admin session ends, and `ADMIN DEBT`, which sends a debt status report (below).
 
 **Linking a number.** Each admin links their own number under **Settings → WhatsApp admin access**, signed in with their authenticator code. **Create link code** shows a 6-digit code once; it works one time, for 10 minutes. From the phone, send `ADMIN LINK <code>` to the estate WhatsApp number. Linking a new number ends the old link, and **Unlink** ends it at any time. The admin gets an email each time a number is linked.
 
@@ -313,7 +311,7 @@ Caps protect residents from a runaway loop and protect the estate from provider 
 | Burst window (minutes) | The window the burst cap is measured over |
 | Financial lookup daily cap | Maximum financial answers returned in a day, across the whole estate (default 500) |
 
-Each resident is also limited to 20 financial answers a day. Only the Financial standing answers count toward either financial cap (What I owe, Recent payments, Statement, Wallet, the Receipt list and each receipt PDF, and the Clearance certificate check), including each statement PDF and email; How to pay, notices and the contact line do not. Admin `ADMIN OWES` lookups are in the disclosure log but count toward neither; the admin's own daily limit applies instead (see *Admin mode*). Both reset at midnight Lagos time, and the resident is told which limit was reached.
+Each resident is also limited to 20 financial answers a day. Only the Financial standing answers count toward either financial cap (What I owe, Recent payments, Statement, Wallet, the Receipt list and each receipt PDF, and the Clearance certificate check), including each statement PDF and email; How to pay, notices and the contact line do not. Both reset at midnight Lagos time, and the resident is told which limit was reached.
 
 When a cap is reached, further sends are blocked and the event is counted in the console as a cap limit event. Repeated cap events mean the cap is wrong for the estate size or something is sending in a loop — investigate before raising the number.
 
