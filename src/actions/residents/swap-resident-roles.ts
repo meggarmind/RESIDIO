@@ -142,7 +142,18 @@ export async function swapResidentRoles(
 
   if (sponsorUpdateError) {
     console.error('[swapResidentRoles] Error updating sponsors:', sponsorUpdateError);
-    // Don't fail for this - it's a cleanup step
+    await supabase
+      .from('resident_houses')
+      .update({ resident_role: demoteRole, sponsor_resident_id: null })
+      .eq('id', demoteAssignment.id);
+    await supabase
+      .from('resident_houses')
+      .update({
+        resident_role: 'co_resident' as ResidentRole,
+        sponsor_resident_id: demoteResidentId,
+      })
+      .eq('id', promoteAssignment.id);
+    return { success: false, error: 'Failed to update sponsors for other residents' };
   }
 
   // Record history for the swap

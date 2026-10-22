@@ -9,7 +9,7 @@ residio_sources:
   - src/components/residents/duplicate-resident-dialog.tsx
   - src/actions/residents/assign-house.ts
   - src/actions/residents/add-household-member.ts
-residio_verified_commit: e6bee6bb
+residio_verified_commit: 952b0988
 residio_verified_at: '2026-10-22'
 residio_app_version: '0.4.0'
 ---
