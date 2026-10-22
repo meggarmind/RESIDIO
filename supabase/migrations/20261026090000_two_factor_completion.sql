@@ -9,9 +9,14 @@
 --      off, or when the caller's login token session has a live row in (1). STABLE SECURITY DEFINER.
 --   3. The admin permission helpers now also require (2): has_permission, get_my_permissions,
 --      get_my_access, get_my_role_name, is_super_admin (now through get_my_role_name), and the documents.view branch of
---      can_read_document_file. Every admin RLS policy goes through these, so a session that skipped
---      the second step gets no admin rows from the database, not only a web redirect. Accounts with
---      two-factor off see no change. Bodies are otherwise copied unchanged from the live definitions.
+--      can_read_document_file. Bodies are otherwise copied unchanged from the live definitions.
+--      Accounts with two-factor off see no change.
+--   6. ALTER POLICY on the 17 policies that check a permission with their own inline
+--      profiles/role_permissions join rather than through (3): role_assignment_rules (4),
+--      document_access_logs (1), document_categories (4), documents (3), entity_notes (4) and
+--      report_archive (1). Each inline check now also requires (2). With (3) and (6), every admin
+--      RLS policy and SECURITY DEFINER permission check requires the second step, so a session that
+--      skipped it gets no admin rows from the database, not only a web redirect.
 --   4. CREATE TABLE public.two_factor_attempts and FUNCTION public.two_factor_claim_attempt(profile,
 --      purpose, now): claims one code try in a single statement BEFORE the code is checked, so
 --      parallel guesses cannot exceed 5 tries per 15 minutes. Purposes: 'login' (sign-in codes and
@@ -41,6 +46,8 @@
 --   -- line (or the `public.two_factor_session_ok() AND` term) removed, for has_permission,
 --   -- get_my_permissions, get_my_access, get_my_role_name and can_read_document_file. is_super_admin
 --   -- needs no change: it reads get_my_role_name().
+--   -- Re-run the ALTER POLICY statements in (6) with the `(select public.two_factor_session_ok()) AND`
+--   -- term removed (role_assignment_rules_select is restored by 20261023100500).
 --   DROP FUNCTION IF EXISTS public.two_factor_session_ok();
 --   DROP FUNCTION IF EXISTS public.two_factor_claim_attempt(UUID, TEXT, TIMESTAMPTZ);
 --   DROP FUNCTION IF EXISTS public.two_factor_accept_totp_step(UUID, BIGINT);
@@ -56,6 +63,9 @@
 --   SELECT count(*) FROM pg_proc WHERE proname IN ('has_permission','get_my_permissions','get_my_access',
 --     'get_my_role_name','can_read_document_file')
 --     AND pg_get_functiondef(oid) LIKE '%two_factor_session_ok()%';                              -- expect 5
+--   SELECT schemaname, tablename, policyname FROM pg_policies
+--     WHERE coalesce(qual, '') || coalesce(with_check, '') LIKE '%role_permissions%'
+--       AND coalesce(qual, '') || coalesce(with_check, '') NOT LIKE '%two_factor_session_ok()%';  -- expect 0 rows
 
 CREATE TABLE IF NOT EXISTS public.two_factor_verified_sessions (
   session_id UUID PRIMARY KEY,
@@ -301,3 +311,46 @@ AS $function$
     ELSE public.has_permission('documents.update')
   END;
 $function$;
+
+-- (6) Policies that check a permission with their own profiles/role_permissions join instead of
+-- has_permission: the same check plus two_factor_session_ok(), otherwise unchanged. Branches that do
+-- not grant admin access (active categories, confidential_roles) are left as they were.
+ALTER POLICY "Admins can manage role assignment rules (insert)" ON public.role_assignment_rules
+  WITH CHECK ((select public.two_factor_session_ok()) AND (EXISTS ( SELECT 1 FROM ((profiles p JOIN role_permissions rp ON ((rp.role_id = p.role_id))) JOIN app_permissions ap ON ((ap.id = rp.permission_id))) WHERE ((p.id = (select auth.uid())) AND ((ap.name)::text = 'system.manage_roles'::text)))));
+ALTER POLICY "Admins can manage role assignment rules (update)" ON public.role_assignment_rules
+  USING ((select public.two_factor_session_ok()) AND (EXISTS ( SELECT 1 FROM ((profiles p JOIN role_permissions rp ON ((rp.role_id = p.role_id))) JOIN app_permissions ap ON ((ap.id = rp.permission_id))) WHERE ((p.id = (select auth.uid())) AND ((ap.name)::text = 'system.manage_roles'::text)))));
+ALTER POLICY "Admins can manage role assignment rules (delete)" ON public.role_assignment_rules
+  USING ((select public.two_factor_session_ok()) AND (EXISTS ( SELECT 1 FROM ((profiles p JOIN role_permissions rp ON ((rp.role_id = p.role_id))) JOIN app_permissions ap ON ((ap.id = rp.permission_id))) WHERE ((p.id = (select auth.uid())) AND ((ap.name)::text = 'system.manage_roles'::text)))));
+ALTER POLICY "role_assignment_rules_select" ON public.role_assignment_rules
+  USING (((select has_permission('system.manage_roles'::text)) OR (select has_permission('system.assign_roles'::text)) OR ((select public.two_factor_session_ok()) AND (EXISTS ( SELECT 1 FROM ((profiles p JOIN role_permissions rp ON ((rp.role_id = p.role_id))) JOIN app_permissions ap ON ((ap.id = rp.permission_id))) WHERE ((p.id = (select auth.uid())) AND ((ap.name)::text = 'system.manage_roles'::text)))))));
+
+ALTER POLICY "Admins can view access logs" ON public.document_access_logs
+  USING ((select public.two_factor_session_ok()) AND (EXISTS ( SELECT 1 FROM ((profiles p JOIN role_permissions rp ON ((rp.role_id = p.role_id))) JOIN app_permissions ap ON ((ap.id = rp.permission_id))) WHERE ((p.id = (select auth.uid())) AND ((ap.name)::text = ANY (ARRAY['documents.manage_categories'::text, 'audit.view'::text]))))));
+
+ALTER POLICY "Admins can manage categories (insert)" ON public.document_categories
+  WITH CHECK ((select public.two_factor_session_ok()) AND (EXISTS ( SELECT 1 FROM ((profiles p JOIN role_permissions rp ON ((rp.role_id = p.role_id))) JOIN app_permissions ap ON ((ap.id = rp.permission_id))) WHERE ((p.id = (select auth.uid())) AND ((ap.name)::text = 'documents.manage_categories'::text)))));
+ALTER POLICY "Admins can manage categories (update)" ON public.document_categories
+  USING ((select public.two_factor_session_ok()) AND (EXISTS ( SELECT 1 FROM ((profiles p JOIN role_permissions rp ON ((rp.role_id = p.role_id))) JOIN app_permissions ap ON ((ap.id = rp.permission_id))) WHERE ((p.id = (select auth.uid())) AND ((ap.name)::text = 'documents.manage_categories'::text)))));
+ALTER POLICY "Admins can manage categories (delete)" ON public.document_categories
+  USING ((select public.two_factor_session_ok()) AND (EXISTS ( SELECT 1 FROM ((profiles p JOIN role_permissions rp ON ((rp.role_id = p.role_id))) JOIN app_permissions ap ON ((ap.id = rp.permission_id))) WHERE ((p.id = (select auth.uid())) AND ((ap.name)::text = 'documents.manage_categories'::text)))));
+ALTER POLICY "Authenticated users can view active categories" ON public.document_categories
+  USING ((is_active = true) OR ((select public.two_factor_session_ok()) AND (EXISTS ( SELECT 1 FROM ((profiles p JOIN role_permissions rp ON ((rp.role_id = p.role_id))) JOIN app_permissions ap ON ((ap.id = rp.permission_id))) WHERE ((p.id = (select auth.uid())) AND ((ap.name)::text = 'documents.manage_categories'::text))))));
+
+ALTER POLICY "Users can upload documents" ON public.documents
+  WITH CHECK ((select public.two_factor_session_ok()) AND (EXISTS ( SELECT 1 FROM ((profiles p JOIN role_permissions rp ON ((rp.role_id = p.role_id))) JOIN app_permissions ap ON ((ap.id = rp.permission_id))) WHERE ((p.id = (select auth.uid())) AND ((ap.name)::text = 'documents.upload'::text)))));
+ALTER POLICY "Users can update documents" ON public.documents
+  USING ((select public.two_factor_session_ok()) AND (EXISTS ( SELECT 1 FROM ((profiles p JOIN role_permissions rp ON ((rp.role_id = p.role_id))) JOIN app_permissions ap ON ((ap.id = rp.permission_id))) WHERE ((p.id = (select auth.uid())) AND ((ap.name)::text = 'documents.update'::text)))));
+ALTER POLICY "Users can delete documents" ON public.documents
+  USING ((select public.two_factor_session_ok()) AND (EXISTS ( SELECT 1 FROM ((profiles p JOIN role_permissions rp ON ((rp.role_id = p.role_id))) JOIN app_permissions ap ON ((ap.id = rp.permission_id))) WHERE ((p.id = (select auth.uid())) AND ((ap.name)::text = 'documents.delete'::text)))));
+
+ALTER POLICY "Users can create notes" ON public.entity_notes
+  WITH CHECK ((select public.two_factor_session_ok()) AND (EXISTS ( SELECT 1 FROM (((profiles p JOIN app_roles ar ON ((ar.id = p.role_id))) JOIN role_permissions rp ON ((rp.role_id = ar.id))) JOIN app_permissions ap ON ((ap.id = rp.permission_id))) WHERE ((p.id = (select auth.uid())) AND ((ap.name)::text = 'notes.create'::text)))));
+ALTER POLICY "Users can update notes" ON public.entity_notes
+  USING ((select public.two_factor_session_ok()) AND (EXISTS ( SELECT 1 FROM (((profiles p JOIN app_roles ar ON ((ar.id = p.role_id))) JOIN role_permissions rp ON ((rp.role_id = ar.id))) JOIN app_permissions ap ON ((ap.id = rp.permission_id))) WHERE ((p.id = (select auth.uid())) AND ((ap.name)::text = 'notes.update'::text)))));
+ALTER POLICY "Users can delete notes" ON public.entity_notes
+  USING ((select public.two_factor_session_ok()) AND (EXISTS ( SELECT 1 FROM (((profiles p JOIN app_roles ar ON ((ar.id = p.role_id))) JOIN role_permissions rp ON ((rp.role_id = ar.id))) JOIN app_permissions ap ON ((ap.id = rp.permission_id))) WHERE ((p.id = (select auth.uid())) AND ((ap.name)::text = 'notes.delete'::text)))));
+ALTER POLICY "Users can view notes based on permissions" ON public.entity_notes
+  USING ((select public.two_factor_session_ok()) AND (EXISTS ( SELECT 1 FROM (((profiles p JOIN app_roles ar ON ((ar.id = p.role_id))) JOIN role_permissions rp ON ((rp.role_id = ar.id))) JOIN app_permissions ap ON ((ap.id = rp.permission_id))) WHERE ((p.id = (select auth.uid())) AND ((ap.name)::text = 'notes.view'::text)))) AND ((is_confidential = false) OR (EXISTS ( SELECT 1 FROM (((profiles p JOIN app_roles ar ON ((ar.id = p.role_id))) JOIN role_permissions rp ON ((rp.role_id = ar.id))) JOIN app_permissions ap ON ((ap.id = rp.permission_id))) WHERE ((p.id = (select auth.uid())) AND ((ap.name)::text = 'notes.view_confidential'::text)))) OR (EXISTS ( SELECT 1 FROM (profiles p JOIN app_roles ar ON ((ar.id = p.role_id))) WHERE ((p.id = (select auth.uid())) AND ((ar.name)::text = ANY (entity_notes.confidential_roles)))))));
+
+ALTER POLICY "Users with report export can insert" ON public.report_archive
+  WITH CHECK ((select public.two_factor_session_ok()) AND (EXISTS ( SELECT 1 FROM ((profiles p JOIN role_permissions rp ON ((rp.role_id = p.role_id))) JOIN app_permissions ap ON (((ap.id = rp.permission_id) AND ((ap.name)::text = 'reports.export'::text)))) WHERE (p.id = (select auth.uid())))));

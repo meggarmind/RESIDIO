@@ -20,7 +20,7 @@ const one = async (sql: string, params: unknown[] = []): Promise<Row> => (await 
 
 /** Act as the admin, signed in with the given login token session. */
 const signIn = (sessionId: string) =>
-  db.query(`SELECT set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ sub: ADMIN, session_id: sessionId })]);
+  db.query(`SELECT set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ sub: ADMIN, role: 'authenticated', session_id: sessionId })]);
 
 const hasPermission = async () => (await one(`SELECT public.has_permission($1) AS ok`, [PERMISSION])).ok;
 const claim = async (now = '2026-10-22T10:00:00Z') =>
@@ -95,6 +95,44 @@ describe('second step done, checked in the database', () => {
     );
     await signIn(SESSION);
     expect(await hasPermission()).toBe(false);
+  });
+});
+
+describe('policies with their own permission join', () => {
+  const rule = (residentRole: string) => `INSERT INTO public.role_assignment_rules (resident_role, app_role_id)
+    SELECT '${residentRole}', id FROM public.app_roles WHERE name = 'test_staff'`;
+
+  /** Two-factor on, a rule already present, then act as the admin through PostgREST's role. */
+  const asAdmin = async (verified: boolean) => {
+    await db.query(`UPDATE public.profiles SET two_factor_enabled = true WHERE id = $1`, [ADMIN]);
+    await db.exec(`
+      INSERT INTO public.app_permissions (name, display_name, description, category, is_active)
+        VALUES ('system.manage_roles', 'Manage roles', 'Manage roles', 'system', true) ON CONFLICT (name) DO NOTHING;
+      INSERT INTO public.role_permissions (role_id, permission_id)
+        SELECT r.id, p.id FROM public.app_roles r, public.app_permissions p
+        WHERE r.name = 'super_admin' AND p.name = 'system.manage_roles' ON CONFLICT DO NOTHING;
+      ${rule('two_factor_test')};`);
+    if (verified)
+      await db.query(
+        `INSERT INTO public.two_factor_verified_sessions (session_id, profile_id, expires_at) VALUES ($1, $2, now() + interval '1 day')`,
+        [SESSION, ADMIN]
+      );
+    await signIn(SESSION);
+    await db.exec('SET LOCAL row_security = on; SET LOCAL ROLE authenticated');
+  };
+  const deleteRules = async () =>
+    (await db.query(`DELETE FROM public.role_assignment_rules WHERE resident_role = 'two_factor_test'`)).affectedRows;
+
+  it('role_assignment_rules: second step not done, cannot add or delete a rule', async () => {
+    await asAdmin(false);
+    await expect(db.exec(`SAVEPOINT s; ${rule('two_factor_new')}`)).rejects.toThrow(/row-level security/);
+    await db.exec('ROLLBACK TO SAVEPOINT s');
+    expect(await deleteRules()).toBe(0);
+  });
+
+  it('role_assignment_rules: second step done, can delete a rule', async () => {
+    await asAdmin(true);
+    expect(await deleteRules()).toBe(1);
   });
 });
 
