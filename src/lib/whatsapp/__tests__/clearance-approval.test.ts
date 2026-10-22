@@ -121,10 +121,10 @@ describe('issueApprovedClearance (#816 decisions 15, 21, 22)', () => {
   it('tells the admin a held-back certificate copy is scheduled, not lost (#1044)', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     db();
-    vi.mocked(sendWhatsAppToResident).mockResolvedValue({ sent: false, deferred: true, reason: 'WhatsApp daily outbound limit reached. It is scheduled and will send automatically tomorrow, after 00:00 UTC' });
+    vi.mocked(sendWhatsAppToResident).mockResolvedValue({ sent: false, deferred: true, reason: 'WhatsApp daily outbound limit reached. It is scheduled and will send automatically after midnight Lagos time' });
     expect(await issueApprovedClearance(request, 'admin-1', NOW)).toEqual({
       success: true,
-      warning: 'The certificate was issued, but the WhatsApp copy to the resident is held back: WhatsApp daily outbound limit reached. It is scheduled and will send automatically tomorrow, after 00:00 UTC',
+      warning: 'The certificate was issued, but the WhatsApp copy to the resident is held back: WhatsApp daily outbound limit reached. It is scheduled and will send automatically after midnight Lagos time',
     });
   });
 

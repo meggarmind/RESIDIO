@@ -50,16 +50,16 @@ beforeEach(() => {
 });
 
 describe('deferred resident send (#1044)', () => {
-  it('queues a capped message for the next UTC midnight instead of dropping it', async () => {
+  it('queues a capped message for the next Lagos midnight instead of dropping it', async () => {
     mocks.evaluateSendPolicy.mockResolvedValue(defer);
     const result = await sendWhatsAppToResident('r1', 'hello', { seed: 'approval:1:approved' });
     expect(result).toMatchObject({ sent: false, deferred: true });
-    expect((result as { reason: string }).reason).toContain('will send automatically tomorrow');
+    expect((result as { reason: string }).reason).toContain('will send automatically after midnight Lagos time');
     expect(mocks.sendWhatsAppMessage).not.toHaveBeenCalled();
     expect(queued()).toHaveLength(1);
     expect(queued()[0]).toMatchObject({
       channel: 'whatsapp', recipient_id: 'r1', recipient_phone: '0801', body: 'hello', status: 'pending',
-      scheduled_for: '2026-10-23T00:00:00.000Z', deduplication_key: 'resident-send:approval:1:approved',
+      scheduled_for: '2026-10-22T23:00:00.000Z', deduplication_key: 'resident-send:approval:1:approved',
     });
   });
 
@@ -220,7 +220,7 @@ describe('deferred resident send (#1044)', () => {
     it('waits another day when the cap is still reached', async () => {
       const item = await dueItem();
       mocks.evaluateSendPolicy.mockResolvedValue(defer);
-      expect(await sendNotification(item)).toMatchObject({ success: false, retryable: true, retryAt: '2026-10-23T00:00:00.000Z' });
+      expect(await sendNotification(item)).toMatchObject({ success: false, retryable: true, retryAt: '2026-10-22T23:00:00.000Z' });
       expect(mocks.sendWhatsAppMessage).not.toHaveBeenCalled();
     });
   });

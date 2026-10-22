@@ -114,7 +114,7 @@ read from the container's environment by the command, so it is never written int
 
 `process-notifications` runs every 15 minutes (#546), not daily: a transient send failure is put
 back on the queue with a backoff of 15 minutes, 1 hour, 6 hours, then 24 hours (or until the
-WhatsApp daily cap resets at 00:00 UTC), and a daily run would pick every retry up a day late. The
+WhatsApp daily cap resets at midnight Lagos time), and a daily run would pick every retry up a day late. The
 operator changes the schedule in Coolify; no workflow or scheduler file in the repository carries it.
 The route purges old `sent`/`cancelled` queue rows (older than 30 days) only in the 00:00-00:04 UTC
 run, which the old daily 09:00 schedule never hit, so the 15-minute schedule starts that purge for

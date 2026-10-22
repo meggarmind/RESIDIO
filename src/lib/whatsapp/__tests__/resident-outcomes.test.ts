@@ -82,8 +82,8 @@ describe('notifyResidentOfApprovalOutcome (#816 decision 13)', () => {
 
   it('tells the admin a held-back message is scheduled (#1044)', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.mocked(sendWhatsAppToResident).mockResolvedValue({ sent: false, deferred: true, reason: 'daily limit. It is scheduled and will send automatically tomorrow, after 00:00 UTC' });
-    await expect(notifyResidentOfApprovalOutcome(request, 'approved')).resolves.toBe('WhatsApp message to the resident is held back: daily limit. It is scheduled and will send automatically tomorrow, after 00:00 UTC');
+    vi.mocked(sendWhatsAppToResident).mockResolvedValue({ sent: false, deferred: true, reason: 'daily limit. It is scheduled and will send automatically after midnight Lagos time' });
+    await expect(notifyResidentOfApprovalOutcome(request, 'approved')).resolves.toBe('WhatsApp message to the resident is held back: daily limit. It is scheduled and will send automatically after midnight Lagos time');
   });
 
   it('does not throw when the message cannot be sent (no opt-in, no number, provider down)', async () => {

@@ -368,7 +368,7 @@ async function sendReminderToChannels(params: {
               residentPhone: invoice.resident.phone_primary,
               residentName,
               amountRemaining,
-              dueDate: formattedDueDate,
+              dueDate: invoice.due_date,
             }),
             deduplication_key: `invoice-reminder:${invoice.id}:${todayStr}`,
           });
