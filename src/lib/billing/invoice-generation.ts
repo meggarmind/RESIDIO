@@ -353,14 +353,14 @@ export function resolveBillableCandidates(input: ResolveBillableCandidatesInput)
       applicableRoles: profile.applicableRoles,
       residents,
     });
-    const { payer: billable, reason } = payerOf(eligibleResidents);
+    const { payer: billable } = payerOf(eligibleResidents);
     if (!billable) {
-      const blockedPayer = payerOf(house.residents.filter((resident) => resident.isActive)).payer;
-      const ineligibleReason = house.residents[0] ? residentEligible(house.residents[0]) : 'No active residents';
+      const activeLinks = house.residents.filter((resident) => resident.isActive);
+      const blocked = payerOf(activeLinks);
       skips.push({
         houseId: house.id,
         house: house.label,
-        reason: (blockedPayer && residentEligible(blockedPayer)) || (eligibleResidents.length ? reason : ineligibleReason || reason),
+        reason: !activeLinks.length ? 'No active residents' : blocked.payer ? residentEligible(blocked.payer)! : blocked.reason,
       });
       continue;
     }
