@@ -9,7 +9,6 @@ import { formatDateTime } from '@/lib/utils';
 import { getRenewalReminderConfig } from '@/lib/security/renewal-reminders';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
-import { buildSignedVisitorPassQuery } from '@/lib/security/visitor-pass-link';
 
 type AccessCodeResponse = {
   data: AccessCode | null;
@@ -1126,23 +1125,4 @@ export async function extendAccessCodeValidity(
   revalidatePath('/security/contacts');
 
   return { data: updatedCode, error: null };
-}
-
-/**
- * Signed query string for a shareable visitor-pass image link (#1063).
- * The image route refuses unsigned links, so only staff who can issue codes can mint one.
- */
-export async function getVisitorPassImageQuery(
-  visitorName: string,
-  code: string
-): Promise<{ data: string | null; error: string | null }> {
-  const auth = await authorizePermission(PERMISSIONS.SECURITY_GENERATE_CODES);
-  if (!auth.authorized) {
-    return { data: null, error: auth.error || 'Permission denied' };
-  }
-
-  return {
-    data: await buildSignedVisitorPassQuery({ visitorName, code, valid: 'Today', estate: '' }),
-    error: null,
-  };
 }

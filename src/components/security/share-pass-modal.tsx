@@ -16,7 +16,6 @@ import { Copy, Mail, MessageCircle, Check } from "lucide-react";
 import { useState } from "react";
 import { DigitalPassCard } from "./digital-pass-card";
 import { toast } from "sonner";
-import { getVisitorPassImageQuery } from "@/actions/security/codes";
 
 interface SharePassModalProps {
     visitorName?: string;
@@ -38,14 +37,10 @@ export function SharePassModal({
         setTimeout(() => setCopied(false), 2000);
     };
 
-    const handleWhatsApp = async () => {
-        // The image route only serves links signed by the server
-        const { data: query, error } = await getVisitorPassImageQuery(visitorName, accessCode);
-        if (!query) {
-            toast.error(error || "Could not create the pass link");
-            return;
-        }
-        const imageUrl = `${window.location.origin}/api/og/visitor-pass?${query}`;
+    const handleWhatsApp = () => {
+        // Construct the dynamic image URL
+        const baseUrl = window.location.origin;
+        const imageUrl = `${baseUrl}/api/og/visitor-pass?visitorName=${encodeURIComponent(visitorName)}&code=${accessCode}&valid=Today`;
 
         // Share text with the image URL which WhatsApp should preview
         const shareText = `Here is your Residio access pass for ${visitorName}.\n\nAccess Code: *${accessCode}*\n\nView Pass: ${imageUrl}`;

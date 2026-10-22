@@ -22,6 +22,10 @@
 --   20260102095116_create_impersonation_system created the self-update policy with no column
 --   limit. The impersonation log is an audit record of the admin it describes.
 --
+-- ORDERING: 20261023100500_rls_merge_permissive_admin_identity (#956) must already be applied.
+--   Its policy-set guard on impersonation_sessions expects admins_update_own_impersonation_sessions,
+--   so re-running 20261023100500 after this migration aborts at that guard.
+--
 -- IDEMPOTENT: DROP POLICY IF EXISTS, CREATE OR REPLACE FUNCTION, ALTER FUNCTION and the
 -- grants all give the same result when re-run.
 --
