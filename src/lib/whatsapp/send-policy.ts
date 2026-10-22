@@ -13,6 +13,7 @@ import type { SettingReadResult } from '@/lib/settings/service';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isApprovedWhatsAppTemplateName } from '@/lib/whatsapp';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
+import { lagosMidnight, lagosParts } from '@/lib/whatsapp/assistant-format';
 import { isWhatsAppRecipientAllowed } from '@/lib/whatsapp/rollout';
 
 export interface SendPolicyInput {
@@ -86,8 +87,8 @@ export async function evaluateSendPolicy(
     return refuse('daily_cap_zero', 'WhatsApp outbound notifications are capped at zero');
   }
 
-  const startOfDay = new Date(facts.now().getTime());
-  startOfDay.setUTCHours(0, 0, 0, 0);
+  const { year, month, day } = lagosParts(facts.now());
+  const startOfDay = lagosMidnight(year, month, day);
   const daily = await facts.countWhatsAppSentSince(startOfDay.toISOString());
   if (daily.failed) {
     return refuse('daily_cap_unverified', 'Unable to verify WhatsApp outbound limit');

@@ -51,7 +51,7 @@ import { addToQueue, processQueue } from '@/lib/notifications/queue';
 import { sendAndRecordNotification, sendNotification } from '@/lib/notifications/send';
 import {
   DEFAULT_MAX_ATTEMPTS,
-  nextUtcMidnight,
+  nextLagosMidnight,
   resolveBurstWindowMinutes,
   retryDelayMs,
 } from '@/lib/notifications/retry';
@@ -146,9 +146,10 @@ describe('retry helpers', () => {
     expect(retryDelayMs(0)).toBe(15 * MIN);
   });
 
-  it('nextUtcMidnight is the next 00:00 UTC, even exactly at midnight', () => {
-    expect(nextUtcMidnight(new Date('2026-10-14T23:59:59.000Z')).toISOString()).toBe('2026-10-15T00:00:00.000Z');
-    expect(nextUtcMidnight(new Date('2026-10-14T00:00:00.000Z')).toISOString()).toBe('2026-10-15T00:00:00.000Z');
+  it('nextLagosMidnight is the next 00:00 Lagos (23:00 UTC), even exactly at midnight', () => {
+    expect(nextLagosMidnight(new Date('2026-10-14T22:30:00.000Z')).toISOString()).toBe('2026-10-14T23:00:00.000Z');
+    expect(nextLagosMidnight(new Date('2026-10-14T23:00:00.000Z')).toISOString()).toBe('2026-10-15T23:00:00.000Z');
+    expect(nextLagosMidnight(new Date('2026-10-31T23:30:00.000Z')).toISOString()).toBe('2026-11-01T23:00:00.000Z');
   });
 
   it('resolveBurstWindowMinutes mirrors the policy default of 10', () => {
@@ -265,14 +266,14 @@ describe('failure classification', () => {
       });
     });
 
-    it('daily cap: retryable, retryAt is the next UTC midnight', async () => {
+    it('daily cap: retryable, retryAt is the next Lagos midnight', async () => {
       settingValues.whatsapp_outbound_daily_cap = 1;
       const result = await sendNotification(asItem(whatsappRow()));
       expect(result).toMatchObject({
         success: false,
         error: 'WhatsApp daily outbound limit reached',
         retryable: true,
-        retryAt: '2026-10-15T00:00:00.000Z',
+        retryAt: '2026-10-14T23:00:00.000Z',
       });
       expect(sendWhatsAppTemplate).not.toHaveBeenCalled();
     });
@@ -409,7 +410,7 @@ describe('sendAndRecordNotification requeue', () => {
 
     expect(fake.state.tables.notification_queue[0]).toMatchObject({
       status: 'pending',
-      scheduled_for: '2026-10-15T00:00:00.000Z',
+      scheduled_for: '2026-10-14T23:00:00.000Z',
     });
   });
 

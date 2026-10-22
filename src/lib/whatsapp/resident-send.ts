@@ -68,7 +68,7 @@ async function deferResidentSend(
     import('@/lib/notifications/queue'),
     import('@/lib/notifications/send'),
   ]);
-  const when = decision.reason === 'burst_limit_reached' ? 'in a few minutes' : 'tomorrow, after 00:00 UTC';
+  const when = decision.reason === 'burst_limit_reached' ? 'in a few minutes' : 'after midnight Lagos time';
   const scheduled = { sent: false, deferred: true, reason: `${decision.message}. It is scheduled and will send automatically ${when}` } as const;
   // The queue's only unique key is for invoice reminders, so look first: one send per seed.
   if (await hasQueuedResidentSend(options.seed)) return scheduled;

@@ -2,14 +2,13 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Grid, CreditCard, Wallet, UserPlus, FileText } from 'lucide-react';
+import { Grid, CreditCard, UserPlus, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { WalletTopUpDialog } from './wallet-topup-dialog';
 import { VisitorAccessDialog } from './visitor-access-dialog';
 import { StatementGeneratorDialog } from '@/components/billing/statement-generator-dialog';
 import { cn } from '@/lib/utils';
@@ -30,13 +29,11 @@ interface QuickAction {
  *
  * Actions:
  * - Pay Invoice → Navigate to invoices page
- * - Top Up Wallet → Open wallet top-up dialog
  * - Register Visitor → Open visitor access dialog
  * - Account Statement → Open statement generator dialog
  */
 export function QuickActionsMenu() {
   const [open, setOpen] = useState(false);
-  const [walletDialogOpen, setWalletDialogOpen] = useState(false);
   const [visitorDialogOpen, setVisitorDialogOpen] = useState(false);
   const [statementDialogOpen, setStatementDialogOpen] = useState(false);
 
@@ -47,15 +44,7 @@ export function QuickActionsMenu() {
       description: 'Pay an outstanding bill',
       href: '/portal/invoices',
     },
-    {
-      icon: Wallet,
-      label: 'Top Up Wallet',
-      description: 'Add funds to your wallet',
-      onClick: () => {
-        setOpen(false);
-        setWalletDialogOpen(true);
-      },
-    },
+    // Top Up Wallet hidden until online payments are fixed (audit finding 10).
     {
       icon: UserPlus,
       label: 'Register Visitor',
@@ -193,7 +182,6 @@ export function QuickActionsMenu() {
       </Popover>
 
       {/* Dialogs */}
-      <WalletTopUpDialog open={walletDialogOpen} onOpenChange={setWalletDialogOpen} />
       <VisitorAccessDialog open={visitorDialogOpen} onOpenChange={setVisitorDialogOpen} />
       <StatementGeneratorDialog
         open={statementDialogOpen}

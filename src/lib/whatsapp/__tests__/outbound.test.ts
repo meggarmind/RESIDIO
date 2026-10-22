@@ -15,7 +15,7 @@ describe('WhatsApp outbound producers', () => {
         residentPhone: '+2348000000000',
         residentName: 'Ada Example',
         amountRemaining: 12500,
-        dueDate: '12 August 2026',
+        dueDate: '2026-08-12',
       });
 
       expect(item).toMatchObject({
@@ -31,8 +31,21 @@ describe('WhatsApp outbound producers', () => {
         'Ada Example',
         'INV-001',
         'NGN 12,500',
-        '12 August 2026',
+        '12 Aug 2026',
       ]);
+    });
+
+    it('shows the due date in the body as dd mmm yyyy', () => {
+      const item = buildInvoiceReminderWhatsApp({
+        invoiceId: 'inv-d',
+        invoiceNumber: 'INV-D',
+        residentId: 'res-d',
+        residentPhone: '+2348000000009',
+        residentName: 'Dayo',
+        amountRemaining: 1,
+        dueDate: '2026-08-31',
+      });
+      expect(item.body).toBe('Invoice INV-D: NGN 1 due 31 Aug 2026.');
     });
 
     it('renders amount in NGN locale', () => {
@@ -43,7 +56,7 @@ describe('WhatsApp outbound producers', () => {
         residentPhone: '+2348000000001',
         residentName: 'Chidi',
         amountRemaining: 100000,
-        dueDate: '1 Sep',
+        dueDate: '2026-09-01',
       });
       const template = (item.metadata as Record<string, unknown>)
         ?.whatsapp_template as Record<string, unknown>;
@@ -58,7 +71,7 @@ describe('WhatsApp outbound producers', () => {
         residentPhone: '+2348000000002',
         residentName: 'Ngozi',
         amountRemaining: 500,
-        dueDate: '5 Oct',
+        dueDate: '2026-10-05',
       });
       const template = (item.metadata as Record<string, unknown>)
         ?.whatsapp_template as Record<string, unknown>;
@@ -74,7 +87,7 @@ describe('WhatsApp outbound producers', () => {
         residentPhone: '+2348000000000',
         residentName: 'Ada Example',
         amount: 5000,
-        paymentDate: '01/09/2026',
+        paymentDate: new Date('2026-09-01T10:00:00.000Z'),
         referenceNumber: 'REF-001',
       });
 
@@ -86,7 +99,7 @@ describe('WhatsApp outbound producers', () => {
       expect(template.parameters).toEqual([
         'Ada Example',
         'NGN 5,000',
-        '01/09/2026',
+        '1 Sep 2026',
         'REF-001',
       ]);
     });
@@ -98,7 +111,7 @@ describe('WhatsApp outbound producers', () => {
         residentPhone: '+2348000000000',
         residentName: 'Uche',
         amount: 20000,
-        paymentDate: '01/01/2026',
+        paymentDate: '2026-01-01',
       });
       const template = (item.metadata as Record<string, unknown>)
         ?.whatsapp_template as Record<string, unknown>;
@@ -112,7 +125,7 @@ describe('WhatsApp outbound producers', () => {
         residentPhone: '+2348000000000',
         residentName: 'Amara',
         amount: 3000,
-        paymentDate: '10/03/2026',
+        paymentDate: '2026-03-10',
       });
       const template = (item.metadata as Record<string, unknown>)
         ?.whatsapp_template as Record<string, unknown>;
@@ -126,7 +139,7 @@ describe('WhatsApp outbound producers', () => {
         residentPhone: '+2348000000000',
         residentName: 'Chika',
         amount: 1000,
-        paymentDate: '1/2/2026',
+        paymentDate: '2026-02-01',
       });
       expect(item.deduplication_key).toBe('payment_received:pay-dedup');
     });
