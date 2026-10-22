@@ -5,6 +5,7 @@ import {
     signTwoFactorMarker,
     TWO_FACTOR_COOKIE,
     TWO_FACTOR_MARKER_TTL_SECONDS,
+    verifyTwoFactorMarker,
 } from '@/lib/auth/two-factor-marker';
 
 export interface TwoFactorSessionContext {
@@ -48,6 +49,23 @@ export async function issueTwoFactorMarkerCookie(): Promise<boolean> {
         return true;
     } catch (error) {
         console.error('[2FA] Could not issue session marker:', error instanceof Error ? error.message : error);
+        return false;
+    }
+}
+
+/**
+ * True only when the signed-in user completed the second factor in THIS session: a valid marker
+ * cookie for this user and session id. For actions that need a 2FA session on top of the
+ * middleware gate (#972). Fails closed.
+ */
+export async function hasVerifiedTwoFactorSession(userId: string): Promise<boolean> {
+    try {
+        const ctx = await getTwoFactorSessionContext();
+        if (!ctx || ctx.userId !== userId) return false;
+        const cookieStore = await cookies();
+        return await verifyTwoFactorMarker(cookieStore.get(TWO_FACTOR_COOKIE)?.value, ctx);
+    } catch (error) {
+        console.error('[2FA] Could not check the session marker:', error instanceof Error ? error.message : error);
         return false;
     }
 }
