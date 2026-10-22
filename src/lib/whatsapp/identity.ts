@@ -1,7 +1,9 @@
 import { createHash, randomInt } from 'node:crypto';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { notifyAdmins } from '@/lib/notifications/admin-notifier';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
+import { getRawSettingsAsService } from '@/lib/settings/service';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isWhatsAppMasterSwitchOn } from '@/lib/whatsapp/master-switch';
 import {
@@ -31,6 +33,12 @@ const BILLABLE_ROLES = new Set([
   'developer',
 ]);
 
+/** Who may use the Assistant at all (#1070): the billable roles plus co-residents. Everyone else is blocked. */
+const ASSISTANT_ROLES = new Set([...BILLABLE_ROLES, 'co_resident']);
+
+/** A blocked number gets the same fixed reply at most once in this many hours (#1070). */
+const BLOCKED_REPLY_HOURS = 24;
+
 /** Wrong LINK codes a number may try within the window before it is locked out (#1058). */
 const LINK_TRIES_PER_WINDOW = 5;
 const LINK_WINDOW_MINUTES = 15;
@@ -53,6 +61,8 @@ export interface WhatsAppResidentIdentity {
   phonePrimary: string | null;
   phoneSecondary: string | null;
   financialEligible: boolean;
+  /** An active residency in an in-scope role (#1070); false means the Assistant is closed to this person. */
+  accessAllowed: boolean;
 }
 
 export interface WhatsAppIdentityRepository {
@@ -86,6 +96,12 @@ export interface WhatsAppIdentityRepository {
   notifyDisputed(phoneNumber: string, residentId: string): Promise<void>;
   getPrivacyNotice(): Promise<WhatsAppPrivacyNotice | null>;
   getOfficeContactLine(): Promise<string>;
+  /**
+   * Records that the blocked-number reply is being sent now (#1070). True once per number per 24 hours,
+   * atomically; false when one was already sent in the window.
+   */
+  claimBlockedReply(phoneNumber: string, residentId: string): Promise<boolean>;
+  getEstateName(): Promise<string>;
   /** STOP SURVEYS (#872): the assistant never asks this resident for feedback again. */
   optOutOfSurveys(residentId: string): Promise<void>;
 }
@@ -114,7 +130,7 @@ function hashLinkToken(token: string): string {
   return createHash('sha256').update(token.trim()).digest('hex');
 }
 
-async function getFinancialEligibility(residentId: string): Promise<boolean> {
+async function getAccess(residentId: string): Promise<{ financialEligible: boolean; accessAllowed: boolean }> {
   const supabase = createAdminClient();
   const { data } = await supabase
     .from('resident_houses')
@@ -122,7 +138,11 @@ async function getFinancialEligibility(residentId: string): Promise<boolean> {
     .eq('resident_id', residentId)
     .eq('is_active', true);
 
-  return (data || []).some((assignment) => BILLABLE_ROLES.has(assignment.resident_role));
+  const roles = (data || []).map((assignment) => assignment.resident_role);
+  return {
+    financialEligible: roles.some((role) => BILLABLE_ROLES.has(role)),
+    accessAllowed: roles.some((role) => ASSISTANT_ROLES.has(role)),
+  };
 }
 
 function isOnRoster(
@@ -143,7 +163,7 @@ function createIdentity(
     phone_primary: string | null;
     phone_secondary: string | null;
   },
-  financialEligible: boolean
+  access: { financialEligible: boolean; accessAllowed: boolean }
 ): WhatsAppResidentIdentity {
   return {
     id: resident.id,
@@ -152,7 +172,8 @@ function createIdentity(
     residentCode: resident.resident_code,
     phonePrimary: resident.phone_primary,
     phoneSecondary: resident.phone_secondary,
-    financialEligible,
+    financialEligible: access.financialEligible,
+    accessAllowed: access.accessAllowed,
   };
 }
 
@@ -174,7 +195,7 @@ export function createSupabaseWhatsAppIdentityRepository(): WhatsAppIdentityRepo
 
       return Promise.all(
         matches.map(async (resident) =>
-          createIdentity(resident, await getFinancialEligibility(resident.id))
+          createIdentity(resident, await getAccess(resident.id))
         )
       );
     },
@@ -211,13 +232,14 @@ export function createSupabaseWhatsAppIdentityRepository(): WhatsAppIdentityRepo
       // A link is verified by its number being on the resident's roster or by a LINK code (#849);
       // an unverified link gets the community tier only.
       return Promise.all(
-        (residents || []).map(async (resident) =>
-          createIdentity(
-            resident,
-            (isOnRoster(resident, normalized) || codeVerified.has(resident.id)) &&
-              (await getFinancialEligibility(resident.id))
-          )
-        )
+        (residents || []).map(async (resident) => {
+          const access = await getAccess(resident.id);
+          return createIdentity(resident, {
+            financialEligible:
+              (isOnRoster(resident, normalized) || codeVerified.has(resident.id)) && access.financialEligible,
+            accessAllowed: access.accessAllowed,
+          });
+        })
       );
     },
 
@@ -522,6 +544,51 @@ export function createSupabaseWhatsAppIdentityRepository(): WhatsAppIdentityRepo
       }
     },
 
+    async claimBlockedReply(phoneNumber, residentId) {
+      const supabase = createAdminClient() as unknown as SupabaseClient;
+      const normalized = normalizePhoneNumber(phoneNumber);
+      const now = new Date();
+      const cutoff = new Date(now.getTime() - BLOCKED_REPLY_HOURS * 60 * 60 * 1000).toISOString();
+
+      // One conditional update claims the slot, so two concurrent messages cannot both reply.
+      const { data: claimed, error } = await supabase
+        .from('whatsapp_sessions')
+        .update({ blocked_reply_at: now.toISOString() })
+        .eq('phone_number', normalized)
+        .or(`blocked_reply_at.is.null,blocked_reply_at.lt.${cutoff}`)
+        .select('id');
+      if (error) throw error;
+      if ((claimed || []).length > 0) return true;
+
+      const { data: existing, error: lookupError } = await supabase
+        .from('whatsapp_sessions')
+        .select('id')
+        .eq('phone_number', normalized)
+        .maybeSingle();
+      if (lookupError) throw lookupError;
+      if (existing) return false;
+
+      // No session yet: a new row is born expired, like saveConsentStep's. The unique phone_number
+      // rejects the loser of a race, which then stays silent.
+      const { error: insertError } = await supabase.from('whatsapp_sessions').insert({
+        phone_number: normalized,
+        resident_id: residentId,
+        expires_at: now.toISOString(),
+        blocked_reply_at: now.toISOString(),
+      });
+      if (insertError) {
+        if ((insertError as { code?: string }).code === '23505') return false;
+        throw insertError;
+      }
+      return true;
+    },
+
+    async getEstateName() {
+      const settings = await getRawSettingsAsService(['estate_name']);
+      const name = settings.status === 'ok' ? settings.values.get('estate_name') : null;
+      return typeof name === 'string' && name.trim() ? name.trim() : 'Residio Estate';
+    },
+
     getPrivacyNotice: loadWhatsAppPrivacyNotice,
     getOfficeContactLine: loadEstateOfficeContactLine,
     optOutOfSurveys,
@@ -541,7 +608,7 @@ export interface WhatsAppIdentityHandlerOptions {
 }
 
 export interface WhatsAppIdentityResult {
-  status: 'identified' | 'linked' | 'ambiguous' | 'pending' | 'opted_out' | 'consent_pending' | 'disputed' | 'declined' | 'admin';
+  status: 'identified' | 'linked' | 'ambiguous' | 'pending' | 'opted_out' | 'consent_pending' | 'disputed' | 'declined' | 'admin' | 'blocked';
   residentId: string | null;
   optedIn: boolean;
   financialEligible: boolean;
@@ -580,6 +647,10 @@ const DECLINE_NOTICE = /^(2|decline)\.?$/i;
 // Replies to a prompt, greetings and secrets are not a request worth resuming after consent (#871 step 7).
 const NOT_A_REQUEST = /^(?:[\d\s]+|hi|hello|hey|menu|accept|decline|yes|no|not me|start|subscribe|opt\s*in|(?:pin|link)\b.*)$/i;
 const MAX_PENDING_REQUEST_LENGTH = 500;
+
+export function blockedReply(estateName: string): string {
+  return `This service is for current residents of ${estateName}. Please contact the estate office.`;
+}
 
 export const NOT_ME_REPLY = "Thanks for telling us. I won't show any details for this number.";
 export const DECLINED_REPLY = "Thanks, your choice is recorded. I won't use your records.";
@@ -751,6 +822,16 @@ export async function handleResidentMessage(
   const matchedIdentity = identity;
   if (!matchedIdentity) {
     return { status: 'pending', residentId: null, optedIn: false, financialEligible: false, accessTier: 'community' };
+  }
+
+  // Only a current resident in an in-scope role may use the Assistant (#1070). STOP and the admin flow
+  // are handled above; a blocked number gets one fixed reply per 24 hours and silence after that.
+  if (!matchedIdentity.accessAllowed) {
+    if (await options.repository.claimBlockedReply(phoneNumber, matchedIdentity.id)) {
+      const estateName = await options.repository.getEstateName();
+      await sendReply(message, blockedReply(estateName), options.send, matchedIdentity.id);
+    }
+    return { status: 'blocked', residentId: matchedIdentity.id, optedIn: false, financialEligible: false, accessTier: 'community' };
   }
 
   const repository = options.repository;

@@ -30,6 +30,7 @@ const resident = {
   phonePrimary: '+2348000000000',
   phoneSecondary: null,
   financialEligible: false,
+  accessAllowed: true,
 };
 
 beforeEach(() => {

@@ -34,6 +34,7 @@ const identity: WhatsAppResidentIdentity = {
   phonePrimary: '+2348000000000',
   phoneSecondary: null,
   financialEligible: true,
+  accessAllowed: true,
 };
 
 const CONTACT = 'Contact the estate office on 0803 699 6725.';

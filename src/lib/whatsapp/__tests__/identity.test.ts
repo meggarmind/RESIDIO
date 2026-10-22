@@ -20,6 +20,7 @@ const resident: WhatsAppResidentIdentity = {
   phonePrimary: '+2348000000000',
   phoneSecondary: null,
   financialEligible: true,
+  accessAllowed: true,
 };
 
 function message(text: string, from = '2348000000000'): WhatsAppInboundMessage {
@@ -59,6 +60,8 @@ function repository(overrides: Partial<WhatsAppIdentityRepository> = {}): WhatsA
     getPrivacyNotice: vi.fn().mockResolvedValue({ version: 'v1', text: 'Notice' }),
     getOfficeContactLine: vi.fn().mockResolvedValue(''),
     optOutOfSurveys: vi.fn().mockResolvedValue(undefined),
+    claimBlockedReply: vi.fn().mockResolvedValue(true),
+    getEstateName: vi.fn().mockResolvedValue('Palm Estate'),
     ...overrides,
   };
 }
@@ -259,6 +262,72 @@ describe('WhatsApp identity and consent', () => {
     expect(repo.consumeLinkToken).not.toHaveBeenCalled();
     expect(repo.setOptIn).not.toHaveBeenCalled();
     expect(send.mock.calls[0]?.[0].body).toContain('Too many wrong link codes');
+  });
+
+  describe('access only for in-scope residents (#1070)', () => {
+    const BLOCKED_BODY = 'This service is for current residents of Palm Estate. Please contact the estate office.';
+    const blocked = { ...resident, financialEligible: false, accessAllowed: false };
+
+    it('sends the fixed reply to a blocked number once and reads nothing else about it', async () => {
+      const repo = repository({ findRosterMatches: vi.fn().mockResolvedValue([blocked]) });
+      const send = vi.fn().mockResolvedValue({ success: true });
+      const onIdentified = vi.fn();
+
+      const result = await handleResidentMessage(message('hello'), { repository: repo, send, onIdentified });
+
+      expect(result).toMatchObject({ status: 'blocked', financialEligible: false, accessTier: 'community' });
+      expect(send).toHaveBeenCalledTimes(1);
+      expect(send.mock.calls[0]?.[0].body).toBe(BLOCKED_BODY);
+      expect(repo.claimBlockedReply).toHaveBeenCalledWith('+2348000000000', 'resident-1');
+      expect(onIdentified).not.toHaveBeenCalled();
+      expect(repo.getConsentState).not.toHaveBeenCalled();
+    });
+
+    it('stays silent while the 24-hour reply has already been sent', async () => {
+      const repo = repository({
+        findRosterMatches: vi.fn().mockResolvedValue([blocked]),
+        claimBlockedReply: vi.fn().mockResolvedValue(false),
+      });
+      const send = vi.fn().mockResolvedValue({ success: true });
+
+      const result = await handleResidentMessage(message('what do I owe'), { repository: repo, send });
+
+      expect(result.status).toBe('blocked');
+      expect(send).not.toHaveBeenCalled();
+    });
+
+    it('still lets a blocked number opt out with STOP, and does not send the blocked reply', async () => {
+      const repo = repository({ findRosterMatches: vi.fn().mockResolvedValue([blocked]) });
+      const send = vi.fn().mockResolvedValue({ success: true });
+
+      const result = await handleResidentMessage(message('STOP'), { repository: repo, send });
+
+      expect(result.status).toBe('opted_out');
+      expect(repo.setOptIn).toHaveBeenCalledWith('resident-1', '+2348000000000', false, 'in_chat');
+      expect(repo.claimBlockedReply).not.toHaveBeenCalled();
+      expect(send.mock.calls[0]?.[0].body).toContain('unsubscribed');
+    });
+
+    it('does not touch the admin flow for a blocked number', async () => {
+      const repo = repository({ findRosterMatches: vi.fn().mockResolvedValue([blocked]) });
+      const adminRepository = { getLockedUntil: vi.fn().mockResolvedValue(null), findActiveBinding: vi.fn().mockResolvedValue(null) };
+      const send = vi.fn().mockResolvedValue({ success: true });
+
+      const result = await handleResidentMessage(message('ADMIN STATUS'), { repository: repo, adminRepository: adminRepository as never, send });
+
+      expect(result.status).toBe('admin');
+      expect(repo.claimBlockedReply).not.toHaveBeenCalled();
+    });
+
+    it('lets an allowed resident through without a blocked reply', async () => {
+      const repo = repository();
+      const send = vi.fn().mockResolvedValue({ success: true });
+
+      const result = await handleResidentMessage(message('hello'), { repository: repo, send });
+
+      expect(result.status).toBe('identified');
+      expect(repo.claimBlockedReply).not.toHaveBeenCalled();
+    });
   });
 
   it('keeps non-billable residents in the community tier without financial data', async () => {

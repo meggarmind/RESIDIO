@@ -54,6 +54,7 @@ const identity: WhatsAppResidentIdentity = {
   phonePrimary: '+2348000000000',
   phoneSecondary: null,
   financialEligible: true,
+  accessAllowed: true,
 };
 const community: WhatsAppResidentIdentity = { ...identity, firstName: 'Tunde', financialEligible: false };
 
