@@ -124,6 +124,21 @@ export async function loadSchema(migrations: string[] = laterMigrations()): Prom
     .replace(/CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;/, 'CREATE EXTENSION IF NOT EXISTS pg_trgm;');
   await replay(db, 'baseline', baseline);
 
+  // The baseline is public-schema only; these documents-bucket storage policies predate it
+  // (20251228100000_create_document_management) and later migrations alter them.
+  const docPolicy = (name: string, cmd: string, clause: string, perm: string) =>
+    `CREATE POLICY "${name}" ON storage.objects FOR ${cmd} TO authenticated ${clause} (bucket_id = 'documents' AND EXISTS (SELECT 1 FROM profiles p JOIN role_permissions rp ON rp.role_id = p.role_id JOIN app_permissions ap ON ap.id = rp.permission_id WHERE p.id = auth.uid() AND ap.name = '${perm}'));`;
+  await replay(
+    db,
+    'storage policies',
+    [
+      docPolicy('Users can upload documents to storage', 'INSERT', 'WITH CHECK', 'documents.upload'),
+      docPolicy('Users can download documents from storage', 'SELECT', 'USING', 'documents.view'),
+      docPolicy('Users can delete documents from storage', 'DELETE', 'USING', 'documents.delete'),
+      docPolicy('Users can update documents in storage', 'UPDATE', 'USING', 'documents.update'),
+    ].join('\n')
+  );
+
   await replay(
     db,
     'roles',
