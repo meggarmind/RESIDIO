@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { setPortalAccessOverride } from '@/actions/settings/resident-portal';
 import { useAuth } from '@/lib/auth/auth-provider';
+import { cn } from '@/lib/utils';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import {
   describeEffectiveAccess,
@@ -29,6 +30,10 @@ interface PortalAccessControlProps {
   override: PortalAccessOverride;
   /** The estate-wide resident-portal switch. */
   generalEnabled: boolean;
+  /** Extra classes for the visible label, e.g. to hide it where a column header names the control. */
+  labelClassName?: string;
+  /** Extra classes for the effective-state text. */
+  effectiveClassName?: string;
 }
 
 /**
@@ -36,7 +41,13 @@ interface PortalAccessControlProps {
  * link visibility (#423). Editable only with SYSTEM_ASSIGN_ROLES; otherwise
  * the effective state is shown read-only.
  */
-export function PortalAccessControl({ profileId, override, generalEnabled }: PortalAccessControlProps) {
+export function PortalAccessControl({
+  profileId,
+  override,
+  generalEnabled,
+  labelClassName,
+  effectiveClassName,
+}: PortalAccessControlProps) {
   const { hasPermission, profile, refreshPortalVisibility } = useAuth();
   const canEdit = hasPermission(PERMISSIONS.SYSTEM_ASSIGN_ROLES);
   const queryClient = useQueryClient();
@@ -73,8 +84,8 @@ export function PortalAccessControl({ profileId, override, generalEnabled }: Por
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-xs text-muted-foreground whitespace-nowrap">Resident portal</span>
+    <div className="flex flex-wrap items-center gap-2">
+      <span className={cn('text-xs text-muted-foreground whitespace-nowrap', labelClassName)}>Resident portal</span>
       <Select value={toKey(override)} onValueChange={handleChange} disabled={isSaving}>
         <SelectTrigger className="h-8 w-[130px]" aria-label="Resident portal access">
           <SelectValue />
@@ -85,7 +96,10 @@ export function PortalAccessControl({ profileId, override, generalEnabled }: Por
           <SelectItem value="disabled">Disabled</SelectItem>
         </SelectContent>
       </Select>
-      <span className="text-xs text-muted-foreground whitespace-nowrap" data-testid="portal-access-effective">
+      <span
+        className={cn('text-xs text-muted-foreground whitespace-nowrap', effectiveClassName)}
+        data-testid="portal-access-effective"
+      >
         {effective}
       </span>
     </div>
