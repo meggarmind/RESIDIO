@@ -98,6 +98,8 @@ export async function addToQueue(
     return {
       success: false,
       error: error.message,
+      // 23505: a unique de-duplication key index already holds this row.
+      isDuplicate: error.code === '23505',
     };
   }
 

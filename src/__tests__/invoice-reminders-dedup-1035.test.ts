@@ -9,6 +9,7 @@ const m = vi.hoisted(() => ({
   fetchError: null as { message: string } | null,
   scheduleError: null as string | null,
   lastNotifiedAt: null as string | null,
+  escalationMissing: false,
   sendEmail: vi.fn(),
   addToQueue: vi.fn(),
   advanceEscalation: vi.fn(),
@@ -60,11 +61,8 @@ vi.mock('@/emails/payment-reminder-escalated', () => ({
   getEscalatedReminderSubject: () => 'subject',
 }));
 vi.mock('@/lib/notifications/escalation', () => ({
-  getOrCreateEscalationState: async () => ({
-    is_resolved: false,
-    current_level: 0,
-    last_notified_at: m.lastNotifiedAt,
-  }),
+  getOrCreateEscalationState: async () =>
+    m.escalationMissing ? null : { is_resolved: false, current_level: 0, last_notified_at: m.lastNotifiedAt },
   advanceEscalation: m.advanceEscalation,
 }));
 vi.mock('@/lib/notifications/queue', () => ({ addToQueue: m.addToQueue }));
@@ -88,6 +86,7 @@ beforeEach(() => {
   m.fetchError = null;
   m.scheduleError = null;
   m.lastNotifiedAt = null;
+  m.escalationMissing = false;
   m.sendEmail.mockResolvedValue({ success: true });
   m.addToQueue.mockResolvedValue({ success: true });
 });
@@ -125,5 +124,35 @@ describe('processInvoiceReminders (#1035)', () => {
     m.scheduleError = 'boom';
     const result = await processInvoiceReminders();
     expect(result.failed).toBe(1);
+  });
+
+  it('does not send when the escalation state cannot be read, and reports it', async () => {
+    m.escalationMissing = true;
+    const result = await processInvoiceReminders();
+    expect(result.failed).toBe(1);
+    expect(result.errors[0]).toEqual({ invoiceId: 'inv-1', error: 'Failed to load escalation state' });
+    expect(m.sendEmail).not.toHaveBeenCalled();
+    expect(m.addToQueue).not.toHaveBeenCalled();
+  });
+
+  it('an overlapping re-run queues no second WhatsApp row and reports no failure', async () => {
+    // Mirrors the partial unique index on invoice-reminder:% keys: a second insert is a duplicate.
+    const queued = new Set<string>();
+    m.addToQueue.mockImplementation(async (input: { deduplication_key: string }) => {
+      if (queued.has(input.deduplication_key)) {
+        return { success: false, isDuplicate: true, error: 'duplicate key value violates unique constraint' };
+      }
+      queued.add(input.deduplication_key);
+      return { success: true, queueId: 'q1' };
+    });
+    // Neither run has written last_notified_at yet, so the same-day skip cannot stop the second.
+    const first = await processInvoiceReminders();
+    const second = await processInvoiceReminders();
+    expect(queued.size).toBe(1);
+    expect(first.sent.whatsapp).toBe(1);
+    expect(second.sent.whatsapp).toBe(0);
+    expect(second.failed).toBe(0);
+    expect(second.errors).toEqual([]);
+    expect(m.advanceEscalation).toHaveBeenCalledTimes(2);
   });
 });

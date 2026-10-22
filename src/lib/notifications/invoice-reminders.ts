@@ -163,15 +163,22 @@ export async function processInvoiceReminders(): Promise<ProcessRemindersResult>
         residentId: invoice.resident.id,
       });
 
+      // Without the state the same-day check below cannot run, so do not send.
+      if (!escalationState) {
+        result.failed++;
+        result.errors.push({ invoiceId: invoice.id, error: 'Failed to load escalation state' });
+        continue;
+      }
+
       // Check if we should skip based on escalation state
-      if (escalationState?.is_resolved) {
+      if (escalationState.is_resolved) {
         result.skipped++;
         continue;
       }
 
       // A re-run on the same day (e.g. a manual retry after a timeout) must not resend.
       if (
-        escalationState?.last_notified_at &&
+        escalationState.last_notified_at &&
         new Date(escalationState.last_notified_at) >= today
       ) {
         result.skipped++;
@@ -185,7 +192,7 @@ export async function processInvoiceReminders(): Promise<ProcessRemindersResult>
         amountRemaining,
         estateSettings,
         todayStr,
-        reminderCount: (escalationState?.current_level || 0) + 1,
+        reminderCount: (escalationState.current_level || 0) + 1,
       });
 
       // Update results
@@ -366,7 +373,8 @@ async function sendReminderToChannels(params: {
             deduplication_key: `invoice-reminder:${invoice.id}:${todayStr}`,
           });
           if (result.success) results.whatsapp = true;
-          else results.errors.push(`WhatsApp: ${result.error}`);
+          // A duplicate key means an overlapping run already queued today's reminder.
+          else if (!result.isDuplicate) results.errors.push(`WhatsApp: ${result.error}`);
         }
         break;
     }
