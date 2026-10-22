@@ -36,7 +36,7 @@ import type { CommsSendContext } from '@/lib/comms-override/types';
 import { PRIORITY } from '@/lib/notifications/queue';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { RESIDENT_SEND_METADATA_KEY, settleClearanceCopy, type ResidentSendPayload } from '@/lib/whatsapp/resident-send';
-import { nextUtcMidnight, resolveBurstWindowMinutes, retryDelayMs } from './retry';
+import { nextLagosMidnight, resolveBurstWindowMinutes, retryDelayMs } from './retry';
 
 /** `sendImmediate` builds a pseudo queue item with this id; it has no queue row. */
 const IMMEDIATE_ITEM_ID = 'immediate';
@@ -339,7 +339,7 @@ async function sendQueuedResidentMessage(
   };
 }
 
-/** When a Send Policy `defer` should be retried: next UTC midnight for the daily cap, one burst window for the burst cap. */
+/** When a Send Policy `defer` should be retried: next Lagos midnight for the daily cap, one burst window for the burst cap. */
 export async function resolveDeferRetryAt(reason: string): Promise<Date> {
   const now = new Date();
   if (reason === 'burst_limit_reached') {
@@ -348,7 +348,7 @@ export async function resolveDeferRetryAt(reason: string): Promise<Date> {
     );
     return new Date(now.getTime() + windowMinutes * 60 * 1000);
   }
-  return nextUtcMidnight(now);
+  return nextLagosMidnight(now);
 }
 
 /**
