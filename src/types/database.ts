@@ -668,17 +668,19 @@ export interface Database {
           // only after the coordinator applies it, and is never hand-edited.
           identifier_unverified: boolean;
           identifier_note: string | null;
+          is_new_never_occupied: boolean; // #1068: no occupant dues while vacant
           created_at: string;
           updated_at: string;
           created_by: string | null;
         };
-        Insert: Omit<Database['public']['Tables']['houses']['Row'], 'id' | 'created_at' | 'updated_at' | 'is_occupied' | 'number_of_plots' | 'short_name' | 'identifier_unverified' | 'identifier_note'> & {
+        Insert: Omit<Database['public']['Tables']['houses']['Row'], 'id' | 'created_at' | 'updated_at' | 'is_occupied' | 'number_of_plots' | 'short_name' | 'identifier_unverified' | 'identifier_note' | 'is_new_never_occupied'> & {
           id?: string;
           is_occupied?: boolean;
           number_of_plots?: number;
           short_name?: string | null;
           identifier_unverified?: boolean;
           identifier_note?: string | null;
+          is_new_never_occupied?: boolean;
         };
         Update: Partial<Database['public']['Tables']['houses']['Insert']>;
       };
