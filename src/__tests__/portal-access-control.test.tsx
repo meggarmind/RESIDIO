@@ -113,6 +113,24 @@ describe('PortalAccessControl', () => {
     expect(screen.getByTestId('portal-access-effective').textContent).toBe('Inherit (currently on)');
   });
 
+  it('applies the label and effective class slots (#1014)', () => {
+    permissions = [PERMISSIONS.SYSTEM_ASSIGN_ROLES];
+    const { container } = render(
+      <QueryClientProvider client={new QueryClient()}>
+        <PortalAccessControl
+          profileId={PROFILE_ID}
+          override={null}
+          generalEnabled={true}
+          labelClassName="hide-label"
+          effectiveClassName="hide-effective"
+        />
+      </QueryClientProvider>
+    );
+    expect(screen.getByText('Resident portal').className).toContain('hide-label');
+    expect(screen.getByTestId('portal-access-effective').className).toContain('hide-effective');
+    expect(container.querySelector('.hide-label')).not.toBeNull();
+  });
+
   it('calls setPortalAccessOverride with the chosen value, and null for inherit', async () => {
     permissions = [PERMISSIONS.SYSTEM_ASSIGN_ROLES];
     renderControl({ override: 'disabled', generalEnabled: false });
