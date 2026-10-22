@@ -3,6 +3,7 @@ import type { BillingTargetType, BillableRole, BillingFrequency } from '@/types/
 
 // Billing target type enum
 const billingTargetTypeEnum = z.enum(['house', 'resident']);
+const billingPayerEnum = z.enum(['occupant', 'landlord']);
 
 // Billable roles enum
 const billableRoleEnum = z.enum([
@@ -31,6 +32,7 @@ const baseBillingProfileSchema = z.object({
   description: z.string().optional().or(z.literal('')),
   is_active: z.boolean().default(true),
   target_type: billingTargetTypeEnum.default('house'),
+  payer: billingPayerEnum.default('occupant'), // Who is billed: the occupant, or a landlord (#1068)
   applicable_roles: z.array(billableRoleEnum).optional().nullable(),
   is_one_time: z.boolean().default(false),
   is_development_levy: z.boolean().default(false), // True for Development Levy profiles (flat fee per house)
@@ -50,6 +52,14 @@ export const billingProfileSchema = baseBillingProfileSchema
     },
     {
       message: 'At least one role must be selected for resident-targeted profiles',
+      path: ['applicable_roles'],
+    }
+  )
+  .refine(
+    // applicable_roles narrows the payer roles; it can never add a tenant to a landlord profile
+    (data) => !(data.payer === 'landlord' && data.applicable_roles?.includes('tenant')),
+    {
+      message: 'A landlord-paid profile cannot apply to tenants',
       path: ['applicable_roles'],
     }
   )

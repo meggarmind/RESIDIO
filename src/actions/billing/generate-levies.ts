@@ -9,8 +9,9 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
-import { planRetroactiveLevies, LEVY_BILLABLE_ROLES, type LevyPlanProfile, type RetroactiveLevyPlan } from '@/lib/billing/retroactive-levy-plan';
-import type { RateSnapshot, BillableRole } from '@/types/database';
+import { planRetroactiveLevies, type LevyPlanProfile, type RetroactiveLevyPlan } from '@/lib/billing/retroactive-levy-plan';
+import { resolvePayer, type BillingPayer } from '@/lib/billing/payer';
+import type { RateSnapshot } from '@/types/database';
 import type { BillingProfileWithItems, LevyGenerationResult } from '@/types/billing';
 
 const log = createLogger('[Levies]');
@@ -53,7 +54,7 @@ type LevyRunContext = {
     dueWindowDays: number;
 };
 
-const emptyResult = (): LevyGenerationResult => ({ success: true, generated: 0, skipped: 0, errors: [] });
+const emptyResult = (): LevyGenerationResult => ({ success: true, generated: 0, skipped: 0, errors: [], warnings: [] });
 
 /**
  * Reads what every house in a run shares: the user and the two levy settings.
@@ -65,7 +66,7 @@ async function prepareLevyRun(): Promise<{ ctx: LevyRunContext | null; result: L
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-        return { ctx: null, result: { success: false, generated: 0, skipped: 0, errors: ['User not authenticated'] } };
+        return { ctx: null, result: { ...result, success: false, errors: ['User not authenticated'] } };
     }
 
     // Check if auto levy generation is enabled
@@ -88,18 +89,17 @@ async function prepareLevyRun(): Promise<{ ctx: LevyRunContext | null; result: L
  *
  * Logic:
  * 1. Find all active one-time billing profiles
- * 2. For each profile, check if it applies to the primary resident's role
+ * 2. For each profile, pick its payer (`resolvePayer`): levies go to a landlord, never a tenant
  * 3. If not already applied (check house_levy_history), generate invoice
  * 4. Record in house_levy_history
  */
 export async function generateLeviesForHouse(
-    houseId: string,
-    residentId?: string
+    houseId: string
 ): Promise<LevyGenerationResult> {
     // Permission check
     const auth = await authorizePermission(PERMISSIONS.BILLING_CREATE_INVOICE);
     if (!auth.authorized) {
-        return { success: false, generated: 0, skipped: 0, errors: [auth.error || 'Unauthorized'] };
+        return { ...emptyResult(), success: false, errors: [auth.error || 'Unauthorized'] };
     }
 
     let result: LevyGenerationResult;
@@ -110,17 +110,17 @@ export async function generateLeviesForHouse(
         // Get house details
         const { data: house, error: houseError } = await run.ctx.supabase
             .from('houses')
-            .select('id, house_number')
+            .select('id, house_number, property_status, is_new_never_occupied')
             .eq('id', houseId)
             .single();
 
         if (houseError || !house) {
-            return { success: false, generated: 0, skipped: 0, errors: ['House not found'] };
+            return { ...emptyResult(), success: false, errors: ['House not found'] };
         }
 
-        result = await generateLeviesForHouseInRun(run.ctx, house, residentId);
+        result = await generateLeviesForHouseInRun(run.ctx, house);
     } catch (error) {
-        result = { success: false, generated: 0, skipped: 0, errors: [`Unexpected error: ${error instanceof Error ? error.message : String(error)}`] };
+        result = { ...emptyResult(), success: false, errors: [`Unexpected error: ${error instanceof Error ? error.message : String(error)}`] };
     }
 
     revalidatePath('/billing');
@@ -133,61 +133,31 @@ export async function generateLeviesForHouse(
  */
 async function generateLeviesForHouseInRun(
     { supabase, userId, dueWindowDays }: LevyRunContext,
-    house: { id: string; house_number: string },
-    residentId?: string
+    house: { id: string; house_number: string; property_status: string | null; is_new_never_occupied: boolean | null }
 ): Promise<LevyGenerationResult> {
     const houseId = house.id;
     const houseLabel = house.house_number;
     const result = emptyResult();
 
     try {
-        // Find the primary resident for this house if not provided
-        let targetResidentId = residentId;
-        let targetResidentRole: BillableRole | null = null;
+        const { data: residentLinks, error: linksError } = await supabase
+            .from('resident_houses')
+            .select('resident_id, resident_role')
+            .eq('house_id', houseId)
+            .eq('is_active', true);
 
-        if (!targetResidentId) {
-            const { data: residentLink } = await supabase
-                .from('resident_houses')
-                .select('resident_id, resident_role')
-                .eq('house_id', houseId)
-                .eq('is_active', true)
-                .in('resident_role', ['resident_landlord', 'non_resident_landlord', 'developer', 'tenant'])
-                .order('resident_role', { ascending: true }) // tenant first, then resident_landlord, etc.
-                .limit(1)
-                .single();
-
-            if (!residentLink) {
-                log.info(`No primary resident found for house ${houseLabel}`);
-                return result;
-            }
-
-            targetResidentId = residentLink.resident_id;
-            targetResidentRole = residentLink.resident_role as BillableRole;
-        } else {
-            // Get the role for the provided resident
-            const { data: residentLink } = await supabase
-                .from('resident_houses')
-                .select('resident_role')
-                .eq('house_id', houseId)
-                .eq('resident_id', targetResidentId)
-                .eq('is_active', true)
-                .single();
-
-            if (residentLink) {
-                targetResidentRole = residentLink.resident_role as BillableRole;
-            }
-        }
-
-        if (!targetResidentId || !targetResidentRole) {
-            log.info(`Cannot determine billable resident for house ${houseLabel}`);
+        if (linksError) {
+            result.errors.push(`Failed to fetch residents for house ${houseLabel}: ${linksError.message}`);
+            result.success = false;
             return result;
         }
+        const residents = (residentLinks || []).map((link) => ({ id: link.resident_id, role: link.resident_role }));
 
         // Get all active one-time billing profiles
         const { data: oneTimeProfiles, error: profilesError } = await supabase
             .from('billing_profiles')
             .select(`
-                id, name, target_type, applicable_roles, is_one_time, is_development_levy,
+                id, name, payer, applicable_roles, is_one_time, is_development_levy,
                 billing_items(id, name, amount, frequency, is_mandatory)
             `)
             .eq('is_active', true)
@@ -213,20 +183,21 @@ async function generateLeviesForHouseInRun(
                 const isDevelopmentLevy = profile.is_development_levy === true ||
                     profile.name.toLowerCase().includes('development');
 
-                // Development Levy only applies to landlords and developers, NOT tenants
-                if (isDevelopmentLevy && targetResidentRole === 'tenant') {
-                    log.info(`Skipping Development Levy for tenant in house ${houseLabel}`);
+                // The profile's payer decides who is billed; a tenant never receives a landlord levy.
+                const { payer, reason } = resolvePayer({
+                    payer: profile.payer as BillingPayer,
+                    house: { vacant: house.property_status === 'vacant', newNeverOccupied: house.is_new_never_occupied === true },
+                    applicableRoles: profile.applicable_roles,
+                    residents,
+                });
+                if (!payer) {
+                    if (reason === 'No landlord on record') {
+                        result.warnings.push(`House ${houseLabel}: no landlord on record, so "${profile.name}" was not raised`);
+                    }
                     result.skipped++;
                     continue;
                 }
-
-                // Check if profile applies to this role
-                if (profile.target_type === 'resident' && profile.applicable_roles) {
-                    if (!profile.applicable_roles.includes(targetResidentRole)) {
-                        result.skipped++;
-                        continue;
-                    }
-                }
+                const targetResidentId = payer.id;
 
                 // Check if already applied (house_levy_history)
                 const { data: existingLevy } = await supabase
@@ -380,7 +351,7 @@ export async function generateRetroactiveLevies(): Promise<LevyGenerationResult>
     // Permission check
     const auth = await authorizePermission(PERMISSIONS.BILLING_CREATE_INVOICE);
     if (!auth.authorized) {
-        return { success: false, generated: 0, skipped: 0, errors: [auth.error || 'Unauthorized'] };
+        return { ...emptyResult(), success: false, errors: [auth.error || 'Unauthorized'] };
     }
 
     const result = emptyResult();
@@ -397,7 +368,7 @@ export async function generateRetroactiveLevies(): Promise<LevyGenerationResult>
         // Get all active houses
         const { data: houses, error: housesError } = await supabase
             .from('houses')
-            .select('id, house_number')
+            .select('id, house_number, property_status, is_new_never_occupied')
             .eq('is_active', true);
 
         if (housesError) {
@@ -420,6 +391,7 @@ export async function generateRetroactiveLevies(): Promise<LevyGenerationResult>
                 result.generated += houseResult.generated;
                 result.skipped += houseResult.skipped;
                 result.errors.push(...houseResult.errors);
+                result.warnings.push(...houseResult.warnings);
             }
         }
 
@@ -482,15 +454,15 @@ export async function previewRetroactiveLevies(): Promise<{ data: RetroactiveLev
     const autoGenerateLevies = await getSystemSetting(supabase, 'auto_generate_levies');
 
     const [houses, links, history, profiles] = await Promise.all([
-        fetchAllRows<{ id: string }>((from, to) =>
-            supabase.from('houses').select('id').eq('is_active', true).order('id').range(from, to)),
-        fetchAllRows<{ house_id: string; resident_role: string }>((from, to) =>
-            supabase.from('resident_houses').select('house_id, resident_role')
-                .eq('is_active', true).in('resident_role', [...LEVY_BILLABLE_ROLES]).order('id').range(from, to)),
+        fetchAllRows<{ id: string; house_number: string; property_status: string | null; is_new_never_occupied: boolean | null }>((from, to) =>
+            supabase.from('houses').select('id, house_number, property_status, is_new_never_occupied').eq('is_active', true).order('id').range(from, to)),
+        fetchAllRows<{ house_id: string; resident_id: string; resident_role: string }>((from, to) =>
+            supabase.from('resident_houses').select('house_id, resident_id, resident_role')
+                .eq('is_active', true).order('id').range(from, to)),
         fetchAllRows<{ house_id: string; billing_profile_id: string }>((from, to) =>
             supabase.from('house_levy_history').select('house_id, billing_profile_id').order('id').range(from, to)),
         supabase.from('billing_profiles')
-            .select('id, name, target_type, applicable_roles, is_development_levy, billing_items(amount)')
+            .select('id, name, payer, applicable_roles, is_development_levy, billing_items(amount)')
             .eq('is_active', true).eq('is_one_time', true),
     ]);
 
@@ -500,7 +472,7 @@ export async function previewRetroactiveLevies(): Promise<{ data: RetroactiveLev
     return {
         data: planRetroactiveLevies({
             autoGenerateEnabled: autoGenerateLevies !== false,
-            houseIds: (houses.data || []).map((h) => h.id),
+            houses: (houses.data || []).map((h) => ({ id: h.id, label: h.house_number, vacant: h.property_status === 'vacant', newNeverOccupied: h.is_new_never_occupied === true })),
             residentLinks: links.data || [],
             profiles: (profiles.data || []) as LevyPlanProfile[],
             history: history.data || [],

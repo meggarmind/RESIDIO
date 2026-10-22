@@ -72,7 +72,7 @@ const houseRow = {
 const profileRow = {
     id: 'profile-1',
     name: 'Standard 3-Bed Rate',
-    target_type: 'house',
+    target_type: 'house', payer: 'occupant',
     applicable_roles: null,
     is_one_time: false,
 };

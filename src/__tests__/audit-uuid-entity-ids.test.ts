@@ -258,9 +258,9 @@ describe('generateRetroactiveLevies batch audit', () => {
   const batchCalls = () => logAudit.mock.calls.map((c) => c[0]).filter((a) => a.newValues?.batch === 'retroactive-levy-batch');
   beforeEach(() => {
     results['houses.select'] = { data: [{ id: uid(30), house_number: '1' }] };
-    results['resident_houses.select'] = { data: { resident_id: uid(31), resident_role: 'tenant' } };
+    results['resident_houses.select'] = { data: [{ resident_id: uid(31), resident_role: 'resident_landlord' }] };
     results['billing_profiles.select'] = {
-      data: [{ id: uid(32), name: 'Gate levy', target_type: 'house', applicable_roles: null, is_one_time: true, is_development_levy: false, billing_items: [{ id: uid(34), name: 'Fee', amount: 100, frequency: 'one_time', is_mandatory: true }] }],
+      data: [{ id: uid(32), name: 'Gate levy', payer: 'landlord', applicable_roles: null, is_one_time: true, is_development_levy: false, billing_items: [{ id: uid(34), name: 'Fee', amount: 100, frequency: 'one_time', is_mandatory: true }] }],
     };
     results['invoices.insert'] = { data: { id: uid(33) } };
     createServerSupabaseClient.mockImplementation(async () => {

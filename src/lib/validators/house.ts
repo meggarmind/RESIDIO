@@ -42,6 +42,8 @@ export const houseFormSchema = z.object({
   // is carried alongside so it can be queried, filtered and cleared.
   identifier_unverified: z.boolean().optional(),
   identifier_note: z.string().max(500, 'Note must be 500 characters or less').optional().or(z.literal('')),
+  // #1068: a brand-new house bills no occupant dues while vacant; assigning its first tenant or resident landlord clears this in the database.
+  is_new_never_occupied: z.boolean().optional(),
   property_status: z.enum(['occupied', 'vacant', 'under_renovation', 'under_construction']).optional(),
 });
 

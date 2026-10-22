@@ -237,7 +237,7 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
 
     // Generate one-time levies for the house when a primary resident is assigned
     try {
-      const levyResult = await generateLeviesForHouse(formData.house_id, residentId);
+      const levyResult = await generateLeviesForHouse(formData.house_id);
       if (levyResult.generated > 0) {
         console.log(`[assignHouse] Generated ${levyResult.generated} levies for house`);
       }

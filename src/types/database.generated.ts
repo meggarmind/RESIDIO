@@ -1064,6 +1064,7 @@ export type Database = {
           is_active: boolean
           is_development_levy: boolean | null
           is_one_time: boolean
+          payer: string
           name: string
           target_type: Database["public"]["Enums"]["billing_target_type"]
           updated_at: string
@@ -1078,6 +1079,7 @@ export type Database = {
           is_active?: boolean
           is_development_levy?: boolean | null
           is_one_time?: boolean
+          payer?: string
           name: string
           target_type?: Database["public"]["Enums"]["billing_target_type"]
           updated_at?: string
@@ -1092,6 +1094,7 @@ export type Database = {
           is_active?: boolean
           is_development_levy?: boolean | null
           is_one_time?: boolean
+          payer?: string
           name?: string
           target_type?: Database["public"]["Enums"]["billing_target_type"]
           updated_at?: string
@@ -2457,6 +2460,7 @@ export type Database = {
           id: string
           identifier_note: string | null
           identifier_unverified: boolean
+          is_new_never_occupied: boolean
           is_active: boolean
           is_occupied: boolean
           notes: string | null
@@ -2476,6 +2480,7 @@ export type Database = {
           id?: string
           identifier_note?: string | null
           identifier_unverified?: boolean
+          is_new_never_occupied?: boolean
           is_active?: boolean
           is_occupied?: boolean
           notes?: string | null
@@ -2495,6 +2500,7 @@ export type Database = {
           id?: string
           identifier_note?: string | null
           identifier_unverified?: boolean
+          is_new_never_occupied?: boolean
           is_active?: boolean
           is_occupied?: boolean
           notes?: string | null

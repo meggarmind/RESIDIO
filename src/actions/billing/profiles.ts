@@ -40,6 +40,7 @@ export async function createBillingProfile(data: BillingProfileData) {
             description: result.data.description || null,
             is_active: result.data.is_active,
             target_type: result.data.target_type,
+            payer: result.data.payer,
             applicable_roles: result.data.applicable_roles || null,
             is_one_time: result.data.is_one_time,
             is_development_levy: result.data.is_development_levy || false,
@@ -300,6 +301,7 @@ export async function updateBillingProfile(
     if (data.description !== undefined) updateData.description = data.description || null;
     if (data.is_active !== undefined) updateData.is_active = data.is_active;
     if (data.target_type !== undefined) updateData.target_type = data.target_type;
+    if (data.payer !== undefined) updateData.payer = data.payer;
     if (data.applicable_roles !== undefined) updateData.applicable_roles = data.applicable_roles || null;
     if (data.is_one_time !== undefined) updateData.is_one_time = data.is_one_time;
     if (data.is_development_levy !== undefined) updateData.is_development_levy = data.is_development_levy;
@@ -388,6 +390,7 @@ export async function duplicateBillingProfile(id: string) {
             description: source.description,
             is_active: source.is_active,
             target_type: source.target_type,
+            payer: source.payer,
             applicable_roles: source.applicable_roles,
             is_one_time: source.is_one_time,
             is_development_levy: source.is_development_levy,

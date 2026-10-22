@@ -1282,6 +1282,7 @@ export interface BillingProfile {
   description: string | null;
   is_active: boolean;
   target_type: BillingTargetType;
+  payer: 'occupant' | 'landlord';
   applicable_roles: BillableRole[] | null;
   is_one_time: boolean;
   is_development_levy: boolean; // True for Development Levy profiles (flat fee per house)

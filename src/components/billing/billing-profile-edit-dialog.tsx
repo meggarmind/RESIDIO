@@ -37,6 +37,7 @@ const editProfileSchema = z.object({
     description: z.string().optional(),
     is_active: z.boolean(),
     target_type: z.enum(['house', 'resident']),
+    payer: z.enum(['occupant', 'landlord']),
     applicable_roles: z.array(z.enum(['resident_landlord', 'non_resident_landlord', 'tenant', 'developer'])).optional().nullable(),
     is_one_time: z.boolean(),
     effective_date: z.string().optional(),
@@ -82,6 +83,7 @@ export function BillingProfileEditDialog({
             description: '',
             is_active: true,
             target_type: 'house',
+            payer: 'occupant',
             applicable_roles: null,
             is_one_time: false,
             effective_date: '',
@@ -111,6 +113,7 @@ export function BillingProfileEditDialog({
                 description: profile.description || '',
                 is_active: profile.is_active,
                 target_type: profile.target_type as 'house' | 'resident',
+                payer: (profile.payer as 'occupant' | 'landlord') ?? 'occupant',
                 applicable_roles: profile.applicable_roles || null,
                 is_one_time: profile.is_one_time,
                 effective_date: profile.effective_date || '',
@@ -196,6 +199,28 @@ export function BillingProfileEditDialog({
                                                         {Object.entries(BILLING_TARGET_LABELS).map(([value, label]) => (
                                                             <SelectItem key={value} value={value}>{label}</SelectItem>
                                                         ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    <FormField
+                                        control={form.control}
+                                        name="payer"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Payer</FormLabel>
+                                                <Select onValueChange={field.onChange} value={field.value}>
+                                                    <FormControl>
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder="Select who pays" />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        <SelectItem value="occupant">Occupier (Renter, else Owner-Occupier)</SelectItem>
+                                                        <SelectItem value="landlord">Owner (Owner-Occupier, else Property Owner, else Developer)</SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                                 <FormMessage />

@@ -47,6 +47,7 @@ export async function createHouse(formData: HouseFormData): Promise<CreateHouseR
       // it rides alongside as an explicit field.
       identifier_unverified: formData.identifier_unverified ?? false,
       identifier_note: formData.identifier_note || null,
+      is_new_never_occupied: formData.is_new_never_occupied ?? false,
       created_by: user.id,
     })
     .select(`
@@ -110,6 +111,7 @@ export async function createHouse(formData: HouseFormData): Promise<CreateHouseR
       number_of_plots: formData.number_of_plots,
       identifier_unverified: formData.identifier_unverified ?? false,
       identifier_note: formData.identifier_note || null,
+      is_new_never_occupied: formData.is_new_never_occupied ?? false,
     },
     description: `Created house ${data.house_number}`,
   });

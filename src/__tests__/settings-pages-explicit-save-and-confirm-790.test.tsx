@@ -249,7 +249,7 @@ describe('guarded actions confirm with a preview', () => {
 
   it('Generate Retroactive Levies previews houses, invoices and total before generating', async () => {
     m.previewRetroactiveLevies.mockResolvedValue({
-      data: { autoGenerateEnabled: true, housesChecked: 179, houses: 4, invoices: 5, totalAmount: 2500000, alreadyCharged: 10 },
+      data: { autoGenerateEnabled: true, housesChecked: 179, houses: 4, invoices: 5, totalAmount: 2500000, alreadyCharged: 10, warnings: ['House H2: no landlord on record, so "Gate Fee" would not be raised'] },
       error: null,
     });
     renderPage(DevelopmentLeviesPage);
@@ -257,6 +257,7 @@ describe('guarded actions confirm with a preview', () => {
     const dialog = await screen.findByRole('alertdialog');
     await waitFor(() => expect(dialog).toHaveTextContent('2,500,000'));
     expect(dialog).toHaveTextContent('5 levy invoice(s) for 4 house(s)');
+    expect(dialog).toHaveTextContent('House H2: no landlord on record');
     expect(m.generateLevies).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Generate levies' }));
     await waitFor(() => expect(m.generateLevies).toHaveBeenCalledTimes(1));
