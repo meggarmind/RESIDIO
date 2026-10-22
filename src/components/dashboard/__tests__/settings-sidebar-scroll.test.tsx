@@ -48,4 +48,28 @@ describe('Settings sidebar scrolling (#1012)', () => {
     // The arrow is an svg child, and Button size sm's has-[>svg]:px-2.5 beat a plain pl-12.
     expect(screen.getByRole('link', { name: /Audit Logs/ })).toHaveClass('pl-12', 'has-[>svg]:pl-12');
   });
+
+  it('fits the aside to the visible part of <main> and refits on scroll, capped at the row foot', () => {
+    const rect = (top: number, bottom: number) => ({ top, bottom }) as DOMRect;
+    const tops = { aside: 300 };
+    let rowBottom = 5000;
+    const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.tagName === 'MAIN') return rect(0, 900);
+      if (this.tagName === 'ASIDE') return rect(tops.aside, 0);
+      return rect(0, rowBottom);
+    });
+    const { container } = render(<main style={{ paddingBottom: '20px' }}><SettingsLayout>page</SettingsLayout></main>);
+    const main = container.querySelector('main')!;
+    const aside = screen.getByRole('complementary');
+    expect(aside.style.height).toBe('580px'); // 900 - 20 padding - 300 top
+
+    tops.aside = 100;
+    fireEvent.scroll(main);
+    expect(aside.style.height).toBe('780px');
+
+    rowBottom = 700; // the row ends above the fold: stop there, or sticky pushes the aside up
+    fireEvent.scroll(main);
+    expect(aside.style.height).toBe('600px');
+    spy.mockRestore();
+  });
 });
