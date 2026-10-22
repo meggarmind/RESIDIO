@@ -284,6 +284,12 @@ describe('invoice generation candidates', () => {
       expect(result.skips).toMatchObject([{ house: 'A1', reason: 'Resident is suspended' }]);
     });
 
+    it('still reports no landlord on record when the only landlord link has ended', () => {
+      const result = run(landlord, [person('tenant', 'tenant'), person('nrl', 'non_resident_landlord', { isActive: false })]);
+      expect(result.candidates).toEqual([]);
+      expect(result.skips).toMatchObject([{ house: 'A1', reason: 'No landlord on record' }]);
+    });
+
     it('never adds a tenant to a landlord profile through applicableRoles', () => {
       const result = run({ ...landlord, applicableRoles: ['tenant'] }, [person('tenant', 'tenant'), person('rl', 'resident_landlord')]);
       expect(result.candidates).toEqual([]);

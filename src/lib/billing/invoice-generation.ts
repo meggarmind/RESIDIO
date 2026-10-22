@@ -355,7 +355,7 @@ export function resolveBillableCandidates(input: ResolveBillableCandidatesInput)
     });
     const { payer: billable, reason } = payerOf(eligibleResidents);
     if (!billable) {
-      const blockedPayer = payerOf(house.residents).payer;
+      const blockedPayer = payerOf(house.residents.filter((resident) => resident.isActive)).payer;
       const ineligibleReason = house.residents[0] ? residentEligible(house.residents[0]) : 'No active residents';
       skips.push({
         houseId: house.id,
