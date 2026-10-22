@@ -27,6 +27,9 @@ export const PRIORITY = {
   BULK: 9,
 } as const;
 
+/** A row in 'processing' longer than this is treated as abandoned and re-queued. */
+export const STALE_PROCESSING_MINUTES = 30;
+
 /**
  * Add a notification to the queue
  *
@@ -230,6 +233,19 @@ export async function processQueue(options?: {
   const batchSize = options?.batchSize ?? 50;
   const now = new Date().toISOString();
 
+  // A row left in 'processing' by a run that stopped mid-batch is never picked
+  // up again, so hand it back to the queue once it has been stuck long enough.
+  // Rows from before last_attempt_at was stamped on claim have it null.
+  const staleCutoff = new Date(Date.now() - STALE_PROCESSING_MINUTES * 60_000).toISOString();
+  const { error: reclaimError } = await supabase
+    .from('notification_queue')
+    .update({ status: 'pending' })
+    .eq('status', 'processing')
+    .or(`last_attempt_at.is.null,last_attempt_at.lt.${staleCutoff}`);
+  if (reclaimError) {
+    console.error('[Queue] Failed to reclaim stale processing items:', reclaimError);
+  }
+
   // Build query
   let query = supabase
     .from('notification_queue')
@@ -278,13 +294,24 @@ export async function processQueue(options?: {
 
   // Process each item
   for (const item of items) {
-    result.processed++;
-
-    // Mark as processing
-    await supabase
+    // Claim the row only if it is still pending, so an overlapping run that
+    // read the same row cannot send it a second time.
+    const { data: claimed, error: claimError } = await supabase
       .from('notification_queue')
-      .update({ status: 'processing' })
-      .eq('id', item.id);
+      .update({ status: 'processing', last_attempt_at: new Date().toISOString() })
+      .eq('id', item.id)
+      .eq('status', 'pending')
+      .select('id');
+
+    if (claimError || !claimed || claimed.length === 0) {
+      if (claimError) {
+        console.error(`[Queue] Failed to claim queue item ${item.id}:`, claimError);
+      }
+      result.skipped++;
+      continue;
+    }
+
+    result.processed++;
 
     // Check max attempts
     if (item.attempts >= item.max_attempts) {
