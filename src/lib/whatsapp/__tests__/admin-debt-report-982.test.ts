@@ -24,12 +24,14 @@ import {
   parseWhatsAppAdminCommand,
   ADMIN_NOT_ALLOWED_REPLY,
   type WhatsAppAdminAccount,
+  type WhatsAppAdminActionContext,
   type WhatsAppAdminBinding,
   type WhatsAppAdminRepository,
 } from '@/lib/whatsapp/admin';
 import { DEBT_REPORT_NO_EMAIL_REPLY, DEBT_REPORT_NO_HOUSES_REPLY, debtReportAction } from '@/lib/whatsapp/admin-debt-report';
 import { DEBT_REPORT_FAILED_REPLY } from '@/lib/whatsapp/debt-report';
 import type { WhatsAppInboundMessage } from '@/lib/whatsapp/types';
+import type { OwesRepository } from '@/lib/whatsapp/admin-owes';
 
 const SECRET = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
 const NOW = new Date('2026-10-22T10:00:00Z');
@@ -197,6 +199,9 @@ describe('ADMIN DEBT: choosing', () => {
 describe('ADMIN DEBT: running with a fresh code', () => {
   const code = () => generateTOTPCode(SECRET, totpStepAt(NOW.getTime()));
   const params = { all: false, streetIds: ['s-a'] };
+  const context = (overrides: Partial<WhatsAppAdminActionContext> = {}): WhatsAppAdminActionContext => ({
+    account, binding, now: NOW, requestId: 'r', params, audit: vi.fn(), owes: {} as OwesRepository, ...overrides,
+  });
 
   it('takes the code, queues the report without drawing it, replies with the count, and audits who asked for what', async () => {
     mocks.countDebtReportHouses.mockResolvedValue({ houseCount: 2, scopeLabel: 'Alpha Street' });
@@ -221,7 +226,7 @@ describe('ADMIN DEBT: running with a fresh code', () => {
 
   it('a scope with no houses left says so and queues nothing', async () => {
     mocks.countDebtReportHouses.mockResolvedValue({ houseCount: 0, scopeLabel: 'Alpha Street' });
-    const result = await debtReportAction.run({ account, binding, now: NOW, params });
+    const result = await debtReportAction.run(context());
     expect(result).toMatchObject({ reply: DEBT_REPORT_NO_HOUSES_REPLY });
     expect(mocks.queueDebtReportEmail).not.toHaveBeenCalled();
   });
@@ -238,7 +243,7 @@ describe('ADMIN DEBT: running with a fresh code', () => {
   });
 
   it('an admin without an account email gets that said and nothing is queued', async () => {
-    const result = await debtReportAction.run({ account: { ...account, email: ' ' }, binding, now: NOW, params });
+    const result = await debtReportAction.run(context({ account: { ...account, email: ' ' } }));
     expect(result).toMatchObject({ reply: DEBT_REPORT_NO_EMAIL_REPLY });
     expect(mocks.countDebtReportHouses).not.toHaveBeenCalled();
     expect(mocks.queueDebtReportEmail).not.toHaveBeenCalled();
@@ -246,7 +251,7 @@ describe('ADMIN DEBT: running with a fresh code', () => {
 
   it('a queue failure is reported, not hidden', async () => {
     mocks.queueDebtReportEmail.mockRejectedValue(new Error('queue down'));
-    const result = await debtReportAction.run({ account, binding, now: NOW, params });
+    const result = await debtReportAction.run(context());
     expect(result).toMatchObject({ audit: expect.objectContaining({ outcome: 'queue_failed' }) });
   });
 
