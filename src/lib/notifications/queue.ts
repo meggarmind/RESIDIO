@@ -46,7 +46,8 @@ export async function addToQueue(
   // Generate deduplication key if we have the necessary info
   let deduplicationKey = input.deduplication_key;
 
-  if (!deduplicationKey && options?.entityType && options?.entityId && options?.category) {
+  // A recipient-less admin row (#982) has no resident to dedupe on.
+  if (!deduplicationKey && input.recipient_id && options?.entityType && options?.entityId && options?.category) {
     const dedupCheck = await shouldQueue({
       channel: input.channel,
       category: options.category,
@@ -73,7 +74,8 @@ export async function addToQueue(
     .insert({
       template_id: input.template_id,
       schedule_id: input.schedule_id,
-      recipient_id: input.recipient_id,
+      // Generated types still say NOT NULL until 20261025110000 is applied and db:types re-run.
+      recipient_id: input.recipient_id as string,
       recipient_email: input.recipient_email,
       recipient_phone: input.recipient_phone,
       channel: input.channel,
@@ -129,7 +131,7 @@ export async function addBatchToQueue(
   const toInsert: Array<{
     template_id: string | undefined;
     schedule_id: string | undefined;
-    recipient_id: string;
+    recipient_id: string | null;
     recipient_email: string | undefined;
     recipient_phone: string | undefined;
     channel: NotificationChannel;
@@ -152,7 +154,7 @@ export async function addBatchToQueue(
     let deduplicationKey = item.deduplication_key;
 
     // Generate dedup key and check if needed
-    if (!options?.skipDedup && item.entityType && item.entityId && item.category) {
+    if (!options?.skipDedup && item.recipient_id && item.entityType && item.entityId && item.category) {
       const dedupCheck = await shouldQueue({
         channel: item.channel,
         category: item.category,
@@ -192,7 +194,9 @@ export async function addBatchToQueue(
 
   // Batch insert
   if (toInsert.length > 0) {
-    const { error } = await supabase.from('notification_queue').insert(toInsert);
+    const { error } = await supabase.from('notification_queue').insert(
+      toInsert as Array<(typeof toInsert)[number] & { recipient_id: string }>
+    );
 
     if (error) {
       errors.push(error.message);
