@@ -10,7 +10,9 @@ type Filter =
   | { kind: 'in'; column: string; values: unknown[] }
   | { kind: 'gte'; column: string; value: unknown }
   | { kind: 'lte'; column: string; value: unknown }
-  | { kind: 'is'; column: string; value: unknown };
+  | { kind: 'lt'; column: string; value: unknown }
+  | { kind: 'is'; column: string; value: unknown }
+  | { kind: 'or'; any: Filter[] };
 
 export interface FakeSupabaseState {
   tables: Record<string, Row[]>;
@@ -30,6 +32,7 @@ export function createFakeSupabase(initial: Record<string, Row[]> = {}) {
 
   function matches(row: Row, filters: Filter[]): boolean {
     return filters.every((f) => {
+      if (f.kind === 'or') return f.any.some((g) => matches(row, [g]));
       const v = row[f.column];
       switch (f.kind) {
         case 'eq':
@@ -40,6 +43,8 @@ export function createFakeSupabase(initial: Record<string, Row[]> = {}) {
           return v != null && String(v) >= String(f.value);
         case 'lte':
           return v != null && String(v) <= String(f.value);
+        case 'lt':
+          return v != null && String(v) < String(f.value);
         case 'is':
           return (v ?? null) === f.value;
       }
@@ -140,6 +145,16 @@ export function createFakeSupabase(initial: Record<string, Row[]> = {}) {
     };
     builder.is = (column: string, value: unknown) => {
       filters.push({ kind: 'is', column, value });
+      return builder;
+    };
+    // PostgREST `or` syntax, only the `col.is.null` and `col.lt.value` forms.
+    builder.or = (expr: string) => {
+      const any = expr.split(',').map((part): Filter => {
+        const [column, kind, ...rest] = part.split('.');
+        const value = rest.join('.');
+        return kind === 'is' ? { kind: 'is', column, value: value === 'null' ? null : value } : { kind: 'lt', column, value };
+      });
+      filters.push({ kind: 'or', any });
       return builder;
     };
     builder.maybeSingle = async () => {

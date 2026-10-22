@@ -113,7 +113,7 @@ describe('retryQueueItem for a failed WhatsApp item (#6)', () => {
   });
 
   it('starts a retried item afresh: attempts back to 0 and reclaim_count cleared', async () => {
-    const template = queueRow().metadata.whatsapp_template;
+    const template = (queueRow().metadata as Row).whatsapp_template;
     const fake = useFake({
       notification_queue: [
         queueRow({
