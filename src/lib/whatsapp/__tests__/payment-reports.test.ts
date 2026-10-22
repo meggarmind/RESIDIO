@@ -230,7 +230,7 @@ describe('createPaymentReport by a co-resident (#1071)', () => {
 
     const insert = calls.find((call) => call.table === 'payment_records' && call.op === 'insert')!.args[0] as Record<string, unknown>;
     expect(insert).toMatchObject({ resident_id: 'sponsor-1', house_id: 'house-1' });
-    expect(insert.notes).toBe('Reported via WhatsApp by a co-resident (co-1)');
+    expect(insert.notes).toBe('Reported via WhatsApp by a co-resident');
     expect(createResidentApprovalRequest).toHaveBeenCalledWith(expect.objectContaining({ residentId: 'co-1' }));
     expect(recordAudit).toHaveBeenCalledWith(expect.anything(), { userId: null, residentId: 'co-1' });
   });

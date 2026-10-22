@@ -151,7 +151,7 @@ export async function createPaymentReport(input: PaymentReportInput): Promise<Pa
   if (countError) throw countError;
   if ((count || 0) >= REPORTS_PER_DAY) return { status: 'limit' };
 
-  const reportNote = input.reportedByResidentId ? `${REPORT_NOTE} by a co-resident (${input.reportedByResidentId})` : REPORT_NOTE;
+  const reportNote = input.reportedByResidentId ? `${REPORT_NOTE} by a co-resident` : REPORT_NOTE;
   const notes = input.screenshotAt ? `${reportNote}. Screenshot sent to the estate phone at ${input.screenshotAt}.` : reportNote;
   const { data: payment, error } = await admin
     .from('payment_records')
