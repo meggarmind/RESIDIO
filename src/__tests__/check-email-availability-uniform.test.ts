@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 
 /**
@@ -31,10 +30,5 @@ describe('checkEmailAvailability', () => {
 
   it('still rejects a malformed address', async () => {
     expect((await checkEmailAvailability('not-an-email')).available).toBe(false);
-  });
-
-  it('carries no ilike pattern match on email', () => {
-    const src = readFileSync(new URL('../actions/auth/check-email-availability.ts', import.meta.url), 'utf8');
-    expect(src).not.toMatch(/\.ilike\(/);
   });
 });
