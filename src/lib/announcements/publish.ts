@@ -82,7 +82,7 @@ const ROLE_BY_AUDIENCE: Record<string, string[]> = {
   staff: ['domestic_staff', 'caretaker'],
 };
 
-type ResidentRow = { id: string; resident_role: string };
+type ResidentRow = { id: string };
 type ResidentHouseRow = { resident_id: string };
 type OptInRow = { resident_id: string; phone_number: string };
 
@@ -109,7 +109,11 @@ async function deliverAnnouncementWhatsApp(
       .eq('opted_in', true)
       .is('deactivated_at', null);
 
-    if (optInError || !optIns || optIns.length === 0) return 0;
+    if (optInError) {
+      console.error('deliverAnnouncementWhatsApp: opt-in read failed', optInError);
+      return 0;
+    }
+    if (!optIns || optIns.length === 0) return 0;
 
     uniqueByResident = new Map<string, OptInRow>();
     for (const row of optIns as OptInRow[]) {
@@ -123,31 +127,39 @@ async function deliverAnnouncementWhatsApp(
 
     filteredIds = new Set(targetResidentIds);
 
-    const { data: activeResidents } = await supabase
+    const { data: activeResidents, error: residentError } = await supabase
       .from('residents')
-      .select('id, resident_role')
+      .select('id')
       .in('id', targetResidentIds)
       .eq('account_status', 'active');
 
-    if (!activeResidents) {
+    if (residentError || !activeResidents) {
+      console.error('deliverAnnouncementWhatsApp: resident read failed', residentError);
       return 0;
     }
 
-    const rows = activeResidents as ResidentRow[];
-    filteredIds = new Set([...filteredIds].filter((id) => rows.some((r) => r.id === id)));
+    const activeIds = new Set((activeResidents as ResidentRow[]).map((r) => r.id));
+    filteredIds = new Set([...filteredIds].filter((id) => activeIds.has(id)));
 
     const roleFilter = announcement.target_audience
       ? ROLE_BY_AUDIENCE[announcement.target_audience] || null
       : null;
 
-    if (roleFilter) {
-      const allowedRoles = new Set(roleFilter);
-      filteredIds = new Set(
-        [...filteredIds].filter((id) => {
-          const resident = rows.find((r) => r.id === id);
-          return resident ? allowedRoles.has(resident.resident_role) : false;
-        }),
-      );
+    if (roleFilter && filteredIds.size > 0) {
+      // The role lives on the house assignment, not on residents.
+      const { data: roleRows, error: roleError } = await supabase
+        .from('resident_houses')
+        .select('resident_id, resident_role')
+        .in('resident_id', [...filteredIds])
+        .in('resident_role', roleFilter)
+        .eq('is_active', true);
+
+      if (roleError || !roleRows) {
+        console.error('deliverAnnouncementWhatsApp: resident role read failed', roleError);
+        return 0;
+      }
+      const withRole = new Set((roleRows as ResidentHouseRow[]).map((r) => r.resident_id));
+      filteredIds = new Set([...filteredIds].filter((id) => withRole.has(id)));
     }
   }
 
