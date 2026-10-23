@@ -7,6 +7,12 @@ import { getRawSettingsAsService } from '@/lib/settings/service';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isWhatsAppMasterSwitchOn } from '@/lib/whatsapp/master-switch';
 import {
+  createSupabaseWhatsAppHeldMessageStore,
+  HOLDING_REPLY,
+  isSecretShaped,
+  type WhatsAppHeldMessageStore,
+} from '@/lib/whatsapp/held-messages';
+import {
   loadEstateOfficeContactLine,
   loadWhatsAppPrivacyNotice,
   type WhatsAppPrivacyNotice,
@@ -602,6 +608,10 @@ export interface WhatsAppIdentityHandlerOptions {
   adminRepository?: WhatsAppAdminRepository;
   send?: (message: WhatsAppTextMessage) => Promise<{ success: boolean; error?: string }>;
   estateContactLine?: () => Promise<string | null>;
+  /** Messages held while the master switch is off (#1075); defaults to the Supabase store. */
+  heldMessages?: WhatsAppHeldMessageStore;
+  /** False drops a message while the switch is off, with no holding reply (human takeover). */
+  holdWhenOff?: boolean;
   onIdentified?: (
     message: WhatsAppInboundMessage,
     identity: WhatsAppResidentIdentity
@@ -709,19 +719,24 @@ export async function handleResidentMessage(
   message: WhatsAppInboundMessage,
   options: WhatsAppIdentityHandlerOptions
 ): Promise<WhatsAppIdentityResult> {
-  // Master switch (#547): when off the Assistant does nothing for an inbound
-  // message -- no lookup, no pending-contact row, no state change, no reply.
-  // This must stay the first read/write. The webhook still answers 200 (this
-  // returns normally) and the processed-message store has already marked the
-  // message handled, so messages received while the switch is off are NOT
-  // replayed when it is turned back on. That is the accepted consequence.
+  // Master switch (#547): when off the Assistant reads no resident record and changes no state.
+  // This must stay the first read/write. The message is saved and answered when the switch is
+  // turned back on (held-replay.ts), and the number gets one holding reply per switch-off period
+  // (#1075). A PIN-shaped message is never saved, but still gets the holding reply.
   const masterSwitch = await isWhatsAppMasterSwitchOn();
+  const phoneNumber = normalizePhoneNumber(message.from);
   if (!masterSwitch.on) {
-    console.warn(`WhatsApp Assistant inbound ignored: master switch off (${masterSwitch.reason})`);
+    console.warn(`WhatsApp Assistant inbound held: master switch off (${masterSwitch.reason})`);
+    if (options.holdWhenOff !== false) {
+      const held = options.heldMessages ?? createSupabaseWhatsAppHeldMessageStore();
+      if (!isSecretShaped(message.text)) await held.save(message, phoneNumber);
+      if (await held.claimHoldingReply(phoneNumber)) {
+        await sendReply(message, await withContact(HOLDING_REPLY, options), options.send);
+      }
+    }
     return { status: 'pending', residentId: null, optedIn: false, financialEligible: false, accessTier: 'community' };
   }
 
-  const phoneNumber = normalizePhoneNumber(message.from);
   const text = message.text?.trim() || '';
 
   // Admin mode (#972 D6) starts only on an exact ADMIN command; every other message, from the same

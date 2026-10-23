@@ -364,15 +364,23 @@ describe('WhatsApp identity and consent', () => {
 });
 
 describe('WhatsApp Assistant master switch (#547)', () => {
-  it.each(['absent', 'error', 'disabled'] as const)('does nothing for any message when the switch is off (%s)', async (reason) => {
+  it.each(['absent', 'error', 'disabled'] as const)('reads no resident record and changes no state when the switch is off (%s)', async (reason) => {
     vi.mocked(isWhatsAppMasterSwitchOn).mockResolvedValue({ on: false, reason });
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     for (const text of ['hello', 'STOP', 'START', 'LINK 123456', 'YES', '1']) {
       const repo = repository();
       const send = vi.fn().mockResolvedValue({ success: true });
       const onIdentified = vi.fn();
+      // Holding reply and replay are covered in held-messages.test.ts (#1075).
+      const heldMessages = {
+        save: vi.fn().mockResolvedValue(undefined),
+        claimHoldingReply: vi.fn().mockResolvedValue(false),
+        clearHoldingReplies: vi.fn(),
+        dropOlderThan: vi.fn(),
+        takeOldest: vi.fn(),
+      };
 
-      const result = await handleResidentMessage(message(text), { repository: repo, send, onIdentified });
+      const result = await handleResidentMessage(message(text), { repository: repo, send, onIdentified, heldMessages });
 
       expect(result).toEqual({ status: 'pending', residentId: null, optedIn: false, financialEligible: false, accessTier: 'community' });
       for (const fn of Object.values(repo)) expect(fn).not.toHaveBeenCalled();

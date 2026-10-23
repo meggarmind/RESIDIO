@@ -9,8 +9,8 @@ residio_sources:
   - src/app/(dashboard)/settings/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp-admin/**
   - src/app/api/whatsapp/**
-residio_verified_commit: b37d108e
-residio_verified_at: '2026-10-22'
+residio_verified_commit: 87aa5e83
+residio_verified_at: '2026-10-23'
 residio_app_version: '0.4.0'
 ---
 
@@ -98,6 +98,8 @@ Chatmaid works through a phone that stays paired to the bridge, so the estate's 
 Connecting a provider does not by itself let messages flow. A separate **master on/off switch** on the WhatsApp settings page decides whether the channel runs at all — it defaults to **off** and must be switched on deliberately, even after a provider is connected and tested.
 
 This is distinct from the rollout mode described below: the master switch decides *whether the channel runs*; rollout mode decides *who receives messages once it does*. Both must be set correctly for residents to receive anything.
+
+While the switch is off, a resident who writes in gets one reply, "The estate Assistant is offline. Your message is saved and will be answered when it is back.", followed by the estate office contact line. A number gets this reply once until the switch is turned back on, however many messages it sends. When an admin turns the switch on, the saved messages are answered, oldest first and each once. A message saved more than 24 hours earlier is dropped instead of answered. A message that is only digits or starts with `PIN` is never saved, though the holding reply still goes out. Messages during a human takeover are not saved.
 
 ## Rollout modes
 
