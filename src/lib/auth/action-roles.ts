@@ -36,6 +36,7 @@ export const PERMISSIONS = {
   RESIDENTS_VERIFY: 'residents.verify',
   RESIDENTS_EXPORT: 'residents.export',
   RESIDENTS_MERGE: 'residents.merge',
+  RESIDENTS_VIEW_GROUPS: 'residents.view_groups',
 
   // Houses Module
   HOUSES_VIEW: 'houses.view',
