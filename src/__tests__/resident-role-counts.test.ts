@@ -98,15 +98,15 @@ describe('resident role view migration, run for real (#1094)', () => {
     }
     const link = (key: string, h: number, role: string, active = true, moveOut: string | null = null) =>
       q(
-        `INSERT INTO public.resident_houses (resident_id, house_id, resident_role, is_active, move_out_date) VALUES ($1, $2, $3, $4, $5)`,
+        `INSERT INTO public.resident_houses (resident_id, house_id, resident_role, is_active, move_in_date, move_out_date) VALUES ($1, $2, $3, $4, '1999-01-01', $5)`,
         [ids[key], houses[h], role, active, moveOut]
       );
     await mk('multi', 1);
     await mk('cores', 2);
     await mk('gone', 3);
     await mk('inactive', 4);
-    await link('multi', 0, 'resident_landlord');
-    await link('multi', 1, 'resident_landlord');
+    await link('multi', 0, 'non_resident_landlord');
+    await link('multi', 1, 'non_resident_landlord');
     await link('multi', 2, 'tenant');
     await link('cores', 0, 'co_resident');
     await link('gone', 3, 'tenant', true, '2000-01-01');
@@ -118,10 +118,10 @@ describe('resident role view migration, run for real (#1094)', () => {
   });
 
   it('lists a person once per role, with the house count, and drops moved-out and inactive links', async () => {
-    const rows = await q(`SELECT resident_id, role, house_count FROM public.resident_role_memberships ORDER BY role`);
+    const rows = await q(`SELECT resident_id, role, house_count FROM public.resident_role_memberships ORDER BY role::text`);
     expect(rows.map((r) => [r.resident_id, r.role, r.house_count])).toEqual([
       [ids.cores, 'co_resident', 1],
-      [ids.multi, 'resident_landlord', 2],
+      [ids.multi, 'non_resident_landlord', 2],
       [ids.multi, 'tenant', 1],
     ]);
   });
