@@ -51,6 +51,7 @@ export async function updateAnnouncement(
   if (input.status !== undefined) updateData.status = input.status;
   if (input.priority !== undefined) updateData.priority = input.priority;
   if (input.target_audience !== undefined) updateData.target_audience = input.target_audience;
+  if (input.target_group_slug !== undefined) updateData.target_group_slug = input.target_group_slug;
   if (input.target_houses !== undefined) updateData.target_houses = input.target_houses;
   if (input.is_pinned !== undefined) updateData.is_pinned = input.is_pinned;
   if (input.scheduled_for !== undefined) updateData.scheduled_for = input.scheduled_for;

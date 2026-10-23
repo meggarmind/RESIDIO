@@ -9,6 +9,7 @@ import {
 } from '@/actions/announcements/get-announcements';
 import { createAnnouncement, createAnnouncementFromTemplate } from '@/actions/announcements/create-announcement';
 import { updateAnnouncement, archiveAnnouncement } from '@/actions/announcements/update-announcement';
+import { getAnnouncementAudienceGroups, getAnnouncementReach } from '@/actions/announcements/audience-reach';
 import { deleteAnnouncement } from '@/actions/announcements/delete-announcement';
 import {
   publishAnnouncement,
@@ -623,5 +624,29 @@ export function useEmergencyContactDirectory() {
       return result.data;
     },
     staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+  });
+}
+
+export function useAnnouncementAudienceGroups() {
+  return useQuery({
+    queryKey: ['announcementAudienceGroups'],
+    queryFn: async () => {
+      const result = await getAnnouncementAudienceGroups();
+      if (result.error) throw new Error(result.error);
+      return result.data ?? [];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useAnnouncementReach(groupSlug: string | null | undefined) {
+  return useQuery({
+    queryKey: ['announcementReach', groupSlug],
+    queryFn: async () => {
+      const result = await getAnnouncementReach(groupSlug!);
+      if (result.error) throw new Error(result.error);
+      return result.data!;
+    },
+    enabled: !!groupSlug,
   });
 }

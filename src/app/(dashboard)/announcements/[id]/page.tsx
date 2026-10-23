@@ -1,6 +1,7 @@
 'use client';
 
 import { use } from 'react';
+import { AudienceReach } from '@/components/announcements/audience-reach';
 import { useCan } from '@/components/auth/can';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import Link from 'next/link';
@@ -164,7 +165,8 @@ export default function AnnouncementDetailPage({
             {announcement.is_pinned && <Pin className="h-4 w-4 text-amber-500" />}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {canPublish && <AudienceReach groupSlug={announcement.target_group_slug} />}
           {canEdit && (
             <Button variant="outline" asChild>
               <Link href={`/announcements/${resolvedParams.id}/edit`}>
@@ -229,7 +231,7 @@ export default function AnnouncementDetailPage({
               <div className="flex items-center gap-2">
                 <AnnouncementStatusBadge status={status} />
                 <AnnouncementPriorityBadge priority={announcement.priority || 'normal'} />
-                <TargetAudienceBadge audience={announcement.target_audience || 'all'} />
+                <TargetAudienceBadge audience={announcement.target_audience || 'all'} groupSlug={announcement.target_group_slug} />
               </div>
             </CardHeader>
             <CardContent className="space-y-4">

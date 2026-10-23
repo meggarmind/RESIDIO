@@ -2,6 +2,7 @@
 
 import { Badge } from '@/components/ui/badge';
 import { Clock, Send, FileText, Archive, AlertTriangle, Bell, BellRing, Megaphone } from 'lucide-react';
+import { useAnnouncementAudienceGroups } from '@/hooks/use-announcements';
 import type { AnnouncementStatus, AnnouncementPriority } from '@/types/database';
 
 interface StatusBadgeProps {
@@ -88,7 +89,10 @@ export function AnnouncementPriorityBadge({ priority }: PriorityBadgeProps) {
   );
 }
 
-export function TargetAudienceBadge({ audience }: { audience: string }) {
+export function TargetAudienceBadge({ audience, groupSlug }: { audience: string; groupSlug?: string | null }) {
+  const { data: groups } = useAnnouncementAudienceGroups();
+  const groupName = groupSlug ? groups?.find((g) => g.slug === groupSlug)?.name : undefined;
+
   const labels: Record<string, string> = {
     all: 'All',
     residents: 'Residents',
@@ -99,7 +103,7 @@ export function TargetAudienceBadge({ audience }: { audience: string }) {
 
   return (
     <Badge variant="outline" className="text-xs">
-      {labels[audience] || audience}
+      {groupName || labels[audience] || audience}
     </Badge>
   );
 }
