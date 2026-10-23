@@ -34,8 +34,8 @@ A request that nobody decides within 72 hours of being submitted is rejected aut
 1. Open **Announcements → New Announcement**.
 2. Choose the category and priority.
 3. Write a short, action-oriented title.
-4. Add the message, audience, and schedule.
-5. Preview the result before publishing.
+4. Add the message, audience, and schedule. Besides **All**, **Residents Only**, **Owners Only**, **Renters Only** and **Staff Only**, the audience list offers resident groups: **Landlords**, **Non-Resident Landlords**, **Owner-Occupiers** and **Tenants**. A person in more than one group role (for example a landlord who also lives in the estate) receives the message once.
+5. Preview the result before publishing. When a resident group is the audience, the form and the announcement page show **Will reach N, M have WhatsApp opt-in** before you publish. N is the active residents in the group. M is how many of them have a WhatsApp opt-in; only they get the WhatsApp message.
 6. Publish immediately only for time-sensitive communication.
 
 :::tip[Clear communication]

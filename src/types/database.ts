@@ -2425,6 +2425,7 @@ export interface Announcement {
   status: AnnouncementStatus | null;
   priority: AnnouncementPriority | null;
   target_audience: TargetAudience | null;
+  target_group_slug: string | null;
   target_houses: string[] | null;
   is_pinned: boolean | null;
   published_at: string | null;
@@ -2526,6 +2527,7 @@ export interface AnnouncementInput {
   status?: AnnouncementStatus;
   priority?: AnnouncementPriority;
   target_audience?: TargetAudience;
+  target_group_slug?: string | null;
   target_houses?: string[];
   is_pinned?: boolean;
   scheduled_for?: string | null;

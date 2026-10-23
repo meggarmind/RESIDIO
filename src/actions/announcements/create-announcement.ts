@@ -34,6 +34,7 @@ export async function createAnnouncement(
     status: input.status || 'draft',
     priority: input.priority || 'normal',
     target_audience: input.target_audience || 'all',
+    target_group_slug: input.target_group_slug || null,
     target_houses: input.target_houses || null,
     is_pinned: input.is_pinned || false,
     scheduled_for: input.scheduled_for || null,

@@ -1,0 +1,28 @@
+-- Announcements can target a resident group (#1095, child of #1093).
+--
+-- WHAT CHANGES
+--   ALTER TABLE public.announcements ADD COLUMN target_group_slug text (nullable).
+--     When set, delivery reaches the residents in that resident_role_groups row (#1094) and
+--     target_audience holds the nearest enum value that is not wider than the group, so the
+--     portal RLS policies never show the announcement to more people than the group.
+--     No foreign key: a deleted group must make delivery reach nobody, not fall back to the enum.
+--
+-- WHY
+--   The target_audience enum (all, residents, owners, tenants, staff) cannot reach Non-Resident
+--   Landlords or Owner-Occupiers alone.
+--
+-- WHO IS AFFECTED
+--   Nobody. Existing rows get NULL and behave as before. No policy or grant changes.
+--
+-- IDEMPOTENT: ADD COLUMN IF NOT EXISTS.
+--
+-- DEPLOY ORDER: apply after 20261101090000 and before the application code that writes the column.
+--
+-- ROLLBACK (roll the application code back first):
+--   ALTER TABLE public.announcements DROP COLUMN IF EXISTS target_group_slug;
+--
+-- VERIFY (run on the database after applying; expected result in brackets):
+--   SELECT column_name FROM information_schema.columns
+--    WHERE table_schema = 'public' AND table_name = 'announcements' AND column_name = 'target_group_slug';  -- [1 row]
+
+ALTER TABLE public.announcements ADD COLUMN IF NOT EXISTS target_group_slug text;

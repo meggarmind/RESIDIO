@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
@@ -28,7 +28,8 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, Save, ArrowLeft, CalendarIcon, Clock, Send } from 'lucide-react';
 import { toast } from 'sonner';
-import { useAnnouncementCategories } from '@/hooks/use-announcements';
+import { AudienceReach } from '@/components/announcements/audience-reach';
+import { useAnnouncementAudienceGroups, useAnnouncementCategories } from '@/hooks/use-announcements';
 import type { Announcement, AnnouncementInput } from '@/types/database';
 import Link from 'next/link';
 import { format } from 'date-fns';
@@ -37,6 +38,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 
 const NONE_VALUE = '_none';
+const GROUP_PREFIX = 'group:';
 
 const formSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200, 'Title must be less than 200 characters'),
@@ -45,6 +47,7 @@ const formSchema = z.object({
   category_id: z.string().optional().nullable(),
   priority: z.enum(['low', 'normal', 'high', 'emergency']),
   target_audience: z.enum(['all', 'residents', 'owners', 'tenants', 'staff']),
+  target_group_slug: z.string().nullable(),
   is_pinned: z.boolean(),
   scheduled_for: z.date().optional().nullable(),
   expires_at: z.date().optional().nullable(),
@@ -67,6 +70,7 @@ export function AnnouncementForm({
 }: AnnouncementFormProps) {
   const router = useRouter();
   const { data: categories, isLoading: categoriesLoading } = useAnnouncementCategories();
+  const { data: audienceGroups } = useAnnouncementAudienceGroups();
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -77,11 +81,14 @@ export function AnnouncementForm({
       category_id: announcement?.category_id || null,
       priority: (announcement?.priority as FormData['priority']) || 'normal',
       target_audience: (announcement?.target_audience as FormData['target_audience']) || 'all',
+      target_group_slug: announcement?.target_group_slug || null,
       is_pinned: announcement?.is_pinned || false,
       scheduled_for: announcement?.scheduled_for ? new Date(announcement.scheduled_for) : null,
       expires_at: announcement?.expires_at ? new Date(announcement.expires_at) : null,
     },
   });
+
+  const groupSlug = useWatch({ control: form.control, name: 'target_group_slug' });
 
   const handleSubmit = async (data: FormData) => {
     try {
@@ -92,6 +99,7 @@ export function AnnouncementForm({
         category_id: data.category_id === NONE_VALUE ? null : data.category_id,
         priority: data.priority,
         target_audience: data.target_audience,
+        target_group_slug: data.target_group_slug,
         is_pinned: data.is_pinned,
         scheduled_for: data.scheduled_for?.toISOString() || null,
         expires_at: data.expires_at?.toISOString() || null,
@@ -246,26 +254,48 @@ export function AnnouncementForm({
                 <FormField
                   control={form.control}
                   name="target_audience"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Target Audience</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select audience" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="all">All</SelectItem>
-                          <SelectItem value="residents">Residents Only</SelectItem>
-                          <SelectItem value="owners">Owners Only</SelectItem>
-                          <SelectItem value="tenants">Renters Only</SelectItem>
-                          <SelectItem value="staff">Staff Only</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  render={({ field }) => {
+                    return (
+                      <FormItem>
+                        <FormLabel>Target Audience</FormLabel>
+                        <Select
+                          onValueChange={(value) => {
+                            if (value.startsWith(GROUP_PREFIX)) {
+                              const slug = value.slice(GROUP_PREFIX.length);
+                              const group = audienceGroups?.find((g) => g.slug === slug);
+                              if (!group) return;
+                              field.onChange(group.audience);
+                              form.setValue('target_group_slug', slug);
+                            } else {
+                              field.onChange(value);
+                              form.setValue('target_group_slug', null);
+                            }
+                          }}
+                          value={groupSlug ? `${GROUP_PREFIX}${groupSlug}` : field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select audience" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="all">All</SelectItem>
+                            <SelectItem value="residents">Residents Only</SelectItem>
+                            <SelectItem value="owners">Owners Only</SelectItem>
+                            <SelectItem value="tenants">Renters Only</SelectItem>
+                            <SelectItem value="staff">Staff Only</SelectItem>
+                            {audienceGroups?.map((group) => (
+                              <SelectItem key={group.slug} value={`${GROUP_PREFIX}${group.slug}`}>
+                                {group.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <AudienceReach groupSlug={groupSlug} />
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
 
                 <FormField
