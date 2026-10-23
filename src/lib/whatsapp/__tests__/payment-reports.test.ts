@@ -207,3 +207,60 @@ describe('createPaymentReport (#816 decisions 11-12)', () => {
     expect(reportKey('house-1', 50000.5, '2026-10-12')).toBe('house-1|5000050|2026-10-12');
   });
 });
+
+describe('createPaymentReport by a co-resident (#1071)', () => {
+  const coInput = { ...input, residentId: 'sponsor-1', reportedByResidentId: 'co-1' };
+
+  /** The sponsor's role row, the co-resident row, `count` reports by the co-resident today, then the payment. */
+  function coDb(over: { sponsorRow?: unknown[]; coRow?: unknown[]; count?: number } = {}) {
+    return mockDb({
+      resident_houses: [
+        { data: over.sponsorRow ?? [{ house_id: 'house-1' }], error: null },
+        { data: over.coRow ?? [{ house_id: 'house-1' }], error: null },
+      ],
+      approval_requests: [{ count: over.count ?? 0, error: null }],
+      payment_records: [{ data: { id: 'payment-1' }, error: null }, { error: null }, { error: null }],
+    });
+  }
+
+  it('records the payment on the sponsor and the co-resident as the requester and the audited actor', async () => {
+    const { calls } = coDb();
+
+    expect(await createPaymentReport(coInput)).toEqual({ status: 'created', paymentId: 'payment-1', requestId: 'request-1' });
+
+    const insert = calls.find((call) => call.table === 'payment_records' && call.op === 'insert')!.args[0] as Record<string, unknown>;
+    expect(insert).toMatchObject({ resident_id: 'sponsor-1', house_id: 'house-1' });
+    expect(insert.notes).toBe('Reported via WhatsApp by a co-resident');
+    expect(createResidentApprovalRequest).toHaveBeenCalledWith(expect.objectContaining({ residentId: 'co-1' }));
+    expect(recordAudit).toHaveBeenCalledWith(expect.anything(), { userId: null, residentId: 'co-1' });
+  });
+
+  it('checks the sponsor holds a resident landlord or tenant row, and the co-resident is sponsored by them', async () => {
+    const { calls } = coDb();
+    await createPaymentReport(coInput);
+    const houses = calls.filter((call) => call.table === 'resident_houses');
+    expect(houses).toContainEqual({ table: 'resident_houses', op: 'in', args: ['resident_role', ['resident_landlord', 'tenant']] });
+    expect(houses).toContainEqual({ table: 'resident_houses', op: 'eq', args: ['resident_id', 'sponsor-1'] });
+    expect(houses).toContainEqual({ table: 'resident_houses', op: 'eq', args: ['resident_id', 'co-1'] });
+    expect(houses).toContainEqual({ table: 'resident_houses', op: 'eq', args: ['resident_role', 'co_resident'] });
+    expect(houses).toContainEqual({ table: 'resident_houses', op: 'eq', args: ['sponsor_resident_id', 'sponsor-1'] });
+  });
+
+  it('refuses when the sponsor no longer lives there', async () => {
+    const { calls } = coDb({ sponsorRow: [] });
+    expect(await createPaymentReport(coInput)).toEqual({ status: 'not_your_property' });
+    expect(calls.some((call) => call.table === 'payment_records')).toBe(false);
+  });
+
+  it('refuses when the reporter is not a co-resident sponsored by this account', async () => {
+    const { calls } = coDb({ coRow: [] });
+    expect(await createPaymentReport(coInput)).toEqual({ status: 'not_your_property' });
+    expect(calls.some((call) => call.table === 'payment_records')).toBe(false);
+  });
+
+  it('counts the daily limit per reporter', async () => {
+    const { calls } = coDb({ count: 3 });
+    expect(await createPaymentReport(coInput)).toEqual({ status: 'limit' });
+    expect(calls).toContainEqual({ table: 'approval_requests', op: 'eq', args: ['requested_by_resident_id', 'co-1'] });
+  });
+});

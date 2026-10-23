@@ -2124,7 +2124,7 @@ describe('WhatsApp Assistant several houses (#1073)', () => {
 
   it('keeps the billable role on each house from the roster', async () => {
     const eq = vi.fn().mockReturnThis();
-    const chain = { select: vi.fn().mockReturnThis(), eq, in: vi.fn().mockResolvedValue({ data: [{ house_id: 'house-9', resident_role: 'developer', house: { house_number: '9', short_name: null, street: { name: 'Elm' } } }], error: null }) };
+    const chain = { select: vi.fn().mockReturnThis(), eq, not: vi.fn().mockResolvedValue({ data: [], error: null }), in: vi.fn().mockResolvedValue({ data: [{ house_id: 'house-9', resident_role: 'developer', house: { house_number: '9', short_name: null, street: { name: 'Elm' } } }], error: null }) };
     vi.mocked(createAdminClient).mockReturnValue({ from: vi.fn().mockReturnValue(chain) } as unknown as ReturnType<typeof createAdminClient>);
     await expect(createSupabaseWhatsAppFinancialRepository().getBillableHouses('resident-1')).resolves.toEqual([{ id: 'house-9', label: '9, Elm', role: 'developer' }]);
   });

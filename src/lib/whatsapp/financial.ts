@@ -1,5 +1,6 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { getSponsoredHouses } from '@/lib/whatsapp/co-resident';
 import { createAdminClient } from '@/lib/supabase/server';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
@@ -140,6 +141,13 @@ export interface FinancialHouse {
   label: string;
   /** The person's active role in the house (resident_houses.resident_role). */
   role: string;
+  /**
+   * Whose figures this house shows. Absent: the asker's own. A co-resident sees their sponsor's account
+   * (#1071), and that account is the one a payment report is recorded against.
+   */
+  accountResidentId?: string;
+  /** True when the asker is a co-resident looking at the sponsor's account: no Wallet, no Clearance certificate. */
+  onBehalf?: boolean;
 }
 
 /** Roles that live in the house: only these may ask for a clearance certificate (#1073 decision 6). */
@@ -275,7 +283,17 @@ export interface WhatsAppFinancialRepository {
     pinAuthenticated: boolean;
     channel?: DisclosureChannel;
     metadata?: Record<string, unknown>;
+    /** Whose account was shown when it is not the asker's: the sponsor, for a co-resident (#1071). */
+    accountResidentId?: string;
   }): Promise<void>;
+}
+
+type HouseEmbed = { house_number: string; short_name: string | null; street: { name: string } | { name: string }[] | null };
+
+function houseLabel(embed: unknown): string {
+  const house = (Array.isArray(embed) ? embed[0] : embed) as HouseEmbed;
+  const street = Array.isArray(house.street) ? house.street[0]?.name : house.street?.name;
+  return house.short_name || `${house.house_number}, ${street || 'Estate'}`;
 }
 
 const SALTED_PREFIX = 'scrypt:';
@@ -629,12 +647,12 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
         .eq('is_active', true)
         .in('resident_role', ['resident_landlord', 'non_resident_landlord', 'tenant', 'developer']);
       if (error) throw error;
-      return (data || []).map((row) => {
-        const houseData = row.house as unknown as { house_number: string; short_name: string | null; street: { name: string } | { name: string }[] | null } | { house_number: string; short_name: string | null; street: { name: string } | { name: string }[] | null }[];
-        const house = Array.isArray(houseData) ? houseData[0] : houseData;
-        const street = Array.isArray(house.street) ? house.street[0]?.name : house.street?.name;
-        return { id: row.house_id, label: house.short_name || `${house.house_number}, ${street || 'Estate'}`, role: row.resident_role };
-      });
+      const own = (data || []).map((row) => ({ id: row.house_id, label: houseLabel(row.house), role: row.resident_role }));
+      // A co-resident also sees the houses whose sponsor still lives there; a billable role of their own wins.
+      const sponsored = (await getSponsoredHouses(residentId))
+        .filter((link) => !own.some((house) => house.id === link.houseId))
+        .map((link) => ({ id: link.houseId, label: houseLabel(link.house), role: 'co_resident', accountResidentId: link.sponsorId, onBehalf: true }));
+      return [...own, ...sponsored];
     },
 
     async getAssistantSettings() {
@@ -794,7 +812,8 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
         pin_authenticated: input.pinAuthenticated,
         // channel is not in the generated types until the 20261021150000 migration is applied.
         channel: input.channel ?? 'chat',
-        metadata: input.metadata ?? null,
+        // The asker is resident_id (the daily cap counts it); the owner of the figures rides in metadata.
+        metadata: input.accountResidentId ? { ...input.metadata, account_resident_id: input.accountResidentId } : input.metadata ?? null,
       } as never);
       if (error) throw error;
     },
@@ -962,6 +981,13 @@ async function showMain(turn: Turn, prefix?: string): Promise<void> {
   await respond(turn, prefix ? `${prefix}\n\n${menu}` : menu, 'main');
 }
 
+/** The resident whose invoices and payments this house shows: the asker, or the sponsor for a co-resident (#1071). */
+function accountOf(turn: Turn, house: FinancialHouse): string {
+  return house.accountResidentId ?? turn.identity.id;
+}
+
+const CO_RESIDENT_REFUSAL = "That isn't available for a co-resident. The wallet and clearance certificate stay with the account holder.";
+
 function selectedHouse(turn: Turn): FinancialHouse | null {
   return turn.houses?.find((house) => house.id === turn.session.selectedHouseId) ?? null;
 }
@@ -981,7 +1007,7 @@ function financialMenu(turn: Turn): string {
     '1. What I owe',
     '2. Recent payments',
     '3. Statement',
-    '4. Wallet',
+    ...(house?.onBehalf ? [] : ['4. Wallet']),
     '5. Receipt',
     '6. Report a payment',
     ...(house && !OCCUPANT_ROLES.has(house.role) ? [] : ['7. Clearance certificate']),
@@ -1042,12 +1068,17 @@ async function enterFinancial(turn: Turn, target: Target, prefix?: string, prope
   }
   if (!selectedHouse(turn)) turn.session.selectedHouseId = houses[0].id;
 
+  if (selectedHouse(turn)?.onBehalf && (target === 'wallet' || target === 'clearance')) {
+    await respond(turn, `${lead}${CO_RESIDENT_REFUSAL}\n${financialMenu(turn)}`, 'financial');
+    return;
+  }
+
   if (target === 'menu') {
     await respond(turn, `${lead}${financialMenu(turn)}`, 'financial');
     return;
   }
   if (target === 'statement') {
-    await respond(turn, `${lead}${statementPeriodPrompt(await turn.options.repository.getStatementPeriods(turn.identity.id, selectedHouse(turn)!.id))}`, 'statement_period');
+    await respond(turn, `${lead}${statementPeriodPrompt(await turn.options.repository.getStatementPeriods(accountOf(turn, selectedHouse(turn)!), selectedHouse(turn)!.id))}`, 'statement_period');
     return;
   }
   if (target === 'report') return startReport(turn, lead);
@@ -1072,15 +1103,17 @@ async function answerAllProperties(turn: Turn): Promise<void> {
   if (capped) return respond(turn, capped, 'financial');
 
   const repository = turn.options.repository;
-  const rows = await Promise.all(houses.map(async (house) => ({ houseLabel: house.label, figures: await repository.getOwed(turn.identity.id, house.id) })));
+  const rows = await Promise.all(houses.map(async (house) => ({ houseLabel: house.label, figures: await repository.getOwed(accountOf(turn, house), house.id) })));
   const body = composeAllPropertiesOweAnswer(rows, !!turn.settings?.paymentInstructions, !!turn.contact);
+  const sponsors = [...new Set(houses.flatMap((house) => (house.accountResidentId ? [house.accountResidentId] : [])))];
   await repository.logDisclosure({
     residentId: turn.identity.id,
     phoneNumber: turn.phoneNumber,
     houseId: null,
     menuItem: 'what_i_owe',
     pinAuthenticated: turn.session.pinAuthenticated,
-    metadata: { scope: 'all_properties', houses: houses.length },
+    accountResidentId: sponsors.length === 1 ? sponsors[0] : undefined,
+    metadata: { scope: 'all_properties', houses: houses.length, ...(sponsors.length > 1 ? { account_resident_ids: sponsors } : {}) },
   });
   turn.answered = true;
   await respond(turn, body, 'answer');
@@ -1100,9 +1133,9 @@ async function answerItem(turn: Turn, item: Exclude<FinancialMenuItem, 'statemen
   const hasContact = !!turn.contact;
   let body: string;
   if (item === 'what_i_owe') {
-    body = composeOweAnswer(await repository.getOwed(turn.identity.id, house.id), house.label, !!turn.settings?.paymentInstructions, hasContact);
+    body = composeOweAnswer(await repository.getOwed(accountOf(turn, house), house.id), house.label, !!turn.settings?.paymentInstructions, hasContact);
   } else if (item === 'recent_payments') {
-    body = composeRecentPaymentsAnswer(await repository.getRecentPayments(turn.identity.id, house.id, RECENT_PAYMENT_COUNT), house.label, hasContact);
+    body = composeRecentPaymentsAnswer(await repository.getRecentPayments(accountOf(turn, house), house.id, RECENT_PAYMENT_COUNT), house.label, hasContact);
   } else {
     body = composeWalletAnswer(await repository.getWalletBalance(turn.identity.id), hasContact, (turn.houses?.length ?? 0) > 1);
   }
@@ -1114,6 +1147,7 @@ async function answerItem(turn: Turn, item: Exclude<FinancialMenuItem, 'statemen
     houseId: house.id,
     menuItem: item,
     pinAuthenticated: turn.session.pinAuthenticated,
+    accountResidentId: house.accountResidentId,
   });
   turn.answered = true;
   await respond(turn, `${lead}${body}`, 'answer');
@@ -1143,7 +1177,7 @@ async function deliverStatementPdf(turn: Turn, period: StatementPeriod): Promise
   if (capped) return respond(turn, capped, 'financial');
 
   const repository = turn.options.repository;
-  const loaded = await repository.loadStatement(turn.identity.id, house.id, period, new Date());
+  const loaded = await repository.loadStatement(accountOf(turn, house), house.id, period, new Date());
   if (!loaded) return respond(turn, `${withContact(turn, NO_MOVE_IN_REPLY)}\n${footer(turn)}`, 'financial');
   const { fromDate, toDate, statement } = loaded;
   const rowCount = statement.transactions.length;
@@ -1158,6 +1192,7 @@ async function deliverStatementPdf(turn: Turn, period: StatementPeriod): Promise
       houseId: house.id,
       menuItem: 'statement',
       pinAuthenticated: turn.session.pinAuthenticated,
+      accountResidentId: house.accountResidentId,
       channel: 'pdf',
       metadata: { period, row_count: rowCount },
     });
@@ -1184,7 +1219,7 @@ async function confirmStatementEmail(turn: Turn, period: StatementPeriod): Promi
   const repository = turn.options.repository;
   const email = await repository.getResidentEmail(turn.identity.id);
   if (!email) return deliverStatementPdf(turn, period);
-  const loaded = await repository.loadStatement(turn.identity.id, house.id, period, new Date());
+  const loaded = await repository.loadStatement(accountOf(turn, house), house.id, period, new Date());
   if (!loaded) return respond(turn, `${withContact(turn, NO_MOVE_IN_REPLY)}\n${footer(turn)}`, 'financial');
   const { fromDate, toDate, statement } = loaded;
   await repository.logDisclosure({
@@ -1193,6 +1228,7 @@ async function confirmStatementEmail(turn: Turn, period: StatementPeriod): Promi
     houseId: house.id,
     menuItem: 'statement',
     pinAuthenticated: turn.session.pinAuthenticated,
+    accountResidentId: house.accountResidentId,
     channel: 'email',
     metadata: { period, row_count: statement.transactions.length },
   });
@@ -1249,7 +1285,7 @@ async function showReceipts(turn: Turn, lead: string): Promise<void> {
   if (capped) return respond(turn, capped, 'financial');
 
   const repository = turn.options.repository;
-  const payments = await repository.getReceiptPayments(turn.identity.id, house.id, RECEIPT_COUNT);
+  const payments = await repository.getReceiptPayments(accountOf(turn, house), house.id, RECEIPT_COUNT);
   // The list shows amounts and dates, so it is a disclosure like Recent payments (#795).
   await repository.logDisclosure({
     residentId: turn.identity.id,
@@ -1257,6 +1293,7 @@ async function showReceipts(turn: Turn, lead: string): Promise<void> {
     houseId: house.id,
     menuItem: 'receipt',
     pinAuthenticated: turn.session.pinAuthenticated,
+    accountResidentId: house.accountResidentId,
     metadata: { step: 'list', row_count: payments.length },
   });
   if (payments.length === 0) return respond(turn, `${lead}*Receipts, ${house.label}*\nNo payments recorded for ${house.label}.\n${footer(turn)}`, 'answer');
@@ -1281,7 +1318,7 @@ async function pickReceipt(turn: Turn, input: string): Promise<void> {
   if (capped) return respond(turn, capped, 'financial');
 
   const repository = turn.options.repository;
-  const receipt = payment.verified ? await repository.loadReceipt(turn.identity.id, house.id, payment.id) : null;
+  const receipt = payment.verified ? await repository.loadReceipt(accountOf(turn, house), house.id, payment.id) : null;
   if (!receipt) return respond(turn, `A receipt is available once this payment is verified.\n${footer(turn)}`, 'answer');
 
   const body = [`*Receipt, ${house.label}*`, `${formatNaira(receipt.amount)} on ${formatDay(receipt.paymentDate)}. Your PDF is attached.`, footer(turn)].join('\n');
@@ -1292,6 +1329,7 @@ async function pickReceipt(turn: Turn, input: string): Promise<void> {
     houseId: house.id,
     menuItem: 'receipt',
     pinAuthenticated: turn.session.pinAuthenticated,
+    accountResidentId: house.accountResidentId,
     channel: 'pdf',
     metadata: { step: 'pdf', payment_id: payment.id },
   });
@@ -1419,7 +1457,8 @@ async function reportStep(turn: Turn, node: string): Promise<void> {
   if (draft.amount === undefined || !draft.paymentDate || !draft.reference) return showMain(turn, 'That report could not be continued. Nothing was sent.');
 
   const result = await turn.options.repository.createPaymentReport({
-    residentId: turn.identity.id,
+    residentId: accountOf(turn, house),
+    ...(house.onBehalf && { reportedByResidentId: turn.identity.id }),
     houseId: house.id,
     houseLabel: house.label,
     amount: draft.amount,
@@ -1806,7 +1845,7 @@ async function converse(turn: Turn, expired: boolean, endedOnPurpose = false): P
     await loadHouses(turn);
     if (!selectedHouse(turn)) return enterFinancial(turn, 'statement');
     // Read against the list the resident saw, worked out the same way (#1069).
-    const offered = await turn.options.repository.getStatementPeriods(turn.identity.id, selectedHouse(turn)!.id);
+    const offered = await turn.options.repository.getStatementPeriods(accountOf(turn, selectedHouse(turn)!), selectedHouse(turn)!.id);
     const typed = /^since move[ -]in$/.test(input) ? 'since_move_in' : input === 'all time' ? (offered.includes('all_time') ? 'all_time' : 'since_move_in') : null;
     const period = /^\d$/.test(input) ? offered[Number(input) - 1] : typed;
     if (!period) return miss(turn, node);
