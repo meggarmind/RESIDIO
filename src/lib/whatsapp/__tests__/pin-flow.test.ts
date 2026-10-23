@@ -34,6 +34,7 @@ const identity: WhatsAppResidentIdentity = {
   phonePrimary: '+2348000000000',
   phoneSecondary: null,
   financialEligible: true,
+  accessAllowed: true,
 };
 
 const CONTACT = 'Contact the estate office on 0803 699 6725.';
@@ -76,7 +77,7 @@ function statefulRepository(initialPinHash: string | null = null, allowance: Loo
       status: 'counted', triesInARow: 1, triesInWindow: 1, lockedUntil: null, hardLocked: false, claimedAt: '2026-10-20T09:30:00Z',
     })),
     clearPinAttempts: vi.fn().mockResolvedValue(undefined),
-    getBillableHouses: vi.fn().mockResolvedValue([{ id: 'house-1', label: '12 Palm Close' }]),
+    getBillableHouses: vi.fn().mockResolvedValue([{ id: 'house-1', label: '12 Palm Close', role: 'tenant' }]),
     getAssistantSettings: vi.fn().mockResolvedValue({
       estatePhone: '0803 699 6725', estateEmail: null, officeHours: null, paymentInstructions: 'Pay into Palm Estate.', keywordSynonyms: {},
     }),
@@ -94,6 +95,10 @@ function statefulRepository(initialPinHash: string | null = null, allowance: Loo
     loadReceipt: vi.fn().mockResolvedValue(null),
     storeReceiptPdf: vi.fn(),
     requestClearance: vi.fn(),
+    getCoResidents: vi.fn().mockResolvedValue([]),
+    createCoResidentLinkCode: vi.fn().mockResolvedValue(null),
+    getStatementPeriods: vi.fn().mockResolvedValue(['this_month', 'this_year', 'last_six_months', 'last_twelve_months', 'all_time', 'since_move_in']),
+    getEstateName: vi.fn().mockResolvedValue('Palm Estate'),
     loadStatement: vi.fn(),
     storeStatementPdf: vi.fn(),
     getResidentEmail: vi.fn().mockResolvedValue(null),

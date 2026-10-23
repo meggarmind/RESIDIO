@@ -62,7 +62,7 @@ Dependents or staff attached to primary residents.
 
 | Role | Display Name | Code | Description | Sponsor Required | Residency | Multi-House |
 |------|--------------|------|-------------|------------------|-----------|-------------|
-| **Occupant** | Co-Resident | `co_resident` | Adult living in unit (not on title/lease) | No | Yes | No |
+| **Occupant** | Co-Resident | `co_resident` | Adult living in unit (not on title/lease) | Yes (the house's Owner-Occupier or Renter, #1067) | Yes | No |
 | **Family Member** | Household Member | `household_member` | Family dependents (spouse, children) | No | No | No |
 | **Domestic Staff** | Domestic Staff | `domestic_staff` | Employees working/living at unit | Yes | No | Yes |
 | **Caretaker** | Caretaker | `caretaker` | Maintains a vacant unit | Yes | No | Yes |
@@ -149,7 +149,7 @@ Portal features are access-controlled based on resident role categories.
 | **Developer** | Property has active tenant | Limited to property info, no resident management |
 | **Property Owner** | Property has active tenant | Limited to property info, no security contact changes |
 
-**Implementation**: `src/lib/portal/permissions.ts`
+**Implementation**: not implemented in live code; the unused `src/lib/portal/permissions.ts` was removed (#1065).
 
 ---
 
@@ -333,7 +333,7 @@ When a primary resident (sponsor) leaves a property, their sponsored residents a
 | **Domestic Staff** | Yes | Remove from property |
 | **Caretaker** | Yes | Remove from property |
 | **Contractor** | Yes | Remove from property |
-| **Co-Resident** | No | Keep without sponsor |
+| **Co-Resident** | Yes (#1067) | Remove from property |
 | **Household Member** | No | Keep without sponsor |
 
 ### 9.2 Cascade Options
@@ -342,7 +342,7 @@ When a primary resident (sponsor) leaves a property, their sponsored residents a
 |--------|-------------|------------------|
 | **Remove** | Remove from property | All sponsored roles |
 | **Transfer** | Transfer to new sponsor | All sponsored roles |
-| **Keep Unsupported** | Keep without sponsor | `co_resident`, `household_member` only |
+| **Keep Unsupported** | Keep without sponsor | `household_member` only |
 
 ### 9.3 Promotion System
 
@@ -367,7 +367,7 @@ When a Renter joins a property with existing Property Owner domestic staff:
 4b. If no → Staff remains with Property Owner (limited access during tenancy)
 ```
 
-**Implementation**: `src/actions/residents/sponsor-cascade.ts`, `src/actions/residents/inherit-domestic-staff.ts`
+**Implementation**: not implemented in live code; the unused `sponsor-cascade.ts` and `inherit-domestic-staff.ts` actions were removed (#1065).
 
 ---
 
@@ -603,12 +603,13 @@ export type ResidencyRole = 'resident_landlord' | 'tenant' | 'co_resident';
 
 | Role | Requires Sponsor | Valid Sponsors |
 |------|-----------------|----------------|
+| `co_resident` | Yes | The house's active Owner-Occupier or Renter only; defaults to them (#1067) |
 | `domestic_staff` | Yes | Any primary resident at house |
 | `caretaker` | Yes | Property Owner, Developer |
 | `contractor` | Yes | Property Owner, Developer |
 | All others | No | N/A |
 
-**Implementation**: `sponsor_resident_id` field in `resident_houses` table
+**Implementation**: `sponsor_resident_id` field in `resident_houses` table, enforced by the `validate_sponsor_requirement` trigger; actions check it first through `resolveSponsor` (`src/actions/residents/validation.ts`)
 
 ### 13.5 Verification Requirements
 
@@ -688,15 +689,11 @@ export type AccountStatus = 'active' | 'inactive' | 'suspended' | 'archived';
 |------|---------|
 | `src/types/database.ts` | All type definitions and labels |
 | `src/lib/validators/resident.ts` | Zod validation schemas and business rules |
-| `src/lib/portal/permissions.ts` | Portal feature access control |
 | `src/lib/auth/action-roles.ts` | Permission constants and legacy role config |
 | `src/lib/auth/authorize.ts` | Authorization functions |
 | `src/actions/roles/index.ts` | Role CRUD operations |
 | `src/actions/roles/assignment-rules.ts` | Role assignment restrictions |
 | `src/actions/residents/verify-resident.ts` | Verification workflow |
-| `src/actions/residents/sponsor-cascade.ts` | Sponsor departure handling |
-| `src/actions/residents/inherit-domestic-staff.ts` | Staff inheritance on occupier change |
-| `src/actions/houses/property-transition.ts` | Property sale/lease workflows |
 | `src/actions/billing/generate-invoices.ts` | Billing priority logic |
 | `src/actions/approvals/` | Approval workflow actions |
 
@@ -718,7 +715,7 @@ export function isSecondaryRole(role: ResidentRole): role is SecondaryResidentRo
 }
 
 export function requiresSponsor(role: ResidentRole): boolean {
-  return ['domestic_staff', 'caretaker', 'contractor'].includes(role);
+  return ['co_resident', 'domestic_staff', 'caretaker', 'contractor'].includes(role);
 }
 
 export function isResidencyRole(role: ResidentRole): boolean {
@@ -728,17 +725,6 @@ export function isResidencyRole(role: ResidentRole): boolean {
 export function isCorporateAllowedRole(role: ResidentRole): boolean {
   return ['non_resident_landlord', 'tenant', 'developer'].includes(role);
 }
-```
-
-### Portal Permissions
-
-```typescript
-// src/lib/portal/permissions.ts
-
-export function getRoleCategory(role: ResidentRole): RoleCategory;
-export function hasPortalFeatureAccess(role: ResidentRole, feature: PortalFeature): boolean;
-export function getPortalFeaturesForRole(role: ResidentRole): PortalFeature[];
-export function getHighestPrivilegeRole(roles: ResidentRole[]): ResidentRole | null;
 ```
 
 ---

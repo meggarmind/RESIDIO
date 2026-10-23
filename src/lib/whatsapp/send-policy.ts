@@ -13,12 +13,15 @@ import type { SettingReadResult } from '@/lib/settings/service';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isApprovedWhatsAppTemplateName } from '@/lib/whatsapp';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
+import { lagosMidnight, lagosParts } from '@/lib/whatsapp/assistant-format';
 import { isWhatsAppRecipientAllowed } from '@/lib/whatsapp/rollout';
 
 export interface SendPolicyInput {
   recipientId: string;
   recipientPhone: string | null | undefined;
   metadata: Record<string, unknown> | null | undefined;
+  /** A free-form message (certificate, receipt) has no template; only the template check is skipped. */
+  freeForm?: boolean;
 }
 
 export type SendDecision =
@@ -84,8 +87,8 @@ export async function evaluateSendPolicy(
     return refuse('daily_cap_zero', 'WhatsApp outbound notifications are capped at zero');
   }
 
-  const startOfDay = new Date(facts.now().getTime());
-  startOfDay.setUTCHours(0, 0, 0, 0);
+  const { year, month, day } = lagosParts(facts.now());
+  const startOfDay = lagosMidnight(year, month, day);
   const daily = await facts.countWhatsAppSentSince(startOfDay.toISOString());
   if (daily.failed) {
     return refuse('daily_cap_unverified', 'Unable to verify WhatsApp outbound limit');
@@ -129,6 +132,10 @@ export async function evaluateSendPolicy(
     return refuse('no_opt_in', 'WhatsApp recipient has not opted in');
   }
 
+  if (input.freeForm) {
+    return { outcome: 'allow', normalizedPhone, template: { name: '', languageCode: 'en_US', parameters: [] } };
+  }
+
   // Template approval.
   const whatsappTemplate = input.metadata?.whatsapp_template;
   if (typeof whatsappTemplate !== 'object' || whatsappTemplate === null) {
@@ -157,14 +164,18 @@ export function createSendPolicyFacts(): SendPolicyFacts {
     getWhatsAppEnabled: () => getSettingResultAsService('whatsapp_enabled'),
     isRecipientInRollout: (recipientId) => isWhatsAppRecipientAllowed(recipientId),
     getNumberSetting: (key) => getSettingValueAsService(key),
+    // Queued sends are counted from notification_history; every other accepted notification send
+    // (resident sends, sendImmediate) from whatsapp_outbound_sends, so no message is counted twice.
     async countWhatsAppSentSince(sinceIso) {
-      const { count, error } = await createAdminClient()
-        .from('notification_history')
-        .select('id', { count: 'exact', head: true })
-        .eq('channel', 'whatsapp')
-        .eq('status', 'sent')
-        .gte('sent_at', sinceIso);
-      return { count: count ?? null, failed: Boolean(error) };
+      const admin = createAdminClient();
+      const [queued, direct] = await Promise.all([
+        admin.from('notification_history').select('id', { count: 'exact', head: true })
+          .eq('channel', 'whatsapp').eq('status', 'sent').not('queue_id', 'is', null).gte('sent_at', sinceIso),
+        admin.from('whatsapp_outbound_sends').select('id', { count: 'exact', head: true })
+          .eq('purpose', 'notification').is('notification_queue_id', null).gte('created_at', sinceIso),
+      ]);
+      if (queued.error || direct.error) return { count: null, failed: true };
+      return { count: (queued.count ?? 0) + (direct.count ?? 0), failed: false };
     },
     async findOptIn(residentId, normalizedPhone) {
       const { data, error } = await createAdminClient()

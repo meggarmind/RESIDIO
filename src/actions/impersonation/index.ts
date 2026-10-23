@@ -11,6 +11,15 @@ import type {
   ResidentForImpersonation,
 } from '@/types/database';
 
+// The two functions are added by 20261027120000_impersonation_sessions_no_self_edit.sql
+// and are not yet in the generated types.
+type ImpersonationRpcClient = {
+  rpc: (
+    name: 'end_impersonation_session' | 'log_impersonation_page_view',
+    args: Record<string, string>
+  ) => Promise<{ data: boolean | null; error: { message: string } | null }>;
+};
+
 // =====================================================
 // Core Impersonation Actions
 // =====================================================
@@ -227,17 +236,18 @@ export async function endImpersonationSession(sessionId: string): Promise<{
     return { success: false, error: 'Session is already ended' };
   }
 
-  // End the session
-  const { error: updateError } = await supabase
-    .from('impersonation_sessions')
-    .update({
-      is_active: false,
-      ended_at: new Date().toISOString(),
-    })
-    .eq('id', sessionId);
+  // End the session. The admin cannot UPDATE the row directly (#1063); the function
+  // sets only is_active and ended_at, on the caller's own active session.
+  const { data: ended, error: updateError } = await (supabase as unknown as ImpersonationRpcClient).rpc(
+    'end_impersonation_session',
+    { p_session_id: sessionId }
+  );
 
   if (updateError) {
     return { success: false, error: updateError.message };
+  }
+  if (!ended) {
+    return { success: false, error: 'Session is already ended' };
   }
 
   // Log audit event
@@ -470,30 +480,17 @@ export async function logImpersonationPageView(sessionId: string, path: string):
       return { success: false, error: 'Not authenticated' };
     }
 
-    // Get current session - use maybeSingle to handle case when session not found
-    const { data: session, error: sessionError } = await supabase
-      .from('impersonation_sessions')
-      .select('id, admin_profile_id, page_views')
-      .eq('id', sessionId)
-      .eq('admin_profile_id', user.id)
-      .eq('is_active', true)
-      .maybeSingle();
-
-    if (sessionError || !session) {
-      return { success: false, error: sessionError?.message || 'Active session not found' };
-    }
-
-    // Add page view
-    const currentViews = (session.page_views || []) as Array<{ path: string; timestamp: string }>;
-    const newViews = [...currentViews, { path, timestamp: new Date().toISOString() }];
-
-    const { error: updateError } = await supabase
-      .from('impersonation_sessions')
-      .update({ page_views: newViews })
-      .eq('id', sessionId);
+    // Append-only: the function adds one entry to the caller's own active session (#1063)
+    const { data: logged, error: updateError } = await (supabase as unknown as ImpersonationRpcClient).rpc(
+      'log_impersonation_page_view',
+      { p_session_id: sessionId, p_path: path }
+    );
 
     if (updateError) {
       return { success: false, error: updateError.message };
+    }
+    if (!logged) {
+      return { success: false, error: 'Active session not found' };
     }
 
     return { success: true };

@@ -1,5 +1,13 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+  CO_RESIDENT_LINK_CODE_MINUTES,
+  SPONSOR_ROLES,
+  createCoResidentLinkCode,
+  getCoResidents,
+  getSponsoredHouses,
+  type CoResident,
+} from '@/lib/whatsapp/co-resident';
 import { createAdminClient } from '@/lib/supabase/server';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
@@ -14,6 +22,8 @@ import { fetchAccountBalance, isResidentRollForwardEnabled } from '@/lib/billing
 import {
   STATEMENT_CHAT_ROW_LIMIT,
   createStatementRequest,
+  estateName,
+  loadStatementPeriods,
   loadWhatsAppStatementForPeriod,
   queueStatementEmail,
   storeStatementPdf,
@@ -58,6 +68,7 @@ import { answerSurvey, askSurvey } from '@/lib/whatsapp/survey-db';
 import {
   DEFAULT_KEYWORDS,
   answerFooter,
+  chargeLabel,
   contactLine,
   formatDay,
   formatBalance,
@@ -81,6 +92,10 @@ import {
 export { statementRange, type StatementPeriod };
 
 const SESSION_MINUTES = 15;
+/** Whole-message words that end the session on purpose, in any step (#1069). */
+const EXIT_WORDS = new Set(['exit', 'end', 'close', 'bye', 'goodbye', 'quit']);
+/** The node a session is left on after an exit word, so the next message is not told it timed out. */
+const ENDED_NODE = 'ended';
 // #891: 3 wrong in a row locks for 15 minutes; 6 wrong within 24 hours locks until the estate office resets it.
 const PIN_TRIES_IN_A_ROW = 3;
 const PIN_LOCK_MINUTES = 15;
@@ -131,7 +146,20 @@ export type DisclosureChannel = 'chat' | 'pdf' | 'email';
 export interface FinancialHouse {
   id: string;
   label: string;
+  /** The person's active role in the house (resident_houses.resident_role). */
+  role: string;
+  /**
+   * Whose figures this house shows. Absent: the asker's own. A co-resident sees their sponsor's account
+   * (#1071), and that account is the one a payment report is recorded against.
+   */
+  accountResidentId?: string;
+  /** True when the asker is a co-resident looking at the sponsor's account: no Wallet, no Clearance certificate. */
+  onBehalf?: boolean;
 }
+
+/** Roles that live in the house: only these may ask for a clearance certificate (#1073 decision 6). */
+const OCCUPANT_ROLES = new Set(['tenant', 'resident_landlord']);
+const NOT_OCCUPANT_CLEARANCE_REPLY = 'A clearance certificate can only be requested for the property you live in.';
 
 export interface WhatsAppFinancialSession {
   phoneNumber: string;
@@ -188,8 +216,9 @@ export interface OwedFigures {
   invoiceCount: number;
   outstanding: number;
   rollForward?: boolean;
-  overdue: { total: number; count: number; oldestDue: string } | null;
-  next: { amount: number; dueDate: string; invoiceNumber: string } | null;
+  /** `charges` names each overdue invoice by what it is for (#1073 decision 2), oldest first. */
+  overdue: { total: number; count: number; oldestDue: string; charges: { label: string; amount: number }[] } | null;
+  next: { amount: number; dueDate: string; invoiceNumber: string; label: string } | null;
   awaitingVerification: number;
 }
 
@@ -240,6 +269,13 @@ export interface WhatsAppFinancialRepository {
   storeReceiptPdf(input: Parameters<typeof storeReceiptPdf>[0], receipt: PaymentReceiptData): Promise<string>;
   /** Files an approval request for a clearance certificate on this property (#816 decision 15). */
   requestClearance(input: Parameters<typeof requestClearanceCertificate>[0]): Promise<ClearanceRequestResult>;
+  /** The sponsor's active co-residents on this house (#1072). */
+  getCoResidents(sponsorId: string, houseId: string): Promise<CoResident[]>;
+  /** A LINK code for one of the sponsor's co-residents on this house; null when that person is not one. */
+  createCoResidentLinkCode(input: { sponsorId: string; coResidentId: string; houseId: string }): Promise<{ code: string; expiresAt: string } | null>;
+  /** The statement periods offered for this property (#1069). */
+  getStatementPeriods(residentId: string, houseId: string): Promise<StatementPeriod[]>;
+  getEstateName(): Promise<string>;
   /** The statement PDF for a period: the admin account statement, with its Lagos dates. */
   loadStatement(residentId: string, houseId: string, period: StatementPeriod, now: Date): Promise<{ fromDate: string; toDate: string; statement: AccountStatementData } | null>;
   /** Stores the PDF privately and returns a 1-hour signed URL for the reply. */
@@ -258,7 +294,17 @@ export interface WhatsAppFinancialRepository {
     pinAuthenticated: boolean;
     channel?: DisclosureChannel;
     metadata?: Record<string, unknown>;
+    /** Whose account was shown when it is not the asker's: the sponsor, for a co-resident (#1071). */
+    accountResidentId?: string;
   }): Promise<void>;
+}
+
+type HouseEmbed = { house_number: string; short_name: string | null; street: { name: string } | { name: string }[] | null };
+
+export function houseLabel(embed: unknown): string {
+  const house = (Array.isArray(embed) ? embed[0] : embed) as HouseEmbed;
+  const street = Array.isArray(house.street) ? house.street[0]?.name : house.street?.name;
+  return house.short_name || `${house.house_number}, ${street || 'Estate'}`;
 }
 
 const SALTED_PREFIX = 'scrypt:';
@@ -321,15 +367,27 @@ function plural(count: number, word: string): string {
 // ---------------------------------------------------------------------------
 // Answer composition (pure, exported for tests)
 
+const OVERDUE_CHARGES_SHOWN = 5;
+
+function overdueLines(overdue: NonNullable<OwedFigures['overdue']>): string[] {
+  const shown = overdue.charges.slice(0, OVERDUE_CHARGES_SHOWN);
+  const hidden = overdue.charges.length - shown.length;
+  return [
+    `Overdue: ${formatNaira(overdue.total)} across ${plural(overdue.count, 'invoice')} (oldest due ${formatDay(overdue.oldestDue)})`,
+    ...shown.map((charge) => `- ${charge.label}: ${formatNaira(charge.amount)}`),
+    ...(hidden > 0 ? [`- and ${hidden} more`] : []),
+  ];
+}
+
 export function composeOweAnswer(figures: OwedFigures, houseLabel: string, showPay: boolean, hasContact: boolean): string {
   const lines = [`*What you owe, ${houseLabel}*`];
   if (figures.rollForward) {
     lines.push(`Outstanding: ${formatBalance(figures.outstanding)}`);
     if (figures.overdue) {
-      lines.push(`Overdue: ${formatNaira(figures.overdue.total)} across ${plural(figures.overdue.count, 'invoice')} (oldest due ${formatDay(figures.overdue.oldestDue)})`);
+      lines.push(...overdueLines(figures.overdue));
     }
     if (figures.next) {
-      lines.push(`Next due: ${formatNaira(figures.next.amount)} on ${formatDay(figures.next.dueDate)} (invoice ${figures.next.invoiceNumber})`);
+      lines.push(`Next due: ${formatNaira(figures.next.amount)} on ${formatDay(figures.next.dueDate)}, ${figures.next.label} (invoice ${figures.next.invoiceNumber})`);
     }
   } else if (figures.invoiceCount === 0) {
     lines.push(`No bills on record for ${houseLabel}.`);
@@ -338,10 +396,10 @@ export function composeOweAnswer(figures: OwedFigures, houseLabel: string, showP
   } else {
     lines.push(`Outstanding: ${formatNaira(figures.outstanding)}`);
     if (figures.overdue) {
-      lines.push(`Overdue: ${formatNaira(figures.overdue.total)} across ${plural(figures.overdue.count, 'invoice')} (oldest due ${formatDay(figures.overdue.oldestDue)})`);
+      lines.push(...overdueLines(figures.overdue));
     }
     if (figures.next) {
-      lines.push(`Next due: ${formatNaira(figures.next.amount)} on ${formatDay(figures.next.dueDate)} (invoice ${figures.next.invoiceNumber})`);
+      lines.push(`Next due: ${formatNaira(figures.next.amount)} on ${formatDay(figures.next.dueDate)}, ${figures.next.label} (invoice ${figures.next.invoiceNumber})`);
     }
   }
   if (figures.awaitingVerification > 0) lines.push(`Awaiting verification: ${formatNaira(figures.awaitingVerification)}`);
@@ -353,19 +411,37 @@ export function composeOweAnswer(figures: OwedFigures, houseLabel: string, showP
 export function composeRecentPaymentsAnswer(rows: PaymentRow[], houseLabel: string, hasContact: boolean): string {
   const lines = [`*Recent payments, ${houseLabel}*`];
   if (rows.length === 0) lines.push(`No payments recorded for ${houseLabel}.`);
-  for (const row of rows) {
+  for (const [index, row] of rows.entries()) {
     const parts = [formatDay(row.payment_date), formatNaira(Number(row.amount || 0)), row.method ? row.method.replaceAll('_', ' ') : 'payment'];
     const reference = maskReference(row.reference_number);
     if (reference) parts.push(reference);
     if (row.is_verified !== true) parts.push('(awaiting verification)');
-    lines.push(parts.join('  '));
+    lines.push(`${index + 1}. ${parts.join('  ')}`);
   }
   lines.push(answerFooter(hasContact));
   return lines.join('\n');
 }
 
-export function composeWalletAnswer(balance: number, hasContact: boolean): string {
-  return ['*Wallet*', `Balance: ${formatNaira(balance)}`, answerFooter(hasContact)].join('\n');
+/** One line per property with what is outstanding there, then the total (#1073 decision 1). */
+export function composeAllPropertiesOweAnswer(rows: { houseLabel: string; figures: OwedFigures }[], showPay: boolean, hasContact: boolean): string {
+  const amount = (value: number, rollForward?: boolean) => (rollForward ? formatBalance(value) : value > 0 ? formatNaira(value) : 'Nil');
+  const total = rows.reduce((sum, row) => sum + Math.max(row.figures.outstanding, 0), 0);
+  const awaiting = rows.reduce((sum, row) => sum + row.figures.awaitingVerification, 0);
+  const rollForward = rows.some((row) => row.figures.rollForward);
+  const lines = [
+    '*What you owe, all your properties*',
+    ...rows.map((row) => `${row.houseLabel}: ${amount(row.figures.outstanding, row.figures.rollForward)}`),
+    `Total: ${amount(total, rollForward)}`,
+  ];
+  if (awaiting > 0) lines.push(`Awaiting verification: ${formatNaira(awaiting)}`);
+  if (showPay && total > 0) lines.push('Reply PAY for how to pay');
+  lines.push(answerFooter(hasContact));
+  return lines.join('\n');
+}
+
+/** The wallet belongs to the person, not a house, so it is labelled so when they hold several (#1073 decision 3). */
+export function composeWalletAnswer(balance: number, hasContact: boolean, severalHouses = false): string {
+  return [severalHouses ? '*Wallet (all your properties)*' : '*Wallet*', `Balance: ${formatNaira(balance)}`, answerFooter(hasContact)].join('\n');
 }
 
 
@@ -582,12 +658,12 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
         .eq('is_active', true)
         .in('resident_role', ['resident_landlord', 'non_resident_landlord', 'tenant', 'developer']);
       if (error) throw error;
-      return (data || []).map((row) => {
-        const houseData = row.house as unknown as { house_number: string; short_name: string | null; street: { name: string } | { name: string }[] | null } | { house_number: string; short_name: string | null; street: { name: string } | { name: string }[] | null }[];
-        const house = Array.isArray(houseData) ? houseData[0] : houseData;
-        const street = Array.isArray(house.street) ? house.street[0]?.name : house.street?.name;
-        return { id: row.house_id, label: house.short_name || `${house.house_number}, ${street || 'Estate'}` };
-      });
+      const own = (data || []).map((row) => ({ id: row.house_id, label: houseLabel(row.house), role: row.resident_role }));
+      // A co-resident also sees the houses whose sponsor still lives there; a billable role of their own wins.
+      const sponsored = (await getSponsoredHouses(residentId))
+        .filter((link) => !own.some((house) => house.id === link.houseId))
+        .map((link) => ({ id: link.houseId, label: houseLabel(link.house), role: 'co_resident', accountResidentId: link.sponsorId, onBehalf: true }));
+      return [...own, ...sponsored];
     },
 
     async getAssistantSettings() {
@@ -629,7 +705,7 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
       const [unpaidResult, countResult, unverifiedResult, balance] = await Promise.all([
         supabase
           .from('invoices')
-          .select('invoice_number, amount_due, amount_paid, due_date')
+          .select('invoice_number, amount_due, amount_paid, due_date, invoice_type, period_start, billing_profile:billing_profiles(name)')
           .eq('resident_id', residentId)
           .eq('house_id', houseId)
           .in('status', ['unpaid', 'partially_paid'])
@@ -658,6 +734,10 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
       const unpaid = (unpaidResult.data || []).filter((invoice) => remaining(invoice) > 0);
       const overdue = unpaid.filter((invoice) => invoice.due_date.slice(0, 10) < today);
       const next = unpaid.find((invoice) => invoice.due_date.slice(0, 10) >= today);
+      const label = (invoice: (typeof unpaid)[number]) => {
+        const profile = Array.isArray(invoice.billing_profile) ? invoice.billing_profile[0] : invoice.billing_profile;
+        return chargeLabel({ invoice_type: invoice.invoice_type, profileName: profile?.name ?? null, periodStart: invoice.period_start });
+      };
       return {
         invoiceCount: countResult.count || 0,
         // Allocation-based (Σ amount_due − amount_paid) until balance_roll_forward_resident_enabled is
@@ -665,9 +745,9 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
         outstanding: balance ? balance.closingBalance : unpaid.reduce((sum, invoice) => sum + remaining(invoice), 0),
         ...(balance && { rollForward: true }),
         overdue: overdue.length
-          ? { total: overdue.reduce((sum, invoice) => sum + remaining(invoice), 0), count: overdue.length, oldestDue: overdue[0].due_date.slice(0, 10) }
+          ? { total: overdue.reduce((sum, invoice) => sum + remaining(invoice), 0), count: overdue.length, oldestDue: overdue[0].due_date.slice(0, 10), charges: overdue.map((invoice) => ({ label: label(invoice), amount: remaining(invoice) })) }
           : null,
-        next: next ? { amount: remaining(next), dueDate: next.due_date.slice(0, 10), invoiceNumber: next.invoice_number } : null,
+        next: next ? { amount: remaining(next), dueDate: next.due_date.slice(0, 10), invoiceNumber: next.invoice_number, label: label(next) } : null,
         awaitingVerification: balance
           ? balance.awaitingVerification
           : (unverifiedResult.data || []).reduce((sum, payment) => sum + Number(payment.amount || 0), 0),
@@ -718,6 +798,10 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
     loadReceipt,
     storeReceiptPdf,
     requestClearance: requestClearanceCertificate,
+    getCoResidents,
+    createCoResidentLinkCode,
+    getStatementPeriods: loadStatementPeriods,
+    getEstateName: estateName,
     loadStatement: loadWhatsAppStatementForPeriod,
     storeStatementPdf,
     askSurvey,
@@ -741,7 +825,8 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
         pin_authenticated: input.pinAuthenticated,
         // channel is not in the generated types until the 20261021150000 migration is applied.
         channel: input.channel ?? 'chat',
-        metadata: input.metadata ?? null,
+        // The asker is resident_id (the daily cap counts it); the owner of the figures rides in metadata.
+        metadata: input.accountResidentId ? { ...input.metadata, account_resident_id: input.accountResidentId } : input.metadata ?? null,
       } as never);
       if (error) throw error;
     },
@@ -817,9 +902,9 @@ async function sendFinancialReply(
 // The session's current_node is `<node>` or `<node>~<misses>`, misses being the
 // unrecognised replies in a row. Nodes: main, financial, answer (after a financial
 // answer), more, alerts, notices, disambiguate, statement_period,
-// property:<target> and pin:<target>, where target is menu, switch or an item.
+// link_pick, property:<target> and pin:<target>, where target is menu, switch, link or an item.
 
-type Target = 'menu' | 'switch' | 'report' | FinancialMenuItem;
+type Target = 'menu' | 'switch' | 'report' | 'link' | FinancialMenuItem;
 
 const GREETINGS = new Set(['menu', 'hi', 'hello', 'yes', 'start']);
 const CONTACT_WORDS = new Set(['9', 'help', 'agent', 'contact']);
@@ -909,8 +994,31 @@ async function showMain(turn: Turn, prefix?: string): Promise<void> {
   await respond(turn, prefix ? `${prefix}\n\n${menu}` : menu, 'main');
 }
 
+/** The resident whose invoices and payments this house shows: the asker, or the sponsor for a co-resident (#1071). */
+function accountOf(turn: Turn, house: FinancialHouse): string {
+  return house.accountResidentId ?? turn.identity.id;
+}
+
+const CO_RESIDENT_REFUSAL = "That isn't available for a co-resident. The wallet and clearance certificate stay with the account holder.";
+
 function selectedHouse(turn: Turn): FinancialHouse | null {
   return turn.houses?.find((house) => house.id === turn.session.selectedHouseId) ?? null;
+}
+
+/** The resident landlord or tenant of the house, who may link their co-residents (#1072 decision 1). */
+function isSponsorHouse(house: FinancialHouse | null): boolean {
+  return !!house && !house.onBehalf && SPONSOR_ROLES.includes(house.role);
+}
+
+const LINK_WORDS = new Set(['link co-resident', 'link co resident', 'link a co-resident']);
+
+/** The More menu: Switch property for several houses, Link a co-resident for a sponsor (#1072 decision 3). */
+function moreItems(turn: Turn): { label: string; target: Target }[] {
+  const house = selectedHouse(turn);
+  return [
+    ...((turn.houses || []).length > 1 ? [{ label: `Switch property${house ? ` (now: ${house.label})` : ''}`, target: 'switch' as const }] : []),
+    ...(isSponsorHouse(house) ? [{ label: 'Link a co-resident', target: 'link' as const }] : []),
+  ];
 }
 
 function financialMenu(turn: Turn): string {
@@ -928,21 +1036,25 @@ function financialMenu(turn: Turn): string {
     '1. What I owe',
     '2. Recent payments',
     '3. Statement',
-    '4. Wallet',
+    ...(house?.onBehalf ? [] : ['4. Wallet']),
     '5. Receipt',
     '6. Report a payment',
-    '7. Clearance certificate',
-    ...(multiple ? ['8. More'] : []),
+    ...(house && !OCCUPANT_ROLES.has(house.role) ? [] : ['7. Clearance certificate']),
+    ...(moreItems(turn).length > 0 ? ['8. More'] : []),
     lastLine,
   ].join('\n');
 }
 
-function propertyPrompt(houses: FinancialHouse[]): string {
-  return ['Which property?', ...houses.map((house, index) => `${index + 1}. ${house.label}`), 'Reply with the property number.'].join('\n');
+const ALL_PROPERTIES = 'All my properties';
+
+/** What I owe offers a summary of every property, as the last choice (#1073 decision 1). */
+function propertyPrompt(houses: FinancialHouse[], withAll = false): string {
+  return ['Which property?', ...houses.map((house, index) => `${index + 1}. ${house.label}`), ...(withAll ? [`${houses.length + 1}. ${ALL_PROPERTIES}`] : []), 'Reply with the property number.'].join('\n');
 }
 
-function statementPeriodPrompt(): string {
-  return ['Which period?', '1. This month', '2. This year', '3. Last 6 months', '4. Last 12 months', '5. All time', '6. Since move-in', 'Reply with the period number.'].join('\n');
+function statementPeriodPrompt(periods: StatementPeriod[]): string {
+  const label = (period: StatementPeriod) => PERIOD_LABELS[period].replace(/^\w/, (c) => c.toUpperCase());
+  return ['Which period?', ...periods.map((period, index) => `${index + 1}. ${label(period)}`), 'Reply with the period number.'].join('\n');
 }
 
 async function miss(turn: Turn, node: string): Promise<void> {
@@ -963,7 +1075,7 @@ function emailPinPrompt(turn: Turn): string {
 }
 
 /** Enter Financial standing (or one of its items), passing the PIN gate and property choice first. */
-async function enterFinancial(turn: Turn, target: Target, prefix?: string): Promise<void> {
+async function enterFinancial(turn: Turn, target: Target, prefix?: string, propertyChosen = false): Promise<void> {
   const houses = turn.identity.financialEligible ? await loadHouses(turn) : [];
   if (houses.length === 0) {
     await showMain(turn, 'Financial standing is only available to residents billed for a property.');
@@ -979,24 +1091,76 @@ async function enterFinancial(turn: Turn, target: Target, prefix?: string): Prom
   }
 
   const lead = prefix ? `${prefix}\n\n` : '';
-  if (target === 'switch' || (!selectedHouse(turn) && houses.length > 1)) {
-    await respond(turn, `${lead}${propertyPrompt(houses)}`, `property:${target}`);
+  if (target === 'switch' || (!selectedHouse(turn) && houses.length > 1) || (target === 'what_i_owe' && houses.length > 1 && !propertyChosen)) {
+    await respond(turn, `${lead}${propertyPrompt(houses, target === 'what_i_owe')}`, `property:${target}`);
     return;
   }
   if (!selectedHouse(turn)) turn.session.selectedHouseId = houses[0].id;
+
+  if (selectedHouse(turn)?.onBehalf && (target === 'wallet' || target === 'clearance')) {
+    await respond(turn, `${lead}${CO_RESIDENT_REFUSAL}\n${financialMenu(turn)}`, 'financial');
+    return;
+  }
 
   if (target === 'menu') {
     await respond(turn, `${lead}${financialMenu(turn)}`, 'financial');
     return;
   }
   if (target === 'statement') {
-    await respond(turn, `${lead}${statementPeriodPrompt()}`, 'statement_period');
+    await respond(turn, `${lead}${statementPeriodPrompt(await turn.options.repository.getStatementPeriods(accountOf(turn, selectedHouse(turn)!), selectedHouse(turn)!.id))}`, 'statement_period');
     return;
   }
   if (target === 'report') return startReport(turn, lead);
+  if (target === 'link') return showCoResidents(turn, lead);
   if (target === 'receipt') return showReceipts(turn, lead);
   if (target === 'clearance') return askForClearance(turn, lead);
   await answerItem(turn, target, prefix);
+}
+
+function coResidentPrompt(people: CoResident[]): string {
+  return ['Which co-resident?', ...people.map((person, index) => `${index + 1}. ${person.firstName} ${person.lastName}`), 'Reply with the number.'].join('\n');
+}
+
+/**
+ * Link a co-resident (#1072): only the sponsor, only after their PIN, and only for a co-resident already
+ * on record for the selected house. The bot never creates a resident.
+ */
+async function showCoResidents(turn: Turn, lead: string): Promise<void> {
+  const house = selectedHouse(turn)!;
+  if (!turn.session.pinAuthenticated) {
+    // Issuing a credential always needs the PIN, even where the estate does not require one for viewing.
+    return respond(turn, `${lead}A security PIN is required before linking a co-resident. To set one, ${SET_PIN_HINT}.\n${footer(turn)}`, 'answer');
+  }
+  if (!isSponsorHouse(house)) {
+    return respond(turn, `${lead}Only the resident landlord or tenant of ${house.label} can link a co-resident.\n${financialMenu(turn)}`, 'financial');
+  }
+  const people = await turn.options.repository.getCoResidents(turn.identity.id, house.id);
+  if (people.length === 0) {
+    return respond(turn, `${lead}${withContact(turn, `There is no co-resident on record for ${house.label}. Ask the estate office to add them first.`)}\n${footer(turn)}`, 'answer');
+  }
+  await respond(turn, `${lead}${coResidentPrompt(people)}`, 'link_pick');
+}
+
+async function pickCoResident(turn: Turn, input: string): Promise<void> {
+  await loadHouses(turn);
+  const house = selectedHouse(turn);
+  // The unlock or the house can change between the list and the pick; check again before issuing.
+  if (!house || !turn.session.pinAuthenticated || !isSponsorHouse(house)) return enterFinancial(turn, 'link');
+  const people = await turn.options.repository.getCoResidents(turn.identity.id, house.id);
+  const person = /^\d+$/.test(input) ? people[Number(input) - 1] : undefined;
+  if (!person) return miss(turn, 'link_pick');
+  const issued = await turn.options.repository.createCoResidentLinkCode({ sponsorId: turn.identity.id, coResidentId: person.id, houseId: house.id });
+  if (!issued) return respond(turn, `${withContact(turn, 'The link code could not be created. Nothing was changed. Please try again.')}\n${footer(turn)}`, 'answer');
+  await respond(
+    turn,
+    [
+      `Link code for ${person.firstName} ${person.lastName}: *${issued.code}*`,
+      `It works once and expires in ${CO_RESIDENT_LINK_CODE_MINUTES} minutes. Any earlier code for ${person.firstName} no longer works.`,
+      `Ask ${person.firstName} to send LINK ${issued.code} to this WhatsApp number from their own phone. It cannot be used from your number.`,
+      footer(turn),
+    ].join('\n'),
+    'answer'
+  );
 }
 
 async function capReply(turn: Turn): Promise<string | null> {
@@ -1005,6 +1169,30 @@ async function capReply(turn: Turn): Promise<string | null> {
   if (allowance === 'resident_cap') return withContact(turn, RESIDENT_CAP_REPLY);
   if (allowance === 'estate_cap') return withContact(turn, ESTATE_CAP_REPLY);
   return null;
+}
+
+/** One summary of every house: one lookup against the cap and one disclosure log row (#1073 decision 5). */
+async function answerAllProperties(turn: Turn): Promise<void> {
+  if ((await loadPinGate(turn)) && !turn.session.pinAuthenticated) return enterFinancial(turn, 'what_i_owe');
+  const houses = turn.houses || [];
+  const capped = await capReply(turn);
+  if (capped) return respond(turn, capped, 'financial');
+
+  const repository = turn.options.repository;
+  const rows = await Promise.all(houses.map(async (house) => ({ houseLabel: house.label, figures: await repository.getOwed(accountOf(turn, house), house.id) })));
+  const body = composeAllPropertiesOweAnswer(rows, !!turn.settings?.paymentInstructions, !!turn.contact);
+  const sponsors = [...new Set(houses.flatMap((house) => (house.accountResidentId ? [house.accountResidentId] : [])))];
+  await repository.logDisclosure({
+    residentId: turn.identity.id,
+    phoneNumber: turn.phoneNumber,
+    houseId: null,
+    menuItem: 'what_i_owe',
+    pinAuthenticated: turn.session.pinAuthenticated,
+    accountResidentId: sponsors.length === 1 ? sponsors[0] : undefined,
+    metadata: { scope: 'all_properties', houses: houses.length, ...(sponsors.length > 1 ? { account_resident_ids: sponsors } : {}) },
+  });
+  turn.answered = true;
+  await respond(turn, body, 'answer');
 }
 
 async function answerItem(turn: Turn, item: Exclude<FinancialMenuItem, 'statement'>, prefix?: string): Promise<void> {
@@ -1021,11 +1209,11 @@ async function answerItem(turn: Turn, item: Exclude<FinancialMenuItem, 'statemen
   const hasContact = !!turn.contact;
   let body: string;
   if (item === 'what_i_owe') {
-    body = composeOweAnswer(await repository.getOwed(turn.identity.id, house.id), house.label, !!turn.settings?.paymentInstructions, hasContact);
+    body = composeOweAnswer(await repository.getOwed(accountOf(turn, house), house.id), house.label, !!turn.settings?.paymentInstructions, hasContact);
   } else if (item === 'recent_payments') {
-    body = composeRecentPaymentsAnswer(await repository.getRecentPayments(turn.identity.id, house.id, RECENT_PAYMENT_COUNT), house.label, hasContact);
+    body = composeRecentPaymentsAnswer(await repository.getRecentPayments(accountOf(turn, house), house.id, RECENT_PAYMENT_COUNT), house.label, hasContact);
   } else {
-    body = composeWalletAnswer(await repository.getWalletBalance(turn.identity.id), hasContact);
+    body = composeWalletAnswer(await repository.getWalletBalance(turn.identity.id), hasContact, (turn.houses?.length ?? 0) > 1);
   }
 
   // Log before sending (#795): a failed log then discloses nothing, and a provider retry cannot repeat an answer.
@@ -1035,6 +1223,7 @@ async function answerItem(turn: Turn, item: Exclude<FinancialMenuItem, 'statemen
     houseId: house.id,
     menuItem: item,
     pinAuthenticated: turn.session.pinAuthenticated,
+    accountResidentId: house.accountResidentId,
   });
   turn.answered = true;
   await respond(turn, `${lead}${body}`, 'answer');
@@ -1064,7 +1253,7 @@ async function deliverStatementPdf(turn: Turn, period: StatementPeriod): Promise
   if (capped) return respond(turn, capped, 'financial');
 
   const repository = turn.options.repository;
-  const loaded = await repository.loadStatement(turn.identity.id, house.id, period, new Date());
+  const loaded = await repository.loadStatement(accountOf(turn, house), house.id, period, new Date());
   if (!loaded) return respond(turn, `${withContact(turn, NO_MOVE_IN_REPLY)}\n${footer(turn)}`, 'financial');
   const { fromDate, toDate, statement } = loaded;
   const rowCount = statement.transactions.length;
@@ -1079,6 +1268,7 @@ async function deliverStatementPdf(turn: Turn, period: StatementPeriod): Promise
       houseId: house.id,
       menuItem: 'statement',
       pinAuthenticated: turn.session.pinAuthenticated,
+      accountResidentId: house.accountResidentId,
       channel: 'pdf',
       metadata: { period, row_count: rowCount },
     });
@@ -1105,7 +1295,7 @@ async function confirmStatementEmail(turn: Turn, period: StatementPeriod): Promi
   const repository = turn.options.repository;
   const email = await repository.getResidentEmail(turn.identity.id);
   if (!email) return deliverStatementPdf(turn, period);
-  const loaded = await repository.loadStatement(turn.identity.id, house.id, period, new Date());
+  const loaded = await repository.loadStatement(accountOf(turn, house), house.id, period, new Date());
   if (!loaded) return respond(turn, `${withContact(turn, NO_MOVE_IN_REPLY)}\n${footer(turn)}`, 'financial');
   const { fromDate, toDate, statement } = loaded;
   await repository.logDisclosure({
@@ -1114,6 +1304,7 @@ async function confirmStatementEmail(turn: Turn, period: StatementPeriod): Promi
     houseId: house.id,
     menuItem: 'statement',
     pinAuthenticated: turn.session.pinAuthenticated,
+    accountResidentId: house.accountResidentId,
     channel: 'email',
     metadata: { period, row_count: statement.transactions.length },
   });
@@ -1170,7 +1361,7 @@ async function showReceipts(turn: Turn, lead: string): Promise<void> {
   if (capped) return respond(turn, capped, 'financial');
 
   const repository = turn.options.repository;
-  const payments = await repository.getReceiptPayments(turn.identity.id, house.id, RECEIPT_COUNT);
+  const payments = await repository.getReceiptPayments(accountOf(turn, house), house.id, RECEIPT_COUNT);
   // The list shows amounts and dates, so it is a disclosure like Recent payments (#795).
   await repository.logDisclosure({
     residentId: turn.identity.id,
@@ -1178,6 +1369,7 @@ async function showReceipts(turn: Turn, lead: string): Promise<void> {
     houseId: house.id,
     menuItem: 'receipt',
     pinAuthenticated: turn.session.pinAuthenticated,
+    accountResidentId: house.accountResidentId,
     metadata: { step: 'list', row_count: payments.length },
   });
   if (payments.length === 0) return respond(turn, `${lead}*Receipts, ${house.label}*\nNo payments recorded for ${house.label}.\n${footer(turn)}`, 'answer');
@@ -1202,7 +1394,7 @@ async function pickReceipt(turn: Turn, input: string): Promise<void> {
   if (capped) return respond(turn, capped, 'financial');
 
   const repository = turn.options.repository;
-  const receipt = payment.verified ? await repository.loadReceipt(turn.identity.id, house.id, payment.id) : null;
+  const receipt = payment.verified ? await repository.loadReceipt(accountOf(turn, house), house.id, payment.id) : null;
   if (!receipt) return respond(turn, `A receipt is available once this payment is verified.\n${footer(turn)}`, 'answer');
 
   const body = [`*Receipt, ${house.label}*`, `${formatNaira(receipt.amount)} on ${formatDay(receipt.paymentDate)}. Your PDF is attached.`, footer(turn)].join('\n');
@@ -1213,6 +1405,7 @@ async function pickReceipt(turn: Turn, input: string): Promise<void> {
     houseId: house.id,
     menuItem: 'receipt',
     pinAuthenticated: turn.session.pinAuthenticated,
+    accountResidentId: house.accountResidentId,
     channel: 'pdf',
     metadata: { step: 'pdf', payment_id: payment.id },
   });
@@ -1228,6 +1421,7 @@ async function pickReceipt(turn: Turn, input: string): Promise<void> {
 async function askForClearance(turn: Turn, lead: string): Promise<void> {
   const house = selectedHouse(turn);
   if (!house) return;
+  if (!OCCUPANT_ROLES.has(house.role)) return respond(turn, `${lead}${NOT_OCCUPANT_CLEARANCE_REPLY}\n${footer(turn)}`, 'answer');
   const capped = await capReply(turn);
   if (capped) return respond(turn, capped, 'financial');
 
@@ -1339,7 +1533,8 @@ async function reportStep(turn: Turn, node: string): Promise<void> {
   if (draft.amount === undefined || !draft.paymentDate || !draft.reference) return showMain(turn, 'That report could not be continued. Nothing was sent.');
 
   const result = await turn.options.repository.createPaymentReport({
-    residentId: turn.identity.id,
+    residentId: accountOf(turn, house),
+    ...(house.onBehalf && { reportedByResidentId: turn.identity.id }),
     houseId: house.id,
     houseLabel: house.label,
     amount: draft.amount,
@@ -1542,7 +1737,7 @@ async function handlePin(turn: Turn, pin: string, node: string): Promise<void> {
   turn.pinGate = true;
   const target = node.startsWith('pin:') ? node.slice(4) : 'menu';
   if (target === 'email') return startEmail(turn, 'PIN verified.');
-  const account = target === 'report' || target === 'receipt' || target === 'clearance';
+  const account = target === 'report' || target === 'receipt' || target === 'clearance' || target === 'link';
   await enterFinancial(turn, target as Target, account ? 'PIN verified.' : PIN_VERIFIED_REPLY);
 }
 /** `PIN`, `Set a security PIN` or `Change PIN` (#892). */
@@ -1618,13 +1813,23 @@ async function handlePinStep(turn: Turn, step: string, arg: string | undefined, 
 
 async function chooseProperty(turn: Turn, target: Target): Promise<void> {
   const houses = await loadHouses(turn);
+  if (target === 'what_i_owe' && houses.length > 1 && turn.text.trim() === String(houses.length + 1)) return answerAllProperties(turn);
   const house = /^\d+$/.test(turn.text) ? houses[Number(turn.text) - 1] : undefined;
   if (!house) return miss(turn, `property:${target}`);
   turn.session.selectedHouseId = house.id;
-  return enterFinancial(turn, target === 'switch' ? 'menu' : target);
+  return enterFinancial(turn, target === 'switch' ? 'menu' : target, undefined, true);
 }
 
-async function converse(turn: Turn, expired: boolean): Promise<void> {
+async function endSession(turn: Turn): Promise<void> {
+  const wasUnlocked = turn.session.pinAuthenticated;
+  const name = await turn.options.repository.getEstateName();
+  const body = `Thank you for using the ${name} Assistant. Your session has ended.${wasUnlocked ? ' Your PIN is locked.' : ''} Send HI at any time to start again.`;
+  await sendFinancialReply(turn.message, body, turn.options.send, turn.identity.id);
+  Object.assign(turn.session, { currentNode: ENDED_NODE, pinAuthenticated: false, draft: null, pendingPinHash: null, expiresAt: new Date().toISOString() });
+  await turn.options.repository.saveSession(turn.session);
+}
+
+async function converse(turn: Turn, expired: boolean, endedOnPurpose = false): Promise<void> {
   const { text } = turn;
   const input = normalizeInput(text);
   let { node } = readNode(turn.session.currentNode);
@@ -1646,6 +1851,9 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
   // Update email asks for the PIN of every resident, so the community tier can answer it too (#816 decision 6).
   if (pinCommand && (turn.identity.financialEligible || node === 'pin:email')) return handlePin(turn, pinCommand[1], node);
 
+  if (EXIT_WORDS.has(input)) return endSession(turn);
+
+  if (endedOnPurpose) return showMain(turn);
   if (expired) {
     const pinClause = turn.identity.financialEligible && (await loadPinGate(turn)) ? ', so your PIN is needed again' : '';
     return showMain(turn, `Your session ended after ${SESSION_MINUTES} minutes without activity${pinClause}. Nothing was changed.`);
@@ -1682,7 +1890,7 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
   }
   if (CONTACT_WORDS.has(input)) return showContact(turn);
   if (input === '0') {
-    const backToFinancial = node === 'answer' || node === 'more' || node === 'statement_period' || node.startsWith('report_') || node.startsWith('receipt_') || node.startsWith('property:') || node.startsWith('statement_email:');
+    const backToFinancial = node === 'answer' || node === 'more' || node === 'link_pick' || node === 'statement_period' || node.startsWith('report_') || node.startsWith('receipt_') || node.startsWith('property:') || node.startsWith('statement_email:');
     return backToFinancial && turn.identity.financialEligible ? enterFinancial(turn, 'menu') : showMain(turn);
   }
 
@@ -1691,6 +1899,9 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
   if (node === 'receipt_pick') return pickReceipt(turn, input);
   if (node === 'email_address') return submitEmailAddress(turn);
   if (node === 'email_code') return submitEmailCode(turn);
+
+  if (LINK_WORDS.has(input) && turn.identity.financialEligible) return enterFinancial(turn, 'link');
+  if (node === 'link_pick') return pickCoResident(turn, input);
 
   const intent = turn.settings?.keywordSynonyms[input] ?? DEFAULT_KEYWORDS[input];
   if (intent) return runIntent(turn, intent);
@@ -1710,10 +1921,13 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
   }
 
   if (node === 'statement_period') {
-    const period = /^[1-6]$/.test(input) ? PERIODS[Number(input) - 1] : /^since move[ -]in$/.test(input) ? 'since_move_in' : null;
-    if (!period) return miss(turn, node);
     await loadHouses(turn);
     if (!selectedHouse(turn)) return enterFinancial(turn, 'statement');
+    // Read against the list the resident saw, worked out the same way (#1069).
+    const offered = await turn.options.repository.getStatementPeriods(accountOf(turn, selectedHouse(turn)!), selectedHouse(turn)!.id);
+    const typed = /^since move[ -]in$/.test(input) ? 'since_move_in' : input === 'all time' ? (offered.includes('all_time') ? 'all_time' : 'since_move_in') : null;
+    const period = /^\d$/.test(input) ? offered[Number(input) - 1] : typed;
+    if (!period) return miss(turn, node);
     return deliverStatementPdf(turn, period);
   }
 
@@ -1741,16 +1955,19 @@ async function converse(turn: Turn, expired: boolean): Promise<void> {
   }
 
   if (node === 'more') {
-    if (input === '1' && (await loadHouses(turn)).length > 1) return enterFinancial(turn, 'switch');
+    await loadHouses(turn);
+    const item = /^\d$/.test(input) ? moreItems(turn)[Number(input) - 1] : undefined;
+    if (item) return enterFinancial(turn, item.target);
     return miss(turn, node);
   }
 
   if (node === 'financial' || node === 'answer' || node.startsWith('statement:')) {
     const item = FINANCIAL_ITEM_NUMBERS[input];
     if (item) return enterFinancial(turn, item);
-    if (input === '8' && (await loadHouses(turn)).length > 1) {
-      const house = selectedHouse(turn);
-      return respond(turn, ['More', `1. Switch property${house ? ` (now: ${house.label})` : ''}`, footer(turn)].join('\n'), 'more');
+    await loadHouses(turn);
+    const more = moreItems(turn);
+    if (input === '8' && more.length > 0) {
+      return respond(turn, ['More', ...more.map((entry, index) => `${index + 1}. ${entry.label}`), footer(turn)].join('\n'), 'more');
     }
     return miss(turn, node);
   }
@@ -1816,7 +2033,7 @@ export async function handleFinancialMessage(
     }
     turn.settings = await options.repository.getAssistantSettings();
     turn.contact = contactLine({ phone: turn.settings.estatePhone, email: turn.settings.estateEmail, hours: turn.settings.officeHours }, new Date());
-    await converse(turn, expired);
+    await converse(turn, expired, expired && stored?.currentNode === ENDED_NODE);
   } catch (error) {
     if (error instanceof ReplySendError) throw error;
     console.error('WhatsApp Assistant lookup failed:', error);

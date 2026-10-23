@@ -25,6 +25,7 @@ interface GetApprovalRequestsResponse {
 interface ApprovalActionResponse {
   success: boolean;
   error: string | null;
+  warning?: string;
 }
 
 interface PendingCountResponse {
@@ -320,9 +321,9 @@ export async function approveRequest(
 
   await auditDecision('APPROVE', request, 'approved', auth.userId!, notes);
 
-  await notifyRequesterOfOutcome({ request, outcome: 'approved', reviewerId: auth.userId, reviewNotes: notes });
+  const notifyWarning = await notifyRequesterOfOutcome({ request, outcome: 'approved', reviewerId: auth.userId, reviewNotes: notes });
 
-  return { success: true, error: null };
+  return { success: true, error: null, warning: applyResult.warning ?? notifyWarning };
 }
 
 // Re-apply an approved request whose change was never applied (#557): the process died between
@@ -397,14 +398,14 @@ export async function reapplyApprovedRequest(requestId: string): Promise<Approva
     newValues: { applied_at: appliedAt },
   });
 
-  await notifyRequesterOfOutcome({
+  const notifyWarning = await notifyRequesterOfOutcome({
     request,
     outcome: 'approved',
     reviewerId: auth.userId,
     reviewNotes: request.review_notes,
   });
 
-  return { success: true, error: null };
+  return { success: true, error: null, warning: applyResult.warning ?? notifyWarning };
 }
 
 // Reject a request. A requester MAY reject their own request (withdrawing it), so there is
@@ -447,9 +448,9 @@ export async function rejectRequest(
 
   await auditDecision('REJECT', request, 'rejected', auth.userId!, notes);
 
-  await notifyRequesterOfOutcome({ request, outcome: 'rejected', reviewerId: auth.userId, reviewNotes: notes });
+  const warning = await notifyRequesterOfOutcome({ request, outcome: 'rejected', reviewerId: auth.userId, reviewNotes: notes });
 
-  return { success: true, error: null };
+  return { success: true, error: null, warning };
 }
 
 // Apply the requested changes through the request-type registry: unknown/unhandled type fails

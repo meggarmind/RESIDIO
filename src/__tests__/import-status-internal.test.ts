@@ -221,10 +221,11 @@ describe('createImportRows only accepts a pending import (#556)', () => {
 
   it('inserts rows and moves pending -> processing', async () => {
     results['bank_statement_imports.select'] = { data: { status: 'pending' } };
+    results['bank_statement_rows.upsert'] = { data: [{ id: 1 }] };
     const res = await createImportRows({ import_id: uid(1), rows });
     expect(res.error).toBeNull();
     expect(res.count).toBe(1);
-    expect(calls).toContain('write:bank_statement_rows.insert');
+    expect(calls).toContain('write:bank_statement_rows.upsert');
     expect(calls).toContain('write:bank_statement_imports.update');
   });
 

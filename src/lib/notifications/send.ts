@@ -34,7 +34,9 @@ import { sendSms } from '@/lib/sms/send-sms';
 import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
 import type { CommsSendContext } from '@/lib/comms-override/types';
 import { PRIORITY } from '@/lib/notifications/queue';
-import { nextUtcMidnight, resolveBurstWindowMinutes, retryDelayMs } from './retry';
+import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
+import { RESIDENT_SEND_METADATA_KEY, settleClearanceCopy, type ResidentSendPayload } from '@/lib/whatsapp/resident-send';
+import { nextLagosMidnight, resolveBurstWindowMinutes, retryDelayMs } from './retry';
 
 /** `sendImmediate` builds a pseudo queue item with this id; it has no queue row. */
 const IMMEDIATE_ITEM_ID = 'immediate';
@@ -181,11 +183,14 @@ async function sendViaWhatsApp(
   }
   // Pre-send checks (kill switch, rollout, caps, opt-in, template) live in the
   // Send Policy module; anything other than 'allow' stops here.
+  // A deferred system message to a resident (#1044) is free-form: no template to check.
+  const residentSend = item.metadata?.[RESIDENT_SEND_METADATA_KEY] as ResidentSendPayload | undefined;
   const decision = await evaluateSendPolicy(
     {
       recipientId: item.recipient_id,
       recipientPhone: item.recipient_phone,
       metadata: item.metadata,
+      ...(residentSend ? { freeForm: true } : {}),
     },
     createSendPolicyFacts()
   );
@@ -205,6 +210,8 @@ async function sendViaWhatsApp(
     // zero cap, unverifiable state): retrying cannot change it.
     return { success: false, error: decision.message };
   }
+
+  if (residentSend) return sendQueuedResidentMessage(item, residentSend, context);
 
   const templateMessage = {
     to: decision.normalizedPhone,
@@ -297,8 +304,43 @@ async function sendViaWhatsApp(
   };
 }
 
-/** When a Send Policy `defer` should be retried: next UTC midnight for the daily cap, one burst window for the burst cap. */
-async function resolveDeferRetryAt(reason: string): Promise<Date> {
+/** Sends a message the cap held back (#1044), signing a fresh URL for its stored file. The policy has already allowed it. */
+async function sendQueuedResidentMessage(
+  item: NotificationQueueItem,
+  payload: ResidentSendPayload,
+  context?: CommsSendContext
+): Promise<SendNotificationResult> {
+  const mediaUrls: string[] = [];
+  for (const file of payload.media ?? []) {
+    const signed = await createAdminClient().storage.from(file.bucket).createSignedUrl(file.path, 60 * 60);
+    // The file may be unreadable only for now; the queue tries again.
+    if (!signed.data?.signedUrl) {
+      return { success: false, error: `Attachment could not be signed: ${signed.error?.message || 'no URL'}`, retryable: true };
+    }
+    mediaUrls.push(signed.data.signedUrl);
+  }
+  const result = await sendWhatsAppMessage(
+    { to: item.recipient_phone as string, body: item.body, idempotencySeed: payload.seed, ...(mediaUrls.length ? { mediaUrls } : {}) },
+    undefined,
+    context,
+    {
+      purpose: 'notification',
+      residentId: item.recipient_id as string,
+      notificationQueueId: item.id,
+      ...(payload.trackingId ? { inboundMessageId: payload.trackingId } : {}),
+    }
+  );
+  return {
+    success: result.success,
+    externalId: result.messageId,
+    error: result.error,
+    ...(result.override ? { metadata: { override: result.override } } : {}),
+    ...(!result.success && (result.retryable ?? true) ? { retryable: true } : {}),
+  };
+}
+
+/** When a Send Policy `defer` should be retried: next Lagos midnight for the daily cap, one burst window for the burst cap. */
+export async function resolveDeferRetryAt(reason: string): Promise<Date> {
   const now = new Date();
   if (reason === 'burst_limit_reached') {
     const windowMinutes = resolveBurstWindowMinutes(
@@ -306,7 +348,7 @@ async function resolveDeferRetryAt(reason: string): Promise<Date> {
     );
     return new Date(now.getTime() + windowMinutes * 60 * 1000);
   }
-  return nextUtcMidnight(now);
+  return nextLagosMidnight(now);
 }
 
 /**
@@ -475,6 +517,9 @@ export async function sendAndRecordNotification(
   if (queueError) {
     console.error('[Notifications] Failed to update queue item:', queueError);
   }
+
+  // A clearance copy the cap held back (#1044) leaves 'scheduled' once it is delivered or finally fails.
+  if (!willRetry) await settleClearanceCopy(item.metadata, result.success ? null : result.error || 'send failed');
 
   const candidateId = item.metadata && typeof item.metadata.candidateId === 'string'
     ? item.metadata.candidateId

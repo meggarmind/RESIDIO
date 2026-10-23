@@ -34,6 +34,7 @@ const februaryVersion: BillingProfileVersion = {
 const profile: GenerationProfile = {
     id: 'profile-1',
     name: 'Standard 3-Bed Rate',
+    payer: 'occupant',
     targetType: 'house',
     applicableRoles: null,
 };
@@ -148,8 +149,8 @@ describe('resolveBillableCandidates version fallbacks', () => {
         expect(message).toMatch(/no version was in effect/i);
     });
 
-    it('does not double-report a period for a resident-targeted profile with several residents', () => {
-        const residentProfile: GenerationProfile = { ...profile, targetType: 'resident', applicableRoles: ['tenant', 'resident_landlord'] };
+    it('reports a fallback period once for a house with several residents', () => {
+        const residentProfile: GenerationProfile = { ...profile, applicableRoles: ['tenant', 'resident_landlord'] };
         const sharedHouse: GenerationHouse = {
             ...house('house-1', 'A1'),
             residents: [
@@ -165,7 +166,7 @@ describe('resolveBillableCandidates version fallbacks', () => {
             houses: [sharedHouse],
         });
 
-        expect(result.candidates).toHaveLength(2);
+        expect(result.candidates).toHaveLength(1);
         expect(result.versionFallbacks).toHaveLength(1);
     });
 });

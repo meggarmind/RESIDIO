@@ -160,10 +160,13 @@ export function useGenerateRetroactiveLevies() {
             return result;
         },
         onSuccess: (result) => {
-            if (result.generated === 0) {
-                toast.info('No new levies to generate - all houses are up to date');
-            } else {
+            if (result.generated > 0) {
                 toast.success(`Generated ${result.generated} levies for existing houses`);
+            } else if (!result.warnings.length) {
+                toast.info('No new levies to generate - all houses are up to date');
+            }
+            if (result.warnings.length) {
+                toast.warning(result.warnings.join('\n'));
             }
             queryClient.invalidateQueries({ queryKey: ['invoices'] });
         },

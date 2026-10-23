@@ -76,6 +76,16 @@ export const PERIOD_LABELS: Record<StatementPeriod, string> = {
 };
 export const PERIODS: StatementPeriod[] = ['this_month', 'this_year', 'last_six_months', 'last_twelve_months', 'all_time', 'since_move_in'];
 
+/**
+ * The periods one resident is offered for one house (#1069). All time repeats Since move-in unless
+ * something is dated before the move-in; with no move-in date there is no Since move-in at all.
+ */
+export function offeredPeriods(hasMoveIn: boolean, hasEarlierActivity: boolean): StatementPeriod[] {
+  const calendar = PERIODS.slice(0, 4);
+  if (!hasMoveIn) return [...calendar, 'all_time'];
+  return hasEarlierActivity ? PERIODS : [...calendar, 'since_move_in'];
+}
+
 /** Period boundaries in Africa/Lagos (#804 decisions 22-23); "last 6 months" is this month plus the 5 before. */
 export function statementRange(period: StatementPeriod, now: Date): { from: Date | null; to: Date } {
   const { year, month } = lagosParts(now);
@@ -245,6 +255,16 @@ export function contactLine(contact: EstateContact, now: Date): string | null {
   const line = `Contact the estate office on ${channels.join(' or ')}${hoursText ? `, ${hoursText}` : ''}.`;
   const back = contact.hours ? officeBackLine(contact.hours, now) : null;
   return back ? `${line} ${back}` : line;
+}
+
+/**
+ * What an invoice is for, in the resident's words (#1073): the billing profile name, else the invoice
+ * type. Dues-style charges that recur carry their month (`Security dues, OCT 2026`); a levy does not.
+ */
+export function chargeLabel(invoice: { invoice_type: string | null; profileName: string | null; periodStart: string | null }): string {
+  const name = invoice.profileName?.trim() || (invoice.invoice_type === 'LEVY' ? 'Levy' : invoice.invoice_type === 'SERVICE_CHARGE' ? 'Service charge' : 'Charge');
+  const month = invoice.invoice_type === 'SERVICE_CHARGE' ? invoice.periodStart?.match(/^(\d{4})-(\d{2})/) : null;
+  return month ? `${name}, ${MONTHS[Number(month[2]) - 1].toUpperCase()} ${month[1]}` : name;
 }
 
 /** Last line of every answer. */

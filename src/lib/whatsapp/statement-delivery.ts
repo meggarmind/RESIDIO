@@ -11,8 +11,8 @@ import { WhatsAppStatementEmail } from '@/emails/whatsapp-statement';
 import { addToQueue, PRIORITY } from '@/lib/notifications/queue';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
-import { LEVY_BILLABLE_ROLES } from '@/lib/billing/retroactive-levy-plan';
-import { earliestMoveIn, formatDay, formatNaira, PERIOD_LABELS, statementDates, type StatementPeriod } from '@/lib/whatsapp/assistant-format';
+import { getSponsoredHouses } from '@/lib/whatsapp/co-resident';
+import { earliestMoveIn, formatDay, formatNaira, offeredPeriods, PERIOD_LABELS, statementDates, type StatementPeriod } from '@/lib/whatsapp/assistant-format';
 
 /**
  * Statement PDF delivery for the WhatsApp Assistant (#804 decision 24, #917): every statement is a
@@ -26,6 +26,8 @@ export const STATEMENT_FILE_HOURS = 12;
 /** Shared with the privacy notice (#871); statements live under statements/. */
 const MEDIA_BUCKET = 'whatsapp-media';
 const SIGNED_URL_SECONDS = 60 * 60;
+/** Roles whose tenancy at a house starts a 'since move-in' statement. */
+const BILLABLE_ROLES = ['resident_landlord', 'non_resident_landlord', 'developer', 'tenant'] as const;
 
 /**
  * whatsapp_statement_requests and whatsapp_disclosure_logs.channel are not in the generated types
@@ -46,7 +48,7 @@ export interface StatementRequestInput {
   inboundMessageId: string;
 }
 
-async function estateName(): Promise<string> {
+export async function estateName(): Promise<string> {
   const settings = await getRawSettingsAsService(['estate_name']);
   const value = settings.status === 'ok' ? settings.values.get('estate_name') : null;
   return typeof value === 'string' && value.trim() ? value.trim() : 'Residio Estate';
@@ -71,9 +73,27 @@ async function activeMoveIn(residentId: string, houseId: string): Promise<string
     .eq('resident_id', residentId)
     .eq('house_id', houseId)
     .eq('is_active', true)
-    .in('resident_role', [...LEVY_BILLABLE_ROLES]);
+    .in('resident_role', [...BILLABLE_ROLES]);
   if (error) throw error;
   return earliestMoveIn((data || []).map((row) => row.move_in_date));
+}
+
+/** The periods offered for this house: All time only when an invoice or payment predates the move-in (#1069). */
+export async function loadStatementPeriods(residentId: string, houseId: string): Promise<StatementPeriod[]> {
+  const moveIn = await activeMoveIn(residentId, houseId);
+  if (!moveIn) return offeredPeriods(false, false);
+  const client = createAdminClient();
+  const startOfMoveIn = `${moveIn}T00:00:00+01:00`; // Africa/Lagos
+  let paymentQuery = client.from('payment_records').select('id').eq('resident_id', residentId).eq('house_id', houseId).eq('status', 'paid').lt('payment_date', moveIn);
+  if (await isResidentRollForwardEnabled()) paymentQuery = paymentQuery.eq('is_verified', true);
+  const [invoices, payments] = await Promise.all([
+    client.from('invoices').select('id').eq('resident_id', residentId).eq('house_id', houseId).neq('status', 'void')
+      .or(`period_start.lt.${moveIn},and(period_start.is.null,created_at.lt.${startOfMoveIn})`).limit(1),
+    paymentQuery.limit(1),
+  ]);
+  if (invoices.error) throw invoices.error;
+  if (payments.error) throw payments.error;
+  return offeredPeriods(true, (invoices.data?.length ?? 0) + (payments.data?.length ?? 0) > 0);
 }
 
 export async function loadWhatsAppStatementForPeriod(residentId: string, houseId: string, period: StatementPeriod, now: Date) {
@@ -231,7 +251,20 @@ export async function buildStatementEmail(requestId: string) {
   const request = data as RequestRow;
   if (!request.house_id) throw new Error(`Statement request ${requestId} has no property`);
 
-  const statement = await loadWhatsAppStatement(request.resident_id, request.house_id, request.from_date, request.to_date);
+  // A co-resident's request shows the sponsor's account, re-checked at send time (#1071).
+  const sponsored = (await getSponsoredHouses(request.resident_id)).find((link) => link.houseId === request.house_id);
+  if (!sponsored) {
+    const { data: rows, error: rowsError } = await createAdminClient()
+      .from('resident_houses')
+      .select('id')
+      .eq('resident_id', request.resident_id)
+      .eq('house_id', request.house_id)
+      .eq('is_active', true)
+      .in('resident_role', [...BILLABLE_ROLES]);
+    if (rowsError) throw rowsError;
+    if (!rows?.length) throw new Error(`Statement request ${requestId} no longer has access to this property`);
+  }
+  const statement = await loadWhatsAppStatement(sponsored?.sponsorId ?? request.resident_id, request.house_id, request.from_date, request.to_date);
   const [pdf, name, contact] = await Promise.all([
     renderStatementPdf(statement),
     estateName(),

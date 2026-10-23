@@ -15,7 +15,6 @@ import { FeatureCard } from '@/components/resident-portal/feature-card';
 import { FinancialSummaryStats } from '@/components/resident-portal/financial-summary-stats';
 import { PaymentTimeline, type PaymentTimelineItem } from '@/components/resident-portal/payment-timeline';
 import { AnnouncementsFeed, type AnnouncementFeedItem } from '@/components/resident-portal/announcements-feed';
-import { WalletTopUpDialog } from '@/components/resident-portal/wallet-topup-dialog';
 import { VisitorAccessDialog } from '@/components/resident-portal/visitor-access-dialog';
 import { MyPropertiesCard } from '@/components/resident-portal/my-properties-card';
 import { VisitorQuickAccessCarousel } from '@/components/resident-portal/visitor-quick-access-carousel';
@@ -68,7 +67,6 @@ function ResidentPortalHomePageInner() {
   const searchParams = useSearchParams();
 
   // Dialog state
-  const [topUpDialogOpen, setTopUpDialogOpen] = useState(false);
   const [visitorDialogOpen, setVisitorDialogOpen] = useState(false);
 
   // Check if we're in impersonation mode
@@ -565,12 +563,7 @@ function ResidentPortalHomePageInner() {
       </motion.div>
 
       {/* Dialogs */}
-      <WalletTopUpDialog
-        open={topUpDialogOpen}
-        onOpenChange={setTopUpDialogOpen}
-        currentBalance={walletBalance}
-      />
-
+      {/* Wallet top-up hidden until online payments are fixed (audit finding 10). */}
       <VisitorAccessDialog open={visitorDialogOpen} onOpenChange={setVisitorDialogOpen} />
     </div>
   );

@@ -14,15 +14,14 @@
  *
  * Secret: DATA_ENCRYPTION_KEY, then GMAIL_TOKEN_ENCRYPTION_KEY (the same pair
  * src/lib/encryption.ts reads), domain-separated so the raw key is never used
- * as an HMAC key directly. Outside production a fixed dev fallback is used; in
- * production a missing key THROWS, and every caller treats that as "not verified".
+ * as an HMAC key directly. There is no fallback secret in any environment: a
+ * missing key THROWS, and every caller treats that as "not verified".
  */
 
 export const TWO_FACTOR_COOKIE = 'residio_2fa';
 export const TWO_FACTOR_MARKER_TTL_SECONDS = 60 * 60 * 24;
 
 const DOMAIN = 'residio:2fa-marker:v1';
-const DEV_FALLBACK_SECRET = 'residio-dev-only-2fa-marker-secret-not-for-production';
 
 const encoder = new TextEncoder();
 
@@ -35,12 +34,9 @@ interface MarkerPayload {
 function getSecret(): string {
     const key = process.env.DATA_ENCRYPTION_KEY || process.env.GMAIL_TOKEN_ENCRYPTION_KEY;
     if (key) return key;
-    if (process.env.NODE_ENV === 'production') {
-        throw new Error(
-            'DATA_ENCRYPTION_KEY (or GMAIL_TOKEN_ENCRYPTION_KEY) must be set to sign 2FA session markers.'
-        );
-    }
-    return DEV_FALLBACK_SECRET;
+    throw new Error(
+        'DATA_ENCRYPTION_KEY (or GMAIL_TOKEN_ENCRYPTION_KEY) must be set to sign 2FA session markers.'
+    );
 }
 
 async function hmacKey(usage: 'sign' | 'verify'): Promise<CryptoKey> {

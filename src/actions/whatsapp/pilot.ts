@@ -6,6 +6,7 @@ import { logAudit } from '@/lib/audit/logger';
 import { createAdminClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import type { WhatsAppRolloutMode } from '@/lib/whatsapp/rollout';
+import { replayHeldWhatsAppMessages } from '@/lib/whatsapp/held-replay';
 import { fetchResidentOptions, type ResidentOption } from '@/lib/residents/resident-options';
 
 export type PilotSettings = {
@@ -284,6 +285,16 @@ export async function setWhatsAppEnabled(enabled: boolean): Promise<{ success: b
       oldValues: { whatsapp_enabled: previous?.value ?? null },
       newValues: { key: 'whatsapp_enabled', whatsapp_enabled: enabled },
     });
+  }
+
+  // Answer the messages held while the switch was off (#1075). A failure leaves them for the next
+  // switch-on and does not undo the switch.
+  if (enabled) {
+    try {
+      await replayHeldWhatsAppMessages();
+    } catch (replayError) {
+      console.error('[whatsapp-pilot] Held messages could not be replayed:', replayError);
+    }
   }
   revalidatePath('/settings/whatsapp');
   return { success: true, error: null };

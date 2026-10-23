@@ -23,6 +23,7 @@ export interface BillingProfileWithItems {
   id: string;
   name: string;
   target_type: 'house' | 'resident';
+  payer: 'occupant' | 'landlord';
   applicable_roles: BillableRole[] | null;
   is_one_time: boolean;
   is_development_levy?: boolean;
@@ -49,4 +50,6 @@ export interface LevyGenerationResult {
   generated: number;
   skipped: number;
   errors: string[];
+  /** Houses where a landlord-paid levy was not raised because no landlord is on record. */
+  warnings: string[];
 }

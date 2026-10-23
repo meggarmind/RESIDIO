@@ -21,6 +21,14 @@ describe('notifyRequesterOfOutcome and a resident\'s WhatsApp request (#816)', (
     expect(notifyUser).not.toHaveBeenCalled();
   });
 
+  it('returns why the resident\'s WhatsApp message was not sent (#1037)', async () => {
+    vi.mocked(notifyResidentOfApprovalOutcome).mockResolvedValue('WhatsApp message to the resident was not sent: WhatsApp daily outbound limit reached');
+    const request = { id: 'request-1', request_type: 'whatsapp_payment_report', requested_by: null };
+    await expect(notifyRequesterOfOutcome({ request, outcome: 'approved', reviewerId: 'admin-1' })).resolves.toBe(
+      'WhatsApp message to the resident was not sent: WhatsApp daily outbound limit reached'
+    );
+  });
+
   it('still tells an admin requester in-app', async () => {
     await notifyRequesterOfOutcome({ request: { id: 'request-2', request_type: 'house_plots_change', requested_by: 'maker-1' }, outcome: 'approved', reviewerId: 'admin-1' });
     expect(notifyUser).toHaveBeenCalledTimes(1);

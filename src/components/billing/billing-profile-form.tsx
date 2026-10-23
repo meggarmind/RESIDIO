@@ -29,6 +29,7 @@ const createProfileSchema = z.object({
     description: z.string().optional(),
     is_active: z.boolean(),
     target_type: z.enum(['house', 'resident']),
+    payer: z.enum(['occupant', 'landlord']),
     applicable_roles: z.array(z.enum(['resident_landlord', 'non_resident_landlord', 'tenant', 'developer'])).optional().nullable(),
     is_one_time: z.boolean(),
     is_development_levy: z.boolean(),
@@ -47,6 +48,12 @@ const createProfileSchema = z.object({
     },
     {
         message: 'At least one role must be selected for resident-targeted profiles',
+        path: ['applicable_roles'],
+    }
+).refine(
+    (data) => !(data.payer === 'landlord' && data.applicable_roles?.includes('tenant')),
+    {
+        message: 'An owner-paid profile cannot apply to renters',
         path: ['applicable_roles'],
     }
 ).refine(
@@ -76,6 +83,7 @@ export function BillingProfileForm({ onSuccess }: { onSuccess?: () => void }) {
             description: '',
             is_active: true,
             target_type: 'house',
+            payer: 'occupant',
             applicable_roles: null,
             is_one_time: false,
             is_development_levy: false,
@@ -175,6 +183,8 @@ export function BillingProfileForm({ onSuccess }: { onSuccess?: () => void }) {
                                                 // Reset is_development_levy when unchecking one-time
                                                 if (!checked) {
                                                     form.setValue('is_development_levy', false);
+                                                } else {
+                                                    form.setValue('payer', 'landlord');
                                                 }
                                             }}
                                         />
@@ -189,6 +199,31 @@ export function BillingProfileForm({ onSuccess }: { onSuccess?: () => void }) {
                             )}
                         />
                     </div>
+
+                    <FormField
+                        control={form.control}
+                        name="payer"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Payer</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select who pays" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="occupant">Occupier (Renter, else Owner-Occupier)</SelectItem>
+                                        <SelectItem value="landlord">Owner (Owner-Occupier, else Property Owner, else Developer)</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <FormDescription>
+                                    Security dues are paid by the occupier. Estate levies such as the Development Fee are paid by an owner, never a renter.
+                                </FormDescription>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
 
                     {isOneTime && (
                         <FormField

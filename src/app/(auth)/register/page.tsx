@@ -474,11 +474,11 @@ export default function RegisterPage() {
                 </div>
               )}
 
-              {/* Email available confirmation */}
+              {/* Email format confirmation (never says whether the address is registered) */}
               {emailCheckResult?.available && emailValue && (
                 <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
                   <CheckCircle2 className="h-3.5 w-3.5" />
-                  Email is available
+                  Email format looks good
                 </p>
               )}
             </div>

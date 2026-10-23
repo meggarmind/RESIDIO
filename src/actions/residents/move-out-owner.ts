@@ -238,7 +238,25 @@ export async function initiateOwnerMoveOut(
         secondaryResidentsRemoved: secondaryCount,
     };
 
-    // 1. Convert owner-occupier to non-resident landlord
+    // 1. Remove secondary residents first, and stop on failure, so no co-resident is left active
+    //    with a sponsor who no longer lives here (#1067)
+    if (secondaryCount > 0) {
+        const { error: cascadeError } = await supabase
+            .from('resident_houses')
+            .update({
+                is_active: false,
+                move_out_date: today.toISOString().split('T')[0],
+            })
+            .eq('house_id', houseId)
+            .eq('is_active', true)
+            .in('resident_role', ['co_resident', 'household_member', 'domestic_staff', 'caretaker', 'contractor']);
+
+        if (cascadeError) {
+            return { success: false, error: 'Failed to remove secondary residents' };
+        }
+    }
+
+    // 2. Convert owner-occupier to non-resident landlord
     const { error: updateError } = await supabase
         .from('resident_houses')
         .update({
@@ -269,19 +287,6 @@ export async function initiateOwnerMoveOut(
         newValues: { account_status: 'inactive' },
         description: 'Marked resident inactive after move-out',
     });
-
-    // 2. Remove secondary residents
-    if (secondaryCount > 0) {
-        await supabase
-            .from('resident_houses')
-            .update({
-                is_active: false,
-                move_out_date: today.toISOString().split('T')[0],
-            })
-            .eq('house_id', houseId)
-            .eq('is_active', true)
-            .in('resident_role', ['co_resident', 'household_member', 'domestic_staff', 'caretaker', 'contractor']);
-    }
 
     // 3. Update house occupancy
     await supabase

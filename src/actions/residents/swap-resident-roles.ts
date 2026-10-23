@@ -130,19 +130,30 @@ export async function swapResidentRoles(
     return { success: false, error: 'Failed to demote resident' };
   }
 
-  // 3. Update sponsors for any other secondary residents (domestic_staff, caretaker)
-  // They should now point to the new primary
+  // 3. Update sponsors for any other secondary residents (co_resident, domestic_staff, caretaker)
+  // They should now point to the new primary; an occupant (co_resident) must be sponsored by the resident (#1067)
   const { error: sponsorUpdateError } = await supabase
     .from('resident_houses')
     .update({ sponsor_resident_id: promoteResidentId })
     .eq('house_id', houseId)
     .eq('is_active', true)
     .eq('sponsor_resident_id', demoteResidentId) // Only update those who had the old primary as sponsor
-    .in('resident_role', ['domestic_staff', 'caretaker']);
+    .in('resident_role', ['co_resident', 'domestic_staff', 'caretaker']);
 
   if (sponsorUpdateError) {
     console.error('[swapResidentRoles] Error updating sponsors:', sponsorUpdateError);
-    // Don't fail for this - it's a cleanup step
+    await supabase
+      .from('resident_houses')
+      .update({ resident_role: demoteRole, sponsor_resident_id: null })
+      .eq('id', demoteAssignment.id);
+    await supabase
+      .from('resident_houses')
+      .update({
+        resident_role: 'co_resident' as ResidentRole,
+        sponsor_resident_id: demoteResidentId,
+      })
+      .eq('id', promoteAssignment.id);
+    return { success: false, error: 'Failed to update sponsors for other residents' };
   }
 
   // Record history for the swap

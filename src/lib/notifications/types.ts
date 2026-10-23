@@ -396,7 +396,7 @@ export interface SendNotificationResult {
    * retryable: an unclassified failure must never risk a duplicate send (#546).
    */
   retryable?: boolean;
-  /** ISO time before which a retry is pointless (e.g. next UTC midnight for a daily cap). */
+  /** ISO time before which a retry is pointless (e.g. next Lagos midnight for a daily cap). */
   retryAt?: string;
   /**
    * Sender-supplied detail merged into the history row's `metadata` column

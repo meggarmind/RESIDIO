@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   getSessionIdFromAccessToken,
   signTwoFactorMarker,
@@ -11,6 +11,7 @@ const USER = '11111111-1111-1111-1111-111111111111';
 const SESSION = 'sess-aaaa';
 const NOW = 1_800_000_000;
 
+beforeEach(() => vi.stubEnv('DATA_ENCRYPTION_KEY', 'test-2fa-marker-key'));
 afterEach(() => vi.unstubAllEnvs());
 
 describe('2FA marker', () => {
@@ -66,9 +67,9 @@ describe('2FA marker', () => {
     expect(await verifyTwoFactorMarker(m, { userId: USER, sessionId: SESSION, nowSeconds: NOW })).toBe(false);
   });
 
-  it('in production with no secret: signing throws and verification fails closed', async () => {
+  it.each(['production', 'development', 'test'])('in %s with no secret: signing throws and verification fails closed', async (nodeEnv) => {
     const m = await signTwoFactorMarker({ userId: USER, sessionId: SESSION, nowSeconds: NOW });
-    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('NODE_ENV', nodeEnv);
     vi.stubEnv('DATA_ENCRYPTION_KEY', '');
     vi.stubEnv('GMAIL_TOKEN_ENCRYPTION_KEY', '');
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});

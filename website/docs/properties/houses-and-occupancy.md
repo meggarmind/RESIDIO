@@ -7,8 +7,8 @@ residio_sources:
   - src/app/(dashboard)/houses/**
   - src/actions/houses/**
   - src/components/houses/**
-residio_verified_commit: c94497ed
-residio_verified_at: '2026-10-21'
+residio_verified_commit: e1cc4f52
+residio_verified_at: '2026-10-22'
 residio_app_version: '0.4.0'
 ---
 
@@ -53,6 +53,9 @@ Each resident row has one main action and a **…** menu for the rest:
 | Property Owner, Developer | Remove (ownership) | *update houses* |
 | Occupant and other secondary roles | Edit role, Promote (Occupant only), Remove from house | *assign residents* |
 
+An Occupant is always sponsored by the house's Owner-Occupier or Renter. **Link Existing** and
+**Edit role** fill that sponsor in, and refuse an Occupant while the house has neither.
+
 **Link Existing** needs *assign residents* and **Add New** needs *create residents*. **Edit** needs
 *update houses*. **Delete house** is in the **…** menu beside Edit and needs *delete houses*; it
 stays disabled, with the reason shown, until every resident has been removed, and it asks for
@@ -86,3 +89,7 @@ still readable, but the confirm button is not shown.
 
 When adding or editing a house, tick **Identifier needs confirmation** and describe what is
 uncertain if you are recording a house number you could not verify.
+
+## New, never occupied
+
+Tick **New, never occupied** on the house form for a brand-new house that has never had a resident. While it is vacant, it is not billed occupant dues such as security dues. Assigning its first Renter or Owner-Occupier clears the tick automatically, and the change is written to the audit log.

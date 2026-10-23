@@ -11,13 +11,14 @@ const PURGEABLE = ['whatsapp_sessions', 'whatsapp_processed_messages', 'whatsapp
 type Result = { count: number | null; error: unknown };
 
 function setup(results: Record<string, Result> = {}) {
-  const queries: Record<string, { delete: ReturnType<typeof vi.fn>; lt: ReturnType<typeof vi.fn> }> = {};
+  const queries: Record<string, { delete: ReturnType<typeof vi.fn>; or: ReturnType<typeof vi.fn>; lt: ReturnType<typeof vi.fn> }> = {};
   const from = vi.fn().mockImplementation((table: string) => {
     // Unknown tables throw, so touching a protected table fails the test
     // loudly rather than being silently answered.
     if (!PURGEABLE.includes(table)) throw new Error(`Unexpected table touched: ${table}`);
-    const query = { delete: vi.fn(), lt: vi.fn() };
+    const query = { delete: vi.fn(), or: vi.fn(), lt: vi.fn() };
     query.delete.mockReturnValue(query);
+    query.or.mockReturnValue(query);
     query.lt.mockResolvedValue(results[table] ?? { count: 0, error: null });
     queries[table] = query;
     return query;
@@ -64,6 +65,14 @@ describe('WhatsApp operational retention', () => {
     await purgeWhatsAppOperationalState({ sessionDays: 3, processedMessageDays: 7 });
     expect(queries.whatsapp_sessions.lt).toHaveBeenCalledWith('expires_at', new Date(NOW.getTime() - 3 * DAY_MS).toISOString());
     expect(queries.whatsapp_processed_messages.lt).toHaveBeenCalledWith('expires_at', new Date(NOW.getTime() - 7 * DAY_MS).toISOString());
+  });
+
+  it('keeps a session whose blocked reply was stamped under 24 hours ago, so the reply is not repeated', async () => {
+    const { queries } = setup();
+    await purgeWhatsAppOperationalState({ sessionDays: 1 });
+    const blockedCutoff = new Date(NOW.getTime() - DAY_MS).toISOString();
+    expect(queries.whatsapp_sessions.or).toHaveBeenCalledWith(`blocked_reply_at.is.null,blocked_reply_at.lt.${blockedCutoff}`);
+    expect(queries.whatsapp_processed_messages.or).not.toHaveBeenCalled();
   });
 
   it('defaults to 1 day for sessions and 2 days for processed messages', async () => {

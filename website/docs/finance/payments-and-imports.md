@@ -11,8 +11,8 @@ residio_sources:
   - src/actions/imports/**
   - src/components/imports/**
   - src/lib/parsers/**
-residio_verified_commit: 610d6a54
-residio_verified_at: '2026-10-20'
+residio_verified_commit: 4dd2c7a8
+residio_verified_at: '2026-10-22'
 residio_app_version: '0.4.0'
 ---
 
@@ -35,7 +35,7 @@ Use **Transactions** for individual payment records and **Import Statement** for
 An uploaded statement never posts payments on its own. It is submitted, approved by a user with approval rights, and only then processed.
 
 1. Open **Transactions → Import Statement**.
-2. Upload the approved statement file.
+2. Upload the approved statement file. Lines already stored by an earlier import (for example an overlapping statement period), and a repeat of an identical line in the same file, are skipped rather than failing the upload; a notice says how many lines were skipped as already imported.
 3. Review parsed rows and duplicate warnings.
 4. Correct categorization or matching issues in the preview.
 5. Check that the total and row count match the source statement, then choose **Submit for approval**. This needs the `imports.review` permission and opens the import's page. An import with no matched rows cannot be submitted: the button is disabled on the import's page and the server refuses it with "No matched rows to process, so there is nothing to submit."

@@ -27,6 +27,7 @@ const resident: WhatsAppResidentIdentity = {
   phonePrimary: '+2348000000000',
   phoneSecondary: null,
   financialEligible: true,
+  accessAllowed: true,
 };
 const PHONE = '+2348000000000';
 const FINGERPRINT = identityFingerprint(resident, 'Palm Street');
@@ -50,6 +51,10 @@ function repository(consent: WhatsAppConsentState, overrides: Partial<WhatsAppId
     setOptIn: vi.fn().mockResolvedValue(undefined),
     rememberPendingContact: vi.fn().mockResolvedValue(undefined),
     consumeLinkToken: vi.fn().mockResolvedValue(null),
+    findLinkCodeIssuer: vi.fn().mockResolvedValue(null),
+    sendLinkNotice: vi.fn().mockResolvedValue(undefined),
+    claimLinkAttempt: vi.fn().mockResolvedValue(true),
+    clearLinkAttempts: vi.fn().mockResolvedValue(undefined),
     attachPendingContact: vi.fn().mockResolvedValue(undefined),
     getStreetName: vi.fn().mockResolvedValue('Palm Street'),
     getConsentState: vi.fn().mockResolvedValue(consent),
@@ -61,6 +66,8 @@ function repository(consent: WhatsAppConsentState, overrides: Partial<WhatsAppId
     getPrivacyNotice: vi.fn().mockResolvedValue({ version: 'v1', text: 'Full notice' }),
     getOfficeContactLine: vi.fn().mockResolvedValue(CONTACT),
     optOutOfSurveys: vi.fn().mockResolvedValue(undefined),
+    claimBlockedReply: vi.fn().mockResolvedValue(true),
+    getEstateName: vi.fn().mockResolvedValue('Palm Estate'),
     ...overrides,
   };
 }

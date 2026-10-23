@@ -80,22 +80,9 @@ export async function moveOutLandlord(
   const secondaryCount = secondaryResidents?.length || 0;
 
   // Start the move-out process
-  // 1. Convert resident_landlord to non_resident_landlord
-  const { error: updateError } = await supabase
-    .from('resident_houses')
-    .update({
-      resident_role: 'non_resident_landlord' as ResidentRole,
-      move_out_date: today,
-      // Note: is_active remains true since they're still the owner
-    })
-    .eq('id', assignment.id);
-
-  if (updateError) {
-    console.error('[moveOutLandlord] Error updating role:', updateError);
-    return { success: false, error: 'Failed to update resident role' };
-  }
-
-  // 2. Deactivate all secondary residents (includes contractor added in Phase 15)
+  // 1. Deactivate all secondary residents (includes contractor added in Phase 15). This runs before
+  //    the role change and stops the move-out on failure, so no occupant (co_resident) is left active with a
+  //    sponsor who no longer lives here (#1067).
   if (secondaryCount > 0) {
     const { error: cascadeError } = await supabase
       .from('resident_houses')
@@ -109,8 +96,23 @@ export async function moveOutLandlord(
 
     if (cascadeError) {
       console.error('[moveOutLandlord] Error removing secondary residents:', cascadeError);
-      // Don't fail the whole operation, but log it
+      return { success: false, error: 'Failed to remove secondary residents' };
     }
+  }
+
+  // 2. Convert resident_landlord to non_resident_landlord
+  const { error: updateError } = await supabase
+    .from('resident_houses')
+    .update({
+      resident_role: 'non_resident_landlord' as ResidentRole,
+      move_out_date: today,
+      // Note: is_active remains true since they're still the owner
+    })
+    .eq('id', assignment.id);
+
+  if (updateError) {
+    console.error('[moveOutLandlord] Error updating role:', updateError);
+    return { success: false, error: 'Failed to update resident role' };
   }
 
   // 3. Update house occupancy status (house becomes vacant/unoccupied)

@@ -172,7 +172,7 @@ Possible improvements for future iterations:
 
 - **Hook**: `src/hooks/use-sidebar-state.ts`
 - **Component**: `src/components/dashboard/sidebar.tsx`
-- **Theme Variables**: `src/lib/themes/types.ts`
+- **Theme Variables**: `src/types/theme.ts`
 - **Theme Provider**: `src/contexts/visual-theme-context.tsx`
 
 ## Migration Notes

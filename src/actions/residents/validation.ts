@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ResidentRole } from '@/types/database';
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
-import { isPrimaryRole } from '@/lib/validators/resident';
+import { describeSponsorRoles, isPrimaryRole, requiresSponsor, sponsorRolesFor } from '@/lib/validators/resident';
 import { embed } from '@/lib/utils';
 
 type ValidationResult = {
@@ -108,4 +108,62 @@ export async function validateHouseAssignment(
     }
 
     return { valid: true };
+}
+
+type SponsorResult = {
+    sponsorId: string | null;
+    error?: string;
+};
+
+/**
+ * Resolves and checks the sponsor for a new or changed assignment, mirroring the
+ * validate_sponsor_requirement trigger so the caller gets a clear error before the database rejects it.
+ * - Roles that need no sponsor: the given sponsor (or null) is passed through unchecked.
+ * - co_resident (#1067): sponsored by the house's active Owner-Occupier or Renter. With no sponsor
+ *   given, that resident becomes the sponsor.
+ * - Other sponsor roles: a sponsor must be given and hold an active sponsoring role on the house.
+ */
+export async function resolveSponsor(
+    supabase: SupabaseClient,
+    houseId: string,
+    role: ResidentRole,
+    sponsorId?: string | null
+): Promise<SponsorResult> {
+    if (!requiresSponsor(role)) {
+        return { sponsorId: sponsorId || null };
+    }
+
+    const roleLabel = RESIDENT_ROLE_LABELS[role];
+    const allowed = sponsorRolesFor(role);
+    const allowedLabels = describeSponsorRoles(role);
+
+    if (!sponsorId && role !== 'co_resident') {
+        return { sponsorId: null, error: `${roleLabel} must have a sponsor. Please select a sponsor.` };
+    }
+
+    let query = supabase
+        .from('resident_houses')
+        .select('resident_id')
+        .eq('house_id', houseId)
+        .eq('is_active', true)
+        .in('resident_role', allowed);
+    if (sponsorId) {
+        query = query.eq('resident_id', sponsorId);
+    }
+    const { data, error } = await query.limit(1);
+
+    if (error) {
+        console.error('Sponsor lookup error:', error);
+        return { sponsorId: null, error: `Could not check the sponsor: ${error.message}` };
+    }
+    if (!data || data.length === 0) {
+        return {
+            sponsorId: null,
+            error: sponsorId
+                ? `The sponsor for ${roleLabel} must be the ${allowedLabels} of the same house.`
+                : `${roleLabel} must be sponsored by the ${allowedLabels} of the house, and this house has none.`,
+        };
+    }
+
+    return { sponsorId: data[0].resident_id as string };
 }

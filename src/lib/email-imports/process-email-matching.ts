@@ -20,10 +20,20 @@ async function loadMatchingData() {
   const adminClient = await createAdminClient();
 
   // Load residents
-  const { data: residents } = await adminClient
+  const { data: residentRows, error: residentsError } = await adminClient
     .from('residents')
-    .select('id, first_name, last_name, resident_code, phone, email')
-    .eq('is_active', true);
+    .select('id, first_name, last_name, resident_code, phone_primary, email')
+    .eq('account_status', 'active');
+
+  if (residentsError) {
+    console.error('Email matching: failed to load residents:', residentsError);
+  }
+
+  // The matcher reads `phone`; the column is `phone_primary`.
+  const residents = (residentRows || []).map(({ phone_primary, ...rest }) => ({
+    ...rest,
+    phone: phone_primary,
+  }));
 
   // Load payment aliases (select all fields needed by createMatcher)
   const { data: aliases } = await adminClient
@@ -53,7 +63,7 @@ async function loadMatchingData() {
     .order('name');
 
   return {
-    residents: residents || [],
+    residents,
     aliases: (aliases || []) as Array<{
       id: string;
       alias_name: string;

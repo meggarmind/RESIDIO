@@ -1,6 +1,5 @@
 'use server';
 
-import { createHash, randomInt } from 'node:crypto';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
@@ -9,6 +8,7 @@ import { revalidatePath } from 'next/cache';
 import { parseWhatsAppOptInImport } from '@/lib/whatsapp/admin-import';
 import { PRIVACY_NOTICE_TEXT_KEY, PRIVACY_NOTICE_VERSION_KEY } from '@/lib/whatsapp/privacy-notice';
 import { sendWhatsAppPinAlert } from '@/lib/whatsapp/pin-alert';
+import { insertWhatsAppCode, type WhatsAppCodePurpose } from '@/lib/whatsapp/link-codes';
 
 type ActionResult<T> = {
   success: boolean;
@@ -21,14 +21,8 @@ type LinkToken = {
   expiresAt: string;
 };
 
-export type WhatsAppCodePurpose = 'link' | 'pin_setup';
-
 /** Minutes a code is valid: link codes keep their 15, PIN setup codes get 10 (#805). */
 const CODE_TTL_MINUTES: Record<WhatsAppCodePurpose, number> = { link: 15, pin_setup: 10 };
-
-function hashToken(token: string): string {
-  return createHash('sha256').update(token).digest('hex');
-}
 
 type Resident = { id: string; first_name: string; last_name: string };
 type AdminClient = ReturnType<typeof createAdminClient>;
@@ -43,36 +37,17 @@ async function issueCode(
   purpose: WhatsAppCodePurpose,
   userId: string | null | undefined
 ): Promise<ActionResult<LinkToken>> {
-  if (purpose === 'pin_setup') {
-    // One live setup code per resident, so its wrong-try count and pause (slice C) cannot be
-    // sidestepped by guessing against an older code.
-    const { error: supersedeError } = await adminClient
-      .from('whatsapp_link_tokens')
-      .update({ used_at: new Date().toISOString() })
-      .eq('resident_id', resident.id)
-      .filter('purpose', 'eq', 'pin_setup')
-      .is('used_at', null);
-    if (supersedeError) {
-      return { success: false, data: null, error: 'Failed to create WhatsApp setup code' };
-    }
-  }
+  // One live setup code per resident, so its wrong-try count and pause (slice C) cannot be
+  // sidestepped by guessing against an older code.
+  const token = await insertWhatsAppCode(adminClient, {
+    residentId: resident.id,
+    purpose,
+    ttlMinutes: CODE_TTL_MINUTES[purpose],
+    createdBy: userId,
+    supersede: purpose === 'pin_setup',
+  });
 
-  const code = randomInt(100000, 1000000).toString();
-  const expiresAt = new Date(Date.now() + CODE_TTL_MINUTES[purpose] * 60 * 1000).toISOString();
-  // The generated types do not know purpose (#890) until that migration is applied.
-  const { data: token, error: tokenError } = await adminClient
-    .from('whatsapp_link_tokens')
-    .insert({
-      resident_id: resident.id,
-      token_hash: hashToken(code),
-      expires_at: expiresAt,
-      created_by: userId,
-      purpose,
-    } as never)
-    .select('id')
-    .single<{ id: string }>();
-
-  if (tokenError || !token) {
+  if (!token) {
     return {
       success: false,
       data: null,
@@ -85,10 +60,10 @@ async function issueCode(
     entityType: 'whatsapp_link_tokens',
     entityId: token.id,
     entityDisplay: `WhatsApp ${purpose === 'link' ? 'link' : 'PIN setup'} code for ${resident.first_name} ${resident.last_name}`,
-    newValues: { resident_id: resident.id, purpose, expires_at: expiresAt },
+    newValues: { resident_id: resident.id, purpose, expires_at: token.expiresAt },
   });
 
-  return { success: true, data: { code, expiresAt }, error: null };
+  return { success: true, data: { code: token.code, expiresAt: token.expiresAt }, error: null };
 }
 
 export async function createWhatsAppLinkToken(

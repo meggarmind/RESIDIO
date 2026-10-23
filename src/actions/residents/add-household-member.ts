@@ -148,7 +148,9 @@ export async function addHouseholdMember(
       resident_role,
       is_primary: false, // Secondary resident
       move_in_date: new Date().toISOString().split('T')[0],
-      sponsor_resident_id: resident_role === 'domestic_staff' ? profile.resident_id : null,
+      // The calling occupier sponsors co-residents (#1067) and domestic staff; canAdd above already
+      // limits those roles to an active Owner-Occupier or Renter of this house.
+      sponsor_resident_id: resident_role === 'co_resident' || resident_role === 'domestic_staff' ? profile.resident_id : null,
       created_by: user.id,
     });
 

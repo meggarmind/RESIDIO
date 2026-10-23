@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useResidents, useAssignHouse } from '@/hooks/use-residents';
-import { requiresSponsor } from '@/lib/validators/resident';
+import { requiresSponsor, sponsorRolesFor, describeSponsorRoles } from '@/lib/validators/resident';
 import { PRIMARY_ROLE_OPTIONS, SECONDARY_ROLE_OPTIONS, RESIDENT_ROLE_LABELS } from '@/types/database';
 import type { ResidentRole } from '@/types/database';
 import { Link2, Loader2 } from 'lucide-react';
@@ -71,9 +71,12 @@ export function LinkResidentDialog({ houseId, activeResidents, triggerClassName 
 
   const availableSponsors = requiresSponsor(selectedRole)
     ? activeResidents
-        .filter((rh) => ['non_resident_landlord', 'resident_landlord', 'tenant'].includes(rh.resident_role))
+        .filter((rh) => sponsorRolesFor(selectedRole).includes(rh.resident_role))
         .map((rh) => rh.resident)
     : [];
+  // An occupant (co_resident) defaults to the house's resident as sponsor (#1067); a house has at most one
+  const effectiveSponsorId = sponsorResidentId ||
+    (selectedRole === 'co_resident' && availableSponsors.length === 1 ? availableSponsors[0].id : '');
 
   const handleOpenChange = (next: boolean) => {
     setOpen(next);
@@ -91,7 +94,7 @@ export function LinkResidentDialog({ houseId, activeResidents, triggerClassName 
       toast.error('Please select a resident');
       return;
     }
-    if (requiresSponsor(selectedRole) && !sponsorResidentId) {
+    if (requiresSponsor(selectedRole) && !effectiveSponsorId) {
       toast.error(`${RESIDENT_ROLE_LABELS[selectedRole]} must have a sponsor`);
       return;
     }
@@ -103,7 +106,7 @@ export function LinkResidentDialog({ houseId, activeResidents, triggerClassName 
           house_id: houseId,
           resident_role: selectedRole,
           move_in_date: moveInDate,
-          sponsor_resident_id: requiresSponsor(selectedRole) ? sponsorResidentId : null,
+          sponsor_resident_id: requiresSponsor(selectedRole) ? effectiveSponsorId : null,
         },
       });
       toast.success('Resident linked successfully');
@@ -166,7 +169,7 @@ export function LinkResidentDialog({ houseId, activeResidents, triggerClassName 
             <div className="grid gap-2">
               <Label>Sponsor *</Label>
               <Select
-                value={sponsorResidentId}
+                value={effectiveSponsorId}
                 onValueChange={setSponsorResidentId}
                 disabled={availableSponsors.length === 0}
               >
@@ -182,7 +185,7 @@ export function LinkResidentDialog({ houseId, activeResidents, triggerClassName 
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                {RESIDENT_ROLE_LABELS[selectedRole]} must be sponsored by a primary resident
+                {RESIDENT_ROLE_LABELS[selectedRole]} must be sponsored by the {describeSponsorRoles(selectedRole)} of this house
               </p>
             </div>
           )}

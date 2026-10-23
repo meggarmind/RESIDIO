@@ -33,9 +33,9 @@ function makeFacts(cfg: FakeConfig = {}) {
     getWhatsAppEnabled: vi.fn(async () => cfg.enabled ?? { status: 'ok' as const, value: true }),
     isRecipientInRollout: vi.fn(async () => cfg.inRollout ?? true),
     getNumberSetting: vi.fn(async (key: string) => cfg.settings?.[key] ?? null),
-    // First call is the daily window (UTC midnight), second the burst window.
+    // First call is the daily window (Lagos midnight), second the burst window.
     countWhatsAppSentSince: vi.fn(async (sinceIso: string) =>
-      sinceIso === '2026-10-14T00:00:00.000Z'
+      sinceIso === '2026-10-13T23:00:00.000Z'
         ? (cfg.dailyCount ?? { count: 0, failed: false })
         : (cfg.burstCount ?? { count: 0, failed: false })
     ),
@@ -191,10 +191,17 @@ describe('evaluateSendPolicy', () => {
       expect(at100.outcome).toBe('defer');
     });
 
-    it('counts from UTC midnight of the facts clock', async () => {
+    it('counts from Lagos midnight of the facts clock', async () => {
       const facts = makeFacts();
       await evaluateSendPolicy(baseInput, facts);
-      expect(facts.countWhatsAppSentSince).toHaveBeenNthCalledWith(1, '2026-10-14T00:00:00.000Z');
+      expect(facts.countWhatsAppSentSince).toHaveBeenNthCalledWith(1, '2026-10-13T23:00:00.000Z');
+    });
+
+    it('rolls the window at 00:00 Lagos, one hour before UTC midnight', async () => {
+      const facts = makeFacts();
+      facts.now.mockReturnValue(new Date('2026-10-14T23:30:00.000Z'));
+      await evaluateSendPolicy(baseInput, facts);
+      expect(facts.countWhatsAppSentSince).toHaveBeenNthCalledWith(1, '2026-10-14T23:00:00.000Z');
     });
   });
 
@@ -507,7 +514,22 @@ describe('evaluateSendPolicy mutation gaps (#549)', () => {
     const facts = makeFacts();
     facts.now.mockReturnValue(new Date('2031-03-05T23:59:59.999Z'));
     await evaluateSendPolicy(baseInput, facts);
-    expect(facts.countWhatsAppSentSince).toHaveBeenNthCalledWith(1, '2031-03-05T00:00:00.000Z');
+    expect(facts.countWhatsAppSentSince).toHaveBeenNthCalledWith(1, '2031-03-05T23:00:00.000Z');
     expect(facts.countWhatsAppSentSince).toHaveBeenNthCalledWith(2, '2031-03-05T23:49:59.999Z');
+  });
+});
+
+describe('freeForm sends (#1037)', () => {
+  it('skips only the template check', async () => {
+    const decision = await evaluateSendPolicy({ ...baseInput, metadata: null, freeForm: true }, makeFacts());
+    expect(decision.outcome).toBe('allow');
+  });
+
+  it('still refuses when WhatsApp is off', async () => {
+    const decision = await evaluateSendPolicy(
+      { ...baseInput, metadata: null, freeForm: true },
+      makeFacts({ enabled: { status: 'ok', value: false } })
+    );
+    expect(decision).toMatchObject({ outcome: 'refuse', reason: 'whatsapp_disabled' });
   });
 });

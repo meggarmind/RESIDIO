@@ -30,6 +30,7 @@ const resident = {
   phonePrimary: '+2348000000000',
   phoneSecondary: null,
   financialEligible: false,
+  accessAllowed: true,
 };
 
 beforeEach(() => {
@@ -57,6 +58,10 @@ describe('inbound WhatsApp Assistant replies are exempt from the redirect (decis
       setOptIn: vi.fn(),
       rememberPendingContact: vi.fn(),
       consumeLinkToken: vi.fn().mockResolvedValue(null),
+      findLinkCodeIssuer: vi.fn().mockResolvedValue(null),
+      sendLinkNotice: vi.fn().mockResolvedValue(undefined),
+      claimLinkAttempt: vi.fn().mockResolvedValue(true),
+      clearLinkAttempts: vi.fn().mockResolvedValue(undefined),
       attachPendingContact: vi.fn(),
       // #871: the first message gets the identity read-back.
       isDisputed: vi.fn().mockResolvedValue(false),

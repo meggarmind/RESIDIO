@@ -1,4 +1,5 @@
 import type { StatementTransaction } from '@/actions/billing/get-account-statement';
+import { chargeLabel } from '@/lib/whatsapp/assistant-format';
 
 export interface LedgerInvoice {
   id: string;
@@ -58,7 +59,7 @@ export function buildStatementLedger(input: {
       id: `inv-${invoice.id}`,
       date: invoiceStatementDate(invoice),
       type: 'invoice',
-      description: `Invoice #${invoice.invoice_number}${invoice.billing_profile_name ? ` - ${invoice.billing_profile_name}` : ''}`,
+      description: `Invoice #${invoice.invoice_number} - ${chargeLabel({ invoice_type: invoice.invoice_type, profileName: invoice.billing_profile_name, periodStart: invoice.period_start })}`,
       reference: invoice.invoice_number,
       debit: amount,
       credit: 0,

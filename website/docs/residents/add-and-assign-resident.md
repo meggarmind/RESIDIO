@@ -9,8 +9,8 @@ residio_sources:
   - src/components/residents/duplicate-resident-dialog.tsx
   - src/actions/residents/assign-house.ts
   - src/actions/residents/add-household-member.ts
-residio_verified_commit: 5f65f247
-residio_verified_at: '2026-10-21'
+residio_verified_commit: 952b0988
+residio_verified_at: '2026-10-22'
 residio_app_version: '0.4.0'
 ---
 
@@ -36,6 +36,12 @@ Use this workflow when a new resident needs an account and a property assignment
 6. Review the summary carefully, then select **Create resident**.
 7. If a message says the person may already be a resident, follow **When Residio finds an existing resident** below.
 8. Record the generated resident code in the approved estate process.
+
+### Sponsors
+
+Some roles must be sponsored by a resident of the same house. An **Occupant** is always sponsored by the house's active **Owner-Occupier** or **Renter**; the form fills that person in for you. If the house has neither, an Occupant cannot be added until one is assigned. Domestic staff, caretakers and contractors are sponsored by the house's Property Owner, Owner-Occupier or Renter, chosen in the **Sponsor** field. When a resident adds an Occupant from their own household, they become the sponsor.
+
+When the sponsor moves out, Residio removes the Occupant from the house as part of the same move-out.
 
 ### Communications override
 

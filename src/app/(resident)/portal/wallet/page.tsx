@@ -9,9 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { WalletTopUpDialog } from '@/components/resident-portal/wallet-topup-dialog';
 import { AnimatedCounter } from '@/components/ui/animated-counter';
-import { Wallet as WalletIcon, Plus, ArrowUpRight, ArrowDownRight, Search, X } from 'lucide-react';
+import { Wallet as WalletIcon, ArrowUpRight, ArrowDownRight, Search, X } from 'lucide-react';
 import { formatCurrency, cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
@@ -40,7 +39,6 @@ export default function WalletPage() {
   const { residentId } = useAuth();
   const { data: wallet, isLoading: walletLoading } = useResidentWallet(residentId || undefined);
   const { data: transactions, isLoading: transactionsLoading } = useWalletTransactions(residentId || undefined);
-  const [topUpDialogOpen, setTopUpDialogOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState<'all' | 'credit' | 'debit'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -90,10 +88,7 @@ export default function WalletPage() {
             Manage your wallet balance and transactions
           </p>
         </div>
-        <Button onClick={() => setTopUpDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Top Up Wallet
-        </Button>
+        {/* Top Up Wallet hidden until online payments are fixed (audit finding 10). */}
       </motion.div>
 
       {/* Balance Card */}
@@ -272,13 +267,6 @@ export default function WalletPage() {
           </CardContent>
         </Card>
       </motion.div>
-
-      {/* Top Up Dialog */}
-      <WalletTopUpDialog
-        open={topUpDialogOpen}
-        onOpenChange={setTopUpDialogOpen}
-        currentBalance={walletBalance}
-      />
     </div>
   );
 }

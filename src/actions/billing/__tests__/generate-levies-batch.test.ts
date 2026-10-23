@@ -27,10 +27,12 @@ const residentOf = (id: string) => `res-${id}`;
 const HOUSES = Array.from({ length: 12 }, (_, i) => ({ id: houseId(i + 1), house_number: `H${i + 1}` }));
 // House n: n % 3 === 0 already has the levy (skipped), n % 3 === 1 fails the invoice insert (error), else generated.
 const outcomeOf = (id: string) => (Number(id.slice(0, 8)) % 3 === 0 ? 'skipped' : Number(id.slice(0, 8)) % 3 === 1 ? 'error' : 'generated');
-const PROFILE = { id: 'profile-1', name: 'Gate levy', target_type: 'house', applicable_roles: null, is_one_time: true, is_development_levy: false, billing_items: [{ id: 'item-1', name: 'Fee', amount: 100, frequency: 'one_time', is_mandatory: true }] };
+const PROFILE = { id: 'profile-1', name: 'Gate levy', payer: 'landlord', applicable_roles: null, is_one_time: true, is_development_levy: false, billing_items: [{ id: 'item-1', name: 'Fee', amount: 100, frequency: 'one_time', is_mandatory: true }] };
 
 let invoiceInserts: Array<Record<string, unknown>>;
 let houseSingleReads: number;
+let sameDaySuffixes: Array<number | null>;
+let roster: Array<{ resident_id: string; resident_role: string }> | null;
 
 function fakeSupabase() {
   return {
@@ -39,11 +41,12 @@ function fakeSupabase() {
       const filters: Record<string, unknown> = {};
       let op = 'select';
       let payload: Record<string, unknown> | null = null;
+      let orFilter: string | null = null;
       const chain: Record<string, unknown> = {};
       const settle = () => {
         const hid = filters.house_id as string | undefined;
         if (table === 'houses') return op === 'single' ? { data: HOUSES.find((h) => h.id === filters.id) ?? null, error: null } : { data: HOUSES, error: null };
-        if (table === 'resident_houses') return { data: { resident_id: residentOf(hid!), resident_role: 'resident_landlord' }, error: null };
+        if (table === 'resident_houses') return { data: roster ?? [{ resident_id: residentOf(hid!), resident_role: 'resident_landlord' }], error: null };
         if (table === 'billing_profiles') return { data: [PROFILE], error: null };
         if (table === 'house_levy_history') return { data: op === 'select' && outcomeOf(hid!) === 'skipped' ? { id: 'hist' } : null, error: null };
         if (table === 'invoices' && op === 'insert') {
@@ -52,12 +55,17 @@ function fakeSupabase() {
             ? { data: null, error: { message: 'insert failed' } }
             : { data: { id: `inv-${payload!.house_id}` }, error: null };
         }
+        if (table === 'invoices' && orFilter) {
+          const base = /invoice_number\.eq\.([^,]+),/.exec(orFilter)![1];
+          return { data: sameDaySuffixes.map((n) => ({ invoice_number: n ? `${base}-${n}` : base })), error: null };
+        }
         if (table === 'invoices') return { data: [{ id: 'inv-first' }], error: null };
         return { data: null, error: null };
       };
       chain.select = () => chain;
       chain.insert = (p: Record<string, unknown>) => { op = 'insert'; payload = p; return chain; };
       chain.eq = (col: string, val: unknown) => { filters[col] = val; return chain; };
+      chain.or = (f: string) => { orFilter = f; return chain; };
       for (const m of ['in', 'order', 'limit', 'gte']) chain[m] = () => chain;
       chain.single = async () => { if (table === 'houses') { op = 'single'; houseSingleReads++; } return settle(); };
       chain.maybeSingle = async () => settle();
@@ -71,6 +79,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   invoiceInserts = [];
   houseSingleReads = 0;
+  sameDaySuffixes = [];
+  roster = null;
   mocks.authorizePermission.mockResolvedValue({ authorized: true, userId: 'user-1' });
   mocks.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
   mocks.getSystemSetting.mockImplementation(async (_s: unknown, key: string) => (key === 'invoice_due_window_days' ? '"7"' : true));
@@ -107,6 +117,22 @@ describe('generateRetroactiveLevies (#778)', () => {
     }
   });
 
+  it('suffixes the levy number when the house already has a levy number today (#1057)', async () => {
+    sameDaySuffixes = [null];
+    await generateRetroactiveLevies();
+    for (const insert of invoiceInserts) {
+      expect(insert.invoice_number).toMatch(/^LEV-\d{8}-[0-9A-F]{8}-2$/);
+    }
+  });
+
+  it('numbers past the highest same-day suffix when the base levy was deleted (#1057)', async () => {
+    sameDaySuffixes = [2];
+    await generateRetroactiveLevies();
+    for (const insert of invoiceInserts) {
+      expect(insert.invoice_number).toMatch(/^LEV-\d{8}-[0-9A-F]{8}-3$/);
+    }
+  });
+
   it('generates nothing when auto levy generation is disabled', async () => {
     mocks.getSystemSetting.mockImplementation(async (_s: unknown, key: string) => (key === 'auto_generate_levies' ? false : '"7"'));
     const res = await generateRetroactiveLevies();
@@ -116,7 +142,7 @@ describe('generateRetroactiveLevies (#778)', () => {
 
   it('returns Unauthorized without BILLING_CREATE_INVOICE', async () => {
     mocks.authorizePermission.mockResolvedValue({ authorized: false, error: 'Unauthorized' });
-    expect(await generateRetroactiveLevies()).toEqual({ success: false, generated: 0, skipped: 0, errors: ['Unauthorized'] });
+    expect(await generateRetroactiveLevies()).toEqual({ success: false, generated: 0, skipped: 0, errors: ['Unauthorized'], warnings: [] });
     expect(mocks.createServerSupabaseClient).not.toHaveBeenCalled();
   });
 });
@@ -132,7 +158,44 @@ describe('generateLeviesForHouse (#778)', () => {
 
   it('returns Unauthorized without BILLING_CREATE_INVOICE', async () => {
     mocks.authorizePermission.mockResolvedValue({ authorized: false, error: 'Unauthorized' });
-    expect(await generateLeviesForHouse(houseId(2))).toEqual({ success: false, generated: 0, skipped: 0, errors: ['Unauthorized'] });
+    expect(await generateLeviesForHouse(houseId(2))).toEqual({ success: false, generated: 0, skipped: 0, errors: ['Unauthorized'], warnings: [] });
     expect(invoiceInserts).toHaveLength(0);
+  });
+});
+
+describe('generateLeviesForHouse payer (#1068)', () => {
+  // House 2 has no existing levy and its invoice insert succeeds.
+  it('bills a landlord levy to the landlord when a tenant is also on record', async () => {
+    roster = [{ resident_id: 'tenant-1', resident_role: 'tenant' }, { resident_id: 'nrl-1', resident_role: 'non_resident_landlord' }];
+    const res = await generateLeviesForHouse(houseId(2));
+    expect(res.generated).toBe(1);
+    expect(invoiceInserts[0].resident_id).toBe('nrl-1');
+  });
+
+  it('raises nothing for a house with only a tenant and warns with the house number', async () => {
+    roster = [{ resident_id: 'tenant-1', resident_role: 'tenant' }];
+    const res = await generateLeviesForHouse(houseId(2));
+    expect(invoiceInserts).toHaveLength(0);
+    expect(res.generated).toBe(0);
+    expect(res.warnings).toEqual(['House H2: no landlord on record, so "Gate levy" was not raised']);
+  });
+
+  it('does not warn about a missing landlord when the house was already charged the levy', async () => {
+    roster = [{ resident_id: 'tenant-1', resident_role: 'tenant' }];
+    const res = await generateLeviesForHouse(houseId(3));
+    expect(res.skipped).toBe(1);
+    expect(res.warnings).toEqual([]);
+  });
+
+  it('falls back to the developer when no landlord is on record', async () => {
+    roster = [{ resident_id: 'dev-1', resident_role: 'developer' }, { resident_id: 'tenant-1', resident_role: 'tenant' }];
+    await generateLeviesForHouse(houseId(2));
+    expect(invoiceInserts[0].resident_id).toBe('dev-1');
+  });
+
+  it('prefers the resident landlord over a non-resident landlord', async () => {
+    roster = [{ resident_id: 'nrl-1', resident_role: 'non_resident_landlord' }, { resident_id: 'rl-1', resident_role: 'resident_landlord' }];
+    await generateLeviesForHouse(houseId(2));
+    expect(invoiceInserts[0].resident_id).toBe('rl-1');
   });
 });
