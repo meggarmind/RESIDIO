@@ -1,7 +1,6 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { PGlite } from '@electric-sql/pglite';
+import { loadSchema } from '@/__tests__/helpers/pglite-schema';
 
 const mocks = vi.hoisted(() => ({ authorizePermission: vi.fn(), createAdminClient: vi.fn() }));
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: mocks.authorizePermission }));
@@ -76,25 +75,75 @@ describe('getResidentRoleCounts (#1094)', () => {
   });
 });
 
-describe('resident role view migration (static)', () => {
-  const root = fileURLToPath(new URL('../..', import.meta.url));
-  const sql = readFileSync(path.join(root, 'supabase/migrations/20261101090000_resident_role_view_and_groups.sql'), 'utf8')
-    .split('\n').filter((l) => !l.trim().startsWith('--')).join('\n').replace(/\s+/g, ' ');
+describe('resident role view migration, run for real (#1094)', () => {
+  let db: PGlite;
+  const q = async (sql: string, params: unknown[] = []) => (await db.query<Record<string, any>>(sql, params)).rows; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const ids: Record<string, string> = {};
 
-  it('keeps only active, not-moved-out house links', () => {
-    expect(sql).toContain('WHERE rh.is_active AND (rh.move_out_date IS NULL OR rh.move_out_date > CURRENT_DATE)');
+  beforeAll(async () => {
+    db = await loadSchema(['20261101090000_resident_role_view_and_groups.sql']);
+    await db.exec(`INSERT INTO public.streets (name) VALUES ('Test Street')`);
+    const mk = async (key: string, n: number) => {
+      ids[key] = (await q(
+        `INSERT INTO public.residents (first_name, last_name, phone_primary) VALUES ($1, $1, $2) RETURNING id`,
+        [key, `+2340000000${n}`]
+      ))[0].id;
+    };
+    const houses: string[] = [];
+    for (let i = 0; i < 4; i++) {
+      houses.push((await q(
+        `INSERT INTO public.houses (house_number, street_id, short_name) SELECT $1, id, $1 FROM public.streets LIMIT 1 RETURNING id`,
+        [`H${i}`]
+      ))[0].id);
+    }
+    const link = (key: string, h: number, role: string, active = true, moveOut: string | null = null) =>
+      q(
+        `INSERT INTO public.resident_houses (resident_id, house_id, resident_role, is_active, move_out_date) VALUES ($1, $2, $3, $4, $5)`,
+        [ids[key], houses[h], role, active, moveOut]
+      );
+    await mk('multi', 1);
+    await mk('cores', 2);
+    await mk('gone', 3);
+    await mk('inactive', 4);
+    await link('multi', 0, 'resident_landlord');
+    await link('multi', 1, 'resident_landlord');
+    await link('multi', 2, 'tenant');
+    await link('cores', 0, 'co_resident');
+    await link('gone', 3, 'tenant', true, '2000-01-01');
+    await link('inactive', 3, 'tenant', false);
+  }, 180_000);
+
+  afterAll(async () => {
+    await db?.close();
   });
 
-  it('revokes anon and authenticated on the view and the table', () => {
-    expect(sql).toContain('REVOKE ALL ON public.resident_role_memberships FROM PUBLIC, anon, authenticated;');
-    expect(sql).toContain('REVOKE ALL ON public.resident_role_groups FROM PUBLIC, anon, authenticated;');
+  it('lists a person once per role, with the house count, and drops moved-out and inactive links', async () => {
+    const rows = await q(`SELECT resident_id, role, house_count FROM public.resident_role_memberships ORDER BY role`);
+    expect(rows.map((r) => [r.resident_id, r.role, r.house_count])).toEqual([
+      [ids.cores, 'co_resident', 1],
+      [ids.multi, 'resident_landlord', 2],
+      [ids.multi, 'tenant', 1],
+    ]);
   });
 
-  it('never puts co_resident in a seeded group', () => {
-    expect(sql).not.toMatch(/ARRAY\[[^\]]*co_resident/);
+  it('seeds groups that never include co_resident', async () => {
+    const groups = await q(`SELECT slug, roles::text AS roles FROM public.resident_role_groups`);
+    expect(groups.map((g) => g.slug).sort()).toEqual(['landlords', 'non_resident_landlords', 'owner_occupiers', 'tenants']);
+    expect(groups.some((g) => g.roles.includes('co_resident'))).toBe(false);
   });
 
-  it('seeds the permission the action checks', () => {
-    expect(sql).toContain(`'${PERMISSIONS.RESIDENTS_VIEW_GROUPS}'`);
+  it('is unreadable to anon and authenticated, readable to service_role', async () => {
+    for (const rel of ['resident_role_memberships', 'resident_role_groups']) {
+      const [p] = await q(
+        `SELECT has_table_privilege('anon', $1, 'SELECT') AS anon, has_table_privilege('authenticated', $1, 'SELECT') AS auth, has_table_privilege('service_role', $1, 'SELECT') AS svc`,
+        [`public.${rel}`]
+      );
+      expect(p).toEqual({ anon: false, auth: false, svc: true });
+    }
+  });
+
+  it('seeds the permission the action checks', async () => {
+    const rows = await q(`SELECT 1 FROM public.app_permissions WHERE name = $1`, [PERMISSIONS.RESIDENTS_VIEW_GROUPS]);
+    expect(rows).toHaveLength(1);
   });
 });
