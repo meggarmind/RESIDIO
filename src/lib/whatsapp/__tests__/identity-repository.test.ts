@@ -195,6 +195,38 @@ describe('consumeLinkToken purpose (#890)', () => {
   });
 });
 
+describe('findLinkCodeIssuer (#1072)', () => {
+  const later = '2999-01-01T00:00:00.000Z';
+  const sponsorCode = (overrides: Row = {}): Row => ({
+    id: 'tok-1',
+    resident_id: 'co-1',
+    token_hash: createHash('sha256').update('654321').digest('hex'),
+    purpose: 'link',
+    used_at: null,
+    expires_at: later,
+    issued_by_resident_id: 'sponsor-1',
+    resident: { first_name: 'Bola' },
+    house: { house_number: '12', short_name: null, street: { name: 'Palm Close' } },
+    ...overrides,
+  });
+
+  it('names the sponsor, the co-resident and the house of a live code', async () => {
+    db.tables.whatsapp_link_tokens = [sponsorCode()];
+    expect(await createSupabaseWhatsAppIdentityRepository().findLinkCodeIssuer('654321')).toEqual({
+      residentId: 'sponsor-1',
+      coResidentFirstName: 'Bola',
+      houseLabel: '12, Palm Close',
+    });
+  });
+
+  it('finds nothing for an office code, a used or expired code, or a setup code', async () => {
+    for (const overrides of [{ issued_by_resident_id: null }, { used_at: '2026-10-23T10:00:00Z' }, { expires_at: '2000-01-01T00:00:00.000Z' }, { purpose: 'pin_setup' }]) {
+      db.tables.whatsapp_link_tokens = [sponsorCode(overrides)];
+      expect(await createSupabaseWhatsAppIdentityRepository().findLinkCodeIssuer('654321')).toBeNull();
+    }
+  });
+});
+
 describe('who may use the Assistant (#1070)', () => {
   const houseRow = (role: string, overrides: Row = {}): Row => ({ resident_id: 'res-1', resident_role: role, is_active: true, ...overrides });
 

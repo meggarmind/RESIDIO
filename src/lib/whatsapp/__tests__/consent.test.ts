@@ -51,6 +51,8 @@ function repository(consent: WhatsAppConsentState, overrides: Partial<WhatsAppId
     setOptIn: vi.fn().mockResolvedValue(undefined),
     rememberPendingContact: vi.fn().mockResolvedValue(undefined),
     consumeLinkToken: vi.fn().mockResolvedValue(null),
+    findLinkCodeIssuer: vi.fn().mockResolvedValue(null),
+    sendLinkNotice: vi.fn().mockResolvedValue(undefined),
     claimLinkAttempt: vi.fn().mockResolvedValue(true),
     clearLinkAttempts: vi.fn().mockResolvedValue(undefined),
     attachPendingContact: vi.fn().mockResolvedValue(undefined),

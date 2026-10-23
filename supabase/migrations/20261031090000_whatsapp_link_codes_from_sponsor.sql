@@ -1,0 +1,42 @@
+-- WhatsApp LINK codes a sponsor creates for a co-resident in the Assistant (#1072).
+--
+-- WHAT CHANGES
+--   ADD COLUMN on public.whatsapp_link_tokens:
+--     issued_by_resident_id  UUID (no foreign key, see below)
+--     house_id               UUID REFERENCES public.houses(id) ON DELETE CASCADE
+--   Both stay NULL on codes issued by the estate office, which is every existing row.
+--   issued_by_resident_id has no foreign key on purpose: every foreign key to residents(id) must be
+--   listed in resident_merge_references() (20261024100100), or a merge refuses to run. The column
+--   only matters while the code is live (60 minutes), so a dangling id after a merge is harmless.
+--
+-- WHY
+--   Owner decisions Q29 to Q35 (2026-10-22, #1066): the sponsor (resident landlord or tenant of the
+--   house) can create a LINK code for one of their co-residents from the Assistant. The sponsor has
+--   no auth user, so created_by cannot name them. The issuer column lets the LINK command refuse a
+--   code sent from the sponsor's own number, and with house_id it tells the sponsor
+--   "{first name} is now linked to {house} on WhatsApp." when the code is used.
+--
+-- WHO IS AFFECTED
+--   Nobody directly. The table stays service_role only (RLS on, anon and authenticated revoked in
+--   20260811110000).
+--
+-- IDEMPOTENT: ADD COLUMN IF NOT EXISTS.
+--
+-- DEPLOY ORDER: apply this before the application code is deployed; the Assistant writes and
+--   reads both columns and fails without them.
+--
+-- ROLLBACK (roll the application code back first; unused sponsor codes then work as office codes):
+--   ALTER TABLE public.whatsapp_link_tokens
+--     DROP COLUMN IF EXISTS issued_by_resident_id,
+--     DROP COLUMN IF EXISTS house_id;
+--
+-- VERIFY (run on the database after applying):
+--   SELECT column_name, data_type, is_nullable
+--     FROM information_schema.columns
+--    WHERE table_schema = 'public' AND table_name = 'whatsapp_link_tokens'
+--      AND column_name IN ('issued_by_resident_id', 'house_id');
+--   -- expect 2 rows, both uuid, both nullable
+
+ALTER TABLE public.whatsapp_link_tokens
+  ADD COLUMN IF NOT EXISTS issued_by_resident_id UUID,
+  ADD COLUMN IF NOT EXISTS house_id UUID REFERENCES public.houses(id) ON DELETE CASCADE;

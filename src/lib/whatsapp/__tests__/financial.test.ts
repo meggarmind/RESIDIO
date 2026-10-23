@@ -142,6 +142,8 @@ function repository(houses: FinancialHouse[] = [PALM], overrides: Partial<WhatsA
     loadReceipt: vi.fn().mockResolvedValue(null),
     storeReceiptPdf: vi.fn().mockResolvedValue('https://storage.test/signed/receipt.pdf'),
     requestClearance: vi.fn().mockResolvedValue({ status: 'requested', requestId: 'request-1' }),
+    getCoResidents: vi.fn().mockResolvedValue([]),
+    createCoResidentLinkCode: vi.fn().mockResolvedValue(null),
     getStatementPeriods: vi.fn().mockResolvedValue(['this_month', 'this_year', 'last_six_months', 'last_twelve_months', 'all_time', 'since_move_in']),
     getEstateName: vi.fn().mockResolvedValue('Palm Estate'),
     loadStatement: vi.fn().mockResolvedValue({ fromDate: '2026-10-01', toDate: '2026-10-20', statement: statementData(3) }),
@@ -197,6 +199,8 @@ const FINANCIAL_MENU = [
   '5. Receipt',
   '6. Report a payment',
   '7. Clearance certificate',
+  // A tenant sponsors co-residents, so More offers Link a co-resident (#1072).
+  '8. More',
   FOOTER,
 ].join('\n');
 
@@ -326,15 +330,15 @@ describe('WhatsApp Assistant properties (#804 decision 12)', () => {
     expect(replies[1]).toContain('*What you owe, 4 Cedar Way*');
     expect(replies[2]).toContain('Financial standing: 4 Cedar Way');
     expect(replies[2]).toContain('8. More');
-    expect(replies[3]).toBe(['More', '1. Switch property (now: 4 Cedar Way)', FOOTER].join('\n'));
+    expect(replies[3]).toBe(['More', '1. Switch property (now: 4 Cedar Way)', '2. Link a co-resident', FOOTER].join('\n'));
     expect(replies[4]).toContain('Which property?');
     expect(replies[5]).toContain('Financial standing: 12 Palm Close');
     // The choice is remembered: no second property prompt.
     expect(replies[6]).toContain('*Recent payments, 12 Palm Close*');
   });
 
-  it('never shows property prompts or More to a single-house resident', async () => {
-    const replies = await chat(repository(), ['1', '8']);
+  it('never shows property prompts or More to a single-house resident who sponsors no one', async () => {
+    const replies = await chat(repository([{ ...PALM, role: 'non_resident_landlord' }]), ['1', '8']);
     expect(replies[0]).not.toContain('More');
     expect(replies[1]).toBe(UNRECOGNISED);
   });

@@ -20,11 +20,12 @@ import {
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { getSponsoredHouses } from '@/lib/whatsapp/co-resident';
 import { contactLine } from '@/lib/whatsapp/assistant-format';
-import { createSupabaseWhatsAppFinancialRepository } from '@/lib/whatsapp/financial';
+import { createSupabaseWhatsAppFinancialRepository, houseLabel } from '@/lib/whatsapp/financial';
 import type { WhatsAppInboundMessage, WhatsAppTextMessage } from '@/lib/whatsapp/types';
 import { SURVEY_OPT_OUT_REPLY, isSurveyStopCommand } from '@/lib/whatsapp/survey';
 import { optOutOfSurveys } from '@/lib/whatsapp/survey-db';
 import { BLOCKED_REPLY_HOURS } from '@/lib/whatsapp/retention';
+import { sendWhatsAppToResident } from '@/lib/whatsapp/resident-send';
 import {
   createSupabaseWhatsAppAdminRepository,
   handleWhatsAppAdminChoice,
@@ -83,6 +84,10 @@ export interface WhatsAppIdentityRepository {
   ): Promise<void>;
   rememberPendingContact(phoneNumber: string): Promise<void>;
   consumeLinkToken(token: string): Promise<string | null>;
+  /** Who created a live LINK code in the Assistant (#1072); null for an office code or no live code. */
+  findLinkCodeIssuer(token: string): Promise<LinkCodeIssuer | null>;
+  /** Tells the sponsor their co-resident's number is linked. Never throws. */
+  sendLinkNotice(sponsorId: string, body: string, seed: string): Promise<void>;
   /**
    * Counts a LINK try as wrong before the code is checked (atomic, per number); false once the number
    * has used up its tries in the window (#1058).
@@ -109,6 +114,19 @@ export interface WhatsAppIdentityRepository {
   getEstateName(): Promise<string>;
   /** STOP SURVEYS (#872): the assistant never asks this resident for feedback again. */
   optOutOfSurveys(residentId: string): Promise<void>;
+}
+
+/** A sponsor who created a LINK code for their co-resident, with what the notice names (#1072). */
+export interface LinkCodeIssuer {
+  residentId: string;
+  coResidentFirstName: string;
+  houseLabel: string;
+}
+
+export const OWN_NUMBER_LINK_REPLY = 'This code was created for your co-resident. They need to send it from their own WhatsApp number.';
+
+export function linkNotice(issuer: LinkCodeIssuer): string {
+  return `${issuer.coResidentFirstName} is now linked to ${issuer.houseLabel} on WhatsApp.`;
 }
 
 export type WhatsAppConsentDecision = 'identity_confirmed' | 'identity_disputed' | 'privacy_accepted' | 'privacy_declined';
@@ -373,6 +391,28 @@ export function createSupabaseWhatsAppIdentityRepository(): WhatsAppIdentityRepo
       }
 
       return data.resident_id;
+    },
+
+    async findLinkCodeIssuer(token) {
+      // The generated types do not know the issuer columns (#1072) until that migration is applied.
+      const { data, error } = await (createAdminClient() as unknown as SupabaseClient)
+        .from('whatsapp_link_tokens')
+        .select('issued_by_resident_id, resident:residents!whatsapp_link_tokens_resident_id_fkey(first_name), house:houses(house_number, short_name, street:streets(name))')
+        .eq('token_hash', hashLinkToken(token))
+        .eq('purpose', 'link')
+        .is('used_at', null)
+        .gt('expires_at', new Date().toISOString())
+        .not('issued_by_resident_id', 'is', null)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data?.house) return null;
+      const resident = (Array.isArray(data.resident) ? data.resident[0] : data.resident) as { first_name: string } | null;
+      return { residentId: data.issued_by_resident_id as string, coResidentFirstName: resident?.first_name ?? 'Your co-resident', houseLabel: houseLabel(data.house) };
+    },
+
+    async sendLinkNotice(sponsorId, body, seed) {
+      const result = await sendWhatsAppToResident(sponsorId, body, { seed });
+      if (!result.sent) console.warn(`[whatsapp] co-resident link notice not sent: ${result.reason}`);
     },
 
     async attachPendingContact(phoneNumber, residentId) {
@@ -807,6 +847,15 @@ export async function handleResidentMessage(
       await sendReply(message, await withContact(LINK_LOCKED_REPLY, options), options.send);
       return { status: 'pending', residentId: null, optedIn: false, financialEligible: false, accessTier: 'community' };
     }
+    // A code a sponsor created is for their co-resident: any number of the sponsor's is refused (#1072 decision 5).
+    const issuer = await options.repository.findLinkCodeIssuer(linkMatch[1]);
+    if (issuer) {
+      const holders = linked.length > 0 ? [...linked, ...(await options.repository.findRosterMatches(phoneNumber))] : rosterMatches;
+      if (holders.some((holder) => holder.id === issuer.residentId)) {
+        await sendReply(message, OWN_NUMBER_LINK_REPLY, options.send);
+        return { status: 'pending', residentId: null, optedIn: false, financialEligible: false, accessTier: 'community' };
+      }
+    }
     const residentId = await options.repository.consumeLinkToken(linkMatch[1]);
     if (!residentId) {
       await sendReply(message, await withContact('That link code is invalid or expired. Ask the estate office for a new code.', options), options.send);
@@ -816,6 +865,7 @@ export async function handleResidentMessage(
     await options.repository.clearLinkAttempts(phoneNumber);
     await options.repository.setOptIn(residentId, phoneNumber, false, 'in_chat', true);
     await options.repository.attachPendingContact(phoneNumber, residentId);
+    if (issuer) await options.repository.sendLinkNotice(issuer.residentId, linkNotice(issuer), `whatsapp-link-notice:${message.id}`);
     await sendReply(
       message,
       'Your number is linked. Reply YES to receive estate WhatsApp alerts, or STOP to decline them.',
