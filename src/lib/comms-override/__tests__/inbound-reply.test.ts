@@ -58,6 +58,8 @@ describe('inbound WhatsApp Assistant replies are exempt from the redirect (decis
       setOptIn: vi.fn(),
       rememberPendingContact: vi.fn(),
       consumeLinkToken: vi.fn().mockResolvedValue(null),
+      findLinkCodeIssuer: vi.fn().mockResolvedValue(null),
+      sendLinkNotice: vi.fn().mockResolvedValue(undefined),
       claimLinkAttempt: vi.fn().mockResolvedValue(true),
       clearLinkAttempts: vi.fn().mockResolvedValue(undefined),
       attachPendingContact: vi.fn(),

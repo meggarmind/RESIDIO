@@ -1,6 +1,13 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getSponsoredHouses } from '@/lib/whatsapp/co-resident';
+import {
+  CO_RESIDENT_LINK_CODE_MINUTES,
+  SPONSOR_ROLES,
+  createCoResidentLinkCode,
+  getCoResidents,
+  getSponsoredHouses,
+  type CoResident,
+} from '@/lib/whatsapp/co-resident';
 import { createAdminClient } from '@/lib/supabase/server';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
@@ -262,6 +269,10 @@ export interface WhatsAppFinancialRepository {
   storeReceiptPdf(input: Parameters<typeof storeReceiptPdf>[0], receipt: PaymentReceiptData): Promise<string>;
   /** Files an approval request for a clearance certificate on this property (#816 decision 15). */
   requestClearance(input: Parameters<typeof requestClearanceCertificate>[0]): Promise<ClearanceRequestResult>;
+  /** The sponsor's active co-residents on this house (#1072). */
+  getCoResidents(sponsorId: string, houseId: string): Promise<CoResident[]>;
+  /** A LINK code for one of the sponsor's co-residents on this house; null when that person is not one. */
+  createCoResidentLinkCode(input: { sponsorId: string; coResidentId: string; houseId: string }): Promise<{ code: string; expiresAt: string } | null>;
   /** The statement periods offered for this property (#1069). */
   getStatementPeriods(residentId: string, houseId: string): Promise<StatementPeriod[]>;
   getEstateName(): Promise<string>;
@@ -290,7 +301,7 @@ export interface WhatsAppFinancialRepository {
 
 type HouseEmbed = { house_number: string; short_name: string | null; street: { name: string } | { name: string }[] | null };
 
-function houseLabel(embed: unknown): string {
+export function houseLabel(embed: unknown): string {
   const house = (Array.isArray(embed) ? embed[0] : embed) as HouseEmbed;
   const street = Array.isArray(house.street) ? house.street[0]?.name : house.street?.name;
   return house.short_name || `${house.house_number}, ${street || 'Estate'}`;
@@ -787,6 +798,8 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
     loadReceipt,
     storeReceiptPdf,
     requestClearance: requestClearanceCertificate,
+    getCoResidents,
+    createCoResidentLinkCode,
     getStatementPeriods: loadStatementPeriods,
     getEstateName: estateName,
     loadStatement: loadWhatsAppStatementForPeriod,
@@ -889,9 +902,9 @@ async function sendFinancialReply(
 // The session's current_node is `<node>` or `<node>~<misses>`, misses being the
 // unrecognised replies in a row. Nodes: main, financial, answer (after a financial
 // answer), more, alerts, notices, disambiguate, statement_period,
-// property:<target> and pin:<target>, where target is menu, switch or an item.
+// link_pick, property:<target> and pin:<target>, where target is menu, switch, link or an item.
 
-type Target = 'menu' | 'switch' | 'report' | FinancialMenuItem;
+type Target = 'menu' | 'switch' | 'report' | 'link' | FinancialMenuItem;
 
 const GREETINGS = new Set(['menu', 'hi', 'hello', 'yes', 'start']);
 const CONTACT_WORDS = new Set(['9', 'help', 'agent', 'contact']);
@@ -992,6 +1005,22 @@ function selectedHouse(turn: Turn): FinancialHouse | null {
   return turn.houses?.find((house) => house.id === turn.session.selectedHouseId) ?? null;
 }
 
+/** The resident landlord or tenant of the house, who may link their co-residents (#1072 decision 1). */
+function isSponsorHouse(house: FinancialHouse | null): boolean {
+  return !!house && !house.onBehalf && SPONSOR_ROLES.includes(house.role);
+}
+
+const LINK_WORDS = new Set(['link co-resident', 'link co resident', 'link a co-resident']);
+
+/** The More menu: Switch property for several houses, Link a co-resident for a sponsor (#1072 decision 3). */
+function moreItems(turn: Turn): { label: string; target: Target }[] {
+  const house = selectedHouse(turn);
+  return [
+    ...((turn.houses || []).length > 1 ? [{ label: `Switch property${house ? ` (now: ${house.label})` : ''}`, target: 'switch' as const }] : []),
+    ...(isSponsorHouse(house) ? [{ label: 'Link a co-resident', target: 'link' as const }] : []),
+  ];
+}
+
 function financialMenu(turn: Turn): string {
   const houses = turn.houses || [];
   const multiple = houses.length > 1;
@@ -1011,7 +1040,7 @@ function financialMenu(turn: Turn): string {
     '5. Receipt',
     '6. Report a payment',
     ...(house && !OCCUPANT_ROLES.has(house.role) ? [] : ['7. Clearance certificate']),
-    ...(multiple ? ['8. More'] : []),
+    ...(moreItems(turn).length > 0 ? ['8. More'] : []),
     lastLine,
   ].join('\n');
 }
@@ -1082,9 +1111,56 @@ async function enterFinancial(turn: Turn, target: Target, prefix?: string, prope
     return;
   }
   if (target === 'report') return startReport(turn, lead);
+  if (target === 'link') return showCoResidents(turn, lead);
   if (target === 'receipt') return showReceipts(turn, lead);
   if (target === 'clearance') return askForClearance(turn, lead);
   await answerItem(turn, target, prefix);
+}
+
+function coResidentPrompt(people: CoResident[]): string {
+  return ['Which co-resident?', ...people.map((person, index) => `${index + 1}. ${person.firstName} ${person.lastName}`), 'Reply with the number.'].join('\n');
+}
+
+/**
+ * Link a co-resident (#1072): only the sponsor, only after their PIN, and only for a co-resident already
+ * on record for the selected house. The bot never creates a resident.
+ */
+async function showCoResidents(turn: Turn, lead: string): Promise<void> {
+  const house = selectedHouse(turn)!;
+  if (!turn.session.pinAuthenticated) {
+    // Issuing a credential always needs the PIN, even where the estate does not require one for viewing.
+    return respond(turn, `${lead}A security PIN is required before linking a co-resident. To set one, ${SET_PIN_HINT}.\n${footer(turn)}`, 'answer');
+  }
+  if (!isSponsorHouse(house)) {
+    return respond(turn, `${lead}Only the resident landlord or tenant of ${house.label} can link a co-resident.\n${financialMenu(turn)}`, 'financial');
+  }
+  const people = await turn.options.repository.getCoResidents(turn.identity.id, house.id);
+  if (people.length === 0) {
+    return respond(turn, `${lead}${withContact(turn, `There is no co-resident on record for ${house.label}. Ask the estate office to add them first.`)}\n${footer(turn)}`, 'answer');
+  }
+  await respond(turn, `${lead}${coResidentPrompt(people)}`, 'link_pick');
+}
+
+async function pickCoResident(turn: Turn, input: string): Promise<void> {
+  await loadHouses(turn);
+  const house = selectedHouse(turn);
+  // The unlock or the house can change between the list and the pick; check again before issuing.
+  if (!house || !turn.session.pinAuthenticated || !isSponsorHouse(house)) return enterFinancial(turn, 'link');
+  const people = await turn.options.repository.getCoResidents(turn.identity.id, house.id);
+  const person = /^\d+$/.test(input) ? people[Number(input) - 1] : undefined;
+  if (!person) return miss(turn, 'link_pick');
+  const issued = await turn.options.repository.createCoResidentLinkCode({ sponsorId: turn.identity.id, coResidentId: person.id, houseId: house.id });
+  if (!issued) return respond(turn, `${withContact(turn, 'The link code could not be created. Nothing was changed. Please try again.')}\n${footer(turn)}`, 'answer');
+  await respond(
+    turn,
+    [
+      `Link code for ${person.firstName} ${person.lastName}: *${issued.code}*`,
+      `It works once and expires in ${CO_RESIDENT_LINK_CODE_MINUTES} minutes. Any earlier code for ${person.firstName} no longer works.`,
+      `Ask ${person.firstName} to send LINK ${issued.code} to this WhatsApp number from their own phone. It cannot be used from your number.`,
+      footer(turn),
+    ].join('\n'),
+    'answer'
+  );
 }
 
 async function capReply(turn: Turn): Promise<string | null> {
@@ -1661,7 +1737,7 @@ async function handlePin(turn: Turn, pin: string, node: string): Promise<void> {
   turn.pinGate = true;
   const target = node.startsWith('pin:') ? node.slice(4) : 'menu';
   if (target === 'email') return startEmail(turn, 'PIN verified.');
-  const account = target === 'report' || target === 'receipt' || target === 'clearance';
+  const account = target === 'report' || target === 'receipt' || target === 'clearance' || target === 'link';
   await enterFinancial(turn, target as Target, account ? 'PIN verified.' : PIN_VERIFIED_REPLY);
 }
 /** `PIN`, `Set a security PIN` or `Change PIN` (#892). */
@@ -1814,7 +1890,7 @@ async function converse(turn: Turn, expired: boolean, endedOnPurpose = false): P
   }
   if (CONTACT_WORDS.has(input)) return showContact(turn);
   if (input === '0') {
-    const backToFinancial = node === 'answer' || node === 'more' || node === 'statement_period' || node.startsWith('report_') || node.startsWith('receipt_') || node.startsWith('property:') || node.startsWith('statement_email:');
+    const backToFinancial = node === 'answer' || node === 'more' || node === 'link_pick' || node === 'statement_period' || node.startsWith('report_') || node.startsWith('receipt_') || node.startsWith('property:') || node.startsWith('statement_email:');
     return backToFinancial && turn.identity.financialEligible ? enterFinancial(turn, 'menu') : showMain(turn);
   }
 
@@ -1823,6 +1899,9 @@ async function converse(turn: Turn, expired: boolean, endedOnPurpose = false): P
   if (node === 'receipt_pick') return pickReceipt(turn, input);
   if (node === 'email_address') return submitEmailAddress(turn);
   if (node === 'email_code') return submitEmailCode(turn);
+
+  if (LINK_WORDS.has(input) && turn.identity.financialEligible) return enterFinancial(turn, 'link');
+  if (node === 'link_pick') return pickCoResident(turn, input);
 
   const intent = turn.settings?.keywordSynonyms[input] ?? DEFAULT_KEYWORDS[input];
   if (intent) return runIntent(turn, intent);
@@ -1876,16 +1955,19 @@ async function converse(turn: Turn, expired: boolean, endedOnPurpose = false): P
   }
 
   if (node === 'more') {
-    if (input === '1' && (await loadHouses(turn)).length > 1) return enterFinancial(turn, 'switch');
+    await loadHouses(turn);
+    const item = /^\d$/.test(input) ? moreItems(turn)[Number(input) - 1] : undefined;
+    if (item) return enterFinancial(turn, item.target);
     return miss(turn, node);
   }
 
   if (node === 'financial' || node === 'answer' || node.startsWith('statement:')) {
     const item = FINANCIAL_ITEM_NUMBERS[input];
     if (item) return enterFinancial(turn, item);
-    if (input === '8' && (await loadHouses(turn)).length > 1) {
-      const house = selectedHouse(turn);
-      return respond(turn, ['More', `1. Switch property${house ? ` (now: ${house.label})` : ''}`, footer(turn)].join('\n'), 'more');
+    await loadHouses(turn);
+    const more = moreItems(turn);
+    if (input === '8' && more.length > 0) {
+      return respond(turn, ['More', ...more.map((entry, index) => `${index + 1}. ${entry.label}`), footer(turn)].join('\n'), 'more');
     }
     return miss(turn, node);
   }
