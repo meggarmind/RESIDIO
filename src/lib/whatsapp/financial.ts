@@ -396,7 +396,7 @@ export function composeRecentPaymentsAnswer(rows: PaymentRow[], houseLabel: stri
 /** One line per property with what is outstanding there, then the total (#1073 decision 1). */
 export function composeAllPropertiesOweAnswer(rows: { houseLabel: string; figures: OwedFigures }[], showPay: boolean, hasContact: boolean): string {
   const amount = (value: number, rollForward?: boolean) => (rollForward ? formatBalance(value) : value > 0 ? formatNaira(value) : 'Nil');
-  const total = rows.reduce((sum, row) => sum + row.figures.outstanding, 0);
+  const total = rows.reduce((sum, row) => sum + Math.max(row.figures.outstanding, 0), 0);
   const awaiting = rows.reduce((sum, row) => sum + row.figures.awaitingVerification, 0);
   const rollForward = rows.some((row) => row.figures.rollForward);
   const lines = [
@@ -1698,7 +1698,7 @@ async function handlePinStep(turn: Turn, step: string, arg: string | undefined, 
 
 async function chooseProperty(turn: Turn, target: Target): Promise<void> {
   const houses = await loadHouses(turn);
-  if (target === 'what_i_owe' && houses.length > 1 && (turn.text.trim() === String(houses.length + 1) || normalizeInput(turn.text) === 'all')) return answerAllProperties(turn);
+  if (target === 'what_i_owe' && houses.length > 1 && turn.text.trim() === String(houses.length + 1)) return answerAllProperties(turn);
   const house = /^\d+$/.test(turn.text) ? houses[Number(turn.text) - 1] : undefined;
   if (!house) return miss(turn, `property:${target}`);
   turn.session.selectedHouseId = house.id;

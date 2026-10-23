@@ -2031,8 +2031,16 @@ describe('WhatsApp Assistant several houses (#1073)', () => {
   });
 
   it('shows Nil for a paid-up house and no PAY line when nothing is owed', async () => {
-    const replies = await chat(twoHouseRepo({ getOwed: vi.fn().mockResolvedValue(figures(0)) }), ['owe', 'all']);
+    const replies = await chat(twoHouseRepo({ getOwed: vi.fn().mockResolvedValue(figures(0)) }), ['owe', '3']);
     expect(replies[1]).toBe(['*What you owe, all your properties*', '12 Palm Close: Nil', '4 Cedar Way: Nil', 'Total: Nil', FOOTER].join('\n'));
+  });
+
+  it('totals only what is owed, so a credit on one house never hides a debt on another', async () => {
+    const rolled = (outstanding: number): OwedFigures => ({ ...figures(outstanding), rollForward: true });
+    const repo = twoHouseRepo({ getOwed: vi.fn(async (_resident: string, house: string) => (house === 'house-1' ? rolled(50000) : rolled(-60000))) });
+    const replies = await chat(repo, ['owe', '3']);
+
+    expect(replies[1]).toBe(['*What you owe, all your properties*', '12 Palm Close: ₦50,000.00 owed', '4 Cedar Way: ₦60,000.00 in credit', 'Total: ₦50,000.00 owed', 'Reply PAY for how to pay', FOOTER].join('\n'));
   });
 
   it('counts one summary as one lookup and writes one disclosure row', async () => {
