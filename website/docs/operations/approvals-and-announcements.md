@@ -8,8 +8,8 @@ residio_sources:
   - src/app/(dashboard)/announcements/**
   - src/actions/approvals/**
   - src/actions/announcements/**
-residio_verified_commit: 13cbd359
-residio_verified_at: '2026-10-21'
+residio_verified_commit: e5bc1afd
+residio_verified_at: '2026-10-23'
 residio_app_version: '0.4.0'
 ---
 
