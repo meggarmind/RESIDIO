@@ -257,6 +257,16 @@ export function contactLine(contact: EstateContact, now: Date): string | null {
   return back ? `${line} ${back}` : line;
 }
 
+/**
+ * What an invoice is for, in the resident's words (#1073): the billing profile name, else the invoice
+ * type. Dues-style charges that recur carry their month (`Security dues, OCT 2026`); a levy does not.
+ */
+export function chargeLabel(invoice: { invoice_type: string | null; profileName: string | null; periodStart: string | null }): string {
+  const name = invoice.profileName?.trim() || (invoice.invoice_type === 'LEVY' ? 'Levy' : invoice.invoice_type === 'SERVICE_CHARGE' ? 'Service charge' : 'Charge');
+  const month = invoice.invoice_type === 'SERVICE_CHARGE' ? invoice.periodStart?.match(/^(\d{4})-(\d{2})/) : null;
+  return month ? `${name}, ${MONTHS[Number(month[2]) - 1].toUpperCase()} ${month[1]}` : name;
+}
+
 /** Last line of every answer. */
 export function answerFooter(hasContact: boolean): string {
   return hasContact ? 'Reply 0 for menu or 9 to contact the estate office.' : 'Reply 0 for menu.';

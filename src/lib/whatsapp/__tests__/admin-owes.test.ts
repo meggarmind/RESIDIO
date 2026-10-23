@@ -55,7 +55,7 @@ const house = (overrides: Partial<OwesHouseData> = {}): OwesHouseData => ({
   owed: {
     invoiceCount: 3,
     outstanding: 45000,
-    overdue: { total: 30000, count: 2, oldestDue: '2026-08-15' },
+    overdue: { total: 30000, count: 2, oldestDue: '2026-08-15', charges: [] },
     next: null,
     awaitingVerification: 0,
   },

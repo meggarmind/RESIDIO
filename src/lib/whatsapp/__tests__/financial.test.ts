@@ -4,13 +4,14 @@ import {
   canPerformWhatsAppFinancialLookup,
   composeOweAnswer,
   composeRecentPaymentsAnswer,
+  composeWalletAnswer,
   createSupabaseWhatsAppFinancialRepository,
   handleFinancialMessage,
   hashPin,
   statementRange,
   verifyPin,
 } from '@/lib/whatsapp/financial';
-import { offeredPeriods } from '@/lib/whatsapp/assistant-format';
+import { chargeLabel, offeredPeriods } from '@/lib/whatsapp/assistant-format';
 import type {
   AssistantSettings,
   FinancialHouse,
@@ -62,14 +63,14 @@ const community: WhatsAppResidentIdentity = { ...identity, firstName: 'Tunde', f
 const CONTACT = 'Contact the estate office on 0803 699 6725.';
 const FOOTER = 'Reply 0 for menu or 9 to contact the estate office.';
 const UNRECOGNISED = "I didn't catch that. Reply with a number from the menu, or MENU to see it again.";
-const PALM: FinancialHouse = { id: 'house-1', label: '12 Palm Close' };
-const CEDAR: FinancialHouse = { id: 'house-2', label: '4 Cedar Way' };
+const PALM: FinancialHouse = { id: 'house-1', label: '12 Palm Close', role: 'tenant' };
+const CEDAR: FinancialHouse = { id: 'house-2', label: '4 Cedar Way', role: 'tenant' };
 
 const OWED: OwedFigures = {
   invoiceCount: 3,
   outstanding: 125000,
-  overdue: { total: 75000, count: 2, oldestDue: '2026-08-01' },
-  next: { amount: 50000, dueDate: '2026-11-01', invoiceNumber: 'INV-2026-0412' },
+  overdue: { total: 75000, count: 2, oldestDue: '2026-08-01', charges: [{ label: 'Security dues, AUG 2026', amount: 50000 }, { label: 'Development levy', amount: 25000 }] },
+  next: { amount: 50000, dueDate: '2026-11-01', invoiceNumber: 'INV-2026-0412', label: 'Security dues, NOV 2026' },
   awaitingVerification: 25000,
 };
 
@@ -210,7 +211,9 @@ describe('WhatsApp Assistant menus (#804 harmonised)', () => {
       '*What you owe, 12 Palm Close*',
       'Outstanding: ₦125,000.00',
       'Overdue: ₦75,000.00 across 2 invoices (oldest due 1 Aug 2026)',
-      'Next due: ₦50,000.00 on 1 Nov 2026 (invoice INV-2026-0412)',
+      '- Security dues, AUG 2026: ₦50,000.00',
+      '- Development levy: ₦25,000.00',
+      'Next due: ₦50,000.00 on 1 Nov 2026, Security dues, NOV 2026 (invoice INV-2026-0412)',
       'Awaiting verification: ₦25,000.00',
       'Reply PAY for how to pay',
       FOOTER,
@@ -319,7 +322,7 @@ describe('WhatsApp Assistant properties (#804 decision 12)', () => {
     const repo = repository([PALM, CEDAR]);
     const replies = await chat(repo, ['owe', '2', '0', '8', '1', '1', '2']);
 
-    expect(replies[0]).toBe(['Which property?', '1. 12 Palm Close', '2. 4 Cedar Way', 'Reply with the property number.'].join('\n'));
+    expect(replies[0]).toBe(['Which property?', '1. 12 Palm Close', '2. 4 Cedar Way', '3. All my properties', 'Reply with the property number.'].join('\n'));
     expect(replies[1]).toContain('*What you owe, 4 Cedar Way*');
     expect(replies[2]).toContain('Financial standing: 4 Cedar Way');
     expect(replies[2]).toContain('8. More');
@@ -889,7 +892,7 @@ describe('WhatsApp PIN lockout and hashing (#850, #891)', () => {
 });
 
 describe('WhatsApp What I owe figures (#811, #804 decision 20)', () => {
-  type InvoiceRow = { invoice_number: string; amount_due: number; amount_paid: number; due_date: string; status?: string };
+  type InvoiceRow = { invoice_number: string; amount_due: number; amount_paid: number; due_date: string; status?: string; invoice_type?: string; period_start?: string; billing_profile?: { name: string } | null };
 
   /** Behaves like PostgREST per table: applies filters, caps a response at max_rows (1000), counts for head selects. */
   function mockTables(rows: InvoiceRow[], unverifiedPayments: number[] = []) {
@@ -964,6 +967,17 @@ describe('WhatsApp What I owe figures (#811, #804 decision 20)', () => {
     expect(statusFilters).toContainEqual({ table: 'payment_records', values: ['paid', 'pending'] });
   });
 
+  it('puts the charge labels on the Overdue and Next due lines read from the database', async () => {
+    const rows: InvoiceRow[] = [
+      { invoice_number: 'INV-1', amount_due: 5000, amount_paid: 0, due_date: '2026-08-01', invoice_type: 'SERVICE_CHARGE', period_start: '2026-08-01', billing_profile: { name: 'Security dues' } },
+      { invoice_number: 'INV-2', amount_due: 9000, amount_paid: 0, due_date: '2120-01-01', invoice_type: 'LEVY', period_start: '2120-01-01', billing_profile: { name: 'Development levy' } },
+    ];
+    mockTables(rows);
+    const owed = await createSupabaseWhatsAppFinancialRepository().getOwed('resident-1', 'house-1');
+    expect(owed.overdue?.charges).toEqual([{ label: 'Security dues, AUG 2026', amount: 5000 }]);
+    expect(owed.next?.label).toBe('Development levy');
+  });
+
   it('finds an unpaid invoice newer than more than 1000 fully paid ones', async () => {
     mockTables([...paidMonthly(1100), { invoice_number: 'INV-NEW', amount_due: 5000, amount_paid: 0, due_date: '2120-01-01' }]);
 
@@ -998,8 +1012,8 @@ describe('WhatsApp What I owe figures (#811, #804 decision 20)', () => {
     expect(owed).toEqual({
       invoiceCount: 26,
       outstanding: 21000,
-      overdue: { total: 8000, count: 2, oldestDue: '2026-08-01' },
-      next: { amount: 6000, dueDate: '2026-11-01', invoiceNumber: 'INV-C' },
+      overdue: { total: 8000, count: 2, oldestDue: '2026-08-01', charges: [{ label: 'Charge', amount: 3000 }, { label: 'Charge', amount: 5000 }] },
+      next: { amount: 6000, dueDate: '2026-11-01', invoiceNumber: 'INV-C', label: 'Charge' },
       awaitingVerification: 3500,
     });
   });
@@ -1853,7 +1867,7 @@ describe('What I owe roll-forward balance (#863)', () => {
 
     expect(owed).toMatchObject({ outstanding: 6000, awaitingVerification: 700, invoiceCount: 3 });
     expect(owed).not.toHaveProperty('rollForward');
-    expect(owed.overdue).toEqual({ total: 6000, count: 1, oldestDue: '2026-01-01' });
+    expect(owed.overdue).toEqual({ total: 6000, count: 1, oldestDue: '2026-01-01', charges: [{ label: 'Charge', amount: 6000 }] });
     expect(rpc).not.toHaveBeenCalled();
   });
 
@@ -1866,7 +1880,7 @@ describe('What I owe roll-forward balance (#863)', () => {
     expect(rpc).toHaveBeenCalledWith('resident_account_balance', { p_resident_id: 'resident-1', p_house_id: 'house-1', p_from: '2026-10-21', p_to: '2026-10-21' });
     expect(owed).toMatchObject({ outstanding: -2500, awaitingVerification: 300, rollForward: true });
     // Overdue and next due stay allocation-based.
-    expect(owed.overdue).toEqual({ total: 6000, count: 1, oldestDue: '2026-01-01' });
+    expect(owed.overdue).toEqual({ total: 6000, count: 1, oldestDue: '2026-01-01', charges: [{ label: 'Charge', amount: 6000 }] });
   });
 
   it('treats an unreadable setting as off', async () => {
@@ -1987,5 +2001,131 @@ describe('ending the session with an exit word (#1069)', () => {
     const repo = repository();
     repo.setStoredSession(stored('main'));
     expect((await chat(repo, ['please end it']))[0]).not.toContain('session has ended');
+  });
+});
+
+describe('WhatsApp Assistant several houses (#1073)', () => {
+  const LANDLORD_CEDAR: FinancialHouse = { ...CEDAR, role: 'non_resident_landlord' };
+  const figures = (outstanding: number, awaitingVerification = 0): OwedFigures => ({ invoiceCount: 1, outstanding, overdue: null, next: null, awaitingVerification });
+
+  function twoHouseRepo(overrides: Partial<WhatsAppFinancialRepository> = {}) {
+    return repository([PALM, CEDAR], {
+      getOwed: vi.fn(async (_resident: string, house: string) => (house === 'house-1' ? figures(50000) : figures(0))),
+      ...overrides,
+    });
+  }
+
+  it('offers All my properties last, only to a person with more than one house', async () => {
+    expect((await chat(twoHouseRepo(), ['owe']))[0]).toBe(['Which property?', '1. 12 Palm Close', '2. 4 Cedar Way', '3. All my properties', 'Reply with the property number.'].join('\n'));
+    expect((await chat(repository([PALM]), ['owe']))[0]).toContain('*What you owe, 12 Palm Close*');
+    expect((await chat(twoHouseRepo(), ['payments']))[0]).not.toContain('All my properties');
+  });
+
+  it('lists each house with what is outstanding, then the total', async () => {
+    const repo = twoHouseRepo({ getOwed: vi.fn(async (_resident: string, house: string) => (house === 'house-1' ? figures(50000, 1000) : figures(25000, 500))) });
+    const replies = await chat(repo, ['owe', '3']);
+
+    expect(replies[1]).toBe(['*What you owe, all your properties*', '12 Palm Close: ₦50,000.00', '4 Cedar Way: ₦25,000.00', 'Total: ₦75,000.00', 'Awaiting verification: ₦1,500.00', 'Reply PAY for how to pay', FOOTER].join('\n'));
+    expect(repo.getOwed).toHaveBeenCalledWith('resident-1', 'house-1');
+    expect(repo.getOwed).toHaveBeenCalledWith('resident-1', 'house-2');
+  });
+
+  it('shows Nil for a paid-up house and no PAY line when nothing is owed', async () => {
+    const replies = await chat(twoHouseRepo({ getOwed: vi.fn().mockResolvedValue(figures(0)) }), ['owe', '3']);
+    expect(replies[1]).toBe(['*What you owe, all your properties*', '12 Palm Close: Nil', '4 Cedar Way: Nil', 'Total: Nil', FOOTER].join('\n'));
+  });
+
+  it('totals only what is owed, so a credit on one house never hides a debt on another', async () => {
+    const rolled = (outstanding: number): OwedFigures => ({ ...figures(outstanding), rollForward: true });
+    const repo = twoHouseRepo({ getOwed: vi.fn(async (_resident: string, house: string) => (house === 'house-1' ? rolled(50000) : rolled(-60000))) });
+    const replies = await chat(repo, ['owe', '3']);
+
+    expect(replies[1]).toBe(['*What you owe, all your properties*', '12 Palm Close: ₦50,000.00 owed', '4 Cedar Way: ₦60,000.00 in credit', 'Total: ₦50,000.00 owed', 'Reply PAY for how to pay', FOOTER].join('\n'));
+  });
+
+  it('counts one summary as one lookup and writes one disclosure row', async () => {
+    const repo = twoHouseRepo();
+    const canLookup = vi.fn().mockResolvedValue('ok');
+    await chat(repo, ['owe', '3'], identity, { canLookup });
+
+    expect(canLookup).toHaveBeenCalledTimes(1);
+    expect(repo.logDisclosure).toHaveBeenCalledTimes(1);
+    expect(repo.logDisclosure).toHaveBeenCalledWith(expect.objectContaining({ houseId: null, menuItem: 'what_i_owe', metadata: { scope: 'all_properties', houses: 2 } }));
+  });
+
+  it('asks for the PIN when the gate was turned on after the property prompt', async () => {
+    const repo = twoHouseRepo();
+    await chat(repo, ['owe']);
+    vi.mocked(repo.getForcePin).mockResolvedValue(true);
+    const replies = await chat(repo, ['3']);
+
+    expect(replies[0]).toContain('A security PIN is required before viewing financial standing.');
+    expect(repo.getOwed).not.toHaveBeenCalled();
+    expect(repo.logDisclosure).not.toHaveBeenCalled();
+  });
+
+  it('shows the cap reply, and looks nothing up, when the day is used up', async () => {
+    const repo = twoHouseRepo();
+    const replies = await chat(repo, ['owe', '3'], identity, { canLookup: vi.fn().mockResolvedValue('resident_cap') });
+    expect(replies[1]).toContain("You've reached today's limit");
+    expect(repo.getOwed).not.toHaveBeenCalled();
+    expect(repo.logDisclosure).not.toHaveBeenCalled();
+  });
+
+  it('labels the wallet as covering every property only when there are several', async () => {
+    expect(composeWalletAnswer(15000, false, true)).toBe(['*Wallet (all your properties)*', 'Balance: ₦15,000.00', 'Reply 0 for menu.'].join('\n'));
+    expect(composeWalletAnswer(15000, false)).toBe(['*Wallet*', 'Balance: ₦15,000.00', 'Reply 0 for menu.'].join('\n'));
+    expect((await chat(twoHouseRepo(), ['wallet', '1']))[1]).toContain('*Wallet (all your properties)*');
+    expect((await chat(repository([PALM]), ['wallet']))[0]).toContain('*Wallet*\n');
+  });
+
+  it('names the charge on each line from the invoice type and billing profile', () => {
+    expect(chargeLabel({ invoice_type: 'SERVICE_CHARGE', profileName: 'Security dues', periodStart: '2026-10-01' })).toBe('Security dues, OCT 2026');
+    expect(chargeLabel({ invoice_type: 'LEVY', profileName: 'Development levy', periodStart: '2026-10-01' })).toBe('Development levy');
+    expect(chargeLabel({ invoice_type: 'LEVY', profileName: null, periodStart: null })).toBe('Levy');
+    expect(chargeLabel({ invoice_type: 'SERVICE_CHARGE', profileName: null, periodStart: '2026-01-01' })).toBe('Service charge, JAN 2026');
+  });
+
+  it('names the charge on the Next due line of a roll-forward balance too', () => {
+    const body = composeOweAnswer({ ...OWED, rollForward: true }, '12 Palm Close', false, false);
+    expect(body).toContain('- Security dues, AUG 2026: ₦50,000.00');
+    expect(body).toContain('Next due: ₦50,000.00 on 1 Nov 2026, Security dues, NOV 2026 (invoice INV-2026-0412)');
+  });
+
+  it('lists at most five overdue charges and counts the rest', () => {
+    const charges = Array.from({ length: 7 }, (_, index) => ({ label: `Security dues, ${index + 1}`, amount: 1000 }));
+    const body = composeOweAnswer({ ...OWED, overdue: { total: 7000, count: 7, oldestDue: '2026-08-01', charges } }, '12 Palm Close', false, false);
+    expect(body.split('\n').filter((line) => line.startsWith('- '))).toHaveLength(6);
+    expect(body).toContain('- and 2 more');
+  });
+
+  it('offers clearance only to a tenant or resident landlord, for the house they live in', async () => {
+    for (const role of ['tenant', 'resident_landlord']) {
+      const replies = await chat(repository([{ ...PALM, role }]), ['clearance']);
+      expect(replies[0]).toContain('*Clearance certificate, 12 Palm Close*');
+    }
+    for (const role of ['non_resident_landlord', 'developer']) {
+      const repo = repository([{ ...PALM, role }]);
+      const replies = await chat(repo, ['clearance']);
+      expect(replies[0]).toBe(`A clearance certificate can only be requested for the property you live in.\n${FOOTER}`);
+      expect(repo.requestClearance).not.toHaveBeenCalled();
+      expect(repo.logDisclosure).not.toHaveBeenCalled();
+    }
+  });
+
+  it('hides the clearance item from the menu of a house the person does not live in', async () => {
+    const repo = repository([PALM, LANDLORD_CEDAR]);
+    const replies = await chat(repo, ['payments', '2', '0', '8', '1', '1']);
+    expect(replies[2]).not.toContain('7. Clearance certificate');
+    expect(replies[2]).toContain('Financial standing: 4 Cedar Way');
+    expect(replies[5]).toContain('Financial standing: 12 Palm Close');
+    expect(replies[5]).toContain('7. Clearance certificate');
+  });
+
+  it('keeps the billable role on each house from the roster', async () => {
+    const eq = vi.fn().mockReturnThis();
+    const chain = { select: vi.fn().mockReturnThis(), eq, in: vi.fn().mockResolvedValue({ data: [{ house_id: 'house-9', resident_role: 'developer', house: { house_number: '9', short_name: null, street: { name: 'Elm' } } }], error: null }) };
+    vi.mocked(createAdminClient).mockReturnValue({ from: vi.fn().mockReturnValue(chain) } as unknown as ReturnType<typeof createAdminClient>);
+    await expect(createSupabaseWhatsAppFinancialRepository().getBillableHouses('resident-1')).resolves.toEqual([{ id: 'house-9', label: '9, Elm', role: 'developer' }]);
   });
 });
