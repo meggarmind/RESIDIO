@@ -32,8 +32,8 @@ const coResident: WhatsAppResidentIdentity = {
 };
 
 /** A house the asker sees through their sponsor. */
-const PALM_VIA_SPONSOR: FinancialHouse = { id: 'house-1', label: '12 Palm Close', accountResidentId: SPONSOR, onBehalf: true };
-const CEDAR_OWN: FinancialHouse = { id: 'house-2', label: '4 Cedar Way' };
+const PALM_VIA_SPONSOR: FinancialHouse = { id: 'house-1', label: '12 Palm Close', role: 'co_resident', accountResidentId: SPONSOR, onBehalf: true };
+const CEDAR_OWN: FinancialHouse = { id: 'house-2', label: '4 Cedar Way', role: 'tenant' };
 
 const OWED = {
   invoiceCount: 1,
@@ -234,7 +234,7 @@ describe('co-resident houses from the database (#1071)', () => {
       ],
     });
     await expect(createSupabaseWhatsAppFinancialRepository().getBillableHouses(CO)).resolves.toEqual([
-      { id: 'house-1', label: '12 Palm Close', accountResidentId: SPONSOR, onBehalf: true },
+      { id: 'house-1', label: '12 Palm Close', role: 'co_resident', accountResidentId: SPONSOR, onBehalf: true },
     ]);
   });
 
@@ -269,7 +269,7 @@ describe('co-resident houses from the database (#1071)', () => {
       ],
     });
     await expect(createSupabaseWhatsAppFinancialRepository().getBillableHouses(CO)).resolves.toEqual([
-      { id: 'house-1', label: '12 Palm Close' },
+      { id: 'house-1', label: '12 Palm Close', role: 'tenant' },
     ]);
   });
 
