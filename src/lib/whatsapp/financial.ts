@@ -1103,15 +1103,17 @@ async function answerAllProperties(turn: Turn): Promise<void> {
   if (capped) return respond(turn, capped, 'financial');
 
   const repository = turn.options.repository;
-  const rows = await Promise.all(houses.map(async (house) => ({ houseLabel: house.label, figures: await repository.getOwed(turn.identity.id, house.id) })));
+  const rows = await Promise.all(houses.map(async (house) => ({ houseLabel: house.label, figures: await repository.getOwed(accountOf(turn, house), house.id) })));
   const body = composeAllPropertiesOweAnswer(rows, !!turn.settings?.paymentInstructions, !!turn.contact);
+  const sponsors = [...new Set(houses.flatMap((house) => (house.accountResidentId ? [house.accountResidentId] : [])))];
   await repository.logDisclosure({
     residentId: turn.identity.id,
     phoneNumber: turn.phoneNumber,
     houseId: null,
     menuItem: 'what_i_owe',
     pinAuthenticated: turn.session.pinAuthenticated,
-    metadata: { scope: 'all_properties', houses: houses.length },
+    accountResidentId: sponsors.length === 1 ? sponsors[0] : undefined,
+    metadata: { scope: 'all_properties', houses: houses.length, ...(sponsors.length > 1 ? { account_resident_ids: sponsors } : {}) },
   });
   turn.answered = true;
   await respond(turn, body, 'answer');

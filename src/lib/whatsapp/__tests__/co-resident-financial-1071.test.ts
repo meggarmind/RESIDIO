@@ -127,6 +127,17 @@ describe('co-resident financial menu (#1071)', () => {
     expect(repo.getRecentPayments).not.toHaveBeenCalledWith(CO, expect.anything(), expect.anything());
   });
 
+  it("sums All my properties from the sponsor's account for a sponsored house and the asker's own for the rest", async () => {
+    const repo = repository([PALM_VIA_SPONSOR, CEDAR_OWN]);
+    await chat(repo, ['owe', '3']);
+    expect(repo.getOwed).toHaveBeenCalledWith(SPONSOR, 'house-1');
+    expect(repo.getOwed).toHaveBeenCalledWith(CO, 'house-2');
+    expect(repo.getOwed).not.toHaveBeenCalledWith(CO, 'house-1');
+    expect(repo.logDisclosure).toHaveBeenCalledWith(
+      expect.objectContaining({ residentId: CO, houseId: null, accountResidentId: SPONSOR, metadata: { scope: 'all_properties', houses: 2 } })
+    );
+  });
+
   it("offers and reads the sponsor's statement periods", async () => {
     const repo = repository([PALM_VIA_SPONSOR]);
     const prompt = (await chat(repo, ['1', '1', '3', '2'])).find((reply) => reply.startsWith('Which period?'));
