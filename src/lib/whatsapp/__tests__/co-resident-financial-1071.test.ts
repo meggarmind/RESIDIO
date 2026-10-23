@@ -68,6 +68,7 @@ function repository(houses: FinancialHouse[]) {
     getReceiptPayments: vi.fn().mockResolvedValue([]),
     loadReceipt: vi.fn().mockResolvedValue(null),
     requestClearance: vi.fn().mockResolvedValue({ status: 'requested', requestId: 'request-1' }),
+    getStatementPeriods: vi.fn(async (residentId: string) => (residentId === SPONSOR ? ['this_month', 'since_move_in'] : ['this_month', 'all_time'])),
     loadStatement: vi.fn().mockResolvedValue({
       fromDate: '2026-10-01',
       toDate: '2026-10-20',
@@ -126,10 +127,20 @@ describe('co-resident financial menu (#1071)', () => {
     expect(repo.getRecentPayments).not.toHaveBeenCalledWith(CO, expect.anything(), expect.anything());
   });
 
+  it("offers and reads the sponsor's statement periods", async () => {
+    const repo = repository([PALM_VIA_SPONSOR]);
+    const prompt = (await chat(repo, ['1', '1', '3', '2'])).find((reply) => reply.startsWith('Which period?'));
+    expect(prompt).toMatch(/since move-in/i);
+    expect(prompt).not.toMatch(/all time/i);
+    expect(repo.loadStatement).toHaveBeenCalledWith(SPONSOR, 'house-1', 'since_move_in', expect.any(Date));
+  });
+
   it("builds the statement and the receipt list from the sponsor's account", async () => {
     const repo = repository([PALM_VIA_SPONSOR]);
     await chat(repo, ['1', '1', '3', '1', '5']);
     expect(repo.loadStatement).toHaveBeenCalledWith(SPONSOR, 'house-1', 'this_month', expect.any(Date));
+    expect(repo.getStatementPeriods).toHaveBeenCalledWith(SPONSOR, 'house-1');
+    expect(repo.getStatementPeriods).not.toHaveBeenCalledWith(CO, expect.anything());
     expect(repo.getReceiptPayments).toHaveBeenCalledWith(SPONSOR, 'house-1', 5);
   });
 

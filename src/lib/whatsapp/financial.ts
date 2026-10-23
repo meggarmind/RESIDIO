@@ -1078,7 +1078,7 @@ async function enterFinancial(turn: Turn, target: Target, prefix?: string, prope
     return;
   }
   if (target === 'statement') {
-    await respond(turn, `${lead}${statementPeriodPrompt(await turn.options.repository.getStatementPeriods(turn.identity.id, selectedHouse(turn)!.id))}`, 'statement_period');
+    await respond(turn, `${lead}${statementPeriodPrompt(await turn.options.repository.getStatementPeriods(accountOf(turn, selectedHouse(turn)!), selectedHouse(turn)!.id))}`, 'statement_period');
     return;
   }
   if (target === 'report') return startReport(turn, lead);
@@ -1843,7 +1843,7 @@ async function converse(turn: Turn, expired: boolean, endedOnPurpose = false): P
     await loadHouses(turn);
     if (!selectedHouse(turn)) return enterFinancial(turn, 'statement');
     // Read against the list the resident saw, worked out the same way (#1069).
-    const offered = await turn.options.repository.getStatementPeriods(turn.identity.id, selectedHouse(turn)!.id);
+    const offered = await turn.options.repository.getStatementPeriods(accountOf(turn, selectedHouse(turn)!), selectedHouse(turn)!.id);
     const typed = /^since move[ -]in$/.test(input) ? 'since_move_in' : input === 'all time' ? (offered.includes('all_time') ? 'all_time' : 'since_move_in') : null;
     const period = /^\d$/.test(input) ? offered[Number(input) - 1] : typed;
     if (!period) return miss(turn, node);
