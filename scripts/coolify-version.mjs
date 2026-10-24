@@ -16,21 +16,14 @@
  * `.github/workflows/coolify-version.yml` runs this script to write them into the Coolify
  * application's build variables (owner decision on #421, option (a)):
  *
- *   staging     residio-stage: set the variables, then pin the application's commit
- *               (`git_commit_sha`) to the same SHA. By default it does NOT deploy. Stage is
- *               deployed by the KVM cron every 4 hours (at minute 17, UTC) through the
- *               Coolify API, and an API deploy builds the pinned commit, so the build always
- *               matches the variables written here. Stage's Coolify auto-deploy is off.
- *               The one exception (#525): release.yml calls this with DEPLOY=true for a
- *               release:major merged from `stage`, and then a deploy request follows the
- *               pin, so Stage runs the released commit at once. If `stage` has already moved
- *               past that commit (GIT_SHA is not origin/stage's head), nothing is sent: a
- *               pin to the older commit would roll Stage back, and the cron deploys the
- *               newer one anyway.
  *   production  residio-prod: set the variables ONLY. Prod is never deployed from CI; the
  *               owner deploys it by hand after migrations (CORE.md §11,
  *               docs/deployment/hosting-plan.md:226), and that build picks the values up.
- *               DEPLOY=true with this target fails the run.
+ *               DEPLOY=true fails the run.
+ *
+ * Stage is not handled here since #1114: it deploys from a CI-built GHCR image
+ * (.github/workflows/stage-image.yml, scripts/stage-image.mjs), which reuses the shared helpers
+ * exported below (resolveVersion, gitQueries, buildHeaders and the rest).
  *
  * Coolify API (Coolify v4; verified against the v4.x branch and the v4.0.0 / v4.4.0 /
  * v4.4.6 tags of coollabsio/coolify: routes/api.php, ApplicationsController::create_bulk_envs
@@ -43,33 +36,20 @@
  *         so a re-run is idempotent. The build-time flag is `is_buildtime` (older betas
  *         called it `is_build_time`). Every flag is sent explicitly, because the update path
  *         copies an omitted `is_multiline` / `is_shown_once` through as null.
- *   PATCH /api/v1/applications/{uuid}   body { git_commit_sha }  -> 200. Route
- *         `api.ability:write`, ApplicationsController::update_by_uuid (v4.4.6), where
- *         `git_commit_sha` is in `$allowedFields`. A deploy started through the API builds
- *         `$application->git_commit_sha ?: 'HEAD'` (queue_application_deployment in
- *         bootstrap/helpers/applications.php, v4.4.6), so pinning the SHA makes the cron's
- *         deploy build exactly this commit. The two PATCHes are separate calls, so a deploy
- *         starting in the milliseconds between them could see the new variables with the old
- *         pin; the window is negligible.
- *   POST /api/v1/deploy?uuid={uuid}&force=false  (staging with DEPLOY=true only)  -> 200,
- *         body { deployments: [{ message, resource_uuid, deployment_uuid }] }. Queues a
- *         build of the pinned commit. `resource_uuid` is the application UUID, a secret:
- *         it is never logged.
  *
  * The API sits behind Cloudflare Access (owner decision on #421), so every request carries
  * the Coolify bearer token AND the Access service-token pair. Redirects are not followed: a
  * rejected service token gets a 302 to the Access login page, which must fail, not pass.
  *
  * Usage (the workflow sets these):
- *   TARGET_ENV=staging GIT_SHA=<sha> COOLIFY_BASE_URL=... COOLIFY_API_TOKEN=... \
- *   CF_ACCESS_CLIENT_ID=... CF_ACCESS_CLIENT_SECRET=... COOLIFY_APP_UUID_STAGE=... \
- *   [DEPLOY=true] node scripts/coolify-version.mjs
+ *   TARGET_ENV=production GIT_SHA=<sha> COOLIFY_BASE_URL=... COOLIFY_API_TOKEN=... \
+ *   CF_ACCESS_CLIENT_ID=... CF_ACCESS_CLIENT_SECRET=... COOLIFY_APP_UUID_PROD=... \
+ *   node scripts/coolify-version.mjs
  *
  * Exits 0 with a `::notice::` naming the missing secrets (names only) when the target is not
  * configured yet, so setup in progress never turns the workflow red. Once configured, any
  * non-2xx response (3xx included) fails the run with the method, the path and the status
- * code. Secret values are never logged. No response body is read, except a successful deploy
- * response, from which only sanitised fields are logged.
+ * code. Secret values are never logged. No response body is read.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -88,14 +68,11 @@ export const SHARED_SECRETS = [
 ];
 
 /**
- * The two Coolify applications. `pinCommit` decides whether the application's commit is
- * pinned to the SHA the variables describe: true for Stage (the cron deploys it), false for
- * Prod (deployed by hand). Only a `pinCommit` target can be deployed from CI, and only when
- * asked with DEPLOY=true; Prod never is.
+ * The Coolify application this script writes to. Only Prod since #1114 (Stage deploys from
+ * the CI-built image). Prod is never deployed from CI; the owner deploys it by hand.
  */
 export const TARGETS = {
-  staging: { appEnv: 'staging', uuidSecret: 'COOLIFY_APP_UUID_STAGE', pinCommit: true },
-  production: { appEnv: 'production', uuidSecret: 'COOLIFY_APP_UUID_PROD', pinCommit: false },
+  production: { appEnv: 'production', uuidSecret: 'COOLIFY_APP_UUID_PROD' },
 };
 
 /** The target for a `TARGET_ENV` value; throws on anything else rather than guessing. */
@@ -222,30 +199,18 @@ export function parseDeploy(value) {
 }
 
 /**
- * The requests to make, in order, pure: `[{ method, path, body? }]`. Staging ends with the
- * commit pin, then a deploy request only when `deploy` is true. Prod can never get one:
- * the deploy is appended only for a target that pins its commit.
+ * The requests to make, in order, pure: `[{ method, path, body? }]`. One bulk write of the
+ * build variables; there is no commit pin and no deploy request.
  */
-export function planRequests({ target, appUuid, version, sha, deploy = false }) {
+export function planRequests({ target, appUuid, version, sha }) {
   const uuid = encodeURIComponent(appUuid);
-  const plan = [
+  return [
     {
       method: 'PATCH',
       path: `/api/v1/applications/${uuid}/envs/bulk`,
       body: envPayload({ version, sha, appEnv: target.appEnv }),
     },
   ];
-  if (target.pinCommit) {
-    plan.push({
-      method: 'PATCH',
-      path: `/api/v1/applications/${uuid}`,
-      body: { git_commit_sha: sha },
-    });
-    if (deploy === true) {
-      plan.push({ method: 'POST', path: `/api/v1/deploy?uuid=${uuid}&force=false` });
-    }
-  }
-  return plan;
 }
 
 /** The fetch options for one planned request. Redirects are an error, never followed. */
@@ -279,24 +244,6 @@ export function redact(text, secretValues) {
 export function sanitizeForLog(text, secretValues = []) {
   const clean = String(text ?? '').replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ').trim();
   return redact(clean, secretValues).slice(0, 200);
-}
-
-/**
- * The one-line log for a queued deploy. Reads only `message` and `deployment_uuid` of the
- * first deployment; `resource_uuid` (the application UUID) is never touched. Falls back to a
- * fixed string when the body is not the expected JSON.
- */
-export async function deployLogLine(response, sha, secretValues = []) {
-  const fallback = `Stage deploy queued for ${sha}`;
-  try {
-    const first = (await response.json())?.deployments?.[0];
-    const parts = [first?.deployment_uuid, first?.message]
-      .filter((part) => typeof part === 'string' && part.trim())
-      .map((part) => sanitizeForLog(part, secretValues));
-    return parts.length ? `${fallback} (${parts.join(': ')})` : fallback;
-  } catch {
-    return fallback;
-  }
 }
 
 /** `https://host` with no trailing slash; throws on anything that is not https. */
@@ -400,7 +347,6 @@ export function assertOk(status, method, path, secretValues = []) {
  *   appendSummary?: (file: string, text: string) => void,
  *   git?: ReturnType<typeof gitQueries>,
  *   resolveCommit?: (ref: string | undefined) => string | null,
- *   stageHead?: () => string | null,
  * }} [deps]
  */
 export async function main({
@@ -410,7 +356,6 @@ export async function main({
   appendSummary = (file, text) => appendFileSync(file, text),
   git = gitQueries(),
   resolveCommit = resolveSha,
-  stageHead = () => runGit(['rev-parse', '--verify', '--quiet', 'refs/remotes/origin/stage^{commit}']),
 } = {}) {
   const target = targetFor(env.TARGET_ENV ?? '');
 
@@ -428,26 +373,14 @@ export async function main({
   const sha = resolveCommit(env.GIT_SHA);
   if (!sha) throw new Error('Could not resolve the commit to describe');
 
-  // Prod is never deployed from CI, and neither is a commit Stage has already moved past.
-  const deploy = parseDeploy(env.DEPLOY);
-  if (deploy && !target.pinCommit) {
+  // Prod is never deployed from CI.
+  if (parseDeploy(env.DEPLOY)) {
     throw new Error(`DEPLOY=true is not allowed for ${target.appEnv}: Prod is deployed by hand, never from CI`);
-  }
-  if (deploy) {
-    const head = stageHead();
-    if (head !== sha) {
-      log(
-        head
-          ? `::notice::Stage has moved on from the released commit ${sha} (stage is now ${head}); not deploying. The KVM cron deploys the newer commit.`
-          : `::notice::Could not resolve stage's head, so not deploying the released commit ${sha}. The KVM cron deploys Stage.`,
-      );
-      return;
-    }
   }
   const version = resolveVersion({ sha, git });
   const baseUrl = normalizeBaseUrl(env.COOLIFY_BASE_URL);
   const headers = buildHeaders(env);
-  const plan = planRequests({ target, appUuid: env[target.uuidSecret].trim(), version, sha, deploy });
+  const plan = planRequests({ target, appUuid: env[target.uuidSecret].trim(), version, sha });
 
   log(`Build version for ${target.appEnv}: ${version} (${sha})`);
   for (const request of plan) {
@@ -466,22 +399,9 @@ export async function main({
     // Status first; a failed response's body is never read (an error page may echo headers).
     assertOk(response.status, request.method, request.path, secretValues);
     log(`${shown} -> HTTP ${response.status}`);
-
-    if (request.body?.git_commit_sha) {
-      log(
-        deploy
-          ? `Pinned residio-stage to ${request.body.git_commit_sha}`
-          : `Pinned residio-stage to ${request.body.git_commit_sha}; the KVM cron deploys it`,
-      );
-    }
-    if (request.method === 'POST') log(await deployLogLine(response, sha, secretValues));
   }
 
-  const action = deploy
-    ? 'variables set, commit pinned and deploy queued'
-    : target.pinCommit
-      ? 'variables set and commit pinned; no deploy (the KVM cron deploys Stage)'
-      : 'variables set; no deploy (Prod is deployed by hand)';
+  const action = 'variables set; no deploy (Prod is deployed by hand)';
   log(`Coolify ${target.appEnv}: ${action}.`);
   if (env.GITHUB_STEP_SUMMARY) {
     appendSummary(

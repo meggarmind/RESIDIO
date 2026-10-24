@@ -19,10 +19,12 @@
  * Secret values are never printed.
  */
 
-import { buildHeaders, TARGETS } from './coolify-version.mjs';
+import { buildHeaders } from './coolify-version.mjs';
 
 const env = process.env;
-const uuidSecret = TARGETS.staging.uuidSecret;
+// The old residio-stage application (stopped since #1114; Stage runs as residio-stage-image,
+// deployed by CI). Kept for rollback only. coolify-version.mjs no longer has a staging target.
+const uuidSecret = 'COOLIFY_APP_UUID_STAGE';
 const missing = ['COOLIFY_BASE_URL', 'COOLIFY_API_TOKEN', 'CF_ACCESS_CLIENT_ID', 'CF_ACCESS_CLIENT_SECRET', uuidSecret].filter(
   (k) => !env[k],
 );
