@@ -121,6 +121,14 @@ hotfix: branch from master --PR--> master, then the sync PR above
   `release:*` label on a PR into `stage` does nothing. No release label deploys anything:
   Stage deploys from `stage-image.yml` on every push to `stage` (#1114, which retired the
   `stage-deploy` job of #525), and Prod is never deployed from CI.
+- **The release gate** (`.github/workflows/release-gate.yml`, #1136) runs on every PR into
+  `master` and applies only when the head ref is `stage`; a hotfix PR passes. Check **Stage runs
+  this commit** polls `https://stage.feyijimi.ng/api/version` for about 10 minutes and fails
+  unless its `sha` equals the PR head SHA. Check **UAT and DAST passed** fails unless the PR
+  carries the label `uat-dast-passed`, which only the owner sets, after UAT and DAST pass on that
+  exact commit. A new push to `stage` changes the head SHA: re-run UAT and DAST, and re-apply
+  the label if it was removed. Both checks become blocking once the owner marks them required on
+  `master`.
 - **After every release, sync `master` back into `stage`** in its own PR, before the next
   release. Both branches require "up to date before merging" (`strict`), and a merge-commit
   release leaves `master` with a merge commit `stage` lacks, so the next release PR reads
