@@ -704,6 +704,7 @@ Every implementer brief also carries these clauses verbatim:
 - Verify the branch before every commit; stage explicit paths, never `git add -A`.
 - If files you did not edit show as modified, they belong to someone else. Leave them.
 - Report anything you noticed but left alone.
+- Every changed line must trace to the acceptance criteria (§19).
 
 ### QA
 
@@ -845,3 +846,29 @@ in `docs/agents/session-roles.md`. **Read it before queueing anything across a l
 When the user corrects your approach, or confirms a non-obvious one worked, capture it rather
 than re-litigating it next session. A one-off preference is worth recording; a repeated
 correction is worth promoting into a documented rule in this file, via the routing rule in §2.
+
+---
+
+## 19. Working principles
+
+How to write code in any session, whether you are a coordinator handling trivia yourself or a
+sub-agent working from a brief. They adapt the four principles in
+`multica-ai/andrej-karpathy-skills`; the sections cited below hold the full rules, and this one
+does not restate them.
+
+1. **Assumptions first.** If a request has more than one reasonable reading, or you are about to
+   assume something that changes the result, say so before building: name the readings and the one
+   you picked. Ask when the answer is the user's to give (§15 "Stop and ask"). Inside an unattended
+   run, decide, log or park instead (`docs/agents/autonomous-delivery.md` §4).
+2. **Simplicity.** Write the minimum that meets the acceptance criteria. No speculative
+   abstraction, no configurability nobody asked for, no error handling for a case that cannot
+   occur. If a reviewer would call it overbuilt, cut it.
+3. **Surgical changes.** Every changed line traces to the request. Match the surrounding code's
+   style, even where you would do it differently. Remove the imports, variables and functions your
+   own change orphaned; leave other dead code alone and mention it, and file anything larger
+   rather than absorbing it (§10 rule 4, §15).
+4. **Goal-driven.** Restate the task as criteria you can check, and loop until they pass. Verify
+   per §13; for delegated work the acceptance criteria and QA in §15 apply.
+
+Trivia (a typo, a one-line fix) takes judgment, not the full routine, and §15's rule to say so
+when you handle something yourself still applies.
