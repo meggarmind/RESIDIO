@@ -3,6 +3,9 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   decideTransition,
+  parseReleases,
+  rawFromNode,
+  releaseTagForClose,
   missingReadySections,
   parseIssueRefs,
   planPullRequest,
@@ -210,6 +213,47 @@ describe('closed issues', () => {
       expect(d.status).toBe('Done');
     });
 
+    const onStageClosed = { state: 'closed', status: 'On stage', labels: ['on-stage'], closedAt: '2026-10-19T12:00:00Z' };
+
+    it('does not put a closed parent On stage, before or after the release', () => {
+      const children = [{ state: 'closed', status: 'Done' }];
+      for (const closedAt of ['2026-10-19T12:00:00Z', '2026-10-21T12:00:00Z']) {
+        const d = handClosed(closedAt, { status: 'Done', children });
+        expect(d).toMatchObject({ status: null, addLabels: [] });
+      }
+    });
+
+    it('posts no Released comment for a not-planned or wontfix On stage issue', () => {
+      for (const over of [{ stateReason: 'NOT_PLANNED' }, { labels: ['on-stage', 'wontfix'] }]) {
+        const d = decide('release', { ...onStageClosed, ...over }, { lastReleaseAt: released });
+        expect(d.status).toBe('Done');
+        expect(d.comment).toBeNull();
+      }
+    });
+
+    it('posts no Released comment when no release is known', () => {
+      const d = decide('release', onStageClosed, { lastReleaseAt: null });
+      expect(d.comment).toBeNull();
+    });
+
+    it('posts no Released comment for a hotfix merged straight into the release branch', () => {
+      const d = decide('pr-merged', { status: 'On stage', labels: ['on-stage'] }, { pr: { base: 'master', merged: true }, lastReleaseAt: released });
+      expect(d.status).toBe('Done');
+      expect(d.comment).toBeNull();
+    });
+
+    it('changes nothing for a hand-closed issue when the release list is unavailable', () => {
+      for (const status of ['Backlog', 'On stage', 'Done']) {
+        const d = decide('reconcile', { state: 'closed', status, labels: ['backlog', 'on-stage'], closedAt: '2026-10-21T12:00:00Z' }, { lastReleaseAt: null, releasesUnavailable: true });
+        expect(d).toMatchObject({ status: null, addLabels: [], removeLabels: [], comment: null });
+      }
+    });
+
+    it('still decides a PR-closed issue when the release list is unavailable', () => {
+      const d = decide('issue-closed', { state: 'closed', status: 'In review', closedBy: stage }, { releasesUnavailable: true });
+      expect(d.status).toBe('On stage');
+    });
+
     it('moves an On stage issue closed before the release merge to Done with the Released comment', () => {
       const d = decide(
         'release',
@@ -313,5 +357,41 @@ describe('pull request links', () => {
     const issues = new Map([[14, issue({ number: 14, status: 'In progress' })]]);
     const plan = planPullRequest('opened', { body: 'Part of #14', base: 'stage' }, issues, cfg);
     expect(plan[0].status).toBe('In review');
+  });
+});
+
+describe('release tag helpers', () => {
+  const lines = [
+    '2026-09-01T00:00:00+00:00 v1.1.0',
+    '2026-10-20T12:00:00+00:00 v1.3.0',
+    '2026-10-01T00:00:00+00:00 nightly-1',
+    '',
+    '2026-10-10T00:00:00+00:00 v1.2.0',
+  ];
+
+  it('keeps only v<digit> tags, newest first', () => {
+    expect(parseReleases(lines).map((r: { tag: string }) => r.tag)).toEqual(['v1.3.0', 'v1.2.0', 'v1.1.0']);
+  });
+
+  it('picks the oldest release at or after the close, including an equal time', () => {
+    const rel = parseReleases(lines);
+    expect(releaseTagForClose(rel, '2026-10-05T00:00:00Z')).toBe('v1.2.0');
+    expect(releaseTagForClose(rel, '2026-10-10T00:00:00Z')).toBe('v1.2.0');
+    expect(releaseTagForClose(rel, '2026-10-10T00:00:01Z')).toBe('v1.3.0');
+    expect(releaseTagForClose(rel, '2026-10-21T00:00:00Z')).toBeNull();
+    expect(releaseTagForClose(rel, null)).toBeNull();
+  });
+});
+
+describe('rawFromNode', () => {
+  const node = (closedAt?: string | null) => ({
+    id: 'I_1', number: 7, state: 'CLOSED', stateReason: 'COMPLETED', body: null, closedAt,
+    labels: { nodes: [] }, parent: null, subIssues: { nodes: [] }, projectItems: { nodes: [] },
+    closedByPullRequestsReferences: { nodes: [] },
+  });
+
+  it('maps closedAt, null when absent', () => {
+    expect(rawFromNode(node('2026-10-21T12:00:00Z'), cfg).closedAt).toBe('2026-10-21T12:00:00Z');
+    expect(rawFromNode(node(undefined), cfg).closedAt).toBeNull();
   });
 });

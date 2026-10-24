@@ -91,7 +91,8 @@ function isNotPlanned(issue, cfg) {
  */
 function handClosedOnStage(ctx, cfg) {
   const { issue } = ctx;
-  if (!cfg.stageBranch || !ctx.lastReleaseAt || !issue.closedAt) return false;
+  // A closed parent rolls up from its children and never carries `on-stage`.
+  if (!cfg.stageBranch || !ctx.lastReleaseAt || !issue.closedAt || issue.children?.length > 0) return false;
   return Date.parse(issue.closedAt) > Date.parse(ctx.lastReleaseAt);
 }
 
@@ -160,6 +161,7 @@ function normalizeTriage(ctx, cfg, labels, out) {
  *   pr,          // pr-merged: { base, merged: true }
  *   releaseTag,  // tag that shipped the issue, when known
  *   lastReleaseAt, // ISO time of the newest release tag on the release branch; null when none
+ *   releasesUnavailable, // true when the tag list could not be read: hand-closed issues are left as they are
  *   issue: { number, state: 'open'|'closed', stateReason, body, labels, status, children: [{status}],
  *            hasOpenPr, closedAt, closedBy: { base, merged, onRelease } | null },
  * }
@@ -176,6 +178,10 @@ export function decideTransition(ctx, cfg) {
   const isParent = issue.state === 'open' && issue.children.length > 0;
   const closed = !isParent && (issue.state === 'closed' || trigger === 'pr-merged');
   const onStageLabel = cfg.labels.onStage;
+
+  // Without the release list a hand-closed issue cannot be placed; change nothing rather than guess Done.
+  const handClosed = closed && !(ctx.pr ?? issue.closedBy)?.merged && !isNotPlanned(issue, cfg) && Boolean(cfg.stageBranch) && !issue.children?.length;
+  if (handClosed && ctx.releasesUnavailable) return out;
 
   let target;
   if (isParent) {
@@ -207,7 +213,7 @@ export function decideTransition(ctx, cfg) {
 
   const closer = ctx.pr ?? issue.closedBy;
   // A hand-closed On stage issue has no closing PR: the release time alone moves it to Done.
-  const handShipped = !closer?.merged && !isNotPlanned(issue, cfg) && Boolean(cfg.stageBranch && ctx.lastReleaseAt);
+  const handShipped = handClosed && Boolean(ctx.lastReleaseAt);
   if (closed && issue.status === 'On stage' && target === 'Done' && (closer?.onRelease || handShipped)) {
     out.comment = {
       marker: cfg.releasedMarker,
@@ -276,7 +282,7 @@ function splitRepo(cfg) {
   return { owner, name };
 }
 
-function rawFromNode(node, cfg) {
+export function rawFromNode(node, cfg) {
   const item = node.projectItems.nodes.find((i) => i.project.number === cfg.project.number);
   return {
     id: node.id,
@@ -376,31 +382,41 @@ function releaseTagFor(sha) {
   }
 }
 
-let releasesCache = null;
-/** v* tags merged into the release branch, newest first: [{ at, tag }]. Read once per run. */
+/**
+ * Parses `for-each-ref` lines of `<iso date> <tag>` into releases, newest first, keeping only
+ * `v<digit>` tags.
+ */
+export function parseReleases(lines) {
+  return lines
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => { const [at, tag] = l.split(' '); return { at, tag }; })
+    .filter((r) => /^v\d/.test(r.tag ?? '') && !Number.isNaN(Date.parse(r.at)))
+    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+}
+
+/** The oldest release at or after `closedAt`: the one that shipped an issue closed by hand. */
+export function releaseTagForClose(releases, closedAt) {
+  if (!closedAt) return null;
+  const after = releases.filter((r) => Date.parse(r.at) >= Date.parse(closedAt));
+  return after[after.length - 1]?.tag ?? null;
+}
+
+let releasesCache;
+/** v* tags merged into the release branch, newest first. Read once per run; null when git fails. */
 function releases(cfg) {
-  if (!releasesCache) {
+  if (releasesCache === undefined) {
     try {
-      releasesCache = git(['for-each-ref', '--merged', `origin/${cfg.releaseBranch}`, '--sort=-creatordate', '--format=%(creatordate:iso-strict) %(refname:short)', 'refs/tags/v*'])
-        .split('\n').map((l) => l.trim()).filter(Boolean)
-        .map((l) => { const [at, tag] = l.split(' '); return { at, tag }; })
-        .filter((r) => /^v\d/.test(r.tag));
+      releasesCache = parseReleases(git(['for-each-ref', '--merged', `origin/${cfg.releaseBranch}`, '--sort=-creatordate', '--format=%(creatordate:iso-strict) %(refname:short)', 'refs/tags/v*']).split('\n'));
     } catch (error) {
       console.error(`board-sync: cannot list release tags: ${error.stderr || error.message}`);
-      releasesCache = [];
+      releasesCache = null;
     }
   }
   return releasesCache;
 }
 
-const lastReleaseAt = (cfg) => releases(cfg)[0]?.at ?? null;
-
-/** The oldest release at or after `closedAt`: the one that shipped an issue closed by hand. */
-function releaseTagForClose(closedAt, cfg) {
-  if (!closedAt) return null;
-  const after = releases(cfg).filter((r) => Date.parse(r.at) >= Date.parse(closedAt));
-  return after[after.length - 1]?.tag ?? null;
-}
+const releaseFacts = (cfg) => ({ lastReleaseAt: releases(cfg)?.[0]?.at ?? null, releasesUnavailable: releases(cfg) === null });
 
 /** Raw facts -> the `issue` object `decideTransition` takes. */
 function toIssue(raw, cfg, { statusOf, openPrLinks }) {
@@ -477,8 +493,8 @@ function syncIssue(number, ctxExtra, cfg, dryRun) {
   const childRaw = fetchRaw(raw.children.map((c) => c.number), cfg);
   const openPrLinks = ctxExtra.openPrLinks ?? fetchOpenPrLinks(cfg);
   const issue = toIssue(raw, cfg, { statusOf: (n) => childRaw.get(n)?.status ?? null, openPrLinks });
-  const ctx = { ...ctxExtra, issue, lastReleaseAt: lastReleaseAt(cfg) };
-  if (ctx.trigger === 'release') ctx.releaseTag = issue.closedBy?.sha ? releaseTagFor(issue.closedBy.sha) : releaseTagForClose(issue.closedAt, cfg);
+  const ctx = { ...ctxExtra, issue, ...releaseFacts(cfg) };
+  if (ctx.trigger === 'release') ctx.releaseTag = issue.closedBy?.sha ? releaseTagFor(issue.closedBy.sha) : releaseTagForClose(releases(cfg) ?? [], issue.closedAt);
   const decision = decideTransition(ctx, cfg);
   if (isChange(decision) || decision.flags.length) applyDecision(decision, raw, cfg, dryRun);
   if (raw.parent && isChange(decision) && !dryRun) syncIssue(raw.parent, { trigger: 'child-changed', openPrLinks }, cfg, dryRun);
@@ -547,9 +563,9 @@ function runReconcile(cfg, { dryRun, apply, report }) {
     visiting.add(n);
     const raw = all.get(n);
     const issue = toIssue(raw, cfg, { statusOf, openPrLinks });
-    const ctx = { trigger: 'reconcile', issue, lastReleaseAt: lastReleaseAt(cfg) };
+    const ctx = { trigger: 'reconcile', issue, ...releaseFacts(cfg) };
     if (issue.closedBy?.sha && issue.closedBy.onRelease) ctx.releaseTag = releaseTagFor(issue.closedBy.sha);
-    else if (!issue.closedBy) ctx.releaseTag = releaseTagForClose(issue.closedAt, cfg);
+    else if (!issue.closedBy) ctx.releaseTag = releaseTagForClose(releases(cfg) ?? [], issue.closedAt);
     const d = decideTransition(ctx, cfg);
     visiting.delete(n);
     decisions.set(n, d);
