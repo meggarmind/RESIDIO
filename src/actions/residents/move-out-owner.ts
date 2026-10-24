@@ -288,11 +288,8 @@ export async function initiateOwnerMoveOut(
         description: 'Marked resident inactive after move-out',
     });
 
-    // 3. Update house occupancy
-    await supabase
-        .from('houses')
-        .update({ is_occupied: false })
-        .eq('id', houseId);
+    // 3. House occupancy is recomputed by the update_house_occupancy trigger on the role change
+    // above (#1148); a direct write here could clobber a remaining residing link.
 
     // 4. Record in ownership history
     await adminClient

@@ -158,11 +158,8 @@ export async function removeOwnership(
     return { success: false, error: 'Failed to remove owner assignment' };
   }
 
-  // Step 3: Update house occupancy
-  await supabase
-    .from('houses')
-    .update({ is_occupied: false })
-    .eq('id', houseId);
+  // Step 3: House occupancy is recomputed by the update_house_occupancy trigger on the
+  // deactivation above (#1148); a direct write here could clobber a remaining residing link.
 
   // Step 4: Record ownership history
   try {
