@@ -1,17 +1,21 @@
 #!/usr/bin/env node
 /**
- * Deploy Residio_Stage's Coolify application from the dev machine, without opening the
- * Coolify dashboard.
+ * Deploy the OLD `residio-stage` Coolify application (Dockerfile build pack, secret
+ * COOLIFY_APP_UUID_STAGE) from the dev machine.
  *
  *   npm run deploy:stage
  *
- * Stage only. Prod is deployed by hand in Coolify after its migrations are applied
- * (CORE.md §11), and this script has no Prod path.
+ * WARNING: the old app is stopped, and running this starts it again.
  *
- * Same endpoint, headers and secrets as scripts/coolify-version.mjs (POST /api/v1/deploy,
- * Coolify bearer token plus the Cloudflare Access service-token pair, redirects not followed).
- * Builds the commit CI pinned on the last push to `stage`. Reads the secrets from the shell
- * environment only, never from a file:
+ * It exists only for the rollback window after #1114 (until about 2026-10-31). Stage is
+ * normally `residio-stage-image`, deployed by .github/workflows/stage-image.yml on every push
+ * to `stage`. coolify-version.yml no longer pins a commit, so this builds whatever
+ * `git_commit_sha` was last pinned on the old app. Prod is deployed by hand in Coolify after
+ * its migrations are applied (CORE.md §11), and this script has no Prod path.
+ *
+ * Same endpoint and headers as scripts/coolify-version.mjs (POST /api/v1/deploy, Coolify
+ * bearer token plus the Cloudflare Access service-token pair, redirects not followed). Reads
+ * the secrets from the shell environment only, never from a file:
  *
  *   COOLIFY_BASE_URL  COOLIFY_API_TOKEN  CF_ACCESS_CLIENT_ID  CF_ACCESS_CLIENT_SECRET
  *   COOLIFY_APP_UUID_STAGE

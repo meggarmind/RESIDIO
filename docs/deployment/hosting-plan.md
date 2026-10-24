@@ -57,7 +57,7 @@ Hostinger KVM 2  (x86, 2 vCPU, 8 GB RAM, 100 GB NVMe)
 ## Scheduled tasks (#399)
 
 `vercel.json` was the only definition of Residio's schedules and is inert off Vercel, so it has
-been removed. The ten schedules now live as **Coolify scheduled tasks on both the `residio-prod`
+been removed. The eleven schedules now live as **Coolify scheduled tasks on both the `residio-prod`
 and the `residio-stage-image` application**, with the same container, frequency and command on each.
 Stage's 11 Coolify scheduled tasks are attached to `residio-stage-image` (moved from the
 stopped `residio-stage`, #1114). Coolify configuration is not in the repo, so this section is the record; if a task is changed in
@@ -562,18 +562,26 @@ Never paste a real secret into this file: the repository is public.
 
 ### Phase 5: the two applications
 
-Both: Application, Dockerfile build pack, repo `meggarmind/RESIDIO`, port 3000 (the image has its
-own `HEALTHCHECK`).
+Both: Application, port 3000 (the image has its own `HEALTHCHECK`). They differ in how the
+image arrives. Prod is built on the KVM from the repo. Stage is not built on the KVM at all:
+CI builds the image and Coolify only pulls it (#1114).
 
 | Setting | residio-prod | residio-stage-image |
 |---|---|---|
+| Application type | Dockerfile build pack, repo `meggarmind/RESIDIO` | Docker Image: `ghcr.io/meggarmind/residio-stage:<sha>` (private registry); CI sets the tag |
 | Domain | `https://app.<domain>` | `https://stage.<domain>` |
-| Branch | `master` | `stage` |
+| Branch | `master` | none (no source build; CI builds from `stage`) |
+| Build | on the KVM | none on the KVM |
 | Auto-deploy on push | **Off**: deploy by hand after any migration (`CORE.md` §11) | **Off in Coolify**: `.github/workflows/stage-image.yml` builds a GHCR image and deploys it on every push to `stage` (#1114). The old source-built `residio-stage` is stopped and kept only for rollback |
 | Supabase | Residio_Prod | Residio_Stage |
 | Memory limit | ~2 GB | ~1 GB |
 
-Build variables (public; inlined into the browser bundle): `NEXT_PUBLIC_ENV_MODE=cloud`,
+Build variables (public; inlined into the browser bundle). On **Prod** they are Coolify build
+variables. On **Stage** they are build args of the CI image build, taken from the `STAGE_*`
+repository variables in `stage-image.yml` (`STAGE_SUPABASE_URL`, `STAGE_SUPABASE_ANON_KEY`,
+`STAGE_APP_URL`, `STAGE_PAYSTACK_PUBLIC_KEY`), and Stage's Coolify runtime environment holds the
+runtime secrets below plus the same public `NEXT_PUBLIC_*` values, which `preflight-env.mjs`
+reads at startup. The variables are: `NEXT_PUBLIC_ENV_MODE=cloud`,
 `NEXT_PUBLIC_SUPABASE_URL_CLOUD`, `NEXT_PUBLIC_SUPABASE_ANON_KEY_CLOUD`, `NEXT_PUBLIC_SITE_URL`,
 `NEXT_PUBLIC_APP_URL` (both the **https** origin), `NEXT_PUBLIC_PAYSTACK_KEY`,
 `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY`.
