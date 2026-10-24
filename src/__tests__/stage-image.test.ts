@@ -4,6 +4,9 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   REQUIRED_SECRETS,
   UUID_SECRET,
+  MAX_RETRIES,
+  RETRY_WAIT_MS,
+  defaultStageHead,
   main,
   missingSecrets,
   planRequests,
@@ -35,12 +38,14 @@ function run({
   command = 'deploy',
   env = configured,
   responses = [ok(), ok({ deployments: [{ message: 'queued', deployment_uuid: 'dep1', resource_uuid: 'img-uuid-SECRET-4' }] })],
-  head = SHA as string | null,
+  head = SHA as string | null | (() => string | null),
+  sleep = async () => {},
 }: {
   command?: string;
   env?: Record<string, string | undefined>;
   responses?: FakeResponse[];
-  head?: string | null;
+  head?: string | null | (() => string | null);
+  sleep?: (ms: number) => Promise<void>;
 } = {}) {
   const queue = [...responses];
   const fetchImpl = vi.fn(async () => queue.shift() as FakeResponse);
@@ -51,7 +56,8 @@ function run({
     fetchImpl,
     log: (line: string) => logs.push(line),
     resolveCommit: (ref: string | undefined) => ref ?? null,
-    stageHead: () => head,
+    stageHead: typeof head === 'function' ? head : () => head,
+    sleep,
   });
   return { result, fetchImpl, logs };
 }
@@ -189,6 +195,92 @@ describe('failures are redacted', () => {
   });
 });
 
+const queued = (message: string, uuid?: string) =>
+  ok({ deployments: [{ message, resource_uuid: 'img-uuid-SECRET-4', ...(uuid ? { deployment_uuid: uuid } : {}) }] });
+const DEDUPED = 'Deployment already queued for this commit.';
+
+describe('a deploy Coolify did not queue', () => {
+  it('succeeds on the first try when a deployment_uuid comes back', async () => {
+    const sleep = vi.fn(async () => {});
+    const { result, fetchImpl, logs } = run({ sleep, responses: [ok(), queued('Application queued.', 'dep1')] });
+    await result;
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(sleep).not.toHaveBeenCalled();
+    expect(logs.at(-1)).toMatch(/deploy queued/);
+  });
+
+  it('waits, re-writes the tag and posts again after a dedupe, then succeeds', async () => {
+    const sleep = vi.fn(async () => {});
+    const { result, fetchImpl } = run({
+      sleep,
+      responses: [ok(), queued(DEDUPED), ok(), queued('Application queued.', 'dep2')],
+    });
+    await result;
+    expect(sleep).toHaveBeenCalledTimes(1);
+    expect(sleep).toHaveBeenCalledWith(RETRY_WAIT_MS);
+    const calls = fetchImpl.mock.calls as unknown as [string, { method: string }][];
+    expect(calls.map(([url, init]) => `${init.method} ${url.replace('https://coolify.example.test', '')}`)).toEqual([
+      'PATCH /api/v1/applications/img-uuid-SECRET-4',
+      'POST /api/v1/deploy?uuid=img-uuid-SECRET-4',
+      'PATCH /api/v1/applications/img-uuid-SECRET-4',
+      'POST /api/v1/deploy?uuid=img-uuid-SECRET-4',
+    ]);
+  });
+
+  it('fails with ::error:: material after the last retry is still deduped', async () => {
+    const sleep = vi.fn(async () => {});
+    const responses: FakeResponse[] = [];
+    for (let i = 0; i <= MAX_RETRIES; i += 1) responses.push(ok(), queued(DEDUPED));
+    const { result, fetchImpl } = run({ sleep, responses });
+    await expect(result).rejects.toThrow(/still merged into an earlier deploy after 16 retries/);
+    expect(sleep).toHaveBeenCalledTimes(MAX_RETRIES);
+    expect(fetchImpl).toHaveBeenCalledTimes((MAX_RETRIES + 1) * 2);
+  });
+
+  it('skips with a notice when stage moves on while waiting after a dedupe', async () => {
+    const heads = [SHA, NEWER];
+    const sleep = vi.fn(async () => {});
+    const { result, fetchImpl, logs } = run({
+      sleep,
+      head: () => heads.shift() ?? NEWER,
+      responses: [ok(), queued(DEDUPED), ok(), queued('Application queued.', 'dep3')],
+    });
+    await result;
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(logs.at(-1)).toMatch(/^::notice::Stage moved on to /);
+  });
+
+  it('fails on an HTTP 200 without a deployment_uuid that is not a dedupe (unauthorized)', async () => {
+    const sleep = vi.fn(async () => {});
+    const { result } = run({ sleep, responses: [ok(), queued('Unauthorized to deploy this application.')] });
+    await expect(result).rejects.toThrow(/queued no deployment: Unauthorized to deploy this application\./);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it('fails on an HTTP 200 with an unreadable body, and redacts secrets in the message', async () => {
+    const { result } = run({ responses: [ok(), queued('denied for tok-SECRET-1')] });
+    const error = await result.catch((e: Error) => e.message);
+    expect(error).not.toContain('tok-SECRET-1');
+    expect(error).toContain('***');
+    const bad = run({ responses: [ok(), { status: 200, json: async () => { throw new Error('x'); } }] });
+    await expect(bad.result).rejects.toThrow(/queued no deployment/);
+  });
+});
+
+describe('default stageHead', () => {
+  it('returns null when the fetch fails, never the stale local ref', () => {
+    const run = vi.fn((args: string[]) => (args[0] === 'fetch' ? null : SHA));
+    expect(defaultStageHead(run)).toBeNull();
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads origin/stage after a successful fetch', () => {
+    const run = vi.fn((args: string[]) => (args[0] === 'fetch' ? '' : NEWER));
+    expect(defaultStageHead(run)).toBe(NEWER);
+    expect(run.mock.calls.map(([a]) => a[0])).toEqual(['fetch', 'rev-parse']);
+  });
+});
+
 describe('commands', () => {
   it('rejects an unknown command', async () => {
     await expect(run({ command: 'nope' }).result).rejects.toThrow(/Unknown command/);
@@ -304,6 +396,39 @@ describe('stage-image.yml', () => {
     expect(buildJob).toMatch(/fetch-tags: true/);
     expect(buildJob).toMatch(/node-version-file: \.nvmrc/);
     expect(buildJob).toMatch(/run: node scripts\/stage-image\.mjs version/);
+  });
+
+  it('references exactly the five Coolify secrets in the deploy job', () => {
+    expect([...deployJob.matchAll(/secrets\.(\w+)/g)].map((m) => m[1]).sort()).toEqual(
+      [
+        'CF_ACCESS_CLIENT_ID',
+        'CF_ACCESS_CLIENT_SECRET',
+        'COOLIFY_API_TOKEN',
+        'COOLIFY_APP_UUID_STAGE_IMAGE',
+        'COOLIFY_BASE_URL',
+      ],
+    );
+  });
+
+  it('has no if: on the deploy job or its step, so the script alone decides to skip', () => {
+    expect(deployJob).not.toMatch(/^\s+if:/m);
+  });
+
+  it('gives the deploy job room for the dedupe retries', () => {
+    expect(deployJob).toMatch(/timeout-minutes: 15\n/);
+  });
+
+  it('passes the commit to the version step', () => {
+    const step = buildJob.match(/- name: Compute version\n([\s\S]*?)(?=\n\s+- name:)/)?.[1] ?? '';
+    expect(step).toMatch(/GIT_SHA: \$\{\{ github\.sha \}\}/);
+  });
+
+  it('pushes exactly the two tags', () => {
+    const tags = buildJob.match(/ {10}tags: \|\n((?: {12}\S.*\n?)+)/)?.[1] ?? '';
+    expect(tags.trim().split('\n').map((l) => l.trim())).toEqual([
+      'ghcr.io/meggarmind/residio-stage:${{ github.sha }}',
+      'ghcr.io/meggarmind/residio-stage:stage',
+    ]);
   });
 
   it('deploy lists each secret explicitly and reads the flag from vars', () => {

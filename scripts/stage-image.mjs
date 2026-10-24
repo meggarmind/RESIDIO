@@ -50,13 +50,13 @@ import {
   SHARED_SECRETS,
   assertOk,
   buildHeaders,
-  deployLogLine,
   failureMessage,
   gitQueries,
   maskCommands,
   normalizeBaseUrl,
   parseDeploy,
   redact,
+  sanitizeForLog,
   requestInit,
   resolveSha,
   resolveVersion,
@@ -66,6 +66,11 @@ import {
 /** Every secret `deploy` needs: the shared Coolify/Access four plus the app UUID. */
 export const UUID_SECRET = 'COOLIFY_APP_UUID_STAGE_IMAGE';
 export const REQUIRED_SECRETS = [...SHARED_SECRETS, UUID_SECRET];
+
+/** Coolify merges a deploy into a queued or running one (same app, commit, no tag): retry. */
+export const ALREADY_QUEUED = /already queued/i;
+export const MAX_RETRIES = 16;
+export const RETRY_WAIT_MS = 30_000;
 
 /** NAMES of the required secrets that are unset or blank. Values are never returned. */
 export function missingSecrets(env) {
@@ -112,7 +117,7 @@ async function runVersion({ env, git, log, resolveCommit, appendOutput }) {
 }
 
 /** `deploy` command. */
-async function runDeploy({ env, fetchImpl, log, resolveCommit, stageHead }) {
+async function runDeploy({ env, fetchImpl, log, resolveCommit, stageHead, sleep }) {
   const notice = skipNotice(env);
   if (notice) {
     log(notice);
@@ -141,25 +146,84 @@ async function runDeploy({ env, fetchImpl, log, resolveCommit, stageHead }) {
   const headers = buildHeaders(env);
   const plan = planRequests({ appUuid: env[UUID_SECRET].trim(), sha });
 
-  for (const request of plan) {
-    const shown = redact(`${request.method} ${request.path}`, secretValues);
-    let response;
-    try {
-      response = await fetchImpl(`${baseUrl}${request.path}`, {
-        ...requestInit(request, headers),
-        signal: AbortSignal.timeout(30_000),
-      });
-    } catch (error) {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
+    let deployment;
+    for (const request of plan) {
+      const shown = redact(`${request.method} ${request.path}`, secretValues);
+      let response;
+      try {
+        response = await fetchImpl(`${baseUrl}${request.path}`, {
+          ...requestInit(request, headers),
+          signal: AbortSignal.timeout(30_000),
+        });
+      } catch (error) {
+        throw new Error(
+          failureMessage(request.method, request.path, `failed before a response (${error?.name ?? 'Error'})`, secretValues),
+        );
+      }
+      // Status first; a failed response's body is never read (an error page may echo headers).
+      assertOk(response.status, request.method, request.path, secretValues);
+      log(`${shown} -> HTTP ${response.status}`);
+      if (request.method === 'POST') deployment = await firstDeployment(response);
+    }
+
+    if (typeof deployment?.deployment_uuid === 'string' && deployment.deployment_uuid.trim()) {
+      log(deployLogLineFor(deployment, sha, secretValues));
+      log(`Coolify residio-stage-image: tag set to ${sha} and deploy queued.`);
+      return;
+    }
+
+    // HTTP 200 without a deployment_uuid means Coolify did NOT queue anything.
+    const message = sanitizeForLog(deployment?.message ?? '', secretValues);
+    if (!ALREADY_QUEUED.test(message)) {
       throw new Error(
-        failureMessage(request.method, request.path, `failed before a response (${error?.name ?? 'Error'})`, secretValues),
+        failureMessage('POST', '/api/v1/deploy', `queued no deployment: ${message || 'no message'}`, secretValues),
       );
     }
-    // Status first; a failed response's body is never read (an error page may echo headers).
-    assertOk(response.status, request.method, request.path, secretValues);
-    log(`${shown} -> HTTP ${response.status}`);
-    if (request.method === 'POST') log(await deployLogLine(response, sha, secretValues));
+    // Coolify merged this request into a queued or running deploy, which has already read the
+    // old tag. Wait for it to finish, then write the tag and ask again.
+    if (attempt === MAX_RETRIES) break;
+    log(`::notice::Deploy was merged into one already queued or running (retry ${attempt + 1}/${MAX_RETRIES}); waiting ${RETRY_WAIT_MS / 1000}s.`);
+    await sleep(RETRY_WAIT_MS);
+    const head = stageHead();
+    if (head !== sha) {
+      log(
+        head
+          ? `::notice::Stage moved on to ${head} while waiting; not deploying ${sha}. The newer push deploys its own image.`
+          : `::notice::Could not resolve stage's head while waiting, so not deploying ${sha}.`,
+      );
+      return;
+    }
   }
-  log(`Coolify residio-stage-image: tag set to ${sha} and deploy queued.`);
+  throw new Error(
+    failureMessage('POST', '/api/v1/deploy', `was still merged into an earlier deploy after ${MAX_RETRIES} retries`, secretValues),
+  );
+}
+
+/** The first entry of a deploy response's `deployments`, or undefined when the body is not that. */
+async function firstDeployment(response) {
+  try {
+    return (await response.json())?.deployments?.[0];
+  } catch {
+    return undefined;
+  }
+}
+
+/** One-line log for a queued deploy: only sanitised deployment_uuid and message. */
+function deployLogLineFor(deployment, sha, secretValues) {
+  const parts = [deployment.deployment_uuid, deployment.message]
+    .filter((part) => typeof part === 'string' && part.trim())
+    .map((part) => sanitizeForLog(part, secretValues));
+  return `Stage deploy queued for ${sha} (${parts.join(': ')})`;
+}
+
+/** Fetch the live head of origin/stage and read it; null if the fetch fails. */
+export function defaultStageHead(run = runGit) {
+  // The checkout may be shallow or stale. A failed fetch must not fall through to the ref
+  // checkout created (the built SHA), which would make the head check pass.
+  const fetched = run(['fetch', '--no-tags', '--depth=1', 'origin', '+refs/heads/stage:refs/remotes/origin/stage']);
+  if (fetched === null) return null;
+  return run(['rev-parse', '--verify', '--quiet', 'refs/remotes/origin/stage^{commit}']);
 }
 
 /**
@@ -173,6 +237,7 @@ async function runDeploy({ env, fetchImpl, log, resolveCommit, stageHead }) {
  *   git?: ReturnType<typeof gitQueries>,
  *   resolveCommit?: (ref: string | undefined) => string | null,
  *   stageHead?: () => string | null,
+ *   sleep?: (ms: number) => Promise<void>,
  *   appendOutput?: (file: string, text: string) => void,
  * }} [deps]
  */
@@ -183,15 +248,12 @@ export async function main({
   log = console.log,
   git = gitQueries(),
   resolveCommit = resolveSha,
-  stageHead = () => {
-    // The checkout may be shallow or stale: fetch the live head, then read it.
-    runGit(['fetch', '--no-tags', '--depth=1', 'origin', '+refs/heads/stage:refs/remotes/origin/stage']);
-    return runGit(['rev-parse', '--verify', '--quiet', 'refs/remotes/origin/stage^{commit}']);
-  },
+  stageHead = defaultStageHead,
+  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   appendOutput = (file, text) => appendFileSync(file, text),
 } = {}) {
   if (command === 'version') return runVersion({ env, git, log, resolveCommit, appendOutput });
-  if (command === 'deploy') return runDeploy({ env, fetchImpl, log, resolveCommit, stageHead });
+  if (command === 'deploy') return runDeploy({ env, fetchImpl, log, resolveCommit, stageHead, sleep });
   throw new Error(`Unknown command "${command ?? ''}"; expected "version" or "deploy"`);
 }
 
