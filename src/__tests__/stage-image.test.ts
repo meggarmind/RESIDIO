@@ -326,6 +326,7 @@ describe('commands', () => {
         exactTags: () => ['v1.2.3'],
         tags: () => [],
         secondParent: () => null,
+        tagCommit: () => null,
         isAncestor: () => false,
         countBetween: () => '0',
         describe: () => null,
