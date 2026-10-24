@@ -125,7 +125,7 @@ file the issue, parent it to the right map, leave it out of the run.
 
 Exactly `CORE.md` §15 and §16, with no shortcuts:
 
-1. Board → **In progress**, add your `harness:*` label (`CORE.md` §9).
+1. Add your `harness:*` label (`CORE.md` §9); the board moves to **In progress** by itself when the branch is pushed (step 2).
 2. Integration worktree `.worktrees/issue-<n>` on `<lane>/issue-<n>-<slug>` from `origin/stage`;
    push it at once — the push is the claim (`CORE.md` §7).
 3. Dispatch the implementer into its own worktree, with the full brief and verbatim clauses from

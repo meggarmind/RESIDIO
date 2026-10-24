@@ -3,8 +3,11 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 import {
+  commit,
+  decideLinked,
   decideParent,
   decideTransition,
+  prEventType,
   issueNumberFromBranch,
   mergeConfig,
   missingReadiness,
@@ -74,10 +77,12 @@ describe('rule 2: issue opened', () => {
     });
   });
 
-  it('leaves an already-triaged issue alone apart from the status', () => {
-    const d = decideTransition({ type: 'issue.opened' }, issue({ labels: ['ready-for-agent'] }), config);
+  it('honours a ready label already present at creation: Ready, backlog/needs-* stripped', () => {
+    const d = decideTransition({ type: 'issue.opened' }, issue({ labels: ['ready-for-agent', 'backlog', 'needs-info', 'needs-triage'] }), config);
+    expect(d.status).toBe('Ready');
     expect(d.addLabels).toEqual([]);
-    expect(d.status).toBe('Backlog');
+    expect(d.removeLabels.sort()).toEqual(['backlog', 'needs-info', 'needs-triage']);
+    expect(decideTransition({ type: 'issue.opened' }, issue({ labels: ['ready-for-human'], status: 'Backlog' }), config).status).toBe('Ready');
   });
 });
 
@@ -188,6 +193,16 @@ describe('rule 7: merged into stage', () => {
     expect(d).toEqual({ addLabels: [], removeLabels: [] });
   });
 
+  it('a merge for an issue already On stage stays On stage; Done is never regressed', () => {
+    const onStage = decideTransition({ type: 'pr.merged', pr: STAGE_PR }, issue({ status: 'On stage', labels: ['on-stage'] }), config);
+    expect(onStage.status).toBeUndefined();
+    expect(onStage.addLabels).toEqual([]);
+    expect(onStage.close).toBe(true);
+    const done = decideTransition({ type: 'pr.merged', pr: STAGE_PR }, issue({ status: 'Done', labels: ['ready-for-agent'] }), config);
+    expect(done.status).toBeUndefined();
+    expect(done.addLabels).toEqual([]);
+  });
+
   it('a master-into-stage sync PR marks linked issues Done', () => {
     const sync = { base: 'stage', head: 'chore/sync-master-into-stage', title: 'Chore: sync master into stage' };
     expect(decideTransition({ type: 'pr.merged', pr: sync }, issue({ status: 'On stage', labels: ['on-stage'] }), config)).toMatchObject({
@@ -289,6 +304,11 @@ describe('rules 13-14: closed', () => {
     }
   });
 
+  it('a duplicate close is Done even when a merged PR exists', () => {
+    const d = decideTransition({ type: 'issue.closed' }, issue({ state: 'CLOSED', stateReason: 'DUPLICATE', status: 'In review', hasMergedPr: true }), config);
+    expect(d.status).toBe('Done');
+  });
+
   it('a manual completed close with no merged PR goes to Done', () => {
     expect(decideTransition({ type: 'issue.closed' }, issue({ state: 'CLOSED', stateReason: 'COMPLETED', status: 'In progress', hasMergedPr: false }), config).status).toBe('Done');
   });
@@ -334,6 +354,12 @@ describe('rule 15: parent rollup', () => {
 
   it('parents never carry on-stage', () => {
     expect(decideParent(parent({ labels: ['on-stage'], children: [child('OPEN', 'Backlog')] }), config).removeLabels).toEqual(['on-stage']);
+  });
+
+  it('a Done parent with all children closed but not all Done stays Done', () => {
+    const d = decideParent(parent({ state: 'CLOSED', status: 'Done', children: [child('CLOSED', 'On stage'), child('CLOSED', 'Done')] }), config);
+    expect(d.status).toBeUndefined();
+    expect(d.close).toBeUndefined();
   });
 
   it('does not regress a parent that is further along', () => {
@@ -407,7 +433,11 @@ describe('parseLinkedIssues', () => {
       config,
       selfNumber: 200,
     });
-    expect(numbers).toEqual([5, 9, 12, 14, 15, 20]);
+    expect(numbers).toEqual([5, 9, 12, 14, 15]);
+  });
+
+  it('"Part of #epic" is not a link', () => {
+    expect(parseLinkedIssues({ body: 'Part of #50: Epic\nCloses #51', config })).toEqual([51]);
   });
 
   it('one PR closing several issues produces a transition per issue', () => {
@@ -436,5 +466,56 @@ describe('parseArgs', () => {
     expect(parseArgs(['--help']).help).toBe(true);
     expect(() => parseArgs([])).toThrow();
     expect(() => parseArgs(['--bogus'])).toThrow();
+  });
+});
+
+describe('prEventType', () => {
+  it('detects a merge from mergedAt or state, not a nonexistent `merged` field', () => {
+    expect(prEventType('closed', { mergedAt: '2026-10-01T00:00:00Z', state: 'MERGED' })).toBe('pr.merged');
+    expect(prEventType('closed', { mergedAt: '2026-10-01T00:00:00Z' })).toBe('pr.merged');
+    expect(prEventType('closed', { state: 'MERGED' })).toBe('pr.merged');
+    expect(prEventType('closed', { mergedAt: null, state: 'CLOSED' })).toBe('pr.closed');
+  });
+
+  it('maps draft and ready transitions and ignores other actions', () => {
+    expect(prEventType('opened', { isDraft: true })).toBe('pr.draft');
+    expect(prEventType('reopened', { isDraft: true })).toBe('pr.draft');
+    expect(prEventType('converted_to_draft', { isDraft: true })).toBe('pr.draft');
+    expect(prEventType('opened', { isDraft: false })).toBe('pr.ready');
+    expect(prEventType('ready_for_review', { isDraft: false })).toBe('pr.ready');
+    expect(prEventType('synchronize', { isDraft: false })).toBeNull();
+  });
+});
+
+describe('decideLinked: parents are rolled up, not transitioned', () => {
+  it('uses decideParent for an issue with sub-issues, even on a stage merge', () => {
+    const parent = issue({ number: 50, status: 'Backlog', labels: ['on-stage'], children: [{ state: 'OPEN', status: 'In progress' }] });
+    const d = decideLinked({ type: 'pr.merged', pr: STAGE_PR }, parent, config);
+    expect(d.status).toBe('In progress');
+    expect(d.close).toBeUndefined();
+    expect(d.addLabels).toEqual([]);
+    expect(d.removeLabels).toEqual(['on-stage']);
+  });
+
+  it('uses decideTransition for a leaf issue', () => {
+    expect(decideLinked({ type: 'pr.merged', pr: STAGE_PR }, issue({ status: 'In review', children: [] }), config).status).toBe('On stage');
+  });
+});
+
+describe('commit (dry-run write gate)', () => {
+  const decision = { addLabels: ['x'], removeLabels: [], status: 'Ready' };
+
+  it('calls the writer for a live non-empty diff', () => {
+    let calls = 0;
+    expect(commit(issue(), decision, { dryRun: false }, () => { calls += 1; })).toBe(true);
+    expect(calls).toBe(1);
+  });
+
+  it('never calls the writer on a dry run or an empty diff', () => {
+    let calls = 0;
+    const writer = () => { calls += 1; };
+    expect(commit(issue(), decision, { dryRun: true }, writer)).toBe(false);
+    expect(commit(issue(), { addLabels: [], removeLabels: [] }, { dryRun: false }, writer)).toBe(false);
+    expect(calls).toBe(0);
   });
 });

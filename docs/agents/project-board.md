@@ -59,7 +59,7 @@ The rules are data in `.github/board-automation.json`, applied by `scripts/board
   On stage means "closed, not yet on Prod".
 - **Done.** When the issue's closing PR is an ancestor of the release merge commit, automation
   removes `on-stage` and comments "Released in vX.Y.Z".
-- **Parents and umbrellas** (`wayfinder:map`, issues with sub-issues) take their Status from their
+- **Parents and umbrellas** (issues with sub-issues, e.g. `wayfinder:map`) take their Status from their
   children: any child started → In progress; all children closed → On stage (the parent stays
   open); all children Done → Done and closed. They never carry `on-stage`, and no single child
   closes them.

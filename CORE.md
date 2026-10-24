@@ -414,7 +414,7 @@ a routine. Board and field IDs, and the manual `gh project item-edit` fallback, 
 - **Ready** is set by the label. An agent may set `ready-for-agent` after refining with the owner or
   decomposing an agreed plan; the owner can veto. Automation sets Status and comments a warning when
   the Scope, Success criteria or Validation headings are missing.
-- **Parents** (`wayfinder:map`, issues with sub-issues) roll up from their children: any child
+- **Parents** (issues with sub-issues, e.g. `wayfinder:map`) roll up from their children: any child
   started → In progress; all children closed → On stage (parent stays open); all children Done →
   Done and closed. They never carry `on-stage` and no single child closes them.
 - **Backward moves** are automation-only: PR closed unmerged with no other open PR → In progress;

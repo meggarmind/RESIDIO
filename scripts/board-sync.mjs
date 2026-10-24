@@ -161,8 +161,8 @@ export function issueNumberFromBranch(config, branch) {
 }
 
 /**
- * Every issue a PR relates to: GitHub's closingIssuesReferences, `Closes|Fixes|Resolves|Part of
- * #n` keywords in the body (lists like `Closes #1, #2` included), and the number in the head
+ * Every issue a PR relates to: GitHub's closingIssuesReferences, `Closes|Fixes|Resolves #n`
+ * keywords (never "Part of": that names an epic the PR only contributes to) in the body (lists like `Closes #1, #2` included), and the number in the head
  * branch. De-duplicated, ascending. References qualified with another repository are ignored.
  * @param {{ closingIssuesReferences?: any[], body?: string, headRefName?: string, config?: any, selfNumber?: number }} [input]
  * @returns {number[]}
@@ -174,7 +174,7 @@ export function parseLinkedIssues({ closingIssuesReferences = [], body = '', hea
     if (repo && config?.repository && repo.toLowerCase() !== config.repository.toLowerCase()) continue;
     if (Number.isInteger(ref.number)) found.add(ref.number);
   }
-  const keyword = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|part of)\s*:?\s+((?:(?:,|and|&)?\s*(?:[\w.-]+\/[\w.-]+)?#\d+\s*)+)/gi;
+  const keyword = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s+((?:(?:,|and|&)?\s*(?:[\w.-]+\/[\w.-]+)?#\d+\s*)+)/gi;
   for (const match of String(body ?? '').matchAll(keyword)) {
     for (const ref of match[1].matchAll(/(?:([\w.-]+\/[\w.-]+))?#(\d+)/g)) {
       if (ref[1] && config?.repository && ref[1].toLowerCase() !== config.repository.toLowerCase()) continue;
@@ -256,8 +256,14 @@ export function decideTransition(event, issue, config) {
       const nonLegacy = [labels.backlog, labels.needsInfo, ...readyLabels].filter((l) => have.has(l));
       const legacy = (labels.legacyTriage ?? []).filter((l) => have.has(l));
       d.removeLabels.push(...legacy);
-      if (nonLegacy.length === 0) d.addLabels.push(labels.backlog);
-      if (rank < 0) d.status = config.statuses.backlog;
+      if (readyLabels.some((l) => have.has(l))) {
+        // Created already ready (or a cancelled pending `labeled` run): honour it.
+        d.removeLabels.push(labels.backlog, labels.needsInfo);
+        if (rank < rankOf('ready')) d.status = config.statuses.ready;
+      } else {
+        if (nonLegacy.length === 0) d.addLabels.push(labels.backlog);
+        if (rank < 0) d.status = config.statuses.backlog;
+      }
       break;
     }
     case 'issue.labeled': {
@@ -331,6 +337,31 @@ export function decideTransition(event, issue, config) {
       break;
   }
   return finalize(issue, d);
+}
+
+/**
+ * Event type for a pull_request webhook action and the PR as `gh pr view` reports it
+ * (mergedAt/state/isDraft; there is no `merged` field). Null when the action needs no handling.
+ */
+export function prEventType(action, pr) {
+  const merged = Boolean(pr?.mergedAt) || pr?.state === 'MERGED';
+  const opening = action === 'opened' || action === 'reopened';
+  if (action === 'closed') return merged ? 'pr.merged' : 'pr.closed';
+  if (action === 'converted_to_draft' || (opening && pr?.isDraft)) return 'pr.draft';
+  if (action === 'ready_for_review' || (opening && !pr?.isDraft)) return 'pr.ready';
+  return null;
+}
+
+/** A parent (issue with sub-issues) is rolled up from its children, never moved by a PR event. */
+export function decideLinked(event, issue, config) {
+  return (issue.children ?? []).length > 0 ? decideParent(issue, config) : decideTransition(event, issue, config);
+}
+
+/** The single write gate: nothing is written on a dry run or for an empty diff. */
+export function commit(issue, decision, options, writer) {
+  if (options.dryRun || isEmptyDecision(decision)) return false;
+  writer(issue, decision);
+  return true;
 }
 
 /**
@@ -471,6 +502,9 @@ export function parseArgs(args) {
 /* I/O layer                                                                                   */
 /* ------------------------------------------------------------------------------------------ */
 
+const ISSUE_LIMIT = 5000;
+const MERGED_PR_LIMIT = 3000;
+
 const gh = (args, cwd) => run('gh', args, cwd);
 const ghJson = (args, cwd) => JSON.parse(gh(args, cwd) || 'null');
 
@@ -544,12 +578,13 @@ class Repo {
     const branches = gh(['api', `repos/${repo}/branches?per_page=100`, '--paginate', '--jq', '.[].name'], this.cwd).split('\n').filter(Boolean);
     const fields = 'number,title,body,headRefName,baseRefName,isDraft,mergeCommit,closingIssuesReferences,mergedAt';
     const open = ghJson(['pr', 'list', '--repo', repo, '--state', 'open', '--limit', '300', '--json', fields], this.cwd) ?? [];
-    const merged = ghJson(['pr', 'list', '--repo', repo, '--state', 'merged', '--limit', '500', '--json', fields], this.cwd) ?? [];
+    const merged = ghJson(['pr', 'list', '--repo', repo, '--state', 'merged', '--limit', String(MERGED_PR_LIMIT), '--json', fields], this.cwd) ?? [];
     const link = (pr) => parseLinkedIssues({ ...pr, config: this.config, selfNumber: pr.number });
     this._facts = {
       branches,
       open: open.map((pr) => ({ ...pr, linked: link(pr) })),
       merged: merged.map((pr) => ({ ...pr, linked: link(pr) })),
+      mergedLimitHit: merged.length >= MERGED_PR_LIMIT,
     };
     return this._facts;
   }
@@ -653,16 +688,17 @@ function evaluateParent(repo, report, number, options) {
   issue.children = repo.children(parent);
   const decision = decideParent(issue, repo.config);
   report.rows.push(...describeChanges(issue, decision));
-  if (!options.dryRun && !isEmptyDecision(decision)) apply(repo, issue, decision);
+  commit(issue, decision, options, (i, d) => apply(repo, i, d));
 }
 
 function handle(repo, report, number, event, options, extra = {}) {
   try {
     const issue = repo.issue(number, { excludePr: extra.excludePr });
+    issue.children = repo.children(number);
     const marker = repo.config.readinessCommentMarker;
-    const decision = decideTransition({ alreadyCommented: commentedWith(issue, marker), ...event }, issue, repo.config);
+    const decision = decideLinked({ alreadyCommented: commentedWith(issue, marker), ...event }, issue, repo.config);
     report.rows.push(...describeChanges(issue, decision));
-    if (!options.dryRun && !isEmptyDecision(decision)) apply(repo, issue, decision);
+    commit(issue, decision, options, (i, d) => apply(repo, i, d));
     evaluateParent(repo, report, number, options);
   } catch (error) {
     report.errors.push(`#${number}: ${error.message}`);
@@ -709,7 +745,7 @@ function releaseMode(repo, report, pr, number, options) {
       };
       const decision = decideTransition(event, issue, repo.config);
       report.rows.push(...describeChanges(issue, decision));
-      if (!options.dryRun && !isEmptyDecision(decision)) apply(repo, issue, decision);
+      commit(issue, decision, options, (i, d) => apply(repo, i, d));
       evaluateParent(repo, report, candidate, options);
     } catch (error) {
       report.errors.push(`#${candidate}: ${error.message}`);
@@ -738,14 +774,16 @@ function eventMode(repo, report, options) {
   }
   if (name === 'pull_request' || name === 'pull_request_target') {
     const n = payload.pull_request.number;
-    const pr = ghJson(['pr', 'view', String(n), '--repo', config.repository, '--json', 'closingIssuesReferences,body,headRefName,baseRefName,isDraft,merged,mergeCommit,title'], repo.cwd);
+    let pr;
+    try {
+      pr = ghJson(['pr', 'view', String(n), '--repo', config.repository, '--json', 'closingIssuesReferences,body,headRefName,baseRefName,isDraft,mergedAt,state,mergeCommit,title,number'], repo.cwd);
+    } catch (error) {
+      report.errors.push(`PR #${n}: could not read pull request: ${error.message}`);
+      return;
+    }
     const linked = parseLinkedIssues({ ...pr, config, selfNumber: n });
     const info = { base: pr.baseRefName, head: pr.headRefName, title: pr.title };
-    const opening = ['opened', 'reopened'].includes(payload.action);
-    let type = null;
-    if (payload.action === 'closed') type = pr.merged ? 'pr.merged' : 'pr.closed';
-    else if (payload.action === 'converted_to_draft' || (opening && pr.isDraft)) type = 'pr.draft';
-    else if (payload.action === 'ready_for_review' || (opening && !pr.isDraft)) type = 'pr.ready';
+    const type = prEventType(payload.action, pr);
     if (!type) return;
 
     if (type === 'pr.merged' && hasStage(config) && info.base === config.prodBranch && info.head === config.stageBranch) {
@@ -761,7 +799,9 @@ function eventMode(repo, report, options) {
 function reconcileMode(repo, report, options) {
   const config = repo.config;
   const since = Date.now() - Number(config.reconcileClosedWindowDays ?? 90) * 86_400_000;
-  const list = ghJson(['issue', 'list', '--repo', config.repository, '--state', 'all', '--limit', '1000', '--json', 'number,state,closedAt'], repo.cwd) ?? [];
+  const list = ghJson(['issue', 'list', '--repo', config.repository, '--state', 'all', '--limit', String(ISSUE_LIMIT), '--json', 'number,state,closedAt'], repo.cwd) ?? [];
+  if (list.length >= ISSUE_LIMIT) report.notes.push(`Issue list hit the ${ISSUE_LIMIT} limit; older issues were not reconciled.`);
+  if (repo.facts().mergedLimitHit) report.notes.push(`Merged PR list hit the ${MERGED_PR_LIMIT} limit; older merges are invisible to reconcile.`);
   const numbers = list
     .filter((i) => i.state === 'OPEN' || (i.closedAt && new Date(i.closedAt).getTime() >= since))
     .map((i) => i.number);
@@ -771,7 +811,7 @@ function reconcileMode(repo, report, options) {
       issue.children = repo.children(number);
       const decision = issue.children.length ? decideParent(issue, config) : reconcileIssue(issue, config);
       report.rows.push(...describeChanges(issue, decision));
-      if (!options.dryRun && !isEmptyDecision(decision)) apply(repo, issue, decision);
+      commit(issue, decision, options, (i, d) => apply(repo, i, d));
     } catch (error) {
       report.errors.push(`#${number}: ${error.message}`);
     }
@@ -786,6 +826,7 @@ export function formatReport(report, options) {
   } else {
     lines.push('No changes.');
   }
+  if (report.notes?.length) lines.push('', ...report.notes.map((n) => `> ${n}`));
   if (report.errors.length) lines.push('', `### Errors (${report.errors.length})`, ...report.errors.map((e) => `- ${e}`));
   return lines.join('\n');
 }
@@ -802,7 +843,7 @@ export function main(argv = process.argv.slice(2)) {
     console.log(USAGE);
     return 0;
   }
-  const report = { rows: [], errors: [] };
+  const report = { rows: [], errors: [], notes: [] };
   try {
     const config = loadBoardConfig();
     const repo = new Repo(config, resolve(SCRIPT_DIR, '..'));

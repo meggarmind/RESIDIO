@@ -677,7 +677,7 @@ function finishMerged(config, cwd, issue, target, pr) {
   const migrations = migrationsFromPaths(files.map((file) => file.path));
 
   // Status is no longer set here: board-sync.yml (#1104) moves it to On stage / Done from the merge event.
-  commentIssue(config, cwd, issue, lifecycleComment(config, issue, config.statuses.done, {
+  commentIssue(config, cwd, issue, lifecycleComment(config, issue, config.statuses.onStage ?? 'On stage', {
     branch: target.branch,
     worktree: target.path,
     verification: 'passed',
@@ -686,7 +686,7 @@ function finishMerged(config, cwd, issue, target, pr) {
   console.log(`PR #${pr.number} is merged; board-sync moves the issue Status.`);
   printMigrations(migrations, config.defaultBranch);
   if (issue.state === 'OPEN') {
-    console.log(`Issue #${issue.number} is still OPEN. finish does not close issues; the owner closes it.`);
+    console.log(`Issue #${issue.number} is still OPEN. The merge closes it via \`Closes #${issue.number}\` and board-sync sets the Status; if that has not happened, check the board-sync run.`);
   }
 
   const root = commonRoot(cwd);
