@@ -1,0 +1,29 @@
+{
+  "stageBranch": "stage",
+  "prodBranch": "master",
+  "statuses": {
+    "backlog": "Backlog",
+    "ready": "Ready",
+    "inProgress": "In progress",
+    "inReview": "In review",
+    "onStage": "On stage",
+    "done": "Done"
+  },
+  "labels": {
+    "backlog": "backlog",
+    "needsInfo": "needs-info",
+    "legacyTriage": ["needs-triage"],
+    "ready": ["ready-for-agent", "ready-for-human"],
+    "onStage": "on-stage",
+    "wontfix": "wontfix"
+  },
+  "exemptLabels": ["pinned"],
+  "readinessHeadings": {
+    "scope": ["Scope"],
+    "criteria": ["Required Change", "Acceptance Criteria", "Success Criteria"],
+    "validation": ["Validation", "Verification"]
+  },
+  "readinessCommentMarker": "<!-- board-sync-readiness -->",
+  "releaseCommentMarker": "<!-- board-sync-released -->",
+  "reconcileClosedWindowDays": 90
+}

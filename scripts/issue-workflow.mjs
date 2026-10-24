@@ -556,14 +556,14 @@ export function publishStatusProblem(status, statuses) {
   return `is currently "${status ?? 'unset'}"; finish requires ${statuses.inReview}`;
 }
 
-// The PR body names the issue as "Part of #N" only. No closing keyword (a
-// merge would close the issue, or a parent, unreviewed; see the keyword trap)
-// and no attribution footer (CORE.md section 14).
+// The PR body names the issue with a closing keyword ("Closes #N") so the merge
+// links and closes it, and scripts/board-sync.mjs (#1104) moves the board Status
+// from the merge event. No attribution footer (CORE.md section 14).
 export function buildPrBody({ issue, defaultBranch, migrations }) {
   const lines = [
     '## Summary',
     '',
-    `Part of #${issue.number}: ${issue.title}`,
+    `Closes #${issue.number}: ${issue.title}`,
     '',
     '## Migrations',
     '',
@@ -676,14 +676,14 @@ function finishMerged(config, cwd, issue, target, pr) {
   const files = runJson('gh', ['pr', 'view', String(pr.number), '--repo', config.repository, '--json', 'files'], cwd).files ?? [];
   const migrations = migrationsFromPaths(files.map((file) => file.path));
 
-  setStatus(config, cwd, issue.number, 'done');
+  // Status is no longer set here: board-sync.yml (#1104) moves it to On stage / Done from the merge event.
   commentIssue(config, cwd, issue, lifecycleComment(config, issue, config.statuses.done, {
     branch: target.branch,
     worktree: target.path,
     verification: 'passed',
     integration: `merged via PR #${pr.number}`,
   }));
-  console.log(`Issue #${issue.number} is Done (PR #${pr.number} merged).`);
+  console.log(`PR #${pr.number} is merged; board-sync moves the issue Status.`);
   printMigrations(migrations, config.defaultBranch);
   if (issue.state === 'OPEN') {
     console.log(`Issue #${issue.number} is still OPEN. finish does not close issues; the owner closes it.`);
