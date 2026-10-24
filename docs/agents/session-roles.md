@@ -30,27 +30,15 @@ sub-agents; that is withdrawn.
 
 ## Why a peer exists: capacity
 
-A single machine's memory caps how many concurrent agents it can host. A peer
-session on a **different system** is therefore additional capacity, not merely a
-second opinion.
+A peer on a **different system** is extra capacity, not only a second opinion. The policy (the
+per-machine cap, the 8-total ceiling, standing-for-dispatch versus gated-for-writes, QA placement
+and the wave-report split) is `CORE.md` section 17; it is not restated here. Two points are
+specific to this arrangement:
 
-- **The budget is per-machine.** At most **5 concurrent tree-mutating agents on
-  any one machine**; with a peer on a different system, up to **8 total, never
-  more than 5 on either side**.
-- **A second session on the same machine is not a peer.** It adds contention,
-  not capacity, and does not raise the cap. `ListAgents` labels rows by kind —
-  check that the counterpart is remote before counting it as capacity.
-- **Standing for dispatch, gated for writes.** Rex may use a detected peer for
-  read-only work, QA and analysis without asking. Anything that **writes files,
-  commits, or touches a shared branch** on the peer needs Jimi's explicit
-  clearance in the live session. Same human, different consent surfaces — see
-  the standing terms below.
-- **Prefer placing QA on the peer.** `CORE.md` section 15 requires the QA agent
-  not to have seen the implementer's reasoning. On a peer session that blindness
-  is structural rather than promised, and it moves the heaviest concurrent load
-  off the implementing machine.
-- **Report the split** — how many agents ran on which machine — in the wave
-  report (`CORE.md` section 16).
+- `ListAgents` labels rows by kind. Check that the counterpart is remote before counting it as
+  capacity; a second local session adds contention, not capacity.
+- Writes on the peer need Jimi's explicit clearance in the live session. Same human, different
+  consent surfaces; see the standing terms below.
 
 ## Quinn — QA peer
 

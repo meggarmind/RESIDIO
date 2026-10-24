@@ -1,12 +1,12 @@
 # Design & Visuals Agent Instructions: The "Residio" Standard
 
-This guide provides instructions for an AI agent to replicate and improve upon the premium, modern, and anticipatory design system found in the Residio project.
+Design rules for UI work in this repository. They describe the system that exists in `src/app/globals.css`, `src/lib/themes/` and `src/components/ui/`; when this file and the code disagree, the code wins and this file needs fixing. Per `CORE.md` section 3, UI work is for the **admin dashboard**; do not extend the resident portal.
 
 ---
 
 ## 1. UI Philosophy: "Anticipatory Minimalism"
 
-*   **Anticipatory Design**: Don't just show data; suggest actions. Components like the `SmartActionCenter` should analyze user state (e.g., unpaid invoices, day of the week) and present "just-in-time" suggestions.
+*   **Anticipatory Design**: Don't just show data; suggest actions. Surface the next sensible step from the admin's current state (e.g., overdue invoices, unverified payments) rather than making them hunt for it.
 *   **Minimalist Clarity**: Use whitespace as a structural element. Avoid cluttered borders; use subtle shadows or color changes to define sections.
 *   **Developer-First Aesthetic**: Use clean, technical fonts (Outfit, Inter, JetBrains Mono) and structured layouts that feel precise and high-performance.
 
@@ -14,7 +14,7 @@ This guide provides instructions for an AI agent to replicate and improve upon t
 
 *   **Color Space**: Always use **OKLCH** for color definitions. It provides perceptually uniform brightness and better control over saturation across light and dark modes.
     *   *Example*: `oklch(0.63 0.17 36.44)` instead of HSL.
-*   **Theme Registry**: Maintain a central registry (`tweakcn-registry.ts`) of curated themes. Each theme defines variables for both light and dark modes.
+*   **Theme Registry**: Maintain a central registry (`src/lib/themes/tweakcn-registry.ts`) of curated themes. Each theme defines variables for both light and dark modes.
 *   **Semantic Mapping**: In `globals.css`, map generic theme variables (e.g., `--primary`) to semantic UI tokens (e.g., `--color-bg-elevated`). 
 *   **Dynamic Injection**: Use a `VisualThemeProvider` to inject these variables into the `:root` or `document.documentElement` at runtime, ensuring the entire UI responds instantly to theme changes.
 
@@ -54,28 +54,12 @@ Replicate the "Premium Feel" by adhering to these core Apple principles:
 *   **Depth**:
     *   Use hierarchical shadows: `.shadow-soft` for cards, `.shadow-elevated` for modals/popovers.
     *   Use `AnimatePresence` for components to "slide in/out" of existence, giving a sense of spatial permanence.
-*   **Contextual Intelligence**: The UI should "know" what the user needs. (e.g., the `SmartActionCenter` suggesting a "Cleaner Code" on Friday mornings).
+*   **Contextual Intelligence**: The UI should "know" what the user needs, for example highlighting the invoices that need attention first.
 
 ---
 
-## Technical Implementation Snippet for New Projects
+## Where the utilities live
 
-When starting a new project, ensure `globals.css` includes these premium utilities:
+The utilities named above (`.glass`, `.btn-hover-lift`, `.card-hover-modern`, `.input-tactile`, `.animate-pulse-soft`, `.shadow-soft`, `.shadow-elevated`, `.stagger-*`, `.layout-container`) are defined in `src/app/globals.css`. Reuse them; do not redefine them in components or copy snippets from this file.
 
-```css
-/* Premium Lift & Shadow */
-.card-hover-modern {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.card-hover-modern:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 24px -8px rgba(var(--primary-rgb), 0.15);
-}
-
-/* Staggered List Logic */
-.stagger-1 { animation-delay: 50ms; }
-.stagger-2 { animation-delay: 100ms; }
-...
-```
-
-Use these instructions to ensure every new component feels **polished, responsive, and alive**.
+Every new component should feel **polished, responsive, and alive**, within the admin-first scope above.
