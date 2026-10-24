@@ -41,7 +41,7 @@ recurring cost that keeps the service running long term.
 Hostinger KVM 2  (x86, 2 vCPU, 8 GB RAM, 100 GB NVMe)
 └── Coolify (Traefik terminates TLS)
     ├── residio-prod   -> app.<domain>    -> Supabase project Residio_Prod
-    ├── residio-stage  -> stage.<domain>  -> Supabase project Residio_Stage
+    ├── residio-stage-image -> stage.<domain> -> Supabase project Residio_Stage (CI-built GHCR image)
     └── Scheduled tasks: the 11 scheduled cron routes (see "Scheduled tasks" below), on prod and stage
 ```
 
@@ -58,8 +58,9 @@ Hostinger KVM 2  (x86, 2 vCPU, 8 GB RAM, 100 GB NVMe)
 
 `vercel.json` was the only definition of Residio's schedules and is inert off Vercel, so it has
 been removed. The ten schedules now live as **Coolify scheduled tasks on both the `residio-prod`
-and the `residio-stage` application**, with the same container, frequency and command on each.
-Coolify configuration is not in the repo, so this section is the record; if a task is changed in
+and the `residio-stage-image` application**, with the same container, frequency and command on each.
+Stage's 11 Coolify scheduled tasks are attached to `residio-stage-image` (moved from the
+stopped `residio-stage`, #1114). Coolify configuration is not in the repo, so this section is the record; if a task is changed in
 Coolify, change it here in the same piece of work.
 
 ### Stage runs the same tasks, behind the communications override (#713)
@@ -84,7 +85,7 @@ they send. This was verified on Stage on 2026-10-20 (#718, results recorded on #
   Debug Mode, which redirects everything on Prod for a limited time.
 - **Environment.** Production versus non-production comes from `NEXT_PUBLIC_APP_ENV`, a build
   variable. It must be set on **both** applications: `production` on `residio-prod`, `staging` on
-  `residio-stage` (see "Phase 5: the two applications" below). Unset or unrecognised counts as
+  `residio-stage-image` (see "Phase 5: the two applications" below). Unset or unrecognised counts as
   non-production, so a Prod build missing it would redirect every message.
 - **Known limits** (#713 decision 8, deliberately not redirected): WhatsApp Assistant replies go to
   whoever messaged the number; Supabase Auth emails (password reset, invites) are sent by Supabase,
@@ -564,11 +565,11 @@ Never paste a real secret into this file: the repository is public.
 Both: Application, Dockerfile build pack, repo `meggarmind/RESIDIO`, port 3000 (the image has its
 own `HEALTHCHECK`).
 
-| Setting | residio-prod | residio-stage |
+| Setting | residio-prod | residio-stage-image |
 |---|---|---|
 | Domain | `https://app.<domain>` | `https://stage.<domain>` |
 | Branch | `master` | `stage` |
-| Auto-deploy on push | **Off**: deploy by hand after any migration (`CORE.md` §11) | **Off**: CI (`.github/workflows/coolify-version.yml`) sets the build version and pins the commit; the KVM cron deploys every 4 hours, and a `release:major` release from `stage` deploys it at once (#525) |
+| Auto-deploy on push | **Off**: deploy by hand after any migration (`CORE.md` §11) | **Off in Coolify**: `.github/workflows/stage-image.yml` builds a GHCR image and deploys it on every push to `stage` (#1114). The old source-built `residio-stage` is stopped and kept only for rollback |
 | Supabase | Residio_Prod | Residio_Stage |
 | Memory limit | ~2 GB | ~1 GB |
 
@@ -582,10 +583,8 @@ the commit belongs to: `v0.5.0` on the release, and on the `stage` commit it mer
 `v0.5.0-3-gabc1234` three commits further along `stage`), `NEXT_PUBLIC_GIT_SHA` and
 `NEXT_PUBLIC_APP_ENV` (`production` or `staging`). They are **set by CI**
 (`.github/workflows/coolify-version.yml`), not by hand. Prod's values are set on each release
-tag, and CI never deploys Prod. Stage's are set on each push to `stage`, and CI also pins residio-stage's commit to that SHA.
-CI does not deploy Stage: the KVM cron does, every 4 hours, building the pinned commit, which
-is why Stage's own auto-deploy is off. The one exception is a `release:major` merged from
-`stage`, which `release.yml` deploys straight away (#525). Setup and secrets:
+tag, and CI never deploys Prod. Stage's are build args of the image `stage-image.yml` builds on
+each push to `stage` (#1114), and that workflow deploys it. Setup and secrets:
 `docs/agents/branching.md` (Build version variables). The admin sidebar footer and
 `GET /api/version` show them. The footer shortens a build past a release to `v1.0.341-dev`
 (release patch plus commits since) and puts the full `v1.0.0-341-g3bafb1d` in its tooltip (#633);

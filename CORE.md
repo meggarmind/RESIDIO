@@ -317,7 +317,7 @@ mislead the next session.
 **`stage` leads, `master` is production** (owner decision 2026-10-11, #420):
 
 ```
-feature branch --PR--> stage   (Coolify residio-stage, Residio_Stage: UAT)
+feature branch --PR--> stage   (Coolify residio-stage-image, deployed by CI from GHCR on every push; Residio_Stage: UAT)
 stage --PR "Release vX.Y.Z" (merge commit)--> master   (Coolify residio-prod, Residio_Prod)
 after EVERY release and hotfix: sync PR (branch cut from stage, master merged in) --> stage
 hotfix: branch from master --PR--> master, then the sync PR above
@@ -339,9 +339,8 @@ hotfix: branch from master --PR--> master, then the sync PR above
 - **Label every PR into `master`** with exactly one of `release:major` (not a drop-in upgrade:
   new required env var, breaking migration, access-control API change), `release:minor` (new
   capability, drop-in), `release:patch` (fixes) or `release:none`. On merge,
-  `.github/workflows/release.yml` pushes the next `vX.Y.Z` tag, computed from the last tag (a
-  `release:major` release from `stage` also deploys residio-stage immediately; Prod is still
-  deployed by hand). No
+  `.github/workflows/release.yml` pushes the next `vX.Y.Z` tag, computed from the last tag (Prod
+  is still deployed by hand). No
   label means no tag. **The tag is the version**: nothing is committed to `master`, and
   `package.json`'s `version` is not hand-edited.
 - **Rollback is the previous release on `master`** (its `vX.Y.Z` tag; for releases before the
