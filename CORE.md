@@ -106,6 +106,7 @@ and `next build` run remotely on the real gate before a PR opens (see §16): loc
 loaded machine are ~4x slower and time out falsely (#497).
 
 - **Pre-commit secret scan**: run `npm run hooks:install` once per clone (sets `core.hooksPath` to `.githooks`). Each commit then scans the staged changes with gitleaks when it is installed, else a built-in scan (`scripts/secret-scan.mjs`). Real `.env*` files are refused outright. A false positive takes `secret-scan:allow` in a comment on that line. `--no-verify` skips it; the only backstop is the gitleaks job in `security-gate.yml`, which runs on PRs into `master` and is still in report mode.
+- **Next.js 16 differs from older versions.** Before writing framework code (routing, caching, server actions, config), read the matching guide in `node_modules/next/dist/docs/` (after `npm install`) and heed its deprecation notices. Do not rely on memory of earlier versions.
 - **Path alias**: `@/*` maps to `src/*`. Always import via `@/...`, never relative.
 - State: TanStack React Query. Forms: React Hook Form + Zod. Icons: Lucide.
 - DB types: `src/types/database.generated.ts` is generated — never hand-edit. Helpers live in
@@ -159,14 +160,14 @@ migrate script) are now guards that fail loudly (#219).
 
 **Applying a migration and committing its file are two separate acts** — the first happens
 through the Supabase MCP tools, the second through git, and only the first was ever enforced.
-That gap is why the database accumulated 61 applied migrations with no corresponding file on
-disk (#283). `scripts/migration-drift.mjs`, run by `.github/workflows/migration-drift.yml` on
+That gap once left the database with dozens of applied migrations that had no file on disk
+(#283). `scripts/migration-drift.mjs`, run by `.github/workflows/migration-drift.yml` on
 every PR and on a daily schedule, compares each database's applied migration list against
 `supabase/migrations/` on the branch it tracks (Residio_Stage against `stage`, Residio_Prod
 against `master`; a PR against its base branch's database) and fails the build on any divergence
 in either direction, and on two migration files that share a version prefix (#616) — enforcing the
 pairing so drift cannot silently reaccumulate after the #279 schema baseline. A PR's own new migrations are reported as pending, not drift, because they are
-applied after the merge (§11). Residio_Prod's ledger comes from the #279 baseline, so its 34 `baseline_s*` rows and the 211 files at or before `20260907000000` are exempted by an explicit `--baseline-cutoff` flag on the Prod runs only, and everything after the baseline is still compared one to one.
+applied after the merge (§11). Residio_Prod's ledger comes from the #279 baseline, so its `baseline_s*` rows and the migration files at or before `20260907000000` are exempted by an explicit `--baseline-cutoff` flag on the Prod runs only, and everything after the baseline is still compared one to one (counts and details: the header of `scripts/migration-drift.mjs`).
 
 ---
 
@@ -637,7 +638,10 @@ recorded by its `harness:*` label (§9), not by commit metadata.
 
 You coordinate; sub-agents write the code. You analyse, interpret, decide and verify.
 
-The exception is trivia — reading a file to answer a question, a one-line fix, a single grep.
+The exception is trivia: reading a file to answer a question, a single grep, or a small edit
+confined to one file (a typo, a one-line fix, a comment) that touches none of authorization,
+migrations, money calculations, or personal data. Anything else is delegated, however short it
+looks.
 Dispatching an agent to fix a typo costs more than it saves. **When you handle something
 yourself rather than delegating, say so.** The threshold is a convenience, not a loophole, and
 it erodes silently if undisclosed.
