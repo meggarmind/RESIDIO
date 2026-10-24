@@ -32,10 +32,10 @@ Read it at session start, with #412. If a definition changes, update #1006 and t
 | `backlog` / unlabeled (`needs-triage` is retired) | Backlog |
 | `needs-info`                       | Backlog       |
 | `ready-for-agent` / `ready-for-human` | Ready      |
-| *(issue branch pushed, or draft PR)* | In progress |
-| *(non-draft PR open)*              | In review     |
-| `on-stage` (closed issue, live on Stage, not yet on Prod) | On stage |
-| Released to Prod, hotfix, sync PR, or `wontfix` | Done |
+| *(agent actively working the issue)* | In progress |
+| *(PR open, awaiting review)*       | In review     |
+| `on-stage` (open issue, live on Stage) | On stage |
+| Issue closed after the Prod release, or `wontfix` | Done |
 
 ## Board automation (#1104)
 
@@ -86,7 +86,7 @@ tag lives:
 | `harness:codex` | Codex |
 | `harness:opencode` | OpenCode |
 
-**Add yours when you start work on the issue** (`CORE.md` §9):
+**Add yours at the same moment you set Status to `In progress`** (`CORE.md` §9, point 1):
 
 ```bash
 gh issue edit <ISSUE_NUMBER> --add-label harness:claude
@@ -107,8 +107,8 @@ card and filters like any other label. Remember the board is user-scoped — qua
 `.github/workflows/harness-label.yml` adds the label from the branch prefix when a PR opens or is
 pushed to, deriving the lane from `branchPrefixes` in `.github/issue-workflow.json`. It is a
 **backstop, not the mechanism**: it is non-blocking, it only ever adds, and it cannot cover the
-window between an agent starting work and its first push. That window is what adding the label by
-hand at the start of work is for. A branch whose prefix names no harness (`feat/`, `chore/`, bare `fix/`) is
+window between an agent starting work and its first push. That window is what the `In progress`
+step above is for. A branch whose prefix names no harness (`feat/`, `chore/`, bare `fix/`) is
 deliberately left unlabelled rather than guessed at.
 
 `.github/workflows/pr-claim-check.yml` reads the same labels from the other side. It resolves the
@@ -156,10 +156,7 @@ Who worked which issue, at a glance:
 gh issue list --repo meggarmind/RESIDIO --state all --label harness:claude --limit 200
 ```
 
-## Commands (manual fallback)
-
-Use these only when board-sync has failed or is lagging; the nightly reconciler would otherwise
-revert a hand edit that contradicts the rules.
+## Commands
 
 Find the project item ID for a given issue number:
 

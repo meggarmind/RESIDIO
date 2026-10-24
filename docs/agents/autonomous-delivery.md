@@ -125,7 +125,7 @@ file the issue, parent it to the right map, leave it out of the run.
 
 Exactly `CORE.md` §15 and §16, with no shortcuts:
 
-1. Add your `harness:*` label (`CORE.md` §9); the board moves to **In progress** by itself when the branch is pushed (step 2).
+1. Board → **In progress**, add your `harness:*` label (`CORE.md` §9).
 2. Integration worktree `.worktrees/issue-<n>` on `<lane>/issue-<n>-<slug>` from `origin/stage`;
    push it at once — the push is the claim (`CORE.md` §7).
 3. Dispatch the implementer into its own worktree, with the full brief and verbatim clauses from
@@ -134,13 +134,13 @@ Exactly `CORE.md` §15 and §16, with no shortcuts:
    mutation-tests the tests. Top tier for anything touching auth, RLS or migrations.
 5. FAIL → back to the implementer with the defects. Second FAIL → park (§4).
 6. PASS / PASS WITH NOTES → verify the diff yourself (`CORE.md` §15 "Your verification duties"),
-   run the real gate, open the PR (body `Closes #N`; board-sync sets **In review**), arm auto-merge
+   run the real gate, open the PR into `stage` (board → **In review**), arm auto-merge
    (`CORE.md` §16). A PR carrying a migration on the park list is never reached: it was parked.
 7. Once merged (`gh pr view <n> --json state,mergedAt`): apply its migrations to Residio_Stage,
    verify by name in the database's applied list, and restore the authored version
    (`CORE.md` §11 rules 2, 5, 6). If applying fails, that item's migration is parked: record it
    as withheld on the issue and in the #412 handoff (`CORE.md` §11 rule 4).
-8. Clean up the item (§9) as soon as it is merged and its migrations are verified. The merge closes the issue and board-sync sets **On stage**; Done follows the Prod release, so do not set it by hand. If any wiki page under `website/docs`
+8. Clean up the item (§9) as soon as it is merged and its migrations are verified. Board → **Done**. If any wiki page under `website/docs`
    describes the changed code, update and re-stamp it in the same PR (`CORE.md` §12).
 
 ## 6. Waves, checkpoints, and stopping
@@ -186,7 +186,7 @@ Every question the run answered for itself, and every park, is recorded twice:
 
 Stale worktrees and branches read to the next session as live work (`CORE.md` §16), so the run
 removes its own as it goes. **Scope: issues in the run's tree that are done**, meaning the issue is
-closed (On stage counts) or its PR is merged. That covers items this run delivered and items found already done.
+closed or its PR is merged. That covers items this run delivered and items found already done.
 
 **Per item, right after §5 step 7**, and again **as a sweep at end of run** over every done issue
 in the tree:

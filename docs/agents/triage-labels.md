@@ -23,13 +23,11 @@ Edit the right-hand column to match whatever vocabulary you actually use.
 ## Labels that are not triage labels
 
 The tracker carries other label families that look like triage labels and are not. They carry no
-Status mapping, except `on-stage` (`project-board.md`), and never substitute for one of the five above.
+Status mapping (`project-board.md`) and never substitute for one of the five above.
 
 | Family | Meaning | Set by |
 | --- | --- | --- |
-| `harness:claude`, `harness:codex`, `harness:opencode` | This harness has worked this issue. **Additive and permanent** — two harnesses on one issue is two labels, and nobody removes anyone's label, including their own on merge. Not a lock; who holds a branch right now is `git ls-remote --heads origin`. | The agent, when it starts work on the issue (`CORE.md` §9), with `.github/workflows/harness-label.yml` as a backstop |
+| `harness:claude`, `harness:codex`, `harness:opencode` | This harness has worked this issue. **Additive and permanent** — two harnesses on one issue is two labels, and nobody removes anyone's label, including their own on merge. Not a lock; who holds a branch right now is `git ls-remote --heads origin`. | The agent, when it moves the issue to **In progress** (`CORE.md` §9), with `.github/workflows/harness-label.yml` as a backstop |
 | `wayfinder:map`, `wayfinder:task`, … | Wayfinder map umbrellas and ticket kinds | The wayfinder skill |
 | `post-pilot`, `blocked-on-app-readiness` | Deferral markers | Manual triage |
 | `needs-attention`, `workflow:paused` | Issue-workflow monitor state | `scripts/issue-monitor.mjs` |
-| `on-stage` | Closed issue whose PR is merged into `stage` but not yet released to Prod | board-sync automation; removed on the Prod release. Never on a parent or umbrella |
-| `pinned` | Standing records (#412, #1006); automation never touches them | Manual |

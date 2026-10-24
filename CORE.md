@@ -420,13 +420,7 @@ Your judgement calls: set `ready-for-agent` after you refine an issue (the owner
 the PR, and set the board by hand only when the automation has not (the sync is a few seconds behind
 an event; the nightly run catches the rest).
 
-1. Promote to `ready-for-agent` once an issue is refined (above).
-2. File new issues with `backlog`, not `needs-triage`.
-3. PR bodies use `Closes #N`.
-4. At session end, check the board for every issue touched and list its final Status in the #412
-   handoff (the bookends block). Fix Status by hand only if automation failed.
-
-**Harness labels.** When you start work on an issue, also add your own harness label if it is not already there:
+**Harness labels.** At point 1, also add your own harness label if it is not already there:
 
 ```bash
 gh issue edit <N> --add-label harness:claude   # or harness:codex / harness:opencode

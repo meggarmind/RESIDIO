@@ -20,7 +20,6 @@
     "ready": "Ready",
     "inProgress": "In progress",
     "inReview": "In review",
-    "onStage": "On stage",
     "done": "Done"
   },
   "issueBranchPattern": "<lane-prefix><number>-<slug>",
