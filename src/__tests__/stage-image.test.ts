@@ -198,11 +198,12 @@ describe('failures are redacted', () => {
 const queued = (message: string, uuid?: string) =>
   ok({ deployments: [{ message, resource_uuid: 'img-uuid-SECRET-4', ...(uuid ? { deployment_uuid: uuid } : {}) }] });
 const DEDUPED = 'Deployment already queued for this commit.';
+const QUEUED = 'Application residio-stage deployment queued.';
 
 describe('a deploy Coolify did not queue', () => {
   it('succeeds on the first try when a deployment_uuid comes back', async () => {
     const sleep = vi.fn(async () => {});
-    const { result, fetchImpl, logs } = run({ sleep, responses: [ok(), queued('Application queued.', 'dep1')] });
+    const { result, fetchImpl, logs } = run({ sleep, responses: [ok(), queued(QUEUED, 'dep1')] });
     await result;
     expect(fetchImpl).toHaveBeenCalledTimes(2);
     expect(sleep).not.toHaveBeenCalled();
@@ -213,7 +214,7 @@ describe('a deploy Coolify did not queue', () => {
     const sleep = vi.fn(async () => {});
     const { result, fetchImpl } = run({
       sleep,
-      responses: [ok(), queued(DEDUPED), ok(), queued('Application queued.', 'dep2')],
+      responses: [ok(), queued(DEDUPED, 'fresh-uuid'), ok(), queued(QUEUED, 'dep2')],
     });
     await result;
     expect(sleep).toHaveBeenCalledTimes(1);
@@ -230,11 +231,36 @@ describe('a deploy Coolify did not queue', () => {
   it('fails with ::error:: material after the last retry is still deduped', async () => {
     const sleep = vi.fn(async () => {});
     const responses: FakeResponse[] = [];
-    for (let i = 0; i <= MAX_RETRIES; i += 1) responses.push(ok(), queued(DEDUPED));
+    for (let i = 0; i <= MAX_RETRIES; i += 1) responses.push(ok(), queued(DEDUPED, 'fresh-uuid'));
     const { result, fetchImpl } = run({ sleep, responses });
     await expect(result).rejects.toThrow(/still merged into an earlier deploy after 16 retries/);
     expect(sleep).toHaveBeenCalledTimes(MAX_RETRIES);
     expect(fetchImpl).toHaveBeenCalledTimes((MAX_RETRIES + 1) * 2);
+  });
+
+  it('treats a dedupe that carries a deployment_uuid as not queued, and never logs success for it', async () => {
+    const sleep = vi.fn(async () => {});
+    const { result, logs } = run({
+      sleep,
+      responses: [ok(), queued(DEDUPED, 'fresh-uuid'), ok(), queued(QUEUED, 'dep2')],
+    });
+    await result;
+    expect(sleep).toHaveBeenCalledTimes(1);
+    expect(logs.join('\n')).not.toContain('fresh-uuid');
+    expect(logs.findIndex((l) => /deploy queued/.test(l))).toBeGreaterThan(logs.findIndex((l) => /Deploy was merged/.test(l)));
+    expect(logs.findIndex((l) => /Deploy was merged/.test(l))).toBeLessThan(logs.findIndex((l) => /deploy queued/.test(l)));
+  });
+
+  it('keeps the retry and moved-on notices free of the app uuid and every secret', async () => {
+    const heads = [SHA, SHA, NEWER];
+    const { result, logs } = run({
+      head: () => heads.shift() ?? NEWER,
+      responses: [ok(), queued(DEDUPED, 'fresh-uuid'), ok(), queued(DEDUPED, 'fresh-uuid')],
+    });
+    await result;
+    const notices = logs.filter((l) => /Deploy was merged|Stage moved on/.test(l));
+    expect(notices).toHaveLength(3);
+    for (const line of notices) for (const name of REQUIRED_SECRETS) expect(line).not.toContain(configured[name]);
   });
 
   it('skips with a notice when stage moves on while waiting after a dedupe', async () => {
@@ -243,7 +269,7 @@ describe('a deploy Coolify did not queue', () => {
     const { result, fetchImpl, logs } = run({
       sleep,
       head: () => heads.shift() ?? NEWER,
-      responses: [ok(), queued(DEDUPED), ok(), queued('Application queued.', 'dep3')],
+      responses: [ok(), queued(DEDUPED, 'fresh-uuid'), ok(), queued(QUEUED, 'dep3')],
     });
     await result;
     expect(fetchImpl).toHaveBeenCalledTimes(2);
@@ -277,7 +303,10 @@ describe('default stageHead', () => {
   it('reads origin/stage after a successful fetch', () => {
     const run = vi.fn((args: string[]) => (args[0] === 'fetch' ? '' : NEWER));
     expect(defaultStageHead(run)).toBe(NEWER);
-    expect(run.mock.calls.map(([a]) => a[0])).toEqual(['fetch', 'rev-parse']);
+    expect(run.mock.calls.map(([a]) => a)).toEqual([
+      ['fetch', '--no-tags', '--depth=1', 'origin', '+refs/heads/stage:refs/remotes/origin/stage'],
+      ['rev-parse', '--verify', '--quiet', 'refs/remotes/origin/stage^{commit}'],
+    ]);
   });
 });
 

@@ -167,15 +167,18 @@ async function runDeploy({ env, fetchImpl, log, resolveCommit, stageHead, sleep 
       if (request.method === 'POST') deployment = await firstDeployment(response);
     }
 
-    if (typeof deployment?.deployment_uuid === 'string' && deployment.deployment_uuid.trim()) {
+    // Coolify returns a fresh deployment_uuid even when it dedups (it never inserted that
+    // deployment), so the message decides first and the uuid only counts when it is not a dedupe.
+    const message = sanitizeForLog(deployment?.message ?? '', secretValues);
+    const deduped = ALREADY_QUEUED.test(message);
+    if (!deduped && typeof deployment?.deployment_uuid === 'string' && deployment.deployment_uuid.trim()) {
       log(deployLogLineFor(deployment, sha, secretValues));
       log(`Coolify residio-stage-image: tag set to ${sha} and deploy queued.`);
       return;
     }
 
-    // HTTP 200 without a deployment_uuid means Coolify did NOT queue anything.
-    const message = sanitizeForLog(deployment?.message ?? '', secretValues);
-    if (!ALREADY_QUEUED.test(message)) {
+    // Without a deployment_uuid, or with a dedupe message, Coolify did NOT queue anything.
+    if (!deduped) {
       throw new Error(
         failureMessage('POST', '/api/v1/deploy', `queued no deployment: ${message || 'no message'}`, secretValues),
       );
