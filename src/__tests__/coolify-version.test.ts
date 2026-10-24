@@ -73,6 +73,7 @@ function fakeGit({
     exactTags: (sha: string) => Object.keys(tags).filter((tag) => tags[tag] === sha),
     tags: () => Object.keys(tags),
     secondParent: (tag: string) => parents[tags[tag]]?.[1] ?? null,
+    tagCommit: (tag: string) => tags[tag] ?? null,
     isAncestor: (ancestor: string, sha: string) => ancestorsOf(sha).has(ancestor),
     countBetween: (from: string, to: string) => {
       const exclude = ancestorsOf(from);
@@ -137,9 +138,18 @@ describe('resolveVersion', () => {
     expect(resolveVersion({ sha: c('s6'), git: fakeGit(graph) })).toBe('v0.10.0-1-gs600000');
   });
 
-  it('skips a tag with no second parent', () => {
-    // v0.6.0 is a hand-made tag on a non-merge commit that is an ancestor of s6.
+  it('matches a squashed release (no second parent) through its own commit when that is an ancestor (#1116)', () => {
+    // v0.6.0 is a squash on s5, an ancestor of s6.
     const graph = { ...releaseGraph, tags: { ...releaseGraph.tags, 'v0.6.0': c('s5') } };
+    expect(resolveVersion({ sha: c('s6'), git: fakeGit(graph) })).toBe('v0.6.0-1-gs600000');
+  });
+
+  it('skips a tag with no second parent whose own commit is not an ancestor', () => {
+    // v0.6.0 is a squash on q1, which s6 never reached.
+    const graph = {
+      parents: { ...releaseGraph.parents, [c('q1')]: [c('m1')] },
+      tags: { ...releaseGraph.tags, 'v0.6.0': c('q1') },
+    };
     expect(resolveVersion({ sha: c('s6'), git: fakeGit(graph) })).toBe('v0.5.0-2-gs600000');
   });
 
@@ -180,6 +190,8 @@ describe('gitQueries', () => {
     expect(git.exactTags('abc')).toEqual(['v0.5.0', 'v0.4.2']);
     expect(git.isAncestor('a', 'b')).toBe(false);
     expect(git.secondParent('v0.5.0')).toBeNull();
+    expect(git.tagCommit('v0.5.0')).toBeNull();
+    expect(calls).toContainEqual(['rev-parse', '--verify', '--quiet', 'refs/tags/v0.5.0^{commit}']);
     expect(calls).toContainEqual(['tag', '--list', 'v*', '--points-at', 'abc']);
     expect(calls).toContainEqual(['merge-base', '--is-ancestor', 'a', 'b']);
     expect(calls).toContainEqual(['rev-parse', '--verify', '--quiet', 'refs/tags/v0.5.0^{commit}^2']);
