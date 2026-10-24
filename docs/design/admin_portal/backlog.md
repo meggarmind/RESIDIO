@@ -13,9 +13,9 @@ See `components.md` for the contracts.
 
 | # | Build | Why | Principle |
 | --- | --- | --- | --- |
-| B1 | A stand-alone page header component (title, description, actions, back control) | `EnhancedPageHeader` lives inside `enhanced-stat-card.tsx` and has no back control; 20 files use it, 13 render a raw `<h1>`, 10 pages have no `<h1>`, and 14 pages hand-build a back control in 3 forms (`components.md`, `page-patterns.md`) | 4 |
-| B2 | A shared data table pattern (server paging, sort, sticky identifier column, row actions, mobile card collapse) | No shared table exists; each registry builds its own on `ui/table.tsx` | 4, 5, 10 |
-| B3 | A shared filter bar (search, status, date range, clear all) | Filters are per-domain (`analytics/date-range-filter.tsx`, `audit/audit-filters.tsx`) | 5 |
+| B1 (#1149) | A stand-alone page header component (title, description, actions, back control) | `EnhancedPageHeader` lives inside `enhanced-stat-card.tsx` and has no back control; 20 files use it, 13 render a raw `<h1>`, 10 pages have no `<h1>`, and 14 pages hand-build a back control in 3 forms (`components.md`, `page-patterns.md`) | 4 |
+| B2 (#1150) | A shared data table pattern (server paging, sort, sticky identifier column, row actions, mobile card collapse) | No shared table exists; each registry builds its own on `ui/table.tsx` | 4, 5, 10 |
+| B3 (#1151) | A shared filter bar (search, status, date range, clear all) | Filters are per-domain (`analytics/date-range-filter.tsx`, `audit/audit-filters.tsx`) | 5 |
 
 ## Consolidate: more than one component for one job
 
@@ -55,6 +55,8 @@ The owner decides each. Until then they are not checks.
 ## Proof audit findings
 
 Added by the six-page audit. One section per page in the `audit-checklist.md` report format.
+Rows marked `filed #n` have an issue (children of #1145, filed 25 Oct 2026 on the owner's
+instruction); the rest stay here until the owner prunes them.
 
 Method: static source audit only, run without a browser or a database. `needs browser` means the
 check needs a running page; the coordinator completes those rows. `n/a` rows name the reason.
@@ -290,7 +292,7 @@ Nav item `Invoices & Dues` points to `/billing` (`navigation.ts:162-163`). The p
 | HDR-07 | n/a | | Not the home page | |
 | TBL-01 | pass | | `get-invoices.ts:154` `range`; count text `page.tsx:588`, guarded by `totalCount > 0` (`:566`) | |
 | TBL-02 | fail | minor | Plain headers, no sort control (`page.tsx:487-495`) | Add sort on Invoice #, Due date and Amount |
-| TBL-03 | fail | major | Status options are Unpaid, Paid, Partial, Void (`page.tsx:390-394`) although `InvoiceStatus` includes `overdue` (`database.ts:238`). The `Overdue` card sets the filter to `unpaid` (`:345`), which also lists invoices not yet due. The clear control is a bare refresh icon with `title` only (`:454-464`). Whether any row holds status `overdue` needs the database | Add an `Overdue` filter that uses the due date, send the card to it, and use an `X` icon with the label `Clear filters` |
+| TBL-03 | fail (filed #1152) | major | Status options are Unpaid, Paid, Partial, Void (`page.tsx:390-394`) although `InvoiceStatus` includes `overdue` (`database.ts:238`). The `Overdue` card sets the filter to `unpaid` (`:345`), which also lists invoices not yet due. The clear control is a bare refresh icon with `title` only (`:454-464`). Whether any row holds status `overdue` needs the database | Add an `Overdue` filter that uses the due date, send the card to it, and use an `X` icon with the label `Clear filters` |
 | TBL-04 | pass | | `get-invoices.ts:54` partial `ilike` on `invoice_number`; resident select searches name and alias (`page.tsx:369-380`) | |
 | TBL-05 | fail | minor | No `sticky`; wrapper `overflow-hidden` (`page.tsx:483`); nine columns (`:487-495`) | Sticky Invoice # column; allow sideways scroll |
 | TBL-06 | fail | minor | Row has no handler (`page.tsx:521-523`); only the `View` button opens the invoice (`:554`); the number is plain text (`:524`). The phone card is clickable (`:89`) | Make the invoice number a `Link` and the row clickable |
@@ -301,7 +303,7 @@ Nav item `Invoices & Dues` points to `/billing` (`navigation.ts:162-163`). The p
 | FRM-01..08 | n/a | | No form on this page | |
 | FBK-01 | pass | | Skeleton rows and card skeletons (`page.tsx:470,499-512`); stat cards use `isLoading` | |
 | FBK-02 | fail | minor | `page.tsx:198` names a button `Generate Monthly Invoices` that does not exist (the button is `Generate Invoices`, `:291`); same text for a filtered-empty result; no action button | Say `No invoices match these filters` when filtered; otherwise offer a gated `Generate invoices` button |
-| FBK-03 | fail | major | `page.tsx:184` reads `data`, `isLoading`, `refetch` only; a failed read renders the empty message (`:513-518`), so the officer sees `No invoices found` | Read `isError` and show an error block with `Try again` |
+| FBK-03 | fail (filed #1153) | major | `page.tsx:184` reads `data`, `isLoading`, `refetch` only; a failed read renders the empty message (`:513-518`), so the officer sees `No invoices found` | Read `isError` and show an error block with `Try again` |
 | FBK-04 | pass | | `use-billing.ts:503-514` toasts for the overdue check | |
 | FBK-05 | n/a | | No money-moving action on this page | |
 | FBK-06 | fail | minor | `statusColors` has no `overdue` key (`page.tsx:46-51`), so `overdue` renders unstyled (`:71`); no age is shown | Add an `Overdue` badge with an icon and `Overdue since dd mmm yyyy` |
@@ -376,7 +378,7 @@ Route found from `navigation.ts:130-137` (`Transactions > Import Statement`). St
 | FBK-05 | n/a | | Submit moves no money; the page says so (`import-confirmation.tsx:83`) | |
 | FBK-06 | n/a | | No status here | |
 | MOB-01 | needs browser | | Page scroll at 375 px | |
-| MOB-02 | fail | major | `import-preview.tsx` has no `md:hidden`, `hidden md:`, `useIsMobile` or card component, and renders a wide table with a sticky header (`:716`). Confirm sideways scroll at 375 px | Collapse rows to cards with date, amount, match and Skip |
+| MOB-02 | fail (filed #1154) | major | `import-preview.tsx` has no `md:hidden`, `hidden md:`, `useIsMobile` or card component, and renders a wide table with a sticky header (`:716`). Confirm sideways scroll at 375 px | Collapse rows to cards with date, amount, match and Skip |
 | MOB-03 | needs browser | | Is `Continue` and `Submit` reachable without scrolling to the end | |
 | MOB-04 | needs browser | | Skip button size (`import-preview.tsx:899-907`) | |
 | MOB-05 | needs browser | | Header row has no wrap (`import/page.tsx:136`) with a 30 px title and two controls | |
