@@ -1,65 +1,34 @@
-# Design & Visuals Agent Instructions: The "Residio" Standard
+# Design instructions for agents
 
-Design rules for UI work in this repository. They describe the system that exists in `src/app/globals.css`, `src/lib/themes/` and `src/components/ui/`; when this file and the code disagree, the code wins and this file needs fixing. Per `CORE.md` section 3, UI work is for the **admin dashboard**; do not extend the resident portal.
+Two documents hold the design rules for this repository. This file only points at them and keeps
+the workflow rules that belong to neither.
 
----
+| Question | Read |
+| --- | --- |
+| Colour, type, radius, shadow, spacing, motion: what value do I use? | `DESIGN.md` (repo root). It is the visual source of truth. |
+| Page structure, navigation, lists, forms, feedback, mobile, audit: what does an admin page contain and how is it checked? | `docs/design/admin_portal/` (start at its `README.md`). It is the structural source of truth and is prescriptive. |
 
-## 1. UI Philosophy: "Anticipatory Minimalism"
+Where an older copy of this file named fonts (Outfit, Inter, JetBrains Mono), glass sidebars,
+Framer Motion entrances or a multi-theme target, `DESIGN.md` wins: the shipped font is Geist, glass
+is for floating overlays only, motion confirms an action and never carries a state change alone,
+and the theme picker is a user setting, not a design target (owner decision 2026-10-24, #1145).
 
-*   **Anticipatory Design**: Don't just show data; suggest actions. Surface the next sensible step from the admin's current state (e.g., overdue invoices, unverified payments) rather than making them hunt for it.
-*   **Minimalist Clarity**: Use whitespace as a structural element. Avoid cluttered borders; use subtle shadows or color changes to define sections.
-*   **Developer-First Aesthetic**: Use clean, technical fonts (Outfit, Inter, JetBrains Mono) and structured layouts that feel precise and high-performance.
+## Workflow rules
 
-## 2. Color Strategy: OKLCH & Dynamic Theming
-
-*   **Color Space**: Always use **OKLCH** for color definitions. It provides perceptually uniform brightness and better control over saturation across light and dark modes.
-    *   *Example*: `oklch(0.63 0.17 36.44)` instead of HSL.
-*   **Theme Registry**: Maintain a central registry (`src/lib/themes/tweakcn-registry.ts`) of curated themes. Each theme defines variables for both light and dark modes.
-*   **Semantic Mapping**: In `globals.css`, map generic theme variables (e.g., `--primary`) to semantic UI tokens (e.g., `--color-bg-elevated`). 
-*   **Dynamic Injection**: Use a `VisualThemeProvider` to inject these variables into the `:root` or `document.documentElement` at runtime, ensuring the entire UI responds instantly to theme changes.
-
-## 3. Component Styling: Tactile Depth & Micro-animations
-
-*   **Glassmorphism**: Use the `.glass` utility for overlay elements (sidebars, floating headers).
-    ```css
-    .glass {
-      background: rgba(255, 255, 255, 0.7);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-    }
-    ```
-*   **Tactile Feedback**:
-    *   **Lift**: Use `.btn-hover-lift` or `.card-hover-modern` to make elements feel interactive on hover.
-    *   **Pressed-in**: Use `.input-tactile` with inner shadows to give form elements physical depth.
-*   **Micro-animations**:
-    *   Use **Framer Motion** for staggered entrance animations in lists (`popLayout` mode).
-    *   Implement subtle `layoutId` transitions when moving elements between containers.
-    *   Use `.animate-pulse-soft` for background urgency or status indicators.
-
-## 4. Specific to Shadcn & Tailwind
-
-*   **Style**: Use the **"New-York"** Shadcn style for a more polished, compact look.
-*   **Iconography**: Standardize on **Lucide Icons**. Use `IconBox` wrappers with soft background colors (e.g., `bg-chart-1/10`) to provide visual anchors.
-*   **Utility Wrappers**: Don't use raw Shadcn components directly in pages. Wrap them in semantic layout components (e.g., `EnhancedPageHeader`, `QuickActionsMenu`) to maintain consistency.
-*   **Layout System**: Define a tiered layout system (e.g., `.layout-container`, `.layout-section-gap`) controlled by CSS variables that adjust based on device or layout mode (Compact vs. Expanded).
-
-## 5. Apple Design Philosophy Applied to Web
-
-Replicate the "Premium Feel" by adhering to these core Apple principles:
-
-*   **Deference**: The UI should never compete with content. Use subtle borders (`--border-subtle`) and high contrast for text.
-*   **Clarity**:
-    *   Use bold, clear headers (`text-4xl` with `-0.025em` tracking).
-    *   Ensure perfect legibility in both light and dark modes using the OKLCH system.
-*   **Depth**:
-    *   Use hierarchical shadows: `.shadow-soft` for cards, `.shadow-elevated` for modals/popovers.
-    *   Use `AnimatePresence` for components to "slide in/out" of existence, giving a sense of spatial permanence.
-*   **Contextual Intelligence**: The UI should "know" what the user needs, for example highlighting the invoices that need attention first.
-
----
-
-## Where the utilities live
-
-The utilities named above (`.glass`, `.btn-hover-lift`, `.card-hover-modern`, `.input-tactile`, `.animate-pulse-soft`, `.shadow-soft`, `.shadow-elevated`, `.stagger-*`, `.layout-container`) are defined in `src/app/globals.css`. Reuse them; do not redefine them in components or copy snippets from this file.
-
-Every new component should feel **polished, responsive, and alive**, within the admin-first scope above.
+- UI work is for the **admin dashboard** (`CORE.md` §3). Do not extend the resident portal.
+- Use the canonical component for each job named in `docs/design/admin_portal/components.md`.
+  Do not add a second component for a job that has one. Where the guide says "to build", build the
+  contract it states, in its own issue.
+- Wrap raw shadcn components in semantic layout components rather than using them directly in
+  pages. Style is shadcn **New-York**; icons are **Lucide** inside `IconBox` where the pattern calls
+  for one.
+- The utilities `.glass`, `.btn-hover-lift`, `.card-hover-modern`, `.input-tactile`,
+  `.animate-pulse-soft`, `.shadow-soft`, `.shadow-elevated`, `.stagger-*` and `.layout-*` are
+  defined in `src/app/globals.css`. Reuse them; do not redefine them in components.
+- Colours come from theme variables and Tailwind semantic names. A hex or `rgb` literal in a
+  component is a bug unless it is a documented status tint.
+- Before calling a page done, run the checks in `docs/design/admin_portal/audit-checklist.md` for
+  its archetype, on desktop and at 375 px, and record the result in the PR.
+- A page that must deviate from a rule gets a proposed exception in the PR description
+  (`docs/design/admin_portal/exceptions.md`). Only the owner grants it.
+- When `src/**` changes something the guide describes, update the guide file in the same change.
