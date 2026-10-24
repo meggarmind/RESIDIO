@@ -76,6 +76,12 @@ beforeEach(() => {
           },
         };
       }
+      if (table === 'resident_houses') {
+        return {
+          select: () => ({ eq: () => ({ eq: async () => ({ data: [], error: null }) }) }),
+          insert: async () => ({ error: null }),
+        };
+      }
       return { insert: async () => ({ error: null }) };
     },
   });

@@ -15,6 +15,7 @@ import { canManageResidentOverride } from '@/lib/comms-override/resident-flag';
 import { loadDuplicateMatches } from '@/lib/residents/find-duplicates';
 import type { DuplicateResidentMatch } from '@/lib/residents/duplicate-match';
 import { assignHouse } from './assign-house';
+import { allowedResidentTypes, deriveHouseState } from '@/lib/residents/house-state';
 
 type CreateResidentResponse = {
   data: Resident | null;
@@ -98,6 +99,20 @@ export async function createResident(
     const validation = await validateHouseAssignment(supabase, formData.house_id, role);
     if (!validation.valid) {
       return { data: null, error: validation.error || 'Invalid assignment' };
+    }
+
+    // The resident type must fit the house as it is now, not as the form last saw it.
+    const { data: activeRoles, error: rolesError } = await supabase
+      .from('resident_houses')
+      .select('resident_role')
+      .eq('house_id', formData.house_id)
+      .eq('is_active', true);
+    if (rolesError) {
+      return { data: null, error: `Could not check the house: ${rolesError.message}` };
+    }
+    const state = deriveHouseState((activeRoles ?? []).map((r) => r.resident_role));
+    if (!allowedResidentTypes(state, role).includes(formData.resident_type)) {
+      return { data: null, error: 'This house already has a primary resident. Only secondary residents can be added.' };
     }
   }
 

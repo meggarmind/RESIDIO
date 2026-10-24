@@ -50,9 +50,6 @@ const OwnerMoveOutWizard = dynamic(
 
 export type ActiveResidentHouse = HouseWithResidents['resident_houses'][number];
 
-// House state passed to the Add New form
-type HouseState = 'empty' | 'has_tenant' | 'has_resident_landlord' | 'has_non_resident_landlord';
-
 const SECONDARY_ROLES = ['co_resident', 'household_member', 'domestic_staff', 'caretaker'];
 const SPONSOR_ROLES = ['non_resident_landlord', 'resident_landlord', 'tenant'];
 const targetClass = 'min-h-11 md:min-h-0 md:h-8';
@@ -82,16 +79,6 @@ export function ResidentsTab({ house, activeResidents }: ResidentsTabProps) {
     : null;
   const isOpen = (action: ResidentAction) => open?.action === action;
 
-  const roles = activeResidents.map((rh) => rh.resident_role);
-  const hasResidentLandlord = roles.includes('resident_landlord');
-  const hasTenant = roles.includes('tenant');
-  const hasLandlord = hasResidentLandlord || roles.includes('non_resident_landlord');
-  const houseState: HouseState =
-    activeResidents.length === 0 ? 'empty'
-      : hasResidentLandlord ? 'has_resident_landlord'
-        : hasTenant ? 'has_tenant'
-          : hasLandlord ? 'has_non_resident_landlord'
-            : 'empty';
   // The tenant or owner-occupier an Occupant swaps roles with on Promote.
   const primaryResidingResident = activeResidents.find(
     (rh) => rh.resident_role === 'tenant' || rh.resident_role === 'resident_landlord'
@@ -165,7 +152,7 @@ export function ResidentsTab({ house, activeResidents }: ResidentsTabProps) {
               </Can>
               <Can permission={PERMISSIONS.RESIDENTS_CREATE}>
                 <Button size="sm" variant="outline" asChild className={targetClass}>
-                  <Link href={`/residents/new?house_id=${houseId}&house_state=${houseState}`}>
+                  <Link href={`/residents/new?house_id=${houseId}`}>
                     <Plus className="h-4 w-4 mr-2" />
                     Add New
                   </Link>
