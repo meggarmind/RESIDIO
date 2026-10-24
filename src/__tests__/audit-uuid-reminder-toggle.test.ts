@@ -41,13 +41,18 @@ describe('setRemindersEnabled audit', () => {
   });
   it('does not audit when updateSetting returns no row', async () => {
     updateSetting.mockResolvedValue({ data: null, error: 'nope' });
-    await setRemindersEnabled(false);
+    expect(await setRemindersEnabled(false)).toEqual({ success: false, error: 'nope' });
     expect(logAudit).not.toHaveBeenCalled();
+  });
+  it('creates the row when none exists by passing createIfMissing (#1108)', async () => {
+    updateSetting.mockResolvedValue({ data: { id: uid(1) }, error: null });
+    await setRemindersEnabled(false);
+    expect(updateSetting).toHaveBeenCalledWith('invoice_reminders_enabled', false, expect.objectContaining({ category: 'notifications' }));
   });
   it('writes the state it is given instead of flipping the stored one (#790)', async () => {
     getSettingValueAsService.mockResolvedValue(false);
     updateSetting.mockResolvedValue({ data: { id: uid(1) }, error: null });
     expect(await setRemindersEnabled(false)).toMatchObject({ success: true, enabled: false });
-    expect(updateSetting).toHaveBeenCalledWith(expect.any(String), false);
+    expect(updateSetting).toHaveBeenCalledWith(expect.any(String), false, expect.anything());
   });
 });

@@ -407,7 +407,12 @@ export async function setRemindersEnabled(enabled: boolean): Promise<{
     const currentEnabled = await areRemindersEnabled();
     const newEnabled = enabled;
 
-    const saved = await updateSetting(SETTINGS_KEYS.REMINDERS_ENABLED, newEnabled);
+    // No migration seeds this row; create it if it is missing so the first toggle persists (#1108)
+    const saved = await updateSetting(SETTINGS_KEYS.REMINDERS_ENABLED, newEnabled, {
+      category: 'notifications',
+      description: 'Master switch for automatic invoice payment reminders',
+    });
+    if (saved.error) return { success: false, error: saved.error };
 
     // audit_logs.entity_id is a uuid: use the settings row id; no row, no audit (#594).
     if (saved?.data?.id) {
