@@ -1,6 +1,17 @@
 import { recordAudit } from '@/lib/audit/recorder';
+import { normalizePhoneNumber } from '@/lib/sms/termii';
 import { createAdminClient } from '@/lib/supabase/server';
 import { insertWhatsAppCode } from '@/lib/whatsapp/link-codes';
+
+/** Whether the number is one of the resident's own roster phones; shared with the identity lookup (#849, #1117). */
+export function isOnRoster(
+  resident: { phone_primary: string | null; phone_secondary: string | null },
+  normalized: string
+): boolean {
+  return [resident.phone_primary, resident.phone_secondary]
+    .filter(Boolean)
+    .some((phone) => normalizePhoneNumber(phone as string) === normalized);
+}
 
 /** Roles that can sponsor a co-resident (#1067); the sponsor's account is the one a co-resident sees (#1071). */
 export const SPONSOR_ROLES = ['resident_landlord', 'tenant'];
@@ -67,6 +78,39 @@ export async function getCoResidents(sponsorId: string, houseId: string): Promis
     .filter((resident): resident is { id: string; first_name: string; last_name: string } => !!resident)
     .map((resident) => ({ id: resident.id, firstName: resident.first_name, lastName: resident.last_name }))
     .sort((a, b) => a.firstName.localeCompare(b.firstName) || a.lastName.localeCompare(b.lastName) || a.id.localeCompare(b.id));
+}
+
+/**
+ * Whether any of the sponsor's active co-residents on this house has linked a WhatsApp number (#1117):
+ * a live opt-in (not deactivated) that was verified by a LINK code or whose number is on that
+ * co-resident's own roster, the same test the identity lookup applies (#849).
+ */
+export async function hasLinkedCoResident(sponsorId: string, houseId: string): Promise<boolean> {
+  const supabase = createAdminClient();
+  const coResidents = await getCoResidents(sponsorId, houseId);
+  if (coResidents.length === 0) return false;
+  const ids = coResidents.map((person) => person.id);
+
+  const { data: optIns, error } = await supabase
+    .from('whatsapp_optins')
+    .select('resident_id, phone_number, link_verified_at')
+    .in('resident_id', ids)
+    .is('deactivated_at', null);
+  if (error) throw error;
+  if (!optIns || optIns.length === 0) return false;
+
+  const { data: residents, error: residentError } = await supabase
+    .from('residents')
+    .select('id, phone_primary, phone_secondary')
+    .in('id', ids);
+  if (residentError) throw residentError;
+  const byId = new Map((residents || []).map((resident) => [resident.id, resident]));
+
+  return optIns.some((row) => {
+    if (row.link_verified_at) return true;
+    const resident = byId.get(row.resident_id);
+    return !!resident && isOnRoster(resident, normalizePhoneNumber(row.phone_number));
+  });
 }
 
 /**
