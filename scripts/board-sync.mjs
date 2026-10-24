@@ -538,7 +538,11 @@ function projectQuery(ownerKind) {
 }`;
 }
 
-/** Arguments for one page of the project query. The cursor is omitted on the first page. */
+/**
+ * Arguments for one page of the project query. The cursor is omitted on the first page.
+ * @param {string} ownerKind
+ * @param {{ owner: string, number: number, statusField: string, cursor?: string | null }} options
+ */
 export function projectQueryArgs(ownerKind, { owner, number, statusField, cursor }) {
   const args = ['api', 'graphql', '-f', `query=${projectQuery(ownerKind)}`, '-f', `owner=${owner}`, '-F', `number=${number}`, '-f', `statusField=${statusField}`];
   if (cursor) args.push('-f', `cursor=${cursor}`);
