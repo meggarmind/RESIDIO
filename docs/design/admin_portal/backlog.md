@@ -13,7 +13,7 @@ See `components.md` for the contracts.
 
 | # | Build | Why | Principle |
 | --- | --- | --- | --- |
-| B1 | A stand-alone page header component (title, description, actions, back control) | `EnhancedPageHeader` lives inside `enhanced-stat-card.tsx`; 16 of 90 pages use it, 18 write their own `<h1>` | 4 |
+| B1 | A stand-alone page header component (title, description, actions, back control) | `EnhancedPageHeader` lives inside `enhanced-stat-card.tsx` and has no back control; 20 files use it, 13 render a raw `<h1>`, 10 pages have no `<h1>`, and 14 pages hand-build a back control in 3 forms (`components.md`, `page-patterns.md`) | 4 |
 | B2 | A shared data table pattern (server paging, sort, sticky identifier column, row actions, mobile card collapse) | No shared table exists; each registry builds its own on `ui/table.tsx` | 4, 5, 10 |
 | B3 | A shared filter bar (search, status, date range, clear all) | Filters are per-domain (`analytics/date-range-filter.tsx`, `audit/audit-filters.tsx`) | 5 |
 
@@ -21,7 +21,7 @@ See `components.md` for the contracts.
 
 | # | Consolidate | Evidence | Principle |
 | --- | --- | --- | --- |
-| C1 | Stat cards: `enhanced-stat-card.tsx`, `quick-stats-card.tsx`, `modern-stats-cards.tsx`, `registry-kpi-strip.tsx` | Four families; `components.md` names the canonical one | 4 |
+| C1 | Stat cards: `EnhancedStatCard` (5 files, 24 uses) and `RegistryKpiStrip` (Residents and Houses only) | Two families; `components.md` names when each applies. Status badges: `ui/status-badge.tsx` has 0 admin uses while `DESIGN.md` describes it; admin code wraps `ui/badge.tsx` instead | 4 |
 | C2 | Skeletons: `ui/skeleton.tsx`, `shimmer-skeleton.tsx`, `dashboard-skeleton.tsx`, `modern-skeleton.tsx` | Four families | 4, 8 |
 | C3 | Quick actions: the header menu (6 items, `?action=create` links, no permission filter, `header.tsx:190-220`) and the command palette (4 items, different labels, filtered by `hasAllPermissions`, `global-search-command.tsx:121`) | Two lists disagree | 3, 11 |
 
@@ -58,9 +58,16 @@ Added by the six-page audit. One section per page in the `audit-checklist.md` re
 
 Method: static source audit only, run without a browser or a database. `needs browser` means the
 check needs a running page; the coordinator completes those rows. `n/a` rows name the reason.
-`page-patterns.md` and `components.md` are not in the tree yet, so `HDR-01` and `HDR-02` are `n/a`
-on every page and the archetype is the one named in the audit brief. Pages with no canonical
-component to compare against (B1, B2 above) are recorded `n/a` for `HDR-02` and `TBL-10`, not `fail`.
+The audit ran before `page-patterns.md` and `components.md` were merged, so `HDR-01` and `HDR-02`
+are `n/a` on every page and the archetype is the one named in the audit brief. Pages with no
+canonical component to compare against (B1, B2 above) are recorded `n/a` for `HDR-02` and
+`TBL-10`, not `fail`.
+
+Browser pass status (25 Oct 2026): not run. The session's browser pane was hidden, so pages did
+not render, and a headless pass was blocked twice: Playwright's Chromium is not installed on the
+machine, and the installed Edge shows the organization's web-policy warning page for `localhost`.
+To complete the `needs browser` rows, run the dev server, then `npx playwright install chromium`
+once, and walk the six pages at 1280 px and 375 px per `audit-checklist.md`.
 
 ### /dashboard   (archetype: home)   audited 24 Oct 2026 on 1539d5fb
 

@@ -10,6 +10,4 @@ The canonical admin guide is `docs/design/admin_portal/`; visual tokens are in `
 | `login-description.md` | description of a Condo Control login page |
 | `dashboard-ui-enhancements-summary.md` | summary of a past dashboard enhancement pass |
 | `styles/*.css` | sample theme CSS files (elegantluxury, midnightbloom, sunset, supabase) |
-
-The three data-table documents stay in `docs/design/` until `admin_portal/page-patterns.md`
-has mined them; they then move here.
+| `data-table-layout.md`, `data-table-layout2.md`, `sortable-clickable-datatable.md` | earlier table standards, mined into `admin_portal/page-patterns.md` (registry rules and "Stale rules from legacy docs") |

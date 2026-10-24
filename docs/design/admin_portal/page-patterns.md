@@ -240,7 +240,7 @@ Three patterns exist today.
 
 ### Stale rules from legacy docs
 
-Source files: `docs/design/data-table-layout.md` (L1), `docs/design/data-table-layout2.md` (L2), `docs/design/sortable-clickable-datatable.md` (SC). A rule is "kept" when the code matches. The kept rules are folded into R-REGISTRY-1 to 20 above.
+Source files: `docs/design/legacy/data-table-layout.md` (L1), `docs/design/legacy/data-table-layout2.md` (L2), `docs/design/legacy/sortable-clickable-datatable.md` (SC). A rule is "kept" when the code matches. The kept rules are folded into R-REGISTRY-1 to 20 above.
 
 Kept (source file in brackets):
 

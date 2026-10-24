@@ -41,8 +41,10 @@ For each UI job (`components.md`) there is one component to use. A second compon
 job is a finding, even when it looks better. Where the canonical component does not exist yet,
 the guide states its contract and `backlog.md` records the build. Nobody adds a fourth stat card.
 
-Prefixes: `HDR`, `TBL`, `FRM`, `FBK`, `VIS`. Source: the inventory of 2026-10-24: three stat-card
-families, no shared data table, 16 of 90 pages on `EnhancedPageHeader`.
+Prefixes: `HDR`, `TBL`, `FRM`, `FBK`, `VIS`. Source: the inventory of 2026-10-24 on `stage`: 42 admin
+files render `<Table>` directly with no shared data table, three pagination implementations, two
+copied wizard steppers, 20 files on `EnhancedPageHeader` against 13 raw `<h1>` files
+(`components.md`, `page-patterns.md`).
 
 ## 5. Lists are the workbench
 
