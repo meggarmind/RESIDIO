@@ -381,8 +381,8 @@ completion.
 > branch, opens or reuses the PR into `defaultBranch` (body says `Closes #N`; the merge closes the
 > issue, and board-sync moves the board, §9), and stops. After the PR merges (§16), rerun it: it
 > prints the migrations still to apply to Residio_Stage, and removes the worktree and local branch only
-> when the branch tip is inside the merged PR head and the tree is clean. It does not set Status and
-> never closes a parent initiative.
+> when the branch tip is inside the merged PR head and the tree is clean. The rerun does not set
+> Status (board-sync owns everything after the PR opens), and nothing closes a parent initiative.
 
 ---
 

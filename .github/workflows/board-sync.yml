@@ -34,8 +34,12 @@ permissions:
   issues: write
   pull-requests: read
 
+# Event runs get a group of their own: GitHub keeps only one *pending* run per group and cancels
+# the rest, so a per-issue group would drop a labeled event that queued behind another (QA N1).
+# Each event run re-reads the issue before deciding, and the nightly reconcile repairs any
+# ordering slip. Only reconcile runs share a group, so two never overlap.
 concurrency:
-  group: board-sync-${{ github.event.issue.number || github.event.pull_request.number || github.ref }}
+  group: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'board-sync-reconcile' || format('board-sync-{0}', github.run_id) }}
   cancel-in-progress: false
 
 jobs:
