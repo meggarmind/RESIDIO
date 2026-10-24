@@ -34,7 +34,7 @@ Read it at session start, with #412. If a definition changes, update #1006 and t
 | `ready-for-agent` / `ready-for-human` | Ready      |
 | *(agent actively working the issue)* | In progress |
 | *(PR open, awaiting review)*       | In review     |
-| `on-stage` (open issue, live on Stage) | On stage |
+| `on-stage` (closed issue, live on Stage, not yet on Prod) | On stage |
 | Issue closed after the Prod release, or `wontfix`; or closed by hand before the last release | Done |
 
 ## Board automation (#1104)
