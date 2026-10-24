@@ -72,6 +72,17 @@ jobs:
             echo "::error::Tag ${TAG} already exists. Not moving it; tags are immutable."
             exit 1
           fi
+          # Guard (#1116): a release is a merge commit (CORE.md section 7), on a commit no release owns.
+          parents=$(git rev-list --parents -n 1 "${MERGE_SHA}" | wc -w)
+          if [ "${parents}" -lt 3 ]; then
+            echo "::error::${MERGE_SHA} has fewer than two parents, so it is not a merge commit. Release PRs must be merged with a merge commit, never a squash. Not tagging."
+            exit 1
+          fi
+          existing=$(git tag --list 'v*' --points-at "${MERGE_SHA}")
+          if [ -n "${existing}" ]; then
+            echo "::error::${MERGE_SHA} already carries release tag(s): ${existing}. Not adding ${TAG} to the same commit."
+            exit 1
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag --annotate "${TAG}" "${MERGE_SHA}" --message "Release ${TAG} (#${PR_NUMBER}, ${REASON})"

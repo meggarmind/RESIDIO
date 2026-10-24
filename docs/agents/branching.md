@@ -116,7 +116,8 @@ hotfix: branch from master --PR--> master, then the sync PR above
   `release:patch` or `release:none` (meanings in `CORE.md` §7 and
   `scripts/release-version.mjs`). On merge, `.github/workflows/release.yml` pushes the next
   `vX.Y.Z` tag on the merge commit, counted from the last tag. No label, an unknown label or
-  `release:none` pushes nothing; two different release labels fail the run without tagging. A
+  `release:none` pushes nothing; the run also refuses to tag a merge commit with fewer than two
+  parents (a squash) or one that already carries a `v*` tag (#1116); two different release labels fail the run without tagging. A
   `release:*` label on a PR into `stage` does nothing. A `release:major` release PR from `stage`
   also deploys residio-stage immediately (#525): after the tag, the `stage-deploy` job pins
   Stage to the PR's head commit and queues a deploy, unless `stage` has already moved past it
