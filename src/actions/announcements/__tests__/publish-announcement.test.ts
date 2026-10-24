@@ -66,13 +66,12 @@ function setupFullMock({
 }: {
   announcement?: Record<string, unknown>;
   optIns?: Array<{ resident_id: string; phone_number: string }>;
-  residents?: Array<{ id: string; account_status: string; resident_role: string }> | null;
+  residents?: Array<{ id: string; account_status: string }> | null;
   residentHouses?: Array<{ resident_id: string }> | null;
 }) {
   const defaultResidents = residents ?? optIns.map((r) => ({
     id: r.resident_id,
     account_status: 'active',
-    resident_role: 'tenant',
   }));
 
   // The session client is blocked by RLS from the delivery tables (whatsapp_optins), so it
@@ -136,9 +135,11 @@ describe('publishAnnouncement', () => {
         { resident_id: 'r-tenant', phone_number: '+234802' },
       ],
       residents: [
-        { id: 'r-owner', account_status: 'active', resident_role: 'resident_landlord' },
-        { id: 'r-tenant', account_status: 'active', resident_role: 'tenant' },
+        { id: 'r-owner', account_status: 'active' },
+        { id: 'r-tenant', account_status: 'active' },
       ],
+      // The role filter is applied in the query, so the stub returns only the owner's active assignment.
+      residentHouses: [{ resident_id: 'r-owner' }],
     });
     const result = await publishAnnouncement('ann-1');
     expect(result.error).toBeNull();
@@ -155,7 +156,7 @@ describe('publishAnnouncement', () => {
         { resident_id: 'r-inactive', phone_number: '+234802' },
       ],
       residents: [
-        { id: 'r-active', account_status: 'active', resident_role: 'tenant' },
+        { id: 'r-active', account_status: 'active' },
       ],
     });
     const result = await publishAnnouncement('ann-1');

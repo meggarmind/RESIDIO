@@ -128,7 +128,7 @@ const AnnouncementRow = memo(function AnnouncementRow({
         <AnnouncementPriorityBadge priority={announcement.priority || 'normal'} />
       </TableCell>
       <TableCell>
-        <TargetAudienceBadge audience={announcement.target_audience || 'all'} />
+        <TargetAudienceBadge audience={announcement.target_audience || 'all'} groupSlug={announcement.target_group_slug} />
       </TableCell>
       <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
         {announcement.published_at

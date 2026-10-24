@@ -1,6 +1,7 @@
 import type { createServerSupabaseClient } from '@/lib/supabase/server';
 import { addToQueue } from '@/lib/notifications/queue';
 import { buildAnnouncementWhatsApp } from '@/lib/whatsapp/outbound';
+import { resolveGroupReach, type GroupDb } from '@/lib/announcements/audience-groups';
 import type { Announcement } from '@/types/database';
 
 /**
@@ -71,8 +72,9 @@ export async function publishAnnouncementCore(
 type AnnouncementForDelivery = Pick<
   Announcement,
   'id' | 'title' | 'content' | 'summary' | 'target_audience' | 'target_houses'
->;
+> & { target_group_slug?: string | null };
 
+// Enum audiences only. A group audience (target_group_slug, #1095) reads its roles from resident_role_groups.
 const ROLE_BY_AUDIENCE: Record<string, string[]> = {
   residents: ['resident_landlord', 'tenant', 'co_resident', 'household_member'],
   owners: ['resident_landlord', 'non_resident_landlord'],
@@ -80,7 +82,7 @@ const ROLE_BY_AUDIENCE: Record<string, string[]> = {
   staff: ['domestic_staff', 'caretaker'],
 };
 
-type ResidentRow = { id: string; resident_role: string };
+type ResidentRow = { id: string };
 type ResidentHouseRow = { resident_id: string };
 type OptInRow = { resident_id: string; phone_number: string };
 
@@ -88,51 +90,77 @@ async function deliverAnnouncementWhatsApp(
   supabase: AnnouncementSupabase,
   announcement: AnnouncementForDelivery
 ): Promise<number> {
-  const { data: optIns, error: optInError } = await supabase
-    .from('whatsapp_optins')
-    .select('resident_id, phone_number')
-    .eq('opted_in', true)
-    .is('deactivated_at', null);
+  let uniqueByResident: Map<string, { phone_number: string }>;
+  let filteredIds: Set<string>;
 
-  if (optInError || !optIns || optIns.length === 0) return 0;
-
-  const uniqueByResident = new Map<string, OptInRow>();
-  for (const row of optIns as OptInRow[]) {
-    if (!uniqueByResident.has(row.resident_id)) {
-      uniqueByResident.set(row.resident_id, row);
+  if (announcement.target_group_slug) {
+    // A person in several of the group's roles is one member, so they are queued once.
+    const reach = await resolveGroupReach(supabase as unknown as GroupDb, announcement.target_group_slug);
+    if (reach.error !== null) {
+      console.error('deliverAnnouncementWhatsApp: resident group read failed', reach.error);
+      return 0;
     }
-  }
+    uniqueByResident = reach.optIns;
+    filteredIds = new Set(reach.optIns.keys());
+  } else {
+    const { data: optIns, error: optInError } = await supabase
+      .from('whatsapp_optins')
+      .select('resident_id, phone_number')
+      .eq('opted_in', true)
+      .is('deactivated_at', null);
 
-  const targetResidentIds = Array.from(uniqueByResident.keys());
-  if (targetResidentIds.length === 0) return 0;
+    if (optInError) {
+      console.error('deliverAnnouncementWhatsApp: opt-in read failed', optInError);
+      return 0;
+    }
+    if (!optIns || optIns.length === 0) return 0;
 
-  let filteredIds = new Set(targetResidentIds);
+    uniqueByResident = new Map<string, OptInRow>();
+    for (const row of optIns as OptInRow[]) {
+      if (!uniqueByResident.has(row.resident_id)) {
+        uniqueByResident.set(row.resident_id, row);
+      }
+    }
 
-  const { data: activeResidents } = await supabase
-    .from('residents')
-    .select('id, resident_role')
-    .in('id', targetResidentIds)
-    .eq('account_status', 'active');
+    const targetResidentIds = Array.from(uniqueByResident.keys());
+    if (targetResidentIds.length === 0) return 0;
 
-  if (!activeResidents) {
-    return 0;
-  }
+    filteredIds = new Set(targetResidentIds);
 
-  const rows = activeResidents as ResidentRow[];
-  filteredIds = new Set([...filteredIds].filter((id) => rows.some((r) => r.id === id)));
+    const { data: activeResidents, error: residentError } = await supabase
+      .from('residents')
+      .select('id')
+      .in('id', targetResidentIds)
+      .eq('account_status', 'active');
 
-  const roleFilter = announcement.target_audience
-    ? ROLE_BY_AUDIENCE[announcement.target_audience] || null
-    : null;
+    if (residentError || !activeResidents) {
+      console.error('deliverAnnouncementWhatsApp: resident read failed', residentError);
+      return 0;
+    }
 
-  if (roleFilter) {
-    const allowedRoles = new Set(roleFilter);
-    filteredIds = new Set(
-      [...filteredIds].filter((id) => {
-        const resident = rows.find((r) => r.id === id);
-        return resident ? allowedRoles.has(resident.resident_role) : false;
-      }),
-    );
+    const activeIds = new Set((activeResidents as ResidentRow[]).map((r) => r.id));
+    filteredIds = new Set([...filteredIds].filter((id) => activeIds.has(id)));
+
+    const roleFilter = announcement.target_audience
+      ? ROLE_BY_AUDIENCE[announcement.target_audience] || null
+      : null;
+
+    if (roleFilter && filteredIds.size > 0) {
+      // The role lives on the house assignment, not on residents.
+      const { data: roleRows, error: roleError } = await supabase
+        .from('resident_houses')
+        .select('resident_id, resident_role')
+        .in('resident_id', [...filteredIds])
+        .in('resident_role', roleFilter)
+        .eq('is_active', true);
+
+      if (roleError || !roleRows) {
+        console.error('deliverAnnouncementWhatsApp: resident role read failed', roleError);
+        return 0;
+      }
+      const withRole = new Set((roleRows as ResidentHouseRow[]).map((r) => r.resident_id));
+      filteredIds = new Set([...filteredIds].filter((id) => withRole.has(id)));
+    }
   }
 
   if (announcement.target_houses && announcement.target_houses.length > 0 && filteredIds.size > 0) {

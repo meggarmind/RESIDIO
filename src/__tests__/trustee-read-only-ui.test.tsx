@@ -42,6 +42,7 @@ vi.mock('@/hooks/use-announcements', () => ({
     },
   }),
   useAnnouncementCategories: () => ({ data: [] }),
+  useAnnouncementAudienceGroups: () => ({ data: [] }),
   useDeleteAnnouncement: () => ({ mutateAsync: vi.fn(), isPending: false }),
   usePublishAnnouncement: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useUnpublishAnnouncement: () => ({ mutateAsync: vi.fn(), isPending: false }),

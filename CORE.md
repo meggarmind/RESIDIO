@@ -106,6 +106,7 @@ and `next build` run remotely on the real gate before a PR opens (see §16): loc
 loaded machine are ~4x slower and time out falsely (#497).
 
 - **Pre-commit secret scan**: run `npm run hooks:install` once per clone (sets `core.hooksPath` to `.githooks`). Each commit then scans the staged changes with gitleaks when it is installed, else a built-in scan (`scripts/secret-scan.mjs`). Real `.env*` files are refused outright. A false positive takes `secret-scan:allow` in a comment on that line. `--no-verify` skips it; the only backstop is the gitleaks job in `security-gate.yml`, which runs on PRs into `master` and is still in report mode.
+- **Next.js 16 differs from older versions.** Before writing framework code (routing, caching, server actions, config), read the matching guide in `node_modules/next/dist/docs/` (after `npm install`) and heed its deprecation notices. Do not rely on memory of earlier versions.
 - **Path alias**: `@/*` maps to `src/*`. Always import via `@/...`, never relative.
 - State: TanStack React Query. Forms: React Hook Form + Zod. Icons: Lucide.
 - DB types: `src/types/database.generated.ts` is generated — never hand-edit. Helpers live in
@@ -159,14 +160,14 @@ migrate script) are now guards that fail loudly (#219).
 
 **Applying a migration and committing its file are two separate acts** — the first happens
 through the Supabase MCP tools, the second through git, and only the first was ever enforced.
-That gap is why the database accumulated 61 applied migrations with no corresponding file on
-disk (#283). `scripts/migration-drift.mjs`, run by `.github/workflows/migration-drift.yml` on
+That gap once left the database with dozens of applied migrations that had no file on disk
+(#283). `scripts/migration-drift.mjs`, run by `.github/workflows/migration-drift.yml` on
 every PR and on a daily schedule, compares each database's applied migration list against
 `supabase/migrations/` on the branch it tracks (Residio_Stage against `stage`, Residio_Prod
 against `master`; a PR against its base branch's database) and fails the build on any divergence
 in either direction, and on two migration files that share a version prefix (#616) — enforcing the
 pairing so drift cannot silently reaccumulate after the #279 schema baseline. A PR's own new migrations are reported as pending, not drift, because they are
-applied after the merge (§11). Residio_Prod's ledger comes from the #279 baseline, so its 34 `baseline_s*` rows and the 211 files at or before `20260907000000` are exempted by an explicit `--baseline-cutoff` flag on the Prod runs only, and everything after the baseline is still compared one to one.
+applied after the merge (§11). Residio_Prod's ledger comes from the #279 baseline, so its `baseline_s*` rows and the migration files at or before `20260907000000` are exempted by an explicit `--baseline-cutoff` flag on the Prod runs only, and everything after the baseline is still compared one to one (counts and details: the header of `scripts/migration-drift.mjs`).
 
 ---
 
@@ -316,7 +317,7 @@ mislead the next session.
 **`stage` leads, `master` is production** (owner decision 2026-10-11, #420):
 
 ```
-feature branch --PR--> stage   (Coolify residio-stage, Residio_Stage: UAT)
+feature branch --PR--> stage   (Coolify residio-stage-image, deployed by CI from GHCR on every push; Residio_Stage: UAT)
 stage --PR "Release vX.Y.Z" (merge commit)--> master   (Coolify residio-prod, Residio_Prod)
 after EVERY release and hotfix: sync PR (branch cut from stage, master merged in) --> stage
 hotfix: branch from master --PR--> master, then the sync PR above
@@ -338,9 +339,8 @@ hotfix: branch from master --PR--> master, then the sync PR above
 - **Label every PR into `master`** with exactly one of `release:major` (not a drop-in upgrade:
   new required env var, breaking migration, access-control API change), `release:minor` (new
   capability, drop-in), `release:patch` (fixes) or `release:none`. On merge,
-  `.github/workflows/release.yml` pushes the next `vX.Y.Z` tag, computed from the last tag (a
-  `release:major` release from `stage` also deploys residio-stage immediately; Prod is still
-  deployed by hand). No
+  `.github/workflows/release.yml` pushes the next `vX.Y.Z` tag, computed from the last tag (Prod
+  is still deployed by hand). No
   label means no tag. **The tag is the version**: nothing is committed to `master`, and
   `package.json`'s `version` is not hand-edited.
 - **Rollback is the previous release on `master`** (its `vX.Y.Z` tag; for releases before the
@@ -378,11 +378,11 @@ completion.
 > **`finish` is coordinator-only; no sub-agent may run it.** It never merges and never applies
 > migrations. Run it once and it requires the issue worktree clean and the issue In review, runs the
 > checks, lists the migrations the branch adds against `origin/<defaultBranch>` (§11), pushes the
-> branch, opens or reuses the PR into `defaultBranch` (body says "Part of #N", never a closing
-> keyword), sets the board to In review, and stops. After the PR merges (§16), rerun it: it sets Done,
-> prints the migrations still to apply to Residio_Stage, and removes the worktree and local branch only
-> when the branch tip is inside the merged PR head and the tree is clean. It does not close the issue
-> or any parent initiative.
+> branch, opens or reuses the PR into `defaultBranch` (body says "Closes #N"), sets the board to In
+> review, and stops. After the PR merges (§16), rerun it: it prints the migrations still to apply to
+> Residio_Stage, and removes the worktree and local branch only when the branch tip is inside the
+> merged PR head and the tree is clean. The merge closes the issue and the board automation (§9) moves
+> it. Use "Part of #N" for a PR that must not close its issue, such as a slice of a parent initiative.
 
 ---
 
@@ -391,24 +391,33 @@ completion.
 Issues and PRDs live as GitHub issues in `meggarmind/RESIDIO`, accessed via the `gh` CLI.
 External PRs are not a triage surface. See `docs/agents/issue-tracker.md`.
 
-**Triage labels**: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`,
-`wontfix`. See `docs/agents/triage-labels.md`.
+**Triage labels**: `backlog` (replaces `needs-triage`), `needs-info`, `ready-for-agent`,
+`ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
 
 **Project board** ("MeggaView", GitHub Projects v2). New issues are auto-added by
-`.github/workflows/add-issues-to-project.yml`, but nothing moves them between columns
-automatically — that is your job. Board and field IDs, and the exact `gh project item-edit`
-commands, are in `docs/agents/project-board.md`.
+`.github/workflows/add-issues-to-project.yml`. **`.github/workflows/board-sync.yml` moves labels and
+Status** from issue, branch, PR and release events, and reconciles drift nightly (#1104; rules in
+`scripts/board-sync.mjs`, settings in `.github/board-automation.json`). Board and field IDs, and the
+manual `gh project item-edit` commands for the cases below, are in `docs/agents/project-board.md`.
 
 `Status` columns: **Backlog → Ready → In progress → In review → On stage → Done**. Definitions: pinned issue #1006.
 
-Move an issue's Status at these points, without being asked:
+The automation does all of these. You do only the judgement calls:
 
-1. Starting work on a `ready-for-agent` / `ready-for-human` issue → **In progress**
-2. Opening the PR for it → **In review**
-3. The PR merges into `stage` and the work is live on Stage → **On stage**, and add the `on-stage` label. The issue stays open until it is live on Prod.
-4. The issue is closed (after the release to Prod, or `wontfix`) → **Done**
+1. A branch named `<lane>/issue-<n>-…` is created → **In progress**
+2. A PR links the issue (`Closes #N`, or `Part of #N`) → **In review**
+3. A PR with `Closes #N` merges into `stage` → the issue closes, **On stage**, `on-stage` label added
+4. A release PR merges into `master` → issues it shipped → **Done**, `on-stage` removed, "Released in vX.Y.Z" comment
+5. Parents and umbrellas take their Status from their children and are never closed by the automation.
+6. Issues labelled `pinned` (and #412, #1006) are never touched.
 
-Do not move issues *backwards* (to Backlog or Ready) on your own; that stays manual.
+The two backward moves are automatic: a PR closed unmerged → **In progress**; a reopened issue →
+**Ready** or **In progress**. Everything else backward stays manual.
+
+Your judgement calls: set `ready-for-agent` after you refine an issue (the owner can veto by adding
+`backlog`; a warning posts if Scope, success criteria or Validation is missing), put `Closes #N` in
+the PR, and set the board by hand only when the automation has not (the sync is a few seconds behind
+an event; the nightly run catches the rest).
 
 **Harness labels.** At point 1, also add your own harness label if it is not already there:
 
@@ -488,6 +497,15 @@ each exists because it was violated on 2026-09-07, when one session filed **24 i
 **No issue without a stated consequence.** Every issue says what breaks, or stays broken, if it is
 never done. If that sentence cannot be written, it is a note or a comment on an existing issue —
 not a new one.
+
+### Improvement ideas go in #1130
+
+An improvement nobody has decided to make is not an issue. Post it as a **new comment** on the
+pinned, closed issue **#1130** "Improvement ideas: tracked as comments", in the format its body
+gives. Do not file it as an issue, put it on the board or add it to a plan. Defects are still filed
+(guardrail 4 above). Never edit #1130's body or earlier comments. When the owner decides to do
+an idea, file a normal issue for it with `needs-triage`, then reply to the idea's comment with the
+issue number (owner decision 2026-10-24).
 
 ---
 
@@ -637,7 +655,10 @@ recorded by its `harness:*` label (§9), not by commit metadata.
 
 You coordinate; sub-agents write the code. You analyse, interpret, decide and verify.
 
-The exception is trivia — reading a file to answer a question, a one-line fix, a single grep.
+The exception is trivia: reading a file to answer a question, a single grep, or a small edit
+confined to one file (a typo, a one-line fix, a comment) that touches none of authorization,
+migrations, money calculations, or personal data. Anything else is delegated, however short it
+looks.
 Dispatching an agent to fix a typo costs more than it saves. **When you handle something
 yourself rather than delegating, say so.** The threshold is a convenience, not a loophole, and
 it erodes silently if undisclosed.
@@ -704,6 +725,7 @@ Every implementer brief also carries these clauses verbatim:
 - Verify the branch before every commit; stage explicit paths, never `git add -A`.
 - If files you did not edit show as modified, they belong to someone else. Leave them.
 - Report anything you noticed but left alone.
+- Every changed line must trace to the acceptance criteria (§19).
 
 ### QA
 
@@ -845,3 +867,29 @@ in `docs/agents/session-roles.md`. **Read it before queueing anything across a l
 When the user corrects your approach, or confirms a non-obvious one worked, capture it rather
 than re-litigating it next session. A one-off preference is worth recording; a repeated
 correction is worth promoting into a documented rule in this file, via the routing rule in §2.
+
+---
+
+## 19. Working principles
+
+How to write code in any session, whether you are a coordinator handling trivia yourself or a
+sub-agent working from a brief. They adapt the four principles in
+`multica-ai/andrej-karpathy-skills`; the sections cited below hold the full rules, and this one
+does not restate them.
+
+1. **Assumptions first.** If a request has more than one reasonable reading, or you are about to
+   assume something that changes the result, say so before building: name the readings and the one
+   you picked. Ask when the answer is the user's to give (§15 "Stop and ask"). Inside an unattended
+   run, decide, log or park instead (`docs/agents/autonomous-delivery.md` §4).
+2. **Simplicity.** Write the minimum that meets the acceptance criteria. No speculative
+   abstraction, no configurability nobody asked for, no error handling for a case that cannot
+   occur. If a reviewer would call it overbuilt, cut it.
+3. **Surgical changes.** Every changed line traces to the request. Match the surrounding code's
+   style, even where you would do it differently. Remove the imports, variables and functions your
+   own change orphaned; leave other dead code alone and mention it, and file anything larger
+   rather than absorbing it (§10 rule 4, §15).
+4. **Goal-driven.** Restate the task as criteria you can check, and loop until they pass. Verify
+   per §13; for delegated work the acceptance criteria and QA in §15 apply.
+
+Trivia (a typo, a one-line fix) takes judgment, not the full routine, and §15's rule to say so
+when you handle something yourself still applies.

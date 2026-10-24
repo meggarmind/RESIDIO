@@ -59,6 +59,7 @@ function repository(houses: FinancialHouse[]) {
     getForcePin: vi.fn().mockResolvedValue(false),
     getPinHash: vi.fn().mockResolvedValue(null),
     getBillableHouses: vi.fn().mockResolvedValue(houses),
+    hasLinkedCoResident: vi.fn().mockResolvedValue(false),
     getAssistantSettings: vi.fn().mockResolvedValue({ estatePhone: null, estateEmail: null, officeHours: null, paymentInstructions: 'Pay to account 0123.', keywordSynonyms: {} }),
     getLatestAnnouncements: vi.fn().mockResolvedValue([]),
     getOwed: vi.fn().mockResolvedValue(OWED),

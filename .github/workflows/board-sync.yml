@@ -1,0 +1,78 @@
+name: Board Sync
+
+# Moves triage labels and the project board Status from issue, branch, PR and release events,
+# and reconciles drift nightly (#1104). Rules: scripts/board-sync.mjs, settings:
+# .github/board-automation.json.
+#
+# The nightly reconcile is a dry run until `reconcile.apply` is true in that file (owner approval
+# of the backfill report) or a manual run sets `apply`.
+
+on:
+  issues:
+    types: [opened, labeled, unlabeled, reopened, closed]
+  # pull_request_target only reads the event payload; no PR code is checked out or run.
+  pull_request_target:
+    types: [opened, reopened, ready_for_review, closed]
+  create:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+  schedule:
+    - cron: '23 2 * * *'
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Apply the reconcile instead of reporting it
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+# One group per event run: a group keeps a single pending run and cancels the rest, which dropped
+# events in a burst (an issue opened with several labels, a merge closing several issues). Each
+# event run re-reads the issue before deciding, and the nightly reconcile repairs any ordering
+# slip. Reconcile runs share one group so they do not overlap.
+concurrency:
+  group: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'board-sync-reconcile' || format('board-sync-{0}', github.run_id) }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync labels and board Status
+    runs-on: ubuntu-latest
+    # A branch created by a bot or a non-issue branch still starts a run; the script exits quietly.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          # Release comparison needs full history and tags.
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+
+      - name: Sync from the event
+        if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BOARD_TOKEN: ${{ secrets.ADD_TO_PROJECT_PAT }}
+        run: node scripts/board-sync.mjs --event
+
+      - name: Reconcile
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BOARD_TOKEN: ${{ secrets.ADD_TO_PROJECT_PAT }}
+          APPLY: ${{ inputs.apply }}
+        run: |
+          if [ "$APPLY" = "true" ]; then
+            node scripts/board-sync.mjs --reconcile --apply
+          else
+            node scripts/board-sync.mjs --reconcile
+          fi

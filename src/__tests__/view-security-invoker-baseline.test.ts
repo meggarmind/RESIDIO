@@ -42,8 +42,12 @@ describe('view security_invoker survives a baseline rebuild (#450)', () => {
       }
     }
     expect(expected.size).toBeGreaterThan(0);
-    const baseline = invokerViews(readFileSync(baselinePath, 'utf8'));
-    const missing = [...expected].filter((v) => !baseline.has(v));
+    const baselineSql = readFileSync(baselinePath, 'utf8');
+    const baseline = invokerViews(baselineSql);
+    // Views created after the baseline are replayed from their own migration, not rebuilt by it.
+    const inBaseline = (v: string) =>
+      new RegExp(`CREATE\\s+(?:OR\\s+REPLACE\\s+)?VIEW\\s+(?:public\\.)?"?${v}"?\\s`, 'i').test(baselineSql);
+    const missing = [...expected].filter((v) => inBaseline(v) && !baseline.has(v));
     expect(missing).toEqual([]);
   });
 });

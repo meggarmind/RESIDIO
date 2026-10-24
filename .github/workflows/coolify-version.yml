@@ -1,22 +1,17 @@
 name: Coolify Version
 
-# Writes the build version into each Coolify application's build variables (#421 slice B):
+# Writes the build version into the Prod Coolify application's build variables (#421 slice B):
 # NEXT_PUBLIC_APP_VERSION (the release the commit belongs to; the rule is resolveVersion in
 # the script), NEXT_PUBLIC_GIT_SHA and NEXT_PUBLIC_APP_ENV. The logic, the Coolify endpoints
 # and the doc pages they came from are in scripts/coolify-version.mjs.
 #
-#   staging     every push to `stage`: set the variables on residio-stage, then pin its
-#               commit (git_commit_sha) to the same SHA. No deploy: the KVM cron deploys Stage
-#               every 4 hours through the Coolify API, and that build uses the pinned commit,
-#               so it always matches the variables. Stage's Coolify auto-deploy stays off.
-#               Exception (#525): release.yml calls this with `deploy: true` for a
-#               release:major merged from `stage`, and the script then also queues a Stage
-#               deploy of that commit, unless `stage` has already moved past it.
 #   production  every new release tag: set the variables on residio-prod ONLY. Prod is never
 #               deployed from CI; the owner deploys it by hand after migrations (CORE.md §11,
-#               docs/deployment/hosting-plan.md:226). The script fails a production run
-#               asked to deploy. There is no deploy step in this file; the decision lives
+#               docs/deployment/hosting-plan.md:226). There is no deploy step in this file or
 #               in the script.
+#
+# Stage is not handled here since #1114: it builds a GHCR image and deploys it from
+# .github/workflows/stage-image.yml on every push to `stage`, computing its own version.
 #
 # Why the release tag arrives through workflow_call, not `on: push: tags`:
 # release.yml pushes the vX.Y.Z tag with the default GITHUB_TOKEN, and events caused by
@@ -30,23 +25,16 @@ name: Coolify Version
 # naming the missing ones and exits 0. Setup: docs/agents/branching.md.
 
 on:
-  push:
-    branches: [stage]
   workflow_call:
     inputs:
       environment:
-        description: staging or production
+        description: production
         type: string
         required: true
       ref:
         description: The commit to describe (the release merge commit)
         type: string
         required: true
-      deploy:
-        description: Also deploy Stage (staging only; the script refuses it for production)
-        type: boolean
-        required: false
-        default: false
     # Declared, not `secrets: inherit`, so a caller passes only what its target needs.
     # All optional: a missing one makes the script skip with a notice, not fail.
     secrets:
@@ -58,18 +46,16 @@ on:
         required: false
       CF_ACCESS_CLIENT_SECRET:
         required: false
-      COOLIFY_APP_UUID_STAGE:
-        required: false
       COOLIFY_APP_UUID_PROD:
         required: false
   # Manual re-run, e.g. to set Prod's variables for a tag cut before the secrets existed.
-  # Run it from `master` for production and from `stage` for staging (enforced below).
+  # Run it from `master` (enforced below).
   workflow_dispatch:
     inputs:
       environment:
         description: Which Coolify application
         type: choice
-        options: [staging, production]
+        options: [production]
         required: true
 
 permissions:
@@ -79,24 +65,20 @@ jobs:
   set-version:
     name: Set the build version in Coolify
     runs-on: ubuntu-latest
-    # A push to `stage` has no inputs, so it targets staging.
     env:
-      TARGET_ENV: ${{ inputs.environment || 'staging' }}
-    # One run per environment at a time, so two Stage pushes cannot interleave their
-    # set-then-deploy. Queued, not cancelled: a cancel between the two calls would leave the
-    # variables set with no deploy. GitHub keeps only the newest pending run.
+      TARGET_ENV: ${{ inputs.environment }}
+    # One run at a time. Queued, not cancelled; GitHub keeps only the newest pending run.
     concurrency:
-      group: coolify-version-${{ inputs.environment || 'staging' }}
+      group: coolify-version-${{ inputs.environment }}
       cancel-in-progress: false
     steps:
       # Each application builds from one branch, so a manual run must describe that branch.
       - name: Refuse a manual run from the wrong branch
         if: >-
           github.event_name == 'workflow_dispatch' &&
-          ((inputs.environment == 'production' && github.ref != 'refs/heads/master') ||
-           (inputs.environment == 'staging' && github.ref != 'refs/heads/stage'))
+          inputs.environment == 'production' && github.ref != 'refs/heads/master'
         run: |
-          echo "::error::Run production from master and staging from stage."
+          echo "::error::Run production from master."
           exit 1
 
       # Full history and tags, so the version rule can see every vX.Y.Z tag and its parents.
@@ -115,12 +97,9 @@ jobs:
       - name: Write the build variables
         env:
           GIT_SHA: ${{ inputs.ref || github.sha }}
-          # Only a workflow_call can ask for it; a push or a manual run never deploys.
-          DEPLOY: ${{ inputs.deploy && 'true' || 'false' }}
           COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
           COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
-          COOLIFY_APP_UUID_STAGE: ${{ secrets.COOLIFY_APP_UUID_STAGE }}
           COOLIFY_APP_UUID_PROD: ${{ secrets.COOLIFY_APP_UUID_PROD }}
         run: node scripts/coolify-version.mjs
