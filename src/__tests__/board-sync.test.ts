@@ -10,6 +10,8 @@ import {
   parseIssueRefs,
   planPullRequest,
   rollupStatus,
+  runEach,
+  shouldWriteStatus,
 } from '../../scripts/board-sync.mjs';
 
 /**
@@ -407,5 +409,44 @@ describe('rawFromNode', () => {
   it('maps closedAt, null when absent', () => {
     expect(rawFromNode(node('2026-10-21T12:00:00Z'), cfg).closedAt).toBe('2026-10-21T12:00:00Z');
     expect(rawFromNode(node(undefined), cfg).closedAt).toBeNull();
+  });
+});
+
+describe('archived cards and per-issue error isolation (#1104)', () => {
+  const raw = (over: Over = {}) => ({ itemId: 'PVTI_1', itemArchived: false, state: 'open', ...over });
+  const d = (over: Over = {}) => ({ status: 'In review', ...over });
+
+  it('writes Status on a normal card', () => {
+    expect(shouldWriteStatus(raw(), d())).toBe(true);
+  });
+  it('skips Status on an archived card', () => {
+    expect(shouldWriteStatus(raw({ itemArchived: true }), d())).toBe(false);
+  });
+  it('skips a closed, off-board issue that ends Done', () => {
+    expect(shouldWriteStatus(raw({ itemId: null, state: 'closed' }), d({ status: 'Done' }))).toBe(false);
+  });
+  it('skips when there is no status change', () => {
+    expect(shouldWriteStatus(raw(), d({ status: null }))).toBe(false);
+  });
+
+  it('rawFromNode maps isArchived onto itemArchived', () => {
+    const node = (isArchived: boolean) => ({
+      id: 'I', number: 1, state: 'OPEN', stateReason: null, closedAt: null, body: '',
+      labels: { nodes: [] }, parent: null, subIssues: { nodes: [] },
+      projectItems: { nodes: [{ id: 'PVTI_1', isArchived, project: { number: cfg.project.number }, fieldValueByName: null }] },
+      closedByPullRequestsReferences: { nodes: [] },
+    });
+    expect(rawFromNode(node(true), cfg).itemArchived).toBe(true);
+    expect(rawFromNode(node(false), cfg).itemArchived).toBe(false);
+  });
+
+  it('runEach continues past a throwing item and counts it', () => {
+    const seen: number[] = [];
+    const { errors } = runEach([1, 2, 3], (n: number) => {
+      if (n === 2) throw new Error('boom');
+      seen.push(n);
+    });
+    expect(seen).toEqual([1, 3]);
+    expect(errors).toBe(1);
   });
 });

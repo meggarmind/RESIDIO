@@ -274,7 +274,7 @@ const ISSUE_FIELDS = `id number state stateReason closedAt body
   labels(first: 50) { nodes { name } }
   parent { number }
   subIssues(first: 100) { nodes { number state } }
-  projectItems(first: 10) { nodes { id project { number } fieldValueByName(name: "Status") { ... on ProjectV2ItemFieldSingleSelectValue { name } } } }
+  projectItems(first: 10) { nodes { id isArchived project { number } fieldValueByName(name: "Status") { ... on ProjectV2ItemFieldSingleSelectValue { name } } } }
   closedByPullRequestsReferences(first: 5, includeClosedPrs: true) { nodes { number merged baseRefName mergeCommit { oid } } }`;
 
 function splitRepo(cfg) {
@@ -295,6 +295,7 @@ export function rawFromNode(node, cfg) {
     parent: node.parent?.number ?? null,
     children: node.subIssues.nodes.map((c) => ({ number: c.number, state: c.state.toLowerCase() })),
     itemId: item?.id ?? null,
+    itemArchived: item?.isArchived ?? false,
     status: item?.fieldValueByName?.name ?? null,
     closers: node.closedByPullRequestsReferences.nodes
       .filter((p) => p.merged)
@@ -461,6 +462,31 @@ function hasComment(number, marker, cfg) {
   return out.includes(marker);
 }
 
+/**
+ * Whether to write Status for this decision. A closed issue that is off the board and ends Done is old
+ * history, so it is not dragged onto the board; an archived card cannot be updated at all.
+ */
+export function shouldWriteStatus(raw, d) {
+  if (!d.status) return false;
+  if (raw.itemArchived) return false;
+  if (!raw.itemId && raw.state === 'closed' && d.status === 'Done') return false;
+  return true;
+}
+
+/** Run fn over each item, logging and counting a throw instead of stopping. Returns the error count. */
+export function runEach(items, fn, label = (item) => String(item)) {
+  let errors = 0;
+  for (const item of items) {
+    try {
+      fn(item);
+    } catch (error) {
+      errors += 1;
+      console.log(`#${label(item)} ERROR ${String(error.stderr || error.message).trim()}`);
+    }
+  }
+  return { errors };
+}
+
 function applyDecision(d, raw, cfg, dryRun) {
   const summary = [
     d.status ? `Status ${d.from ?? 'none'} -> ${d.status}` : null,
@@ -482,9 +508,9 @@ function applyDecision(d, raw, cfg, dryRun) {
       if (!/404/.test(String(error.stderr))) throw error;
     }
   }
-  if (d.status) {
-    // A closed issue that is off the board and ends Done is old history; do not drag it onto the board.
-    if (!raw.itemId && raw.state === 'closed' && d.status === 'Done') return;
+  if (d.status && raw.itemArchived) {
+    console.log(`#${d.number} board card archived; Status left as ${d.from ?? 'none'}`);
+  } else if (shouldWriteStatus(raw, d)) {
     graphql(
       'mutation($project: ID!, $item: ID!, $field: ID!, $option: String!) { updateProjectV2ItemFieldValue(input: { projectId: $project, itemId: $item, fieldId: $field, value: { singleSelectOptionId: $option } }) { projectV2Item { id } } }',
       { project: cfg.project.id, item: ensureItem(raw, cfg), field: cfg.project.statusFieldId, option: cfg.statusOptions[d.status] },
@@ -550,7 +576,11 @@ function runEvent(cfg, dryRun) {
   if (name === 'workflow_run') git(['fetch', '--quiet', 'origin', cfg.releaseBranch, '--tags']);
   const jobs = eventJobs(name, payload, cfg);
   if (!jobs.length) console.log(`board-sync: nothing to do for ${name}/${payload.action ?? payload.ref_type ?? ''}`);
-  for (const job of jobs) syncIssue(job.number, job.ctx, cfg, dryRun);
+  const { errors } = runEach(jobs, (job) => syncIssue(job.number, job.ctx, cfg, dryRun), (job) => job.number);
+  if (errors) {
+    console.error(`board-sync: ${errors} issue(s) failed`);
+    process.exitCode = 1;
+  }
 }
 
 function runReconcile(cfg, { dryRun, apply, report }) {
@@ -584,18 +614,18 @@ function runReconcile(cfg, { dryRun, apply, report }) {
   const lines = [];
   let changed = 0;
   let notOnBoard = 0;
-  for (const n of [...all.keys()].sort((a, b) => a - b)) {
+  const { errors } = runEach([...all.keys()].sort((a, b) => a - b), (n) => {
     const d = desiredFor(n);
     if (!all.get(n).itemId) notOnBoard += 1;
-    if (!isChange(d) && !d.flags.length) continue;
+    if (!isChange(d) && !d.flags.length) return;
     if (isChange(d)) changed += 1;
     applyDecision(d, all.get(n), cfg, effectiveDryRun);
     lines.push(`| #${n} | ${d.from ?? '-'} | ${d.status ?? '-'} | ${d.addLabels.join(', ') || '-'} | ${d.removeLabels.join(', ') || '-'} | ${d.comment ? 'yes' : '-'} | ${d.flags.join('; ') || '-'} |`);
-  }
+  });
   const text = [
     `# board-sync reconcile (${effectiveDryRun ? 'dry run' : 'applied'})`,
     '',
-    `${all.size} issues read, ${changed} would change, ${notOnBoard} not on the board.`,
+    `${all.size} issues read, ${changed} would change, ${notOnBoard} not on the board, ${errors} errors.`,
     '',
     '| Issue | From | To | Add labels | Remove labels | Comment | Flags |',
     '| --- | --- | --- | --- | --- | --- | --- |',
@@ -604,6 +634,10 @@ function runReconcile(cfg, { dryRun, apply, report }) {
   ].join('\n');
   if (report) writeFileSync(report, text);
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, text);
+  if (errors) {
+    console.error(`board-sync: ${errors} issue(s) failed`);
+    process.exitCode = 1;
+  }
 }
 
 function main() {
