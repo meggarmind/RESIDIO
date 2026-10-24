@@ -343,6 +343,9 @@ hotfix: branch from master --PR--> master, then the sync PR above
   is still deployed by hand). No
   label means no tag. **The tag is the version**: nothing is committed to `master`, and
   `package.json`'s `version` is not hand-edited.
+- **Release gate** (#1136): on a PR from `stage` into `master`, `.github/workflows/release-gate.yml`
+  fails unless Stage's `/api/version` `sha` equals the PR head SHA and the PR carries the label
+  `uat-dast-passed`, which only the owner sets after UAT and DAST pass. A hotfix PR passes.
 - **Rollback is the previous release on `master`** (its `vX.Y.Z` tag; for releases before the
   first tag, its merge commit), redeployed in Coolify, or a revert PR. Never move `stage`,
   `master` or tag refs by hand.
