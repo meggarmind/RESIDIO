@@ -442,7 +442,9 @@ describe('PIN and code text is never logged or echoed (#892)', () => {
     }
 
     const secrets = [CODE, '000111', NEW_PIN, '5308', '7351'];
-    const saved = JSON.stringify(vi.mocked(repo.saveSession).mock.calls);
+    // pendingPinHash is a random salted scrypt value; a 4-digit PIN can occur inside its hex by chance.
+    const saved = JSON.stringify(vi.mocked(repo.saveSession).mock.calls, (key, value) =>
+      key === 'pendingPinHash' ? undefined : value);
     const disclosures = JSON.stringify(vi.mocked(repo.logDisclosure).mock.calls);
     const logs = JSON.stringify(logged.map((entry) => (entry instanceof Error ? entry.message : entry)));
     for (const secret of secrets) {
