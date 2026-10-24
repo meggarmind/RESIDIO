@@ -30,7 +30,7 @@ vi.mock('@/hooks/use-residents', () => ({
 import { ResidentForm } from '@/components/residents/resident-form';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { FLAG_OPTION_LABELS } from '@/lib/comms-override/resident-flag-ui';
-import type { Resident } from '@/types/database';
+import { RESIDENT_ROLE_LABELS, type Resident } from '@/types/database';
 
 const HOUSE = '22222222-2222-4222-8222-222222222222';
 
@@ -122,12 +122,17 @@ describe('ResidentForm create wizard (#1135)', () => {
     expect(mocks.createAsync.mock.calls[0][0]).toMatchObject({ data: { house_id: HOUSE } });
   });
 
-  it('limits the type to secondary when the live house already has a tenant', async () => {
+  it('makes the resident secondary when an occupier role is chosen and the live house already has a tenant', async () => {
     mocks.houseResidents = [{ id: 'x', resident_role: 'tenant' }];
     render(<ResidentForm preselectedHouseId={HOUSE} />);
+    fillRequired();
+    next();
+    await waitFor(() => expect(stepNow()).toHaveTextContent('House Assignment'));
+    choose(screen.getAllByRole('combobox')[0], RESIDENT_ROLE_LABELS.tenant);
+    fireEvent.click(screen.getByRole('button', { name: /Back/ }));
 
-    expect(await screen.findByText(/This house already has a primary resident/)).toBeInTheDocument();
-    expect(screen.getAllByRole('combobox')[0]).toBeDisabled();
+    await waitFor(() => expect(stepNow()).toHaveTextContent('Personal Information'));
+    expect(screen.getAllByRole('combobox')[0]).toHaveTextContent('Secondary');
   });
 
   it('allows both types when the house has only a non-resident landlord', () => {
