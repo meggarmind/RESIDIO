@@ -229,11 +229,10 @@ describe('finish: PR-based delivery (#220)', () => {
     expect(publishStatusProblem('In progress', statuses)).toMatch(/requires In review/);
   });
 
-  it('builds a PR body with Part of #N, the migrations, no closing keyword and no footer', () => {
+  it('builds a PR body with Closes #N, the migrations and no footer', () => {
     const body = buildPrBody({ issue, defaultBranch: 'stage', migrations: [`${M}1_a.sql`] });
-    expect(body).toContain('Part of #220');
+    expect(body).toContain('Closes #220');
     expect(body).toContain(`${M}1_a.sql`);
-    expect(body).not.toMatch(/\b(close[sd]?|fix(e[sd])?|resolve[sd]?)\b[:\s]+#\d+/i);
     expect(body).not.toMatch(/Generated with|Co-Authored-By/i);
     expect(buildPrBody({ issue, defaultBranch: 'stage', migrations: [] })).toContain('None added');
   });
