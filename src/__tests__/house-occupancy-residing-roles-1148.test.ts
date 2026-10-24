@@ -41,6 +41,10 @@ describe('house occupancy migration', () => {
     expect(sql.split(filter).length - 1).toBe(3);
   });
 
+  it('requires an active link in both the function and the recompute', () => {
+    expect(sql.split('rh.is_active = true').length - 1).toBe(3);
+  });
+
   it('recomputes every house, writing only the rows that differ', () => {
     expect(sql).toContain('UPDATE public.houses h SET is_occupied = EXISTS(');
     expect(sql).toContain('WHERE h.is_occupied IS DISTINCT FROM EXISTS(');
@@ -48,5 +52,18 @@ describe('house occupancy migration', () => {
 
   it('does not touch property_status', () => {
     expect(sql).not.toContain('property_status');
+  });
+});
+
+describe('residents actions leave occupancy to the trigger', () => {
+  const read = (f: string) => readFileSync(path.join(root, 'src/actions/residents', f), 'utf8');
+  const files = ['move-out-landlord.ts', 'move-out-owner.ts', 'move-out-renter.ts', 'remove-ownership.ts', 'unassign-house.ts'];
+
+  it.each(files)('%s writes no is_occupied: false', (f) => {
+    expect(read(f)).not.toMatch(/is_occupied:\s*false/);
+  });
+
+  it('move-out-renter.ts writes no unguarded is_occupied: true', () => {
+    expect(read('move-out-renter.ts')).not.toMatch(/is_occupied:\s*true/);
   });
 });

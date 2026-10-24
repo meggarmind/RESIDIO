@@ -63,6 +63,6 @@ WHERE h.is_occupied IS DISTINCT FROM EXISTS(
 --       WHERE id = target_house_id;
 --       IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
 --   END;
---   $f$ LANGUAGE plpgsql SECURITY DEFINER;
+--   $f$ LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public', 'auth', 'extensions', 'pg_temp';
 --   UPDATE public.houses h SET is_occupied = EXISTS(SELECT 1 FROM public.resident_houses rh
 --       WHERE rh.house_id = h.id AND rh.is_active = true);

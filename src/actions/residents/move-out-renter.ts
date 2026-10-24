@@ -14,7 +14,6 @@ import { issueClearanceCertificate } from '@/lib/clearance/issue-certificate';
 import { MOVE_OUT_NOTIFY_ROLES } from '@/lib/residents/move-out-recipients';
 import type { ResidentRole } from '@/types/database';
 import { resolveSponsor } from './validation';
-import { isResidingRole } from '@/lib/houses/occupancy';
 
 // Supabase embeds a to-one join (street:streets(...)) as an object at runtime but
 // the untyped client types it as an array; normalize to the street name string.
@@ -700,14 +699,8 @@ export async function confirmRenterMoveOut(
       });
     }
 
-    // Destination occupancy is set by the update_house_occupancy trigger on the insert above:
-    // true only for a residing role (#1148). Only a residing destination role may force true.
-    if (!assignError && isResidingRole(destinationRole)) {
-      await supabase
-        .from('houses')
-        .update({ is_occupied: true })
-        .eq('id', destinationHouseId);
-    }
+    // Destination occupancy is set by the update_house_occupancy trigger on the insert above
+    // (true only for a residing role, #1148); no direct write here.
 
     // Record move-in at destination
     await adminClient
