@@ -242,7 +242,7 @@ describe('pull request links', () => {
       [14, issue({ number: 14, status: 'In review' })],
     ]);
     const plan = planPullRequest('merged', { body: 'Closes #12\nCloses #13\nPart of #14', base: 'stage' }, issues, cfg);
-    expect(plan.map((d: { number: number; status: string }) => [d.number, d.status])).toEqual([[12, 'On stage'], [13, 'On stage']]);
+    expect(plan.map((d) => [d.number, d.status])).toEqual([[12, 'On stage'], [13, 'On stage']]);
   });
 
   it('an opened PR moves linked issues to In review, including Part of links', () => {

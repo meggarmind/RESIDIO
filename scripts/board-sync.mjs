@@ -152,6 +152,7 @@ function normalizeTriage(ctx, cfg, labels, out) {
  */
 export function decideTransition(ctx, cfg) {
   const { issue, trigger } = ctx;
+  /** @type {{ number: number, from: string|null, status: string|null, addLabels: string[], removeLabels: string[], comment: {marker: string, body: string}|null, flags: string[] }} */
   const out = { number: issue.number, from: issue.status ?? null, status: null, addLabels: [], removeLabels: [], comment: null, flags: [] };
   if (isExempt(issue, cfg)) return out;
 
