@@ -150,7 +150,8 @@ export function sortTagsNewestFirst(tags) {
  *   2. Otherwise the newest tag T whose second parent T^2 (the `stage` commit the release
  *      merged) is the commit or an ancestor of it: `T` when the commit IS T^2, otherwise
  *      `T-<n>-g<7-char sha>` with n = `git rev-list --count T^2..sha`. A tag with no second
- *      parent (not a merge, e.g. a hand-made tag) is skipped.
+ *      parent (a squashed release or a hand-made tag, #1116) falls back to the tag's own commit,
+ *      which counts only when it is the commit or an ancestor of it.
  *   3. Otherwise plain `git describe --tags --match 'v*'`, and failing that
  *      `v0.0.0-<shortsha>`.
  *
@@ -168,7 +169,7 @@ export function resolveVersion({ sha, git }) {
   if (exact) return exact;
 
   for (const tag of sortTagsNewestFirst(git.tags() ?? [])) {
-    const merged = git.secondParent(tag);
+    const merged = git.secondParent(tag) || git.tagCommit(tag);
     if (!merged) continue;
     if (merged !== full && !git.isAncestor(merged, full)) continue;
     const ahead = merged === full ? 0 : Number(git.countBetween(merged, full));
@@ -334,6 +335,7 @@ export function gitQueries(run = runGit) {
     exactTags: (sha) => lines(run(['tag', '--list', 'v*', '--points-at', sha])),
     tags: () => lines(run(['tag', '--list', 'v*'])),
     secondParent: (tag) => run(['rev-parse', '--verify', '--quiet', `refs/tags/${tag}^{commit}^2`]) || null,
+    tagCommit: (tag) => run(['rev-parse', '--verify', '--quiet', `refs/tags/${tag}^{commit}`]) || null,
     isAncestor: (ancestor, sha) => run(['merge-base', '--is-ancestor', ancestor, sha]) !== null,
     countBetween: (from, to) => run(['rev-list', '--count', `${from}..${to}`]),
     describe: (sha) => run(['describe', '--tags', '--match', 'v*', sha]),
