@@ -142,11 +142,8 @@ export async function unassignHouse(
       }
     }
 
-    // Update house occupancy
-    await supabase
-      .from('houses')
-      .update({ is_occupied: false })
-      .eq('id', houseId);
+    // House occupancy is recomputed by the update_house_occupancy trigger when the primary
+    // assignment is deactivated below (#1148).
   }
 
   // Deactivate the primary assignment (soft delete)

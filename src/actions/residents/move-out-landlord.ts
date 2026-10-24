@@ -115,11 +115,8 @@ export async function moveOutLandlord(
     return { success: false, error: 'Failed to update resident role' };
   }
 
-  // 3. Update house occupancy status (house becomes vacant/unoccupied)
-  await supabase
-    .from('houses')
-    .update({ is_occupied: false })
-    .eq('id', houseId);
+  // 3. House occupancy is recomputed by the update_house_occupancy trigger on the role change
+  // above (#1148); a direct write here could clobber a remaining residing link.
 
   // 4. Record in ownership history (using admin client to ensure insert succeeds)
   try {

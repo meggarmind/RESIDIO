@@ -651,11 +651,8 @@ export async function confirmRenterMoveOut(
     description: 'Marked resident inactive after move-out',
   });
 
-  // 3. Update house occupancy status
-  await supabase
-    .from('houses')
-    .update({ is_occupied: false })
-    .eq('id', houseId);
+  // 3. House occupancy is recomputed by the update_house_occupancy trigger on the deactivation
+  // above (#1148); a direct write here could clobber a remaining residing link.
 
   // 4. If moving within estate, assign to new house
   const destinationHouseId = metadata?.destination_house_id;
@@ -702,11 +699,8 @@ export async function confirmRenterMoveOut(
       });
     }
 
-    // Update destination house occupancy
-    await supabase
-      .from('houses')
-      .update({ is_occupied: true })
-      .eq('id', destinationHouseId);
+    // Destination occupancy is set by the update_house_occupancy trigger on the insert above
+    // (true only for a residing role, #1148); no direct write here.
 
     // Record move-in at destination
     await adminClient
