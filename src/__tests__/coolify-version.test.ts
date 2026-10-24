@@ -143,6 +143,16 @@ describe('resolveVersion', () => {
     expect(resolveVersion({ sha: c('s6'), git: fakeGit(graph) })).toBe('v0.6.0-1-gs600000');
   });
 
+  it('matches a fast-forward release tagged on a stage merge commit through its own commit (#1137)', () => {
+    // v0.6.0 sits on s5, a merge of master back into stage; its second parent m2 is not an ancestor of s6.
+    const graph = {
+      parents: { ...releaseGraph.parents, [c('m2')]: [c('m1')], [c('s5')]: [c('s4'), c('m2')] },
+      tags: { ...releaseGraph.tags, 'v0.6.0': c('s5') },
+    };
+    expect(resolveVersion({ sha: c('s5'), git: fakeGit(graph) })).toBe('v0.6.0');
+    expect(resolveVersion({ sha: c('s6'), git: fakeGit(graph) })).toBe('v0.6.0-1-gs600000');
+  });
+
   it('skips a tag with no second parent whose own commit is not an ancestor', () => {
     // v0.6.0 is a squash on q1, which s6 never reached.
     const graph = {

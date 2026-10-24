@@ -124,11 +124,10 @@ export function sortTagsNewestFirst(tags) {
  * actually shipped. Instead:
  *
  *   1. An exact `v*` tag on the commit wins (`master`, a release).
- *   2. Otherwise the newest tag T whose second parent T^2 (the `stage` commit the release
- *      merged) is the commit or an ancestor of it: `T` when the commit IS T^2, otherwise
- *      `T-<n>-g<7-char sha>` with n = `git rev-list --count T^2..sha`. A tag with no second
- *      parent (a squashed release or a hand-made tag, #1116) falls back to the tag's own commit,
- *      which counts only when it is the commit or an ancestor of it.
+ *   2. Otherwise the newest tag T whose own commit (a fast-forward release, #1137) or second
+ *      parent T^2 (the `stage` commit a merge-commit release merged) is the commit or an ancestor of it: `T` when the commit IS T^2, otherwise
+ *      `T-<n>-g<7-char sha>` with n = `git rev-list --count <that commit>..sha`. A squashed
+ *      release or hand-made tag (#1116) has no T^2 and matches through its own commit.
  *   3. Otherwise plain `git describe --tags --match 'v*'`, and failing that
  *      `v0.0.0-<shortsha>`.
  *
@@ -146,9 +145,12 @@ export function resolveVersion({ sha, git }) {
   if (exact) return exact;
 
   for (const tag of sortTagsNewestFirst(git.tags() ?? [])) {
-    const merged = git.secondParent(tag) || git.tagCommit(tag);
+    // The tag's own commit when stage reached it (a fast-forward release, #1137, which may itself
+    // be a merge), else the merged stage commit T^2 of a merge-commit release.
+    const merged = [git.tagCommit(tag), git.secondParent(tag)].find(
+      (candidate) => candidate && (candidate === full || git.isAncestor(candidate, full)),
+    );
     if (!merged) continue;
-    if (merged !== full && !git.isAncestor(merged, full)) continue;
     const ahead = merged === full ? 0 : Number(git.countBetween(merged, full));
     if (!Number.isInteger(ahead) || ahead < 0) continue;
     return ahead === 0 ? tag : `${tag}-${ahead}-g${short}`;
