@@ -498,6 +498,15 @@ each exists because it was violated on 2026-09-07, when one session filed **24 i
 never done. If that sentence cannot be written, it is a note or a comment on an existing issue —
 not a new one.
 
+### Improvement ideas go in #1130
+
+An improvement nobody has decided to make is not an issue. Post it as a **new comment** on the
+pinned, closed issue **#1130** "Improvement ideas: tracked as comments", in the format its body
+gives. Do not file it as an issue, put it on the board or add it to a plan. Defects are still filed
+(guardrail 4 above). Never edit #1130's body or earlier comments. When the owner decides to do
+an idea, file a normal issue for it with `needs-triage`, then reply to the idea's comment with the
+issue number (owner decision 2026-10-24).
+
 ---
 
 ## 11. Migrations on merge
