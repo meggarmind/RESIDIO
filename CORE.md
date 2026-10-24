@@ -704,6 +704,7 @@ Every implementer brief also carries these clauses verbatim:
 - Verify the branch before every commit; stage explicit paths, never `git add -A`.
 - If files you did not edit show as modified, they belong to someone else. Leave them.
 - Report anything you noticed but left alone.
+- Every changed line must trace to the acceptance criteria (§19).
 
 ### QA
 
