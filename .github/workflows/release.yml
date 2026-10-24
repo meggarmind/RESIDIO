@@ -12,7 +12,7 @@ name: Release
 # check, and a bot commit would need an exemption. The tag IS the version; anything that
 # shows a version (#421) reads the tag.
 #
-# A release:major from `stage` also deploys residio-stage immediately (#525, job `stage-deploy`).
+# Stage is not touched here: it deploys from stage-image.yml on every push to `stage` (#1114).
 #
 # Merges into `stage` never run this: a release:* label on a feature PR has no effect.
 #
@@ -109,47 +109,13 @@ jobs:
     with:
       environment: production
       ref: ${{ github.event.pull_request.merge_commit_sha }}
-    # Only what the Prod path needs; never the Stage UUID, and never `secrets: inherit`.
+    # Only what the Prod path needs; never `secrets: inherit`.
     secrets:
       COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
       COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
       CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
       CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
       COOLIFY_APP_UUID_PROD: ${{ secrets.COOLIFY_APP_UUID_PROD }}
-
-  # A release:major is not a drop-in upgrade, so Stage is deployed at once instead of waiting
-  # for the KVM cron (#525). Prod is never deployed from CI.
-  #  - It `needs: tag`, so the release label is already the new release when the build
-  #    variables are written.
-  #  - `ref` is the PR's head.sha: the exact `stage` commit that was released. The merge
-  #    commit exists on `master` only, and Stage builds from `stage`.
-  #  - `head.ref == 'stage'`: a major hotfix comes from a hotfix branch and must not land on
-  #    Stage before master is merged back into stage.
-  #  - Same-repo only (belt and braces): a fork cannot have a branch named `stage` deploy.
-  #  - The script deploys only if that commit is still stage's head; otherwise the cron
-  #    deploys the newer one.
-  stage-deploy:
-    name: Deploy Stage for a major release
-    needs: tag
-    if: >-
-      needs.tag.outputs.tag != '' &&
-      needs.tag.outputs.bump == 'major' &&
-      github.event.pull_request.head.ref == 'stage' &&
-      github.event.pull_request.head.repo.full_name == github.repository
-    permissions:
-      contents: read
-    uses: ./.github/workflows/coolify-version.yml
-    with:
-      environment: staging
-      ref: ${{ github.event.pull_request.head.sha }}
-      deploy: true
-    # Only what the Stage path needs; never the Prod UUID, and never `secrets: inherit`.
-    secrets:
-      COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
-      COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
-      CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-      CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
-      COOLIFY_APP_UUID_STAGE: ${{ secrets.COOLIFY_APP_UUID_STAGE }}
 
   # One-off setup, safe to re-run: creates or updates the four release labels.
   # GitHub rejects a label description over 100 characters (HTTP 422);

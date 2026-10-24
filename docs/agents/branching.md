@@ -101,7 +101,7 @@ Since 2026-10-11 (owner decision, #420) `stage` is the **leading integration bra
 `stage-backup.yml`; that workflow is deleted, and nothing about the old meaning still applies.
 
 ```
-feature branch --PR--> stage   (Coolify residio-stage, stage.<domain>, Residio_Stage: UAT)
+feature branch --PR--> stage   (Coolify residio-stage-image, stage.<domain>, Residio_Stage: UAT; deployed by CI)
 stage --PR "Release vX.Y.Z" (merge commit)--> master   (Coolify residio-prod, app.<domain>, Residio_Prod)
 after EVERY release and hotfix: sync PR (branch cut from stage, master merged in) --> stage
 hotfix: branch from master --PR--> master, then the sync PR above
@@ -118,11 +118,9 @@ hotfix: branch from master --PR--> master, then the sync PR above
   `vX.Y.Z` tag on the merge commit, counted from the last tag. No label, an unknown label or
   `release:none` pushes nothing; the run also refuses to tag a merge commit with fewer than two
   parents (a squash) or one that already carries a `v*` tag (#1116); two different release labels fail the run without tagging. A
-  `release:*` label on a PR into `stage` does nothing. A `release:major` release PR from `stage`
-  also deploys residio-stage immediately (#525): after the tag, the `stage-deploy` job pins
-  Stage to the PR's head commit and queues a deploy, unless `stage` has already moved past it
-  (then the cron deploys the newer commit). Other labels, and major hotfixes from other
-  branches, deploy nothing. Prod is never deployed from CI.
+  `release:*` label on a PR into `stage` does nothing. No release label deploys anything:
+  Stage deploys from `stage-image.yml` on every push to `stage` (#1114, which retired the
+  `stage-deploy` job of #525), and Prod is never deployed from CI.
 - **After every release, sync `master` back into `stage`** in its own PR, before the next
   release. Both branches require "up to date before merging" (`strict`), and a merge-commit
   release leaves `master` with a merge commit `stage` lacks, so the next release PR reads
@@ -167,7 +165,7 @@ git log --oneline origin/master..origin/stage
 
 ```
 feature PR --> stage     PR gate (lint, typecheck, vitest, build; skipped for docs-only)
-                          -> KVM cron deploys residio-stage within 4 hours (builds the pinned commit), UAT on Residio_Stage
+                          -> stage-image.yml builds a GHCR image and deploys residio-stage-image on every push, UAT on Residio_Stage
 Release PR stage --> master
                           PR gate + Security gate
                           -> merge commit, apply migrations to Residio_Prod (migrations-on-merge.md)
@@ -208,27 +206,26 @@ the credential, not only deleting it, since it stays in history.
 
 `.github/workflows/coolify-version.yml` (logic in `scripts/coolify-version.mjs`) writes
 `NEXT_PUBLIC_APP_VERSION`, `NEXT_PUBLIC_GIT_SHA` and `NEXT_PUBLIC_APP_ENV` into each Coolify
-application's build variables, so the build knows what it is. The version is the exact tag on a
+**Prod** application's build variables, so the build knows what it is. The version is the exact tag on a
 release commit. Otherwise it is the newest `vX.Y.Z` tag whose second parent (the `stage` commit
 that release merged) the commit has reached: `v0.5.0` on that commit, `v0.5.0-3-gabc1234` three
 commits later. Plain `git describe` would be wrong on `stage`, because release tags sit on
-`master` merge commits that `stage` never contains. On every push to `stage` it sets them on `residio-stage` **and pins that application's commit
-to the same SHA, but does not deploy**: the KVM cron deploys Stage every 4 hours (`17 */4 * * *`
-UTC) through the Coolify API, and an API deploy builds the pinned commit, so the build always
-matches the variables CI last wrote. The exception is a `release:major` release from `stage`
-(#525): `release.yml` calls it with `deploy: true`, and it also queues the deploy at once. On
-every new release tag, `release.yml` calls it to set them on `residio-prod` **only**: Prod is
+`master` merge commits that `stage` never contains. Stage is no longer handled here (#1114):
+`residio-stage-image` is deployed by `.github/workflows/stage-image.yml` on every push to
+`stage`, from a GHCR image CI builds, and `scripts/stage-image.mjs` computes the same version
+for that build as build args. The old `residio-stage` application is stopped and kept only for
+rollback. On every new release tag, `release.yml` calls it to set them on `residio-prod` **only**: Prod is
 still deployed by hand after migrations, and that build picks the values up. Until it is set
 up, the workflow logs a notice naming the missing secrets and passes. Owner setup, once:
 
 1. **Cloudflare Zero Trust**: create a service token and add a **Service Auth** policy for
    `coolify.<domain>/api*`. The API stays behind Access; only `/webhooks` is bypassed.
-2. **Coolify**: create an API token with write and deploy rights, and switch **auto-deploy off
-   on `residio-stage`** (Prod's is already off). Otherwise Coolify builds on push, before the variables
-   are set and the commit is pinned, and Stage shows the previous version.
+2. **Coolify**: create an API token with write and deploy rights, and keep **auto-deploy off
+   on `residio-prod`**.
 3. **GitHub Actions secrets**: `COOLIFY_BASE_URL` (`https://coolify.<domain>`),
    `COOLIFY_API_TOKEN`, `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`,
-   `COOLIFY_APP_UUID_STAGE`, `COOLIFY_APP_UUID_PROD`.
+   `COOLIFY_APP_UUID_PROD`. (`COOLIFY_APP_UUID_STAGE`, the old `residio-stage` app, is no longer
+   used by any workflow; Stage's secrets are in `stage-image.yml`.)
 
 For a release tagged before the secrets existed, run **Coolify Version** from the Actions tab
 on `master` with `production`.
