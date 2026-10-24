@@ -1,0 +1,90 @@
+name: Board Sync
+
+# Keeps issue labels and the Projects v2 Status column in step with development events (#1104).
+# The state machine is scripts/board-sync.mjs (decideTransition); this file only wires triggers.
+#
+# Which event is the primary path for what:
+#   - pull_request closed/merged is the primary path for "On stage" / "Done". GitHub's own
+#     auto-close of an issue on merge also fires issues.closed (the close is attributed to the
+#     merge actor, so it is not suppressed the way GITHUB_TOKEN-made events are), but the script
+#     leaves that event alone whenever a merged PR exists, so the two paths cannot disagree.
+#   - issues opened/labeled/reopened/closed cover triage labels and manual closes.
+#   - create covers the first push of an issue branch -> In progress.
+#   - schedule / workflow_dispatch run --reconcile, which repairs drift and backfills.
+#
+# pull_request (not pull_request_target) on purpose: a fork PR gets no secrets, so the PAT is
+# empty and the job fails soft below. Same-repo PRs, which is all this workflow handles, work.
+on:
+  issues:
+    types: [opened, labeled, reopened, closed]
+  pull_request:
+    types: [opened, reopened, ready_for_review, converted_to_draft, closed]
+  create:
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Print the reconcile table without changing anything'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: board-sync-${{ github.event.issue.number || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  event:
+    name: React to a development event
+    if: github.event_name == 'issues' || github.event_name == 'pull_request' || (github.event_name == 'create' && github.ref_type == 'branch')
+    runs-on: ubuntu-latest
+    # Non-blocking, like harness-label.yml: a card that failed to move is a note in the log, not
+    # a defect in the PR, so it must never gate a merge. The script also exits 0 on per-issue
+    # errors; only a configuration or authentication failure turns this red.
+    continue-on-error: true
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          # The release path asks git whether each issue's merge commit is an ancestor of the
+          # release merge commit, which needs full history.
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+
+      # The project is user-scoped, which GITHUB_TOKEN cannot edit, so a PAT is required.
+      - name: Sync labels and board status
+        env:
+          GH_TOKEN: ${{ secrets.ADD_TO_PROJECT_PAT }}
+        run: node scripts/board-sync.mjs --event --ci
+
+  reconcile:
+    name: Reconcile board drift
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+
+      # Scheduled runs are live; a manual run defaults to a dry run (the input is true unless
+      # the dispatcher unticks it).
+      - name: Reconcile
+        env:
+          GH_TOKEN: ${{ secrets.ADD_TO_PROJECT_PAT }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '--dry-run' || '' }}
+        run: node scripts/board-sync.mjs --reconcile --ci $DRY_RUN
