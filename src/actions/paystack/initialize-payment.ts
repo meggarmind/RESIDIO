@@ -13,7 +13,7 @@ import { logAudit } from '@/lib/audit/logger';
 
 // Input validation schema
 const initializePaymentSchema = z.object({
-  invoice_id: z.string().uuid('Invalid invoice ID'),
+  invoice_id: z.guid('Invalid invoice ID'),
   callback_url: z.string().url('Invalid callback URL'),
 });
 

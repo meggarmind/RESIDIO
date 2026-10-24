@@ -116,7 +116,7 @@ const contactCardVariants = {
 
 // Simplified schema for resident portal
 const portalContactSchema = z.object({
-  category_id: z.string().uuid('Please select a category'),
+  category_id: z.guid('Please select a category'),
   full_name: z.string().min(2, 'Name must be at least 2 characters'),
   phone_primary: z.string().min(10, 'Phone number must be at least 10 digits'),
   relationship: z.string().optional().or(z.literal('')),

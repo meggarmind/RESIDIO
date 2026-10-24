@@ -16,7 +16,7 @@ const titleFields = {
   seats: z.number().int('Seats must be a whole number').min(1, 'Seats must be at least 1').nullable(),
 };
 
-const createTitleSchema = z.object({ role_id: z.string().uuid(), ...titleFields });
+const createTitleSchema = z.object({ role_id: z.guid(), ...titleFields });
 const updateTitleSchema = z.object(titleFields);
 
 export type TitleInput = z.input<typeof updateTitleSchema>;

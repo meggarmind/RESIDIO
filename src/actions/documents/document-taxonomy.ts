@@ -71,7 +71,7 @@ export async function getDocumentTaxonomy(documentId: string): Promise<DocumentT
   };
 }
 
-const tagIdsSchema = z.array(z.string().uuid()).max(100);
+const tagIdsSchema = z.array(z.guid()).max(100);
 
 /**
  * Replace the set of tags on a document

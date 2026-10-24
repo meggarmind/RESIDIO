@@ -75,7 +75,7 @@ export type EstateBankAccountFormData = z.infer<typeof estateBankAccountFormSche
 // ============================================================
 
 export const paymentAliasFormSchema = z.object({
-  resident_id: z.string().uuid('Resident is required'),
+  resident_id: z.guid('Resident is required'),
   alias_name: z
     .string()
     .min(2, 'Alias name must be at least 2 characters')
@@ -87,7 +87,7 @@ export const paymentAliasFormSchema = z.object({
 export type PaymentAliasFormData = z.infer<typeof paymentAliasFormSchema>;
 
 export const paymentAliasSearchSchema = z.object({
-  resident_id: z.string().uuid().optional(),
+  resident_id: z.guid().optional(),
   query: z.string().optional(),
   is_active: z.boolean().optional(),
 });
@@ -101,7 +101,7 @@ export type PaymentAliasSearchParams = z.infer<typeof paymentAliasSearchSchema>;
 export const createImportSchema = z.object({
   file_name: z.string().min(1, 'File name is required'),
   file_type: fileTypeEnum,
-  bank_account_id: z.string().uuid('Bank account is required'),
+  bank_account_id: z.guid('Bank account is required'),
   bank_name: z.string().default('FirstBank'),
   transaction_filter: transactionFilterEnum.default('credit'),
   column_mapping: columnMappingSchema,
@@ -115,8 +115,8 @@ export type CreateImportFormData = z.infer<typeof createImportSchema>;
 
 export const importSearchSchema = z.object({
   status: importStatusEnum.optional(),
-  bank_account_id: z.string().uuid().optional(),
-  created_by: z.string().uuid().optional(),
+  bank_account_id: z.guid().optional(),
+  created_by: z.guid().optional(),
   start_date: z.string().optional(),
   end_date: z.string().optional(),
   page: z.coerce.number().min(1).default(1),
@@ -130,8 +130,8 @@ export type ImportSearchParams = z.infer<typeof importSearchSchema>;
 // ============================================================
 
 export const importRowMatchSchema = z.object({
-  row_id: z.string().uuid('Row ID is required'),
-  resident_id: z.string().uuid('Resident is required'),
+  row_id: z.guid('Row ID is required'),
+  resident_id: z.guid('Resident is required'),
   save_as_alias: z.boolean().default(false),
   alias_notes: z.string().optional(),
 });
@@ -159,7 +159,7 @@ export const fileUploadSchema = z.object({
       (file) => ACCEPTED_FILE_TYPES.includes(file.type) || file.name.endsWith('.csv') || file.name.endsWith('.xlsx') || file.name.endsWith('.pdf'),
       'Only CSV, XLSX, and PDF files are accepted'
     ),
-  bank_account_id: z.string().uuid('Please select a bank account'),
+  bank_account_id: z.guid('Please select a bank account'),
   transaction_filter: transactionFilterEnum.default('credit'),
 });
 
@@ -203,7 +203,7 @@ export type ParsedStatement = z.infer<typeof parsedStatementSchema>;
 // ============================================================
 
 export const confirmImportSchema = z.object({
-  import_id: z.string().uuid('Import ID is required'),
+  import_id: z.guid('Import ID is required'),
   create_mode: z.enum(['atomic', 'individual']).default('individual'),
   skip_duplicates: z.boolean().default(true),
   skip_unmatched: z.boolean().default(true),
@@ -216,14 +216,14 @@ export type ConfirmImportFormData = z.infer<typeof confirmImportSchema>;
 // ============================================================
 
 export const approveImportSchema = z.object({
-  import_id: z.string().uuid('Import ID is required'),
+  import_id: z.guid('Import ID is required'),
   approval_notes: z.string().optional(),
 });
 
 export type ApproveImportFormData = z.infer<typeof approveImportSchema>;
 
 export const rejectImportSchema = z.object({
-  import_id: z.string().uuid('Import ID is required'),
+  import_id: z.guid('Import ID is required'),
   rejection_reason: z.string().min(1, 'Rejection reason is required'),
 });
 
@@ -234,7 +234,7 @@ export type RejectImportFormData = z.infer<typeof rejectImportSchema>;
 // ============================================================
 
 export const matchResultSchema = z.object({
-  resident_id: z.string().uuid().nullable(),
+  resident_id: z.guid().nullable(),
   confidence: matchConfidenceEnum,
   method: matchMethodEnum.nullable(),
   matched_value: z.string().optional(),
@@ -296,8 +296,8 @@ export type TransactionTagSearchParams = z.infer<typeof transactionTagSearchSche
 
 // Tag Import Row Schema (for tagging rows during import review)
 export const tagImportRowSchema = z.object({
-  row_id: z.string().uuid('Row ID is required'),
-  tag_id: z.string().uuid('Tag ID is required').nullable(),
+  row_id: z.guid('Row ID is required'),
+  tag_id: z.guid('Tag ID is required').nullable(),
 });
 
 export type TagImportRowFormData = z.infer<typeof tagImportRowSchema>;

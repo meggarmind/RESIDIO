@@ -9,9 +9,9 @@ import { logAudit } from '@/lib/audit/logger';
 import { callWalletPaymentRpc } from '@/lib/billing/wallet-payment-rpc';
 
 const settleWalletInvoicesSchema = z.object({
-    residentId: z.string().uuid(),
-    invoiceIds: z.array(z.string().uuid()).min(1),
-    houseId: z.string().uuid().nullable().optional(),
+    residentId: z.guid(),
+    invoiceIds: z.array(z.guid()).min(1),
+    houseId: z.guid().nullable().optional(),
     paymentDate: z.string().date().optional(),
     requestKey: z.string().uuid(),
 });

@@ -142,7 +142,7 @@ export const billingProfileVersionItemSchema = z.object({
 export type BillingProfileVersionItemData = z.infer<typeof billingProfileVersionItemSchema>;
 
 export const billingProfileVersionSchema = z.object({
-  billing_profile_id: z.string().uuid('A billing profile must be selected'),
+  billing_profile_id: z.guid('A billing profile must be selected'),
   effective_from: monthStartDateSchema,
   items: z.array(billingProfileVersionItemSchema).min(1, 'At least one rate item is required'),
 });

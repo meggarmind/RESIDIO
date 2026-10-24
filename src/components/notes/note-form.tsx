@@ -59,7 +59,7 @@ const noteFormSchema = z.object({
   ] as const),
   is_confidential: z.boolean(),
   confidential_roles: z.array(z.string()).optional(),
-  document_id: z.string().uuid().nullable().optional(),
+  document_id: z.guid().nullable().optional(),
 });
 
 type NoteFormValues = z.infer<typeof noteFormSchema>;

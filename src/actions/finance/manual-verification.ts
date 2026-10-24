@@ -175,7 +175,7 @@ export async function unverifyPayment(
 
 const bulkVerifySchema = z.object({
     ids: z
-        .array(z.string().uuid())
+        .array(z.guid())
         .min(1, 'At least one payment ID is required')
         .max(500, 'At most 500 payments can be verified at once'),
     notes: z.string().optional(),
