@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { recordAudit } from '@/lib/audit/recorder';
 import { handleFinancialMessage, hashPin } from '@/lib/whatsapp/financial';
 import type { FinancialHouse, WhatsAppFinancialRepository, WhatsAppFinancialSession } from '@/lib/whatsapp/financial';
-import { createCoResidentLinkCode, getCoResidents } from '@/lib/whatsapp/co-resident';
+import { createCoResidentLinkCode, getCoResidents, hasLinkedCoResident } from '@/lib/whatsapp/co-resident';
 import { handleResidentMessage, identityFingerprint } from '@/lib/whatsapp/identity';
 import type { WhatsAppIdentityRepository, WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
 import type { WhatsAppInboundMessage } from '@/lib/whatsapp/types';
@@ -62,6 +62,7 @@ function repository(houses: FinancialHouse[], overrides: Record<string, unknown>
     getAssistantSettings: vi.fn().mockResolvedValue({ estatePhone: null, estateEmail: null, officeHours: null, paymentInstructions: null, keywordSynonyms: {} }),
     getLatestAnnouncements: vi.fn().mockResolvedValue([]),
     getCoResidents: vi.fn().mockResolvedValue(PEOPLE),
+    hasLinkedCoResident: vi.fn().mockResolvedValue(false),
     createCoResidentLinkCode: vi.fn().mockResolvedValue({ code: '654321', expiresAt: '2026-10-23T11:00:00Z' }),
     ...overrides,
   };
@@ -78,26 +79,53 @@ async function chat(repo: Repo, texts: string[]): Promise<string[]> {
 }
 
 describe('Link a co-resident in the Assistant (#1072)', () => {
-  it('offers Link a co-resident under More to a single-house sponsor', async () => {
+  it('offers Link a co-resident on the Financial menu to a single-house sponsor with none linked', async () => {
     for (const role of ['tenant', 'resident_landlord']) {
-      const replies = await chat(repository([{ ...PALM, role }]), ['1', PIN, '8']);
-      expect(replies[1]).toContain('8. More');
-      expect(replies[2]).toBe(['More', '1. Link a co-resident', 'Reply 0 for menu.'].join('\n'));
+      const repo = repository([{ ...PALM, role }]);
+      const replies = await chat(repo, ['1', PIN]);
+      expect(replies[1]).toContain('8. Link a co-resident');
+      expect(replies[1]).not.toContain('More');
+      expect(repo.hasLinkedCoResident).toHaveBeenCalledWith(SPONSOR, 'house-1');
     }
+  });
+
+  it('hides it once a co-resident is linked, reads 8 as unrecognised, and keeps the keyword working', async () => {
+    const repo = repository([PALM], { hasLinkedCoResident: vi.fn().mockResolvedValue(true) });
+    const replies = await chat(repo, ['1', PIN, '8', 'link co-resident']);
+    expect(replies[1]).not.toContain('Link a co-resident');
+    expect(replies[2]).toContain("I didn't catch that");
+    expect(replies[3]).toContain('1. Bola Example');
+  });
+
+  it('looks the link up once per turn', async () => {
+    const repo = repository([PALM]);
+    await chat(repo, ['1', PIN]);
+    expect(repo.hasLinkedCoResident).toHaveBeenCalledTimes(1);
   });
 
   it('does not offer it for a house the person does not live in as resident landlord or tenant', async () => {
     for (const house of [{ ...PALM, role: 'non_resident_landlord' }, { ...PALM, role: 'developer' }, { ...PALM, role: 'co_resident', accountResidentId: 'other', onBehalf: true }]) {
-      const replies = await chat(repository([house]), ['1', PIN, '8']);
-      expect(replies[1]).not.toContain('More');
+      const repo = repository([house]);
+      const replies = await chat(repo, ['1', PIN, '8']);
+      expect(replies[1]).not.toContain('Link a co-resident');
+      expect(replies[2]).toContain("I didn't catch that");
+      expect(repo.hasLinkedCoResident).not.toHaveBeenCalled();
     }
   });
 
-  it('lists the co-residents of the selected house from More, after the PIN', async () => {
+  it('lists the co-residents of the selected house from item 8, after the PIN', async () => {
     const repo = repository([PALM]);
-    const replies = await chat(repo, ['1', PIN, '8', '1']);
-    expect(replies[3]).toBe(['Which co-resident?', '1. Bola Example', '2. Chidi Example', 'Reply with the number.'].join('\n'));
+    const replies = await chat(repo, ['1', PIN, '8']);
+    expect(replies[2]).toBe(['Which co-resident?', '1. Bola Example', '2. Chidi Example', 'Reply with the number.'].join('\n'));
     expect(repo.getCoResidents).toHaveBeenCalledWith(SPONSOR, 'house-1');
+  });
+
+  it('reads a reply in a session left at the removed more node as a Financial-menu reply', async () => {
+    const repo = repository([PALM]);
+    await chat(repo, ['1', PIN]);
+    await repo.saveSession({ ...(await repo.getSession())!, currentNode: 'more' });
+    const replies = await chat(repo, ['8']);
+    expect(replies[0]).toContain('1. Bola Example');
   });
 
   it('asks for the PIN first when the keyword is typed while locked', async () => {
@@ -155,6 +183,41 @@ describe('Link a co-resident in the Assistant (#1072)', () => {
     await repo.saveSession({ ...session!, pinAuthenticated: false });
     await chat(repo, ['1']);
     expect(repo.createCoResidentLinkCode).not.toHaveBeenCalled();
+  });
+});
+
+describe('hasLinkedCoResident (#1117)', () => {
+  const people = { data: [{ resident: { id: 'co-1', first_name: 'Bola', last_name: 'Example' } }], error: null };
+  async function linked(optins: unknown[], phones: { phone_primary: string | null; phone_secondary: string | null } = { phone_primary: null, phone_secondary: null }) {
+    const from = vi.fn()
+      .mockReturnValueOnce(chain(people))
+      .mockReturnValueOnce(chain({ data: optins, error: null }))
+      .mockReturnValueOnce(chain({ data: [{ id: 'co-1', ...phones }], error: null }));
+    vi.mocked(createAdminClient).mockReturnValue({ from } as never);
+    return hasLinkedCoResident(SPONSOR, 'house-1');
+  }
+
+  it('is true for an active opt-in verified by a link code', async () => {
+    expect(await linked([{ resident_id: 'co-1', phone_number: '+2348011111111', link_verified_at: '2026-10-20T10:00:00Z' }])).toBe(true);
+  });
+
+  it('is true for an active opt-in whose number is on the co-resident record', async () => {
+    expect(await linked([{ resident_id: 'co-1', phone_number: '+2348011111111', link_verified_at: null }], { phone_primary: null, phone_secondary: '08011111111' })).toBe(true);
+  });
+
+  it('is false for an unverified opt-in whose number is not on the record', async () => {
+    expect(await linked([{ resident_id: 'co-1', phone_number: '+2348011111111', link_verified_at: null }], { phone_primary: '08022222222', phone_secondary: null })).toBe(false);
+  });
+
+  it('is false with no opt-in, and asks only for active opt-ins', async () => {
+    expect(await linked([])).toBe(false);
+  });
+
+  it('is false with no co-resident, without querying opt-ins', async () => {
+    const from = vi.fn().mockReturnValueOnce(chain({ data: [], error: null }));
+    vi.mocked(createAdminClient).mockReturnValue({ from } as never);
+    expect(await hasLinkedCoResident(SPONSOR, 'house-1')).toBe(false);
+    expect(from).toHaveBeenCalledTimes(1);
   });
 });
 

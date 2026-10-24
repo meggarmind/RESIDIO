@@ -5,6 +5,7 @@ import {
   SPONSOR_ROLES,
   createCoResidentLinkCode,
   getCoResidents,
+  hasLinkedCoResident,
   getSponsoredHouses,
   type CoResident,
 } from '@/lib/whatsapp/co-resident';
@@ -271,6 +272,8 @@ export interface WhatsAppFinancialRepository {
   requestClearance(input: Parameters<typeof requestClearanceCertificate>[0]): Promise<ClearanceRequestResult>;
   /** The sponsor's active co-residents on this house (#1072). */
   getCoResidents(sponsorId: string, houseId: string): Promise<CoResident[]>;
+  /** Whether any of the sponsor's co-residents on this house is already linked to WhatsApp (#1117). */
+  hasLinkedCoResident(sponsorId: string, houseId: string): Promise<boolean>;
   /** A LINK code for one of the sponsor's co-residents on this house; null when that person is not one. */
   createCoResidentLinkCode(input: { sponsorId: string; coResidentId: string; houseId: string }): Promise<{ code: string; expiresAt: string } | null>;
   /** The statement periods offered for this property (#1069). */
@@ -799,6 +802,7 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
     storeReceiptPdf,
     requestClearance: requestClearanceCertificate,
     getCoResidents,
+    hasLinkedCoResident,
     createCoResidentLinkCode,
     getStatementPeriods: loadStatementPeriods,
     getEstateName: estateName,
@@ -901,7 +905,7 @@ async function sendFinancialReply(
 //
 // The session's current_node is `<node>` or `<node>~<misses>`, misses being the
 // unrecognised replies in a row. Nodes: main, financial, answer (after a financial
-// answer), more, alerts, notices, disambiguate, statement_period,
+// answer), alerts, notices, disambiguate, statement_period,
 // link_pick, property:<target> and pin:<target>, where target is menu, switch, link or an item.
 
 type Target = 'menu' | 'switch' | 'report' | 'link' | FinancialMenuItem;
@@ -932,6 +936,8 @@ interface Turn {
   pinHash?: string | null;
   pinGate?: boolean;
   houses?: FinancialHouse[];
+  /** Looked up at most once per turn, only for a sponsor house (#1117). */
+  coResidentLinked?: boolean;
   notices?: AssistantAnnouncement[];
   /** Set by a reply that delivered a financial answer, so a thank-you right after can open the survey (#872). */
   answered?: boolean;
@@ -1012,16 +1018,15 @@ function isSponsorHouse(house: FinancialHouse | null): boolean {
 
 const LINK_WORDS = new Set(['link co-resident', 'link co resident', 'link a co-resident']);
 
-/** The More menu: Switch property for several houses, Link a co-resident for a sponsor (#1072 decision 3). */
-function moreItems(turn: Turn): { label: string; target: Target }[] {
+/** Link a co-resident shows to a sponsor until one of their co-residents on the house is linked (#1117). */
+async function showLinkItem(turn: Turn): Promise<boolean> {
   const house = selectedHouse(turn);
-  return [
-    ...((turn.houses || []).length > 1 ? [{ label: `Switch property${house ? ` (now: ${house.label})` : ''}`, target: 'switch' as const }] : []),
-    ...(isSponsorHouse(house) ? [{ label: 'Link a co-resident', target: 'link' as const }] : []),
-  ];
+  if (!house || !isSponsorHouse(house)) return false;
+  turn.coResidentLinked ??= await turn.options.repository.hasLinkedCoResident(turn.identity.id, house.id);
+  return !turn.coResidentLinked;
 }
 
-function financialMenu(turn: Turn): string {
+async function financialMenu(turn: Turn): Promise<string> {
   const houses = turn.houses || [];
   const multiple = houses.length > 1;
   const house = selectedHouse(turn);
@@ -1040,7 +1045,8 @@ function financialMenu(turn: Turn): string {
     '5. Receipt',
     '6. Report a payment',
     ...(house && !OCCUPANT_ROLES.has(house.role) ? [] : ['7. Clearance certificate']),
-    ...(moreItems(turn).length > 0 ? ['8. More'] : []),
+    ...((await showLinkItem(turn)) ? ['8. Link a co-resident'] : []),
+    ...(multiple ? [`10. Switch property${house ? ` (now: ${house.label})` : ''}`] : []),
     lastLine,
   ].join('\n');
 }
@@ -1098,12 +1104,12 @@ async function enterFinancial(turn: Turn, target: Target, prefix?: string, prope
   if (!selectedHouse(turn)) turn.session.selectedHouseId = houses[0].id;
 
   if (selectedHouse(turn)?.onBehalf && (target === 'wallet' || target === 'clearance')) {
-    await respond(turn, `${lead}${CO_RESIDENT_REFUSAL}\n${financialMenu(turn)}`, 'financial');
+    await respond(turn, `${lead}${CO_RESIDENT_REFUSAL}\n${await financialMenu(turn)}`, 'financial');
     return;
   }
 
   if (target === 'menu') {
-    await respond(turn, `${lead}${financialMenu(turn)}`, 'financial');
+    await respond(turn, `${lead}${await financialMenu(turn)}`, 'financial');
     return;
   }
   if (target === 'statement') {
@@ -1132,7 +1138,7 @@ async function showCoResidents(turn: Turn, lead: string): Promise<void> {
     return respond(turn, `${lead}A security PIN is required before linking a co-resident. To set one, ${SET_PIN_HINT}.\n${footer(turn)}`, 'answer');
   }
   if (!isSponsorHouse(house)) {
-    return respond(turn, `${lead}Only the resident landlord or tenant of ${house.label} can link a co-resident.\n${financialMenu(turn)}`, 'financial');
+    return respond(turn, `${lead}Only the resident landlord or tenant of ${house.label} can link a co-resident.\n${await financialMenu(turn)}`, 'financial');
   }
   const people = await turn.options.repository.getCoResidents(turn.identity.id, house.id);
   if (people.length === 0) {
@@ -1954,21 +1960,12 @@ async function converse(turn: Turn, expired: boolean, endedOnPurpose = false): P
     return respond(turn, UNSUBSCRIBED_REPLY, 'main');
   }
 
-  if (node === 'more') {
-    await loadHouses(turn);
-    const item = /^\d$/.test(input) ? moreItems(turn)[Number(input) - 1] : undefined;
-    if (item) return enterFinancial(turn, item.target);
-    return miss(turn, node);
-  }
-
-  if (node === 'financial' || node === 'answer' || node.startsWith('statement:')) {
+  if (node === 'financial' || node === 'answer' || node === 'more' || node.startsWith('statement:')) {
     const item = FINANCIAL_ITEM_NUMBERS[input];
     if (item) return enterFinancial(turn, item);
     await loadHouses(turn);
-    const more = moreItems(turn);
-    if (input === '8' && more.length > 0) {
-      return respond(turn, ['More', ...more.map((entry, index) => `${index + 1}. ${entry.label}`), footer(turn)].join('\n'), 'more');
-    }
+    if (input === '8' && (await showLinkItem(turn))) return enterFinancial(turn, 'link');
+    if (input === '10' && (turn.houses || []).length > 1) return enterFinancial(turn, 'switch');
     return miss(turn, node);
   }
 

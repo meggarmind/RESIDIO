@@ -1,5 +1,6 @@
 import { recordAudit } from '@/lib/audit/recorder';
 import { createAdminClient } from '@/lib/supabase/server';
+import { normalizePhoneNumber } from '@/lib/sms/termii';
 import { insertWhatsAppCode } from '@/lib/whatsapp/link-codes';
 
 /** Roles that can sponsor a co-resident (#1067); the sponsor's account is the one a co-resident sees (#1071). */
@@ -67,6 +68,28 @@ export async function getCoResidents(sponsorId: string, houseId: string): Promis
     .filter((resident): resident is { id: string; first_name: string; last_name: string } => !!resident)
     .map((resident) => ({ id: resident.id, firstName: resident.first_name, lastName: resident.last_name }))
     .sort((a, b) => a.firstName.localeCompare(b.firstName) || a.lastName.localeCompare(b.lastName) || a.id.localeCompare(b.id));
+}
+
+/**
+ * True when any active co-resident of this sponsor on this house has a verified WhatsApp link (#1117): an
+ * active opt-in with link_verified_at set, or whose number is on the co-resident's own record. This is how
+ * findLinkedResidents reads a verified link; an unverified opt-in gets the community tier only.
+ */
+export async function hasLinkedCoResident(sponsorId: string, houseId: string): Promise<boolean> {
+  const people = await getCoResidents(sponsorId, houseId);
+  if (people.length === 0) return false;
+  const supabase = createAdminClient();
+  const ids = people.map((person) => person.id);
+  const [optins, residents] = await Promise.all([
+    supabase.from('whatsapp_optins').select('resident_id, phone_number, link_verified_at').in('resident_id', ids).is('deactivated_at', null),
+    supabase.from('residents').select('id, phone_primary, phone_secondary').in('id', ids),
+  ]);
+  if (optins.error) throw optins.error;
+  if (residents.error) throw residents.error;
+  const rows = optins.data || [];
+  if (rows.length === 0) return false;
+  const roster = new Map((residents.data || []).map((row) => [row.id, [row.phone_primary, row.phone_secondary].filter(Boolean).map((phone) => normalizePhoneNumber(phone as string))]));
+  return rows.some((row) => !!row.link_verified_at || (roster.get(row.resident_id) || []).includes(normalizePhoneNumber(row.phone_number)));
 }
 
 /**
