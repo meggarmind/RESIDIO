@@ -132,7 +132,7 @@ describe('Sidebar build info (#421)', () => {
     expect(screen.queryByText('DEV')).toBeNull();
   });
 
-  it('shows tag+commits past a release, with the full version in the tooltip (#633)', () => {
+  it('shows the dotted -dev version past a release, with the full version in the tooltip (#633, #1113)', () => {
     authValue = auth;
     stubStaging();
     vi.stubEnv('NEXT_PUBLIC_APP_VERSION', 'v0.5.0-341-ga1b2c3d');

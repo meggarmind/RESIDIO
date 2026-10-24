@@ -34,7 +34,10 @@ export function getBuildInfo(): BuildInfo {
 }
 
 export interface BuildLabel {
-  /** What the sidebar shows: `v1.0.341-dev` past a release (tag patch + commits), otherwise the version as-is. */
+  /**
+   * What the sidebar shows: `v1.0.341-dev` past a release -- the tag's patch plus the
+   * commits since -- otherwise the version as-is.
+   */
   short: string;
   /** The full identity, for the tooltip. Never repeats the commit hash. */
   full: string;
