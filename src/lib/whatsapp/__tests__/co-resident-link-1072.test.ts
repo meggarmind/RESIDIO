@@ -103,6 +103,10 @@ describe('Link a co-resident in the Assistant (#1072)', () => {
     const sponsorRepo = repository([PALM]);
     await chat(sponsorRepo, ['1', PIN]);
     expect(sponsorRepo.hasLinkedCoResident).toHaveBeenCalledTimes(1);
+    // Replying 8 reads the flag and then renders through enterFinancial: still one lookup for that turn.
+    const pickRepo = repository([PALM]);
+    await chat(pickRepo, ['1', PIN, '8']);
+    expect(pickRepo.hasLinkedCoResident).toHaveBeenCalledTimes(2);
     const developerRepo = repository([{ ...PALM, role: 'developer' }]);
     await chat(developerRepo, ['1', PIN, '8']);
     expect(developerRepo.hasLinkedCoResident).not.toHaveBeenCalled();
