@@ -15,13 +15,18 @@ describe('deriveHouseState', () => {
 });
 
 describe('allowedResidentTypes', () => {
-  it('allows only secondary on a tenanted or owner-occupied house', () => {
-    expect(allowedResidentTypes('has_tenant')).toEqual(['secondary']);
-    expect(allowedResidentTypes('has_resident_landlord')).toEqual(['secondary']);
+  it('allows only secondary for an occupier role on a tenanted or owner-occupied house', () => {
+    expect(allowedResidentTypes('has_tenant', 'resident_landlord')).toEqual(['secondary']);
+    expect(allowedResidentTypes('has_resident_landlord', 'tenant')).toEqual(['secondary']);
   });
 
-  it('allows both types otherwise', () => {
-    expect(allowedResidentTypes('empty')).toEqual(['primary', 'secondary']);
-    expect(allowedResidentTypes('has_non_resident_landlord')).toEqual(['primary', 'secondary']);
+  it('accepts a non-occupier role on a tenant-only house', () => {
+    expect(allowedResidentTypes('has_tenant', 'non_resident_landlord')).toEqual(['primary', 'secondary']);
+    expect(allowedResidentTypes('has_tenant', 'developer')).toEqual(['primary', 'secondary']);
+  });
+
+  it('allows both types on a house without an occupier', () => {
+    expect(allowedResidentTypes('empty', 'tenant')).toEqual(['primary', 'secondary']);
+    expect(allowedResidentTypes('has_non_resident_landlord', 'tenant')).toEqual(['primary', 'secondary']);
   });
 });

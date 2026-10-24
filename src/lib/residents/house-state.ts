@@ -10,7 +10,10 @@ export function deriveHouseState(activeRoles: readonly string[]): HouseState {
   return 'empty';
 }
 
-/** A tenanted or owner-occupied house already has its primary resident; only secondary residents may be added. */
-export function allowedResidentTypes(state: HouseState): ResidentType[] {
-  return state === 'has_tenant' || state === 'has_resident_landlord' ? ['secondary'] : ['primary', 'secondary'];
+const OCCUPIER_ROLES = ['tenant', 'resident_landlord'];
+
+/** A tenanted or owner-occupied house already has its primary occupier; only secondary residents may take an occupier role. */
+export function allowedResidentTypes(state: HouseState, role: string): ResidentType[] {
+  const occupied = state === 'has_tenant' || state === 'has_resident_landlord';
+  return occupied && OCCUPIER_ROLES.includes(role) ? ['secondary'] : ['primary', 'secondary'];
 }

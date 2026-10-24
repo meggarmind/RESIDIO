@@ -145,10 +145,10 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId }: Reside
 
   // The house state comes from the house's live residents, never from the URL. The server re-checks on submit.
   const onlySecondaryAllowed = React.useMemo(() => {
-    if (!houseResidents) return false;
-    const allowed = allowedResidentTypes(deriveHouseState(houseResidents.map((r) => r.resident_role)));
+    if (!houseResidents || !residentRole) return false;
+    const allowed = allowedResidentTypes(deriveHouseState(houseResidents.map((r) => r.resident_role)), residentRole);
     return allowed.length === 1 && allowed[0] === 'secondary';
-  }, [houseResidents]);
+  }, [houseResidents, residentRole]);
 
   // Role options filtered by resident type and entity type
   const availableRoles = React.useMemo(() => {

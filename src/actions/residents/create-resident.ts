@@ -111,7 +111,7 @@ export async function createResident(
       return { data: null, error: `Could not check the house: ${rolesError.message}` };
     }
     const state = deriveHouseState((activeRoles ?? []).map((r) => r.resident_role));
-    if (!allowedResidentTypes(state).includes(formData.resident_type)) {
+    if (!allowedResidentTypes(state, role).includes(formData.resident_type)) {
       return { data: null, error: 'This house already has a primary resident. Only secondary residents can be added.' };
     }
   }
