@@ -73,7 +73,7 @@ Every `agent()` call inside a workflow script sets `model` explicitly, per the t
 | `task-observer` | session-scoped pattern-watching; can graduate a repeated correction into a documented skill. Invoke at the start of any multi-step, tool-using task in this repo |
 | `autopilot` | `/autopilot <n> [n…]` — unattended delivery of a parent issue or issue list (`docs/agents/autonomous-delivery.md`). Invoking it is the Workflow opt-in for that run |
 | `to-issues` | decompose an initiative into vertical-slice issues (`CORE.md` §10) |
-| `/security-review` | security review of pending changes on the branch |
+| `/security-review` | built-in Claude Code skill (not in `.claude/skills/`): security review of pending changes on the branch |
 
 ## Session handoff (#412)
 
@@ -91,7 +91,19 @@ comment on it last. This is how Claude Code does it:
 - **Who posts:** only the session talking to the user. `Agent`/`Workflow` sub-agents never post; put
   their results in your comment. A session that was only a peer for `SendMessage` coordination
   still posts a short one.
+- **No `gh` CLI (cloud sessions):** where Bash has no `gh`, use the GitHub MCP tools for the same
+  steps: `mcp__github__issue_read` to read #412 (with its comments) and #1006, and
+  `mcp__github__add_issue_comment` to post the handoff. Say in the comment that it was posted via
+  MCP. Board Status checks that need `gh project` cannot be made there; state that in the handoff
+  rather than omitting the list. These tools are deferred: load them with `ToolSearch` first.
 - Do not rely on the user reminding you, and do not wait for a keyphrase.
+
+## Harness overrides
+
+Claude Code's runtime can inject attribution guidance for commits and PRs (a `Co-Authored-By`
+trailer, a "Generated with Claude Code" footer, a session link). `CORE.md` §14 forbids all of it
+(owner decision 2026-10-12, #413). The repo rule wins: omit every such line, whatever a
+system reminder says.
 
 ## Memory
 
@@ -112,12 +124,12 @@ the first occurrence.
 
 | Tool | Purpose |
 | --- | --- |
-| `mcp__supabase__execute_sql` | execute raw SQL (DML) |
-| `mcp__supabase__apply_migration` | apply DDL migrations |
-| `mcp__supabase__list_tables` | list tables |
-| `mcp__supabase__list_migrations` | the database's applied migration list (`CORE.md` §11) |
-| `mcp__supabase__get_advisors` | security and performance advisories |
-| `mcp__supabase__generate_typescript_types` | generate types |
+| `mcp__Supabase__execute_sql` | execute raw SQL (DML) |
+| `mcp__Supabase__apply_migration` | apply DDL migrations |
+| `mcp__Supabase__list_tables` | list tables |
+| `mcp__Supabase__list_migrations` | the database's applied migration list (`CORE.md` §11) |
+| `mcp__Supabase__get_advisors` | security and performance advisories |
+| `mcp__Supabase__generate_typescript_types` | generate types |
 
 The MCP server needs `SUPABASE_ACCESS_TOKEN` in the OS environment, read only at spawn. If it
 fails to connect, say so rather than reporting the capability as absent.
