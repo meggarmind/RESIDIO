@@ -87,7 +87,8 @@ vi.mock('@/components/residents/wallet-balance', () => ({
 }));
 vi.mock('@/components/residents/wallet-transactions', () => ({ WalletTransactions: () => null }));
 vi.mock('@/components/residents/wallet-payment-batch-tools', () => ({ WalletPaymentBatchTools: () => null }));
-vi.mock('@/components/residents/resident-payments', () => ({ ResidentPayments: () => null }));
+vi.mock('@/hooks/use-imports', () => ({ useResidentAliases: () => ({ data: { data: [] } }) }));
+vi.mock('@/components/residents/unposted-payments-strip', () => ({ UnpostedPaymentsStrip: () => null }));
 vi.mock('@/components/residents/payment-aliases', () => ({ PaymentAliases: () => null }));
 vi.mock('@/components/residents/resident-security-contacts', () => ({
   ResidentSecurityContacts: () => <div data-testid="security-tab" />,

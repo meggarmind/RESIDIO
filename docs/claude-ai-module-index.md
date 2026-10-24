@@ -280,7 +280,7 @@ shadcn/ui components - button, card, form, table, dialog, sheet, tabs, badge, al
 |-----------|------------|
 | `dashboard/` | Sidebar, ModernSidebar, Header, MobileNav, StatsCards, QuickStatsCard, RecentActivityCard |
 | `resident-portal/` | PortalSidebar, PortalHeader, PortalBottomNav, PropertyHeroCard, PropertyCarousel, InvoiceCard, SecurityContactForm, HouseholdMemberForm, ContactVerificationCard, ActivityFeed, ImpersonationBanner |
-| `residents/` | ResidentsTable, ResidentForm, ResidentStatusBadge, ResidentRoleBadge, LinkedHouses, ResidentPayments, EmergencyContacts |
+| `residents/` | ResidentsTable, ResidentForm, ResidentStatusBadge, ResidentRoleBadge, LinkedHouses, EmergencyContacts |
 | `houses/` | HousesTable, HouseForm, HouseStatusBadge, OwnershipHistory, OccupancyTimeline |
 | `payments/` | PaymentsTable, PaymentForm, PaymentReceipt, PaymentStatusBadge |
 | `billing/` | InvoicesTable, BillingProfileForm, BillingProfileCard, InvoiceDetail, WalletCard, WalletTransactions |
