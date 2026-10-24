@@ -2,10 +2,10 @@
 
 RESIDIO issues live on a GitHub Projects (v2) board, separate from the triage
 labels described in `triage-labels.md`. New issues are added to it
-automatically by `.github/workflows/add-issues-to-project.yml`, and since #1104
-`.github/workflows/board-sync.yml` moves them across columns (and swaps the
-matching labels) as work progresses. The commands below are the manual
-fallback for when automation fails.
+automatically by `.github/workflows/add-issues-to-project.yml`; moving them
+across columns is done by `.github/workflows/board-sync.yml` (see "Board automation"
+below). The manual commands further down are for correcting the board when the
+automation has not.
 
 - **Board**: https://github.com/users/meggarmind/projects/1 (owner: `meggarmind`, project number `1`)
 - **Project node ID**: `PVT_kwHOCp3Gc84BgB2N`
@@ -29,7 +29,7 @@ Read it at session start, with #412. If a definition changes, update #1006 and t
 
 | Triage label (`triage-labels.md`) | Board Status  |
 | ---------------------------------- | ------------- |
-| `backlog` / unlabeled (`needs-triage` is legacy)  | Backlog       |
+| `backlog` / unlabeled (`needs-triage` is retired) | Backlog |
 | `needs-info`                       | Backlog       |
 | `ready-for-agent` / `ready-for-human` | Ready      |
 | *(issue branch pushed, or draft PR)* | In progress |
@@ -37,50 +37,41 @@ Read it at session start, with #412. If a definition changes, update #1006 and t
 | `on-stage` (closed issue, live on Stage, not yet on Prod) | On stage |
 | Released to Prod, hotfix, sync PR, or `wontfix` | Done |
 
-## What moves an issue's Status
+## Board automation (#1104)
 
-Owner decisions, 2026-10-24 (#1104). Automation moves the board; agents do not, as a routine.
-The rules are data in `.github/board-automation.json`, applied by `scripts/board-sync.mjs` from
-`.github/workflows/board-sync.yml`.
+`scripts/board-sync.mjs` runs from `.github/workflows/board-sync.yml`. Rules are in the pure
+`decideTransition`; Status option IDs, branch names and label names are in
+`.github/board-automation.json`. Board writes use the `ADD_TO_PROJECT_PAT` secret (a user-owned
+project is out of reach of `GITHUB_TOKEN`).
 
-| Status | When | Labels | Issue state | Moved by |
-| --- | --- | --- | --- | --- |
-| Backlog | new or unrefined observation or idea, or waiting on info | `backlog` (replaces `needs-triage`) or `needs-info` | open | automation on open |
-| Ready | refined: scope, success criteria and validation steps written | `ready-for-agent` / `ready-for-human` | open | the label; automation sets Status |
-| In progress | issue branch pushed (`<lane>/issue-<n>-…`) or draft PR | `harness:*` (unchanged) | open | automation |
-| In review | non-draft PR open (QA, testing, security review, automatic or manual) | | open | automation |
-| On stage | PR merged into `stage` | `on-stage` | **closed** | automation |
-| Done | release PR `stage` → `master` merged; or hotfix merged to `master`; or sync PR; or `wontfix` / not planned; or, in a repo with no `stage`, PR merged | | closed | automation |
+| Event | Result |
+| --- | --- |
+| Issue opened without a triage label | `backlog` added, Backlog |
+| `ready-for-*` added | Ready (the other triage labels removed; `ready-for-agent` with no Scope, success criteria or Validation section gets a warning comment) |
+| `backlog` or `needs-info` added | Backlog; removes `ready-for-*` (the owner's veto) |
+| Branch `<lane>/issue-<n>-…` created | In progress, if the issue was Backlog or Ready |
+| PR opened or reopened that says `Closes`/`Part of`/`Refs #N` | In review |
+| PR closed unmerged | In progress (unless another open PR links the issue) |
+| PR with `Closes #N` merged into `stage` | Issue closes (GitHub); On stage; `on-stage` added; triage labels removed |
+| Issue reopened | Ready if it has a `ready-for-*` label, else In progress; `on-stage` removed |
+| Issue closed `wontfix`, not planned, or by hand with no closing PR | Done |
+| Release PR merged into `master` | Closed On stage issues whose closing PR's merge commit is an ancestor of `master` → Done, `on-stage` removed, "Released in vX.Y.Z" comment |
+| A child changes | Parent takes the rolled-up Status: all Done → Done; all On stage or Done → On stage; any started → In progress; else Ready if all Ready, else Backlog. A parent is never closed. |
 
-- **Ready.** An agent may set `ready-for-agent` after refining the issue with the owner or
-  decomposing an agreed plan; the owner can veto. Automation sets Status and comments a warning when
-  the Scope, Success criteria or Validation headings are missing.
-- **On stage.** PRs say `Closes #N`, so the merge into `stage` closes the issue. Closed plus
-  On stage means "closed, not yet on Prod".
-- **Done.** When the issue's closing PR is an ancestor of the release merge commit, automation
-  removes `on-stage` and comments "Released in vX.Y.Z".
-- **Parents and umbrellas** (issues with sub-issues, e.g. `wayfinder:map`) take their Status from their
-  children: any child started → In progress; all children closed → On stage (the parent stays
-  open); all children Done → Done and closed. They never carry `on-stage`, and no single child
-  closes them.
-- **Backward moves** are automation-only: a PR closed unmerged with no other open PR → In progress;
-  an issue reopened → In progress if a branch or PR exists, else Ready (and `on-stage` removed).
-  Every other backward move stays manual.
-- **`pinned` issues** (#412, #1006) are never touched.
-- **Reconciler.** A nightly run of `node scripts/board-sync.mjs --reconcile` corrects drift and
-  writes a summary. It can also be started by hand as a `workflow_dispatch` run of `board-sync.yml`;
-  `dry_run` defaults to true, so set it false to apply changes. The nightly run is itself a dry
-  run until the repository variable `BOARD_SYNC_LIVE` is `true`; the owner sets it after approving
-  the first (backfill) dry-run report.
+Exempt: issues labelled `pinned`, #412 and #1006 (`exempt` in the config).
 
-### What agents still do
+**Nightly reconcile** (`--reconcile`) recomputes every issue from the same rules and fixes drift. It
+stays a dry run, posting its table to the job summary, until `reconcile.apply` is `true` in the
+config, or a manual run sets `apply`. Run it by hand with `node scripts/board-sync.mjs --reconcile
+--dry-run --report <file>`. Open issues that are On stage or carry `on-stage` are reported as flags,
+not rewritten: close them if the work is delivered.
 
-1. Promote an issue to `ready-for-agent` once it is refined.
-2. File new issues with `backlog`, not `needs-triage`.
-3. Write `Closes #N` in PR bodies (`scripts/issue-workflow.mjs finish` already does).
-4. At session end, check the reconciler output or the board for every issue touched, and list each
-   issue's final Status in the #412 handoff (still required). Fix Status by hand, with the commands
-   below, only if automation failed.
+Put `Closes #N` in a PR that finishes an issue. `Part of #N` moves the issue to In review but does not
+close it, so a merged `Part of` PR leaves it In review and the nightly run returns it to In progress.
+
+## Manual moves
+
+Use these only to correct the board. Backward moves other than the two above stay manual.
 
 ## Harness labels
 

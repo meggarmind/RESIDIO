@@ -556,9 +556,8 @@ export function publishStatusProblem(status, statuses) {
   return `is currently "${status ?? 'unset'}"; finish requires ${statuses.inReview}`;
 }
 
-// The PR body names the issue with a closing keyword ("Closes #N") so the merge
-// links and closes it, and scripts/board-sync.mjs (#1104) moves the board Status
-// from the merge event. No attribution footer (CORE.md section 14).
+// The PR body closes the issue with "Closes #N": the merge into stage closes it and
+// board-sync moves it to On stage (#1104). No attribution footer (CORE.md section 14).
 export function buildPrBody({ issue, defaultBranch, migrations }) {
   const lines = [
     '## Summary',
@@ -668,7 +667,7 @@ function finishPublish(config, cwd, issue, target, existingPr, args) {
 
   console.log(`Issue #${issue.number} is In review: ${pr.url}`);
   printMigrations(migrations, config.defaultBranch);
-  console.log('finish stops here and does not merge. After the PR merges, rerun finish to mark Done and clean up.');
+  console.log('finish stops here and does not merge. After the PR merges, rerun finish to clean up.');
 }
 
 // Phase 2: the PR is merged. Mark Done, report migrations, clean up if safe.
@@ -676,17 +675,17 @@ function finishMerged(config, cwd, issue, target, pr) {
   const files = runJson('gh', ['pr', 'view', String(pr.number), '--repo', config.repository, '--json', 'files'], cwd).files ?? [];
   const migrations = migrationsFromPaths(files.map((file) => file.path));
 
-  // Status is no longer set here: board-sync.yml (#1104) moves it to On stage / Done from the merge event.
-  commentIssue(config, cwd, issue, lifecycleComment(config, issue, config.statuses.onStage ?? 'On stage', {
+  // The merge closes the issue and board-sync moves it to On stage (#1104); do not set Done here.
+  commentIssue(config, cwd, issue, lifecycleComment(config, issue, 'On stage', {
     branch: target.branch,
     worktree: target.path,
     verification: 'passed',
     integration: `merged via PR #${pr.number}`,
   }));
-  console.log(`PR #${pr.number} is merged; board-sync moves the issue Status.`);
+  console.log(`PR #${pr.number} merged. board-sync moves issue #${issue.number} to On stage and closes it.`);
   printMigrations(migrations, config.defaultBranch);
   if (issue.state === 'OPEN') {
-    console.log(`Issue #${issue.number} is still OPEN. The merge closes it via \`Closes #${issue.number}\` and board-sync sets the Status; if that has not happened, check the board-sync run.`);
+    console.log(`Issue #${issue.number} is still OPEN. The PR's "Closes #${issue.number}" closes it on merge; if it stays open, the PR did not link it.`);
   }
 
   const root = commonRoot(cwd);

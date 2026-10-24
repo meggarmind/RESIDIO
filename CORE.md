@@ -379,11 +379,11 @@ completion.
 > **`finish` is coordinator-only; no sub-agent may run it.** It never merges and never applies
 > migrations. Run it once and it requires the issue worktree clean and the issue In review, runs the
 > checks, lists the migrations the branch adds against `origin/<defaultBranch>` (§11), pushes the
-> branch, opens or reuses the PR into `defaultBranch` (body says `Closes #N`; the merge closes the
-> issue, and board-sync moves the board, §9), and stops. After the PR merges (§16), rerun it: it
-> prints the migrations still to apply to Residio_Stage, and removes the worktree and local branch only
-> when the branch tip is inside the merged PR head and the tree is clean. The rerun does not set
-> Status (board-sync owns everything after the PR opens), and nothing closes a parent initiative.
+> branch, opens or reuses the PR into `defaultBranch` (body says "Closes #N"), sets the board to In
+> review, and stops. After the PR merges (§16), rerun it: it prints the migrations still to apply to
+> Residio_Stage, and removes the worktree and local branch only when the branch tip is inside the
+> merged PR head and the tree is clean. The merge closes the issue and the board automation (§9) moves
+> it. Use "Part of #N" for a PR that must not close its issue, such as a slice of a parent initiative.
 
 ---
 
@@ -392,38 +392,33 @@ completion.
 Issues and PRDs live as GitHub issues in `meggarmind/RESIDIO`, accessed via the `gh` CLI.
 External PRs are not a triage surface. See `docs/agents/issue-tracker.md`.
 
-**Triage labels**: `backlog`, `needs-info`, `ready-for-agent`, `ready-for-human`,
-`wontfix`. (`needs-triage` is legacy; automation swaps it to `backlog`.) See `docs/agents/triage-labels.md`.
+**Triage labels**: `backlog` (replaces `needs-triage`), `needs-info`, `ready-for-agent`,
+`ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
 
-**Project board** ("MeggaView", GitHub Projects v2). Labels and Status are moved by automation
-(`scripts/board-sync.mjs`, run by `.github/workflows/board-sync.yml`; rules in
-`.github/board-automation.json`; a nightly reconciler corrects drift). Agents do not move Status as
-a routine. Board and field IDs, and the manual `gh project item-edit` fallback, are in
-`docs/agents/project-board.md`.
+**Project board** ("MeggaView", GitHub Projects v2). New issues are auto-added by
+`.github/workflows/add-issues-to-project.yml`. **`.github/workflows/board-sync.yml` moves labels and
+Status** from issue, branch, PR and release events, and reconciles drift nightly (#1104; rules in
+`scripts/board-sync.mjs`, settings in `.github/board-automation.json`). Board and field IDs, and the
+manual `gh project item-edit` commands for the cases below, are in `docs/agents/project-board.md`.
 
 `Status` columns: **Backlog → Ready → In progress → In review → On stage → Done**. Definitions: pinned issue #1006.
 
-| Status | When | Labels | Issue |
-| --- | --- | --- | --- |
-| Backlog | new or unrefined observation or idea, or waiting on info | `backlog` or `needs-info` | open |
-| Ready | refined: scope, success criteria and validation steps written | `ready-for-agent` / `ready-for-human` | open |
-| In progress | issue branch pushed (`<lane>/issue-<n>-…`) or draft PR | `harness:*` | open |
-| In review | non-draft PR open (QA, testing, security review) | | open |
-| On stage | PR merged into `stage` | `on-stage` | **closed** (closed + On stage = not yet on Prod) |
-| Done | release PR `stage` → `master` merged (`on-stage` removed, "Released in vX.Y.Z" comment); or hotfix, sync PR, `wontfix`; or, with no stage, PR merged | | closed |
+The automation does all of these. You do only the judgement calls:
 
-- **Ready** is set by the label. An agent may set `ready-for-agent` after refining with the owner or
-  decomposing an agreed plan; the owner can veto. Automation sets Status and comments a warning when
-  the Scope, Success criteria or Validation headings are missing.
-- **Parents** (issues with sub-issues, e.g. `wayfinder:map`) roll up from their children: any child
-  started → In progress; all children closed → On stage (parent stays open); all children Done →
-  Done and closed. They never carry `on-stage` and no single child closes them.
-- **Backward moves** are automation-only: PR closed unmerged with no other open PR → In progress;
-  issue reopened → In progress if a branch or PR exists, else Ready (and `on-stage` removed). Every
-  other backward move stays manual.
-- Issues labelled `pinned` (#412, #1006) are never touched.
+1. A branch named `<lane>/issue-<n>-…` is created → **In progress**
+2. A PR links the issue (`Closes #N`, or `Part of #N`) → **In review**
+3. A PR with `Closes #N` merges into `stage` → the issue closes, **On stage**, `on-stage` label added
+4. A release PR merges into `master` → issues it shipped → **Done**, `on-stage` removed, "Released in vX.Y.Z" comment
+5. Parents and umbrellas take their Status from their children and are never closed by the automation.
+6. Issues labelled `pinned` (and #412, #1006) are never touched.
 
-Agents' remaining duties:
+The two backward moves are automatic: a PR closed unmerged → **In progress**; a reopened issue →
+**Ready** or **In progress**. Everything else backward stays manual.
+
+Your judgement calls: set `ready-for-agent` after you refine an issue (the owner can veto by adding
+`backlog`; a warning posts if Scope, success criteria or Validation is missing), put `Closes #N` in
+the PR, and set the board by hand only when the automation has not (the sync is a few seconds behind
+an event; the nightly run catches the rest).
 
 1. Promote to `ready-for-agent` once an issue is refined (above).
 2. File new issues with `backlog`, not `needs-triage`.

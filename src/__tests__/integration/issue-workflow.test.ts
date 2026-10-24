@@ -231,7 +231,7 @@ describe('finish: PR-based delivery (#220)', () => {
 
   it('builds a PR body with Closes #N, the migrations and no footer', () => {
     const body = buildPrBody({ issue, defaultBranch: 'stage', migrations: [`${M}1_a.sql`] });
-    expect(body).toContain('Closes #220: ');
+    expect(body).toContain('Closes #220');
     expect(body).toContain(`${M}1_a.sql`);
     expect(body).not.toMatch(/Generated with|Co-Authored-By/i);
     expect(buildPrBody({ issue, defaultBranch: 'stage', migrations: [] })).toContain('None added');

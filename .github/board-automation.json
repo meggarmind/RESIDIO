@@ -1,29 +1,45 @@
 {
-  "stageBranch": "stage",
-  "prodBranch": "master",
-  "statuses": {
-    "backlog": "Backlog",
-    "ready": "Ready",
-    "inProgress": "In progress",
-    "inReview": "In review",
-    "onStage": "On stage",
-    "done": "Done"
+  "repository": "meggarmind/RESIDIO",
+  "project": {
+    "owner": "meggarmind",
+    "number": 1,
+    "id": "PVT_kwHOCp3Gc84BgB2N",
+    "statusFieldId": "PVTSSF_lAHOCp3Gc84BgB2NzhaQc4M"
   },
+  "statusOptions": {
+    "Backlog": "f75ad846",
+    "Ready": "61e4505c",
+    "In progress": "47fc9ee4",
+    "In review": "df73e18b",
+    "On stage": "e2a2fcdd",
+    "Done": "98236657"
+  },
+  "stageBranch": "stage",
+  "releaseBranch": "master",
   "labels": {
     "backlog": "backlog",
-    "needsInfo": "needs-info",
-    "legacyTriage": ["needs-triage"],
+    "backlogFamily": ["backlog", "needs-info", "needs-triage"],
+    "retiredTriage": "needs-triage",
     "ready": ["ready-for-agent", "ready-for-human"],
+    "readyCheck": "ready-for-agent",
     "onStage": "on-stage",
-    "wontfix": "wontfix"
+    "notPlanned": ["wontfix", "duplicate"]
   },
-  "exemptLabels": ["pinned"],
-  "readinessHeadings": {
-    "scope": ["Scope"],
-    "criteria": ["Required Change", "Acceptance Criteria", "Success Criteria"],
-    "validation": ["Validation", "Verification"]
+  "exempt": {
+    "labels": ["pinned"],
+    "issues": [412, 1006]
   },
-  "readinessCommentMarker": "<!-- board-sync-readiness -->",
-  "releaseCommentMarker": "<!-- board-sync-released -->",
-  "reconcileClosedWindowDays": 90
+  "readyCheck": {
+    "marker": "<!-- board-sync:ready-check -->",
+    "sections": {
+      "Scope": "^#{1,6}\\s*scope\\b",
+      "Success criteria": "^#{1,6}\\s*(success criteria|acceptance criteria)\\b",
+      "Validation": "^#{1,6}\\s*validation\\b"
+    }
+  },
+  "releasedMarker": "<!-- board-sync:released -->",
+  "branchPattern": "^[^/]+/issue-(\\d+)-",
+  "reconcile": {
+    "apply": false
+  }
 }

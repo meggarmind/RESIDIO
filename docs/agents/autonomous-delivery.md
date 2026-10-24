@@ -81,7 +81,7 @@ any agent is briefed from it.
 | Label | Action |
 | --- | --- |
 | `ready-for-agent` | implement |
-| `backlog` (legacy `needs-triage`) / unlabelled | triage it yourself (`docs/agents/triage-labels.md`), then implement or skip with a reason |
+| `backlog` (formerly `needs-triage`) / unlabelled | triage it yourself (`docs/agents/triage-labels.md`), then implement or skip with a reason |
 | `needs-info` | answer the open question from precedent (§4), record it, then implement |
 | `wayfinder:grilling` | decide it from precedent (§4), post the decision as the issue's answer, close it, and let its dependants proceed |
 | `ready-for-human` | **skip** — the owner said it needs them. Comment that the run passed it over |
