@@ -18,7 +18,7 @@ import {
   type WhatsAppPrivacyNotice,
 } from '@/lib/whatsapp/privacy-notice';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
-import { getSponsoredHouses } from '@/lib/whatsapp/co-resident';
+import { getSponsoredHouses, isOnRoster } from '@/lib/whatsapp/co-resident';
 import { contactLine } from '@/lib/whatsapp/assistant-format';
 import { createSupabaseWhatsAppFinancialRepository, houseLabel } from '@/lib/whatsapp/financial';
 import type { WhatsAppInboundMessage, WhatsAppTextMessage } from '@/lib/whatsapp/types';
@@ -168,15 +168,6 @@ async function getAccess(residentId: string): Promise<{ financialEligible: boole
     financialEligible: sponsored || roles.some((role) => BILLABLE_ROLES.has(role)),
     accessAllowed: roles.some((role) => ASSISTANT_ROLES.has(role)),
   };
-}
-
-function isOnRoster(
-  resident: { phone_primary: string | null; phone_secondary: string | null },
-  normalized: string
-): boolean {
-  return [resident.phone_primary, resident.phone_secondary]
-    .filter(Boolean)
-    .some((phone) => normalizePhoneNumber(phone as string) === normalized);
 }
 
 function createIdentity(

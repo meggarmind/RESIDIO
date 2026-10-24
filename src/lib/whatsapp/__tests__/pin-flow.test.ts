@@ -96,6 +96,7 @@ function statefulRepository(initialPinHash: string | null = null, allowance: Loo
     storeReceiptPdf: vi.fn(),
     requestClearance: vi.fn(),
     getCoResidents: vi.fn().mockResolvedValue([]),
+    hasLinkedCoResident: vi.fn().mockResolvedValue(false),
     createCoResidentLinkCode: vi.fn().mockResolvedValue(null),
     getStatementPeriods: vi.fn().mockResolvedValue(['this_month', 'this_year', 'last_six_months', 'last_twelve_months', 'all_time', 'since_move_in']),
     getEstateName: vi.fn().mockResolvedValue('Palm Estate'),
