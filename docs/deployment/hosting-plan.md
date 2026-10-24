@@ -587,8 +587,8 @@ CI does not deploy Stage: the KVM cron does, every 4 hours, building the pinned 
 is why Stage's own auto-deploy is off. The one exception is a `release:major` merged from
 `stage`, which `release.yml` deploys straight away (#525). Setup and secrets:
 `docs/agents/branching.md` (Build version variables). The admin sidebar footer and
-`GET /api/version` show them. The footer shortens a build past a release to `v1.0.0+341`
-(release plus commits since) and puts the full `v1.0.0-341-g3bafb1d` in its tooltip (#633);
+`GET /api/version` show them. The footer shortens a build past a release to `v1.0.341-dev`
+(release patch plus commits since) and puts the full `v1.0.0-341-g3bafb1d` in its tooltip (#633);
 until CI sets them it shows `dev`, with `dev · unknown` in the tooltip.
 
 Runtime secrets (build variable off; different values per environment):
