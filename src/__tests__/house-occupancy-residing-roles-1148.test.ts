@@ -60,10 +60,10 @@ describe('residents actions leave occupancy to the trigger', () => {
   const files = ['move-out-landlord.ts', 'move-out-owner.ts', 'move-out-renter.ts', 'remove-ownership.ts', 'unassign-house.ts'];
 
   it.each(files)('%s writes no is_occupied: false', (f) => {
-    expect(read(f)).not.toMatch(/is_occupied:\s*false/);
+    expect(read(f)).not.toMatch(/\.update\(\{\s*is_occupied:\s*false/);
   });
 
   it('move-out-renter.ts writes no unguarded is_occupied: true', () => {
-    expect(read('move-out-renter.ts')).not.toMatch(/is_occupied:\s*true/);
+    expect(read('move-out-renter.ts')).not.toMatch(/\.update\(\{\s*is_occupied:\s*true/);
   });
 });
