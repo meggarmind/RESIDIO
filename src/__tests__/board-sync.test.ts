@@ -3,17 +3,23 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 import {
+  addItemArgs,
+  assertNoGraphqlErrors,
   commit,
   decideLinked,
   decideParent,
   decideTransition,
   prEventType,
   issueNumberFromBranch,
+  mapProjectItems,
   mergeConfig,
   missingReadiness,
   parseArgs,
   parseLinkedIssues,
+  projectNode,
+  projectQueryArgs,
   reconcileIssue,
+  setStatusArgs,
 } from '../../scripts/board-sync.mjs';
 
 /**
@@ -517,5 +523,86 @@ describe('commit (dry-run write gate)', () => {
     expect(commit(issue(), decision, { dryRun: true }, writer)).toBe(false);
     expect(commit(issue(), { addLabels: [], removeLabels: [] }, { dryRun: false }, writer)).toBe(false);
     expect(calls).toBe(0);
+  });
+});
+
+describe('GraphQL project mapping (#1104)', () => {
+  const REPO = 'meggarmind/RESIDIO';
+  const page = (nodes: unknown[], root = 'user') => ({ data: { [root]: { projectV2: { id: 'PVT_x', items: { nodes } } } } });
+  const url = (kind: string, n: number, repo = REPO) => `https://github.com/${repo}/${kind}/${n}`;
+
+  it('maps an Issue node with a Status', () => {
+    const items = mapProjectItems(
+      page([{ id: 'PVTI_1', content: { __typename: 'Issue', number: 7, url: url('issues', 7) }, fieldValueByName: { name: 'In progress' } }]),
+      REPO,
+    );
+    expect(items).toEqual([{ id: 'PVTI_1', content: { type: 'Issue', number: 7, url: url('issues', 7) }, status: 'In progress' }]);
+  });
+
+  it('gives a node with no Status a null status', () => {
+    const [item] = mapProjectItems(
+      page([{ id: 'PVTI_2', content: { __typename: 'Issue', number: 8, url: url('issues', 8) }, fieldValueByName: null }]),
+      REPO,
+    );
+    expect(item.status).toBeNull();
+  });
+
+  it('maps a PullRequest node and tags its type', () => {
+    const [item] = mapProjectItems(
+      page([{ id: 'PVTI_3', content: { __typename: 'PullRequest', number: 9, url: url('pull', 9) }, fieldValueByName: { name: 'In review' } }]),
+      REPO,
+    );
+    expect(item.content.type).toBe('PullRequest');
+    expect(item.content.number).toBe(9);
+  });
+
+  it('skips draft issues that have no content', () => {
+    const items = mapProjectItems(page([{ id: 'PVTI_4', content: {}, fieldValueByName: null }, { id: 'PVTI_5', content: null }]), REPO);
+    expect(items).toEqual([]);
+  });
+
+  it('filters out items from another repository', () => {
+    const items = mapProjectItems(
+      page([
+        { id: 'a', content: { __typename: 'Issue', number: 1, url: url('issues', 1, 'someone/else') }, fieldValueByName: null },
+        { id: 'b', content: { __typename: 'Issue', number: 2, url: url('issues', 2) }, fieldValueByName: null },
+      ]),
+      REPO,
+    );
+    expect(items.map((i: { id: string }) => i.id)).toEqual(['b']);
+  });
+
+  it('reads the project from user or organization, and null when neither resolves', () => {
+    expect(projectNode(page([], 'user'))?.id).toBe('PVT_x');
+    expect(projectNode(page([], 'organization'))?.id).toBe('PVT_x');
+    expect(projectNode({ data: { user: null } })).toBeNull();
+    expect(mapProjectItems({ data: { user: null } }, REPO)).toEqual([]);
+  });
+
+  it('surfaces GraphQL errors as a thrown message', () => {
+    expect(() => assertNoGraphqlErrors({ errors: [{ message: 'boom' }, { message: 'bang' }] })).toThrow(/boom; bang/);
+    expect(assertNoGraphqlErrors({ data: {} })).toEqual({ data: {} });
+  });
+
+  it('passes values as variables, never in the query, and omits cursor on page one', () => {
+    const base = { owner: 'meggarmind', number: 1, statusField: 'Status' };
+    const first = projectQueryArgs('user', base);
+    expect(first.some((a: string) => a.startsWith('cursor='))).toBe(false);
+    expect(first).toContain('owner=meggarmind');
+    expect(first).toContain('number=1');
+    const query = first.find((a: string) => a.startsWith('query=')) as string;
+    expect(query).toContain('user(login: $owner)');
+    expect(query).not.toContain('meggarmind');
+    expect(projectQueryArgs('organization', { ...base, cursor: 'abc' })).toContain('cursor=abc');
+    expect(() => projectQueryArgs('x', base)).toThrow();
+  });
+
+  it('builds the mutation arguments with variables', () => {
+    const set = setStatusArgs('P', 'I', 'F', 'O');
+    expect(set).toEqual(expect.arrayContaining(['p=P', 'i=I', 'f=F', 'o=O']));
+    expect(set.find((a: string) => a.startsWith('query='))).toContain('updateProjectV2ItemFieldValue');
+    const add = addItemArgs('P', 'C');
+    expect(add).toEqual(expect.arrayContaining(['p=P', 'c=C']));
+    expect(add.find((a: string) => a.startsWith('query='))).toContain('addProjectV2ItemById');
   });
 });

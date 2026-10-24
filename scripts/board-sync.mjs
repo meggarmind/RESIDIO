@@ -512,6 +512,127 @@ function sleepSeconds(seconds) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, seconds * 1000);
 }
 
+/* GraphQL project access. `gh project *` resolves the owner type through queries the board PAT
+ * cannot make ("unknown owner type"), so the project is read and written with `gh api graphql`
+ * directly. Values are always passed as variables (-f/-F), never interpolated into a query. */
+
+const PROJECT_PAGE_LIMIT = 50;
+
+function projectQuery(ownerKind) {
+  if (ownerKind !== 'user' && ownerKind !== 'organization') throw new WorkflowError(`Unknown project owner kind "${ownerKind}".`);
+  return `query($owner: String!, $number: Int!, $statusField: String!, $cursor: String) {
+  ${ownerKind}(login: $owner) {
+    projectV2(number: $number) {
+      id
+      field(name: $statusField) { ... on ProjectV2SingleSelectField { id name options { id name } } }
+      items(first: 100, after: $cursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          id
+          content { __typename ... on Issue { number url } ... on PullRequest { number url } }
+          fieldValueByName(name: $statusField) { ... on ProjectV2ItemFieldSingleSelectValue { name } }
+        }
+      }
+    }
+  }
+}`;
+}
+
+/** Arguments for one page of the project query. The cursor is omitted on the first page. */
+export function projectQueryArgs(ownerKind, { owner, number, statusField, cursor }) {
+  const args = ['api', 'graphql', '-f', `query=${projectQuery(ownerKind)}`, '-f', `owner=${owner}`, '-F', `number=${number}`, '-f', `statusField=${statusField}`];
+  if (cursor) args.push('-f', `cursor=${cursor}`);
+  return args;
+}
+
+export function setStatusArgs(projectId, itemId, fieldId, optionId) {
+  const query = `mutation($p: ID!, $i: ID!, $f: ID!, $o: String!) {
+  updateProjectV2ItemFieldValue(input: { projectId: $p, itemId: $i, fieldId: $f, value: { singleSelectOptionId: $o } }) { projectV2Item { id } }
+}`;
+  return ['api', 'graphql', '-f', `query=${query}`, '-f', `p=${projectId}`, '-f', `i=${itemId}`, '-f', `f=${fieldId}`, '-f', `o=${optionId}`];
+}
+
+export function addItemArgs(projectId, contentId) {
+  const query = `mutation($p: ID!, $c: ID!) {
+  addProjectV2ItemById(input: { projectId: $p, contentId: $c }) { item { id } }
+}`;
+  return ['api', 'graphql', '-f', `query=${query}`, '-f', `p=${projectId}`, '-f', `c=${contentId}`];
+}
+
+/** The owner node of a project response, whichever of user/organization it came back under. */
+export function projectNode(response) {
+  return response?.data?.user?.projectV2 ?? response?.data?.organization?.projectV2 ?? null;
+}
+
+/** Throws the GraphQL error messages, if the response carries any. */
+export function assertNoGraphqlErrors(response) {
+  if (Array.isArray(response?.errors) && response.errors.length > 0) {
+    throw new WorkflowError(`GraphQL error: ${response.errors.map((e) => e?.message ?? String(e)).join('; ')}`);
+  }
+  return response;
+}
+
+/** Maps one page of project items to the shape the rest of this file uses; drafts (no content) are skipped. */
+export function mapProjectItems(response, repository) {
+  const nodes = projectNode(response)?.items?.nodes ?? [];
+  const items = [];
+  for (const node of nodes) {
+    if (!node?.content?.url) continue;
+    items.push({
+      id: node.id,
+      content: { type: node.content.__typename, number: node.content.number, url: node.content.url },
+      status: node.fieldValueByName?.name ?? null,
+    });
+  }
+  return repository ? items.filter((item) => belongsToRepository(item, repository)) : items;
+}
+
+function graphql(args, cwd) {
+  let response;
+  try {
+    response = JSON.parse(gh(args, cwd) || 'null');
+  } catch (error) {
+    if (error instanceof WorkflowError) throw error;
+    throw new WorkflowError(`gh api graphql failed: ${error.message}`);
+  }
+  return assertNoGraphqlErrors(response);
+}
+
+function loadProjectAs(ownerKind, project, statusField, repository, cwd) {
+  let projectId = null;
+  let field = null;
+  const items = [];
+  let cursor;
+  for (let page = 0; page < PROJECT_PAGE_LIMIT; page += 1) {
+    const response = graphql(projectQueryArgs(ownerKind, { owner: project.owner, number: project.number, statusField, cursor }), cwd);
+    const node = projectNode(response);
+    if (!node) return null;
+    projectId = node.id;
+    field = node.field?.options ? node.field : field;
+    items.push(...mapProjectItems(response, repository));
+    const info = node.items?.pageInfo;
+    if (!info?.hasNextPage) return { projectId, field, items };
+    cursor = info.endCursor;
+  }
+  throw new WorkflowError(`Project ${project.number} has more than ${PROJECT_PAGE_LIMIT * 100} items; stopping at the safety limit.`);
+}
+
+/** Loads project id, Status field and items. Tries the owner as a user, then as an organization. */
+function loadProject(project, statusField, repository, cwd) {
+  let loaded = null;
+  let userError = null;
+  try {
+    loaded = loadProjectAs('user', project, statusField, repository, cwd);
+  } catch (error) {
+    userError = error;
+  }
+  if (!loaded) loaded = loadProjectAs('organization', project, statusField, repository, cwd);
+  if (!loaded) {
+    throw new WorkflowError(`Project ${project.number} not found for owner ${project.owner}${userError ? ` (${userError.message})` : ''}. Check the token and its project scope.`);
+  }
+  return loaded;
+}
+
 class Board {
   constructor(config, cwd) {
     this.config = config;
@@ -522,16 +643,12 @@ class Board {
   load() {
     if (this.loaded) return;
     const { project, statusField } = this.config;
-    const owner = ['--owner', project.owner];
-    const view = ghJson(['project', 'view', String(project.number), ...owner, '--format', 'json'], this.cwd);
-    if (!view?.id) throw new WorkflowError('Project response did not include a node ID. Check the token and its project scope.');
-    this.projectId = view.id;
-    const fields = ghJson(['project', 'field-list', String(project.number), ...owner, '--format', 'json'], this.cwd);
-    this.field = (fields.fields ?? fields).find((f) => f.name === statusField);
+    const loaded = loadProject(project, statusField, this.config.repository, this.cwd);
+    this.projectId = loaded.projectId;
+    this.field = loaded.field;
     if (!this.field) throw new WorkflowError(`Project ${project.number} has no "${statusField}" field.`);
-    const listed = ghJson(['project', 'item-list', String(project.number), ...owner, '--format', 'json', '--limit', '2000'], this.cwd);
     this.items = new Map();
-    for (const item of (listed.items ?? listed).filter((i) => belongsToRepository(i, this.config.repository))) {
+    for (const item of loaded.items) {
       if (item.content?.type === 'PullRequest') continue;
       this.items.set(Number(item.content?.number), item);
     }
@@ -548,13 +665,16 @@ class Board {
     this.load();
     let item = this.items.get(Number(number));
     if (!item) {
-      const url = `https://github.com/${this.config.repository}/issues/${number}`;
-      const added = ghJson(['project', 'item-add', String(this.config.project.number), '--owner', this.config.project.owner, '--url', url, '--format', 'json'], this.cwd);
-      item = { id: added.id, content: { number }, status: null };
+      const issueNode = ghJson(['issue', 'view', String(number), '--repo', this.config.repository, '--json', 'id'], this.cwd);
+      if (!issueNode?.id) throw new WorkflowError(`Issue #${number} did not return a node ID.`);
+      const added = graphql(addItemArgs(this.projectId, issueNode.id), this.cwd);
+      const addedId = added?.data?.addProjectV2ItemById?.item?.id;
+      if (!addedId) throw new WorkflowError(`Adding issue #${number} to the project returned no item ID.`);
+      item = { id: addedId, content: { number }, status: null };
       this.items.set(Number(number), item);
     }
     const option = findStatusOption(this.field, status);
-    gh(['project', 'item-edit', '--id', item.id, '--project-id', this.projectId, '--field-id', this.field.id, '--single-select-option-id', option.id], this.cwd);
+    graphql(setStatusArgs(this.projectId, item.id, this.field.id, option.id), this.cwd);
     item.status = status;
   }
 }
