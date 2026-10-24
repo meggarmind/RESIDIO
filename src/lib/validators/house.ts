@@ -30,13 +30,13 @@ const shortNameField = (stored?: string | null) =>
 
 export const houseFormSchema = z.object({
   house_number: z.string().min(1, 'House number is required'),
-  street_id: z.string().uuid('Please select a street'),
-  house_type_id: z.string().uuid('Please select a house type').optional().or(z.literal('')),
+  street_id: z.guid('Please select a street'),
+  house_type_id: z.guid('Please select a house type').optional().or(z.literal('')),
   address_line_2: z.string().optional().or(z.literal('')),
   short_name: shortNameField(),
   notes: z.string().optional().or(z.literal('')),
   date_added_to_portal: z.string().optional(), // Date house was added to Residio (defaults to today)
-  billing_profile_id: z.string().uuid().optional().nullable().or(z.literal('')), // Override billing profile from house type
+  billing_profile_id: z.guid().optional().nullable().or(z.literal('')), // Override billing profile from house type
   number_of_plots: z.number().int().min(1, 'Must have at least 1 plot'), // Number of plots (for Development Levy)
   // Issue #119: the recorded identifier is never rewritten; the doubt about it
   // is carried alongside so it can be queried, filtered and cleared.
@@ -67,7 +67,7 @@ export const houseTypeFormSchema = z.object({
   name: z.string().min(1, 'House type name is required'),
   description: z.string().optional().or(z.literal('')),
   max_residents: z.number().min(1).max(50).default(10),
-  billing_profile_id: z.string().uuid().optional().or(z.literal('')),
+  billing_profile_id: z.guid().optional().or(z.literal('')),
 });
 
 export type HouseTypeFormData = z.infer<typeof houseTypeFormSchema>;
@@ -75,8 +75,8 @@ export type HouseTypeFormData = z.infer<typeof houseTypeFormSchema>;
 // Search/filter params schema
 export const houseSearchSchema = z.object({
   search: z.string().optional(),
-  street_id: z.string().uuid().optional(),
-  house_type_id: z.string().uuid().optional(),
+  street_id: z.guid().optional(),
+  house_type_id: z.guid().optional(),
   is_occupied: z.boolean().optional(),
   identifier_unverified: z.boolean().optional(), // Issue #119: "Needs confirmation" filter
   property_status: z.enum(['occupied', 'vacant', 'under_renovation', 'under_construction']).optional(),

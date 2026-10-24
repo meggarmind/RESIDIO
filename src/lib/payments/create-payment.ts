@@ -16,15 +16,15 @@ import { residentHasHouse } from '@/lib/payments/house-membership'
 
 // Extended schema to include import tracking fields, house association, and verification
 export const extendedPaymentSchema = paymentFormSchema.extend({
-    import_id: z.string().uuid().optional(),
-    import_row_id: z.string().uuid().optional(),
-    split_payment_group_id: z.string().uuid().optional().nullable(),
+    import_id: z.guid().optional(),
+    import_row_id: z.guid().optional(),
+    split_payment_group_id: z.guid().optional().nullable(),
     // Email import tracking (Phase 17)
-    email_import_id: z.string().uuid().optional(),
-    email_transaction_id: z.string().uuid().optional(),
+    email_import_id: z.guid().optional(),
+    email_transaction_id: z.guid().optional(),
     // Unified Expenditure Engine: Verification fields
     is_verified: z.boolean().optional(),
-    bank_row_id: z.string().uuid().optional(),
+    bank_row_id: z.guid().optional(),
 })
 
 export type CreatePaymentInput = z.infer<typeof extendedPaymentSchema>

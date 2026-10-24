@@ -23,14 +23,14 @@ const colorSchema = z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Color must be a hex v
 const createDocumentTagSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(100),
   color: colorSchema.optional(),
-  parent_tag_id: z.string().uuid().nullable().optional(),
+  parent_tag_id: z.guid().nullable().optional(),
 }).strict();
 
 // Strict: only these columns may be edited; anything else is rejected.
 const updateDocumentTagSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   color: colorSchema.optional(),
-  parent_tag_id: z.string().uuid().nullable().optional(),
+  parent_tag_id: z.guid().nullable().optional(),
   is_active: z.boolean().optional(),
 }).strict();
 

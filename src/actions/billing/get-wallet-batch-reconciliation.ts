@@ -11,7 +11,7 @@ import {
 } from '@/lib/billing/wallet-batch-reconciliation';
 
 const reconciliationInputSchema = z.object({
-    residentId: z.string().uuid().optional(),
+    residentId: z.guid().optional(),
     status: z.enum(['completed', 'reversed']).optional(),
     limit: z.number().int().min(1).max(500).default(200),
 });

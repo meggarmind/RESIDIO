@@ -10,8 +10,8 @@ import type { RateSnapshot } from '@/types/database';
 import { callWalletPaymentRpc } from '@/lib/billing/wallet-payment-rpc';
 
 const futurePrepaymentSchema = z.object({
-    residentId: z.string().uuid(),
-    houseId: z.string().uuid(),
+    residentId: z.guid(),
+    houseId: z.guid(),
     startMonth: z.string().regex(/^\d{4}-\d{2}-01$/),
     endMonth: z.string().regex(/^\d{4}-\d{2}-01$/),
     paymentDate: z.string().date().optional(),

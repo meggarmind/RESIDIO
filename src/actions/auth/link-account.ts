@@ -184,8 +184,8 @@ export async function getOrphanedAuthAccounts(): Promise<{
 }
 
 const linkAccountSchema = z.object({
-  authUserId: z.string().uuid('Invalid auth user ID'),
-  residentId: z.string().uuid('Invalid resident ID'),
+  authUserId: z.guid('Invalid auth user ID'),
+  residentId: z.guid('Invalid resident ID'),
   forceRelink: z.boolean().optional(),
 });
 

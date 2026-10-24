@@ -8,7 +8,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { callWalletPaymentBatchReversal } from '@/lib/billing/wallet-payment-rpc';
 
-const reverseBatchSchema = z.object({ batchId: z.string().uuid() });
+const reverseBatchSchema = z.object({ batchId: z.guid() });
 
 export async function reverseWalletPaymentBatch(batchId: string) {
     const auth = await authorizePermission(PERMISSIONS.BILLING_MANAGE_WALLETS);

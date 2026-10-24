@@ -73,8 +73,8 @@ export type ResidentMergeResult = {
 
 const pairSchema = z
   .object({
-    keptId: z.string().uuid('Choose a valid record to keep'),
-    duplicateId: z.string().uuid('Choose a valid duplicate record'),
+    keptId: z.guid('Choose a valid record to keep'),
+    duplicateId: z.guid('Choose a valid duplicate record'),
   })
   .refine((v) => v.keptId !== v.duplicateId, { message: 'Choose two different residents' });
 

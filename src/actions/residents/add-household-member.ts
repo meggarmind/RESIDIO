@@ -23,7 +23,7 @@ const HouseholdMemberSchema = z.object({
   phone_primary: z.string().optional(),
   email: z.string().email('Invalid email address').optional().or(z.literal('')),
   resident_role: z.enum(['co_resident', 'household_member', 'domestic_staff', 'caretaker', 'contractor']),
-  house_id: z.string().uuid('Invalid house ID'),
+  house_id: z.guid('Invalid house ID'),
   relationship: z.string().optional(), // e.g., "Spouse", "Child", "Driver"
   send_portal_invite: z.boolean().optional(), // Whether to send portal invitation email
 });
