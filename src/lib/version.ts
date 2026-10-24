@@ -34,7 +34,7 @@ export function getBuildInfo(): BuildInfo {
 }
 
 export interface BuildLabel {
-  /** What the sidebar shows: `v1.0.0+341` past a release, otherwise the version as-is. */
+  /** What the sidebar shows: `v1.0.341-dev` past a release (tag patch + commits), otherwise the version as-is. */
   short: string;
   /** The full identity, for the tooltip. Never repeats the commit hash. */
   full: string;
@@ -42,9 +42,15 @@ export interface BuildLabel {
 
 // `<tag>-<commits>-g<sha>`, as resolveVersion in scripts/coolify-version.mjs emits it.
 const DESCRIBED = /^(v\d+\.\d+\.\d+)-(\d+)-g([0-9a-f]+)$/;
+// Splits the tag so the commit count can be added to its patch.
+const TAG = /^v(\d+)\.(\d+)\.(\d+)$/;
 
 export function formatBuildLabel({ version, shortSha }: Pick<BuildInfo, 'version' | 'shortSha'>): BuildLabel {
   const described = DESCRIBED.exec(version);
-  if (described) return { short: `${described[1]}+${described[2]}`, full: version };
+  if (described) {
+    // Each commit past the tag counts as one patch, so a stage build reads as the next version; no rollover into minor.
+    const [, major, minor, patch] = TAG.exec(described[1])!;
+    return { short: `v${major}.${minor}.${Number(patch) + Number(described[2])}-dev`, full: version };
+  }
   return { short: version, full: `${version} · ${shortSha}` };
 }

@@ -91,11 +91,14 @@ describe('getBuildInfo', () => {
 });
 
 describe('formatBuildLabel (#633)', () => {
-  it('shortens a describe-style version to tag+commits and does not repeat the sha', () => {
-    expect(formatBuildLabel({ version: 'v1.0.0-341-g3bafb1d', shortSha: '3bafb1d' })).toEqual({
-      short: 'v1.0.0+341',
-      full: 'v1.0.0-341-g3bafb1d',
-    });
+  // #1113: a describe-style build shows tag patch + commit count, suffixed -dev.
+  it.each([
+    ['v1.11.0-11-g4bd9ed9', 'v1.11.11-dev'],
+    ['v1.11.3-1-gabc1234', 'v1.11.4-dev'],
+    ['v1.11.3-11-gabc1234', 'v1.11.14-dev'],
+    ['v0.5.0-341-ga1b2c3d', 'v0.5.341-dev'],
+  ])('shortens %s to %s and keeps the raw string as full, with no sha', (version, short) => {
+    expect(formatBuildLabel({ version, shortSha: 'a1b2c3d' })).toEqual({ short, full: version });
   });
 
   it('shows an exact release as-is, with the sha only in the full label', () => {
