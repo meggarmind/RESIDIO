@@ -18,7 +18,7 @@ Edit the right-hand column to match whatever vocabulary you actually use.
 ## Labels that are not triage labels
 
 The tracker carries other label families that look like triage labels and are not. They carry no
-Status mapping (`project-board.md`) and never substitute for one of the five above.
+Status mapping, except `on-stage` (`project-board.md`), and never substitute for one of the five above.
 
 | Family | Meaning | Set by |
 | --- | --- | --- |
