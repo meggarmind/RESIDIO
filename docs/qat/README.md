@@ -38,7 +38,7 @@ Browser-driven, page-by-page functional QA of the Residio **Admin Dashboard**, e
 
 ## Defect register
 
-Severity definitions follow `docs/validation/README.md`. **Every confirmed defect is filed as a GitHub issue**, labelled `bug` + `needs-triage`.
+Severity definitions follow `docs/validation/README.md`. **Every confirmed defect is filed as a GitHub issue**, labelled `bug` + `backlog`.
 
 | ID | Severity | Summary | Module | Issue |
 |---|---|---|---|---|

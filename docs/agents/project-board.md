@@ -2,9 +2,10 @@
 
 RESIDIO issues live on a GitHub Projects (v2) board, separate from the triage
 labels described in `triage-labels.md`. New issues are added to it
-automatically by `.github/workflows/add-issues-to-project.yml`; moving them
-across columns as work progresses is manual (this doc is what makes that
-manual step something an agent can do consistently).
+automatically by `.github/workflows/add-issues-to-project.yml`, and since #1104
+`.github/workflows/board-sync.yml` moves them across columns (and swaps the
+matching labels) as work progresses. The commands below are the manual
+fallback for when automation fails.
 
 - **Board**: https://github.com/users/meggarmind/projects/1 (owner: `meggarmind`, project number `1`)
 - **Project node ID**: `PVT_kwHOCp3Gc84BgB2N`
@@ -28,26 +29,56 @@ Read it at session start, with #412. If a definition changes, update #1006 and t
 
 | Triage label (`triage-labels.md`) | Board Status  |
 | ---------------------------------- | ------------- |
-| `needs-triage` / unlabeled         | Backlog       |
+| `backlog` / unlabeled (`needs-triage` is legacy)  | Backlog       |
 | `needs-info`                       | Backlog       |
 | `ready-for-agent` / `ready-for-human` | Ready      |
-| *(agent actively working the issue)* | In progress |
-| *(PR open, awaiting review)*       | In review     |
-| `on-stage` (open issue, live on Stage) | On stage |
-| Issue closed after the Prod release, or `wontfix` | Done |
+| *(issue branch pushed, or draft PR)* | In progress |
+| *(non-draft PR open)*              | In review     |
+| `on-stage` (closed issue, live on Stage, not yet on Prod) | On stage |
+| Released to Prod, hotfix, sync PR, or `wontfix` | Done |
 
-## When to move an issue's Status
+## What moves an issue's Status
 
-Per `CORE.md` section 9, every agent — under any harness — moves an issue automatically at
-exactly these points:
+Owner decisions, 2026-10-24 (#1104). Automation moves the board; agents do not, as a routine.
+The rules are data in `.github/board-automation.json`, applied by `scripts/board-sync.mjs` from
+`.github/workflows/board-sync.yml`.
 
-1. **Picking up a `ready-for-agent`/`ready-for-human` issue to start work** → set Status to `In progress`.
-2. **Opening the PR for it** → set Status to `In review`.
-3. **The PR merges into `stage` and the work is live on Stage** → add the `on-stage` label and set Status to `On stage`. The issue stays open.
-4. **The issue is closed** (after the release to Prod, or `wontfix`) → set Status to `Done`.
+| Status | When | Labels | Issue state | Moved by |
+| --- | --- | --- | --- | --- |
+| Backlog | new or unrefined observation or idea, or waiting on info | `backlog` (replaces `needs-triage`) or `needs-info` | open | automation on open |
+| Ready | refined: scope, success criteria and validation steps written | `ready-for-agent` / `ready-for-human` | open | the label; automation sets Status |
+| In progress | issue branch pushed (`<lane>/issue-<n>-…`) or draft PR | `harness:*` (unchanged) | open | automation |
+| In review | non-draft PR open (QA, testing, security review, automatic or manual) | | open | automation |
+| On stage | PR merged into `stage` | `on-stage` | **closed** | automation |
+| Done | release PR `stage` → `master` merged; or hotfix merged to `master`; or sync PR; or `wontfix` / not planned; or, in a repo with no `stage`, PR merged | | closed | automation |
 
-Do not move issues *backwards* (to `Backlog` or `Ready`) on your own; that stays manual, as does
-the initial `Backlog` → `Ready` triage transition.
+- **Ready.** An agent may set `ready-for-agent` after refining the issue with the owner or
+  decomposing an agreed plan; the owner can veto. Automation sets Status and comments a warning when
+  the Scope, Success criteria or Validation headings are missing.
+- **On stage.** PRs say `Closes #N`, so the merge into `stage` closes the issue. Closed plus
+  On stage means "closed, not yet on Prod".
+- **Done.** When the issue's closing PR is an ancestor of the release merge commit, automation
+  removes `on-stage` and comments "Released in vX.Y.Z".
+- **Parents and umbrellas** (`wayfinder:map`, issues with sub-issues) take their Status from their
+  children: any child started → In progress; all children closed → On stage (the parent stays
+  open); all children Done → Done and closed. They never carry `on-stage`, and no single child
+  closes them.
+- **Backward moves** are automation-only: a PR closed unmerged with no other open PR → In progress;
+  an issue reopened → In progress if a branch or PR exists, else Ready (and `on-stage` removed).
+  Every other backward move stays manual.
+- **`pinned` issues** (#412, #1006) are never touched.
+- **Reconciler.** A nightly run of `node scripts/board-sync.mjs --reconcile` corrects drift and
+  writes a summary. It can also be started by hand as a `workflow_dispatch` run of `board-sync.yml`;
+  `dry_run` defaults to true, so set it false to apply changes.
+
+### What agents still do
+
+1. Promote an issue to `ready-for-agent` once it is refined.
+2. File new issues with `backlog`, not `needs-triage`.
+3. Write `Closes #N` in PR bodies (`scripts/issue-workflow.mjs finish` already does).
+4. At session end, check the reconciler output or the board for every issue touched, and list each
+   issue's final Status in the #412 handoff (still required). Fix Status by hand, with the commands
+   below, only if automation failed.
 
 ## Harness labels
 
@@ -62,7 +93,7 @@ tag lives:
 | `harness:codex` | Codex |
 | `harness:opencode` | OpenCode |
 
-**Add yours at the same moment you set Status to `In progress`** (`CORE.md` §9, point 1):
+**Add yours when you start work on the issue** (`CORE.md` §9):
 
 ```bash
 gh issue edit <ISSUE_NUMBER> --add-label harness:claude
@@ -83,8 +114,8 @@ card and filters like any other label. Remember the board is user-scoped — qua
 `.github/workflows/harness-label.yml` adds the label from the branch prefix when a PR opens or is
 pushed to, deriving the lane from `branchPrefixes` in `.github/issue-workflow.json`. It is a
 **backstop, not the mechanism**: it is non-blocking, it only ever adds, and it cannot cover the
-window between an agent starting work and its first push. That window is what the `In progress`
-step above is for. A branch whose prefix names no harness (`feat/`, `chore/`, bare `fix/`) is
+window between an agent starting work and its first push. That window is what adding the label by
+hand at the start of work is for. A branch whose prefix names no harness (`feat/`, `chore/`, bare `fix/`) is
 deliberately left unlabelled rather than guessed at.
 
 `.github/workflows/pr-claim-check.yml` reads the same labels from the other side. It resolves the
@@ -132,7 +163,10 @@ Who worked which issue, at a glance:
 gh issue list --repo meggarmind/RESIDIO --state all --label harness:claude --limit 200
 ```
 
-## Commands
+## Commands (manual fallback)
+
+Use these only when board-sync has failed or is lagging; the nightly reconciler would otherwise
+revert a hand edit that contradicts the rules.
 
 Find the project item ID for a given issue number:
 

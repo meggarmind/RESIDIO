@@ -510,4 +510,4 @@ Reports are written incrementally, one per module, as execution completes.
 | Rolling summary and defect register | `docs/qat/README.md` |
 | Per-module execution reports | `docs/qat/reports/qat-<module>-20260829.md` |
 | Test data manifest | `docs/qat/test-data-manifest.md` |
-| GitHub issues for CRITICAL/HIGH defects | `meggarmind/RESIDIO`, labelled `bug` + `needs-triage` |
+| GitHub issues for CRITICAL/HIGH defects | `meggarmind/RESIDIO`, labelled `bug` + `backlog` |
