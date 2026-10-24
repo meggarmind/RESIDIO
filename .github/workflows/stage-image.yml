@@ -1,0 +1,124 @@
+name: Stage Image
+
+# Builds the Stage Docker image in CI and pushes it to a private GHCR package (#1114, Part A):
+#   ghcr.io/meggarmind/residio-stage:<full sha>   and   :stage
+# Then, only when enabled, tells Coolify to deploy that tag (scripts/stage-image.mjs).
+#
+# Build job: a newer push cancels an older build in flight (that is the batching).
+# Deploy job: OFF by default. It skips with a ::notice:: until the repo variable
+# STAGE_IMAGE_DEPLOY is 'true' and every Coolify secret exists. It never cancels a running
+# deploy, and skips if its SHA is no longer stage's head.
+#
+# Build args are repository VARIABLES (public NEXT_PUBLIC_* values) plus computed values.
+# NEVER put a secret (service role, encryption keys, Resend, Google, CRON_SECRET) in a build
+# arg: build args are baked into image layers.
+
+on:
+  push:
+    branches: [stage]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and push image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    concurrency:
+      group: stage-image-build
+      cancel-in-progress: true
+    steps:
+      - name: Refuse a manual run from the wrong branch
+        if: >-
+          github.event_name == 'workflow_dispatch' &&
+          github.ref != 'refs/heads/stage'
+        run: |
+          echo "::error::Stage image runs only from the stage branch (got ${GITHUB_REF})."
+          exit 1
+
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+
+      - name: Compute version
+        id: version
+        env:
+          GIT_SHA: ${{ github.sha }}
+        run: node scripts/stage-image.mjs version
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ghcr.io/meggarmind/residio-stage:${{ github.sha }}
+            ghcr.io/meggarmind/residio-stage:stage
+          cache-from: type=gha,scope=stage-image
+          cache-to: type=gha,mode=max,scope=stage-image
+          build-args: |
+            NEXT_PUBLIC_ENV_MODE=cloud
+            NEXT_PUBLIC_SUPABASE_URL_CLOUD=${{ vars.STAGE_SUPABASE_URL }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY_CLOUD=${{ vars.STAGE_SUPABASE_ANON_KEY }}
+            NEXT_PUBLIC_APP_URL=${{ vars.STAGE_APP_URL }}
+            NEXT_PUBLIC_SITE_URL=${{ vars.STAGE_APP_URL }}
+            NEXT_PUBLIC_PAYSTACK_KEY=${{ vars.STAGE_PAYSTACK_PUBLIC_KEY }}
+            NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=${{ vars.STAGE_PAYSTACK_PUBLIC_KEY }}
+            NEXT_PUBLIC_APP_VERSION=${{ steps.version.outputs.version }}
+            NEXT_PUBLIC_GIT_SHA=${{ github.sha }}
+            NEXT_PUBLIC_APP_ENV=staging
+
+  deploy:
+    name: Deploy image to Coolify
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    concurrency:
+      group: stage-image-deploy
+      cancel-in-progress: false
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+
+      # Skips with a notice unless STAGE_IMAGE_DEPLOY is 'true' and every secret is set, and
+      # when GIT_SHA is no longer origin/stage's head. Secrets are listed one by one.
+      - name: Deploy the image tag
+        env:
+          STAGE_IMAGE_DEPLOY: ${{ vars.STAGE_IMAGE_DEPLOY }}
+          GIT_SHA: ${{ github.sha }}
+          COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
+          COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          COOLIFY_APP_UUID_STAGE_IMAGE: ${{ secrets.COOLIFY_APP_UUID_STAGE_IMAGE }}
+        run: node scripts/stage-image.mjs deploy
