@@ -6,7 +6,7 @@
  *
  * These tests pin the fix: identifiers read from the database are validated with `z.guid()`,
  * which checks the 8-4-4-4-12 shape and nothing else. `requestKey` in
- * `settle-wallet-invoices.ts` stays on `.uuid()` deliberately — the client mints it with
+ * `settle-wallet-invoices.ts` stays on `z.uuid()` deliberately — the client mints it with
  * `crypto.randomUUID()`, so v4 is a real invariant there.
  */
 import { describe, expect, it } from 'vitest';
@@ -36,7 +36,7 @@ const baseResident = {
 
 describe('#1134 stored identifiers pass validation', () => {
   it('rejects the stored id under the old .uuid() rule, which is the bug being fixed', () => {
-    expect(z.string().uuid().safeParse(STORED_ID).success).toBe(false);
+    expect(z.uuid().safeParse(STORED_ID).success).toBe(false);
     expect(z.guid().safeParse(STORED_ID).success).toBe(true);
   });
 
@@ -112,7 +112,10 @@ describe('#1134 no stored-identifier schema is left on .uuid()', () => {
       .filter((line) => line.includes('.uuid('))
       .map((line) => line.trim());
 
-    expect(uuidLines).toEqual(['requestKey: z.string().uuid(),']);
-    expect(z.string().uuid().safeParse(V4_ID).success).toBe(true);
+    expect(uuidLines).toHaveLength(1);
+    expect(uuidLines[0]).toContain('requestKey');
+    // The strict rule still applies there: a minted v4 passes, a stored id does not.
+    expect(z.uuid().safeParse(V4_ID).success).toBe(true);
+    expect(z.uuid().safeParse(STORED_ID).success).toBe(false);
   });
 });

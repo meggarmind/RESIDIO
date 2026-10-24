@@ -13,7 +13,7 @@ const settleWalletInvoicesSchema = z.object({
     invoiceIds: z.array(z.guid()).min(1),
     houseId: z.guid().nullable().optional(),
     paymentDate: z.string().date().optional(),
-    requestKey: z.string().uuid(),
+    requestKey: z.uuid(),
 });
 
 export type SettleWalletInvoicesInput = z.infer<typeof settleWalletInvoicesSchema>;
