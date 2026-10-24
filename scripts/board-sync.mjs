@@ -383,15 +383,24 @@ function releaseTagFor(sha) {
 }
 
 /**
- * Parses `for-each-ref` lines of `<iso date> <tag>` into releases, newest first, keeping only
- * `v<digit>` tags.
+ * Parses `for-each-ref` lines of `<iso date>\t<tag>\t<peeled subject>\t<subject>` into stage
+ * releases, newest first. Only `v<digit>` tags whose commit subject is a merge of the stage branch
+ * or a squashed "Release v..." count; hotfix tags on the release branch are dropped. An annotated
+ * tag carries the commit subject in the peeled field, a lightweight tag in the plain one.
  */
-export function parseReleases(lines) {
+export function parseReleases(lines, stageBranch) {
+  const escaped = String(stageBranch ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const stageMerge = new RegExp(`^Merge pull request #\\d+ from [^/]+/${escaped}$`);
   return lines
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .map((l) => { const [at, tag] = l.split(' '); return { at, tag }; })
+    .map((l) => l.replace(/[\r\n]+$/, ''))
+    .filter((l) => l.trim())
+    .map((l) => {
+      const [at, tag, peeled, plain] = l.split('\t');
+      return { at, tag, subject: (peeled || plain || '').trim() };
+    })
     .filter((r) => /^v\d/.test(r.tag ?? '') && !Number.isNaN(Date.parse(r.at)))
+    .filter((r) => (stageBranch && stageMerge.test(r.subject)) || /^Release v\d/.test(r.subject))
+    .map(({ at, tag }) => ({ at, tag }))
     .sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
 }
 
@@ -407,7 +416,7 @@ let releasesCache;
 function releases(cfg) {
   if (releasesCache === undefined) {
     try {
-      releasesCache = parseReleases(git(['for-each-ref', '--merged', `origin/${cfg.releaseBranch}`, '--sort=-creatordate', '--format=%(creatordate:iso-strict) %(refname:short)', 'refs/tags/v*']).split('\n'));
+      releasesCache = parseReleases(git(['for-each-ref', '--merged', `origin/${cfg.releaseBranch}`, '--sort=-creatordate', '--format=%(creatordate:iso-strict)%09%(refname:short)%09%(*subject)%09%(subject)', 'refs/tags/v*']).split('\n'), cfg.stageBranch);
     } catch (error) {
       console.error(`board-sync: cannot list release tags: ${error.stderr || error.message}`);
       releasesCache = null;

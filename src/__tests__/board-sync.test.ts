@@ -361,20 +361,34 @@ describe('pull request links', () => {
 });
 
 describe('release tag helpers', () => {
+  const row = (at: string, tag: string, peeled: string, plain = '') => [at, tag, peeled, plain].join('\t');
   const lines = [
-    '2026-09-01T00:00:00+00:00 v1.1.0',
-    '2026-10-20T12:00:00+00:00 v1.3.0',
-    '2026-10-01T00:00:00+00:00 nightly-1',
+    row('2026-09-01T00:00:00+00:00', 'v1.1.0', '', 'Merge pull request #734 from meggarmind/stage'),
+    row('2026-10-20T12:00:00+00:00', 'v1.3.0', 'Merge pull request #1001 from meggarmind/stage', 'Release 1.3.0 tag message'),
+    row('2026-10-01T00:00:00+00:00', 'nightly-1', '', 'Release v9'),
     '',
-    '2026-10-10T00:00:00+00:00 v1.2.0',
+    row('2026-10-10T00:00:00+00:00', 'v1.2.0', '', 'Release v1.2.0 (#831)'),
+    row('2026-10-22T00:00:00+00:00', 'v1.3.1', '', 'Merge pull request #1092 from meggarmind/fm/residio-1090'),
   ];
 
-  it('keeps only v<digit> tags, newest first', () => {
-    expect(parseReleases(lines).map((r: { tag: string }) => r.tag)).toEqual(['v1.3.0', 'v1.2.0', 'v1.1.0']);
+  it('keeps only stage release tags (both merge forms, annotated or not), newest first', () => {
+    expect(parseReleases(lines, 'stage').map((r: { tag: string }) => r.tag)).toEqual(['v1.3.0', 'v1.2.0', 'v1.1.0']);
+  });
+
+  it('drops a hotfix tag, so a newer hotfix does not move the last release', () => {
+    const rel = parseReleases(lines, 'stage');
+    expect(rel[0]).toEqual({ at: '2026-10-20T12:00:00+00:00', tag: 'v1.3.0' });
+    expect(rel.some((r: { tag: string }) => r.tag === 'v1.3.1')).toBe(false);
+  });
+
+  it('reads an annotated tag subject from the peeled commit, not the tag message', () => {
+    const annotated = row('2026-10-20T12:00:00+00:00', 'v2.0.0', 'Merge pull request #5 from o/stage', 'tag message');
+    const hotfixAnnotated = row('2026-10-21T12:00:00+00:00', 'v2.0.1', 'Merge pull request #6 from o/fix', 'Release v2.0.1');
+    expect(parseReleases([annotated, hotfixAnnotated], 'stage').map((r: { tag: string }) => r.tag)).toEqual(['v2.0.0']);
   });
 
   it('picks the oldest release at or after the close, including an equal time', () => {
-    const rel = parseReleases(lines);
+    const rel = parseReleases(lines, 'stage');
     expect(releaseTagForClose(rel, '2026-10-05T00:00:00Z')).toBe('v1.2.0');
     expect(releaseTagForClose(rel, '2026-10-10T00:00:00Z')).toBe('v1.2.0');
     expect(releaseTagForClose(rel, '2026-10-10T00:00:01Z')).toBe('v1.3.0');
