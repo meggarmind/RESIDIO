@@ -10,7 +10,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
     return (
-        <div className="flex h-dvh">
+        <div className="fixed inset-0 flex h-dvh overflow-hidden">
             {/* Desktop Sidebar */}
             <Sidebar className="hidden md:flex" />
 
