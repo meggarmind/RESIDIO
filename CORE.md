@@ -123,9 +123,11 @@ loaded machine are ~4x slower and time out falsely (#497).
 
 ### Design system
 
-Follow `DESIGN_AGENTS.md` for all UI work: OKLCH colors, `new-york` shadcn style, lucide icons
-in `IconBox` wrappers, tactile micro-animations. Wrap raw shadcn components in semantic layout
-components rather than using them directly in pages.
+`DESIGN.md` holds the visual tokens (colors, type scale, radii, shadows, motion).
+`docs/design/admin_portal/` is the prescriptive guide for every admin page: archetypes, canonical
+components, mobile rules and the audit checklist (owner decision 2026-10-24, #1145).
+`DESIGN_AGENTS.md` only points at both and keeps the agent workflow rules. Wrap raw shadcn
+components in semantic layout components rather than using them directly in pages.
 
 ### Date format in messages and reports
 
