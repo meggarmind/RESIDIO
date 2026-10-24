@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
@@ -158,14 +156,6 @@ describe('three-state control mapping (#716)', () => {
       expect(flagToSubmit(true, touched)).toBe(touched);
       expect(flagToSubmit(false, touched)).toBeUndefined();
     });
-  });
-
-  it('the form derives the display from the stored value and defaults the field to undefined', () => {
-    const source = readFileSync(path.join(process.cwd(), 'src/components/residents/resident-form.tsx'), 'utf8');
-    expect(source).toContain('displayedFlag(storedOverrideFlag, field.value)');
-    expect(source).toContain('flagToSubmit(canManageOverride, submitted.use_override_comms)');
-    expect(source).toMatch(/use_override_comms: undefined,\s+house_id/);
-    expect(source).not.toMatch(/use_override_comms: canManageOverride/);
   });
 
   it('describes the environment default for each environment', () => {

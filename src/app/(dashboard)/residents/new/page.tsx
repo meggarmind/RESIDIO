@@ -1,19 +1,30 @@
 'use client';
 
 import { Suspense } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ResidentForm, type HouseState } from '@/components/residents/resident-form';
+import { ResidentForm } from '@/components/residents/resident-form';
 import { EnhancedPageHeader } from '@/components/dashboard/enhanced-stat-card';
-import { Users, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useHouse } from '@/hooks/use-houses';
+import { ArrowLeft, Users, Loader2 } from 'lucide-react';
 
 function NewResidentContent() {
   const searchParams = useSearchParams();
   const preselectedHouseId = searchParams.get('house_id') ?? undefined;
-  const houseState = searchParams.get('house_state') as HouseState | null;
+  const { data: house } = useHouse(preselectedHouseId);
 
   return (
     <div className="space-y-6">
+      {preselectedHouseId && (
+        <Button variant="ghost" size="sm" asChild className="-ml-2">
+          <Link href={`/houses/${preselectedHouseId}`}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to {house ? `${house.short_name || house.house_number}, ${house.street?.name ?? ''}` : 'house'}
+          </Link>
+        </Button>
+      )}
       <EnhancedPageHeader
         title="Add New Resident"
         description="Register a new community member."
@@ -31,7 +42,7 @@ function NewResidentContent() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ResidentForm preselectedHouseId={preselectedHouseId} houseState={houseState} />
+          <ResidentForm preselectedHouseId={preselectedHouseId} />
         </CardContent>
       </Card>
     </div>
