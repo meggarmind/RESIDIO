@@ -62,7 +62,7 @@ Everything above, plus the system.
 | # | Task | Starts at | Done when |
 | --- | --- | --- | --- |
 | A1 | Change an estate setting and confirm it took | Settings | The saved value is shown after save and the audit log records it |
-| A2 | Manage accounts and roles | Accounts | A user's role is visible and changeable, and the change is audited |
+| A2 | Manage accounts and roles | Settings > `Roles & Access` (`/settings/access`) | A user's role is visible and changeable, and the change is audited |
 | A3 | Check that background jobs ran | System > Cron Status, Notification Queue | Last run time and failures are visible; a failed item can be retried or inspected |
 
 ## How to use in an audit
@@ -70,7 +70,7 @@ Everything above, plus the system.
 1. Identify the archetype of the page (`page-patterns.md`) and the roles that own tasks starting
    there.
 2. For each such task, walk it on desktop and at 375 px as that role's test user. Role test users exist as
-   `admin@`, `chairman@`, `finance@` and `security@residio.test` (see `docs/qat/reports/`); the
+   `admin@`, `chairman@`, `finance@` and `security@residio.test` (seeded by `scripts/seed-users.mjs`, listed in `e2e/fixtures.ts`); the
    password for `admin@residio.test` is in `CORE.md` §4.
 3. A task that cannot be finished is a `blocker`. A task finished with a workaround is a `major`.
    Record the task id (for example `F1`) in the finding.

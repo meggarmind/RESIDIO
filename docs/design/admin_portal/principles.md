@@ -118,7 +118,7 @@ Prefixes: `HDR`, `TBL`, `A11Y`. Source: `CORE.md` §6; Aspirity; Idoko "Roles an
 Colour, type, radius, shadow and spacing come from `DESIGN.md` tokens and the Tailwind semantic
 names. A hex literal in a component is a bug unless it is a documented status tint. Colour is
 spent on status and a few accents. Motion confirms an action and never carries a state change
-alone. Glass appears only on floating overlays. Spacing sits on the 4 px scale.
+alone. Glass appears only on floating overlays and on the shell's sticky header and sidebar, as `DESIGN.md` allows. Spacing sits on the 4 px scale.
 
 Prefixes: `VIS`. Source: `DESIGN.md` "The Token Rule", "The Settle Rule", "The Reduced Motion
 Rule"; Bolder Apps; Aspirity.

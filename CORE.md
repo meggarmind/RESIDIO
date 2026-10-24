@@ -123,7 +123,7 @@ loaded machine are ~4x slower and time out falsely (#497).
 
 ### Design system
 
-`DESIGN.md` holds the visual tokens (OKLCH colors, Geist type scale, radii, shadows, motion).
+`DESIGN.md` holds the visual tokens (colors, type scale, radii, shadows, motion).
 `docs/design/admin_portal/` is the prescriptive guide for every admin page: archetypes, canonical
 components, mobile rules and the audit checklist (owner decision 2026-10-24, #1145).
 `DESIGN_AGENTS.md` only points at both and keeps the agent workflow rules. Wrap raw shadcn

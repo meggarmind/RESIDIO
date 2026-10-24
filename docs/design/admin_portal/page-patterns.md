@@ -234,7 +234,7 @@ Three patterns exist today.
 - R-REGISTRY-15. Show an error state with the database message in context. Do not return a blank area (`residents-table.tsx:307-311`).
 - R-REGISTRY-16. Footer: "Rows per page" select with 10, 20, 50; text "Showing x to y of n {entity}"; previous and next buttons; up to 5 page buttons in a sliding window (`residents-table.tsx:633-714`). Use `h-8 w-[70px] rounded-xl` for the select.
 - R-REGISTRY-17. Make footer icon buttons at least 44 px on phones. `Button size="icon"` grows by itself (`ui/button.tsx:29`). Fixed `h-9 w-9` buttons do not (`residents-table.tsx:667`).
-- R-REGISTRY-18. Show status with `StatusBadge` or `Badge`, with an icon or label, never colour alone (`DESIGN.md` Do's). Use `tabular-nums` for money (`expenditure-client.tsx:226`).
+- R-REGISTRY-18. Show status with `Badge` wrapped by the domain badge (`components.md`, Status badge), with an icon or label, never colour alone (`DESIGN.md` Do's). Use `tabular-nums` for money (`expenditure-client.tsx:226`).
 - R-REGISTRY-19. Do not add hover lift or entrance animation to rows of amounts (`DESIGN.md` Don'ts). `EnhancedTableCard` still sets `animate-slide-up` and a hover shadow by default (`enhanced-stat-card.tsx:202-206`). Pass `animate={false}` on money registries.
 - R-REGISTRY-20. Add the page to `ROUTE_PERMISSIONS` (`CORE.md` section 6).
 

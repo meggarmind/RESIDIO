@@ -129,7 +129,7 @@ Mobile findings use the same scale as desktop findings.
 | `VIS-01` | No hex or raw colour literal in the page or its components, except a documented status tint | 12 |
 | `VIS-02` | Type sizes and weights come from the `DESIGN.md` scale; the page title is the display or headline role | 12 |
 | `VIS-03` | Spacing sits on the 4 px scale and uses the layout wrappers from `DESIGN.md` | 12 |
-| `VIS-04` | Radii, shadows and borders match `DESIGN.md`; glass appears only on floating overlays | 12 |
+| `VIS-04` | Radii, shadows and borders match `DESIGN.md`; glass appears only on floating overlays and the shell header or sidebar | 12 |
 | `VIS-05` | Icons are Lucide inside the canonical icon wrapper where the pattern calls for one; pastel tint appears only in icon boxes and status | 12 |
 | `VIS-06` | Motion confirms an action and is paired with a colour, icon or text change | 12 |
 | `VIS-07` | Dark mode renders correctly on the default theme | 12 |
