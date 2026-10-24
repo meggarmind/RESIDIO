@@ -62,6 +62,7 @@ function repository(houses: FinancialHouse[], overrides: Record<string, unknown>
     getAssistantSettings: vi.fn().mockResolvedValue({ estatePhone: null, estateEmail: null, officeHours: null, paymentInstructions: null, keywordSynonyms: {} }),
     getLatestAnnouncements: vi.fn().mockResolvedValue([]),
     getCoResidents: vi.fn().mockResolvedValue(PEOPLE),
+    hasLinkedCoResident: vi.fn().mockResolvedValue(false),
     createCoResidentLinkCode: vi.fn().mockResolvedValue({ code: '654321', expiresAt: '2026-10-23T11:00:00Z' }),
     ...overrides,
   };
@@ -78,26 +79,73 @@ async function chat(repo: Repo, texts: string[]): Promise<string[]> {
 }
 
 describe('Link a co-resident in the Assistant (#1072)', () => {
-  it('offers Link a co-resident under More to a single-house sponsor', async () => {
+  it('offers 8. Link a co-resident on the Financial menu to a single-house sponsor until one is linked (#1117)', async () => {
     for (const role of ['tenant', 'resident_landlord']) {
-      const replies = await chat(repository([{ ...PALM, role }]), ['1', PIN, '8']);
-      expect(replies[1]).toContain('8. More');
-      expect(replies[2]).toBe(['More', '1. Link a co-resident', 'Reply 0 for menu.'].join('\n'));
+      const repo = repository([{ ...PALM, role }]);
+      const replies = await chat(repo, ['1', PIN, '8']);
+      expect(replies[1]).toContain('8. Link a co-resident');
+      expect(replies[1]).not.toContain('More');
+      expect(replies[1]).not.toContain('10.');
+      expect(replies[2]).toBe(['Which co-resident?', '1. Bola Example', '2. Chidi Example', 'Reply with the number.'].join('\n'));
+      expect(repo.hasLinkedCoResident).toHaveBeenCalledWith(SPONSOR, 'house-1');
     }
+  });
+
+  it('hides it once a co-resident is linked, reads 8 as unrecognised, and still accepts the typed keyword (#1117)', async () => {
+    const repo = repository([PALM], { hasLinkedCoResident: vi.fn().mockResolvedValue(true) });
+    const replies = await chat(repo, ['1', PIN, '8', 'link co-resident']);
+    expect(replies[1]).not.toContain('Link a co-resident');
+    expect(replies[2]).toContain("I didn't catch that");
+    expect(replies[3]).toContain('1. Bola Example');
+  });
+
+  it('looks the link up once per turn that renders the menu, and not for a house that is not a sponsor house (#1117)', async () => {
+    const sponsorRepo = repository([PALM]);
+    await chat(sponsorRepo, ['1', PIN]);
+    expect(sponsorRepo.hasLinkedCoResident).toHaveBeenCalledTimes(1);
+    const developerRepo = repository([{ ...PALM, role: 'developer' }]);
+    await chat(developerRepo, ['1', PIN, '8']);
+    expect(developerRepo.hasLinkedCoResident).not.toHaveBeenCalled();
+  });
+
+  it('shows the item when the lookup fails rather than hiding a sponsor’s only route (#1117)', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const repo = repository([PALM], { hasLinkedCoResident: vi.fn().mockRejectedValue(new Error('down')) });
+    const replies = await chat(repo, ['1', PIN]);
+    expect(replies[1]).toContain('8. Link a co-resident');
+    error.mockRestore();
   });
 
   it('does not offer it for a house the person does not live in as resident landlord or tenant', async () => {
     for (const house of [{ ...PALM, role: 'non_resident_landlord' }, { ...PALM, role: 'developer' }, { ...PALM, role: 'co_resident', accountResidentId: 'other', onBehalf: true }]) {
       const replies = await chat(repository([house]), ['1', PIN, '8']);
-      expect(replies[1]).not.toContain('More');
+      expect(replies[1]).not.toContain('Link a co-resident');
+      expect(replies[2]).toContain("I didn't catch that");
     }
   });
 
-  it('lists the co-residents of the selected house from More, after the PIN', async () => {
+  it('shows 10. Switch property only for several houses, after 8 (#1117)', async () => {
+    const CEDAR: FinancialHouse = { id: 'house-2', label: '4 Cedar Way', role: 'tenant' };
+    const many = await chat(repository([PALM, CEDAR]), ['1', PIN, '2', '10']);
+    const menu = many[2];
+    expect(menu).toContain('Financial standing: 4 Cedar Way');
+    expect(menu).toContain('8. Link a co-resident');
+    expect(menu).toContain('10. Switch property (now: 4 Cedar Way)');
+    expect(menu.indexOf('8. Link')).toBeLessThan(menu.indexOf('10. Switch'));
+    expect(many[3]).toContain('Which property?');
+
+    const one = await chat(repository([PALM]), ['1', PIN, '10']);
+    expect(one[1]).not.toContain('Switch property');
+    expect(one[2]).toContain("I didn't catch that");
+  });
+
+  it('reads a reply to a session stored as the old More node like the Financial menu (#1117)', async () => {
     const repo = repository([PALM]);
-    const replies = await chat(repo, ['1', PIN, '8', '1']);
-    expect(replies[3]).toBe(['Which co-resident?', '1. Bola Example', '2. Chidi Example', 'Reply with the number.'].join('\n'));
-    expect(repo.getCoResidents).toHaveBeenCalledWith(SPONSOR, 'house-1');
+    await chat(repo, ['1', PIN]);
+    const session = await repo.getSession();
+    await repo.saveSession({ ...session!, currentNode: 'more' });
+    const replies = await chat(repo, ['8']);
+    expect(replies[0]).toContain('1. Bola Example');
   });
 
   it('asks for the PIN first when the keyword is typed while locked', async () => {

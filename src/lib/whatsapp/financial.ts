@@ -6,6 +6,7 @@ import {
   createCoResidentLinkCode,
   getCoResidents,
   getSponsoredHouses,
+  hasLinkedCoResident,
   type CoResident,
 } from '@/lib/whatsapp/co-resident';
 import { createAdminClient } from '@/lib/supabase/server';
@@ -271,6 +272,8 @@ export interface WhatsAppFinancialRepository {
   requestClearance(input: Parameters<typeof requestClearanceCertificate>[0]): Promise<ClearanceRequestResult>;
   /** The sponsor's active co-residents on this house (#1072). */
   getCoResidents(sponsorId: string, houseId: string): Promise<CoResident[]>;
+  /** Whether any of those co-residents has linked a WhatsApp number (#1117). */
+  hasLinkedCoResident(sponsorId: string, houseId: string): Promise<boolean>;
   /** A LINK code for one of the sponsor's co-residents on this house; null when that person is not one. */
   createCoResidentLinkCode(input: { sponsorId: string; coResidentId: string; houseId: string }): Promise<{ code: string; expiresAt: string } | null>;
   /** The statement periods offered for this property (#1069). */
@@ -799,6 +802,7 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
     storeReceiptPdf,
     requestClearance: requestClearanceCertificate,
     getCoResidents,
+    hasLinkedCoResident,
     createCoResidentLinkCode,
     getStatementPeriods: loadStatementPeriods,
     getEstateName: estateName,
@@ -901,7 +905,7 @@ async function sendFinancialReply(
 //
 // The session's current_node is `<node>` or `<node>~<misses>`, misses being the
 // unrecognised replies in a row. Nodes: main, financial, answer (after a financial
-// answer), more, alerts, notices, disambiguate, statement_period,
+// answer), alerts, notices, disambiguate, statement_period,
 // link_pick, property:<target> and pin:<target>, where target is menu, switch, link or an item.
 
 type Target = 'menu' | 'switch' | 'report' | 'link' | FinancialMenuItem;
@@ -932,6 +936,8 @@ interface Turn {
   pinHash?: string | null;
   pinGate?: boolean;
   houses?: FinancialHouse[];
+  /** Houses where the sponsor already has a linked co-resident, looked up once each per turn (#1117). */
+  linked?: Map<string, boolean>;
   notices?: AssistantAnnouncement[];
   /** Set by a reply that delivered a financial answer, so a thank-you right after can open the survey (#872). */
   answered?: boolean;
@@ -1012,13 +1018,31 @@ function isSponsorHouse(house: FinancialHouse | null): boolean {
 
 const LINK_WORDS = new Set(['link co-resident', 'link co resident', 'link a co-resident']);
 
-/** The More menu: Switch property for several houses, Link a co-resident for a sponsor (#1072 decision 3). */
-function moreItems(turn: Turn): { label: string; target: Target }[] {
+/**
+ * Looks up, at most once per turn and only for a sponsor house, whether a co-resident is already linked
+ * (#1117). Call it before rendering the Financial menu or reading its 8. A failed lookup shows the item.
+ */
+async function loadLinked(turn: Turn): Promise<void> {
   const house = selectedHouse(turn);
-  return [
-    ...((turn.houses || []).length > 1 ? [{ label: `Switch property${house ? ` (now: ${house.label})` : ''}`, target: 'switch' as const }] : []),
-    ...(isSponsorHouse(house) ? [{ label: 'Link a co-resident', target: 'link' as const }] : []),
-  ];
+  if (!house || !isSponsorHouse(house) || turn.linked?.has(house.id)) return;
+  let linked = false;
+  try {
+    linked = await turn.options.repository.hasLinkedCoResident(turn.identity.id, house.id);
+  } catch (error) {
+    console.error('WhatsApp co-resident link lookup failed', error);
+  }
+  (turn.linked ??= new Map()).set(house.id, linked);
+}
+
+/** 8. Link a co-resident: a sponsor house with no linked co-resident yet (#1117). */
+function showsLinkItem(turn: Turn): boolean {
+  const house = selectedHouse(turn);
+  return isSponsorHouse(house) && turn.linked?.get(house!.id) !== true;
+}
+
+/** 10. Switch property: only for several houses (#1117). */
+function showsSwitchItem(turn: Turn): boolean {
+  return (turn.houses || []).length > 1;
 }
 
 function financialMenu(turn: Turn): string {
@@ -1040,7 +1064,8 @@ function financialMenu(turn: Turn): string {
     '5. Receipt',
     '6. Report a payment',
     ...(house && !OCCUPANT_ROLES.has(house.role) ? [] : ['7. Clearance certificate']),
-    ...(moreItems(turn).length > 0 ? ['8. More'] : []),
+    ...(showsLinkItem(turn) ? ['8. Link a co-resident'] : []),
+    ...(showsSwitchItem(turn) && house ? [`10. Switch property (now: ${house.label})`] : []),
     lastLine,
   ].join('\n');
 }
@@ -1096,6 +1121,7 @@ async function enterFinancial(turn: Turn, target: Target, prefix?: string, prope
     return;
   }
   if (!selectedHouse(turn)) turn.session.selectedHouseId = houses[0].id;
+  await loadLinked(turn);
 
   if (selectedHouse(turn)?.onBehalf && (target === 'wallet' || target === 'clearance')) {
     await respond(turn, `${lead}${CO_RESIDENT_REFUSAL}\n${financialMenu(turn)}`, 'financial');
@@ -1890,7 +1916,7 @@ async function converse(turn: Turn, expired: boolean, endedOnPurpose = false): P
   }
   if (CONTACT_WORDS.has(input)) return showContact(turn);
   if (input === '0') {
-    const backToFinancial = node === 'answer' || node === 'more' || node === 'link_pick' || node === 'statement_period' || node.startsWith('report_') || node.startsWith('receipt_') || node.startsWith('property:') || node.startsWith('statement_email:');
+    const backToFinancial = node === 'answer' || node === 'link_pick' || node === 'statement_period' || node.startsWith('report_') || node.startsWith('receipt_') || node.startsWith('property:') || node.startsWith('statement_email:');
     return backToFinancial && turn.identity.financialEligible ? enterFinancial(turn, 'menu') : showMain(turn);
   }
 
@@ -1954,21 +1980,14 @@ async function converse(turn: Turn, expired: boolean, endedOnPurpose = false): P
     return respond(turn, UNSUBSCRIBED_REPLY, 'main');
   }
 
-  if (node === 'more') {
-    await loadHouses(turn);
-    const item = /^\d$/.test(input) ? moreItems(turn)[Number(input) - 1] : undefined;
-    if (item) return enterFinancial(turn, item.target);
-    return miss(turn, node);
-  }
-
-  if (node === 'financial' || node === 'answer' || node.startsWith('statement:')) {
+  // A session stored as 'more' before #1117 reads its reply as the Financial menu.
+  if (node === 'financial' || node === 'more' || node === 'answer' || node.startsWith('statement:')) {
     const item = FINANCIAL_ITEM_NUMBERS[input];
     if (item) return enterFinancial(turn, item);
     await loadHouses(turn);
-    const more = moreItems(turn);
-    if (input === '8' && more.length > 0) {
-      return respond(turn, ['More', ...more.map((entry, index) => `${index + 1}. ${entry.label}`), footer(turn)].join('\n'), 'more');
-    }
+    await loadLinked(turn);
+    if (input === '8' && showsLinkItem(turn)) return enterFinancial(turn, 'link');
+    if (input === '10' && showsSwitchItem(turn)) return enterFinancial(turn, 'switch');
     return miss(turn, node);
   }
 

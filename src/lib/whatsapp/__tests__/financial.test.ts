@@ -143,6 +143,7 @@ function repository(houses: FinancialHouse[] = [PALM], overrides: Partial<WhatsA
     storeReceiptPdf: vi.fn().mockResolvedValue('https://storage.test/signed/receipt.pdf'),
     requestClearance: vi.fn().mockResolvedValue({ status: 'requested', requestId: 'request-1' }),
     getCoResidents: vi.fn().mockResolvedValue([]),
+    hasLinkedCoResident: vi.fn().mockResolvedValue(false),
     createCoResidentLinkCode: vi.fn().mockResolvedValue(null),
     getStatementPeriods: vi.fn().mockResolvedValue(['this_month', 'this_year', 'last_six_months', 'last_twelve_months', 'all_time', 'since_move_in']),
     getEstateName: vi.fn().mockResolvedValue('Palm Estate'),
@@ -199,8 +200,8 @@ const FINANCIAL_MENU = [
   '5. Receipt',
   '6. Report a payment',
   '7. Clearance certificate',
-  // A tenant sponsors co-residents, so More offers Link a co-resident (#1072).
-  '8. More',
+  // A tenant with no linked co-resident is offered Link a co-resident (#1117).
+  '8. Link a co-resident',
   FOOTER,
 ].join('\n');
 
@@ -322,24 +323,25 @@ describe('WhatsApp Assistant menus (#804 harmonised)', () => {
 });
 
 describe('WhatsApp Assistant properties (#804 decision 12)', () => {
-  it('asks once per session which property, names it, and switches through More', async () => {
+  it('asks once per session which property, names it, and switches through item 10', async () => {
     const repo = repository([PALM, CEDAR]);
-    const replies = await chat(repo, ['owe', '2', '0', '8', '1', '1', '2']);
+    const replies = await chat(repo, ['owe', '2', '0', '10', '1', '2']);
 
     expect(replies[0]).toBe(['Which property?', '1. 12 Palm Close', '2. 4 Cedar Way', '3. All my properties', 'Reply with the property number.'].join('\n'));
     expect(replies[1]).toContain('*What you owe, 4 Cedar Way*');
     expect(replies[2]).toContain('Financial standing: 4 Cedar Way');
-    expect(replies[2]).toContain('8. More');
-    expect(replies[3]).toBe(['More', '1. Switch property (now: 4 Cedar Way)', '2. Link a co-resident', FOOTER].join('\n'));
-    expect(replies[4]).toContain('Which property?');
-    expect(replies[5]).toContain('Financial standing: 12 Palm Close');
+    expect(replies[2]).toContain('10. Switch property (now: 4 Cedar Way)');
+    expect(replies[2]).not.toContain('More');
+    expect(replies[3]).toContain('Which property?');
+    expect(replies[4]).toContain('Financial standing: 12 Palm Close');
     // The choice is remembered: no second property prompt.
-    expect(replies[6]).toContain('*Recent payments, 12 Palm Close*');
+    expect(replies[5]).toContain('*Recent payments, 12 Palm Close*');
   });
 
-  it('never shows property prompts or More to a single-house resident who sponsors no one', async () => {
+  it('never shows property prompts, Switch property or Link a co-resident to a single-house resident who sponsors no one', async () => {
     const replies = await chat(repository([{ ...PALM, role: 'non_resident_landlord' }]), ['1', '8']);
-    expect(replies[0]).not.toContain('More');
+    expect(replies[0]).not.toContain('8.');
+    expect(replies[0]).not.toContain('10.');
     expect(replies[1]).toBe(UNRECOGNISED);
   });
 });
@@ -2119,11 +2121,11 @@ describe('WhatsApp Assistant several houses (#1073)', () => {
 
   it('hides the clearance item from the menu of a house the person does not live in', async () => {
     const repo = repository([PALM, LANDLORD_CEDAR]);
-    const replies = await chat(repo, ['payments', '2', '0', '8', '1', '1']);
+    const replies = await chat(repo, ['payments', '2', '0', '10', '1']);
     expect(replies[2]).not.toContain('7. Clearance certificate');
     expect(replies[2]).toContain('Financial standing: 4 Cedar Way');
-    expect(replies[5]).toContain('Financial standing: 12 Palm Close');
-    expect(replies[5]).toContain('7. Clearance certificate');
+    expect(replies[4]).toContain('Financial standing: 12 Palm Close');
+    expect(replies[4]).toContain('7. Clearance certificate');
   });
 
   it('keeps the billable role on each house from the roster', async () => {
