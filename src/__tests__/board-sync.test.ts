@@ -3,6 +3,9 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   decideTransition,
+  parseReleases,
+  rawFromNode,
+  releaseTagForClose,
   missingReadySections,
   parseIssueRefs,
   planPullRequest,
@@ -27,6 +30,7 @@ const issue = (over: Over = {}) => ({
   status: null as string | null,
   children: [] as { status: string | null; state: string }[],
   hasOpenPr: false,
+  closedAt: null as string | null,
   closedBy: null as null | Record<string, unknown>,
   ...over,
 });
@@ -167,6 +171,110 @@ describe('closed issues', () => {
     expect(d.removeLabels.sort()).toEqual(['needs-triage', 'on-stage']);
   });
 
+  describe('closed by hand, against the last release (24 October 2026)', () => {
+    const released = '2026-10-20T12:00:00Z';
+    const handClosed = (closedAt: string | null, over: Over = {}, extra: Over = {}) =>
+      decide('reconcile', { state: 'closed', status: 'Backlog', closedAt, ...over }, { lastReleaseAt: released, ...extra });
+
+    it('is Done when closed before the last release', () => {
+      expect(handClosed('2026-10-19T12:00:00Z').status).toBe('Done');
+    });
+
+    it('is Done when closed exactly at the last release', () => {
+      expect(handClosed(released).status).toBe('Done');
+    });
+
+    it('is On stage, with the label, when closed after the last release', () => {
+      const d = handClosed('2026-10-21T12:00:00Z', { labels: ['backlog'] });
+      expect(d.status).toBe('On stage');
+      expect(d.addLabels).toEqual(['on-stage']);
+      expect(d.removeLabels).toEqual(['backlog']);
+    });
+
+    it('stays On stage on a later pass', () => {
+      const d = handClosed('2026-10-21T12:00:00Z', { status: 'On stage', labels: ['on-stage'] });
+      expect(d).toMatchObject({ status: null, addLabels: [], removeLabels: [], comment: null });
+    });
+
+    it('is Done when no release tag is known', () => {
+      expect(handClosed('2026-10-21T12:00:00Z', {}, { lastReleaseAt: null }).status).toBe('Done');
+    });
+
+    it('is Done when closed not planned after the release', () => {
+      expect(handClosed('2026-10-21T12:00:00Z', { stateReason: 'NOT_PLANNED' }).status).toBe('Done');
+    });
+
+    it('is Done in a repo without a stage branch', () => {
+      const noStage = { ...cfg, stageBranch: null };
+      const d = decideTransition(
+        { trigger: 'reconcile', lastReleaseAt: released, issue: issue({ state: 'closed', status: 'Backlog', closedAt: '2026-10-21T12:00:00Z' }) },
+        noStage,
+      );
+      expect(d.status).toBe('Done');
+    });
+
+    const onStageClosed = { state: 'closed', status: 'On stage', labels: ['on-stage'], closedAt: '2026-10-19T12:00:00Z' };
+
+    it('does not put a closed parent On stage, before or after the release', () => {
+      const children = [{ state: 'closed', status: 'Done' }];
+      for (const closedAt of ['2026-10-19T12:00:00Z', '2026-10-21T12:00:00Z']) {
+        const d = handClosed(closedAt, { status: 'Done', children });
+        expect(d).toMatchObject({ status: null, addLabels: [] });
+      }
+    });
+
+    it('posts no Released comment for a not-planned or wontfix On stage issue', () => {
+      for (const over of [{ stateReason: 'NOT_PLANNED' }, { labels: ['on-stage', 'wontfix'] }]) {
+        const d = decide('release', { ...onStageClosed, ...over }, { lastReleaseAt: released });
+        expect(d.status).toBe('Done');
+        expect(d.comment).toBeNull();
+      }
+    });
+
+    it('posts no Released comment when no release is known', () => {
+      const d = decide('release', onStageClosed, { lastReleaseAt: null });
+      expect(d.comment).toBeNull();
+    });
+
+    it('posts no Released comment for a hotfix merged straight into the release branch', () => {
+      const d = decide('pr-merged', { status: 'On stage', labels: ['on-stage'] }, { pr: { base: 'master', merged: true }, lastReleaseAt: released });
+      expect(d.status).toBe('Done');
+      expect(d.comment).toBeNull();
+    });
+
+    it('changes nothing for a hand-closed issue when the release list is unavailable', () => {
+      for (const status of ['Backlog', 'On stage', 'Done']) {
+        const d = decide('reconcile', { state: 'closed', status, labels: ['backlog', 'on-stage'], closedAt: '2026-10-21T12:00:00Z' }, { lastReleaseAt: null, releasesUnavailable: true });
+        expect(d).toMatchObject({ status: null, addLabels: [], removeLabels: [], comment: null });
+      }
+    });
+
+    it('still decides a PR-closed issue when the release list is unavailable', () => {
+      const d = decide('issue-closed', { state: 'closed', status: 'In review', closedBy: stage }, { releasesUnavailable: true });
+      expect(d.status).toBe('On stage');
+    });
+
+    it('moves an On stage issue closed before the release merge to Done with the Released comment', () => {
+      const d = decide(
+        'release',
+        { state: 'closed', status: 'On stage', labels: ['on-stage'], closedAt: '2026-10-19T12:00:00Z' },
+        { lastReleaseAt: released, releaseTag: 'v1.13.0' },
+      );
+      expect(d.status).toBe('Done');
+      expect(d.removeLabels).toEqual(['on-stage']);
+      expect(d.comment?.body).toContain('Released in v1.13.0');
+    });
+
+    it('leaves an On stage issue closed after the release merge On stage', () => {
+      const d = decide(
+        'release',
+        { state: 'closed', status: 'On stage', labels: ['on-stage'], closedAt: '2026-10-21T12:00:00Z' },
+        { lastReleaseAt: released, releaseTag: 'v1.13.0' },
+      );
+      expect(d).toMatchObject({ status: null, addLabels: [], removeLabels: [], comment: null });
+    });
+  });
+
   it('marks a PR merged straight into the release branch (hotfix) Done', () => {
     expect(decide('pr-merged', { status: 'In review' }, { pr: { base: 'master', merged: true } }).status).toBe('Done');
   });
@@ -249,5 +357,55 @@ describe('pull request links', () => {
     const issues = new Map([[14, issue({ number: 14, status: 'In progress' })]]);
     const plan = planPullRequest('opened', { body: 'Part of #14', base: 'stage' }, issues, cfg);
     expect(plan[0].status).toBe('In review');
+  });
+});
+
+describe('release tag helpers', () => {
+  const row = (at: string, tag: string, peeled: string, plain = '') => [at, tag, peeled, plain].join('\t');
+  const lines = [
+    row('2026-09-01T00:00:00+00:00', 'v1.1.0', '', 'Merge pull request #734 from meggarmind/stage'),
+    row('2026-10-20T12:00:00+00:00', 'v1.3.0', 'Merge pull request #1001 from meggarmind/stage', 'Release 1.3.0 tag message'),
+    row('2026-10-01T00:00:00+00:00', 'nightly-1', '', 'Release v9'),
+    '',
+    row('2026-10-10T00:00:00+00:00', 'v1.2.0', '', 'Release v1.2.0 (#831)'),
+    row('2026-10-22T00:00:00+00:00', 'v1.3.1', '', 'Merge pull request #1092 from meggarmind/fm/residio-1090'),
+  ];
+
+  it('keeps only stage release tags (both merge forms, annotated or not), newest first', () => {
+    expect(parseReleases(lines, 'stage').map((r: { tag: string }) => r.tag)).toEqual(['v1.3.0', 'v1.2.0', 'v1.1.0']);
+  });
+
+  it('drops a hotfix tag, so a newer hotfix does not move the last release', () => {
+    const rel = parseReleases(lines, 'stage');
+    expect(rel[0]).toEqual({ at: '2026-10-20T12:00:00+00:00', tag: 'v1.3.0' });
+    expect(rel.some((r: { tag: string }) => r.tag === 'v1.3.1')).toBe(false);
+  });
+
+  it('reads an annotated tag subject from the peeled commit, not the tag message', () => {
+    const annotated = row('2026-10-20T12:00:00+00:00', 'v2.0.0', 'Merge pull request #5 from o/stage', 'tag message');
+    const hotfixAnnotated = row('2026-10-21T12:00:00+00:00', 'v2.0.1', 'Merge pull request #6 from o/fix', 'Release v2.0.1');
+    expect(parseReleases([annotated, hotfixAnnotated], 'stage').map((r: { tag: string }) => r.tag)).toEqual(['v2.0.0']);
+  });
+
+  it('picks the oldest release at or after the close, including an equal time', () => {
+    const rel = parseReleases(lines, 'stage');
+    expect(releaseTagForClose(rel, '2026-10-05T00:00:00Z')).toBe('v1.2.0');
+    expect(releaseTagForClose(rel, '2026-10-10T00:00:00Z')).toBe('v1.2.0');
+    expect(releaseTagForClose(rel, '2026-10-10T00:00:01Z')).toBe('v1.3.0');
+    expect(releaseTagForClose(rel, '2026-10-21T00:00:00Z')).toBeNull();
+    expect(releaseTagForClose(rel, null)).toBeNull();
+  });
+});
+
+describe('rawFromNode', () => {
+  const node = (closedAt?: string | null) => ({
+    id: 'I_1', number: 7, state: 'CLOSED', stateReason: 'COMPLETED', body: null, closedAt,
+    labels: { nodes: [] }, parent: null, subIssues: { nodes: [] }, projectItems: { nodes: [] },
+    closedByPullRequestsReferences: { nodes: [] },
+  });
+
+  it('maps closedAt, null when absent', () => {
+    expect(rawFromNode(node('2026-10-21T12:00:00Z'), cfg).closedAt).toBe('2026-10-21T12:00:00Z');
+    expect(rawFromNode(node(undefined), cfg).closedAt).toBeNull();
   });
 });
