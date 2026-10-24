@@ -31,8 +31,12 @@ permissions:
   issues: write
   pull-requests: read
 
+# One group per event run: a group keeps a single pending run and cancels the rest, which dropped
+# events in a burst (an issue opened with several labels, a merge closing several issues). Each
+# event run re-reads the issue before deciding, and the nightly reconcile repairs any ordering
+# slip. Reconcile runs share one group so they do not overlap.
 concurrency:
-  group: board-sync
+  group: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'board-sync-reconcile' || format('board-sync-{0}', github.run_id) }}
   cancel-in-progress: false
 
 jobs:

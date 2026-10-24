@@ -35,7 +35,7 @@ Read it at session start, with #412. If a definition changes, update #1006 and t
 | *(agent actively working the issue)* | In progress |
 | *(PR open, awaiting review)*       | In review     |
 | `on-stage` (open issue, live on Stage) | On stage |
-| Issue closed after the Prod release, or `wontfix` | Done |
+| Issue closed after the Prod release, or `wontfix`; or closed by hand before the last release | Done |
 
 ## Board automation (#1104)
 
@@ -54,8 +54,9 @@ project is out of reach of `GITHUB_TOKEN`).
 | PR closed unmerged | In progress (unless another open PR links the issue) |
 | PR with `Closes #N` merged into `stage` | Issue closes (GitHub); On stage; `on-stage` added; triage labels removed |
 | Issue reopened | Ready if it has a `ready-for-*` label, else In progress; `on-stage` removed |
-| Issue closed `wontfix`, not planned, or by hand with no closing PR | Done |
-| Release PR merged into `master` | Closed On stage issues whose closing PR's merge commit is an ancestor of `master` → Done, `on-stage` removed, "Released in vX.Y.Z" comment |
+| Issue closed `wontfix` or not planned | Done |
+| Issue closed by hand with no closing PR | Done if closed at or before the last release tag on `master` (or no tag, or no stage branch); On stage with `on-stage` if closed after it |
+| Release PR merged into `master` | Closed On stage issues whose closing PR's merge commit is an ancestor of `master` → Done, `on-stage` removed, "Released in vX.Y.Z" comment; hand-closed On stage issues closed before the release → Done likewise |
 | A child changes | Parent takes the rolled-up Status: all Done → Done; all On stage or Done → On stage; any started → In progress; else Ready if all Ready, else Backlog. A parent is never closed. |
 
 Exempt: issues labelled `pinned`, #412 and #1006 (`exempt` in the config).

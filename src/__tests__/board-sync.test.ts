@@ -27,6 +27,7 @@ const issue = (over: Over = {}) => ({
   status: null as string | null,
   children: [] as { status: string | null; state: string }[],
   hasOpenPr: false,
+  closedAt: null as string | null,
   closedBy: null as null | Record<string, unknown>,
   ...over,
 });
@@ -165,6 +166,69 @@ describe('closed issues', () => {
     const d = decide('reconcile', { state: 'closed', status: 'Backlog', labels: ['needs-triage', 'on-stage'] });
     expect(d.status).toBe('Done');
     expect(d.removeLabels.sort()).toEqual(['needs-triage', 'on-stage']);
+  });
+
+  describe('closed by hand, against the last release (24 October 2026)', () => {
+    const released = '2026-10-20T12:00:00Z';
+    const handClosed = (closedAt: string | null, over: Over = {}, extra: Over = {}) =>
+      decide('reconcile', { state: 'closed', status: 'Backlog', closedAt, ...over }, { lastReleaseAt: released, ...extra });
+
+    it('is Done when closed before the last release', () => {
+      expect(handClosed('2026-10-19T12:00:00Z').status).toBe('Done');
+    });
+
+    it('is Done when closed exactly at the last release', () => {
+      expect(handClosed(released).status).toBe('Done');
+    });
+
+    it('is On stage, with the label, when closed after the last release', () => {
+      const d = handClosed('2026-10-21T12:00:00Z', { labels: ['backlog'] });
+      expect(d.status).toBe('On stage');
+      expect(d.addLabels).toEqual(['on-stage']);
+      expect(d.removeLabels).toEqual(['backlog']);
+    });
+
+    it('stays On stage on a later pass', () => {
+      const d = handClosed('2026-10-21T12:00:00Z', { status: 'On stage', labels: ['on-stage'] });
+      expect(d).toMatchObject({ status: null, addLabels: [], removeLabels: [], comment: null });
+    });
+
+    it('is Done when no release tag is known', () => {
+      expect(handClosed('2026-10-21T12:00:00Z', {}, { lastReleaseAt: null }).status).toBe('Done');
+    });
+
+    it('is Done when closed not planned after the release', () => {
+      expect(handClosed('2026-10-21T12:00:00Z', { stateReason: 'NOT_PLANNED' }).status).toBe('Done');
+    });
+
+    it('is Done in a repo without a stage branch', () => {
+      const noStage = { ...cfg, stageBranch: null };
+      const d = decideTransition(
+        { trigger: 'reconcile', lastReleaseAt: released, issue: issue({ state: 'closed', status: 'Backlog', closedAt: '2026-10-21T12:00:00Z' }) },
+        noStage,
+      );
+      expect(d.status).toBe('Done');
+    });
+
+    it('moves an On stage issue closed before the release merge to Done with the Released comment', () => {
+      const d = decide(
+        'release',
+        { state: 'closed', status: 'On stage', labels: ['on-stage'], closedAt: '2026-10-19T12:00:00Z' },
+        { lastReleaseAt: released, releaseTag: 'v1.13.0' },
+      );
+      expect(d.status).toBe('Done');
+      expect(d.removeLabels).toEqual(['on-stage']);
+      expect(d.comment?.body).toContain('Released in v1.13.0');
+    });
+
+    it('leaves an On stage issue closed after the release merge On stage', () => {
+      const d = decide(
+        'release',
+        { state: 'closed', status: 'On stage', labels: ['on-stage'], closedAt: '2026-10-21T12:00:00Z' },
+        { lastReleaseAt: released, releaseTag: 'v1.13.0' },
+      );
+      expect(d).toMatchObject({ status: null, addLabels: [], removeLabels: [], comment: null });
+    });
   });
 
   it('marks a PR merged straight into the release branch (hotfix) Done', () => {
