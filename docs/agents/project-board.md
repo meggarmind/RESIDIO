@@ -69,7 +69,9 @@ The rules are data in `.github/board-automation.json`, applied by `scripts/board
 - **`pinned` issues** (#412, #1006) are never touched.
 - **Reconciler.** A nightly run of `node scripts/board-sync.mjs --reconcile` corrects drift and
   writes a summary. It can also be started by hand as a `workflow_dispatch` run of `board-sync.yml`;
-  `dry_run` defaults to true, so set it false to apply changes.
+  `dry_run` defaults to true, so set it false to apply changes. The nightly run is itself a dry
+  run until the repository variable `BOARD_SYNC_LIVE` is `true`; the owner sets it after approving
+  the first (backfill) dry-run report.
 
 ### What agents still do
 

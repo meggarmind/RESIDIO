@@ -81,10 +81,11 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      # Scheduled runs are live; a manual run defaults to a dry run (the input is true unless
-      # the dispatcher unticks it).
+      # A manual run defaults to a dry run (the input is true unless the dispatcher unticks it).
+      # Scheduled runs stay dry runs until the repo variable BOARD_SYNC_LIVE is 'true': the first
+      # live reconcile is the backfill, and the owner approves its dry-run report first (#1104).
       - name: Reconcile
         env:
           GH_TOKEN: ${{ secrets.ADD_TO_PROJECT_PAT }}
-          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '--dry-run' || '' }}
+          DRY_RUN: ${{ ((github.event_name == 'workflow_dispatch' && inputs.dry_run) || (github.event_name == 'schedule' && vars.BOARD_SYNC_LIVE != 'true')) && '--dry-run' || '' }}
         run: node scripts/board-sync.mjs --reconcile --ci $DRY_RUN
