@@ -379,11 +379,11 @@ completion.
 > **`finish` is coordinator-only; no sub-agent may run it.** It never merges and never applies
 > migrations. Run it once and it requires the issue worktree clean and the issue In review, runs the
 > checks, lists the migrations the branch adds against `origin/<defaultBranch>` (§11), pushes the
-> branch, opens or reuses the PR into `defaultBranch` (body says "Part of #N", never a closing
-> keyword), sets the board to In review, and stops. After the PR merges (§16), rerun it: it sets Done,
-> prints the migrations still to apply to Residio_Stage, and removes the worktree and local branch only
-> when the branch tip is inside the merged PR head and the tree is clean. It does not close the issue
-> or any parent initiative.
+> branch, opens or reuses the PR into `defaultBranch` (body says "Closes #N"), sets the board to In
+> review, and stops. After the PR merges (§16), rerun it: it prints the migrations still to apply to
+> Residio_Stage, and removes the worktree and local branch only when the branch tip is inside the
+> merged PR head and the tree is clean. The merge closes the issue and the board automation (§9) moves
+> it. Use "Part of #N" for a PR that must not close its issue, such as a slice of a parent initiative.
 
 ---
 
@@ -392,24 +392,33 @@ completion.
 Issues and PRDs live as GitHub issues in `meggarmind/RESIDIO`, accessed via the `gh` CLI.
 External PRs are not a triage surface. See `docs/agents/issue-tracker.md`.
 
-**Triage labels**: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`,
-`wontfix`. See `docs/agents/triage-labels.md`.
+**Triage labels**: `backlog` (replaces `needs-triage`), `needs-info`, `ready-for-agent`,
+`ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
 
 **Project board** ("MeggaView", GitHub Projects v2). New issues are auto-added by
-`.github/workflows/add-issues-to-project.yml`, but nothing moves them between columns
-automatically — that is your job. Board and field IDs, and the exact `gh project item-edit`
-commands, are in `docs/agents/project-board.md`.
+`.github/workflows/add-issues-to-project.yml`. **`.github/workflows/board-sync.yml` moves labels and
+Status** from issue, branch, PR and release events, and reconciles drift nightly (#1104; rules in
+`scripts/board-sync.mjs`, settings in `.github/board-automation.json`). Board and field IDs, and the
+manual `gh project item-edit` commands for the cases below, are in `docs/agents/project-board.md`.
 
 `Status` columns: **Backlog → Ready → In progress → In review → On stage → Done**. Definitions: pinned issue #1006.
 
-Move an issue's Status at these points, without being asked:
+The automation does all of these. You do only the judgement calls:
 
-1. Starting work on a `ready-for-agent` / `ready-for-human` issue → **In progress**
-2. Opening the PR for it → **In review**
-3. The PR merges into `stage` and the work is live on Stage → **On stage**, and add the `on-stage` label. The issue stays open until it is live on Prod.
-4. The issue is closed (after the release to Prod, or `wontfix`) → **Done**
+1. A branch named `<lane>/issue-<n>-…` is created → **In progress**
+2. A PR links the issue (`Closes #N`, or `Part of #N`) → **In review**
+3. A PR with `Closes #N` merges into `stage` → the issue closes, **On stage**, `on-stage` label added
+4. A release PR merges into `master` → issues it shipped → **Done**, `on-stage` removed, "Released in vX.Y.Z" comment
+5. Parents and umbrellas take their Status from their children and are never closed by the automation.
+6. Issues labelled `pinned` (and #412, #1006) are never touched.
 
-Do not move issues *backwards* (to Backlog or Ready) on your own; that stays manual.
+The two backward moves are automatic: a PR closed unmerged → **In progress**; a reopened issue →
+**Ready** or **In progress**. Everything else backward stays manual.
+
+Your judgement calls: set `ready-for-agent` after you refine an issue (the owner can veto by adding
+`backlog`; a warning posts if Scope, success criteria or Validation is missing), put `Closes #N` in
+the PR, and set the board by hand only when the automation has not (the sync is a few seconds behind
+an event; the nightly run catches the rest).
 
 **Harness labels.** At point 1, also add your own harness label if it is not already there:
 
