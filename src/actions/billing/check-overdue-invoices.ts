@@ -1,6 +1,7 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { applyOverdueFilter } from '@/lib/billing/overdue-filter';
 import { revalidatePath } from 'next/cache';
 
 type OverdueInvoice = {
@@ -120,19 +121,16 @@ export async function checkOverdueInvoices() {
 export async function getOverdueStats() {
     const supabase = await createServerSupabaseClient();
 
-    const today = new Date().toISOString().split('T')[0];
-
-    const { data, error, count } = await supabase
-        .from('invoices')
-        .select('amount_due, amount_paid', { count: 'exact' })
-        .in('status', ['unpaid', 'partially_paid'])
-        .lt('due_date', today);
+    const { data, error, count } = await applyOverdueFilter(
+        supabase.from('invoices').select('amount_due, amount_paid', { count: 'exact' })
+    );
 
     if (error) {
         return { error: error.message };
     }
 
-    const totalAmount = (data || []).reduce((sum, inv) => sum + (inv.amount_due - inv.amount_paid), 0);
+    const totalAmount = ((data || []) as Array<{ amount_due: number; amount_paid: number }>)
+        .reduce((sum, inv) => sum + (inv.amount_due - inv.amount_paid), 0);
 
     return {
         success: true,

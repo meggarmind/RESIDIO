@@ -5,6 +5,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { ilikeAny } from '@/lib/postgrest-filter';
 import { DEBT_STATUS_DEFAULTS, getDebtStatuses, readDebtStatusSettings, type DebtStatus, type DebtStatusSettings } from '@/lib/billing/debt-status';
+import { applyOverdueFilter } from '@/lib/billing/overdue-filter';
 import type { InvoiceWithDetails, InvoiceStatus, InvoiceType } from '@/types/database';
 
 // Note: InvoiceWithDetails is now imported from @/types/database directly where needed
@@ -38,7 +39,9 @@ type InvoiceFilterParams = Omit<GetInvoicesParams, 'page' | 'limit'>;
 function applyInvoiceFilters(query: any, params: InvoiceFilterParams): any {
     const { status, invoiceType, residentId, houseId, search, periodFrom, periodTo } = params;
 
-    if (status) {
+    if (status === 'overdue') {
+        query = applyOverdueFilter(query);
+    } else if (status) {
         query = query.eq('status', status);
     }
     if (invoiceType) {

@@ -342,7 +342,10 @@ export default function BillingPage() {
                     description={overdueStats ? `${overdueStats.count} overdue invoice${overdueStats.count !== 1 ? 's' : ''}` : 'Loading...'}
                     accentColor="warning"
                     className="stagger-5 cursor-pointer"
-                    onClick={() => setStatus('unpaid')}
+                    onClick={() => {
+                        setStatus('overdue');
+                        setPage(1);
+                    }}
                 />
             </div>
 
@@ -389,6 +392,7 @@ export default function BillingPage() {
                             <SelectContent>
                                 <SelectItem value="all">All Status</SelectItem>
                                 <SelectItem value="unpaid">Unpaid</SelectItem>
+                                <SelectItem value="overdue">Overdue</SelectItem>
                                 <SelectItem value="paid">Paid</SelectItem>
                                 <SelectItem value="partially_paid">Partial</SelectItem>
                                 <SelectItem value="void">Void</SelectItem>
