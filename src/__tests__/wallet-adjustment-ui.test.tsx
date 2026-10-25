@@ -114,7 +114,7 @@ describe('WalletBalance adjustment control permission gate (#120)', () => {
     render(<WalletBalance residentId="r1" />);
 
     // The balance itself stays visible -- this is a read-only view, not a denial.
-    expect(screen.getByText('Current Balance')).toBeInTheDocument();
+    expect(screen.getByText('Wallet balance')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /adjust/i })).not.toBeInTheDocument();
   });
 
@@ -124,7 +124,7 @@ describe('WalletBalance adjustment control permission gate (#120)', () => {
 
     render(<WalletBalance residentId="r1" />);
 
-    expect(screen.getByText('Current Balance')).toBeInTheDocument();
+    expect(screen.getByText('Wallet balance')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /adjust/i })).toBeInTheDocument();
   });
 
