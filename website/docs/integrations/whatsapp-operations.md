@@ -9,8 +9,8 @@ residio_sources:
   - src/app/(dashboard)/settings/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp-admin/**
   - src/app/api/whatsapp/**
-residio_verified_commit: 1f9d7b2
-residio_verified_at: '2026-10-24'
+residio_verified_commit: 91c758a3
+residio_verified_at: '2026-10-25'
 residio_app_version: '0.4.0'
 ---
 
@@ -223,7 +223,7 @@ The reset is written to the audit log. The PIN and the code are never recorded.
 
 ## What residents see
 
-Residents reply with numbers or fixed keywords; the Assistant does not interpret free text. Every reply that is an answer ends with `Reply 0 for menu or 9 to contact the estate office.`
+Residents reply with numbers or fixed keywords; the Assistant does not interpret free text. A reply that is a final answer (what the resident owes, recent payments, a wallet balance, a receipt or statement) ends with a blank line and the menu `0` would open, the Financial menu for a resident in Financial standing, so the next number can be sent straight away. A reply that still asks for input (a statement period, a receipt pick, the steps to report a payment) keeps its own prompt. When a receipt or statement PDF caption plus the menu would pass WhatsApp's 1,024-character caption limit, the menu follows as a separate message.
 
 The main menu opens with `Hi <first name>, what would you like to do?` and lists:
 
