@@ -399,7 +399,7 @@ export function GenerateInvoicesDialog({ open, onClose }: GenerateInvoicesDialog
 
                 {mode === 'backfill' && <div className="flex gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-100"><AlertCircle className="h-4 w-4 shrink-0" />Backfills default all side effects off. Turn them on only after reviewing the exact preview.</div>}
 
-                <Button variant="outline" className="w-full" onClick={handlePreview} disabled={previewMutation.isPending}>
+                <Button variant="outline" className="w-full" onClick={handlePreview} disabled={previewMutation.isPending || (mode === 'backfill' && !fromMonth)}>
                   {previewMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Eye className="mr-2 h-4 w-4" />}Preview exact request
                 </Button>
 
