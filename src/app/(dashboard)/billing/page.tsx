@@ -181,7 +181,7 @@ export default function BillingPage() {
         return getPresetInvoiceDateRange(datePreset);
     }, [customDateRange, datePreset]);
 
-    const { data, isLoading, refetch } = useAdminInvoices({
+    const { data, isLoading, isError, refetch } = useAdminInvoices({
         page,
         limit,
         status: status === 'all' ? undefined : (status as InvoiceStatus),
@@ -465,6 +465,18 @@ export default function BillingPage() {
                     </div>
                 }
             >
+                {isError ? (
+                    <div role="alert" className="rounded-xl border bg-card py-8 text-center shadow-soft" data-error-state="invoices">
+                        <AlertCircle className="mx-auto mb-3 h-8 w-8 text-destructive" aria-hidden="true" />
+                        <p className="font-medium">The invoice list could not be loaded</p>
+                        <p className="mt-1 text-sm text-muted-foreground">Nothing was changed. Try again.</p>
+                        <Button variant="outline" size="sm" className="mt-4" onClick={() => refetch()}>
+                            <RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" />
+                            Try again
+                        </Button>
+                    </div>
+                ) : (
+                <>
                 {/* Phone: stacked cards below md. Both lists stay in the DOM and CSS picks one. */}
                 <div className="space-y-3 md:hidden" data-testid="invoice-card-list">
                     {isLoading ? (
@@ -560,6 +572,8 @@ export default function BillingPage() {
                         </TableBody>
                     </Table>
                 </div>
+                </>
+                )}
             </EnhancedTableCard>
 
             {/* Pagination */}
