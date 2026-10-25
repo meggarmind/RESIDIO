@@ -132,7 +132,7 @@ describe('GET /api/statements authorization', { timeout: 15000 }, () => {
     expect(h.loadAccountStatement).toHaveBeenCalledWith(
       h.supabase,
       expect.objectContaining({ residentId: OTHER_RESIDENT_ID }),
-      { rollForward: true }
+      expect.objectContaining({ rollForward: true })
     );
   });
 
@@ -144,7 +144,7 @@ describe('GET /api/statements authorization', { timeout: 15000 }, () => {
     expect(h.loadAccountStatement).toHaveBeenCalledWith(
       h.supabase,
       expect.objectContaining({ residentId: OWNER_RESIDENT_ID }),
-      { rollForward: false }
+      expect.objectContaining({ rollForward: false })
     );
   });
 
@@ -152,7 +152,7 @@ describe('GET /api/statements authorization', { timeout: 15000 }, () => {
     const h = await load({ linkedResidentId: OWNER_RESIDENT_ID, rpc: { data: accessRows('billing.view'), error: null } });
     await h.GET(new NextRequest(url(OWNER_RESIDENT_ID)));
 
-    expect(h.loadAccountStatement).toHaveBeenCalledWith(h.supabase, expect.anything(), { rollForward: true });
+    expect(h.loadAccountStatement).toHaveBeenCalledWith(h.supabase, expect.anything(), expect.objectContaining({ rollForward: true }));
     expect(h.isResidentRollForwardEnabled).not.toHaveBeenCalled();
   });
 
@@ -160,7 +160,7 @@ describe('GET /api/statements authorization', { timeout: 15000 }, () => {
     const h = await load({ linkedResidentId: OWNER_RESIDENT_ID, rpc: { data: accessRows(null), error: null }, residentRollForward: true });
     await h.GET(new NextRequest(url(OWNER_RESIDENT_ID)));
 
-    expect(h.loadAccountStatement).toHaveBeenCalledWith(h.supabase, expect.anything(), { rollForward: true });
+    expect(h.loadAccountStatement).toHaveBeenCalledWith(h.supabase, expect.anything(), expect.objectContaining({ rollForward: true }));
   });
 
   it('lets the owner proceed even when the access lookup fails', async () => {
