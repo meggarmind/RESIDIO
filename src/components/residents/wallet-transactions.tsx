@@ -48,6 +48,8 @@ type TransactionRow = {
   description?: string | null;
   reference_type?: string | null;
   reference_id?: string | null;
+  payment_method?: string | null;
+  payment_reference?: string | null;
 };
 
 const WalletTransactionRow = memo(function WalletTransactionRow({
@@ -90,6 +92,13 @@ const WalletTransactionRow = memo(function WalletTransactionRow({
       <TableCell>
         <div className="space-y-1 text-sm">
           <p>{transaction.description || '-'}</p>
+          {isCredit && (transaction.payment_method || transaction.payment_reference) && (
+            <p className="text-xs text-muted-foreground">
+              <span className="capitalize">{transaction.payment_method?.replaceAll('_', ' ')}</span>
+              {transaction.payment_method && transaction.payment_reference && ' · '}
+              {transaction.payment_reference}
+            </p>
+          )}
           {transaction.reference_type && transaction.reference_id && (
             <ReferenceLink type={transaction.reference_type} id={transaction.reference_id} />
           )}
@@ -105,8 +114,8 @@ type FilteredYearlySummary = YearlyWalletTransactionSummary & {
   netChange: number;
 };
 
-function YearlyWalletTransactionRow({ summary }: { summary: FilteredYearlySummary }) {
-  const [open, setOpen] = useState(false);
+function YearlyWalletTransactionRow({ summary, defaultOpen }: { summary: FilteredYearlySummary; defaultOpen: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
 
   return (
     <>
@@ -234,8 +243,8 @@ export function WalletTransactions({ residentId }: WalletTransactionsProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {yearlyTransactions.map((summary) => (
-                  <YearlyWalletTransactionRow key={summary.year} summary={summary} />
+                {yearlyTransactions.map((summary, index) => (
+                  <YearlyWalletTransactionRow key={summary.year} summary={summary} defaultOpen={index === 0} />
                 ))}
               </TableBody>
             </Table>

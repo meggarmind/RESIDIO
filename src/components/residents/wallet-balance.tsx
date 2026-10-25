@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
+import { IconBox } from '@/components/ui/icon-box';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useWallet, useYearlyWalletTransactions } from '@/hooks/use-wallet';
 import { useAuth } from '@/lib/auth/auth-provider';
@@ -33,18 +34,10 @@ export function WalletBalance({ residentId, showActions = true }: WalletBalanceP
   if (walletLoading) {
     return (
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-            <Wallet className="h-4 w-4" />
-            Wallet Balance
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Skeleton className="h-12 w-full" />
-          <div className="grid grid-cols-2 gap-3">
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
-          </div>
+        <CardContent className="space-y-3 p-4">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-4 w-full" />
         </CardContent>
       </Card>
     );
@@ -61,15 +54,14 @@ export function WalletBalance({ residentId, showActions = true }: WalletBalanceP
   return (
     <>
       <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+        <CardContent className="space-y-3 p-4">
+          <div className="flex items-center justify-between gap-2">
+            <p className="flex items-center gap-2 text-sm font-semibold">
+              <IconBox color="green" size="sm" className="h-8 w-8">
                 <Wallet className="h-4 w-4" />
-                Wallet Balance
-              </CardTitle>
-              <CardDescription className="text-xs">Resident payment wallet</CardDescription>
-            </div>
+              </IconBox>
+              Wallet balance
+            </p>
             {canShowAdjustment && (
               <Button size="sm" variant="outline" className="h-7 text-xs min-h-11 md:min-h-0" onClick={() => setIsAdjustmentDialogOpen(true)}>
                 <Plus className="h-3.5 w-3.5 mr-1" />
@@ -77,38 +69,23 @@ export function WalletBalance({ residentId, showActions = true }: WalletBalanceP
               </Button>
             )}
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Current Balance */}
-          <div className="text-center">
-            <p className="text-xs text-muted-foreground mb-1">Current Balance</p>
-            <p className={`text-2xl font-bold ${balanceColor}`}>{formatCurrency(balance)}</p>
-          </div>
-
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 gap-3">
-            {/* Total Credits */}
-            <div className="border rounded-lg p-3 bg-green-50 dark:bg-green-950/20">
-              <div className="flex items-center gap-1.5 mb-1">
+          <p className={`text-2xl font-bold ${balanceColor}`}>{formatCurrency(balance)}</p>
+          <dl className="grid grid-cols-2 gap-3 border-t pt-3 text-xs">
+            <div>
+              <dt className="flex items-center gap-1 text-muted-foreground">
                 <TrendingUp className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
-                <p className="text-xs font-medium text-green-600 dark:text-green-400">Total Credits</p>
-              </div>
-              <p className="text-base font-semibold text-green-700 dark:text-green-300">
-                {formatCurrency(totalCredits)}
-              </p>
+                Total credits
+              </dt>
+              <dd className="mt-0.5 text-sm font-semibold">{formatCurrency(totalCredits)}</dd>
             </div>
-
-            {/* Total Debits */}
-            <div className="border rounded-lg p-3 bg-red-50 dark:bg-red-950/20">
-              <div className="flex items-center gap-1.5 mb-1">
+            <div>
+              <dt className="flex items-center gap-1 text-muted-foreground">
                 <TrendingDown className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
-                <p className="text-xs font-medium text-red-600 dark:text-red-400">Total Debits</p>
-              </div>
-              <p className="text-base font-semibold text-red-700 dark:text-red-300">
-                {formatCurrency(totalDebits)}
-              </p>
+                Total debits
+              </dt>
+              <dd className="mt-0.5 text-sm font-semibold">{formatCurrency(totalDebits)}</dd>
             </div>
-          </div>
+          </dl>
         </CardContent>
       </Card>
 

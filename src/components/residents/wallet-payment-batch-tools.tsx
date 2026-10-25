@@ -2,10 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { CalendarRange, CheckSquare, Loader2, Receipt, WalletCards } from 'lucide-react';
+import { CalendarRange, CheckSquare, Loader2, Receipt } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -41,12 +40,16 @@ type PayableInvoice = {
 
 type HouseOption = { id: string; label: string };
 
+// The Money tab opens this content from two rail buttons (#1142): `settle` shows
+// the pending invoices and batch receipts, `prepay` the future-month form.
 export function WalletPaymentBatchTools({
     residentId,
     houses,
+    section,
 }: {
     residentId: string;
     houses: HouseOption[];
+    section: 'settle' | 'prepay';
 }) {
     const queryClient = useQueryClient();
     // CORE.md s6: settle and prepay need billing.manage_wallets; viewers see the invoices and receipts only.
@@ -165,24 +168,18 @@ export function WalletPaymentBatchTools({
         await loadInvoices();
     };
 
+    const dateField = (
+        <div className="space-y-1.5">
+            <Label htmlFor="wallet-payment-date">Payment date</Label>
+            <Input id="wallet-payment-date" type="date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} />
+        </div>
+    );
+
     return (
-        <Card className="mt-4">
-            <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-sm">
-                    <WalletCards className="h-4 w-4" />
-                    Wallet payment batches
-                </CardTitle>
-                <CardDescription className="text-xs">
-                    Settle several invoices with one receipt, or prepay future months.
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-5">
-                {canManageWallet && (
+        <div className="space-y-5">
+                {section === 'settle' && canManageWallet && (
                 <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-                    <div className="space-y-1.5">
-                        <Label htmlFor="wallet-payment-date">Payment date</Label>
-                        <Input id="wallet-payment-date" type="date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} />
-                    </div>
+                    {dateField}
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
                             <Button disabled={isSettling || selected.length === 0} className="min-h-11 md:min-h-0">
@@ -216,6 +213,7 @@ export function WalletPaymentBatchTools({
                 </div>
                 )}
 
+                {section === 'settle' && (
                 <div className="rounded-lg border divide-y max-h-64 overflow-y-auto">
                     {isLoading && <p className="p-4 text-sm text-muted-foreground">Loading pending invoices…</p>}
                     {!isLoading && invoices.length === 0 && <p className="p-4 text-sm text-muted-foreground">No pending invoices.</p>}
@@ -233,10 +231,12 @@ export function WalletPaymentBatchTools({
                         );
                     })}
                 </div>
+                )}
 
-                {canManageWallet && (
-                <div className="border-t pt-4 space-y-3">
+                {section === 'prepay' && canManageWallet && (
+                <div className="space-y-3">
                     <div className="flex items-center gap-2 text-sm font-medium"><CalendarRange className="h-4 w-4" /> Future prepayment</div>
+                    {dateField}
                     <div className="grid gap-3 sm:grid-cols-3">
                         <div className="space-y-1.5">
                             <Label htmlFor="prepay-house">House</Label>
@@ -264,7 +264,7 @@ export function WalletPaymentBatchTools({
                     </div>
                 )}
 
-                {batches.length > 0 && (
+                {section === 'settle' && batches.length > 0 && (
                     <div className="border-t pt-4 space-y-2">
                         <p className="text-sm font-medium">Recent batch receipts</p>
                         <div className="space-y-2">
@@ -288,7 +288,6 @@ export function WalletPaymentBatchTools({
                         </div>
                     </div>
                 )}
-            </CardContent>
-        </Card>
+        </div>
     );
 }

@@ -87,7 +87,7 @@ function renderWithClient() {
   });
   render(
     <QueryClientProvider client={queryClient}>
-      <WalletPaymentBatchTools residentId={RESIDENT_ID} houses={[]} />
+      <WalletPaymentBatchTools residentId={RESIDENT_ID} houses={[]} section="settle" />
     </QueryClientProvider>
   );
   return queryClient;

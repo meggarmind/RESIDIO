@@ -442,7 +442,11 @@ export interface YearlyWalletTransactionSummary {
 const YEARLY_WALLET_TRANSACTION_COLUMNS =
     'id, type, amount, balance_after, reference_type, reference_id, description, created_at';
 
-export type YearlyWalletTransaction = Omit<WalletTransaction, 'wallet_id'>;
+export type YearlyWalletTransaction = Omit<WalletTransaction, 'wallet_id'> & {
+    // Set on credit rows that came from a payment (#1142).
+    payment_method?: string | null;
+    payment_reference?: string | null;
+};
 
 /**
  * Get the resident wallet ledger grouped by calendar year for the expandable
@@ -473,8 +477,29 @@ export async function getYearlyWalletTransactions(
         return { data: [], error };
     }
 
+    // One batched read for the method and bank ref of every payment-linked row.
+    const paymentIds = [...new Set((data || [])
+        .filter((t) => t.reference_type === 'payment' && t.reference_id)
+        .map((t) => t.reference_id as string))];
+    const paymentById = new Map<string, { method: string | null; reference_number: string | null }>();
+    for (let i = 0; i < paymentIds.length; i += 200) {
+        const { data: payments, error: paymentsError } = await supabase
+            .from('payment_records')
+            .select('id, method, reference_number')
+            .in('id', paymentIds.slice(i, i + 200));
+        if (paymentsError) {
+            return { data: [], error: paymentsError.message };
+        }
+        for (const payment of payments || []) paymentById.set(payment.id, payment);
+    }
+
     const byYear = new Map<number, YearlyWalletTransactionSummary>();
     for (const transaction of data || []) {
+        const payment = transaction.reference_id ? paymentById.get(transaction.reference_id) : undefined;
+        if (payment) {
+            transaction.payment_method = payment.method;
+            transaction.payment_reference = payment.reference_number;
+        }
         const year = new Date(transaction.created_at).getFullYear();
         if (!byYear.has(year)) {
             byYear.set(year, {
