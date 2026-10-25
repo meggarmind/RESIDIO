@@ -18,7 +18,7 @@ Header components in use:
 
 | Component | Title style | Source |
 | --- | --- | --- |
-| `EnhancedPageHeader` | `text-2xl sm:text-3xl font-bold tracking-tight` | `src/components/dashboard/enhanced-stat-card.tsx:250,271` |
+| `EnhancedPageHeader` | `text-2xl sm:text-3xl font-bold tracking-tight` | `src/components/dashboard/page-header.tsx:54` |
 | `SettingsPageHeader` | `text-lg font-medium`, breadcrumb, unsaved-changes bar | `src/components/settings/settings-page-header.tsx:73` |
 | `CommandStrip` (home only) | `text-2xl font-semibold tracking-tight` | `src/components/dashboard/command-strip.tsx:144` |
 | Own `<h1>` | 4 different sizes (see `## Divergences`) | per page |

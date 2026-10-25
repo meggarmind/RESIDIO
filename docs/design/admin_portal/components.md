@@ -163,7 +163,7 @@ The files `quick-stats-card.tsx` and `modern-stats-cards.tsx` do not exist in th
 
 **Canonical:** `IconBox` (`src/components/ui/icon-box.tsx:25`)
 **Use when:** an icon anchors a card, a section heading or a form. 10 files import it, 6 of them admin (for example `src/components/settings/settings-section.tsx` and `src/components/houses/house-form.tsx`).
-**Do not use in new work:** a hand-built `div` with `bg-primary/10` around an icon. `EnhancedPageHeader` does this at `enhanced-stat-card.tsx:266`. It is a private copy, not a use of `IconBox`.
+**Do not use in new work:** a hand-built `div` with `bg-primary/10` around an icon. `EnhancedPageHeader` does this at `page-header.tsx:49`. It is a private copy, not a use of `IconBox`.
 
 **Contract / notes:**
 - Props, verbatim: `color?: 'pink' | 'blue' | 'purple' | 'orange' | 'green' | 'cyan'` (default `'blue'`), `size?: 'sm' | 'md' | 'lg'` (default `'md'`), `children` (`icon-box.tsx:21-33`).
@@ -241,7 +241,7 @@ The files `quick-stats-card.tsx` and `modern-stats-cards.tsx` do not exist in th
 
 | Job | Canonical | Status |
 | --- | --- | --- |
-| Page header | `EnhancedPageHeader` | exists but inconsistent (no back control, 13 raw `<h1>` files) |
+| Page header | `EnhancedPageHeader` | exists with a back control; 13 raw `<h1>` files remain |
 | Stat / KPI card | `EnhancedStatCard`, `RegistryKpiStrip` | exists but inconsistent (two components, 5 and 2 files) |
 | Data table | none | to build (`DataTable`; 42 files with their own markup) |
 | Filter bar / search | none | to build (`ListFilterBar`) |
@@ -260,7 +260,7 @@ The files `quick-stats-card.tsx` and `modern-stats-cards.tsx` do not exist in th
 - Build `DataTable` with sort, pagination, `renderCard` and selection. Replaces 3 hand-written pagination blocks and about 42 `<Table>` files.
 - Build `ListFilterBar` with persisted state and active chips. Replaces filter rows in 5 lists and 14 copies of `ALL_VALUE`.
 - Build `ErrorState` and use it in list error slots. Replaces inline error text in 2 reference lists.
-- Add `backHref` and `backLabel` to `EnhancedPageHeader`. Replaces 14 hand-built back buttons.
+- Move the remaining about 11 hand-built back buttons to `backHref` and `backLabel`.
 - Move 13 raw `<h1>` pages to `EnhancedPageHeader`.
 - Make list empty states use `ModernEmptyState` with a `compact` prop. 2 files use it today.
 - Decide `StatusBadge` versus `Badge` (0 admin usages of `StatusBadge`). Then fix `DESIGN.md` or the code.
