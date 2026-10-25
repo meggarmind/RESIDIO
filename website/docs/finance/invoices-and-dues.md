@@ -20,7 +20,7 @@ Open **Invoices & Dues** to review the estate's billing position and work with i
 
 ## Review the queue
 
-Filter by status (**Unpaid**, **Paid**, **Partial**, **Void**), invoice type (service charge, levy, adjustment, other), billing period (this month, last month, the last 3 months, this year, or a **Custom range** of dates), and resident, or search by invoice number. Combine filters to narrow the working set.
+Filter by status (**Unpaid**, **Overdue**, **Paid**, **Partial**, **Void**; Overdue means unpaid or partly paid and due before today), invoice type (service charge, levy, adjustment, other), billing period (this month, last month, the last 3 months, this year, or a **Custom range** of dates), and resident, or search by invoice number. Combine filters to narrow the working set.
 
 The cards above the list count the whole estate, not just the page on screen. **Total Invoices**, **Paid**, **Unpaid** and **Total Value** follow the filters you have set; **Overdue** always covers every overdue invoice. Select **Overdue** to filter the list to unpaid invoices. On a phone, each invoice is shown as a card with its amount, status, resident, house, period and due date.
 
