@@ -233,59 +233,7 @@ export function EnhancedTableCard({
   );
 }
 
-/**
- * Enhanced Page Header
- *
- * Theme-aware page header with title, description, and actions.
- */
-interface EnhancedPageHeaderProps {
-  title: string;
-  description?: string;
-  icon?: LucideIcon;
-  actions?: React.ReactNode;
-  className?: string;
-  animate?: boolean;
-}
-
-export function EnhancedPageHeader({
-  title,
-  description,
-  icon: Icon,
-  actions,
-  className,
-  animate = true,
-}: EnhancedPageHeaderProps) {
-  return (
-    <div className={cn(
-      'flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4',
-      animate && 'animate-slide-up',
-      className
-    )}>
-      <div className="flex items-center gap-4">
-        {Icon && (
-          <div className="flex h-12 w-12 items-center justify-center transition-transform duration-300 hover:scale-105 rounded-xl bg-primary/10 dark:bg-primary/20">
-            <Icon className="h-6 w-6 text-primary" />
-          </div>
-        )}
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-            {title}
-          </h1>
-          {description && (
-            <p className="text-sm sm:text-base mt-1 text-muted-foreground">
-              {description}
-            </p>
-          )}
-        </div>
-      </div>
-      {actions && (
-        <div className="flex items-center gap-3">
-          {actions}
-        </div>
-      )}
-    </div>
-  );
-}
+export { EnhancedPageHeader } from './page-header';
 
 /**
  * Enhanced Alert Banner

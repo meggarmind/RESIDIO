@@ -1,9 +1,7 @@
 'use client';
 
-import Link from 'next/link';
-import { ArrowLeft, HelpCircle } from 'lucide-react';
+import { HelpCircle } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
 import {
   EnhancedPageHeader,
   EnhancedTableCard,
@@ -25,14 +23,8 @@ export default function UnverifiedIdentifiersPage() {
         title="Unconfirmed identifiers"
         description="Houses recorded from the manual register with a doubted house number, awaiting confirmation"
         icon={HelpCircle}
-        actions={
-          <Button asChild variant="outline">
-            <Link href="/houses">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to houses
-            </Link>
-          </Button>
-        }
+        backHref="/houses"
+        backLabel="Back to houses"
       />
 
       <EnhancedTableCard className="[&>div]:pt-4">

@@ -7,13 +7,14 @@ import { getParentInvoice } from '@/actions/billing/get-invoice-corrections';
 import type { InvoiceWithDetails } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { EnhancedPageHeader } from '@/components/dashboard/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { InvoiceCorrectionDialog } from '@/components/billing/invoice-correction-dialog';
 import { InvoiceCorrectionTimeline } from '@/components/billing/invoice-correction-timeline';
 import { formatCurrency } from '@/lib/utils';
-import { ArrowLeft, Printer, Loader2, FileEdit, AlertCircle, ScrollText } from 'lucide-react';
+import { Printer, Loader2, FileEdit, AlertCircle, ScrollText } from 'lucide-react';
 import { StatementGeneratorDialog } from '@/components/billing/statement-generator-dialog';
 import { useAuth } from '@/lib/auth/auth-provider';
 import Link from 'next/link';
@@ -97,14 +98,13 @@ export default function InvoiceDetailPage() {
 
     return (
         <div className="p-6 max-w-6xl mx-auto space-y-6">
-            <div className="flex items-center justify-between">
-                <Button variant="ghost" asChild>
-                    <Link href="/billing">
-                        <ArrowLeft className="mr-2 h-4 w-4" />
-                        Back to Invoices
-                    </Link>
-                </Button>
-                <div className="flex gap-2">
+            <EnhancedPageHeader
+                title={`Invoice ${invoice.invoice_number}`}
+                backHref="/billing"
+                backLabel="Back to Invoices"
+                animate={false}
+                actions={
+                <div className="flex flex-wrap gap-2">
                     {invoice.resident?.id && (
                         <StatementGeneratorDialog
                             residentId={invoice.resident.id}
@@ -135,7 +135,8 @@ export default function InvoiceDetailPage() {
                         Print
                     </Button>
                 </div>
-            </div>
+                }
+            />
 
             {/* Correction Badge (if this is a correction invoice) */}
             {invoice.is_correction && (
