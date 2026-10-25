@@ -14,7 +14,7 @@ See `components.md` for the contracts.
 | # | Build | Why | Principle |
 | --- | --- | --- | --- |
 | B1 (#1149) | A stand-alone page header component (title, description, actions, back control) | `EnhancedPageHeader` now lives in `page-header.tsx` with a back control (done in #1149); 20 files use it, 13 render a raw `<h1>`, 10 pages have no `<h1>`, and 14 pages hand-build a back control in 3 forms (`components.md`, `page-patterns.md`) | 4 |
-| B2 (#1150) | A shared data table pattern (server paging, sort, sticky identifier column, row actions, mobile card collapse) | No shared table exists; each registry builds its own on `ui/table.tsx` | 4, 5, 10 |
+| B2 (#1150) | A shared data table pattern (server paging, sort, sticky identifier column, row actions, mobile card collapse) | Built as `src/components/ui/data-table.tsx`; Residents migrated. Houses and Invoices are follow-up slices | 4, 5, 10 |
 | B3 (#1151) | A shared filter bar (search, status, date range, clear all) | Filters are per-domain (`analytics/date-range-filter.tsx`, `audit/audit-filters.tsx`) | 5 |
 
 ## Consolidate: more than one component for one job

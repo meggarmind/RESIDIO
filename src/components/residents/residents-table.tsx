@@ -6,14 +6,6 @@ import { useDebounce } from '@/hooks/use-debounce';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,15 +23,14 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
-import { Skeleton } from '@/components/ui/skeleton';
-import { RecordCard, RecordCardSkeleton } from '@/components/ui/record-card';
-import { RecordSortControl } from '@/components/ui/record-sort-control';
+import { RecordCard } from '@/components/ui/record-card';
+import { DataTable, type DataTableColumn, type DataTableSort } from '@/components/ui/data-table';
 import { AccountStatusBadge, ResidentRoleBadge } from '@/components/residents/status-badge';
 import { ContactVerificationBadge } from '@/components/residents/contact-verification-badge';
 import { ResidentQuickView } from '@/components/residents/resident-quick-view';
 import { useAdminResidents, useContactVerificationStats } from '@/hooks/use-residents';
 import { useStreets } from '@/hooks/use-reference';
-import { Users, Plus, Search, Pencil, UserPlus, ChevronDown, ChevronUp, ChevronsUpDown, X, CheckCircle2, AlertCircle, Clock, Eye } from 'lucide-react';
+import { Users, Plus, Search, Pencil, UserPlus, ChevronDown, X, CheckCircle2, AlertCircle, Clock, Eye } from 'lucide-react';
 import type { ResidentSearchParams, ContactVerificationFilter } from '@/lib/validators/resident';
 import type { AccountStatus, ResidentRole, ResidentWithHouses } from '@/types/database';
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
@@ -47,6 +38,8 @@ import { Can } from '@/components/auth/can';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 const ALL_VALUE = '_all';
+
+type ResidentSortKey = 'resident_code' | 'first_name' | 'house_number';
 
 type NavigateHandler = (id: string, el: HTMLElement | null, event: React.MouseEvent) => void;
 
@@ -74,15 +67,18 @@ function isDisplayed(el: HTMLElement): boolean {
 // Reverse shared-element transition: when returning from this resident's
 // detail page, name the visible row/card so the header morphs back into it. Only
 // while a shared transition is active; the helper clears the name afterwards.
+function claimReturnTransitionName(residentId: string, el: HTMLElement | null) {
+  const name = `resident-${residentId}`;
+  if (el && isSharedTransitionActive() && getLastSharedElementName() === name && isDisplayed(el)) {
+    el.style.viewTransitionName = name;
+    el.dataset.sharedTarget = 'true';
+  }
+}
+
 function useReturnTransitionName<T extends HTMLElement>(residentId: string) {
   const ref = useRef<T>(null);
   useEffect(() => {
-    const el = ref.current;
-    const name = `resident-${residentId}`;
-    if (el && isSharedTransitionActive() && getLastSharedElementName() === name && isDisplayed(el)) {
-      el.style.viewTransitionName = name;
-      el.dataset.sharedTarget = 'true';
-    }
+    claimReturnTransitionName(residentId, ref.current);
   }, [residentId]);
   return ref;
 }
@@ -119,9 +115,9 @@ function ResidentActions({ resident, onPreview }: { resident: ResidentWithHouses
   );
 }
 
-// Memoized phone card, the stacked counterpart of ResidentRow (below md)
+// Memoized phone card, the stacked counterpart of a table row (below md)
 const ResidentCard = memo(function ResidentCard({ resident, onNavigate, onPreview }: { resident: ResidentWithHouses; onNavigate: NavigateHandler; onPreview: (id: string) => void }) {
-  const { address, activeAssignments, uniqueActiveRoles } = summarizeResident(resident);
+  const { address } = summarizeResident(resident);
   const cardRef = useReturnTransitionName<HTMLDivElement>(resident.id);
 
   return (
@@ -146,79 +142,25 @@ const ResidentCard = memo(function ResidentCard({ resident, onNavigate, onPrevie
         </>
       }
     >
-      <div className="flex flex-wrap gap-1">
-        {activeAssignments.length ? (
-          uniqueActiveRoles.map((role) => (
-            <ResidentRoleBadge key={role} role={role} />
-          ))
-        ) : (
-          <Badge variant="outline" className="text-muted-foreground">
-            Unassigned
-          </Badge>
-        )}
-      </div>
+      <RoleBadges resident={resident} />
     </RecordCard>
   );
 });
 
-// Memoized row component to prevent unnecessary re-renders
-// This significantly improves performance for large resident lists
-const ResidentRow = memo(function ResidentRow({ resident, onNavigate, onPreview }: { resident: ResidentWithHouses; onNavigate: NavigateHandler; onPreview: (id: string) => void }) {
-  const { address, activeAssignments, uniqueActiveRoles } = summarizeResident(resident);
-  const rowRef = useReturnTransitionName<HTMLTableRowElement>(resident.id);
-
+function RoleBadges({ resident }: { resident: ResidentWithHouses }) {
+  const { activeAssignments, uniqueActiveRoles } = summarizeResident(resident);
   return (
-    <TableRow
-      ref={rowRef}
-      className="cursor-pointer hover:bg-muted/50 transition-colors"
-      onClick={(event) => onNavigate(resident.id, event.currentTarget, event)}
-    >
-      <TableCell>
-        <span className="font-mono text-sm bg-muted px-2 py-1 rounded">
-          {resident.resident_code}
-        </span>
-      </TableCell>
-      <TableCell>
-        <div className="flex items-center gap-2">
-          <Users className="h-4 w-4 text-muted-foreground" />
-          <span className="font-medium">
-            {resident.first_name} {resident.last_name}
-          </span>
-        </div>
-      </TableCell>
-      <TableCell className="hidden xl:table-cell">{resident.phone_primary}</TableCell>
-      <TableCell>{address}</TableCell>
-      <TableCell>
-        <div className="flex flex-wrap gap-1">
-          {activeAssignments.length ? (
-            uniqueActiveRoles.map((role) => (
-              <ResidentRoleBadge key={role} role={role} />
-            ))
-          ) : (
-            <Badge variant="outline" className="text-muted-foreground">
-              Unassigned
-            </Badge>
-          )}
-        </div>
-      </TableCell>
-      <TableCell>
-        <AccountStatusBadge status={resident.account_status} />
-      </TableCell>
-      <TableCell className="hidden lg:table-cell">
-        <ContactVerificationBadge
-          emailVerifiedAt={resident.email_verified_at}
-          phoneVerifiedAt={resident.phone_verified_at}
-          hasEmail={!!resident.email}
-        />
-      </TableCell>
-      <TableCell className="text-right">
-        <div className="flex justify-end gap-1">
-          <ResidentActions resident={resident} onPreview={onPreview} />
-        </div>
-      </TableCell>
-    </TableRow>
+    <div className="flex flex-wrap gap-1">
+      {activeAssignments.length ? (
+        uniqueActiveRoles.map((role) => <ResidentRoleBadge key={role} role={role} />)
+      ) : (
+        <Badge variant="outline" className="text-muted-foreground">
+          Unassigned
+        </Badge>
+      )}
+    </div>
   );
-});
+}
 
 // Sort options for the phone sort control (the table uses its column headers)
 export const RESIDENT_SORT_OPTIONS = [
@@ -236,6 +178,52 @@ const CONTACT_VERIFICATION_LABELS: Record<ContactVerificationFilter | typeof ALL
   partial: 'Partial',
 };
 
+const columns: DataTableColumn<ResidentWithHouses>[] = [
+  {
+    key: 'resident_code',
+    header: 'Code',
+    sortable: true,
+    identifier: true,
+    cell: (resident) => (
+      <span className="font-mono text-sm bg-muted px-2 py-1 rounded">{resident.resident_code}</span>
+    ),
+  },
+  {
+    key: 'first_name',
+    header: 'Name',
+    sortable: true,
+    cell: (resident) => (
+      <div className="flex items-center gap-2">
+        <Users className="h-4 w-4 text-muted-foreground" />
+        <span className="font-medium">
+          {resident.first_name} {resident.last_name}
+        </span>
+      </div>
+    ),
+  },
+  { key: 'phone', header: 'Phone', hideBelow: 'xl', cell: (resident) => resident.phone_primary },
+  {
+    key: 'house_number',
+    header: 'Address',
+    sortable: true,
+    cell: (resident) => summarizeResident(resident).address,
+  },
+  { key: 'role', header: 'Role', cell: (resident) => <RoleBadges resident={resident} /> },
+  { key: 'status', header: 'Status', cell: (resident) => <AccountStatusBadge status={resident.account_status} /> },
+  {
+    key: 'verified',
+    header: 'Verified',
+    hideBelow: 'lg',
+    cell: (resident) => (
+      <ContactVerificationBadge
+        emailVerifiedAt={resident.email_verified_at}
+        phoneVerifiedAt={resident.phone_verified_at}
+        hasEmail={!!resident.email}
+      />
+    ),
+  },
+];
+
 export function ResidentsTable() {
   const router = useRouter();
   const [search, setSearch] = usePersistedState('residents-registry:search', '');
@@ -245,19 +233,14 @@ export function ResidentsTable() {
   const [selectedRoles, setSelectedRoles] = usePersistedState<ResidentRole[]>('residents-registry:roles', []);
   const [page, setPage] = usePersistedState('residents-registry:page', 1);
   const [limit, setLimit] = usePersistedState('residents-registry:limit', 20);
-  const [sortBy, setSortBy] = usePersistedState<'resident_code' | 'first_name' | 'house_number' | undefined>('residents-registry:sortBy', undefined);
+  const [sortBy, setSortBy] = usePersistedState<ResidentSortKey | undefined>('residents-registry:sortBy', undefined);
   const [sortOrder, setSortOrder] = usePersistedState<'asc' | 'desc'>('residents-registry:sortOrder', 'asc');
   const [previewResidentId, setPreviewResidentId] = useState<string | null>(null);
 
-  const handleSort = useCallback((column: 'resident_code' | 'first_name' | 'house_number') => {
-    if (sortBy === column) {
-      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(column);
-      setSortOrder('asc');
-    }
-    setPage(1);
-  }, [setPage, setSortBy, setSortOrder, sortBy]);
+  const handleSortChange = useCallback((next: DataTableSort) => {
+    setSortBy(next.key as ResidentSortKey);
+    setSortOrder(next.order);
+  }, [setSortBy, setSortOrder]);
 
   const handleNavigate = useCallback<NavigateHandler>((id, el, event) => {
     void navigateWithSharedElement({
@@ -302,14 +285,6 @@ export function ResidentsTable() {
   const { data, isLoading, error } = useAdminResidents(params);
   const { data: streets } = useStreets();
   const { data: verificationStats } = useContactVerificationStats();
-
-  if (error) {
-    return (
-      <div className="text-center py-8 text-destructive">
-        Error loading residents: {error.message}
-      </div>
-    );
-  }
 
   // Shown in the table's empty row and in the phone card list
   const emptyState = (
@@ -519,199 +494,32 @@ export function ResidentsTable() {
         </div>
       )}
 
-      {/* Phone: stacked cards below md. Both lists stay in the DOM and CSS picks one. */}
-      <div className="space-y-3 md:hidden" data-testid="resident-card-list">
-        <RecordSortControl
-          options={RESIDENT_SORT_OPTIONS}
-          sortBy={sortBy}
-          sortOrder={sortOrder}
-          onSort={(value) => handleSort(value as 'resident_code' | 'first_name' | 'house_number')}
-        />
-        {isLoading ? (
-          [...Array(5)].map((_, i) => <RecordCardSkeleton key={i} />)
-        ) : data?.data.length === 0 ? (
-          <div className="rounded-xl border bg-card py-12 shadow-soft">{emptyState}</div>
-        ) : (
-          data?.data.map((resident) => (
-            <ResidentCard key={resident.id} resident={resident} onNavigate={handleNavigate} onPreview={setPreviewResidentId} />
-          ))
+      <DataTable
+        columns={columns}
+        rows={data?.data}
+        rowKey={(resident) => resident.id}
+        isLoading={isLoading}
+        error={error}
+        emptyState={emptyState}
+        sort={sortBy ? { key: sortBy, order: sortOrder } : undefined}
+        onSortChange={handleSortChange}
+        pagination={{
+          page,
+          pageSize: limit,
+          totalCount: data?.count ?? 0,
+          onPageChange: setPage,
+          onPageSizeChange: setLimit,
+        }}
+        onRowClick={(resident, el, event) => handleNavigate(resident.id, el, event)}
+        rowRef={(resident, el) => claimReturnTransitionName(resident.id, el)}
+        actions={(resident) => <ResidentActions resident={resident} onPreview={setPreviewResidentId} />}
+        renderCard={(resident) => (
+          <ResidentCard resident={resident} onNavigate={handleNavigate} onPreview={setPreviewResidentId} />
         )}
-      </div>
-
-      {/* Table */}
-      <div className="hidden md:block rounded-xl border overflow-hidden shadow-soft animate-slide-up">
-        <Table variant="modern">
-          <TableHeader>
-            <TableRow interactive={false}>
-              <TableHead>
-                <button
-                  className="flex items-center gap-1 hover:text-foreground transition-colors font-medium"
-                  onClick={() => handleSort('resident_code')}
-                >
-                  Code
-                  {sortBy === 'resident_code' ? (
-                    sortOrder === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
-                  ) : (
-                    <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
-                  )}
-                </button>
-              </TableHead>
-              <TableHead>
-                <button
-                  className="flex items-center gap-1 hover:text-foreground transition-colors font-medium"
-                  onClick={() => handleSort('first_name')}
-                >
-                  Name
-                  {sortBy === 'first_name' ? (
-                    sortOrder === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
-                  ) : (
-                    <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
-                  )}
-                </button>
-              </TableHead>
-              <TableHead className="hidden xl:table-cell">Phone</TableHead>
-              <TableHead>
-                <button
-                  className="flex items-center gap-1 hover:text-foreground transition-colors font-medium"
-                  onClick={() => handleSort('house_number')}
-                >
-                  Address
-                  {sortBy === 'house_number' ? (
-                    sortOrder === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
-                  ) : (
-                    <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
-                  )}
-                </button>
-              </TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="hidden lg:table-cell">Verified</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              [...Array(5)].map((_, i) => (
-                <TableRow key={i}>
-                  <TableCell>
-                    <Skeleton className="h-6 w-16 rounded" />
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Skeleton className="h-4 w-4" />
-                      <Skeleton className="h-4 w-32" />
-                    </div>
-                  </TableCell>
-                  <TableCell className="hidden xl:table-cell"><Skeleton className="h-4 w-28" /></TableCell>
-                  <TableCell><Skeleton className="h-4 w-40" /></TableCell>
-                  <TableCell><Skeleton className="h-5 w-20 rounded-full" /></TableCell>
-                  <TableCell><Skeleton className="h-5 w-16 rounded-full" /></TableCell>
-                  <TableCell className="hidden lg:table-cell"><Skeleton className="h-5 w-16 rounded-full" /></TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Skeleton className="h-8 w-8" />
-                      <Skeleton className="h-8 w-8" />
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : data?.data.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="py-12">
-                  {emptyState}
-                </TableCell>
-              </TableRow>
-            ) : (
-              data?.data.map((resident) => (
-                <ResidentRow key={resident.id} resident={resident} onNavigate={handleNavigate} onPreview={setPreviewResidentId} />
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* Pagination */}
-      {data && (
-        <div className="flex flex-col sm:flex-row gap-4 justify-between items-center">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground whitespace-nowrap">Rows per page</span>
-              <Select
-                value={limit.toString()}
-                onValueChange={(v) => {
-                  setLimit(Number(v));
-                  setPage(1);
-                }}
-              >
-                <SelectTrigger className="h-8 w-[70px] rounded-xl">
-                  <SelectValue placeholder={limit.toString()} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="20">20</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Showing {(page - 1) * limit + 1} to {Math.min(page * limit, data.count)} of {data.count} residents
-            </p>
-          </div>
-
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page === 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="h-9 w-9 p-0"
-            >
-              <span className="sr-only">Previous page</span>
-              <ChevronDown className="h-4 w-4 rotate-90" />
-            </Button>
-
-            {Array.from({ length: Math.min(5, Math.ceil(data.count / limit)) }, (_, i) => {
-              // Simple windowing logic - in a real app would need complex truncation for large page counts
-              // For now, let's do a simple sliding window around current page
-              const totalPages = Math.ceil(data.count / limit);
-              let pageNum;
-
-              if (totalPages <= 5) {
-                pageNum = i + 1;
-              } else if (page <= 3) {
-                pageNum = i + 1;
-              } else if (page >= totalPages - 2) {
-                pageNum = totalPages - 4 + i;
-              } else {
-                pageNum = page - 2 + i;
-              }
-
-              return (
-                <Button
-                  key={pageNum}
-                  variant={page === pageNum ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setPage(pageNum)}
-                  className={`h-9 w-9 p-0 ${page === pageNum ? 'bg-primary text-primary-foreground' : ''}`}
-                >
-                  {pageNum}
-                </Button>
-              );
-            })}
-
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page * limit >= data.count}
-              onClick={() => setPage((p) => p + 1)}
-              className="h-9 w-9 p-0"
-            >
-              <span className="sr-only">Next page</span>
-              <ChevronDown className="h-4 w-4 -rotate-90" />
-            </Button>
-          </div>
-        </div>
-      )}
+        sortOptions={RESIDENT_SORT_OPTIONS}
+        itemLabel="residents"
+        cardListTestId="resident-card-list"
+      />
 
       <ResidentQuickView
         residentId={previewResidentId}

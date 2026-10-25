@@ -46,15 +46,15 @@ The files `quick-stats-card.tsx` and `modern-stats-cards.tsx` do not exist in th
 
 ## Data table (list)
 
-**Canonical:** **None exists, build it.** There is no shared `DataTable`. `@tanstack/react-table` is not a dependency (no match in `package.json` or `src/`). 42 admin files render `<Table>` directly.
-**Use when:** a page lists records with sort, pagination and row actions. Until `DataTable` exists, copy the structure of `ResidentsTable` (`src/components/residents/residents-table.tsx:239`) and use these primitives:
+**Canonical:** `DataTable` (`src/components/ui/data-table.tsx`). `/residents` uses it (`src/components/residents/residents-table.tsx`, #1150). Houses and Invoices still render `<Table>` directly, as do about 40 other admin files; moving them is follow-up work. `@tanstack/react-table` is not a dependency.
+**Use when:** a page lists records with sort, pagination and row actions. New lists use `DataTable`; mirror `ResidentsTable` for the wiring. `DataTable` is built from these primitives:
 - `Table`, `TableHeader`, `TableRow`, `TableCell` from `src/components/ui/table.tsx`.
 - `RecordCard` and `RecordCardSkeleton` for phones (`src/components/ui/record-card.tsx`).
 - `RecordSortControl` for phone sort (`src/components/ui/record-sort-control.tsx`).
 
 **Do not use in new work:**
-- A fourth pagination markup. Today there are three hand-written blocks: `residents-table.tsx:633-714`, `houses-table.tsx:556-582` and `src/app/(dashboard)/billing/page.tsx:571-599`. There are also two shared components. `PaginationControls` (`src/components/ui/pagination-controls.tsx:18`) has 1 usage (`src/components/imports/import-preview.tsx:931`). `SimplePagination` (`src/components/ui/simple-pagination.tsx:82`) has 2 usages and is for short lists only.
-- Local `ChevronUp` and `ChevronsUpDown` sort buttons repeated per column (`residents-table.tsx:546-585`).
+- A fourth pagination markup. Two hand-written blocks remain: `houses-table.tsx:556-582` and `src/app/(dashboard)/billing/page.tsx:571-599`. There are also two shared components. `PaginationControls` (`src/components/ui/pagination-controls.tsx:18`) has 1 usage (`src/components/imports/import-preview.tsx:931`). `SimplePagination` (`src/components/ui/simple-pagination.tsx:82`) has 2 usages and is for short lists only.
+- Local `ChevronUp` and `ChevronsUpDown` sort buttons repeated per column; `DataTable` renders them.
 
 **How the three reference lists differ today:**
 
@@ -69,15 +69,15 @@ The files `quick-stats-card.tsx` and `modern-stats-cards.tsx` do not exist in th
 | Error | inline red text (`residents-table.tsx:306-312`) | inline box (`houses-table.tsx:284-291`) | none found |
 | Page size | 10, 20, 50 (`residents-table.tsx:650-652`) | "Rows per page" select (`houses-table.tsx:561`) | "Rows per page" select (`billing/page.tsx:571`) |
 
-**Contract / notes (to build `DataTable`, `src/components/ui/data-table.tsx`):**
-- Props: `columns` (key, header, `sortable?`, `className?`, `hideBelow?: 'lg' | 'xl'`, `cell(row)`), `rows`, `rowKey`, `isLoading`, `error?`, `emptyState: ReactNode`, `sort` and `onSortChange`, `pagination` (`page`, `pageSize`, `totalCount`, `onPageChange`, `onPageSizeChange`), `onRowClick?`, `renderCard(row)` for phones, `selection?`.
-- Sort: a click on a header cycles ascending, descending. Set `aria-sort` on the `th`. Reset `page` to 1 on sort change (`residents-table.tsx:259`).
+**Contract / notes (`DataTable`, `src/components/ui/data-table.tsx`):**
+- Props: `columns` (key, header, `sortable?`, `className?`, `hideBelow?: 'lg' | 'xl'`, `identifier?`, `cell(row)`), `rows`, `rowKey`, `isLoading`, `error?`, `emptyState: ReactNode`, `sort` and `onSortChange`, `pagination` (`page`, `pageSize`, `totalCount`, `onPageChange`, `onPageSizeChange`), `onRowClick?`, `renderCard(row)` for phones, `selection?`.
+- Sort: a click on a header cycles ascending, descending. Set `aria-sort` on the `th`. Reset `page` to 1 on sort change (`residents-table.tsx:241`).
 - Density: one density. Do not add a toggle until a user asks. Rows use the `TableCell` default padding.
-- Sticky: `TableHeader` has a `sticky` prop (`table.tsx:46-55`). `DataTable` sets it on. No table pins a first column today (no `sticky left` match in `src/components`). Pin the id column (`resident_code`, invoice number) only when the table scrolls sideways, with `sticky left-0 bg-background`.
-- Row actions: the last column, right aligned, header text "Actions". A row click opens the record (`residents-table.tsx:174`). Action buttons call `stopPropagation`.
+- Sticky: `TableHeader` has a `sticky` prop (`table.tsx:46-55`). `DataTable` sets it on. Set `identifier: true` on the id column (`resident_code`, invoice number) to pin it with `sticky left-0 bg-background`; Residents does.
+- Row actions: the last column, right aligned, header text "Actions". A row click opens the record (`onRowClick`). Action buttons call `stopPropagation`.
 - Bulk selection: a leading checkbox column and a header checkbox for the page. Only `src/components/payments/payment-table.tsx:132` and `src/components/imports/import-preview.tsx` do this today. A selection bar shows the count and the bulk actions. Each bulk action needs its own write permission.
-- Mobile at 375 px: below `md` render `renderCard` rows in a `RecordCard` list with `RecordSortControl`. Both lists stay in the DOM and CSS picks one (`residents-table.tsx:522`). `<Table stack>` (`table.tsx:9-20`) is the lighter option for small settings tables.
-- Persist filters, sort and page size with `usePersistedState`, with the key prefix `<domain>-registry:` (`residents-table.tsx:241`).
+- Mobile at 375 px: below `md` render `renderCard` rows in a `RecordCard` list with `RecordSortControl`. Both lists stay in the DOM and CSS picks one (`data-table.tsx:166,186`). `<Table stack>` (`table.tsx:9-20`) is the lighter option for small settings tables.
+- Persist filters, sort and page size with `usePersistedState`, with the key prefix `<domain>-registry:` (`residents-table.tsx:229`).
 
 ## Filter bar / search on lists
 
@@ -243,7 +243,7 @@ The files `quick-stats-card.tsx` and `modern-stats-cards.tsx` do not exist in th
 | --- | --- | --- |
 | Page header | `EnhancedPageHeader` | exists with a back control; 13 raw `<h1>` files remain |
 | Stat / KPI card | `EnhancedStatCard`, `RegistryKpiStrip` | exists but inconsistent (two components, 5 and 2 files) |
-| Data table | none | to build (`DataTable`; 42 files with their own markup) |
+| Data table | `DataTable` (`src/components/ui/data-table.tsx`) | exists; Residents migrated, about 40 files still use `<Table>` directly |
 | Filter bar / search | none | to build (`ListFilterBar`) |
 | Empty state | `ModernEmptyState` | exists but inconsistent (2 files use it; lists use inline blocks) |
 | Loading state | `Skeleton`, `DashboardSkeleton` | exists but inconsistent (6 `loading.tsx` for 104 pages) |
@@ -257,7 +257,7 @@ The files `quick-stats-card.tsx` and `modern-stats-cards.tsx` do not exist in th
 
 ## Backlog candidates
 
-- Build `DataTable` with sort, pagination, `renderCard` and selection. Replaces 3 hand-written pagination blocks and about 42 `<Table>` files.
+- Move Houses, Invoices and the other `<Table>` lists onto `DataTable` (built in #1150, Residents done). Replaces 2 remaining hand-written pagination blocks.
 - Build `ListFilterBar` with persisted state and active chips. Replaces filter rows in 5 lists and 14 copies of `ALL_VALUE`.
 - Build `ErrorState` and use it in list error slots. Replaces inline error text in 2 reference lists.
 - Move the remaining about 11 hand-built back buttons to `backHref` and `backLabel`.
