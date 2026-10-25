@@ -149,8 +149,6 @@ export async function prepayFutureInvoices(
             continue;
         }
 
-        const year = month.slice(0, 4);
-        const monthNumber = month.slice(5, 7);
         const periodEnd = monthEnd(month);
         const rateSnapshot: RateSnapshot = {
             billing_profile_id: billingProfile.id,
@@ -165,15 +163,21 @@ export async function prepayFutureInvoices(
             total_amount: monthlyTotal,
         };
 
+        // #1169: yearly running number INV-<YYYY>-<000123>, allocated race-safely in SQL.
+        const { data: invoiceNumber, error: invoiceNumberError } = await supabase.rpc('next_invoice_number', {
+            p_period_start: month,
+        });
+        if (invoiceNumberError || !invoiceNumber) {
+            return { success: false, error: invoiceNumberError?.message || `Could not allocate an invoice number for ${month}` };
+        }
+
         const { data: invoice, error: invoiceError } = await supabase
             .from('invoices')
             .insert({
                 resident_id: parsed.data.residentId,
                 house_id: parsed.data.houseId,
                 billing_profile_id: billingProfile.id,
-                invoice_number: house.short_name
-                    ? `INV-${house.short_name}-${year}-${monthNumber}`
-                    : `INV-${year}${monthNumber}-${house.id.substring(0, 8).toUpperCase()}`,
+                invoice_number: invoiceNumber,
                 amount_due: monthlyTotal,
                 amount_paid: 0,
                 status: 'unpaid',
