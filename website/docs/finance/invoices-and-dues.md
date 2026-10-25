@@ -7,8 +7,8 @@ residio_sources:
   - src/app/(dashboard)/billing/**
   - src/actions/billing/**
   - src/app/(dashboard)/settings/billing/**
-residio_verified_commit: d551d379
-residio_verified_at: '2026-10-22'
+residio_verified_commit: c7a5173e
+residio_verified_at: '2026-10-25'
 residio_app_version: '0.4.0'
 ---
 
@@ -27,7 +27,7 @@ The cards above the list count the whole estate, not just the page on screen. **
 ## Generate invoices
 
 1. Select **Generate Invoices**. The button is shown only to roles that can create invoices.
-2. Choose the target month and scope.
+2. Choose the target month and scope. For a single house, pick its **Street** and then its **House No.**; for a single resident, type at least two characters of their name or code and pick them from the matches.
 3. Review the preview counts, warnings, eligible houses, residents, and existing invoices. A period earlier than every rate version on a house's billing profile is priced by the earliest version, and the preview warns about each one; add a rate version for that month first if a different rate applied (see [Billing and notifications settings](../settings/billing-and-notifications.md)).
 
    Monthly dues go to each profile's payer: the Renter, else the Owner-Occupier. A vacant house bills its Property Owner instead, unless the house is marked **New, never occupied**, in which case it is skipped and the preview says so. A skipped house is listed by name with the reason, for example *No landlord on record* for an Owner-paid profile.
