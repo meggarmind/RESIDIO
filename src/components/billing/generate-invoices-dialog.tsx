@@ -1,13 +1,16 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, Eye, FileBarChart, Loader2, Play, ShieldCheck, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useDebounce } from '@/hooks/use-debounce';
 import { getHouses } from '@/actions/houses/get-houses';
 import { getStreets } from '@/actions/reference/get-streets';
 import { getResidents } from '@/actions/residents/get-residents';
@@ -34,6 +37,18 @@ const currentMonth = () => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 };
 
+type ResidentOption = { id: string; name: string; detail: string };
+
+const RESIDENT_SEARCH_MIN_CHARS = 2;
+const RESIDENT_SEARCH_DEBOUNCE_MS = 250;
+
+const SCOPE_ERROR: Record<ScopeType, string> = {
+  estate: '',
+  house: 'Choose a house',
+  street: 'Choose a street',
+  resident: 'Choose a resident',
+};
+
 const monthStart = (month: string) => `${month}-01`;
 
 export function GenerateInvoicesDialog({ open, onClose }: GenerateInvoicesDialogProps) {
@@ -42,9 +57,15 @@ export function GenerateInvoicesDialog({ open, onClose }: GenerateInvoicesDialog
   const [fromMonth, setFromMonth] = useState('');
   const [scopeType, setScopeType] = useState<ScopeType>('estate');
   const [scopeId, setScopeId] = useState('');
-  const [houses, setHouses] = useState<Array<{ id: string; house_number: string; street?: { name: string } | null }>>([]);
   const [streets, setStreets] = useState<Array<{ id: string; name: string }>>([]);
-  const [residents, setResidents] = useState<Array<{ id: string; first_name: string; last_name: string; resident_code?: string | null }>>([]);
+  const [houseStreetId, setHouseStreetId] = useState('');
+  const [streetHouses, setStreetHouses] = useState<Array<{ id: string; house_number: string }>>([]);
+  const [housesLoading, setHousesLoading] = useState(false);
+  const [residentQuery, setResidentQuery] = useState('');
+  const [residentSearch, setResidentSearch] = useState<{ query: string; options: ResidentOption[]; error: string | null } | null>(null);
+  const [selectedResident, setSelectedResident] = useState<ResidentOption | null>(null);
+  const latestHouseStreet = useRef('');
+  const [attempted, setAttempted] = useState(false);
   const [scopeLoading, setScopeLoading] = useState(false);
   const [walletAllocation, setWalletAllocation] = useState(true);
   const [sendEmails, setSendEmails] = useState(true);
@@ -65,6 +86,9 @@ export function GenerateInvoicesDialog({ open, onClose }: GenerateInvoicesDialog
   const confirmationText = confirmationCode;
   const confirmationMatches = !requiresConfirmation || confirmation.trim().toUpperCase() === confirmationCode.toUpperCase();
   const scopeError = scopeType !== 'estate' && !scopeId.trim();
+  const debouncedResidentQuery = useDebounce(residentQuery.trim(), RESIDENT_SEARCH_DEBOUNCE_MS);
+  const residentQueryReady = residentQuery.trim().length >= RESIDENT_SEARCH_MIN_CHARS;
+  const residentSettled = residentSearch?.query === residentQuery.trim();
   const previewKey = useMemo(() => JSON.stringify({ mode, targetMonth, fromMonth, scopeType, scopeId, walletAllocation, sendEmails, assessLateFees }), [mode, targetMonth, fromMonth, scopeType, scopeId, walletAllocation, sendEmails, assessLateFees]);
 
   const generateRandomCode = () => {
@@ -88,40 +112,80 @@ export function GenerateInvoicesDialog({ open, onClose }: GenerateInvoicesDialog
       .catch((err) => console.error('Failed to load late fee settings', err));
   }, [open]);
 
-  const loadScopeOptions = (nextScopeType: ScopeType) => {
-    if (nextScopeType === 'house' && houses.length === 0) {
-      setScopeLoading(true);
-      getHouses({ limit: 200 })
-        .then((res) => {
-          if (!res.error && res.data) setHouses(res.data);
-        })
-        .catch((err) => console.error('Failed to load houses', err))
-        .finally(() => setScopeLoading(false));
-    } else if (nextScopeType === 'street' && streets.length === 0) {
-      setScopeLoading(true);
-      getStreets()
-        .then((res) => {
-          if (!res.error && res.data) setStreets(res.data);
-        })
-        .catch((err) => console.error('Failed to load streets', err))
-        .finally(() => setScopeLoading(false));
-    } else if (nextScopeType === 'resident' && residents.length === 0) {
-      setScopeLoading(true);
-      getResidents({ limit: 200 })
-        .then((res) => {
-          if (!res.error && res.data) setResidents(res.data);
-        })
-        .catch((err) => console.error('Failed to load residents', err))
-        .finally(() => setScopeLoading(false));
-    }
+  const loadStreets = (nextScopeType: ScopeType) => {
+    if ((nextScopeType !== 'house' && nextScopeType !== 'street') || streets.length > 0) return;
+    setScopeLoading(true);
+    getStreets()
+      .then((res) => {
+        if (!res.error && res.data) setStreets(res.data);
+      })
+      .catch((err) => console.error('Failed to load streets', err))
+      .finally(() => setScopeLoading(false));
   };
 
   const handleScopeTypeChange = (nextScopeType: ScopeType) => {
     setScopeType(nextScopeType);
     setScopeId('');
+    latestHouseStreet.current = '';
+    setHouseStreetId('');
+    setStreetHouses([]);
+    setResidentQuery('');
+    setResidentSearch(null);
+    setSelectedResident(null);
+    setAttempted(false);
     setPreview(null);
-    loadScopeOptions(nextScopeType);
+    loadStreets(nextScopeType);
   };
+
+  const handleHouseStreetChange = (streetId: string) => {
+    latestHouseStreet.current = streetId;
+    setHouseStreetId(streetId);
+    setScopeId('');
+    setStreetHouses([]);
+    setPreview(null);
+    setHousesLoading(true);
+    getHouses({ street_id: streetId, limit: 500 })
+      .then((res) => {
+        // Ignore a response for a street the admin has already moved off.
+        if (latestHouseStreet.current === streetId && !res.error && res.data) setStreetHouses(res.data);
+      })
+      .catch((err) => console.error('Failed to load houses', err))
+      .finally(() => setHousesLoading(false));
+  };
+
+  useEffect(() => {
+    if (scopeType !== 'resident' || scopeId) return;
+    if (debouncedResidentQuery.length < RESIDENT_SEARCH_MIN_CHARS) return;
+    let cancelled = false;
+    const query = debouncedResidentQuery;
+    getResidents({ search: query, limit: 20 })
+      .then((res) => {
+        if (cancelled) return;
+        if (res.error) {
+          setResidentSearch({ query, options: [], error: res.error });
+          return;
+        }
+        setResidentSearch({
+          query,
+          error: null,
+          options: res.data.map((r) => {
+            const link = r.resident_houses?.find((rh) => rh.is_primary) ?? r.resident_houses?.[0];
+            const house = link?.house;
+            const houseLabel = house ? `${house.house_number}${house.street?.name ? `, ${house.street.name}` : ''}` : 'No house';
+            return {
+              id: r.id,
+              name: `${r.first_name} ${r.last_name}`,
+              detail: `${r.resident_code ? `${r.resident_code} · ` : ''}${houseLabel}`,
+            };
+          }),
+        });
+      })
+      .catch((err) => {
+        console.error('Failed to search residents', err);
+        if (!cancelled) setResidentSearch({ query, options: [], error: 'Search failed' });
+      });
+    return () => { cancelled = true; };
+  }, [debouncedResidentQuery, scopeType, scopeId]);
 
   const handleModeChange = (nextMode: GenerationMode) => {
     setMode(nextMode);
@@ -148,6 +212,7 @@ export function GenerateInvoicesDialog({ open, onClose }: GenerateInvoicesDialog
   if (!open) return null;
 
   const handlePreview = async () => {
+    setAttempted(true);
     if (scopeError || (mode === 'backfill' && !fromMonth)) return;
     try {
       const result = await previewMutation.mutateAsync({
@@ -170,6 +235,7 @@ export function GenerateInvoicesDialog({ open, onClose }: GenerateInvoicesDialog
   };
 
   const handlePrepare = async () => {
+    setAttempted(true);
     if (!preview || !confirmationMatches || scopeError) return;
     try {
       const prepared = await prepareMutation.mutateAsync({
@@ -217,10 +283,13 @@ export function GenerateInvoicesDialog({ open, onClose }: GenerateInvoicesDialog
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="space-y-1.5 text-sm font-medium">
                     Billing mode
-                    <select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={mode} onChange={(event) => handleModeChange(event.target.value as GenerationMode)}>
-                      <option value="selected_month">Selected month</option>
-                      <option value="backfill">Historical backfill</option>
-                    </select>
+                    <Select value={mode} onValueChange={(value) => handleModeChange(value as GenerationMode)}>
+                      <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="selected_month">Selected month</SelectItem>
+                        <SelectItem value="backfill">Historical backfill</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </label>
                   <label className="space-y-1.5 text-sm font-medium">
                     Through month
@@ -241,24 +310,35 @@ export function GenerateInvoicesDialog({ open, onClose }: GenerateInvoicesDialog
                     <p className="text-xs text-muted-foreground">Scope narrows candidates; eligibility rules still apply.</p>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-[12rem_1fr]">
-                    <select className="h-9 rounded-md border bg-background px-3 text-sm" value={scopeType} onChange={(event) => handleScopeTypeChange(event.target.value as ScopeType)}>
-                      <option value="estate">Entire estate</option>
-                      <option value="house">House</option>
-                      <option value="street">Street</option>
-                      <option value="resident">Resident</option>
-                    </select>
+                    <Select value={scopeType} onValueChange={(value) => handleScopeTypeChange(value as ScopeType)}>
+                      <SelectTrigger className="w-full" aria-label="Scope"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="estate">Entire estate</SelectItem>
+                        <SelectItem value="house">House</SelectItem>
+                        <SelectItem value="street">Street</SelectItem>
+                        <SelectItem value="resident">Resident</SelectItem>
+                      </SelectContent>
+                    </Select>
                     {scopeType === 'house' && (
-                      <SearchableSelect
-                        options={houses.map((h) => ({
-                          value: h.id,
-                          label: `${h.house_number}${h.street?.name ? `, ${h.street.name}` : ''}`,
-                        }))}
-                        value={scopeId}
-                        onValueChange={(val) => { setScopeId(val); setPreview(null); }}
-                        placeholder={scopeLoading ? 'Loading houses...' : 'Select house...'}
-                        searchPlaceholder="Search house number or street..."
-                        disabled={scopeLoading}
-                      />
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <SearchableSelect
+                          options={streets.map((st) => ({ value: st.id, label: st.name }))}
+                          value={houseStreetId}
+                          onValueChange={handleHouseStreetChange}
+                          placeholder={scopeLoading ? 'Loading streets...' : 'Street'}
+                          searchPlaceholder="Search street name..."
+                          disabled={scopeLoading}
+                        />
+                        <SearchableSelect
+                          options={streetHouses.map((h) => ({ value: h.id, label: h.house_number }))}
+                          value={scopeId}
+                          onValueChange={(val) => { setScopeId(val); setPreview(null); }}
+                          placeholder={housesLoading ? 'Loading houses...' : 'House No.'}
+                          searchPlaceholder="Search house number..."
+                          emptyMessage="No houses on this street."
+                          disabled={!houseStreetId || housesLoading}
+                        />
+                      </div>
                     )}
                     {scopeType === 'street' && (
                       <SearchableSelect
@@ -274,20 +354,34 @@ export function GenerateInvoicesDialog({ open, onClose }: GenerateInvoicesDialog
                       />
                     )}
                     {scopeType === 'resident' && (
-                      <SearchableSelect
-                        options={residents.map((r) => ({
-                          value: r.id,
-                          label: `${r.first_name} ${r.last_name}${r.resident_code ? ` (${r.resident_code})` : ''}`,
-                        }))}
-                        value={scopeId}
-                        onValueChange={(val) => { setScopeId(val); setPreview(null); }}
-                        placeholder={scopeLoading ? 'Loading residents...' : 'Select resident...'}
-                        searchPlaceholder="Search resident name or code..."
-                        disabled={scopeLoading}
-                      />
+                      <div className="space-y-2">
+                        {selectedResident ? (
+                          <div className="flex items-center justify-between gap-2 rounded-md border bg-background px-3 py-2 text-sm">
+                            <span className="min-w-0 truncate">{selectedResident.name} <span className="text-xs text-muted-foreground">{selectedResident.detail}</span></span>
+                            <Button type="button" variant="ghost" size="icon" className="h-6 w-6" aria-label="Change resident" onClick={() => { setSelectedResident(null); setScopeId(''); setResidentQuery(''); setPreview(null); }}><X className="h-3.5 w-3.5" /></Button>
+                          </div>
+                        ) : (
+                          <>
+                            <Input value={residentQuery} onChange={(event) => setResidentQuery(event.target.value)} placeholder="Search resident name or code..." aria-label="Search resident" autoComplete="off" />
+                            {residentQueryReady && (
+                              <div className="max-h-48 overflow-y-auto rounded-md border bg-background text-sm">
+                                {!residentSettled && <p className="flex items-center gap-2 p-3 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Searching…</p>}
+                                {residentSettled && residentSearch.error && <p role="alert" className="p-3 text-xs text-destructive">Could not search residents: {residentSearch.error}</p>}
+                                {residentSettled && !residentSearch.error && residentSearch.options.length === 0 && <p className="p-3 text-xs text-muted-foreground">No matches</p>}
+                                {residentSettled && !residentSearch.error && residentSearch.options.map((r) => (
+                                  <button key={r.id} type="button" className="flex w-full flex-col items-start px-3 py-2 text-left hover:bg-muted" onClick={() => { setSelectedResident(r); setScopeId(r.id); setPreview(null); }}>
+                                    <span>{r.name}</span>
+                                    <span className="text-xs text-muted-foreground">{r.detail}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
                     )}
                   </div>
-                  {scopeError && <p className="text-xs text-destructive">Enter a scope ID or choose entire estate.</p>}
+                  {attempted && scopeError && <p role="alert" className="text-xs text-destructive">{SCOPE_ERROR[scopeType]}</p>}
                 </div>
 
                 <div className="grid gap-2 sm:grid-cols-3">
@@ -305,7 +399,7 @@ export function GenerateInvoicesDialog({ open, onClose }: GenerateInvoicesDialog
 
                 {mode === 'backfill' && <div className="flex gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-100"><AlertCircle className="h-4 w-4 shrink-0" />Backfills default all side effects off. Turn them on only after reviewing the exact preview.</div>}
 
-                <Button variant="outline" className="w-full" onClick={handlePreview} disabled={previewMutation.isPending || scopeError || (mode === 'backfill' && !fromMonth)}>
+                <Button variant="outline" className="w-full" onClick={handlePreview} disabled={previewMutation.isPending || (mode === 'backfill' && !fromMonth)}>
                   {previewMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Eye className="mr-2 h-4 w-4" />}Preview exact request
                 </Button>
 
