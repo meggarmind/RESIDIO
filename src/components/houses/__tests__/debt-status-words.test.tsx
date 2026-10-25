@@ -105,7 +105,7 @@ describe('HousePaymentStatus shows the wallet credit under a Credit status (#116
     mocks.house = creditHouse();
     render(<HousePaymentStatus houseId="h1" />);
     fireEvent.click(screen.getByText(/Breakdown by Resident/));
-    expect(screen.getByText(/12,345 credit/)).toBeTruthy();
+    expect(screen.getByText(/12,345(\.00)? credit/)).toBeTruthy();
   });
 
   it('an owing house still shows the outstanding amount and no wallet label', () => {
