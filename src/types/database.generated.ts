@@ -6314,6 +6314,7 @@ export type Database = {
         Returns: boolean
       }
       is_super_admin: { Args: never; Returns: boolean }
+      next_invoice_number: { Args: { p_period_start: string }; Returns: string }
       next_wallet_receipt_number: { Args: never; Returns: string }
       process_expired_approvals: { Args: never; Returns: number }
       record_ownership_history: {
