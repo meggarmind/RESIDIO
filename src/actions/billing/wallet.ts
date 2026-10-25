@@ -8,6 +8,7 @@ import { logAudit } from '@/lib/audit/logger';
 import { callWalletPaymentRpc } from '@/lib/billing/wallet-payment-rpc';
 import { debitWalletForInvoiceAtomic, type WalletInvoiceDebitResult } from '@/lib/billing/wallet-invoice-debit';
 import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
+import { chargeLabel } from '@/lib/whatsapp/assistant-format';
 
 export type WalletTransaction = {
     id: string;
@@ -446,6 +447,10 @@ export type YearlyWalletTransaction = Omit<WalletTransaction, 'wallet_id'> & {
     // Set on credit rows that came from a payment (#1142).
     payment_method?: string | null;
     payment_reference?: string | null;
+    // Set on debit rows settling an invoice, so the ledger can group them by billing item.
+    invoice_item?: string | null;
+    invoice_period_start?: string | null;
+    invoice_number?: string | null;
 };
 
 /**
@@ -493,8 +498,32 @@ export async function getYearlyWalletTransactions(
         for (const payment of payments || []) paymentById.set(payment.id, payment);
     }
 
+    const invoiceIds = [...new Set((data || [])
+        .filter((t) => t.reference_type === 'invoice' && t.reference_id)
+        .map((t) => t.reference_id as string))];
+    const invoiceById = new Map<string, { invoice_number: string; invoice_type: string; period_start: string | null; billing_profile: { name: string } | { name: string }[] | null }>();
+    for (let i = 0; i < invoiceIds.length; i += 200) {
+        const { data: invoices, error: invoicesError } = await supabase
+            .from('invoices')
+            .select('id, invoice_number, invoice_type, period_start, billing_profile:billing_profiles(name)')
+            .in('id', invoiceIds.slice(i, i + 200));
+        if (invoicesError) {
+            return { data: [], error: invoicesError.message };
+        }
+        for (const invoice of invoices || []) invoiceById.set(invoice.id, invoice);
+    }
+
     const byYear = new Map<number, YearlyWalletTransactionSummary>();
     for (const transaction of data || []) {
+        const invoice = transaction.reference_type === 'invoice' && transaction.reference_id
+            ? invoiceById.get(transaction.reference_id)
+            : undefined;
+        if (invoice) {
+            const profile = Array.isArray(invoice.billing_profile) ? invoice.billing_profile[0] : invoice.billing_profile;
+            transaction.invoice_item = chargeLabel({ invoice_type: invoice.invoice_type, profileName: profile?.name ?? null, periodStart: null });
+            transaction.invoice_period_start = invoice.period_start;
+            transaction.invoice_number = invoice.invoice_number;
+        }
         const payment = transaction.reference_id ? paymentById.get(transaction.reference_id) : undefined;
         if (payment) {
             transaction.payment_method = payment.method;

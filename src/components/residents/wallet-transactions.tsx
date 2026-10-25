@@ -30,6 +30,7 @@ import { useYearlyWalletTransactions } from '@/hooks/use-wallet';
 import type { YearlyWalletTransactionSummary } from '@/actions/billing/wallet';
 import { getInvoiceById } from '@/actions/billing/get-invoices';
 import { formatCurrency } from '@/lib/utils';
+import { groupInvoiceDebits, groupPeriodLabel, type InvoiceDebitGroup } from '@/lib/billing/ledger-groups';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { ArrowUpCircle, ArrowDownCircle, Receipt, FileText, ExternalLink, Loader2, ChevronDown, CalendarDays } from 'lucide-react';
@@ -50,6 +51,9 @@ type TransactionRow = {
   reference_id?: string | null;
   payment_method?: string | null;
   payment_reference?: string | null;
+  invoice_item?: string | null;
+  invoice_period_start?: string | null;
+  invoice_number?: string | null;
 };
 
 const WalletTransactionRow = memo(function WalletTransactionRow({
@@ -114,6 +118,51 @@ type FilteredYearlySummary = YearlyWalletTransactionSummary & {
   netChange: number;
 };
 
+function InvoiceDebitGroupRow({ group }: { group: InvoiceDebitGroup<TransactionRow> }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <TableRow
+        className="cursor-pointer bg-muted/30 hover:bg-muted/50"
+        onClick={() => setOpen(!open)}
+        tabIndex={0}
+        aria-expanded={open}
+        onKeyDown={(event) => {
+          if (event.target !== event.currentTarget) return;
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setOpen(!open);
+          }
+        }}
+      >
+        <TableCell className="py-2 pl-8 text-sm">
+          <div className="flex items-center gap-2">
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
+            {groupPeriodLabel(group.rows)}
+          </div>
+        </TableCell>
+        <TableCell>
+          <div className="flex items-center gap-2">
+            <ArrowDownCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+            <span className="capitalize">debit</span>
+          </div>
+        </TableCell>
+        <TableCell className="text-right font-semibold text-red-600 dark:text-red-400">
+          -{formatCurrency(group.total)}
+        </TableCell>
+        <TableCell className="text-right font-medium">{formatCurrency(group.closingBalance)}</TableCell>
+        <TableCell className="text-sm">
+          {group.item} · {group.rows.length} invoices
+        </TableCell>
+      </TableRow>
+      {open && group.rows.map((transaction) => (
+        <WalletTransactionRow key={transaction.id} transaction={transaction} />
+      ))}
+    </>
+  );
+}
+
 function YearlyWalletTransactionRow({ summary, defaultOpen }: { summary: FilteredYearlySummary; defaultOpen: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
 
@@ -166,8 +215,10 @@ function YearlyWalletTransactionRow({ summary, defaultOpen }: { summary: Filtere
             <TableCell className="py-1 text-right text-xs font-medium text-muted-foreground">Balance</TableCell>
             <TableCell className="py-1 text-xs font-medium text-muted-foreground">Details</TableCell>
           </TableRow>
-          {summary.transactions.map((transaction) => (
-            <WalletTransactionRow key={transaction.id} transaction={transaction} />
+          {groupInvoiceDebits(summary.transactions).map((entry) => (
+            entry.kind === 'group'
+              ? <InvoiceDebitGroupRow key={entry.id} group={entry} />
+              : <WalletTransactionRow key={entry.row.id} transaction={entry.row} />
           ))}
         </>
       )}
