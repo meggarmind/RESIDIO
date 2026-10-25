@@ -6,8 +6,9 @@ import { laterMigrations, loadSchema, replay } from '@/__tests__/helpers/pglite-
 
 /**
  * #1169: invoices are numbered INV-<YYYY>-<6-digit yearly counter>. The counter lives in
- * invoice_number_counters and is advanced by next_invoice_number(), which create_generated_invoice
- * and the future-prepayment action both use.
+ * invoice_number_counters and is advanced by the internal allocate_invoice_number(), which
+ * create_generated_invoice calls directly. The future-prepayment action calls the client-callable
+ * wrapper next_invoice_number(), which requires billing.manage_wallets.
  */
 
 const read = (name: string) =>
@@ -23,10 +24,13 @@ const createGeneratedInvoiceBody = (sql: string) => {
   return sql.slice(start, end + '$function$;'.length);
 };
 
-const nextInvoiceNumberBody = (() => {
-  const start = migration.indexOf('CREATE OR REPLACE FUNCTION public.next_invoice_number');
+const functionBody = (name: string) => {
+  const start = migration.indexOf(`CREATE OR REPLACE FUNCTION public.${name}`);
+  if (start < 0) throw new Error(`${name} not found`);
   return migration.slice(start, migration.indexOf('$function$;', start));
-})();
+};
+const allocateBody = functionBody('allocate_invoice_number');
+const wrapperBody = functionBody('next_invoice_number');
 
 const sqlCode = migration.replace(/--[^\n]*/g, '');
 
@@ -39,31 +43,45 @@ describe('yearly invoice number migration (static)', () => {
   });
 
   it('allocates with an ON CONFLICT upsert, never max()+1', () => {
-    expect(nextInvoiceNumberBody).toMatch(
+    expect(allocateBody).toMatch(
       /INSERT INTO public\.invoice_number_counters \(year, last_value\)\s*VALUES \(v_year, 1\)\s*ON CONFLICT \(year\) DO UPDATE\s*SET last_value = invoice_number_counters\.last_value \+ 1/
     );
-    expect(nextInvoiceNumberBody).toContain('RETURNING last_value INTO v_value');
-    expect(nextInvoiceNumberBody.toLowerCase()).not.toContain('max(');
+    expect(allocateBody).toContain('RETURNING last_value INTO v_value');
+    expect(allocateBody.toLowerCase()).not.toContain('max(');
   });
 
   it('formats INV-<YYYY>-<6 digits> and skips numbers already used', () => {
-    expect(nextInvoiceNumberBody).toContain("format('INV-%s-%s', v_year, lpad(v_value::text, 6, '0'))");
-    expect(nextInvoiceNumberBody).toContain('LOOP');
-    expect(nextInvoiceNumberBody).toMatch(/EXIT WHEN NOT EXISTS \(\s*SELECT 1 FROM public\.invoices WHERE invoice_number = v_number/);
-    expect(nextInvoiceNumberBody).toMatch(/IF p_period_start IS NULL THEN\s*RAISE EXCEPTION/);
+    expect(allocateBody).toContain("format('INV-%s-%s', v_year, lpad(v_value::text, 6, '0'))");
+    expect(allocateBody).toContain('LOOP');
+    expect(allocateBody).toMatch(/EXIT WHEN NOT EXISTS \(\s*SELECT 1 FROM public\.invoices WHERE invoice_number = v_number/);
+    expect(allocateBody).toMatch(/IF p_period_start IS NULL THEN\s*RAISE EXCEPTION/);
   });
 
-  it('is SECURITY DEFINER with a fixed search_path and not executable by anon', () => {
-    expect(nextInvoiceNumberBody).toContain('SECURITY DEFINER');
-    expect(nextInvoiceNumberBody).toContain("SET search_path TO 'public', 'pg_temp'");
+  it('keeps the internal allocator SECURITY DEFINER and service_role only', () => {
+    expect(allocateBody).toContain('SECURITY DEFINER');
+    expect(allocateBody).toContain("SET search_path TO 'public', 'pg_temp'");
+    expect(sqlCode).toContain('REVOKE ALL ON FUNCTION public.allocate_invoice_number(date) FROM PUBLIC;');
+    expect(sqlCode).toContain('REVOKE EXECUTE ON FUNCTION public.allocate_invoice_number(date) FROM anon, authenticated;');
+    expect(sqlCode).toContain('GRANT EXECUTE ON FUNCTION public.allocate_invoice_number(date) TO service_role;');
+    expect(sqlCode).not.toMatch(/GRANT EXECUTE ON FUNCTION public\.allocate_invoice_number\(date\) TO [^;]*(authenticated|anon)/);
+  });
+
+  it('guards the client-callable wrapper with billing.manage_wallets', () => {
+    expect(wrapperBody).toContain('SECURITY DEFINER');
+    expect(wrapperBody).toContain("SET search_path TO 'public', 'pg_temp'");
+    expect(wrapperBody).toMatch(
+      /BEGIN\s*IF NOT public\.has_permission\('billing\.manage_wallets'\) THEN\s*RAISE EXCEPTION 'Not authorised to allocate invoice numbers' USING ERRCODE = '42501';\s*END IF;\s*RETURN public\.allocate_invoice_number\(p_period_start\);\s*END;/
+    );
+    expect(wrapperBody).not.toContain('invoice_number_counters');
     expect(sqlCode).toContain('REVOKE ALL ON FUNCTION public.next_invoice_number(date) FROM PUBLIC;');
     expect(sqlCode).toContain('REVOKE EXECUTE ON FUNCTION public.next_invoice_number(date) FROM anon;');
     expect(sqlCode).toContain('GRANT EXECUTE ON FUNCTION public.next_invoice_number(date) TO authenticated, service_role;');
   });
 
-  it('makes create_generated_invoice use next_invoice_number and drops the 4-part format', () => {
+  it('makes create_generated_invoice use the internal allocator and drops the 4-part format', () => {
     const body = createGeneratedInvoiceBody(migration);
-    expect(body).toContain('v_invoice_number := public.next_invoice_number(v_candidate.period_start);');
+    expect(body).toContain('v_invoice_number := public.allocate_invoice_number(v_candidate.period_start);');
+    expect(body).not.toContain('next_invoice_number');
     expect(body).not.toContain("'INV-%s-%s-%s-%s'");
     expect(body).not.toContain("to_char(v_candidate.period_start, 'YYYYMM')");
   });
@@ -83,6 +101,7 @@ describe('yearly invoice number migration (static)', () => {
     const rollback = migration.slice(migration.indexOf('-- ROLLBACK:'));
     expect(rollback).toContain('20261025090000_generated_invoice_skip_empty_wallet.sql');
     expect(rollback).toContain('DROP FUNCTION IF EXISTS public.next_invoice_number(date);');
+    expect(rollback).toContain('DROP FUNCTION IF EXISTS public.allocate_invoice_number(date);');
     expect(rollback).toContain('DROP TABLE IF EXISTS public.invoice_number_counters;');
   });
 });
@@ -208,11 +227,19 @@ describe('prepayFutureInvoices invoice numbers (#1169)', () => {
 // ---------------------------------------------------------------------------------------------
 
 const ACTOR = '11111111-1111-1111-1111-111111111111';
+const RESIDENT_USER = '33333333-3333-3333-3333-333333333333';
 let db: PGlite;
 type Row = Record<string, unknown> & Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 const one = async (sql: string, params: unknown[] = []): Promise<Row> => (await db.query<Row>(sql, params)).rows[0];
 const next = async (periodStart: string | null) =>
+  (await one(`SELECT public.allocate_invoice_number($1::date) AS n`, [periodStart])).n as string;
+const wrapper = async (periodStart: string) =>
   (await one(`SELECT public.next_invoice_number($1::date) AS n`, [periodStart])).n as string;
+/** Act as the given account through PostgREST's role (transaction-local). */
+const actAs = async (id: string | null) => {
+  await db.query(`SELECT set_config('request.jwt.claims', $1, true)`, [id ? JSON.stringify({ sub: id, role: 'authenticated' }) : '']);
+  await db.exec('SET LOCAL ROLE authenticated');
+};
 
 let seq = 0;
 async function generateInvoice(periodStart: string, periodEnd: string): Promise<Row> {
@@ -244,17 +271,27 @@ async function generateInvoice(periodStart: string, periodEnd: string): Promise<
   return (await one(`SELECT public.create_generated_invoice($1, $2) AS r`, [candidate, ACTOR])).r;
 }
 
-describe('next_invoice_number in PGlite', () => {
+describe('invoice number allocation in PGlite', () => {
   beforeAll(async () => {
     db = await loadSchema(laterMigrations());
     await replay(
       db,
       'fixtures',
       `
-      INSERT INTO auth.users (id, email) VALUES ('${ACTOR}', 'sa@example.test');
+      INSERT INTO auth.users (id, email) VALUES ('${ACTOR}', 'sa@example.test'), ('${RESIDENT_USER}', 'res@example.test');
       INSERT INTO public.profiles (id, email, full_name, role_id, approval_status)
         SELECT '${ACTOR}', 'sa@example.test', 'SA', id, 'active' FROM public.app_roles WHERE name = 'super_admin'
         ON CONFLICT (id) DO UPDATE SET role_id = EXCLUDED.role_id, approval_status = 'active';
+      INSERT INTO public.profiles (id, email, full_name, role_id, approval_status)
+        SELECT '${RESIDENT_USER}', 'res@example.test', 'Res', id, 'active' FROM public.app_roles WHERE name = 'resident'
+        ON CONFLICT (id) DO UPDATE SET role_id = EXCLUDED.role_id, approval_status = 'active';
+      INSERT INTO public.app_permissions (name, display_name, description, category, is_active)
+        VALUES ('billing.manage_wallets', 'Manage Wallets', 'Adjust resident wallet balances', 'billing', true)
+        ON CONFLICT (name) DO NOTHING;
+      INSERT INTO public.role_permissions (role_id, permission_id)
+        SELECT r.id, p.id FROM public.app_roles r, public.app_permissions p
+        WHERE r.name = 'super_admin' AND p.name = 'billing.manage_wallets'
+        ON CONFLICT DO NOTHING;
       INSERT INTO public.streets (name) VALUES ('Number Street');
       INSERT INTO public.billing_profiles (name) VALUES ('Number Profile');
       INSERT INTO public.billing_profile_versions (billing_profile_id, effective_from)
@@ -291,6 +328,25 @@ describe('next_invoice_number in PGlite', () => {
     expect(result).toMatchObject({ status: 'created' });
     const invoice = await one(`SELECT invoice_number FROM public.invoices WHERE id = $1`, [result.invoice_id]);
     expect(invoice.invoice_number).toBe('INV-2026-000001');
+  });
+
+  it('next_invoice_number allocates for a user with billing.manage_wallets', async () => {
+    await actAs(ACTOR);
+    expect(await wrapper('2026-03-01')).toBe('INV-2026-000001');
+    expect(await wrapper('2026-04-01')).toBe('INV-2026-000002');
+  });
+
+  it('next_invoice_number refuses without billing.manage_wallets and burns no number', async () => {
+    await actAs(RESIDENT_USER);
+    await db.exec('SAVEPOINT refused');
+    await expect(wrapper('2026-03-01')).rejects.toMatchObject({ code: '42501', message: 'Not authorised to allocate invoice numbers' });
+    await db.exec('ROLLBACK TO SAVEPOINT refused; RESET ROLE');
+    expect((await one(`SELECT count(*)::int AS n FROM public.invoice_number_counters`)).n).toBe(0);
+  });
+
+  it('the internal allocator is not executable by authenticated', async () => {
+    await actAs(ACTOR);
+    await expect(next('2026-03-01')).rejects.toThrow(/permission denied for function allocate_invoice_number/);
   });
 
   it('skips a number an existing invoice already holds', async () => {

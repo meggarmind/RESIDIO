@@ -7,9 +7,14 @@
 -- idx_invoices_unique_billing_period; invoices.invoice_number stays UNIQUE. Existing invoice numbers
 -- are NOT renumbered here.
 --
--- next_invoice_number() takes the next value with a single upsert on the year's counter row, so the
--- row lock serialises concurrent callers (never max()+1). If the value it would return is already
--- used by an invoice (legacy data), it keeps advancing until it finds an unused one.
+-- allocate_invoice_number() (internal, service_role only) takes the next value with a single upsert on
+-- the year's counter row, so the row lock serialises concurrent callers (never max()+1). If the value
+-- it would return is already used by an invoice (legacy data), it keeps advancing until it finds an
+-- unused one. create_generated_invoice calls it directly.
+--
+-- next_invoice_number() is the client-callable wrapper (the future-prepayment server action calls it
+-- through supabase.rpc). It requires billing.manage_wallets, so a resident or other logged-in user
+-- without that permission cannot burn numbers.
 --
 -- create_generated_invoice is copied unchanged from 20261025090000_generated_invoice_skip_empty_wallet.sql
 -- except for the v_invoice_number assignment.
@@ -25,7 +30,7 @@ CREATE TABLE IF NOT EXISTS public.invoice_number_counters (
 ALTER TABLE public.invoice_number_counters ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.invoice_number_counters FROM anon, authenticated;
 
-CREATE OR REPLACE FUNCTION public.next_invoice_number(p_period_start date)
+CREATE OR REPLACE FUNCTION public.allocate_invoice_number(p_period_start date)
  RETURNS text
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -37,7 +42,7 @@ DECLARE
     v_number text;
 BEGIN
     IF p_period_start IS NULL THEN
-        RAISE EXCEPTION 'next_invoice_number requires a period_start';
+        RAISE EXCEPTION 'allocate_invoice_number requires a period_start';
     END IF;
 
     v_year := extract(year FROM p_period_start)::int;
@@ -58,6 +63,25 @@ BEGIN
     END LOOP;
 
     RETURN v_number;
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.allocate_invoice_number(date) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.allocate_invoice_number(date) FROM anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.allocate_invoice_number(date) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.next_invoice_number(p_period_start date)
+ RETURNS text
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+BEGIN
+    IF NOT public.has_permission('billing.manage_wallets') THEN
+        RAISE EXCEPTION 'Not authorised to allocate invoice numbers' USING ERRCODE = '42501';
+    END IF;
+
+    RETURN public.allocate_invoice_number(p_period_start);
 END;
 $function$;
 
@@ -129,7 +153,7 @@ BEGIN
         SET status = 'processing', updated_at = now()
         WHERE id = v_candidate.id;
 
-        v_invoice_number := public.next_invoice_number(v_candidate.period_start);
+        v_invoice_number := public.allocate_invoice_number(v_candidate.period_start);
 
         INSERT INTO public.invoices (
             resident_id, house_id, billing_profile_id, billing_profile_version_id, invoice_number,
@@ -220,6 +244,7 @@ COMMIT;
 -- --    20261025090000_generated_invoice_skip_empty_wallet.sql.
 -- -- 2. Then drop the counter function and table:
 -- DROP FUNCTION IF EXISTS public.next_invoice_number(date);
+-- DROP FUNCTION IF EXISTS public.allocate_invoice_number(date);
 -- DROP TABLE IF EXISTS public.invoice_number_counters;
 -- COMMIT;
 -- Invoice numbers already issued in the yearly format stay as they are (they remain unique).
