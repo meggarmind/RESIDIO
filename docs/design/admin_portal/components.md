@@ -81,7 +81,7 @@ The files `quick-stats-card.tsx` and `modern-stats-cards.tsx` do not exist in th
 
 ## Filter bar / search on lists
 
-**Canonical:** **None exists, build it.** Every list builds its own filter row.
+**Canonical:** `ListFilterBar` (`src/components/ui/list-filter-bar.tsx`). Built in #1151; only Invoices (`billing/page.tsx`) uses it so far. Residents, Houses and the other lists still build their own filter row and are follow-up slices.
 **Use when:** a list needs search plus filters. Mirror `HousesTable` (`src/components/houses/houses-table.tsx`): search input with a 300 ms debounce (`houses-table.tsx:205`), `Select` filters, active-filter chips (`houses-table.tsx:224-247`), and `clearAllFilters` (`houses-table.tsx:275`).
 **Do not use in new work:**
 - Filters in plain `useState` for a registry list. `src/app/(dashboard)/billing/page.tsx:160-172` and `src/components/security/security-contacts-table.tsx:369-371` lose their state on reload.
@@ -95,8 +95,8 @@ The files `quick-stats-card.tsx` and `modern-stats-cards.tsx` do not exist in th
   - Invoices: invoice number search, resident picker, status, type, date preset (`billing/page.tsx:356-414`). Not persisted.
   - Audit logs: `AuditFilters` (`src/components/audit/audit-filters.tsx:44`) holds 6 `useState` values and calls `onFiltersChange`.
   - Payments: `PaymentFilters` (`src/components/payments/payment-filters.tsx:19`).
-- To build `ListFilterBar` (`src/components/ui/list-filter-bar.tsx`):
-  - Props: `search: { value, onChange, placeholder }`, `filters: { id, label, value, options, onChange }[]`, `onClearAll`.
+- `ListFilterBar` contract:
+  - Props: `search: { value, onChange, placeholder }`, `filters: { id, label, value, options, onChange }[]` (each `options` list includes the `ALL_VALUE` option; `searchable` adds a search box to long lists), `onClearAll`, and optional `children` for extra controls such as a date range picker.
   - It owns and exports the `ALL_VALUE` constant.
   - It renders a chip for each active filter and one "Clear all" button.
   - It calls an `onAnyChange` callback so the page resets `page` to 1.
@@ -244,7 +244,7 @@ The files `quick-stats-card.tsx` and `modern-stats-cards.tsx` do not exist in th
 | Page header | `EnhancedPageHeader` | exists with a back control; 13 raw `<h1>` files remain |
 | Stat / KPI card | `EnhancedStatCard`, `RegistryKpiStrip` | exists but inconsistent (two components, 5 and 2 files) |
 | Data table | `DataTable` (`src/components/ui/data-table.tsx`) | exists; Residents migrated, about 40 files still use `<Table>` directly |
-| Filter bar / search | none | to build (`ListFilterBar`) |
+| Filter bar / search | `ListFilterBar` | exists, 1 adopter (Invoices); other lists to migrate |
 | Empty state | `ModernEmptyState` | exists but inconsistent (2 files use it; lists use inline blocks) |
 | Loading state | `Skeleton`, `DashboardSkeleton` | exists but inconsistent (6 `loading.tsx` for 104 pages) |
 | Error state | none (`error.tsx` only) | to build (`ErrorState`) |

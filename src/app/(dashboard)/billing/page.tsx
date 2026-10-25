@@ -11,7 +11,6 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import {
     Select,
     SelectContent,
@@ -21,13 +20,13 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { RecordCard, RecordCardSkeleton } from '@/components/ui/record-card';
-import { SearchableSelect } from '@/components/ui/searchable-select';
+import { ALL_VALUE, ListFilterBar, type ListFilter } from '@/components/ui/list-filter-bar';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 import { formatCurrency } from '@/lib/utils';
 import { endOfMonth, endOfYear, format, startOfMonth, startOfYear, subMonths } from 'date-fns';
-import { Loader2, FileText, RefreshCw, ChevronLeft, ChevronRight, Search, AlertCircle, Clock, CheckCircle2, Receipt, TrendingUp, CalendarRange } from 'lucide-react';
+import { Loader2, FileText, RefreshCw, ChevronLeft, ChevronRight, AlertCircle, Clock, CheckCircle2, Receipt, TrendingUp, CalendarRange } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useMemo } from 'react';
@@ -242,6 +241,46 @@ export default function BillingPage() {
         setPage(1);
     };
 
+    const customDateRangeLabel = customDateRange?.from && customDateRange.to
+        ? `${format(customDateRange.from, 'dd MMM yy')} - ${format(customDateRange.to, 'dd MMM yy')}`
+        : null;
+
+    const filters: ListFilter[] = [
+        { id: 'resident', label: 'Resident', value: residentId, options: residentOptions, onChange: setSelectedResidentId, searchable: true },
+        {
+            id: 'status', label: 'Status', value: status, onChange: setStatus, className: 'md:w-[110px]',
+            options: [
+                { value: ALL_VALUE, label: 'All Status' },
+                { value: 'unpaid', label: 'Unpaid' },
+                { value: 'overdue', label: 'Overdue' },
+                { value: 'paid', label: 'Paid' },
+                { value: 'partially_paid', label: 'Partial' },
+                { value: 'void', label: 'Void' },
+            ],
+        },
+        {
+            id: 'type', label: 'Type', value: invoiceType, onChange: setInvoiceType, className: 'md:w-[110px]',
+            options: [
+                { value: ALL_VALUE, label: 'All Types' },
+                { value: 'SERVICE_CHARGE', label: 'Service' },
+                { value: 'LEVY', label: 'Levy' },
+                { value: 'ADJUSTMENT', label: 'Adjust' },
+                { value: 'OTHER', label: 'Other' },
+            ],
+        },
+        {
+            id: 'date', label: 'Date', value: datePreset, onChange: (value) => { setDatePreset(value as DatePreset); if (value !== 'custom') setCustomDateRange(undefined); }, className: 'md:w-[120px]',
+            options: [
+                { value: ALL_VALUE, label: 'All Dates' },
+                { value: 'this_month', label: 'This Month' },
+                { value: 'last_month', label: 'Last Month' },
+                { value: 'last_3_months', label: 'Last 3 Months' },
+                { value: 'this_year', label: 'This Year' },
+                ...(datePreset === 'custom' ? [{ value: 'custom', label: customDateRangeLabel ?? 'Custom range' }] : []),
+            ],
+        },
+    ];
+
     const handleCustomDateRangeSelect = (range: DateRange | undefined) => {
         setCustomDateRange(range);
         if (range?.from && range.to) {
@@ -354,83 +393,12 @@ export default function BillingPage() {
                 title="Invoices"
                 description="All billing records"
                 actions={
-                    <div className="flex flex-wrap items-center gap-2">
-                        <div className="relative w-[180px]">
-                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                            <Input
-                                placeholder="Invoice number..."
-                                aria-label="Search by invoice number"
-                                value={search}
-                                onChange={(e) => {
-                                    setSearch(e.target.value);
-                                    setPage(1);
-                                }}
-                                className={cn('pl-8 h-9 text-sm')}
-                            />
-                        </div>
-
-                        <SearchableSelect
-                            options={residentOptions}
-                            value={residentId}
-                            onValueChange={(value) => {
-                                setSelectedResidentId(value);
-                                setPage(1);
-                            }}
-                            placeholder="All residents"
-                            searchPlaceholder="Search name or alias..."
-                            emptyMessage="No residents found."
-                            className={cn('h-9 w-full min-w-[280px] max-w-[360px] text-sm')}
-                        />
-
-                        <Select value={status} onValueChange={(value) => {
-                            setStatus(value);
-                            setPage(1);
-                        }}>
-                            <SelectTrigger aria-label="Filter by status" className={cn("w-[110px] h-9 text-sm")}>
-                                <SelectValue placeholder="Status" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Status</SelectItem>
-                                <SelectItem value="unpaid">Unpaid</SelectItem>
-                                <SelectItem value="overdue">Overdue</SelectItem>
-                                <SelectItem value="paid">Paid</SelectItem>
-                                <SelectItem value="partially_paid">Partial</SelectItem>
-                                <SelectItem value="void">Void</SelectItem>
-                            </SelectContent>
-                        </Select>
-
-                        <Select value={invoiceType} onValueChange={(value) => {
-                            setInvoiceType(value);
-                            setPage(1);
-                        }}>
-                            <SelectTrigger className={cn("w-[110px] h-9 text-sm")}>
-                                <SelectValue placeholder="Type" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Types</SelectItem>
-                                <SelectItem value="SERVICE_CHARGE">Service</SelectItem>
-                                <SelectItem value="LEVY">Levy</SelectItem>
-                                <SelectItem value="ADJUSTMENT">Adjust</SelectItem>
-                                <SelectItem value="OTHER">Other</SelectItem>
-                            </SelectContent>
-                        </Select>
-
-                        <Select value={datePreset} onValueChange={(value: DatePreset) => {
-                            setDatePreset(value);
-                            setPage(1);
-                        }}>
-                            <SelectTrigger className={cn("w-[120px] h-9 text-sm")}>
-                                <SelectValue placeholder="Date" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Dates</SelectItem>
-                                <SelectItem value="this_month">This Month</SelectItem>
-                                <SelectItem value="last_month">Last Month</SelectItem>
-                                <SelectItem value="last_3_months">Last 3 Months</SelectItem>
-                                <SelectItem value="this_year">This Year</SelectItem>
-                            </SelectContent>
-                        </Select>
-
+                    <ListFilterBar
+                        search={{ value: search, onChange: setSearch, placeholder: 'Invoice number...' }}
+                        filters={filters}
+                        onClearAll={handleClearFilters}
+                        onAnyChange={() => setPage(1)}
+                    >
                         <Popover open={isCustomDatePickerOpen} onOpenChange={setIsCustomDatePickerOpen}>
                             <PopoverTrigger asChild>
                                 <Button
@@ -439,9 +407,7 @@ export default function BillingPage() {
                                     className={cn('h-9 gap-2 text-sm')}
                                 >
                                     <CalendarRange className="h-4 w-4" />
-                                    {customDateRange?.from && customDateRange.to
-                                        ? `${format(customDateRange.from, 'dd MMM yy')} - ${format(customDateRange.to, 'dd MMM yy')}`
-                                        : 'Custom range'}
+                                    {customDateRangeLabel ?? 'Custom range'}
                                 </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0" align="end">
@@ -454,19 +420,7 @@ export default function BillingPage() {
                                 />
                             </PopoverContent>
                         </Popover>
-
-                        {isFiltered && (
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={handleClearFilters}
-                                className={cn("h-9 px-2 text-muted-foreground hover:text-foreground")}
-                                title="Clear Filters"
-                            >
-                                <RefreshCw className="h-4 w-4" />
-                            </Button>
-                        )}
-                    </div>
+                    </ListFilterBar>
                 }
             >
                 {isError ? (
