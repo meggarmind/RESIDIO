@@ -175,10 +175,14 @@ async function chat(
   options: Partial<WhatsAppFinancialHandlerOptions> = {}
 ): Promise<string[]> {
   const send = vi.fn().mockResolvedValue({ success: true });
+  const replies: string[] = [];
   for (const text of texts) {
+    send.mockClear();
     await handleFinancialMessage(message(text), who, { repository: repo, optedIn: true, send, ...options });
+    // A final answer and its menu are two messages (#1179); join them so a test reads one reply per inbound text.
+    replies.push(...(send.mock.calls.length ? [send.mock.calls.map((call) => call[0].body as string).join('\n\n')] : []));
   }
-  return send.mock.calls.map((call) => call[0].body as string);
+  return replies;
 }
 
 const MAIN_MENU = [
@@ -543,7 +547,7 @@ describe('WhatsApp Assistant statement (#804 decisions 22-23)', () => {
     const send = vi.fn().mockResolvedValue({ success: true });
     for (const text of ['statement', '6']) await handleFinancialMessage(message(text), identity, { repository: repo, optedIn: true, send });
 
-    expect(send.mock.calls[1][0].body).toBe(thenMenu('*Statement, 12 Palm Close*', '3 Feb 2025 (move-in) to 20 Oct 2026', 'Your PDF is attached.'));
+    expect(send.mock.calls[1][0].body).toBe(['*Statement, 12 Palm Close*', '3 Feb 2025 (move-in) to 20 Oct 2026', 'Your PDF is attached.'].join('\n'));
     expect(repo.logDisclosure).toHaveBeenCalledWith(expect.objectContaining({ metadata: { period: 'since_move_in', row_count: 0 } }));
   });
 
@@ -1035,7 +1039,7 @@ describe('WhatsApp What I owe figures (#811, #804 decision 20)', () => {
   });
 });
 
-describe('WhatsApp Assistant ends a final answer with the menu (#1164)', () => {
+describe('WhatsApp Assistant ends a final answer with the menu as its own message (#1164, #1179)', () => {
   it('lets the next item number follow an answer with no 0 in between', async () => {
     const replies = await chat(repository(), ['hi', '1', '1', '2', '3']);
     expect(replies[2]).toMatch(/^\*What you owe, 12 Palm Close\*[\s\S]*\n\nFinancial standing\n1\. What I owe/);
@@ -1059,18 +1063,36 @@ describe('WhatsApp Assistant ends a final answer with the menu (#1164)', () => {
     expect(replies[2]).toMatch(/^Financial standing\n/);
   });
 
-  it('sends the menu as its own message when the caption would pass 1,024 characters', async () => {
-    const longHouse = { ...PALM, label: 'Plot 12 '.padEnd(990, 'x') };
-    const repo = repository([longHouse], { loadStatement: vi.fn().mockResolvedValue({ fromDate: '2026-10-01', toDate: '2026-10-20', statement: statementData(3) }) });
+  it('sends the answer and the menu as two messages, in order, saving the session at answer (#1179)', async () => {
+    const repo = repository();
     const send = vi.fn().mockResolvedValue({ success: true });
-    for (const text of ['statement', '1']) await handleFinancialMessage(message(text), identity, { repository: repo, optedIn: true, send });
+    for (const text of ['hi', '1']) await handleFinancialMessage(message(text), identity, { repository: repo, optedIn: true, send });
+    send.mockClear();
+    await handleFinancialMessage(message('1'), identity, { repository: repo, optedIn: true, send });
 
-    expect(send).toHaveBeenCalledTimes(3);
-    const [, document, menu] = send.mock.calls.map((call) => call[0]);
-    expect(document.mediaUrls).toBeDefined();
-    expect(document.body).not.toContain('Financial standing\n');
-    expect(menu.mediaUrls).toBeUndefined();
-    expect(menu.body).toMatch(/^Financial standing/);
+    expect(send).toHaveBeenCalledTimes(2);
+    const [answer, menu] = send.mock.calls.map((call) => call[0]);
+    expect(answer.body).toMatch(/^\*What you owe, 12 Palm Close\*/);
+    expect(answer.body).not.toContain('Financial standing\n');
+    expect(menu.body).toBe(FINANCIAL_MENU);
+    expect(vi.mocked(repo.saveSession).mock.calls.at(-1)![0].currentNode).toBe('answer');
+  });
+
+  it('sends no menu when the answer send fails (#1179)', async () => {
+    const repo = repository();
+    const send = vi.fn().mockResolvedValue({ success: false, error: 'down' });
+    await expect(handleFinancialMessage(message('owe'), identity, { repository: repo, optedIn: true, send })).rejects.toThrow('down');
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('still saves the session at answer when the menu send fails (#1179)', async () => {
+    const repo = repository();
+    const send = vi.fn().mockResolvedValueOnce({ success: true }).mockResolvedValueOnce({ success: true }).mockResolvedValueOnce({ success: true }).mockResolvedValue({ success: false, error: 'down' });
+    for (const text of ['hi', '1']) await handleFinancialMessage(message(text), identity, { repository: repo, optedIn: true, send });
+    send.mockReset().mockResolvedValueOnce({ success: true }).mockResolvedValue({ success: false, error: 'down' });
+    await expect(handleFinancialMessage(message('1'), identity, { repository: repo, optedIn: true, send })).rejects.toThrow('down');
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(repo.saveSession).mock.calls.at(-1)![0].currentNode).toBe('answer');
   });
 });
 
@@ -1089,7 +1111,8 @@ describe('WhatsApp statement PDF delivery (#804 decision 24, #917)', () => {
     const choice = message('1');
     await handleFinancialMessage(choice, identity, { repository: repo, optedIn: true, send });
 
-    expect(send.mock.calls[1][0]).toMatchObject({ body: `${PDF_TEXT}\n\n${FINANCIAL_MENU}`, mediaUrls: ['https://storage.test/signed/statement.pdf'] });
+    expect(send.mock.calls[1][0]).toMatchObject({ body: PDF_TEXT, mediaUrls: ['https://storage.test/signed/statement.pdf'] });
+    expect(send.mock.calls[2][0]).toMatchObject({ body: FINANCIAL_MENU });
     expect(repo.loadStatement).toHaveBeenCalledWith('resident-1', 'house-1', 'this_month', expect.any(Date));
     expect(repo.storeStatementPdf).toHaveBeenCalledWith(
       expect.objectContaining({ residentId: 'resident-1', houseId: 'house-1', period: 'this_month', fromDate: '2026-10-01', toDate: '2026-10-20', rowCount: 40, inboundMessageId: choice.id, replyText: PDF_TEXT }),
@@ -1535,7 +1558,8 @@ describe('WhatsApp Assistant receipts (#816 decision 14)', () => {
     expect(repo.loadReceipt).toHaveBeenCalledWith('resident-1', 'house-1', 'payment-1');
     const body = ['*Receipt, 12 Palm Close*', '₦50,000.00 on 12 Oct 2026. Your PDF is attached.'].join('\n');
     expect(repo.storeReceiptPdf).toHaveBeenCalledWith({ residentId: 'resident-1', phoneNumber: '+2348000000000', houseId: 'house-1', inboundMessageId: expect.any(String), replyText: body }, RECEIPT);
-    expect(send.mock.calls[1][0]).toMatchObject({ body: `${body}\n\n${FINANCIAL_MENU}`, mediaUrls: ['https://storage.test/signed/receipt.pdf'] });
+    expect(send.mock.calls[1][0]).toMatchObject({ body, mediaUrls: ['https://storage.test/signed/receipt.pdf'] });
+    expect(send.mock.calls[2][0]).toMatchObject({ body: FINANCIAL_MENU });
   });
 
   it('logs the list and the PDF as disclosures, the PDF before the file exists', async () => {

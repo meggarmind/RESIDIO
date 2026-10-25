@@ -113,8 +113,9 @@ function statefulRepository(initialPinHash: string | null = null, allowance: Loo
   const say = async (text: string) => {
     send.mockClear();
     await handleFinancialMessage(message(text), identity, { repository: repo, optedIn: true, send, canLookup: async () => allowance });
-    expect(send).toHaveBeenCalledTimes(1);
-    return send.mock.calls[0]![0].body as string;
+    // A final answer is followed by the menu as its own message (#1179); a prompt is one message.
+    expect(send.mock.calls.length).toBeGreaterThanOrEqual(1);
+    return send.mock.calls.map((call) => call[0].body as string).join('\n\n');
   };
   const node = () => state.session?.currentNode;
   return { repo, state, send, say, node };
