@@ -178,9 +178,10 @@ const styles = StyleSheet.create({
     fontSize: 8,
   },
   // Column widths for transaction table
-  colDate: { width: '12%' },
+  colDate: { width: '17%' },
   colType: { width: '10%' },
-  colDescription: { width: '34%' },
+  colDescription: { width: '29%' },
+  colAppendixDescription: { width: '58%' },
   colDebit: { width: '13%', textAlign: 'right' },
   colCredit: { width: '13%', textAlign: 'right' },
   colBalance: { width: '18%', textAlign: 'right' },
@@ -275,7 +276,7 @@ function formatCurrency(amount: number): string {
 
 function formatDate(dateStr: string): string {
   try {
-    return format(new Date(dateStr), 'dd MMM yyyy');
+    return format(new Date(dateStr), 'dd MMMM yyyy');
   } catch {
     return dateStr;
   }
@@ -329,6 +330,7 @@ export function AccountStatementPDF({ data, estateName = 'Residio Estate' }: Acc
     closingBalance,
     summary,
     transactions,
+    monthlyDetail,
     generatedAt,
     generatedBy,
   } = data;
@@ -567,6 +569,31 @@ export function AccountStatementPDF({ data, estateName = 'Residio Estate' }: Acc
           fixed
         />
       </Page>
+
+      {monthlyDetail && monthlyDetail.length > 0 && (
+        <Page size="A4" style={styles.page}>
+          <Text style={styles.sectionTitle}>Monthly Detail</Text>
+          <View style={styles.table}>
+            <View style={styles.tableHeader}>
+              <Text style={[styles.tableHeaderCell, styles.colDate]}>Date</Text>
+              <Text style={[styles.tableHeaderCell, styles.colAppendixDescription]}>Description</Text>
+              <Text style={[styles.tableHeaderCell, styles.colDebit]}>Amount</Text>
+            </View>
+            {monthlyDetail.map((tx, index) => (
+              <View key={tx.id} wrap={false} style={[styles.tableRow, index % 2 === 1 ? styles.tableRowAlt : {}]}>
+                <Text style={[styles.tableCell, styles.colDate]}>{formatDate(tx.date)}</Text>
+                <Text style={[styles.tableCell, styles.colAppendixDescription]}>{tx.description}</Text>
+                <Text style={[styles.tableCell, styles.colDebit]}>{formatCurrency(tx.debit)}</Text>
+              </View>
+            ))}
+          </View>
+          <Text
+            style={styles.pageNumber}
+            render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+            fixed
+          />
+        </Page>
+      )}
     </Document>
   );
 }

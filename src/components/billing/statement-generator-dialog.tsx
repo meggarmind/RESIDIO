@@ -19,6 +19,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { FileText, Download, Loader2, Calendar, Building2 } from 'lucide-react';
@@ -78,6 +79,8 @@ export function StatementGeneratorDialog({
     const [houseId, setHouseId] = useState<string>(defaultHouseId || 'all');
     const [customFromDate, setCustomFromDate] = useState('');
     const [customToDate, setCustomToDate] = useState('');
+    const [summaryView, setSummaryView] = useState(true);
+    const [monthlyDetail, setMonthlyDetail] = useState(false);
 
     // Calculate dates based on preset
     const getDateRange = (): { from: string; to: string } => {
@@ -157,6 +160,11 @@ export function StatementGeneratorDialog({
 
             if (houseId && houseId !== 'all') {
                 params.append('houseId', houseId);
+            }
+
+            if (summaryView) {
+                params.append('view', 'summary');
+                if (monthlyDetail) params.append('detail', '1');
             }
 
             const url = `/api/statements?${params.toString()}`;
@@ -308,6 +316,27 @@ export function StatementGeneratorDialog({
                             </div>
                         </div>
                     )}
+
+                    <div className="grid gap-2">
+                        <div className="flex items-center gap-2">
+                            <Checkbox
+                                id="summaryView"
+                                checked={summaryView}
+                                onCheckedChange={(checked) => setSummaryView(checked === true)}
+                            />
+                            <Label htmlFor="summaryView">Group monthly invoices by billing item and year</Label>
+                        </div>
+                        {summaryView && (
+                            <div className="flex items-center gap-2">
+                                <Checkbox
+                                    id="monthlyDetail"
+                                    checked={monthlyDetail}
+                                    onCheckedChange={(checked) => setMonthlyDetail(checked === true)}
+                                />
+                                <Label htmlFor="monthlyDetail">Add a monthly detail appendix</Label>
+                            </div>
+                        )}
+                    </div>
 
                     {/* Preview of Selected Period */}
                     {preset !== 'custom' && (
