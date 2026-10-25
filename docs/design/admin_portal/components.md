@@ -10,23 +10,18 @@ The files `quick-stats-card.tsx` and `modern-stats-cards.tsx` do not exist in th
 
 ## Page header
 
-**Canonical:** `EnhancedPageHeader` (`src/components/dashboard/enhanced-stat-card.tsx:241`)
+**Canonical:** `EnhancedPageHeader` (`src/components/dashboard/page-header.tsx`, re-exported from `enhanced-stat-card.tsx`)
 **Use when:** a page needs a title, an optional description, an optional icon and an actions slot. It has 20 files with `<EnhancedPageHeader`, for example `src/app/(dashboard)/residents/page.tsx` and `src/app/(dashboard)/billing/page.tsx`.
 **Do not use in new work:**
 - A raw `<h1>`. 13 files under `src/app/(dashboard)` still render their own `<h1>`, mostly detail pages such as `src/app/(dashboard)/houses/[id]/page.tsx` and `src/app/(dashboard)/payments/[id]/page.tsx`.
 - `SettingsPageHeader` (`src/components/settings/settings-page-header.tsx:19`, 8 files) outside `/settings`. It is correct for settings pages only, because it reads the title and trail from `src/config/settings-nav.ts`.
-- A wrapper such as `PaymentPageHeader` (`src/app/(dashboard)/payments/new/payment-page-header.tsx:16`). It exists only because a Server Component page cannot pass a lucide icon to a client component (`payment-page-header.tsx:6-15`).
+- A wrapper such as `PaymentPageHeader` (`src/app/(dashboard)/payments/new/payment-page-header.tsx:16`). `page-header.tsx` has no `'use client'`, so a Server Component page imports it from `@/components/dashboard/page-header` and passes the icon directly.
 
 **Contract / notes:**
-- Props today: `title`, `description?`, `icon?: LucideIcon`, `actions?: ReactNode`, `className?`, `animate?` (`enhanced-stat-card.tsx:241-248`).
-- Layout: a column below `sm`, a row from `sm` up. The title is `text-2xl sm:text-3xl font-bold tracking-tight` (`enhanced-stat-card.tsx:260,271`).
-- The component has no back control. 14 pages build one by hand with an `ArrowLeft` button, in different forms:
-  - an icon-only ghost button left of the title (`src/app/(dashboard)/houses/[id]/page.tsx:94-98`);
-  - an outline button with the text "Back to houses" placed in `actions` (`src/app/(dashboard)/houses/unverified/page.tsx:28-34`);
-  - a ghost button with an icon and text (`src/app/(dashboard)/billing/[id]/page.tsx:103`).
+- Props: `title`, `description?`, `icon?: LucideIcon`, `actions?: ReactNode`, `className?`, `animate?`, `backHref?`, `backLabel?`.
+- Layout: a column below `sm`, a row from `sm` up. The title is `text-2xl sm:text-3xl font-bold tracking-tight`.
+- Back control: set `backHref` for record, form and wizard pages. It renders an icon-only ghost button left of the title with `aria-label` set to `backLabel` or "Go back", 44 px square below `md`. Do not hand-build an `ArrowLeft` button. Converted: `houses/[id]` (edit view), `houses/unverified`, `billing/[id]`. About 11 other pages still build one by hand.
 - The breadcrumb is layout-level (`src/components/dashboard/admin-breadcrumb.tsx`). A page cannot set its own trail. Use a back control.
-- To build: add `backHref?: string` and `backLabel?: string` to `EnhancedPageHeader`. Render an icon button with `aria-label` set to `backLabel` or "Go back", left of the title, at least 44 px square at 375 px.
-- To build: remove the need for wrapper files like `payment-page-header.tsx`. Accept an icon component that is safe to pass from a Server Component, or export the header without `'use client'`.
 - At 375 px the actions wrap below the title. Keep at most one primary button in `actions`. Put other actions in a menu.
 
 ## Stat / KPI card
@@ -168,7 +163,7 @@ The files `quick-stats-card.tsx` and `modern-stats-cards.tsx` do not exist in th
 
 **Canonical:** `IconBox` (`src/components/ui/icon-box.tsx:25`)
 **Use when:** an icon anchors a card, a section heading or a form. 10 files import it, 6 of them admin (for example `src/components/settings/settings-section.tsx` and `src/components/houses/house-form.tsx`).
-**Do not use in new work:** a hand-built `div` with `bg-primary/10` around an icon. `EnhancedPageHeader` does this at `enhanced-stat-card.tsx:266`. It is a private copy, not a use of `IconBox`.
+**Do not use in new work:** a hand-built `div` with `bg-primary/10` around an icon. `EnhancedPageHeader` does this at `page-header.tsx:49`. It is a private copy, not a use of `IconBox`.
 
 **Contract / notes:**
 - Props, verbatim: `color?: 'pink' | 'blue' | 'purple' | 'orange' | 'green' | 'cyan'` (default `'blue'`), `size?: 'sm' | 'md' | 'lg'` (default `'md'`), `children` (`icon-box.tsx:21-33`).
@@ -246,7 +241,7 @@ The files `quick-stats-card.tsx` and `modern-stats-cards.tsx` do not exist in th
 
 | Job | Canonical | Status |
 | --- | --- | --- |
-| Page header | `EnhancedPageHeader` | exists but inconsistent (no back control, 13 raw `<h1>` files) |
+| Page header | `EnhancedPageHeader` | exists with a back control; 13 raw `<h1>` files remain |
 | Stat / KPI card | `EnhancedStatCard`, `RegistryKpiStrip` | exists but inconsistent (two components, 5 and 2 files) |
 | Data table | none | to build (`DataTable`; 42 files with their own markup) |
 | Filter bar / search | none | to build (`ListFilterBar`) |
@@ -265,7 +260,7 @@ The files `quick-stats-card.tsx` and `modern-stats-cards.tsx` do not exist in th
 - Build `DataTable` with sort, pagination, `renderCard` and selection. Replaces 3 hand-written pagination blocks and about 42 `<Table>` files.
 - Build `ListFilterBar` with persisted state and active chips. Replaces filter rows in 5 lists and 14 copies of `ALL_VALUE`.
 - Build `ErrorState` and use it in list error slots. Replaces inline error text in 2 reference lists.
-- Add `backHref` and `backLabel` to `EnhancedPageHeader`. Replaces 14 hand-built back buttons.
+- Move the remaining about 11 hand-built back buttons to `backHref` and `backLabel`.
 - Move 13 raw `<h1>` pages to `EnhancedPageHeader`.
 - Make list empty states use `ModernEmptyState` with a `compact` prop. 2 files use it today.
 - Decide `StatusBadge` versus `Badge` (0 admin usages of `StatusBadge`). Then fix `DESIGN.md` or the code.

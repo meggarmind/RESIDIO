@@ -6,6 +6,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { EnhancedPageHeader } from '@/components/dashboard/page-header';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { HouseForm } from '@/components/houses/house-form';
@@ -16,7 +17,7 @@ import { isResidentNotFoundError } from '@/components/residents/resident-detail-
 import { useHouse } from '@/hooks/use-houses';
 import { useCan } from '@/components/auth/can';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
-import { AlertCircle, ArrowLeft, Home } from 'lucide-react';
+import { AlertCircle, Home } from 'lucide-react';
 import HouseDetailLoading from './loading';
 
 // Only Residents renders on first paint; Billing and History load when opened (#784).
@@ -90,17 +91,13 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
   if (isEditing && canUpdateHouse) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild aria-label="Go back">
-            <Link href={`/houses/${id}`}>
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold">Edit House</h1>
-            <p className="text-muted-foreground">Update property details.</p>
-          </div>
-        </div>
+        <EnhancedPageHeader
+          title="Edit House"
+          description="Update property details."
+          backHref={`/houses/${id}`}
+          backLabel="Back to house"
+          animate={false}
+        />
 
         <Card>
           <CardHeader>
