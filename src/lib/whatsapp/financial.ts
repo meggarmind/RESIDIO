@@ -949,6 +949,10 @@ function readNode(raw: string): { node: string; misses: number } {
 
 async function respond(turn: Turn, body: string, node: string, misses = 0, mediaUrls?: string[]): Promise<void> {
   await sendFinancialReply(turn.message, body, turn.options.send, turn.identity.id, mediaUrls);
+  await saveSession(turn, node, misses);
+}
+
+async function saveSession(turn: Turn, node: string, misses = 0): Promise<void> {
   turn.session.currentNode = misses ? `${node}~${misses}` : node;
   if (!/^(report|receipt|survey)_/.test(node)) turn.session.draft = turn.answered ? { answered: true } : null;
   turn.session.expiresAt = expiry();
@@ -986,20 +990,18 @@ async function answerMenu(turn: Turn): Promise<string> {
   return mainMenu(turn);
 }
 
-/** A final answer ends with the menu, so the resident can reply with the next number straight away (#1164). */
-async function answerWithMenu(turn: Turn, body: string): Promise<string> {
-  return `${body}\n\n${await answerMenu(turn)}`;
-}
-
-/** WhatsApp's limit on a media caption. */
-const CAPTION_LIMIT = 1024;
-
-/** Send a document with its caption, then the menu: in the caption when it fits, else as the next message. */
-async function respondWithDocument(turn: Turn, caption: string, url: string): Promise<void> {
-  const withMenu = await answerWithMenu(turn, caption);
-  if (withMenu.length <= CAPTION_LIMIT) return respond(turn, withMenu, 'answer', 0, [url]);
-  await sendFinancialReply(turn.message, caption, turn.options.send, turn.identity.id, [url]);
-  return respond(turn, await answerMenu(turn), 'answer');
+/**
+ * A final answer is sent on its own, then the menu as a second message, so the answer can be forwarded without it (#1179).
+ * The session is saved at 'answer' even when the menu send fails, so the next number typed still works.
+ */
+async function respondAnswer(turn: Turn, body: string, mediaUrls?: string[]): Promise<void> {
+  await sendFinancialReply(turn.message, body, turn.options.send, turn.identity.id, mediaUrls);
+  const menu = await answerMenu(turn);
+  try {
+    await sendFinancialReply(turn.message, menu, turn.options.send, turn.identity.id);
+  } finally {
+    await saveSession(turn, 'answer');
+  }
 }
 
 async function mainMenu(turn: Turn): Promise<string> {
@@ -1177,14 +1179,14 @@ async function showCoResidents(turn: Turn, lead: string): Promise<void> {
   const house = selectedHouse(turn)!;
   if (!turn.session.pinAuthenticated) {
     // Issuing a credential always needs the PIN, even where the estate does not require one for viewing.
-    return respond(turn, await answerWithMenu(turn, `${lead}A security PIN is required before linking a co-resident. To set one, ${SET_PIN_HINT}.`), 'answer');
+    return respondAnswer(turn, `${lead}A security PIN is required before linking a co-resident. To set one, ${SET_PIN_HINT}.`);
   }
   if (!isSponsorHouse(house)) {
     return respond(turn, `${lead}Only the resident landlord or tenant of ${house.label} can link a co-resident.\n${financialMenu(turn)}`, 'financial');
   }
   const people = await turn.options.repository.getCoResidents(turn.identity.id, house.id);
   if (people.length === 0) {
-    return respond(turn, await answerWithMenu(turn, `${lead}${withContact(turn, `There is no co-resident on record for ${house.label}. Ask the estate office to add them first.`)}`), 'answer');
+    return respondAnswer(turn, `${lead}${withContact(turn, `There is no co-resident on record for ${house.label}. Ask the estate office to add them first.`)}`);
   }
   await respond(turn, `${lead}${coResidentPrompt(people)}`, 'link_pick');
 }
@@ -1198,18 +1200,14 @@ async function pickCoResident(turn: Turn, input: string): Promise<void> {
   const person = /^\d+$/.test(input) ? people[Number(input) - 1] : undefined;
   if (!person) return miss(turn, 'link_pick');
   const issued = await turn.options.repository.createCoResidentLinkCode({ sponsorId: turn.identity.id, coResidentId: person.id, houseId: house.id });
-  if (!issued) return respond(turn, await answerWithMenu(turn, withContact(turn, 'The link code could not be created. Nothing was changed. Please try again.')), 'answer');
-  await respond(
+  if (!issued) return respondAnswer(turn, withContact(turn, 'The link code could not be created. Nothing was changed. Please try again.'));
+  await respondAnswer(
     turn,
-    await answerWithMenu(
-      turn,
-      [
-        `Link code for ${person.firstName} ${person.lastName}: *${issued.code}*`,
-        `It works once and expires in ${CO_RESIDENT_LINK_CODE_MINUTES} minutes. Any earlier code for ${person.firstName} no longer works.`,
-        `Ask ${person.firstName} to send LINK ${issued.code} to this WhatsApp number from their own phone. It cannot be used from your number.`,
-      ].join('\n')
-    ),
-    'answer'
+    [
+      `Link code for ${person.firstName} ${person.lastName}: *${issued.code}*`,
+      `It works once and expires in ${CO_RESIDENT_LINK_CODE_MINUTES} minutes. Any earlier code for ${person.firstName} no longer works.`,
+      `Ask ${person.firstName} to send LINK ${issued.code} to this WhatsApp number from their own phone. It cannot be used from your number.`,
+    ].join('\n')
   );
 }
 
@@ -1242,7 +1240,7 @@ async function answerAllProperties(turn: Turn): Promise<void> {
     metadata: { scope: 'all_properties', houses: houses.length, ...(sponsors.length > 1 ? { account_resident_ids: sponsors } : {}) },
   });
   turn.answered = true;
-  await respond(turn, await answerWithMenu(turn, body), 'answer');
+  await respondAnswer(turn, body);
 }
 
 async function answerItem(turn: Turn, item: Exclude<FinancialMenuItem, 'statement'>, prefix?: string): Promise<void> {
@@ -1275,7 +1273,7 @@ async function answerItem(turn: Turn, item: Exclude<FinancialMenuItem, 'statemen
     accountResidentId: house.accountResidentId,
   });
   turn.answered = true;
-  await respond(turn, await answerWithMenu(turn, `${lead}${body}`), 'answer');
+  await respondAnswer(turn, `${lead}${body}`);
 }
 
 function requestInput(turn: Turn, house: FinancialHouse, period: StatementPeriod, fromDate: string, toDate: string, rowCount: number): StatementRequestInput {
@@ -1323,13 +1321,13 @@ async function deliverStatementPdf(turn: Turn, period: StatementPeriod): Promise
     });
     const url = await repository.storeStatementPdf({ ...input, replyText: body }, statement);
     turn.answered = true;
-    return respondWithDocument(turn, body, url);
+    return respondAnswer(turn, body, [url]);
   }
 
   const email = await repository.getResidentEmail(turn.identity.id);
   if (!email) {
     await repository.createStatementRequest({ ...input, status: 'awaiting_email' });
-    return respond(turn, await answerWithMenu(turn, withContact(turn, "We don't have an email for you. Reply EMAIL to add one now.")), 'answer');
+    return respondAnswer(turn, withContact(turn, "We don't have an email for you. Reply EMAIL to add one now."));
   }
   return respond(turn, `${statementHeading(period, house, fromDate, toDate)}\nThis statement is too long for chat. Send the PDF to ${maskEmail(email)}? Reply 1 Yes, 2 No.`, `statement_email:${period}`);
 }
@@ -1360,7 +1358,7 @@ async function confirmStatementEmail(turn: Turn, period: StatementPeriod): Promi
   const requestId = await repository.createStatementRequest({ ...requestInput(turn, house, period, fromDate, toDate, statement.transactions.length), status: 'queued' });
   await repository.queueStatementEmail(requestId, turn.identity.id, email);
   turn.answered = true;
-  return respond(turn, await answerWithMenu(turn, `${statementHeading(period, house, fromDate, toDate)}\nYour PDF is queued for ${maskEmail(email)}. It will arrive within 15 minutes.`), 'answer');
+  return respondAnswer(turn, `${statementHeading(period, house, fromDate, toDate)}\nYour PDF is queued for ${maskEmail(email)}. It will arrive within 15 minutes.`);
 }
 
 async function showNotices(turn: Turn): Promise<void> {
@@ -1421,7 +1419,7 @@ async function showReceipts(turn: Turn, lead: string): Promise<void> {
     accountResidentId: house.accountResidentId,
     metadata: { step: 'list', row_count: payments.length },
   });
-  if (payments.length === 0) return respond(turn, await answerWithMenu(turn, `${lead}*Receipts, ${house.label}*\nNo payments recorded for ${house.label}.`), 'answer');
+  if (payments.length === 0) return respondAnswer(turn, `${lead}*Receipts, ${house.label}*\nNo payments recorded for ${house.label}.`);
 
   turn.session.draft = { payments: payments.map((payment) => ({ id: payment.id, verified: payment.is_verified })) } satisfies ReceiptDraft;
   const lines = payments.map((payment, index) =>
@@ -1444,7 +1442,7 @@ async function pickReceipt(turn: Turn, input: string): Promise<void> {
 
   const repository = turn.options.repository;
   const receipt = payment.verified ? await repository.loadReceipt(accountOf(turn, house), house.id, payment.id) : null;
-  if (!receipt) return respond(turn, await answerWithMenu(turn, 'A receipt is available once this payment is verified.'), 'answer');
+  if (!receipt) return respondAnswer(turn, 'A receipt is available once this payment is verified.');
 
   const body = [`*Receipt, ${house.label}*`, `${formatNaira(receipt.amount)} on ${formatDay(receipt.paymentDate)}. Your PDF is attached.`].join('\n');
   // Log before the file exists (#795): a failed log then discloses nothing.
@@ -1460,7 +1458,7 @@ async function pickReceipt(turn: Turn, input: string): Promise<void> {
   });
   const url = await repository.storeReceiptPdf({ residentId: turn.identity.id, phoneNumber: turn.phoneNumber, houseId: house.id, inboundMessageId: turn.message.id, replyText: body }, receipt);
   turn.answered = true;
-  await respondWithDocument(turn, body, url);
+  await respondAnswer(turn, body, [url]);
 }
 
 // ---------------------------------------------------------------------------
@@ -1470,7 +1468,7 @@ async function pickReceipt(turn: Turn, input: string): Promise<void> {
 async function askForClearance(turn: Turn, lead: string): Promise<void> {
   const house = selectedHouse(turn);
   if (!house) return;
-  if (!OCCUPANT_ROLES.has(house.role)) return respond(turn, await answerWithMenu(turn, `${lead}${NOT_OCCUPANT_CLEARANCE_REPLY}`), 'answer');
+  if (!OCCUPANT_ROLES.has(house.role)) return respondAnswer(turn, `${lead}${NOT_OCCUPANT_CLEARANCE_REPLY}`);
   const capped = await capReply(turn);
   if (capped) return respond(turn, capped, 'financial');
 
@@ -1489,7 +1487,7 @@ async function askForClearance(turn: Turn, lead: string): Promise<void> {
   const title = `${lead}*Clearance certificate, ${house.label}*`;
   if (owed.outstanding > 0) {
     const pay = turn.settings?.paymentInstructions ? '\nReply PAY for how to pay' : '';
-    return respond(turn, await answerWithMenu(turn, `${title}\nYou owe ${formatNaira(owed.outstanding)} on ${house.label}, so a certificate cannot be requested yet.${pay}`), 'answer');
+    return respondAnswer(turn, `${title}\nYou owe ${formatNaira(owed.outstanding)} on ${house.label}, so a certificate cannot be requested yet.${pay}`);
   }
 
   const result = await repository.requestClearance({ residentId: turn.identity.id, residentName: `${turn.identity.firstName} ${turn.identity.lastName}`, houseId: house.id, houseLabel: house.label });
@@ -1498,7 +1496,8 @@ async function askForClearance(turn: Turn, lead: string): Promise<void> {
     : withContact(turn, `A clearance certificate request for ${house.label} is already waiting for approval. Nothing new was sent.`);
   const text = `${title}\n${reply}`;
   const ask = result.status === 'requested' ? await surveyPrompt(turn, 'clearance_request') : null;
-  await respond(turn, ask ? `${text}\n${footer(turn)}\n\n${ask}` : await answerWithMenu(turn, text), ask ? 'survey_score' : 'answer');
+  if (ask) await respond(turn, `${text}\n${footer(turn)}\n\n${ask}`, 'survey_score');
+  else await respondAnswer(turn, text);
 }
 
 // ---------------------------------------------------------------------------
@@ -1965,7 +1964,7 @@ async function converse(turn: Turn, expired: boolean, endedOnPurpose = false): P
   if (statementPeriod) {
     await loadHouses(turn);
     if (input === '1') return confirmStatementEmail(turn, statementPeriod);
-    if (input === '2') return respond(turn, await answerWithMenu(turn, 'Nothing was sent.'), 'answer');
+    if (input === '2') return respondAnswer(turn, 'Nothing was sent.');
     return miss(turn, node);
   }
 
