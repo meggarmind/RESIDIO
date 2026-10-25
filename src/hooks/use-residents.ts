@@ -145,6 +145,7 @@ export function useCreateResident() {
       queryClient.invalidateQueries({ queryKey: ['residents'] });
       queryClient.invalidateQueries({ queryKey: ['residentStats'] });
       queryClient.invalidateQueries({ queryKey: ['houses'] });
+      queryClient.invalidateQueries({ queryKey: ['house'] });
     },
   });
 }
