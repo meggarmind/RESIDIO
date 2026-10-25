@@ -269,7 +269,7 @@ export default function BillingPage() {
             ],
         },
         {
-            id: 'date', label: 'Date', value: datePreset, onChange: (value) => setDatePreset(value as DatePreset), className: 'md:w-[120px]',
+            id: 'date', label: 'Date', value: datePreset, onChange: (value) => { setDatePreset(value as DatePreset); if (value !== 'custom') setCustomDateRange(undefined); }, className: 'md:w-[120px]',
             options: [
                 { value: ALL_VALUE, label: 'All Dates' },
                 { value: 'this_month', label: 'This Month' },
