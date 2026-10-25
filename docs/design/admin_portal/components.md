@@ -53,8 +53,8 @@ The files `quick-stats-card.tsx` and `modern-stats-cards.tsx` do not exist in th
 - `RecordSortControl` for phone sort (`src/components/ui/record-sort-control.tsx`).
 
 **Do not use in new work:**
-- A fourth pagination markup. Today there are three hand-written blocks: `residents-table.tsx:633-714`, `houses-table.tsx:556-582` and `src/app/(dashboard)/billing/page.tsx:571-599`. There are also two shared components. `PaginationControls` (`src/components/ui/pagination-controls.tsx:18`) has 1 usage (`src/components/imports/import-preview.tsx:931`). `SimplePagination` (`src/components/ui/simple-pagination.tsx:82`) has 2 usages and is for short lists only.
-- Local `ChevronUp` and `ChevronsUpDown` sort buttons repeated per column (`residents-table.tsx:546-585`).
+- A fourth pagination markup. Two hand-written blocks remain: `houses-table.tsx:556-582` and `src/app/(dashboard)/billing/page.tsx:571-599`. There are also two shared components. `PaginationControls` (`src/components/ui/pagination-controls.tsx:18`) has 1 usage (`src/components/imports/import-preview.tsx:931`). `SimplePagination` (`src/components/ui/simple-pagination.tsx:82`) has 2 usages and is for short lists only.
+- Local `ChevronUp` and `ChevronsUpDown` sort buttons repeated per column; `DataTable` renders them.
 
 **How the three reference lists differ today:**
 
@@ -71,13 +71,13 @@ The files `quick-stats-card.tsx` and `modern-stats-cards.tsx` do not exist in th
 
 **Contract / notes (`DataTable`, `src/components/ui/data-table.tsx`):**
 - Props: `columns` (key, header, `sortable?`, `className?`, `hideBelow?: 'lg' | 'xl'`, `identifier?`, `cell(row)`), `rows`, `rowKey`, `isLoading`, `error?`, `emptyState: ReactNode`, `sort` and `onSortChange`, `pagination` (`page`, `pageSize`, `totalCount`, `onPageChange`, `onPageSizeChange`), `onRowClick?`, `renderCard(row)` for phones, `selection?`.
-- Sort: a click on a header cycles ascending, descending. Set `aria-sort` on the `th`. Reset `page` to 1 on sort change (`residents-table.tsx:259`).
+- Sort: a click on a header cycles ascending, descending. Set `aria-sort` on the `th`. Reset `page` to 1 on sort change (`residents-table.tsx:241`).
 - Density: one density. Do not add a toggle until a user asks. Rows use the `TableCell` default padding.
-- Sticky: `TableHeader` has a `sticky` prop (`table.tsx:46-55`). `DataTable` sets it on. No table pins a first column today (no `sticky left` match in `src/components`). Pin the id column (`resident_code`, invoice number) only when the table scrolls sideways, with `sticky left-0 bg-background`.
-- Row actions: the last column, right aligned, header text "Actions". A row click opens the record (`residents-table.tsx:174`). Action buttons call `stopPropagation`.
+- Sticky: `TableHeader` has a `sticky` prop (`table.tsx:46-55`). `DataTable` sets it on. Set `identifier: true` on the id column (`resident_code`, invoice number) to pin it with `sticky left-0 bg-background`; Residents does.
+- Row actions: the last column, right aligned, header text "Actions". A row click opens the record (`onRowClick`). Action buttons call `stopPropagation`.
 - Bulk selection: a leading checkbox column and a header checkbox for the page. Only `src/components/payments/payment-table.tsx:132` and `src/components/imports/import-preview.tsx` do this today. A selection bar shows the count and the bulk actions. Each bulk action needs its own write permission.
-- Mobile at 375 px: below `md` render `renderCard` rows in a `RecordCard` list with `RecordSortControl`. Both lists stay in the DOM and CSS picks one (`residents-table.tsx:522`). `<Table stack>` (`table.tsx:9-20`) is the lighter option for small settings tables.
-- Persist filters, sort and page size with `usePersistedState`, with the key prefix `<domain>-registry:` (`residents-table.tsx:241`).
+- Mobile at 375 px: below `md` render `renderCard` rows in a `RecordCard` list with `RecordSortControl`. Both lists stay in the DOM and CSS picks one (`data-table.tsx:166,186`). `<Table stack>` (`table.tsx:9-20`) is the lighter option for small settings tables.
+- Persist filters, sort and page size with `usePersistedState`, with the key prefix `<domain>-registry:` (`residents-table.tsx:229`).
 
 ## Filter bar / search on lists
 
