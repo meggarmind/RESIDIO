@@ -32,7 +32,7 @@ import { createResidentSchema, resolveSubmittedCorporateFields, type CreateResid
 import { toast } from 'sonner';
 import type { Resident, ResidentRole, EntityType } from '@/types/database';
 import { PRIMARY_ROLE_OPTIONS, SECONDARY_ROLE_OPTIONS, CORPORATE_ROLE_OPTIONS, ENTITY_TYPE_LABELS, RESIDENT_ROLE_LABELS, RESIDENT_TYPE_LABELS } from '@/types/database';
-import { Check } from 'lucide-react';
+import { Check, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { allowedResidentTypes, deriveHouseState } from '@/lib/residents/house-state';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -906,6 +906,7 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId }: Reside
               disabled={isLoading}
               onClick={isWizard && !isLastStep ? submitNow : undefined}
             >
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isLoading ? 'Saving...' : isEditing ? 'Update Resident' : 'Create Resident'}
             </Button>
           )}
