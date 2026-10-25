@@ -18,6 +18,8 @@ import { format } from 'date-fns';
  * - houseId: Optional - filter by specific property
  * - fromDate: Required - start date (YYYY-MM-DD)
  * - toDate: Required - end date (YYYY-MM-DD)
+ * - view: Optional - 'summary' folds monthly invoices into one line per billing item per year
+ * - detail: Optional - '1' adds the monthly detail appendix to a summary statement
  *
  * Authorization:
  * - Admin users with billing.view permission can generate for any resident
@@ -30,6 +32,8 @@ export async function GET(request: NextRequest) {
     const houseId = searchParams.get('houseId');
     const fromDate = searchParams.get('fromDate');
     const toDate = searchParams.get('toDate');
+    const summary = searchParams.get('view') === 'summary';
+    const includeMonthlyDetail = searchParams.get('detail') === '1';
 
     // Validate required parameters
     if (!residentId) {
@@ -113,7 +117,11 @@ export async function GET(request: NextRequest) {
       houseId: houseId || undefined,
       fromDate,
       toDate,
-    }, { rollForward: hasBillingPermission || await isResidentRollForwardEnabled() });
+    }, {
+      rollForward: hasBillingPermission || await isResidentRollForwardEnabled(),
+      mode: summary ? 'summary' : 'detailed',
+      includeMonthlyDetail,
+    });
 
     if (statementError || !statementData) {
       return NextResponse.json(

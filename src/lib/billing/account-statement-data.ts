@@ -32,6 +32,8 @@ export type StatementTransaction = {
     invoice_status?: InvoiceStatus;
     invoice_type?: InvoiceType;
     period?: string;
+    // Set on a summary line: how many monthly invoices it combines.
+    invoice_count?: number;
 };
 
 export type AccountStatementData = {
@@ -70,6 +72,8 @@ export type AccountStatementData = {
     };
     // Transaction list (chronological)
     transactions: StatementTransaction[];
+    // Every monthly invoice line, present only when the summary statement asks for the appendix.
+    monthlyDetail?: StatementTransaction[];
     // Generated metadata
     generatedAt: string;
     generatedBy: string | null;
@@ -97,11 +101,13 @@ export type GetAccountStatementResponse = {
  * The admin statement always sets it; resident-facing statements set it only once
  * balance_roll_forward_resident_enabled is on. Without it the statement is built as before #863.
  * Either way, timestamp columns are bounded by the Lagos day (#945).
+ * `mode: 'summary'` folds monthly invoices into one line per billing item per year (#1144); balances
+ * and totals are unchanged. Only the admin statement dialog asks for it, so the default is detailed.
  */
 export async function loadAccountStatement(
     supabase: StatementClient,
     params: GetAccountStatementParams,
-    { rollForward }: { rollForward: boolean }
+    { rollForward, mode = 'detailed', includeMonthlyDetail = false }: { rollForward: boolean; mode?: 'detailed' | 'summary'; includeMonthlyDetail?: boolean }
 ): Promise<GetAccountStatementResponse> {
     const { residentId, houseId, fromDate, toDate } = params;
 
@@ -270,6 +276,7 @@ export async function loadAccountStatement(
         }),
         payments: payments || [],
         walletTransactions,
+        mode,
     });
     const { transactions } = ledger;
     let { summary, closingBalance } = ledger;
@@ -324,6 +331,7 @@ export async function loadAccountStatement(
         closingBalance,
         summary,
         transactions,
+        monthlyDetail: mode === 'summary' && includeMonthlyDetail ? ledger.monthlyInvoices : undefined,
         generatedAt: new Date().toISOString(),
         generatedBy,
     };
