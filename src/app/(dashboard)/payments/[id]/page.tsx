@@ -4,6 +4,7 @@ import { use, useRef } from 'react';
 import { PaymentForm } from '@/components/payments/payment-form';
 import { PaymentReceipt } from '@/components/payments/payment-receipt';
 import { UnverifyPaymentButton } from '@/components/payments/unverify-payment-button';
+import { DeletePaymentButton } from '@/components/payments/delete-payment-button';
 import { EmailReceiptDialog } from '@/components/payments/email-receipt-dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -122,6 +123,7 @@ export default function PaymentDetailPage({ params }: PaymentDetailPageProps) {
                         <Printer className="h-4 w-4 mr-2" />
                         Print Receipt
                     </Button>
+                    <DeletePaymentButton paymentId={id} residentId={payment.resident_id} />
                 </div>
             </div>
 

@@ -30,6 +30,8 @@ Use **Transactions** for individual payment records and **Import Statement** for
 4. Review the allocation preview.
 5. Save the payment and confirm the success notification.
 
+To delete a payment, open it and choose **Delete** on its page. This needs the `payments.delete` permission and asks for confirmation first. Afterwards you return to the resident's page, or to **Transactions** when the payment has no resident.
+
 ## Import a statement
 
 An uploaded statement never posts payments on its own. It is submitted, approved by a user with approval rights, and only then processed.
