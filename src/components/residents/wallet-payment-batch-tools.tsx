@@ -106,6 +106,25 @@ export function WalletPaymentBatchTools({
         setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
     };
 
+    const allSelected = invoices.length > 0 && selected.length === invoices.length;
+    const someSelected = selected.length > 0 && !allSelected;
+
+    const toggleAll = () => {
+        setSelected(allSelected ? [] : invoices.map((invoice) => invoice.id));
+    };
+
+    // Mirrors the settle RPC, which allocates oldest period first and may part-pay the last invoice.
+    const selectWhatWalletCovers = () => {
+        const ids: string[] = [];
+        let left = walletBalance ?? 0;
+        for (const invoice of invoices) {
+            if (left <= 0) break;
+            ids.push(invoice.id);
+            left -= Number(invoice.amount_due) - Number(invoice.amount_paid);
+        }
+        setSelected(ids);
+    };
+
     const handleSettle = async () => {
         if (selected.length === 0) {
             toast.error('Select at least one pending invoice');
@@ -215,6 +234,28 @@ export function WalletPaymentBatchTools({
 
                 {section === 'settle' && (
                 <div className="rounded-lg border divide-y max-h-64 overflow-y-auto">
+                    {canManageWallet && invoices.length > 0 && (
+                        <div className="sticky top-0 z-10 flex min-h-11 flex-wrap items-center gap-3 bg-background p-3 text-sm">
+                            <input
+                                type="checkbox"
+                                aria-label="Select all invoices"
+                                aria-checked={someSelected ? 'mixed' : allSelected}
+                                checked={allSelected}
+                                ref={(element) => { if (element) element.indeterminate = someSelected; }}
+                                onChange={toggleAll}
+                            />
+                            <span className="flex-1 text-muted-foreground">{selected.length} of {invoices.length} selected</span>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={!walletBalance || walletBalance <= 0}
+                                onClick={selectWhatWalletCovers}
+                            >
+                                Select what the wallet covers
+                            </Button>
+                        </div>
+                    )}
                     {isLoading && <p className="p-4 text-sm text-muted-foreground">Loading pending invoices…</p>}
                     {!isLoading && invoices.length === 0 && <p className="p-4 text-sm text-muted-foreground">No pending invoices.</p>}
                     {invoices.map((invoice) => {

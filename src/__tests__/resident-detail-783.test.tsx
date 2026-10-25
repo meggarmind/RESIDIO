@@ -206,7 +206,8 @@ describe('WalletPaymentBatchTools write controls (#783)', () => {
 
     await waitFor(() => expect(screen.getByText('INV-0001')).toBeInTheDocument());
     expect(screen.getByRole('button', { name: /settle selected/i })).toBeInTheDocument();
-    expect(screen.getByRole('checkbox')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /select all invoices/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('checkbox')).toHaveLength(2);
   });
 
   it('shows prepay with billing.manage_wallets, and hides it without', () => {
