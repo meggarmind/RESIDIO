@@ -105,12 +105,15 @@ describe('HousePaymentStatus shows the wallet credit under a Credit status (#116
     mocks.house = creditHouse();
     render(<HousePaymentStatus houseId="h1" />);
     fireEvent.click(screen.getByText(/Breakdown by Resident/));
-    expect(screen.getByText(/12,345/)).toBeTruthy();
+    expect(screen.getByText(/12,345 credit/)).toBeTruthy();
   });
 
   it('an owing house still shows the outstanding amount and no wallet label', () => {
-    mocks.house = { ...housePayload('outstanding', 'outstanding'), walletBalance: 777 };
+    const owing = housePayload('outstanding', 'outstanding');
+    mocks.house = { ...owing, walletBalance: 777, residents: [{ ...owing.residents[0], walletBalance: 888 }] };
     render(<HousePaymentStatus houseId="h1" />);
+    fireEvent.click(screen.getByText(/Breakdown by Resident/));
+    expect(screen.queryByText(/888/)).toBeNull();
     expect(screen.getAllByText(/60/).length).toBeGreaterThan(0);
     expect(screen.queryByText(/777/)).toBeNull();
     expect(screen.queryByText('Wallet credit')).toBeNull();

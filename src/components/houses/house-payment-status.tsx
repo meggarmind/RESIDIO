@@ -333,7 +333,7 @@ export function HousePaymentStatus({ houseId, className }: HousePaymentStatusPro
                     )}
                     {resident.debtStatus === 'credit' && resident.walletBalance > 0 && (
                       <p className="mt-1 text-sm font-semibold text-green-600 dark:text-green-400">
-                        {formatCurrency(resident.walletBalance)}
+                        {formatCurrency(resident.walletBalance)} credit
                       </p>
                     )}
                   </div>
