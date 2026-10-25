@@ -378,7 +378,7 @@ Route found from `navigation.ts:130-137` (`Transactions > Import Statement`). St
 | FBK-05 | n/a | | Submit moves no money; the page says so (`import-confirmation.tsx:83`) | |
 | FBK-06 | n/a | | No status here | |
 | MOB-01 | needs browser | | Page scroll at 375 px | |
-| MOB-02 | fail (filed #1154) | major | `import-preview.tsx` has no `md:hidden`, `hidden md:`, `useIsMobile` or card component, and renders a wide table with a sticky header (`:716`). Confirm sideways scroll at 375 px | Collapse rows to cards with date, amount, match and Skip |
+| MOB-02 | fixed (#1154) | | Below `md` the review rows render as `RecordCard`s (`import-preview.tsx:716`, `md:hidden`); the table is `hidden md:block`. Browser check at 375 px still pending | |
 | MOB-03 | needs browser | | Is `Continue` and `Submit` reachable without scrolling to the end | |
 | MOB-04 | needs browser | | Skip button size (`import-preview.tsx:899-907`) | |
 | MOB-05 | needs browser | | Header row has no wrap (`import/page.tsx:136`) with a 30 px title and two controls | |
