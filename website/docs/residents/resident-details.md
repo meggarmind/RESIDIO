@@ -8,8 +8,8 @@ residio_sources:
   - src/actions/residents/unassign-house.ts
   - src/actions/residents/merge-residents.ts
   - src/components/residents/resident-merge-dialog.tsx
-residio_verified_commit: 8442c6ff
-residio_verified_at: '2026-10-21'
+residio_verified_commit: ae0d80aa
+residio_verified_at: '2026-10-25'
 residio_app_version: '0.4.0'
 ---
 
@@ -22,7 +22,7 @@ The resident profile is the best place to understand one person across identity,
 ## Tabs
 
 - **Overview:** identity and contact details (including the emergency contact), contact verification status, the financial summary, and house assignments.
-- **Money:** wallet balance and adjustments, wallet payment batches, and the wallet ledger, which also lists payments that credited the wallet and shows monthly invoice debits as one line per billing item per year (expand a line to see the months). Pending and failed payments, which credit nothing, show in an **Unposted payments** list above the ledger. Payment aliases open from the **Payment aliases** button. On wide screens the ledger sits on the left and the balance and actions on the right.
+- **Money:** wallet balance and adjustments, wallet payment batches (tick invoices one by one, use the header checkbox to select all, or **Select what the wallet covers** to pick the oldest invoices the balance can pay, including the one that only partly fits), and the wallet ledger, which also lists payments that credited the wallet and shows monthly invoice debits as one line per billing item per year (expand a line to see the months). Pending and failed payments, which credit nothing, show in an **Unposted payments** list above the ledger. Payment aliases open from the **Payment aliases** button. On wide screens the ledger sits on the left and the balance and actions on the right.
 - **Security:** security contacts registered by the resident.
 - **Notes:** internal notes, for users who can view notes.
 
