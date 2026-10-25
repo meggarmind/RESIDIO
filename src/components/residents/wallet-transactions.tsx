@@ -231,7 +231,8 @@ export function WalletTransactions({ residentId }: WalletTransactionsProps) {
             <p className="text-sm text-muted-foreground">No transactions yet</p>
           </div>
         ) : (
-          <div className="border rounded-md">
+          // Capped height so a long year scrolls inside the card, not the page (#1166).
+          <div data-testid="wallet-transactions-scroll" className="max-h-[32rem] overflow-y-auto rounded-md border scrollbar-modern">
             <Table>
               <TableHeader>
                 <TableRow>
