@@ -49,6 +49,7 @@ import {
   History,
 } from 'lucide-react';
 import { PaginationControls } from '@/components/ui/pagination-controls';
+import { RecordCard } from '@/components/ui/record-card';
 import { generateFileHashClient } from '@/lib/utils/hashing-client';
 import {
   useCreateImport,
@@ -711,7 +712,147 @@ export function ImportPreview({
       {/* Rows Table */}
       {viewMode === 'table' && (
         <>
-          <div className="border rounded-xl overflow-hidden max-h-[600px] overflow-y-auto relative">
+          {/* Phone layout: one card per row. Both lists stay in the DOM; CSS picks one. */}
+          <div className="space-y-3 md:hidden" data-testid="import-row-cards">
+            {displayRows.length === 0 ? (
+              <p className="rounded-xl border py-8 text-center text-sm text-muted-foreground">
+                {searchQuery
+                  ? `No rows match your search: \u201c${searchQuery}\u201d`
+                  : statusFilter !== ALL_VALUE
+                    ? `No rows with status: ${statusFilter}`
+                    : 'No rows to display'}
+              </p>
+            ) : (
+              displayRows.map((row) => {
+                const isCredit = row.transaction_type === 'credit';
+                const isDebit = row.transaction_type === 'debit';
+                const r = row as BankStatementRow & {
+                  matched_resident_id?: string | null;
+                  matched_project_id?: string | null;
+                  matched_petty_cash_account_id?: string | null;
+                  matched_expense_category_id?: string | null;
+                  resident?: { first_name?: string; last_name?: string } | null;
+                  project?: { name?: string } | null;
+                  petty_cash_account?: { name?: string } | null;
+                  expense_category?: { name?: string } | null;
+                };
+                const assignment = r.matched_resident_id
+                  ? `${r.resident?.first_name ?? ''} ${r.resident?.last_name ?? ''}`.trim()
+                  : r.matched_project_id
+                    ? r.project?.name
+                    : r.matched_petty_cash_account_id
+                      ? r.petty_cash_account?.name
+                      : r.matched_expense_category_id
+                        ? r.expense_category?.name
+                        : null;
+                const iconButton = 'h-11 w-11';
+
+                return (
+                  <RecordCard
+                    key={row.id}
+                    data-testid="import-row-card"
+                    className={cn(
+                      isCredit && 'bg-green-50/30 dark:bg-green-950/20',
+                      isDebit && 'bg-red-50/30 dark:bg-red-950/20'
+                    )}
+                    title={
+                      <span
+                        className={cn(
+                          'font-mono tabular-nums whitespace-nowrap',
+                          isCredit ? 'text-green-700' : isDebit ? 'text-red-700' : ''
+                        )}
+                      >
+                        ₦{(row.amount || 0).toLocaleString('en-NG', { minimumFractionDigits: 0 })}
+                      </span>
+                    }
+                    subtitle={`#${row.row_number} · ${
+                      row.transaction_date
+                        ? formatCalendarDate(row.transaction_date, 'en-GB', { day: '2-digit', month: 'short' })
+                        : '--'
+                    } · ${isCredit ? 'CR' : isDebit ? 'DR' : '--'}`}
+                    badge={getStatusBadge(row.status, row.transaction_type, row.match_confidence ?? undefined)}
+                    actions={
+                      <>
+                        {(row.status === 'unmatched' || row.status === 'pending') && (
+                          <Button
+                            variant="ghost"
+                            className={iconButton}
+                            onClick={() => handleManualMatch(row as BankStatementRow)}
+                            aria-label="Manually assign resident"
+                          >
+                            <UserPlus className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {row.status === 'matched' && (
+                          <Button
+                            variant="ghost"
+                            className={iconButton}
+                            onClick={() => handleClearMatch(row.id)}
+                            aria-label="Clear match"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {row.status !== 'skipped' && (
+                          <Button
+                            variant="ghost"
+                            className={iconButton}
+                            onClick={() => handleSkipRow(row.id)}
+                            aria-label="Skip this transaction"
+                          >
+                            <SkipForward className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          className={iconButton}
+                          onClick={() => handleViewDetails(row as BankStatementRow)}
+                          aria-label="View full details"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </>
+                    }
+                  >
+                    <div className="space-y-1">
+                      <p className="break-words">{row.description || '--'}</p>
+                      {row.duplicate_reason && (
+                        <p className="flex items-center gap-1 text-xs text-amber-600">
+                          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                          {row.duplicate_reason}
+                        </p>
+                      )}
+                      <p className={cn('text-xs', !assignment && 'italic text-muted-foreground')}>
+                        {assignment || 'Unmatched'}
+                      </p>
+                    </div>
+                    {isCredit && (
+                      <Select
+                        value={row.tag_id || NONE_TAG}
+                        onValueChange={(value) => handleTagChange(row.id, value)}
+                      >
+                        <SelectTrigger className="mt-2 h-11 w-full text-sm" aria-label="Tag">
+                          <SelectValue placeholder="Tag" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={NONE_TAG}>
+                            <span className="text-muted-foreground">None</span>
+                          </SelectItem>
+                          {getTagsForRow(row as BankStatementRow).map((tag) => (
+                            <SelectItem key={tag.id} value={tag.id}>
+                              {tag.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </RecordCard>
+                );
+              })
+            )}
+          </div>
+
+          <div className="hidden md:block border rounded-xl overflow-hidden max-h-[600px] overflow-y-auto relative">
             <Table className="text-xs">
               <TableHeader className="sticky top-0 bg-background z-10 shadow-sm">
                 <TableRow>
