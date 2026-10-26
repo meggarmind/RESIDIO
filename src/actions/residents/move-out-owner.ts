@@ -10,7 +10,9 @@ import { getResidentIndebtedness } from '@/actions/billing/get-invoices';
 import { getResidentWallets } from '@/actions/billing/wallet';
 import { netClearanceByCategory } from '@/lib/billing/category-clearance';
 import { getSystemSetting } from '@/lib/settings/get-system-setting';
-import { sendEmail } from '@/lib/email/send-email';
+import * as React from 'react';
+import { sendEmail, getEstateEmailSettings } from '@/lib/email/send-email';
+import { ClearanceCertificateEmail } from '@/emails/clearance-certificate';
 import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
 import { issueClearanceCertificate } from '@/lib/clearance/issue-certificate';
 import type { ResidentRole } from '@/types/database';
@@ -358,6 +360,7 @@ export async function initiateOwnerMoveOut(
     if (emailOverride && !emailOverride.ok) {
         console.error('[moveOutOwner] Email not sent:', emailOverride.error);
     } else if (resident.email && emailOverride?.ok) {
+        const estateSettings = await getEstateEmailSettings();
         await sendEmail({
             to: {
                 email: resident.email,
@@ -367,7 +370,13 @@ export async function initiateOwnerMoveOut(
             subject: 'Move-Out Clearance Certificate',
             emailType: 'clearance_certificate',
             residentOverride: emailOverride.residentOverride,
-            react: undefined,
+            react: React.createElement(ClearanceCertificateEmail, {
+                residentName: `${resident.first_name} ${resident.last_name}`,
+                houseAddress,
+                certificateNumber,
+                validUntil: certificate.validUntil,
+                ...estateSettings,
+            }),
             metadata: {
                 certificateNumber,
                 validUntil: certificate.validUntil,

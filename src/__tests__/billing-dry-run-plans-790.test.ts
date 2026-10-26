@@ -46,15 +46,15 @@ describe('planLateFees', () => {
 describe('planRetroactiveLevies', () => {
   const devLevy: LevyPlanProfile = {
     id: 'dev', name: 'Development Levy', payer: 'landlord', target_type: 'resident', applicable_roles: null,
-    is_development_levy: true, billing_items: [{ amount: 500000 }],
+    is_development_levy: true, charge_category: 'development_levy', billing_items: [{ amount: 500000 }],
   };
   const landlordOnly: LevyPlanProfile = {
     id: 'gate', name: 'Gate Fee', payer: 'landlord', target_type: 'resident', applicable_roles: ['resident_landlord'],
-    is_development_levy: false, billing_items: [{ amount: 20000 }, { amount: 5000 }],
+    is_development_levy: false, charge_category: 'transformer_fee', billing_items: [{ amount: 20000 }, { amount: 5000 }],
   };
   const free: LevyPlanProfile = {
     id: 'free', name: 'Free', payer: 'landlord', target_type: 'resident', applicable_roles: null,
-    is_development_levy: false, billing_items: [{ amount: 0 }],
+    is_development_levy: false, charge_category: 'dues', billing_items: [{ amount: 0 }],
   };
 
   const house = (id: string, over = {}) => ({ id, label: id.toUpperCase(), vacant: false, newNeverOccupied: false, ...over });
@@ -82,6 +82,10 @@ describe('planRetroactiveLevies', () => {
       invoices: 4,
       totalAmount: 1050000,
       alreadyCharged: 0,
+      byCategory: {
+        development_levy: { invoices: 2, totalAmount: 1000000 },
+        transformer_fee: { invoices: 2, totalAmount: 50000 },
+      },
       warnings: [
         'House H2: no landlord on record, so "Development Levy" would not be raised',
         'House H2: no landlord on record, so "Gate Fee" would not be raised',
@@ -108,6 +112,18 @@ describe('planRetroactiveLevies', () => {
     expect(planRetroactiveLevies({ ...base, autoGenerateEnabled: false })).toMatchObject({
       autoGenerateEnabled: false, houses: 0, invoices: 0, totalAmount: 0,
     });
+  });
+
+  it('raises each landlord-only category once per house, to the landlord and never the tenant (#1193)', () => {
+    const plan = planRetroactiveLevies({
+      ...base,
+      houses: [house('h3')],
+      profiles: [devLevy, landlordOnly],
+      history: [{ house_id: 'h3', billing_profile_id: 'gate' }],
+    });
+    // h3 already has its transformer fee, so only the Development Levy is planned.
+    expect(plan).toMatchObject({ invoices: 1, totalAmount: 500000, alreadyCharged: 1, byCategory: { development_levy: { invoices: 1, totalAmount: 500000 } } });
+    expect(plan.byCategory.transformer_fee).toBeUndefined();
   });
 
   it('bills a landlord levy to a developer when no landlord is on record, and never to a tenant', () => {

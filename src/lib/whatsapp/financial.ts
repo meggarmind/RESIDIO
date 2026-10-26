@@ -55,7 +55,7 @@ import {
 } from '@/lib/whatsapp/account-actions';
 import {
   SURVEY_COMMENT_PROMPT,
-  SURVEY_PROMPT,
+  surveyPrompt as surveyPromptText,
   SURVEY_REASON_PROMPT,
   SURVEY_RECORDED_REPLY,
   SURVEY_THANKS_REPLY,
@@ -65,6 +65,7 @@ import {
   parseSurveyScore,
   type SurveyTrigger,
 } from '@/lib/whatsapp/survey';
+import { loadAssistantName } from '@/lib/whatsapp/assistant-name';
 import { answerSurvey, askSurvey } from '@/lib/whatsapp/survey-db';
 import {
   DEFAULT_KEYWORDS,
@@ -279,6 +280,7 @@ export interface WhatsAppFinancialRepository {
   /** The statement periods offered for this property (#1069). */
   getStatementPeriods(residentId: string, houseId: string): Promise<StatementPeriod[]>;
   getEstateName(): Promise<string>;
+  getAssistantName(): Promise<string>;
   /** The statement PDF for a period: the admin account statement, with its Lagos dates. */
   loadStatement(residentId: string, houseId: string, period: StatementPeriod, now: Date): Promise<{ fromDate: string; toDate: string; statement: AccountStatementData } | null>;
   /** Stores the PDF privately and returns a 1-hour signed URL for the reply. */
@@ -803,6 +805,7 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
     createCoResidentLinkCode,
     getStatementPeriods: loadStatementPeriods,
     getEstateName: estateName,
+    getAssistantName: loadAssistantName,
     loadStatement: loadWhatsAppStatementForPeriod,
     storeStatementPdf,
     askSurvey,
@@ -1701,7 +1704,7 @@ async function surveyPrompt(turn: Turn, trigger: SurveyTrigger): Promise<string 
     const surveyId = await turn.options.repository.askSurvey({ residentId: turn.identity.id, phoneNumber: turn.phoneNumber, trigger });
     if (!surveyId) return null;
     turn.session.draft = { surveyId };
-    return SURVEY_PROMPT;
+    return surveyPromptText(await turn.options.repository.getAssistantName());
   } catch (error) {
     console.error('WhatsApp survey could not be started:', error);
     return null;
@@ -1870,8 +1873,8 @@ async function chooseProperty(turn: Turn, target: Target): Promise<void> {
 
 async function endSession(turn: Turn): Promise<void> {
   const wasUnlocked = turn.session.pinAuthenticated;
-  const name = await turn.options.repository.getEstateName();
-  const body = `Thank you for using the ${name} Assistant. Your session has ended.${wasUnlocked ? ' Your PIN is locked.' : ''} Send HI at any time to start again.`;
+  const name = await turn.options.repository.getAssistantName();
+  const body = `Thank you for using ${name}. Your session has ended.${wasUnlocked ? ' Your PIN is locked.' : ''} Send HI at any time to start again.`;
   await sendFinancialReply(turn.message, body, turn.options.send, turn.identity.id);
   Object.assign(turn.session, { currentNode: ENDED_NODE, pinAuthenticated: false, draft: null, pendingPinHash: null, expiresAt: new Date().toISOString() });
   await turn.options.repository.saveSession(turn.session);

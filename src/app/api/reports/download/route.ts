@@ -5,6 +5,7 @@ import { storeReportPdf } from '@/lib/pdf/reports/archive';
 import { logAudit } from '@/lib/audit/logger';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { getEstateEmailSettings } from '@/lib/email/send-email';
 import { createAdminClient } from '@/lib/supabase/server';
 import type { ReportRequestFormData } from '@/lib/validators/reports';
 
@@ -67,7 +68,7 @@ export async function GET(request: NextRequest) {
   const result = await generateReport(params);
    if (result.error || !result.report) return NextResponse.json({ error: result.error || 'No data' }, { status: 500 });
 
-   const buffer = await renderReportPdf(type, result.report.data);
+   const buffer = await renderReportPdf(type, result.report.data, (await getEstateEmailSettings()).estateName);
   if (!buffer) return NextResponse.json({ error: 'PDF rendering failed' }, { status: 500 });
 
   let archivedId: string | null = null;

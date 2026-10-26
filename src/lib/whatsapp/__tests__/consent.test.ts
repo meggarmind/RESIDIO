@@ -68,6 +68,7 @@ function repository(consent: WhatsAppConsentState, overrides: Partial<WhatsAppId
     optOutOfSurveys: vi.fn().mockResolvedValue(undefined),
     claimBlockedReply: vi.fn().mockResolvedValue(true),
     getEstateName: vi.fn().mockResolvedValue('Palm Estate'),
+    getAssistantName: vi.fn().mockResolvedValue('Palm Estate Assistant'),
     ...overrides,
   };
 }

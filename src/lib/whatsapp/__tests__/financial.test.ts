@@ -147,6 +147,7 @@ function repository(houses: FinancialHouse[] = [PALM], overrides: Partial<WhatsA
     createCoResidentLinkCode: vi.fn().mockResolvedValue(null),
     getStatementPeriods: vi.fn().mockResolvedValue(['this_month', 'this_year', 'last_six_months', 'last_twelve_months', 'all_time', 'since_move_in']),
     getEstateName: vi.fn().mockResolvedValue('Palm Estate'),
+    getAssistantName: vi.fn().mockResolvedValue('Palm Estate Assistant'),
     loadStatement: vi.fn().mockResolvedValue({ fromDate: '2026-10-01', toDate: '2026-10-20', statement: statementData(3) }),
     storeStatementPdf: vi.fn().mockResolvedValue('https://storage.test/signed/statement.pdf'),
     getResidentEmail: vi.fn().mockResolvedValue('ada.example@gmail.com'),
@@ -1726,7 +1727,7 @@ describe('WhatsApp Assistant clearance certificate (#816 decision 15)', () => {
 });
 
 describe('WhatsApp Assistant satisfaction survey (#872)', () => {
-  const ASK = ['How was Residio Assistant today?', '1. Good', '2. Okay', '3. Poor'].join('\n');
+  const ASK = ['How was Palm Estate Assistant today?', '1. Good', '2. Okay', '3. Poor'].join('\n');
   const REASONS = [
     'Sorry about that. What went wrong?',
     '1. Too slow',
@@ -1749,6 +1750,12 @@ describe('WhatsApp Assistant satisfaction survey (#872)', () => {
     expect(repo.answerSurvey).toHaveBeenCalledWith('resident-1', 'survey-1', { score: 'good' });
     expect(replies[2]).toBe(`Thanks for the feedback.\n${FOOTER}`);
     expect(repo.saveSession).toHaveBeenLastCalledWith(expect.objectContaining({ currentNode: 'main', draft: null }));
+  });
+
+  it('names the Assistant from the repository in the survey question', async () => {
+    const repo = due({ getAssistantName: vi.fn().mockResolvedValue('Ada') });
+    const replies = await chat(repo, ['wallet', 'thanks']);
+    expect(replies[1]).toBe(ASK.replace('Palm Estate Assistant', 'Ada'));
   });
 
   it('stores an Okay score', async () => {
@@ -1793,7 +1800,7 @@ describe('WhatsApp Assistant satisfaction survey (#872)', () => {
 
     expect(repo.askSurvey).toHaveBeenCalledTimes(1);
     expect(replies[1]).toBe(UNRECOGNISED);
-    expect(replies.join('\n')).not.toContain('How was Residio Assistant today?');
+    expect(replies.join('\n')).not.toContain('How was Palm Estate Assistant today?');
   });
 
   it('asks nothing for a thank-you that is not right after a financial answer', async () => {
@@ -1801,7 +1808,7 @@ describe('WhatsApp Assistant satisfaction survey (#872)', () => {
     const replies = await chat(repo, ['hi', 'thanks', 'wallet', 'hi', 'thanks']);
 
     expect(repo.askSurvey).not.toHaveBeenCalled();
-    expect(replies.join('\n')).not.toContain('How was Residio Assistant today?');
+    expect(replies.join('\n')).not.toContain('How was Palm Estate Assistant today?');
   });
 
   it('asks nothing after an answer that is not a success: an amount owed on a clearance, a capped lookup, no receipt', async () => {
@@ -1879,7 +1886,7 @@ describe('WhatsApp Assistant satisfaction survey (#872)', () => {
     vi.useRealTimers();
 
     expect(repo.askSurvey).not.toHaveBeenCalled();
-    expect(replies[4]).not.toContain('How was Residio Assistant today?');
+    expect(replies[4]).not.toContain('How was Palm Estate Assistant today?');
   });
 
   it('asks after an accepted clearance request, and not when one is already waiting', async () => {
@@ -2016,7 +2023,7 @@ describe('ending the session with an exit word (#1069)', () => {
     phoneNumber: '+2348000000000', residentId: 'resident-1', currentNode, selectedHouseId: 'house-1', pinAuthenticated: true,
     expiresAt: new Date(Date.now() + 600_000).toISOString(), draft: { houseId: 'house-1', amount: 5000 }, ...over,
   });
-  const THANKS = 'Thank you for using the Palm Estate Assistant. Your session has ended. Your PIN is locked. Send HI at any time to start again.';
+  const THANKS = 'Thank you for using Palm Estate Assistant. Your session has ended. Your PIN is locked. Send HI at any time to start again.';
 
   it.each(['exit', 'end', 'close', 'bye', 'goodbye', 'quit', ' QUIT ', 'Goodbye'])('%s ends an unlocked session in the main menu', async (word) => {
     const repo = repository();
@@ -2026,6 +2033,13 @@ describe('ending the session with an exit word (#1069)', () => {
     const saved = vi.mocked(repo.saveSession).mock.calls.at(-1)![0];
     expect(saved).toMatchObject({ pinAuthenticated: false, draft: null });
     expect(Date.parse(saved.expiresAt)).toBeLessThanOrEqual(Date.now());
+  });
+
+  it('names the Assistant from the repository when the session ends', async () => {
+    const repo = repository([PALM], { getAssistantName: vi.fn().mockResolvedValue('Ada') });
+    repo.setStoredSession(stored('main'));
+    const replies = await chat(repo, ['bye']);
+    expect(replies).toEqual([THANKS.replace('Palm Estate Assistant', 'Ada')]);
   });
 
   it('ends a session inside the free-text report reference step and drops the draft', async () => {
