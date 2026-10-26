@@ -73,8 +73,10 @@ async function wallet(residentId: string, category: string, balance: number): Pr
   ).id;
 }
 const balanceOf = async (walletId: string) => Number((await one(`SELECT balance FROM public.resident_wallets WHERE id = $1`, [walletId])).balance);
-const transfer = (from: string, to: string, amount: number, reason: string | null = 'Use levy credit for dues', sub: string = 'service') =>
-  as(sub, `SELECT public.transfer_wallet_credit($1, $2, $3, $4) AS r`, [from, to, amount, reason]);
+const transfer = (from: string, to: { resident: string; category: string }, amount: number, reason: string | null = 'Use levy credit for dues', sub: string = 'service') =>
+  as(sub, `SELECT public.transfer_wallet_credit($1, $2, $3, $4, $5) AS r`, [from, to.resident, to.category, amount, reason]);
+const walletCount = async (residentId: string) =>
+  Number((await one(`SELECT count(*) AS n FROM public.resident_wallets WHERE resident_id = $1`, [residentId])).n);
 const reverse = (transferId: string, reason: string | null = 'Entered in error', sub: string = 'service') =>
   as(sub, `SELECT public.reverse_wallet_transfer($1, $2) AS r`, [transferId, reason]);
 
@@ -115,7 +117,7 @@ describe('#1191 transfer_wallet_credit', () => {
     const levy = await wallet(mrA, 'development_levy', 5000);
     const dues = await wallet(mrA, 'dues', 0);
 
-    const { rows, message } = await transfer(levy, dues, 1500);
+    const { rows, message } = await transfer(levy, { resident: mrA, category: 'dues' }, 1500);
     expect(message).toBeUndefined();
     const result = rows![0].r;
     expect(await balanceOf(levy)).toBe(3500);
@@ -146,7 +148,7 @@ describe('#1191 transfer_wallet_credit', () => {
     const from = await wallet(landlord, 'dues', 2000);
     const to = await wallet(tenant, 'dues', 0);
 
-    expect((await transfer(from, to, 2000)).message).toBeUndefined();
+    expect((await transfer(from, { resident: tenant, category: 'dues' }, 2000)).message).toBeUndefined();
     expect(await balanceOf(from)).toBe(0);
     expect(await balanceOf(to)).toBe(2000);
   });
@@ -160,11 +162,11 @@ describe('#1191 transfer_wallet_credit', () => {
     await link(b, h2, 'tenant');
     const from = await wallet(a, 'dues', 2000);
     const to = await wallet(b, 'dues', 0);
-    expect((await transfer(from, to, 100)).message).toMatch(/linked to the same house/);
+    expect((await transfer(from, { resident: b, category: 'dues' }, 100)).message).toMatch(/linked to the same house/);
 
     // A shared house where one link is no longer active does not count.
     await link(b, h1, 'tenant', false);
-    expect((await transfer(from, to, 100)).message).toMatch(/linked to the same house/);
+    expect((await transfer(from, { resident: b, category: 'dues' }, 100)).message).toMatch(/linked to the same house/);
     expect(await balanceOf(from)).toBe(2000);
   });
 
@@ -173,14 +175,32 @@ describe('#1191 transfer_wallet_credit', () => {
     const levy = await wallet(r, 'development_levy', 500);
     const dues = await wallet(r, 'dues', 0);
 
-    expect((await transfer(levy, dues, 500.01)).message).toMatch(/more than the source wallet balance/);
-    expect((await transfer(levy, dues, 0)).message).toMatch(/greater than zero/);
-    expect((await transfer(levy, dues, -5)).message).toMatch(/greater than zero/);
-    expect((await transfer(levy, dues, 100, '   ')).message).toMatch(/reason is required/);
-    expect((await transfer(levy, dues, 100, null)).message).toMatch(/reason is required/);
-    expect((await transfer(levy, levy, 100)).message).toMatch(/two different wallets/);
+    expect((await transfer(levy, { resident: r, category: 'dues' }, 500.01)).message).toMatch(/more than the source wallet balance/);
+    expect((await transfer(levy, { resident: r, category: 'dues' }, 0)).message).toMatch(/greater than zero/);
+    expect((await transfer(levy, { resident: r, category: 'dues' }, -5)).message).toMatch(/greater than zero/);
+    expect((await transfer(levy, { resident: r, category: 'dues' }, 100, '   ')).message).toMatch(/reason is required/);
+    expect((await transfer(levy, { resident: r, category: 'dues' }, 100, null)).message).toMatch(/reason is required/);
+    expect((await transfer(levy, { resident: r, category: 'development_levy' }, 100)).message).toMatch(/two different wallets/);
     expect(await balanceOf(levy)).toBe(500);
     expect(Number((await one(`SELECT count(*) AS n FROM public.wallet_transactions WHERE wallet_id IN ($1, $2)`, [levy, dues])).n)).toBe(0);
+  });
+
+  it('creates the target wallet on a transfer, and none when the transfer is refused', async () => {
+    const landlord = await resident();
+    const tenant = await resident();
+    const stranger = await resident();
+    const h = await house();
+    await link(landlord, h, 'non_resident_landlord');
+    await link(tenant, h, 'tenant');
+    const from = await wallet(landlord, 'dues', 1000);
+
+    expect((await transfer(from, { resident: stranger, category: 'dues' }, 100)).message).toMatch(/linked to the same house/);
+    expect((await transfer(from, { resident: tenant, category: 'dues' }, 1000.01)).message).toMatch(/more than the source wallet balance/);
+    expect(await walletCount(stranger)).toBe(0);
+    expect(await walletCount(tenant)).toBe(0);
+
+    expect((await transfer(from, { resident: tenant, category: 'dues' }, 400)).message).toBeUndefined();
+    expect(await walletCount(tenant)).toBe(1);
   });
 
   it('requires billing.transfer_wallet_credit', async () => {
@@ -188,8 +208,8 @@ describe('#1191 transfer_wallet_credit', () => {
     const levy = await wallet(r, 'development_levy', 500);
     const dues = await wallet(r, 'dues', 0);
 
-    expect((await transfer(levy, dues, 100, 'x', NO_PERMISSION)).message).toMatch(/Not authorized/);
-    expect((await transfer(levy, dues, 100, 'Admin moves it', ADMIN)).message).toBeUndefined();
+    expect((await transfer(levy, { resident: r, category: 'dues' }, 100, 'x', NO_PERMISSION)).message).toMatch(/Not authorized/);
+    expect((await transfer(levy, { resident: r, category: 'dues' }, 100, 'Admin moves it', ADMIN)).message).toBeUndefined();
     expect(await balanceOf(dues)).toBe(100);
   });
 });
@@ -199,7 +219,7 @@ describe('#1191 reverse_wallet_transfer', () => {
     const r = await resident();
     const levy = await wallet(r, 'development_levy', 1000);
     const dues = await wallet(r, 'dues', 0);
-    const { rows } = await transfer(levy, dues, 600);
+    const { rows } = await transfer(levy, { resident: r, category: 'dues' }, 600);
     return { levy, dues, transferId: rows![0].r.transfer_id as string };
   }
 

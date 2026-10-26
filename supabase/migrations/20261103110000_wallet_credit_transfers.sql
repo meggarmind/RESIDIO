@@ -3,8 +3,9 @@
 -- Owner decision 6 (26 Oct 2026): credit can move between the wallets of one person, and between
 -- persons linked to the same house. Admin only, audited, reversible. This migration adds:
 --   1. The permission billing.transfer_wallet_credit, granted to super_admin and chairman.
---   2. transfer_wallet_credit(p_from_wallet, p_to_wallet, p_amount, p_reason): in one transaction,
---      a debit row on the source wallet and a credit row on the target wallet. Both rows have
+--   2. transfer_wallet_credit(p_from_wallet, p_to_resident, p_to_category, p_amount, p_reason): in one
+--      transaction, a debit row on the source wallet and a credit row on the target wallet. The
+--      target wallet is created here when it does not exist, so a refused transfer leaves no wallet. Both rows have
 --      reference_type 'wallet_transfer' and reference_id set to the other row, so each one points to
 --      its pair. The id of the debit row is the transfer id. Refused: a zero, negative or non-finite
 --      amount, an amount above the source balance, an empty reason, the same wallet twice, and two
@@ -20,7 +21,7 @@
 -- ROLLBACK (wallet rows written by transfers stay; they are ordinary credit and debit rows):
 -- BEGIN;
 -- DROP FUNCTION IF EXISTS public.reverse_wallet_transfer(UUID, TEXT);
--- DROP FUNCTION IF EXISTS public.transfer_wallet_credit(UUID, UUID, DECIMAL, TEXT);
+-- DROP FUNCTION IF EXISTS public.transfer_wallet_credit(UUID, UUID, TEXT, DECIMAL, TEXT);
 -- DROP INDEX IF EXISTS public.wallet_transactions_transfer_reversal_key;
 -- DELETE FROM public.role_permissions WHERE permission_id IN
 --   (SELECT id FROM public.app_permissions WHERE name = 'billing.transfer_wallet_credit');
@@ -34,8 +35,8 @@
 --   SELECT p.proname, pg_get_function_identity_arguments(p.oid), p.prosecdef FROM pg_proc p
 --    WHERE p.proname IN ('transfer_wallet_credit', 'reverse_wallet_transfer') ORDER BY 1;
 --     -- reverse_wallet_transfer(p_transfer_id uuid, p_reason text) t
---     -- transfer_wallet_credit(p_from_wallet uuid, p_to_wallet uuid, p_amount numeric, p_reason text) t
---   SELECT has_function_privilege('anon', 'public.transfer_wallet_credit(uuid, uuid, numeric, text)', 'EXECUTE');  -- false
+--     -- transfer_wallet_credit(p_from_wallet uuid, p_to_resident uuid, p_to_category text, p_amount numeric, p_reason text) t
+--   SELECT has_function_privilege('anon', 'public.transfer_wallet_credit(uuid, uuid, text, numeric, text)', 'EXECUTE');  -- false
 --   SELECT has_function_privilege('anon', 'public.reverse_wallet_transfer(uuid, text)', 'EXECUTE');                 -- false
 --   SELECT indexname FROM pg_indexes WHERE indexname = 'wallet_transactions_transfer_reversal_key';                 -- one row
 
@@ -66,7 +67,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS wallet_transactions_transfer_reversal_key
 
 CREATE OR REPLACE FUNCTION public.transfer_wallet_credit(
     p_from_wallet UUID,
-    p_to_wallet UUID,
+    p_to_resident UUID,
+    p_to_category TEXT,
     p_amount DECIMAL(12, 2),
     p_reason TEXT
 )
@@ -78,6 +80,7 @@ AS $$
 DECLARE
     v_from public.resident_wallets%ROWTYPE;
     v_to public.resident_wallets%ROWTYPE;
+    v_to_id UUID;
     v_reason TEXT := btrim(p_reason);
     v_from_balance DECIMAL(12, 2);
     v_to_balance DECIMAL(12, 2);
@@ -96,17 +99,27 @@ BEGIN
     IF v_reason IS NULL OR v_reason = '' THEN
         RAISE EXCEPTION 'A reason is required for a wallet transfer';
     END IF;
-    IF p_from_wallet IS NULL OR p_to_wallet IS NULL OR p_from_wallet = p_to_wallet THEN
+    IF p_from_wallet IS NULL OR p_to_resident IS NULL OR p_to_category IS NULL THEN
+        RAISE EXCEPTION 'Choose two different wallets';
+    END IF;
+
+    -- Any refusal below rolls this insert back with the rest of the transfer.
+    INSERT INTO public.resident_wallets (resident_id, charge_category, balance)
+    VALUES (p_to_resident, p_to_category, 0)
+    ON CONFLICT (resident_id, charge_category) DO NOTHING;
+    SELECT id INTO v_to_id FROM public.resident_wallets
+    WHERE resident_id = p_to_resident AND charge_category = p_to_category;
+    IF v_to_id = p_from_wallet THEN
         RAISE EXCEPTION 'Choose two different wallets';
     END IF;
 
     -- Lock both wallets in id order, so two opposite transfers cannot deadlock.
-    PERFORM 1 FROM public.resident_wallets WHERE id IN (p_from_wallet, p_to_wallet) ORDER BY id FOR UPDATE;
+    PERFORM 1 FROM public.resident_wallets WHERE id IN (p_from_wallet, v_to_id) ORDER BY id FOR UPDATE;
     SELECT * INTO v_from FROM public.resident_wallets WHERE id = p_from_wallet;
     IF NOT FOUND THEN
         RAISE EXCEPTION 'Source wallet not found';
     END IF;
-    SELECT * INTO v_to FROM public.resident_wallets WHERE id = p_to_wallet;
+    SELECT * INTO v_to FROM public.resident_wallets WHERE id = v_to_id;
     IF NOT FOUND THEN
         RAISE EXCEPTION 'Target wallet not found';
     END IF;
@@ -161,8 +174,8 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.transfer_wallet_credit(UUID, UUID, DECIMAL, TEXT) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.transfer_wallet_credit(UUID, UUID, DECIMAL, TEXT) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.transfer_wallet_credit(UUID, UUID, TEXT, DECIMAL, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.transfer_wallet_credit(UUID, UUID, TEXT, DECIMAL, TEXT) TO authenticated, service_role;
 
 CREATE OR REPLACE FUNCTION public.reverse_wallet_transfer(
     p_transfer_id UUID,
