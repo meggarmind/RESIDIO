@@ -22,6 +22,7 @@ import { getSponsoredHouses, isOnRoster } from '@/lib/whatsapp/co-resident';
 import { contactLine } from '@/lib/whatsapp/assistant-format';
 import { createSupabaseWhatsAppFinancialRepository, houseLabel } from '@/lib/whatsapp/financial';
 import type { WhatsAppInboundMessage, WhatsAppTextMessage } from '@/lib/whatsapp/types';
+import { loadAssistantName } from '@/lib/whatsapp/assistant-name';
 import { SURVEY_OPT_OUT_REPLY, isSurveyStopCommand } from '@/lib/whatsapp/survey';
 import { optOutOfSurveys } from '@/lib/whatsapp/survey-db';
 import { BLOCKED_REPLY_HOURS } from '@/lib/whatsapp/retention';
@@ -112,6 +113,7 @@ export interface WhatsAppIdentityRepository {
    */
   claimBlockedReply(phoneNumber: string, residentId: string): Promise<boolean>;
   getEstateName(): Promise<string>;
+  getAssistantName(): Promise<string>;
   /** STOP SURVEYS (#872): the assistant never asks this resident for feedback again. */
   optOutOfSurveys(residentId: string): Promise<void>;
 }
@@ -627,6 +629,8 @@ export function createSupabaseWhatsAppIdentityRepository(): WhatsAppIdentityRepo
       return typeof name === 'string' && name.trim() ? name.trim() : 'Residio Estate';
     },
 
+    getAssistantName: loadAssistantName,
+
     getPrivacyNotice: loadWhatsAppPrivacyNotice,
     getOfficeContactLine: loadEstateOfficeContactLine,
     optOutOfSurveys,
@@ -870,7 +874,7 @@ export async function handleResidentMessage(
     await options.repository.rememberPendingContact(phoneNumber);
     await sendReply(
       message,
-      await withContact('Welcome to the Residio Assistant. We could not safely match this number to one Resident. Ask the estate office for a link code, or reply STOP.', options),
+      await withContact(`Welcome to ${await options.repository.getAssistantName()}. We could not safely match this number to one Resident. Ask the estate office for a link code, or reply STOP.`, options),
       options.send
     );
     return { status: rosterMatches.length > 1 ? 'ambiguous' : 'pending', residentId: null, optedIn: false, financialEligible: false, accessTier: 'community' };

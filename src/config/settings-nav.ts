@@ -145,7 +145,7 @@ export const settingsConfig: SettingsGroup[] = [
                             {
                                 id: "assistant-name",
                                 label: "Assistant name",
-                                help: "Defaults to \"[Estate Name] Assistant\" when left blank.",
+                                help: "Used by the dashboard assistant and the WhatsApp Assistant. Defaults to \"[Estate Name] Assistant\" when left blank.",
                                 keywords: ["bot name", "rename"],
                             },
                         ],
