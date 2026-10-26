@@ -1,7 +1,6 @@
 import { getEmailTransportError, sendViaResend } from './transport';
 import { createAdminClient } from '@/lib/supabase/server';
-import { getSettings } from '@/actions/settings/get-settings';
-import { getSettingValueAsService } from '@/lib/settings/service';
+import { getRawSettingsAsService, getSettingValueAsService } from '@/lib/settings/service';
 import type { SendEmailOptions, SendEmailResult, EmailLogEntry, EstateEmailSettings } from './types';
 
 /**
@@ -66,19 +65,20 @@ async function logEmail(entry: EmailLogEntry): Promise<void> {
  * Get estate settings for email templates
  */
 export async function getEstateEmailSettings(): Promise<EstateEmailSettings> {
-  const { data: settings } = await getSettings('general');
-
-  const settingsMap = settings?.reduce((acc, s) => {
-    acc[s.key] = s.value;
-    return acc;
-  }, {} as Record<string, unknown>) || {};
+  // Service-role read: cron and webhook sends have no session, so the RLS-bound
+  // `getSettings` would return no rows and every field would fall back (#1198).
+  const settings = await getRawSettingsAsService(['estate_name', 'estate_email', 'estate_phone', 'estate_address', 'estate_website_url']);
+  const value = (key: string) => {
+    const raw = settings.status === 'ok' ? settings.values.get(key) : null;
+    return typeof raw === 'string' && raw.trim() ? raw.trim() : undefined;
+  };
 
   return {
-    estateName: (settingsMap.estate_name as string) || 'Residio Estate',
-    estateEmail: settingsMap.estate_email as string | undefined,
-    estatePhone: settingsMap.estate_phone as string | undefined,
-    estateAddress: settingsMap.estate_address as string | undefined,
-    estateWebsite: settingsMap.estate_website as string | undefined,
+    estateName: value('estate_name') || 'Residio Estate',
+    estateEmail: value('estate_email'),
+    estatePhone: value('estate_phone'),
+    estateAddress: value('estate_address'),
+    estateWebsite: value('estate_website_url'),
   };
 }
 
