@@ -731,13 +731,17 @@ export function ImportPreview({
                   matched_project_id?: string | null;
                   matched_petty_cash_account_id?: string | null;
                   matched_expense_category_id?: string | null;
+                  collection_parts?: unknown[] | null;
                   resident?: { first_name?: string; last_name?: string } | null;
                   project?: { name?: string } | null;
                   petty_cash_account?: { name?: string } | null;
                   expense_category?: { name?: string } | null;
                 };
-                const assignment = r.matched_resident_id
-                  ? `${r.resident?.first_name ?? ''} ${r.resident?.last_name ?? ''}`.trim()
+                const residentName = `${r.resident?.first_name ?? ''} ${r.resident?.last_name ?? ''}`.trim();
+                const assignment = r.collection_parts?.length
+                  ? r.matched_resident_id ? `${residentName} and collection` : 'Collection'
+                  : r.matched_resident_id
+                  ? residentName
                   : r.matched_project_id
                     ? r.project?.name
                     : r.matched_petty_cash_account_id
@@ -895,6 +899,7 @@ export function ImportPreview({
                       matched_project_id?: string | null;
                       matched_petty_cash_account_id?: string | null;
                       matched_expense_category_id?: string | null;
+                      collection_parts?: unknown[] | null;
                       resident?: { first_name?: string; last_name?: string } | null;
                       project?: { name?: string } | null;
                       petty_cash_account?: { name?: string } | null;
@@ -955,7 +960,11 @@ export function ImportPreview({
 
                         {/* Assignment */}
                         <TableCell className="px-1">
-                          {r.matched_resident_id ? (
+                          {r.collection_parts?.length ? (
+                            <span className="truncate block max-w-[90px] text-teal-600" title={r.matched_resident_id ? `Split: ${r.resident?.first_name} ${r.resident?.last_name} and collection` : 'Collection'}>
+                              {r.matched_resident_id ? 'Split' : 'Collection'}
+                            </span>
+                          ) : r.matched_resident_id ? (
                             <span className="truncate block max-w-[90px]" title={`${r.resident?.first_name} ${r.resident?.last_name}`}>
                               {r.resident?.first_name?.charAt(0)}. {r.resident?.last_name}
                             </span>

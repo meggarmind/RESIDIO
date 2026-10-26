@@ -26,7 +26,12 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { useCreatePayment, useUpdatePayment, useResidentPropertiesForPayment } from '@/hooks/use-payments';
+import { useCreatePayment, useUpdatePayment, useResidentPropertiesForPayment, useRecordSplitPayment } from '@/hooks/use-payments';
+import { useOpenCollections } from '@/hooks/use-collections';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { CollectionPartsFields, EMPTY_PART, partAmount, toPartInputs, type CollectionPartState } from '@/components/collections/collection-parts-fields';
+import { billingRemainder } from '@/lib/collections/ledger';
 import { useResidentOptions } from '@/hooks/use-residents';
 import { getLockedPaymentFields, VERIFIED_LOCK_MESSAGE } from '@/lib/payments/verified-lock';
 import { paymentFormSchema, type PaymentFormData } from '@/lib/validators/payment';
@@ -52,6 +57,11 @@ export function PaymentForm({ initialData, residentId, onSuccess }: PaymentFormP
     const router = useRouter();
     const createMutation = useCreatePayment();
     const updateMutation = useUpdatePayment();
+    const splitMutation = useRecordSplitPayment();
+    // Split one payment between billing and collections (#1195), new payments only.
+    const [split, setSplit] = React.useState(false);
+    const [parts, setParts] = React.useState<CollectionPartState[]>([EMPTY_PART]);
+    const { data: openCollections } = useOpenCollections(split);
     // Reduced limit - consider implementing async search for large estates
     const { data: residentsData, isLoading: residentsLoading } = useResidentOptions();
     const [submitState, setSubmitState] = React.useState<'idle' | 'loading' | 'success'>('idle');
@@ -105,6 +115,11 @@ export function PaymentForm({ initialData, residentId, onSuccess }: PaymentFormP
                 void _chargeCategory;
                 await updateMutation.mutateAsync({ id: initialData.id, data: edits });
                 toast.success('Payment updated');
+            } else if (split) {
+                const result = await splitMutation.mutateAsync({ data, parts: toPartInputs(parts, openCollections ?? []) });
+                toast.success('Payment recorded', {
+                    description: result.collectionReceipts?.length ? `Collection receipts: ${result.collectionReceipts.join(', ')}` : undefined,
+                });
             } else {
                 await createMutation.mutateAsync(data);
                 toast.success('Payment recorded');
@@ -123,6 +138,11 @@ export function PaymentForm({ initialData, residentId, onSuccess }: PaymentFormP
     }
 
     const residents = residentsData?.data ?? [];
+    const watchedAmount = useWatch({ control: form.control, name: 'amount' });
+    const splitBillingAmount = billingRemainder(
+        Number(watchedAmount) || 0,
+        parts.map((part) => partAmount(part, openCollections ?? [], true) ?? 0),
+    );
 
     return (
         <Form {...form}>
@@ -371,6 +391,33 @@ export function PaymentForm({ initialData, residentId, onSuccess }: PaymentFormP
                         )}
                     />
                 </div>
+
+                {!isEditing && (
+                    <div className="space-y-3 rounded-xl border p-3">
+                        <div className="flex items-center justify-between gap-3">
+                            <Label htmlFor="payment-split" className="font-normal">
+                                Part of this payment is for a collection
+                            </Label>
+                            <Switch id="payment-split" checked={split} onCheckedChange={setSplit} />
+                        </div>
+                        {split && (
+                            <>
+                                <CollectionPartsFields
+                                    idPrefix="payment-part"
+                                    collections={openCollections ?? []}
+                                    isResident
+                                    value={parts}
+                                    onChange={setParts}
+                                />
+                                <p className="text-xs text-muted-foreground tabular-nums" aria-live="polite">
+                                    {splitBillingAmount > 0
+                                        ? `${formatCurrency(splitBillingAmount)} of ${formatCurrency(Number(watchedAmount) || 0)} goes to the wallet above; the rest to the collections.`
+                                        : 'The collection parts leave nothing for billing. Record the payment in Collections instead.'}
+                                </p>
+                            </>
+                        )}
+                    </div>
+                )}
 
                 <FormField
                     control={form.control}

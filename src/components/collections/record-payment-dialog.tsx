@@ -9,11 +9,11 @@ import { CurrencyInput } from '@/components/ui/currency-input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { EMPTY_NOTIFIED_PARTY, NotifiedPartyFields } from '@/components/collections/notified-party-fields';
+import { EMPTY_PAYER, PayerFields, toPayerInput, type PayerState } from '@/components/collections/payer-fields';
 import { getCollectionPayerOptions, recordCollectionPayment, type NotifiedPartyInput, type PayerOptions } from '@/actions/collections/collections';
 import {
   COLLECTION_PAYMENT_METHOD_LABELS,
@@ -24,7 +24,6 @@ import {
 import { lagosDateString } from '@/lib/whatsapp/assistant-format';
 import { formatCurrency } from '@/lib/utils';
 
-const NEW_PAYER = 'new';
 const NO_HOUSE = 'none';
 
 /** Record one payment into a collection, by hand. */
@@ -38,10 +37,7 @@ export function RecordPaymentDialog({ collection, open, onOpenChange }: {
   const [options, setOptions] = useState<PayerOptions | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [payerKind, setPayerKind] = useState<'resident' | 'non_resident'>('resident');
-  const [residentId, setResidentId] = useState('');
-  const [nonResidentId, setNonResidentId] = useState(NEW_PAYER);
-  const [nonResident, setNonResident] = useState({ full_name: '', phone: '', email: '' });
+  const [payer, setPayer] = useState<PayerState>(EMPTY_PAYER);
   const [houseId, setHouseId] = useState(NO_HOUSE);
   const [quantity, setQuantity] = useState(1);
   const [amount, setAmount] = useState(0);
@@ -61,24 +57,19 @@ export function RecordPaymentDialog({ collection, open, onOpenChange }: {
     });
   }, [open, options]);
 
-  const priced = priceCollectionPayment(collection, { isResident: payerKind === 'resident', quantity, amount });
+  const priced = priceCollectionPayment(collection, { isResident: payer.kind === 'resident', quantity, amount });
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    const existing = options?.nonResidents.find((payer) => payer.id === nonResidentId);
-    const payer = payerKind === 'resident'
-      ? { kind: 'resident' as const, resident_id: residentId }
-      : existing
-        ? { kind: 'non_resident' as const, full_name: existing.full_name, phone: existing.phone, email: existing.email }
-        : { kind: 'non_resident' as const, ...nonResident };
-    if (payerKind === 'resident' && !residentId) {
+    const payerInput = toPayerInput(payer, options);
+    if (!payerInput) {
       toast.error('Choose the resident who paid');
       return;
     }
     setSaving(true);
     const result = await recordCollectionPayment({
       collection_id: collection.id,
-      payer,
+      payer: payerInput,
       house_id: houseId === NO_HOUSE ? null : houseId,
       quantity: isItem ? quantity : null,
       amount: isItem ? null : amount,
@@ -112,59 +103,7 @@ export function RecordPaymentDialog({ collection, open, onOpenChange }: {
 
           {loadError && <p className="text-sm text-destructive">{loadError}</p>}
 
-          <RadioGroup value={payerKind} onValueChange={(value) => setPayerKind(value as typeof payerKind)} className="grid grid-cols-2 gap-2">
-            <Label htmlFor="payer-resident" className="flex cursor-pointer items-center gap-2 rounded-xl border p-3 font-normal">
-              <RadioGroupItem id="payer-resident" value="resident" /> Resident
-            </Label>
-            <Label htmlFor="payer-non-resident" className="flex cursor-pointer items-center gap-2 rounded-xl border p-3 font-normal">
-              <RadioGroupItem id="payer-non-resident" value="non_resident" /> Non-resident
-            </Label>
-          </RadioGroup>
-
-          {payerKind === 'resident' ? (
-            <div className="space-y-2">
-              <Label>Resident</Label>
-              <SearchableSelect
-                options={(options?.residents ?? []).map((resident) => ({ value: resident.id, label: resident.name, description: resident.detail }))}
-                value={residentId}
-                onValueChange={setResidentId}
-                placeholder={options ? 'Choose a resident' : 'Loading…'}
-                searchPlaceholder="Search residents"
-                disabled={!options}
-              />
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <Label>Payer</Label>
-                <SearchableSelect
-                  options={[
-                    { value: NEW_PAYER, label: 'New payer' },
-                    ...(options?.nonResidents ?? []).map((payer) => ({ value: payer.id, label: payer.full_name, description: payer.phone ?? payer.email ?? undefined })),
-                  ]}
-                  value={nonResidentId}
-                  onValueChange={setNonResidentId}
-                  searchPlaceholder="Search earlier payers"
-                />
-              </div>
-              {nonResidentId === NEW_PAYER && (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-2 sm:col-span-2">
-                    <Label htmlFor="payer-name">Name</Label>
-                    <Input id="payer-name" value={nonResident.full_name} onChange={(e) => setNonResident({ ...nonResident, full_name: e.target.value })} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="payer-phone">Phone</Label>
-                    <Input id="payer-phone" type="tel" value={nonResident.phone} onChange={(e) => setNonResident({ ...nonResident, phone: e.target.value })} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="payer-email">Email</Label>
-                    <Input id="payer-email" type="email" value={nonResident.email} onChange={(e) => setNonResident({ ...nonResident, email: e.target.value })} />
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+          <PayerFields idPrefix="payer" options={options} value={payer} onChange={setPayer} />
 
           <div className="space-y-2">
             <Label>House (optional)</Label>
