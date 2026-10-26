@@ -11,9 +11,20 @@
 import { createAdminClient } from '@/lib/supabase/server';
 import { generateReportWithClient } from '@/lib/reports/report-generator';
 import { renderReportPdf } from '@/lib/pdf/reports/renderer';
-import { sendEmail } from '@/lib/email/send-email';
+import { sendEmail, getEstateEmailSettings } from '@/lib/email/send-email';
+import { ScheduledReportEmail } from '@/emails/scheduled-report';
 import { logAudit } from '@/lib/audit/logger';
-import type { ReportRequestFormData } from '@/lib/validators/reports';
+import { REPORT_TYPE_LABELS, getDateRangeFromPreset, type ReportRequestFormData } from '@/lib/validators/reports';
+
+const formatEmailDate = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+// Invoice aging is a point-in-time report, so it has no period to state.
+function periodLabelFor(params: ReportRequestFormData): string | undefined {
+  if (params.reportType === 'invoice_aging') return undefined;
+  const { startDate, endDate } = getDateRangeFromPreset(params.periodPreset);
+  return `${formatEmailDate(startDate)} to ${formatEmailDate(endDate)}`;
+}
 
 export async function processDueSchedules(): Promise<{ processed: number; failed: number; errors: string[] }> {
   const supabase = createAdminClient();
@@ -27,6 +38,9 @@ export async function processDueSchedules(): Promise<{ processed: number; failed
     .order('next_run_at');
 
   if (fetchError || !schedules) return { processed: 0, failed: 0, errors: [fetchError?.message || 'No schedules'] };
+
+  // Service-role read (#1198): the cron request has no session.
+  const estate = await getEstateEmailSettings();
 
   let processed = 0;
   let failed = 0;
@@ -53,7 +67,7 @@ export async function processDueSchedules(): Promise<{ processed: number; failed
       const result = await generateReportWithClient(supabase, params);
        if (result.error || !result.report) { failed++; errors.push(`Schedule ${schedule.id}: ${result.error || 'No data'}`); continue; }
 
-       const buffer = await renderReportPdf(schedule.report_type, result.report.data);
+       const buffer = await renderReportPdf(schedule.report_type, result.report.data, estate.estateName);
       if (!buffer) { failed++; errors.push(`Schedule ${schedule.id}: PDF rendering failed`); continue; }
 
       // Store in archive
@@ -77,11 +91,14 @@ export async function processDueSchedules(): Promise<{ processed: number; failed
        if (archiveError) throw new Error(`PDF archive record failed: ${archiveError.message}`);
 
       // Email recipients
+      const reportLabel = REPORT_TYPE_LABELS[schedule.report_type] ?? schedule.report_type;
+      const periodLabel = periodLabelFor(params);
        const recipients = ((schedule.recipients || []) as string[]).map((email: string) => ({ email, name: schedule.name }));
       if (recipients.length > 0) {
         const emailResult = await sendEmail({
           to: recipients,
           subject: `Scheduled Report: ${schedule.report_type}`,
+          react: ScheduledReportEmail({ ...estate, reportLabel, periodLabel }),
             emailType: 'notification',
           attachments: [{ filename: fileName, content: buffer }],
           metadata: { reportType: schedule.report_type, scheduleId: schedule.id },
