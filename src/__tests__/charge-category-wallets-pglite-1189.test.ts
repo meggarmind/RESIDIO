@@ -10,7 +10,7 @@ import { laterMigrations, loadSchema, migrationsDir, replay } from '@/__tests__/
  * over them. The tests call the real RPCs as service_role; each test is rolled back.
  */
 
-const MIGRATION = '20261103090000_charge_category_wallets.sql';
+const MIGRATION = '20261103100000_charge_category_wallets.sql';
 const ACTOR = '11111111-1111-1111-1111-111111111111';
 const EXISTING = '33333333-3333-3333-3333-333333333333';
 
