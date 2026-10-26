@@ -10,6 +10,10 @@ import { EmailLayout } from './components/email-layout';
 
 interface AdminAlertEmailProps {
   estateName: string;
+  estateEmail?: string;
+  estatePhone?: string;
+  estateAddress?: string;
+  estateWebsite?: string;
   title: string;
   severity: 'info' | 'warning' | 'critical';
   message: string;
@@ -21,6 +25,10 @@ interface AdminAlertEmailProps {
 
 export function AdminAlertEmail({
   estateName,
+  estateEmail,
+  estatePhone,
+  estateAddress,
+  estateWebsite,
   title,
   severity,
   message,
@@ -41,6 +49,10 @@ export function AdminAlertEmail({
     <EmailLayout
       preview={`[${severity.toUpperCase()}] ${title}`}
       estateName={estateName}
+      estateEmail={estateEmail}
+      estatePhone={estatePhone}
+      estateAddress={estateAddress}
+      estateWebsite={estateWebsite}
     >
       {/* Alert Banner */}
       <Section

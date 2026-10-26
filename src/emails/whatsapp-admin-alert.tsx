@@ -9,6 +9,10 @@ interface WhatsAppAdminAlertEmailProps {
   /** Masked WhatsApp number, never the full number. */
   maskedNumber: string;
   estateName: string;
+  estateEmail?: string;
+  estatePhone?: string;
+  estateAddress?: string;
+  estateWebsite?: string;
   lockMinutes: number;
 }
 
@@ -21,13 +25,13 @@ export function whatsAppAdminAlertSubject(event: WhatsAppAdminAlertEvent): strin
   return HEADINGS[event];
 }
 
-export function WhatsAppAdminAlertEmail({ firstName, event, maskedNumber, estateName, lockMinutes }: WhatsAppAdminAlertEmailProps) {
+export function WhatsAppAdminAlertEmail({ firstName, event, maskedNumber, estateName, estateEmail, estatePhone, estateAddress, estateWebsite, lockMinutes }: WhatsAppAdminAlertEmailProps) {
   const what = event === 'linked'
     ? `The WhatsApp number ${maskedNumber} can now request admin information from the estate WhatsApp Assistant. Each request still needs a code from your authenticator app.`
     : `Too many wrong codes were sent for WhatsApp admin mode from ${maskedNumber}. Admin mode is locked on that number for ${lockMinutes} minutes.`;
 
   return (
-    <EmailLayout preview={HEADINGS[event]} estateName={estateName}>
+    <EmailLayout preview={HEADINGS[event]} estateName={estateName} estateEmail={estateEmail} estatePhone={estatePhone} estateAddress={estateAddress} estateWebsite={estateWebsite}>
       <Heading style={heading}>{HEADINGS[event]}</Heading>
       <Text style={paragraph}>Hi {firstName},</Text>
       <Text style={paragraph}>{what}</Text>

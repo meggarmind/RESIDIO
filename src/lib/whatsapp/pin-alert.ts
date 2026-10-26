@@ -1,7 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/server';
-import { sendEmail } from '@/lib/email/send-email';
+import { sendEmail, getEstateEmailSettings } from '@/lib/email/send-email';
 import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
-import { getRawSettingsAsService } from '@/lib/settings/service';
 import { maskPhone } from '@/lib/utils';
 import { WhatsAppPinAlertEmail, whatsAppPinAlertSubject, type WhatsAppPinAlertEvent } from '@/emails/whatsapp-pin-alert';
 
@@ -42,10 +41,7 @@ export async function sendWhatsAppPinAlert(
   const override = await resolveResidentOverride([residentId]);
   if (!override.ok) throw new Error(override.error);
 
-  const settings = await getRawSettingsAsService(['estate_name']);
-  const estateName = settings.status === 'ok' && typeof settings.values.get('estate_name') === 'string'
-    ? (settings.values.get('estate_name') as string)
-    : 'Residio Estate';
+  const estate = await getEstateEmailSettings();
 
   const result = await sendEmail({
     to: { email, name: `${resident.first_name} ${resident.last_name}`, residentId },
@@ -54,7 +50,7 @@ export async function sendWhatsAppPinAlert(
       firstName: resident.first_name,
       event,
       maskedNumbers: [...new Set(numbers)].map((number) => maskPhone(number)),
-      estateName,
+      ...estate,
     }),
     emailType: 'notification',
     residentOverride: override.residentOverride,

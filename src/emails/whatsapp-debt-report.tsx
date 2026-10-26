@@ -4,13 +4,17 @@ import { EmailLayout } from './components/email-layout';
 interface WhatsAppDebtReportEmailProps {
   firstName: string;
   estateName: string;
+  estateEmail?: string;
+  estatePhone?: string;
+  estateAddress?: string;
+  estateWebsite?: string;
   scopeLabel: string;
 }
 
 /** The debt status report an admin asked for on WhatsApp (#982). The PDF is attached. */
-export function WhatsAppDebtReportEmail({ firstName, estateName, scopeLabel }: WhatsAppDebtReportEmailProps) {
+export function WhatsAppDebtReportEmail({ firstName, estateName, estateEmail, estatePhone, estateAddress, estateWebsite, scopeLabel }: WhatsAppDebtReportEmailProps) {
   return (
-    <EmailLayout preview={`Debt status report: ${scopeLabel}`} estateName={estateName}>
+    <EmailLayout preview={`Debt status report: ${scopeLabel}`} estateName={estateName} estateEmail={estateEmail} estatePhone={estatePhone} estateAddress={estateAddress} estateWebsite={estateWebsite}>
       <Heading style={heading}>Debt status report</Heading>
       <Text style={paragraph}>Hi {firstName},</Text>
       <Text style={paragraph}>
