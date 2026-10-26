@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { getEstateLogoUrl } from '@/lib/branding/estate-logo-server';
+import { usableEstateLogoUrl } from '@/lib/branding/estate-logo';
 import { createElement } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { renderToBuffer } from '@react-pdf/renderer';
@@ -110,7 +112,7 @@ async function estateAddress(): Promise<string> {
 }
 
 async function renderStatementPdf(statement: AccountStatementData): Promise<Buffer> {
-  return renderToBuffer(AccountStatementPDF({ data: statement, estateName: await estateName(), estateAddress: await estateAddress() }));
+  return renderToBuffer(AccountStatementPDF({ data: statement, estateName: await estateName(), estateAddress: await estateAddress(), estateLogoUrl: await getEstateLogoUrl() }));
 }
 
 async function signedUrl(path: string): Promise<string> {
@@ -274,7 +276,7 @@ export async function buildStatementEmail(requestId: string) {
   const [pdf, name, contact] = await Promise.all([
     renderStatementPdf(statement),
     estateName(),
-    getRawSettingsAsService(['estate_email', 'estate_phone', 'estate_address']),
+    getRawSettingsAsService(['estate_email', 'estate_phone', 'estate_address', 'estate_logo_url']),
   ]);
   const value = (key: string) => {
     const raw = contact.status === 'ok' ? contact.values.get(key) : null;
@@ -289,6 +291,7 @@ export async function buildStatementEmail(requestId: string) {
       estateEmail: value('estate_email'),
       estatePhone: value('estate_phone'),
       estateAddress: value('estate_address'),
+      estateLogoUrl: usableEstateLogoUrl(contact.status === 'ok' ? contact.values.get('estate_logo_url') : null),
       residentName: statement.resident.name,
       propertyLabel,
       periodLabel,

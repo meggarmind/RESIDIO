@@ -50,6 +50,7 @@ import type { ResidentRole } from '@/types/database';
 import { pdf } from '@react-pdf/renderer';
 import { ClearanceCertificatePDF } from '@/lib/pdf/clearance-certificate';
 import { useEstateDetails } from '@/hooks/use-estate-details';
+import { estateLogoDataUri } from '@/lib/branding/estate-logo';
 
 interface MoveOutWizardProps {
   open: boolean;
@@ -86,7 +87,7 @@ export function MoveOutWizard({
   isSelfService = false,
 }: MoveOutWizardProps) {
   const queryClient = useQueryClient();
-  const { estateName, estateAddress } = useEstateDetails();
+  const { estateName, estateAddress, estateLogoUrl } = useEstateDetails();
   const [currentStep, setCurrentStep] = useState<WizardStep>('destination');
   const [destination, setDestination] = useState<MoveOutDestination>('leaving_estate');
   const [destinationHouseId, setDestinationHouseId] = useState<string>('');
@@ -175,7 +176,7 @@ export function MoveOutWizard({
 
     setIsDownloading(true);
     try {
-      const doc = <ClearanceCertificatePDF certificate={certificate} estateName={estateName} estateAddress={estateAddress} />;
+      const doc = <ClearanceCertificatePDF certificate={certificate} estateName={estateName} estateAddress={estateAddress} estateLogoUrl={await estateLogoDataUri(estateLogoUrl)} />;
       const blob = await pdf(doc).toBlob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');

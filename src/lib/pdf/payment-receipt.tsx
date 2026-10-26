@@ -1,6 +1,7 @@
 import { Document, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
 import { formatPdfCurrency } from '@/lib/pdf/format-currency';
 import { formatPdfDate } from '@/lib/pdf/format-date';
+import { PdfEstateLogo } from '@/lib/pdf/estate-logo';
 
 const styles = StyleSheet.create({
   page: { padding: 40, fontFamily: 'Helvetica', fontSize: 10, color: '#1a1a1a' },
@@ -41,7 +42,7 @@ export interface PaymentReceiptData {
  * payment is credited to the wallet and is not tied to a single invoice, so this one describes the
  * payment itself.
  */
-export function PaymentReceiptPDF({ receipt, estateName = 'Residio Estate', estateAddress = '' }: { receipt: PaymentReceiptData; estateName?: string; estateAddress?: string }) {
+export function PaymentReceiptPDF({ receipt, estateName = 'Residio Estate', estateAddress = '', estateLogoUrl }: { receipt: PaymentReceiptData; estateName?: string; estateAddress?: string; estateLogoUrl?: string }) {
   const rows: Array<[string, string]> = [
     ['Receipt number', receipt.receiptNumber],
     ['Payment date', formatPdfDate(receipt.paymentDate)],
@@ -55,6 +56,7 @@ export function PaymentReceiptPDF({ receipt, estateName = 'Residio Estate', esta
     <Document>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
+          <PdfEstateLogo url={estateLogoUrl} align="center" />
           <Text style={styles.estateName}>{estateName}</Text>
           <Text style={styles.documentTitle}>Payment Receipt</Text>
         </View>

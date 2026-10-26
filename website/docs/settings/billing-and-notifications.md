@@ -14,7 +14,7 @@ residio_sources:
   - src/app/(dashboard)/settings/sending/**
   - src/app/(dashboard)/settings/announcements/**
   - src/components/settings/messages/**
-residio_verified_commit: 3884300d
+residio_verified_commit: ba608263
 residio_verified_at: '2026-10-26'
 residio_app_version: '0.4.0'
 ---
@@ -31,7 +31,7 @@ Each billing profile carries a **rate schedule**: a list of versions, each with 
 
 Each billing profile has a **Charge category** (Dues, Development Levy or Transformer Fee), set on the profile form; new profiles start as Dues. Invoices from the profile take its category, and each resident has one wallet per category, so an invoice is paid only from the wallet of the same category.
 
-Each billing profile also names its **Payer**, set on the profile form. **Occupier** profiles, such as security dues, bill the Renter, else the Owner-Occupier. **Owner** profiles, such as the Development Fee or Transformer Fee, bill the Owner-Occupier, else the Property Owner, else the Developer, and never a Renter. Whether a profile is monthly or one-time is a separate setting. Ticking **One-Time Levy** on a new profile sets the payer to *Owner*; you can change it. On a profile whose **Billing Target** is *Resident (Role-Based)*, the role boxes can narrow the payer but never add a Renter to an Owner profile; a *Property (House)* profile ignores roles. If an Owner profile applies to a house with no owner on record, no invoice is raised and the Levies preview and the generation result name the house.
+Each billing profile also names its **Payer**, set on the profile form. **Occupier** profiles, such as security dues, bill the Renter, else the Owner-Occupier. **Owner** profiles, such as the Development Fee or Transformer Fee, bill the Owner-Occupier, else the Property Owner, else the Developer, and never a Renter. Whether a profile is monthly or one-time is a separate setting. Ticking **One-Time Levy** on a new profile sets the payer to *Owner*; you can change it. On a profile whose **Billing Target** is *Resident (Role-Based)*, the role boxes can narrow the payer but never add a Renter to an Owner profile; a *Property (House)* profile ignores roles. If an Owner profile applies to a house with no owner on record, no invoice is raised and the Levies preview and the generation result name the house. The Levies preview also splits the invoices and total by charge category, so a Development Levy and a Transformer Fee profile each show their own line.
 
 Two separate permissions govern this. **Manage Billing Profiles** shows the **Rate versions** control and the schedule inside it — a Secretary has neither. **Manage Billing Rate Versions** is what allows a version to be added or edited, and is held by the Super Admin, Chairman and Financial Officer only, because a version with a past effective month decides what a backfilled invoice charges and those invoice numbers are permanent.
 
