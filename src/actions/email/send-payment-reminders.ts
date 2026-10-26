@@ -12,6 +12,7 @@ import { updateSetting } from '@/actions/settings/update-setting';
 import { logAudit } from '@/lib/audit/logger';
 import { PaymentReminderEmail } from '@/emails';
 import { formatEventCurrency, formatEventProperty, getEventContent, renderEventText } from '@/lib/notifications/event-content';
+import { duesReminderRecipients } from '@/lib/billing/landlord-dues';
 
 interface ReminderResult {
   success: boolean;
@@ -75,6 +76,7 @@ export async function sendPaymentReminders(): Promise<ReminderResult> {
         amount_due,
         amount_paid,
         due_date,
+        charge_category,
         resident:residents(
           id,
           first_name,
@@ -83,6 +85,8 @@ export async function sendPaymentReminders(): Promise<ReminderResult> {
         ),
         house:houses(
           house_number,
+          dues_paid_by_landlord,
+          dues_reminder_target,
           street:streets(name)
         )
       `
@@ -100,8 +104,9 @@ export async function sendPaymentReminders(): Promise<ReminderResult> {
       const resident = embed(invoice.resident);
       const house = embed(invoice.house);
 
-      // Skip if no email
-      if (!resident?.email) {
+      // Skip if no email, or if a "Dues paid by landlord" house sends this reminder to the landlord
+      // only (#1192); the daily run sends the landlord's reminder.
+      if (!resident?.email || !duesReminderRecipients(house, invoice.charge_category).tenant) {
         result.skipped++;
         continue;
       }
@@ -230,7 +235,7 @@ export async function previewPaymentReminders(): Promise<{
   const results = await Promise.all(targetDates.map((date) =>
     supabase
       .from('invoices')
-      .select('amount_due, amount_paid, resident:residents(id, email)')
+      .select('amount_due, amount_paid, charge_category, resident:residents(id, email), house:houses(dues_paid_by_landlord, dues_reminder_target)')
       .eq('due_date', date)
       .in('status', ['unpaid', 'partially_paid'])
   ));
@@ -242,7 +247,11 @@ export async function previewPaymentReminders(): Promise<{
   let skipped = 0;
   for (const invoice of results.flatMap((r) => r.data || [])) {
     const resident = embed(invoice.resident);
-    if (!resident?.email || invoice.amount_due - invoice.amount_paid <= 0) {
+    if (
+      !resident?.email ||
+      invoice.amount_due - invoice.amount_paid <= 0 ||
+      !duesReminderRecipients(embed(invoice.house), invoice.charge_category).tenant
+    ) {
       skipped++;
       continue;
     }

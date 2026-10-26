@@ -2492,6 +2492,8 @@ export type Database = {
           billing_profile_id: string | null
           created_at: string
           created_by: string | null
+          dues_paid_by_landlord: boolean
+          dues_reminder_target: string
           house_number: string
           house_type_id: string | null
           id: string
@@ -2512,6 +2514,8 @@ export type Database = {
           billing_profile_id?: string | null
           created_at?: string
           created_by?: string | null
+          dues_paid_by_landlord?: boolean
+          dues_reminder_target?: string
           house_number: string
           house_type_id?: string | null
           id?: string
@@ -2532,6 +2536,8 @@ export type Database = {
           billing_profile_id?: string | null
           created_at?: string
           created_by?: string | null
+          dues_paid_by_landlord?: boolean
+          dues_reminder_target?: string
           house_number?: string
           house_type_id?: string | null
           id?: string
