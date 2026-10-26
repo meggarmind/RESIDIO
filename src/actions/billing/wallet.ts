@@ -287,19 +287,21 @@ export async function debitWalletForInvoice(
 }
 
 /**
- * Allocate the Dues wallet to unpaid Dues invoices (FIFO by due_date). A payment has no purpose
- * yet, so it pays dues only (#1188 decision 2); a wallet never pays another category (#1189).
- * If priorityHouseId is provided, prioritize invoices for that house first
+ * Allocate a wallet to unpaid invoices of its charge category (FIFO by due_date). A payment pays
+ * the invoices of its own category, Dues when it names none (#1188 decision 2, #1190); a wallet
+ * never pays another category (#1189). If houseId is provided, only that house's invoices are
+ * paid and any leftover stays as credit: money is never moved to another house (decision 3).
  */
 export async function allocateWalletToInvoices(
     residentId: string,
-    priorityHouseId?: string | null,
+    houseId?: string | null,
     paymentDate?: string,
     options?: {
         sourcePaymentId?: string | null;
         batchAmount?: number | null;
         batchType?: 'payment_received' | 'existing_wallet_settlement' | 'future_prepayment';
         creditAmount?: number | null;
+        chargeCategory?: string;
     },
 ): Promise<{
     success: boolean;
@@ -310,39 +312,27 @@ export async function allocateWalletToInvoices(
     receiptNumber?: string;
 }> {
     const supabase = await createServerSupabaseClient();
+    const { chargeCategory = DEFAULT_CHARGE_CATEGORY, ...batch } = options ?? {};
 
     // Ordinary payment and approval flows use the same atomic primitive as
     // explicit admin settlement when batch metadata is supplied. This keeps
     // the new wallet credit and all eligible invoice allocations in one DB
     // transaction, while preserving the legacy allocator for callers that do
-    // not yet create a payment batch.
-    if (options) {
+    // not yet create a payment batch (chargeCategory alone is not batch metadata).
+    if (options && Object.keys(batch).length > 0) {
         const settlementDate = paymentDate || new Date().toISOString().slice(0, 10);
-        const fetchEligible = async (houseId?: string | null) => {
-            let query = supabase
-                .from('invoices')
-                .select('id, period_start, due_date')
-                .eq('resident_id', residentId)
-                .eq('charge_category', DEFAULT_CHARGE_CATEGORY)
-                .in('status', ['unpaid', 'partially_paid'])
-                .gte('amount_due', 0)
-                .lte('period_start', settlementDate);
-            if (houseId) query = query.eq('house_id', houseId);
-            const result = await query.order('period_start', { ascending: true }).order('due_date', { ascending: true });
-            return result;
-        };
-
-        const invoiceIds: string[] = [];
-        if (priorityHouseId) {
-            const priority = await fetchEligible(priorityHouseId);
-            if (priority.error) return { success: false, invoicesPaid: 0, totalAllocated: 0, error: priority.error.message };
-            invoiceIds.push(...(priority.data || []).map((invoice) => invoice.id));
-        }
-        const general = await fetchEligible();
-        if (general.error) return { success: false, invoicesPaid: 0, totalAllocated: 0, error: general.error.message };
-        for (const invoice of general.data || []) {
-            if (!invoiceIds.includes(invoice.id)) invoiceIds.push(invoice.id);
-        }
+        let query = supabase
+            .from('invoices')
+            .select('id, period_start, due_date')
+            .eq('resident_id', residentId)
+            .eq('charge_category', chargeCategory)
+            .in('status', ['unpaid', 'partially_paid'])
+            .gte('amount_due', 0)
+            .lte('period_start', settlementDate);
+        if (houseId) query = query.eq('house_id', houseId);
+        const eligible = await query.order('period_start', { ascending: true }).order('due_date', { ascending: true });
+        if (eligible.error) return { success: false, invoicesPaid: 0, totalAllocated: 0, error: eligible.error.message };
+        const invoiceIds = (eligible.data || []).map((invoice) => invoice.id);
 
         if (invoiceIds.length === 0) {
             if (Number(options.creditAmount || 0) > 0) {
@@ -352,6 +342,7 @@ export async function allocateWalletToInvoices(
                     'payment',
                     options.sourcePaymentId || undefined,
                     'Payment retained as wallet credit because no eligible invoice was found',
+                    chargeCategory,
                 );
                 return { success: credit.success, invoicesPaid: 0, totalAllocated: 0, error: credit.error };
             }
@@ -364,10 +355,10 @@ export async function allocateWalletToInvoices(
             p_batch_type: options.batchType || 'payment_received',
             p_payment_date: settlementDate,
             p_source_payment_id: options.sourcePaymentId || null,
-            p_house_id: priorityHouseId || null,
+            p_house_id: houseId || null,
             p_credit_amount: Number(options.creditAmount || 0),
             p_batch_amount: options.batchAmount == null ? null : Number(options.batchAmount),
-            p_charge_category: DEFAULT_CHARGE_CATEGORY,
+            p_charge_category: chargeCategory,
         });
         if (rpcResult.error) return { success: false, invoicesPaid: 0, totalAllocated: 0, error: rpcResult.error.message };
 
@@ -397,51 +388,19 @@ export async function allocateWalletToInvoices(
     const walletEmptyAfterDebit = async (result: WalletInvoiceDebitResult) => {
         if (result.newBalance !== null) return result.newBalance <= 0;
         if (result.error === 'Insufficient wallet balance') return true;
-        const { data: wallet } = await getOrCreateWallet(residentId);
+        const { data: wallet } = await getOrCreateWallet(residentId, chargeCategory);
         return !wallet || wallet.balance <= 0;
     };
 
-    // If priority house provided, get those invoices first
-    if (priorityHouseId) {
-        const { data: priorityInvoices, error: priorityError } = await supabase
-            .from('invoices')
-            .select('id, amount_due, amount_paid, invoice_number, invoice_type, correction_type')
-            .eq('resident_id', residentId)
-            .eq('house_id', priorityHouseId)
-            .eq('charge_category', DEFAULT_CHARGE_CATEGORY)
-            .in('status', ['unpaid', 'partially_paid'])
-            .gte('amount_due', 0) // Exclude credit notes (negative amounts)
-            .order('due_date', { ascending: true });
-
-        if (!priorityError && priorityInvoices && priorityInvoices.length > 0) {
-            for (const invoice of priorityInvoices) {
-                const result = await debitWalletForInvoiceAtomic(supabase, residentId, invoice.id);
-                if (result.success && result.amountDebited > 0) {
-                    invoicesPaid++;
-                    totalAllocated += result.amountDebited;
-                    console.log(`[Wallet] Allocated ₦${result.amountDebited} to priority house invoice ${invoice.invoice_number}`);
-                }
-
-                if (await walletEmptyAfterDebit(result)) {
-                    return { success: true, invoicesPaid, totalAllocated, error: null };
-                }
-            }
-        }
-    }
-
-    // Get all remaining unpaid invoices (excluding priority house if provided)
+    // Legacy callers (no payment batch): the wallet of the category, inside the house when one is given.
     let query = supabase
         .from('invoices')
         .select('id, amount_due, amount_paid, invoice_type, correction_type')
         .eq('resident_id', residentId)
-        .eq('charge_category', DEFAULT_CHARGE_CATEGORY)
+        .eq('charge_category', chargeCategory)
         .in('status', ['unpaid', 'partially_paid'])
         .gte('amount_due', 0); // Exclude credit notes (negative amounts)
-
-    // Exclude priority house invoices (already processed)
-    if (priorityHouseId) {
-        query = query.neq('house_id', priorityHouseId);
-    }
+    if (houseId) query = query.eq('house_id', houseId);
 
     const { data: invoices, error: invoicesError } = await query.order('due_date', { ascending: true });
 

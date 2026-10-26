@@ -11,8 +11,8 @@ residio_sources:
   - src/actions/imports/**
   - src/components/imports/**
   - src/lib/parsers/**
-residio_verified_commit: 4dd2c7a8
-residio_verified_at: '2026-10-22'
+residio_verified_commit: de3a81fc
+residio_verified_at: '2026-10-26'
 residio_app_version: '0.4.0'
 ---
 
@@ -27,8 +27,20 @@ Use **Transactions** for individual payment records and **Import Statement** for
 1. Select **Record Payment**.
 2. Identify the resident or house before entering the amount.
 3. Enter the payment date, reference, account, and source details.
-4. Review the allocation preview.
-5. Save the payment and confirm the success notification.
+4. Choose what the payment is for in **Payment for** (Dues unless you change it). The payment credits the resident's wallet of that charge category and pays only invoices of that category.
+5. If someone else paid, choose them in **Paid by**, or type the name on the transfer in **Payer name**. The money still goes to the wallet of the resident chosen above.
+6. Review the allocation preview.
+7. Save the payment and confirm the success notification.
+
+A payment for a house pays only that house's invoices. Any amount left over stays as wallet credit; it is never moved to another house.
+
+Payments from a bank statement or email import are recorded as Dues, paid by the matched resident. A Paystack payment takes the category of the invoice it was started from.
+
+## Change what a payment is for
+
+Open the payment and choose **Change category**, then pick the new category. The amount moves from the resident's wallet of the old category to the wallet of the new one and stays there as credit; settle invoices from the wallet afterwards. The change is recorded in the audit log and needs the `billing.manage_wallets` permission.
+
+It is refused when the payment has already paid invoices ("This payment has already paid invoices. Reverse its settlement before changing its category"), or when the old wallet no longer holds the payment's amount. **Payment for** cannot be changed with **Edit Details**.
 
 To delete a payment, open it and choose **Delete** on its page. This needs the `payments.delete` permission and asks for confirmation first. Afterwards you return to the resident's page, or to **Transactions** when the payment has no resident.
 

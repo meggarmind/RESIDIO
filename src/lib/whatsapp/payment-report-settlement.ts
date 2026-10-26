@@ -17,7 +17,7 @@ const db = () => createAdminClient() as unknown as SupabaseClient;
 export async function settleReportedPayment(paymentId: string, verifierId: string): Promise<SettleResult> {
   const { data: payment, error } = await db()
     .from('payment_records')
-    .select('id, resident_id, house_id, amount, payment_date, status, is_verified')
+    .select('id, resident_id, house_id, amount, payment_date, status, is_verified, charge_category')
     .eq('id', paymentId)
     .maybeSingle();
   if (error || !payment) return { success: false, error: 'The reported payment was not found' };
@@ -41,6 +41,7 @@ export async function settleReportedPayment(paymentId: string, verifierId: strin
     batchAmount: amount,
     batchType: 'payment_received',
     creditAmount: amount,
+    chargeCategory: payment.charge_category,
   });
   if (!allocation.success) {
     // Put it back so the approval can be retried without a half-settled payment.

@@ -5,6 +5,7 @@ import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
 import { logAudit } from '@/lib/audit/logger';
 import { updateImportStatus } from '@/lib/imports/update-import-status';
 import { createPaymentCore } from '@/lib/payments/create-payment';
+import { DEFAULT_CHARGE_CATEGORY } from '@/lib/billing/charge-categories';
 import { createExpense } from '@/actions/expenses/create-expense';
 import { updateExpenseStatus } from '@/actions/expenses/update-expense';
 import type { BankStatementImport, BankStatementRow, PaymentRecord, Expense } from '@/types/database';
@@ -836,6 +837,9 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
           import_row_id: row.id,
           is_verified: true, // Bank statement imports are auto-verified
           bank_row_id: row.id,
+          // The bank sender was matched to this resident, so they paid it; no purpose is known: Dues (#1190).
+          charge_category: DEFAULT_CHARGE_CATEGORY,
+          paid_by_resident_id: row.matched_resident_id,
         }, { trustedVerification: true });
 
         if (paymentResult.error) {

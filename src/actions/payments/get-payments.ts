@@ -12,7 +12,7 @@ export async function getPayments(params: PaymentSearchParams) {
     .from('payment_records')
     .select(`
       *,
-      resident:residents!inner(
+      resident:residents!payment_records_resident_id_fkey!inner(
         id,
         first_name,
         last_name,
