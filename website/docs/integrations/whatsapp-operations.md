@@ -8,9 +8,10 @@ residio_sources:
   - src/actions/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp-admin/**
+  - src/app/(dashboard)/system/whatsapp-messages/**
   - src/app/api/whatsapp/**
-residio_verified_commit: 899e6fb9
-residio_verified_at: '2026-10-25'
+residio_verified_commit: 2138740
+residio_verified_at: '2026-10-26'
 residio_app_version: '0.4.0'
 ---
 
@@ -336,7 +337,7 @@ The console on the same page shows today's activity: inbound messages, outbound 
 
 The **undelivered messages** list covers the last 7 days. It shows each WhatsApp message the provider reported as failed, or that Chatmaid accepted but never confirmed as sent within 15 minutes. Each row shows the time, the resident (when known), the masked number, whether it was a reply or a notification, the provider's reason, and the id of the resident message it answered. Those residents may not have received the message, so contact them another way. Residio does not resend these messages automatically.
 
-The **Sent messages** card on the same page lists every WhatsApp message the app sent, newest first, 25 to a page: the time, whether it was a reply or a notification, the resident, the masked number (last 4 digits), the status (pending, sent, delivered or failed), the error code, and the id of the resident message it answered. Filter by status or purpose. It shows no message text, because none is stored, and covers the 90-day retention window. Assistant replies appear here and not in **System → Notification queue**, which links to this card.
+The **System → WhatsApp Messages** page (sidebar link in the System section) lists every WhatsApp message the app sent, newest first, 25 to a page: the time, whether it was a reply or a notification, the resident, the masked number (last 4 digits), the status (pending, sent, delivered or failed), the error code, and the id of the resident message it answered. Filter by status or purpose. To monitor it, choose an auto-refresh interval from 1 to 30 minutes, or press **Refresh now**. It shows no message text, because none is stored, and covers the 90-day retention window. Assistant replies appear here and not in **System → Notification queue**, which links to this page.
 
 The **Statement requested, no email** list shows residents who asked for a statement too long for chat and have no email on file. Add their email to clear it.
 
