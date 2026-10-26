@@ -319,9 +319,10 @@ function getTypeLabel(type: StatementTransaction['type']) {
 interface AccountStatementPDFProps {
   data: AccountStatementData;
   estateName?: string;
+  estateAddress?: string;
 }
 
-export function AccountStatementPDF({ data, estateName = 'Residio Estate' }: AccountStatementPDFProps) {
+export function AccountStatementPDF({ data, estateName = 'Residio Estate', estateAddress = '' }: AccountStatementPDFProps) {
   const {
     resident,
     house,
@@ -547,6 +548,7 @@ export function AccountStatementPDF({ data, estateName = 'Residio Estate' }: Acc
               <Text style={[styles.footerText, { fontFamily: 'Helvetica-Bold', marginBottom: 2 }]}>
                 {estateName}
               </Text>
+              {estateAddress ? <Text style={styles.footerText}>{estateAddress}</Text> : null}
               <Text style={styles.footerText}>
                 Powered by Residio
               </Text>

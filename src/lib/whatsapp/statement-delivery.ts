@@ -103,8 +103,14 @@ export async function loadWhatsAppStatementForPeriod(residentId: string, houseId
   return { fromDate, toDate, statement: await loadWhatsAppStatement(residentId, houseId, fromDate, toDate) };
 }
 
+async function estateAddress(): Promise<string> {
+  const settings = await getRawSettingsAsService(['estate_address']);
+  const value = settings.status === 'ok' ? settings.values.get('estate_address') : null;
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 async function renderStatementPdf(statement: AccountStatementData): Promise<Buffer> {
-  return renderToBuffer(AccountStatementPDF({ data: statement, estateName: await estateName() }));
+  return renderToBuffer(AccountStatementPDF({ data: statement, estateName: await estateName(), estateAddress: await estateAddress() }));
 }
 
 async function signedUrl(path: string): Promise<string> {

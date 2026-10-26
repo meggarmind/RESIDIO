@@ -23,4 +23,13 @@ describe('PaymentReceiptPDF', () => {
     expect(bare.subarray(0, 5).toString()).toBe('%PDF-');
     expect(full.length).toBeGreaterThan(bare.length);
   });
+
+  it('shows the estate address in the footer only when given (#1200)', async () => {
+    const withAddress = await renderToBuffer(PaymentReceiptPDF({ receipt, estateAddress: '1 Palm Avenue, Lekki, Lagos' }));
+    const empty = await renderToBuffer(PaymentReceiptPDF({ receipt, estateAddress: '' }));
+    const omitted = await renderToBuffer(PaymentReceiptPDF({ receipt }));
+
+    expect(withAddress.length).toBeGreaterThan(empty.length);
+    expect(empty.length).toBe(omitted.length);
+  });
 });
