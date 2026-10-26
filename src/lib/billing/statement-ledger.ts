@@ -11,6 +11,7 @@ export interface LedgerInvoice {
   period_end: string | null;
   created_at: string;
   billing_profile_name: string | null;
+  charge_category?: string | null;
 }
 
 export interface LedgerPayment {
@@ -20,6 +21,7 @@ export interface LedgerPayment {
   reference_number: string | null;
   method: string | null;
   notes: string | null;
+  charge_category?: string | null;
 }
 
 export interface LedgerWalletTransaction {
@@ -30,10 +32,12 @@ export interface LedgerWalletTransaction {
   reference_type: string | null;
   reference_id: string | null;
   created_at: string;
+  /** The category of the wallet the row belongs to (#1189). */
+  charge_category?: string | null;
 }
 
 // Wallet rows that only mirror an invoice settlement or a payment already listed on the statement.
-const MIRRORED_WALLET_REFERENCES = new Set(['invoice', 'payment']);
+export const MIRRORED_WALLET_REFERENCES = new Set(['invoice', 'payment']);
 
 /** The date an invoice belongs to on a statement: the period it bills, else when it was raised. */
 export function invoiceStatementDate(invoice: Pick<LedgerInvoice, 'period_start' | 'created_at'>): string {

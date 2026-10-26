@@ -94,6 +94,7 @@ function statementData(rows: number): AccountStatementData {
     closingBalance: 510000,
     summary: { totalInvoiced: 0, totalPaid: 0, totalCredits: 0, totalDebits: 0, netChange: 0 },
     transactions: Array.from({ length: rows }, (_, index) => ({ id: `t${index}`, date: '2026-10-01', type: 'invoice' as const, description: 'x', reference: null, debit: 1, credit: 0, balance: 1 })),
+    categories: [],
     generatedAt: '2026-10-20T10:00:00Z',
     generatedBy: null,
   };

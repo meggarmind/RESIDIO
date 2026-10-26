@@ -10,7 +10,8 @@ residio_sources:
   - src/actions/billing/landlord-dues-split.ts
   - src/lib/billing/landlord-dues.ts
   - src/lib/billing/landlord-dues-receipts.ts
-residio_verified_commit: 7dcc1133
+  - src/lib/billing/house-obligations.ts
+residio_verified_commit: 87b8d265
 residio_verified_at: '2026-10-26'
 residio_app_version: '0.4.0'
 ---
@@ -43,7 +44,7 @@ residents and the house's debt status: Outstanding, Arrears, Paid in Full or Cre
 amount owed beside it when there is one. If the status cannot be loaded, the line says "Debt
 status unavailable" rather than showing nothing owed.
 
-The page opens on **Residents**. **Billing** holds the payment status and yearly ledger, and
+The page opens on **Residents**. **Billing** holds the payment status, the obligations by role, the dues setting and the yearly ledger, and
 **History** the ownership and occupancy timeline (the latest 100 events). Each tab is kept in the
 address as `?tab=`, so a link opens the same tab.
 
@@ -63,6 +64,17 @@ An Occupant is always sponsored by the house's Owner-Occupier or Renter. **Link 
 *update houses*. **Delete house** is in the **…** menu beside Edit and needs *delete houses*; it
 stays disabled, with the reason shown, until every resident has been removed, and it asks for
 confirmation before deleting.
+
+## Obligations by role
+
+**Billing → Obligations by role** shows what each party of the house owes, from its invoices (void ones left out):
+
+- **Occupant dues**: charges billed to the occupant, such as monthly Dues. A charge from before billing profiles existed counts here.
+- **Landlord levies**: charges billed to the landlord, such as the Development Levy and the Transformer Fee.
+
+Each party shows what is owed now and, per wallet category, what was paid of what was billed. The party billing picks today is marked **Billed now**, even before their first invoice, so a house with the setting below shows both the tenant and the landlord. A former payer who still has invoices stays in the list. Overpaying an invoice never shows as a negative amount owed.
+
+**Who paid** lists the payments recorded for the house, grouped by who received them and who paid. A landlord paying a tenant's dues shows as "Lola Landlord paid for Tobi Tenant" with the total and the date of the last payment, apart from the tenant paying for themselves. The page shows what billing access allows the signed-in user to read.
 
 ## Dues paid by landlord
 

@@ -36,6 +36,7 @@ const statement = {
   closingBalance: -2000,
   summary: { totalInvoiced: 0, totalPaid: 0, totalCredits: 0, totalDebits: 0, netChange: 0 },
   transactions: [],
+  categories: [],
   generatedAt: '2026-10-20T10:00:00Z',
   generatedBy: null,
 } as AccountStatementData;

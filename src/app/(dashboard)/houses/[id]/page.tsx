@@ -13,6 +13,7 @@ import { HouseForm } from '@/components/houses/house-form';
 import { HouseHeader } from '@/components/houses/house-header';
 import { ResidentsTab } from '@/components/houses/residents-tab';
 import { LandlordDuesCard } from '@/components/houses/landlord-dues-card';
+import { HouseObligationsCard } from '@/components/houses/house-obligations-card';
 import { resolveHouseTab } from '@/components/houses/house-detail-tabs';
 import { isResidentNotFoundError } from '@/components/residents/resident-detail-tabs';
 import { useHouse } from '@/hooks/use-houses';
@@ -137,6 +138,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
 
         <TabsContent value="billing" className="space-y-6">
           <HousePaymentStatus houseId={id} />
+          <HouseObligationsCard houseId={id} />
           {/* Keyed on the saved values so a refetch resets the form to them. */}
           <LandlordDuesCard key={`${house.dues_paid_by_landlord}:${house.dues_reminder_target}`} house={house} />
           <YearlyPaymentTable houseId={id} />

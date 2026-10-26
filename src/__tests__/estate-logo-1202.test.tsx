@@ -93,6 +93,7 @@ describe('PDF logo', () => {
     openingBalance: 0,
     closingBalance: 0,
     transactions: [],
+    categories: [],
     summary: { totalInvoiced: 0, totalPaid: 0 },
   } as never;
   const receipt = { receiptNumber: 'R-1', paymentDate: '2026-01-02T00:00:00Z', amount: 100, method: 'cash', reference: null, residentName: 'A B', verifiedAt: null } as never;
