@@ -226,6 +226,7 @@ function formatCurrency(amount: number): string {
 interface InvoiceReceiptPDFProps {
   invoice: InvoiceWithDetails;
   estateName?: string;
+  estateAddress?: string;
 }
 
 /**
@@ -234,7 +235,7 @@ interface InvoiceReceiptPDFProps {
  * Generates a downloadable PDF receipt for paid invoices.
  * Uses @react-pdf/renderer for server-side PDF generation.
  */
-export function InvoiceReceiptPDF({ invoice, estateName = 'Residio Estate' }: InvoiceReceiptPDFProps) {
+export function InvoiceReceiptPDF({ invoice, estateName = 'Residio Estate', estateAddress = '' }: InvoiceReceiptPDFProps) {
   const isPartial = invoice.status === 'partially_paid';
   const isPaid = invoice.status === 'paid' || isPartial;
   const receiptNumber = invoice.invoice_number;
@@ -405,6 +406,7 @@ export function InvoiceReceiptPDF({ invoice, estateName = 'Residio Estate' }: In
               <Text style={[styles.footerText, { fontFamily: 'Helvetica-Bold', marginBottom: 2 }]}>
                 {estateName}
               </Text>
+              {estateAddress ? <Text style={styles.footerText}>{estateAddress}</Text> : null}
               <Text style={styles.footerText}>
                 Powered by Residio
               </Text>
