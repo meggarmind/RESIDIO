@@ -64,6 +64,7 @@ function repository(overrides: Partial<WhatsAppIdentityRepository> = {}): WhatsA
     optOutOfSurveys: vi.fn().mockResolvedValue(undefined),
     claimBlockedReply: vi.fn().mockResolvedValue(true),
     getEstateName: vi.fn().mockResolvedValue('Palm Estate'),
+    getAssistantName: vi.fn().mockResolvedValue('Palm Estate Assistant'),
     ...overrides,
   };
 }
@@ -228,8 +229,17 @@ describe('WhatsApp identity and consent', () => {
 
     expect(send).toHaveBeenCalledTimes(1);
     expect(send.mock.calls[0]?.[0].body).toBe(
-      'Welcome to the Residio Assistant. We could not safely match this number to one Resident. Ask the estate office for a link code, or reply STOP.\nContact the estate office on 0803 699 6725.'
+      'Welcome to Palm Estate Assistant. We could not safely match this number to one Resident. Ask the estate office for a link code, or reply STOP.\nContact the estate office on 0803 699 6725.'
     );
+  });
+
+  it('names the Assistant from the repository in the unmatched number welcome', async () => {
+    const send = vi.fn().mockResolvedValue({ success: true });
+    await handleResidentMessage(message('hello', '2348111111111'), {
+      repository: repository({ findRosterMatches: vi.fn().mockResolvedValue([]), getAssistantName: vi.fn().mockResolvedValue('Ada') }),
+      send,
+    });
+    expect(send.mock.calls[0]?.[0].body).toMatch(/^Welcome to Ada\. We could not/);
   });
 
   it('links an unrostered number with a one-time code but waits for consent', async () => {

@@ -11,7 +11,7 @@ export type SurveyReason = 'too_slow' | 'not_found' | 'wrong_information' | 'oth
 export const SURVEY_INTERVAL_DAYS = 30;
 export const MAX_SURVEY_COMMENT_LENGTH = 300;
 
-export const SURVEY_PROMPT = ['How was Residio Assistant today?', '1. Good', '2. Okay', '3. Poor'].join('\n');
+export const surveyPrompt = (assistantName: string) => [`How was ${assistantName} today?`, '1. Good', '2. Okay', '3. Poor'].join('\n');
 export const SURVEY_REASON_PROMPT = [
   'Sorry about that. What went wrong?',
   '1. Too slow',
