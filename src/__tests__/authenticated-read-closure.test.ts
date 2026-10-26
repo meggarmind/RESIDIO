@@ -66,10 +66,14 @@ const ALLOWED_OPEN_READS: Record<string, string> = {
   notification_schedules: 'Declared reference data (#237): reminder schedule definitions, readable by any signed-in user.',
   security_contact_categories: 'Declared reference data (#237): dropdown of contact categories.',
   admin_titles: 'Reference data (#823): the controlled title list, readable by any signed-in user so role pickers and title display work.',
+  charge_categories: 'Reference data (#1189): the charge category list, readable by any signed-in user so wallet and invoice labels resolve.',
 };
 
 /** Reviewed post-baseline open policies, keyed `table.policy`. */
-const REVIEWED_LATER_OPEN = new Set(['admin_titles.admin_titles_select']);
+const REVIEWED_LATER_OPEN = new Set([
+  'admin_titles.admin_titles_select',
+  'charge_categories.Signed-in users can read charge categories',
+]);
 
 /** The eight tables this slice restricts, with the permission each now requires. */
 const RESTRICTED: Record<string, string[]> = {
@@ -199,6 +203,7 @@ describe('#237: no USING (true) read policy for signed-in users beyond the allow
         'admin_titles',
         'billing_items',
         'billing_profiles',
+        'charge_categories',
         'notification_schedules',
         'notification_templates',
         'security_contact_categories',
