@@ -9,6 +9,8 @@ import { deletePayment } from '@/actions/payments/delete-payment';
 import { getPaymentStats } from '@/actions/payments/get-payment-stats';
 import { bulkUpdatePayments } from '@/actions/payments/bulk-update-payments';
 import { getResidentPropertiesForPayment } from '@/actions/payments/get-resident-properties-for-payment';
+import { recordSplitPayment } from '@/actions/collections/intake';
+import type { CollectionPartInput } from '@/lib/collections/intake';
 import type { PaymentSearchParams, PaymentFormData } from '@/lib/validators/payment';
 import { toast } from 'sonner';
 
@@ -56,6 +58,24 @@ export function useCreatePayment() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['payments'] });
             queryClient.invalidateQueries({ queryKey: ['payment-stats'] });
+        },
+    });
+}
+
+/** One payment split into a billing part and collection parts (#1195). `data.amount` is the total received. */
+export function useRecordSplitPayment() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ data, parts }: { data: PaymentFormData; parts: CollectionPartInput[] }) => {
+            const result = await recordSplitPayment(data, parts);
+            if (result.error) throw new Error(result.error);
+            return result;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['payments'] });
+            queryClient.invalidateQueries({ queryKey: ['payment-stats'] });
+            queryClient.invalidateQueries({ queryKey: ['collections'] });
         },
     });
 }

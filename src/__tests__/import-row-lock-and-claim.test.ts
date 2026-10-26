@@ -56,7 +56,7 @@ function makeSupabase() {
       chain.insert = (v: Row) => ((op ||= 'insert'), (vals = v), chain);
       chain.eq = (c: string, v: unknown) => (filters.push([c, v, 'eq']), chain);
       chain.in = (c: string, v: unknown) => (filters.push([c, v, 'in']), chain);
-      for (const m of ['order', 'limit', 'range', 'neq', 'is', 'gte', 'lte', 'or']) chain[m] = () => chain;
+      for (const m of ['order', 'limit', 'range', 'neq', 'is', 'not', 'gte', 'lte', 'or']) chain[m] = () => chain;
       const matching = () =>
         (db[table] ?? []).filter((r) =>
           filters.every(([c, v, k]) => (k === 'eq' ? r[c] === v : (v as unknown[]).includes(r[c])))

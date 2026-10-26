@@ -398,6 +398,9 @@ export async function matchImportRows(import_id: string): Promise<MatchResidents
 // Manual Match / Reassign Row
 // ============================================================
 
+/** A new assignment or a cleared match drops any "Collection" marking of the line (#1195). */
+const CLEAR_COLLECTION_INTAKE = { collection_parts: null, matched_charge_category: null };
+
 // ============================================================
 // Manual Match / Reassign Row
 // ============================================================
@@ -470,6 +473,7 @@ export async function manualMatchRow(params: ManualMatchParams): Promise<ManualM
     match_confidence: 'manual',
     match_method: 'manual',
     status: 'matched',
+    ...CLEAR_COLLECTION_INTAKE,
   };
 
   if (resident_id) {
@@ -607,17 +611,19 @@ export async function unmatchRow(row_id: string): Promise<ManualMatchResponse> {
     return { data: null, error: blocked };
   }
 
+  const cleared: Record<string, unknown> = {
+    matched_resident_id: null,
+    matched_project_id: null,
+    matched_petty_cash_account_id: null,
+    matched_expense_category_id: null,
+    ...CLEAR_COLLECTION_INTAKE,
+    match_confidence: 'none',
+    match_method: null,
+    status: 'unmatched',
+  };
   const { data, error } = await supabase
     .from('bank_statement_rows')
-    .update({
-      matched_resident_id: null,
-      matched_project_id: null,
-      matched_petty_cash_account_id: null,
-      matched_expense_category_id: null,
-      match_confidence: 'none',
-      match_method: null,
-      status: 'unmatched',
-    })
+    .update(cleared)
     .eq('id', row_id)
     .select()
     .single();

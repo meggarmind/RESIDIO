@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  billingRemainder,
+  collectionClosedReason,
   buildCollectionPaymentsCsv,
   buildNotifiedPartyMessage,
   buildPayerReceiptMessage,
@@ -137,5 +139,22 @@ describe('payment list export (#1194)', () => {
     const [header, row] = csv.split('\n');
     expect(header).toContain('Receipt number,Date,Payer,Payer type');
     expect(row).toBe('COL-2026-000001,26 Oct 2026,Mr B,Non-resident,,2,2000,4000.00,Cash,"A, B",,,Received');
+  });
+});
+
+describe('collections intake helpers (#1195)', () => {
+  it('the billing part is the total less the collection parts, exact to the kobo', () => {
+    expect(billingRemainder(10000.3, [0.1, 0.2, 2500])).toBe(7500);
+    expect(billingRemainder(5000, [5000])).toBe(0);
+    expect(billingRemainder(5000, [5000.01])).toBe(-0.01);
+  });
+
+  it('a collection takes payments only while active and inside its dates', () => {
+    const open = { is_active: true, opens_on: '2026-02-01', closes_on: '2026-02-28' };
+    expect(collectionClosedReason(open, '2026-02-01')).toBeNull();
+    expect(collectionClosedReason(open, '2026-02-28')).toBeNull();
+    expect(collectionClosedReason(open, '2026-01-31')).toMatch(/before the collection opens/);
+    expect(collectionClosedReason(open, '2026-03-01')).toMatch(/after the collection closes/);
+    expect(collectionClosedReason({ ...open, is_active: false }, '2026-02-10')).toMatch(/closed to new payments/);
   });
 });

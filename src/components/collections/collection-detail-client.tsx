@@ -18,6 +18,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { CollectionFormDialog } from '@/components/collections/collection-form-dialog';
 import { EMPTY_NOTIFIED_PARTY, NotifiedPartyFields } from '@/components/collections/notified-party-fields';
 import { RecordPaymentDialog } from '@/components/collections/record-payment-dialog';
+import { MoveToBillingDialog } from '@/components/collections/move-to-billing-dialog';
 import {
   addCollectionNotifiedParty,
   removeCollectionNotifiedParty,
@@ -51,10 +52,12 @@ export function CollectionDetailClient({ detail }: { detail: CollectionDetail })
   const { collection, summary, payments, notifiedParties, paymentParties } = detail;
   const isItem = collection.collection_type === 'item_purchase';
   const canManage = useCan(PERMISSIONS.COLLECTIONS_MANAGE);
+  const canCreatePayments = useCan(PERMISSIONS.PAYMENTS_CREATE);
 
   const [recording, setRecording] = useState(false);
   const [editing, setEditing] = useState(false);
   const [reversing, setReversing] = useState<CollectionPayment | null>(null);
+  const [movingToBilling, setMovingToBilling] = useState<CollectionPayment | null>(null);
   const [reason, setReason] = useState('');
   const [addingParty, setAddingParty] = useState(false);
   const [party, setParty] = useState<NotifiedPartyInput>(EMPTY_NOTIFIED_PARTY);
@@ -256,6 +259,11 @@ export function CollectionDetailClient({ detail }: { detail: CollectionDetail })
                                   {payment.given_at ? 'Mark not given' : 'Mark items given'}
                                 </DropdownMenuItem>
                               )}
+                              {canCreatePayments && (
+                                <DropdownMenuItem onSelect={() => setMovingToBilling(payment)}>
+                                  Move to billing
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem className="text-destructive" onSelect={() => { setReason(''); setReversing(payment); }}>
                                 Reverse payment
                               </DropdownMenuItem>
@@ -316,6 +324,7 @@ export function CollectionDetailClient({ detail }: { detail: CollectionDetail })
       )}
 
       {recording && <RecordPaymentDialog collection={collection} open={recording} onOpenChange={setRecording} />}
+      {movingToBilling && <MoveToBillingDialog payment={movingToBilling} onOpenChange={(open) => !open && setMovingToBilling(null)} />}
       {editing && <CollectionFormDialog collection={collection} open={editing} onOpenChange={setEditing} />}
 
       <Dialog open={reversing !== null} onOpenChange={(open) => !open && setReversing(null)}>

@@ -7,7 +7,7 @@ residio_sources:
   - src/actions/collections/**
   - src/components/collections/**
   - src/lib/collections/**
-residio_verified_commit: d1972e55
+residio_verified_commit: 4039bd1b
 residio_verified_at: '2026-10-26'
 residio_app_version: '0.4.0'
 ---
@@ -40,6 +40,10 @@ A payment cannot be dated before the collection opens or after it closes. Each p
 
 The payer gets a receipt by email when the system has their email, and by WhatsApp when their number has opted in to WhatsApp messages.
 
+## Payments from the bank import and split payments
+
+A collection payment can also come in from a bank statement import, when the review marks the line as **Collection**, or from a resident payment split between billing and a collection. See [Payments and statement imports](./payments-and-imports). Each part is an ordinary collection payment with its own receipt.
+
 ## Notified parties (Item purchase only)
 
 A notified party is someone told about a payment, such as the security supervisor for vehicle stickers. It is optional: with none, no extra message is sent. Add one:
@@ -56,6 +60,7 @@ WhatsApp reaches a party only when that number has opted in to WhatsApp messages
 A payment's amount, quantity, payer and date cannot be changed. From the row menu:
 
 - **Mark items given** (Item purchase): records when the estate handed the items to the payer. **Mark not given** takes it back.
+- **Move to billing**: for a payment that was really dues or another charge. Choose the resident, an optional house, the category and a reason. In one step the collection payment is reversed and the money is recorded as a payment that credits the resident's wallet and pays their invoices, like any new payment. Needs `payments.create` as well as **Manage Collections**.
 - **Reverse payment**: asks for a reason. The payment stays on the list as **Reversed** and leaves every total. Record it again if it was wrong.
 
 ## Report and export

@@ -35,7 +35,17 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Check, ChevronsUpDown, User, Building, Wallet, Banknote } from 'lucide-react';
+import { Loader2, Check, ChevronsUpDown, User, Building, Wallet, Banknote, HandCoins } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { ChargeCategorySelect } from '@/components/billing/charge-category-select';
+import { EMPTY_PAYER, PayerFields, toPayerInput, type PayerState } from '@/components/collections/payer-fields';
+import { CollectionPartsFields, EMPTY_PART, partAmount, toPartInputs, type CollectionPartState } from '@/components/collections/collection-parts-fields';
+import { getCollectionPayerOptions } from '@/actions/collections/collections';
+import { useOpenCollections } from '@/hooks/use-collections';
+import { assignBankRowToCollections } from '@/actions/collections/intake';
+import { billingRemainder } from '@/lib/collections/ledger';
+import { DEFAULT_CHARGE_CATEGORY } from '@/lib/billing/charge-categories';
+import { formatCurrency } from '@/lib/utils';
 import { useManualMatch, useCreatePaymentAlias } from '@/hooks/use-imports';
 import { useResidents } from '@/hooks/use-residents';
 import { useQuery } from '@tanstack/react-query';
@@ -88,6 +98,13 @@ export function ManualMatchDialog({
   const [selectedPettyCash, setSelectedPettyCash] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
 
+  // Collection State (#1195)
+  const [payer, setPayer] = useState<PayerState>(EMPTY_PAYER);
+  const [parts, setParts] = useState<CollectionPartState[]>([EMPTY_PART]);
+  const [restToBilling, setRestToBilling] = useState(false);
+  const [billingCategory, setBillingCategory] = useState(DEFAULT_CHARGE_CATEGORY);
+  const [savingCollection, setSavingCollection] = useState(false);
+
   const manualMatchMutation = useManualMatch();
   const createAliasMutation = useCreatePaymentAlias();
 
@@ -124,6 +141,21 @@ export function ManualMatchDialog({
     }
   });
 
+  const isCredit = row?.transaction_type === 'credit';
+  const { data: openCollections } = useOpenCollections(open && isCredit);
+  const { data: payerOptions } = useQuery({
+    queryKey: ['collection-payer-options'],
+    queryFn: async () => (await getCollectionPayerOptions()).data ?? null,
+    enabled: open && activeTab === 'collection',
+  });
+  const collections = openCollections ?? [];
+  const partAmounts = parts.map((part) => partAmount(part, collections, payer.kind === 'resident'));
+  const billingAmount = billingRemainder(row?.amount || 0, partAmounts.map((amount) => amount ?? 0));
+  const collectionReady =
+    partAmounts.every((amount) => amount != null) &&
+    !!toPayerInput(payer, payerOptions ?? null) &&
+    (restToBilling ? payer.kind === 'resident' && billingAmount > 0 : billingAmount === 0);
+
   const residents = residentsData?.data || [];
 
   // Reset state when the dialog opens or the row changes (adjust state during
@@ -141,6 +173,8 @@ export function ManualMatchDialog({
       } else if (row?.matched_petty_cash_account_id) {
         setActiveTab('petty_cash');
         setSelectedPettyCash(row.matched_petty_cash_account_id);
+      } else if ((row as { collection_parts?: unknown } | null)?.collection_parts) {
+        setActiveTab('collection');
       } else if (row?.matched_expense_category_id) {
         setActiveTab('expense');
         setSelectedCategory(row.matched_expense_category_id);
@@ -153,8 +187,30 @@ export function ManualMatchDialog({
   // Extract sender name from description for alias
   const senderName = extractSenderName(row?.description);
 
+  const handleCollection = async () => {
+    if (!row) return;
+    const payerInput = toPayerInput(payer, payerOptions ?? null);
+    if (!payerInput) return;
+    setSavingCollection(true);
+    const result = await assignBankRowToCollections({
+      row_id: row.id,
+      payer: payerInput,
+      parts: toPartInputs(parts, collections),
+      billing: restToBilling ? { charge_category: billingCategory } : null,
+    });
+    setSavingCollection(false);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success('Line marked as a collection');
+    handleClose();
+    onComplete();
+  };
+
   const handleMatch = async () => {
     if (!row) return;
+    if (activeTab === 'collection') return handleCollection();
 
     try {
       const params: ManualMatchParams = { row_id: row.id };
@@ -204,6 +260,10 @@ export function ManualMatchDialog({
     setSelectedProject('');
     setSelectedPettyCash('');
     setSelectedCategory('');
+    setPayer(EMPTY_PAYER);
+    setParts([EMPTY_PART]);
+    setRestToBilling(false);
+    setBillingCategory(DEFAULT_CHARGE_CATEGORY);
     onOpenChange(false);
   };
 
@@ -213,6 +273,7 @@ export function ManualMatchDialog({
       case 'project': return !!selectedProject;
       case 'petty_cash': return !!selectedPettyCash;
       case 'expense': return !!selectedCategory;
+      case 'collection': return collectionReady;
       default: return false;
     }
   }
@@ -221,7 +282,7 @@ export function ManualMatchDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[550px]">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>Assign Transaction</DialogTitle>
           <DialogDescription>
@@ -241,7 +302,7 @@ export function ManualMatchDialog({
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className={cn('grid w-full', isCredit ? 'grid-cols-5' : 'grid-cols-4')}>
               <TabsTrigger value="resident" className="gap-2 text-xs">
                 <User className="h-3.5 w-3.5" /> Resident
               </TabsTrigger>
@@ -254,6 +315,11 @@ export function ManualMatchDialog({
               <TabsTrigger value="expense" className="gap-2 text-xs">
                 <Banknote className="h-3.5 w-3.5" /> Category
               </TabsTrigger>
+              {isCredit && (
+                <TabsTrigger value="collection" className="gap-2 text-xs">
+                  <HandCoins className="h-3.5 w-3.5" /> Collection
+                </TabsTrigger>
+              )}
             </TabsList>
 
             {/* Resident Tab */}
@@ -438,6 +504,41 @@ export function ManualMatchDialog({
               </div>
             </TabsContent>
 
+            {/* Collection Tab (#1195): never credits a wallet; an optional rest goes to billing */}
+            {isCredit && (
+              <TabsContent value="collection" className="space-y-4 pt-4">
+                <PayerFields idPrefix="import-payer" options={payerOptions ?? null} value={payer} onChange={setPayer} />
+                <CollectionPartsFields
+                  idPrefix="import-part"
+                  collections={collections}
+                  isResident={payer.kind === 'resident'}
+                  value={parts}
+                  onChange={setParts}
+                />
+                <div className="space-y-3 rounded-xl border p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <Label htmlFor="import-rest-billing" className="font-normal">
+                      Rest of the amount is a billing payment
+                    </Label>
+                    <Switch
+                      id="import-rest-billing"
+                      checked={restToBilling}
+                      onCheckedChange={setRestToBilling}
+                      disabled={payer.kind !== 'resident'}
+                    />
+                  </div>
+                  {restToBilling && <ChargeCategorySelect value={billingCategory} onChange={setBillingCategory} />}
+                  <p className="text-xs text-muted-foreground tabular-nums" aria-live="polite">
+                    Bank amount {formatCurrency(row.amount || 0)}. {restToBilling
+                      ? `Billing part ${formatCurrency(Math.max(billingAmount, 0))}.`
+                      : billingAmount === 0
+                        ? 'The parts add up to the bank amount.'
+                        : `The parts must add up to the bank amount: ${formatCurrency(billingAmount)} ${billingAmount > 0 ? 'left' : 'too much'}.`}
+                  </p>
+                </div>
+              </TabsContent>
+            )}
+
           </Tabs>
         </div>
 
@@ -447,9 +548,9 @@ export function ManualMatchDialog({
           </Button>
           <Button
             onClick={handleMatch}
-            disabled={!getActiveSelection() || manualMatchMutation.isPending}
+            disabled={!getActiveSelection() || manualMatchMutation.isPending || savingCollection}
           >
-            {manualMatchMutation.isPending && (
+            {(manualMatchMutation.isPending || savingCollection) && (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             )}
             Save Assignment

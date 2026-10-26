@@ -112,6 +112,25 @@ export function priceCollectionPayment(
   return { quantity: null, unitPrice: null, amount: toKobo(amount) / 100 };
 }
 
+/** Why the collection cannot take a payment dated paymentDate (YYYY-MM-DD), or null when it can. */
+export function collectionClosedReason(
+  collection: Pick<Collection, 'is_active' | 'opens_on' | 'closes_on'>,
+  paymentDate: string
+): string | null {
+  if (!collection.is_active) return 'This collection is closed to new payments';
+  if (paymentDate < collection.opens_on) return 'The payment date is before the collection opens';
+  if (collection.closes_on && paymentDate > collection.closes_on) return 'The payment date is after the collection closes';
+  return null;
+}
+
+/**
+ * The billing part of a payment split between billing and collections (#1195): the total less every
+ * collection part, in kobo so the parts and the billing part always sum to the total exactly.
+ */
+export function billingRemainder(total: number, collectionAmounts: number[]): number {
+  return (toKobo(Number(total)) - collectionAmounts.reduce((sum, amount) => sum + toKobo(Number(amount)), 0)) / 100;
+}
+
 export interface CollectionSummary {
   total: number;
   paymentCount: number;
