@@ -25,7 +25,7 @@ Residio groups work by responsibility rather than by database table.
 
 - **Core:** dashboard and analytics.
 - **People & Property:** residents, houses, and contractors or staff.
-- **Financial:** transactions, imports, invoices, and expenditure.
+- **Financial:** transactions, imports, invoices, collections (contributions and item purchases), and expenditure.
 - **Operations:** security, reports, documents, announcements, approvals, and capital projects.
 - **System:** the System dashboard (an at-a-glance read on cron health, the notification queue, audit activity and account approvals), Settings, and the individual pages behind each of those cards — audit logs, accounts, notification queue and history, data tools, and cron status.
 
