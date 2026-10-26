@@ -91,7 +91,7 @@ export async function processDueSchedules(): Promise<{ processed: number; failed
        if (archiveError) throw new Error(`PDF archive record failed: ${archiveError.message}`);
 
       // Email recipients
-      const reportLabel = REPORT_TYPE_LABELS[schedule.report_type] ?? schedule.report_type;
+      const reportLabel = REPORT_TYPE_LABELS[params.reportType] ?? schedule.report_type;
       const periodLabel = periodLabelFor(params);
        const recipients = ((schedule.recipients || []) as string[]).map((email: string) => ({ email, name: schedule.name }));
       if (recipients.length > 0) {
