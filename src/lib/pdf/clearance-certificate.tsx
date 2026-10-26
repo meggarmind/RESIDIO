@@ -7,6 +7,7 @@ import {
 } from '@react-pdf/renderer';
 import { format } from 'date-fns';
 import { formatPdfDate } from '@/lib/pdf/format-date';
+import { PdfEstateLogo } from '@/lib/pdf/estate-logo';
 import type { ClearanceCertificate } from '@/actions/residents/move-out-renter';
 
 // Styles for PDF
@@ -202,6 +203,7 @@ interface ClearanceCertificatePDFProps {
   certificate: ClearanceCertificate;
   estateName?: string;
   estateAddress?: string;
+  estateLogoUrl?: string;
   /**
    * `move_out` (default) is the move-out certificate: validity period, destination and the CSO notes.
    * `financial` is a clearance a resident asked for over WhatsApp (#816): the same statement of
@@ -222,6 +224,7 @@ export function ClearanceCertificatePDF({
   certificate,
   estateName = 'Residio Estate',
   estateAddress = '',
+  estateLogoUrl,
   variant = 'move_out',
   destinationText: destinationOverride,
 }: ClearanceCertificatePDFProps) {
@@ -246,6 +249,7 @@ export function ClearanceCertificatePDF({
 
         {/* Header */}
         <View style={styles.header}>
+          <PdfEstateLogo url={estateLogoUrl} align="center" />
           <Text style={styles.estateName}>{estateName}</Text>
           <Text style={styles.documentTitle}>CLEARANCE CERTIFICATE</Text>
           <Text style={styles.certificateNumber}>

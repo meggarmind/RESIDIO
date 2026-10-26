@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getEstateLogoUrl } from '@/lib/branding/estate-logo-server';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { getInvoiceById } from '@/actions/billing/get-invoices';
@@ -94,7 +95,7 @@ export async function GET(
 
     // Generate PDF
     const pdfBuffer = await renderToBuffer(
-      InvoiceReceiptPDF({ invoice, estateName, estateAddress })
+      InvoiceReceiptPDF({ invoice, estateName, estateAddress, estateLogoUrl: await getEstateLogoUrl() })
     );
 
     // Convert Buffer to Uint8Array for NextResponse compatibility

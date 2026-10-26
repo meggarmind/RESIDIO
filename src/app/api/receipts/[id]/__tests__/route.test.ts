@@ -41,6 +41,7 @@ vi.mock('@/actions/billing/get-invoices', () => ({
   }),
 }));
 vi.mock('@/actions/settings/get-settings', () => ({ getSettingValue: async () => 'Estate' }));
+vi.mock('@/lib/branding/estate-logo-server', () => ({ getEstateLogoUrl: async () => undefined }));
 vi.mock('@/lib/pdf/invoice-receipt', () => ({ InvoiceReceiptPDF: () => null }));
 vi.mock('@react-pdf/renderer', () => ({ renderToBuffer: async () => Buffer.from('%PDF') }));
 

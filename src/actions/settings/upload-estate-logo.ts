@@ -7,9 +7,9 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { MAX_LOGO_BYTES, SNIFFED_MIME, checkSizeCap, matchesAllowedType, type SniffedType } from '@/lib/uploads';
 
-// Raster only: SVG can carry script and the logos bucket is public.
-const ALLOWED_LOGO_TYPES: ReadonlyArray<SniffedType> = ['png', 'jpeg', 'webp'];
-const LOGO_EXTENSION: Record<string, string> = { png: 'png', jpeg: 'jpg', webp: 'webp' };
+// PNG and JPEG only: SVG can carry script and the logos bucket is public, and WebP does not render in PDFs or every email client (#1202).
+const ALLOWED_LOGO_TYPES: ReadonlyArray<SniffedType> = ['png', 'jpeg'];
+const LOGO_EXTENSION: Record<string, string> = { png: 'png', jpeg: 'jpg' };
 
 type UploadLogoResponse = {
   data: { url: string } | null;
@@ -29,7 +29,7 @@ async function validateLogoFile(
   const bytes = new Uint8Array(await file.arrayBuffer());
   const type = matchesAllowedType(bytes, ALLOWED_LOGO_TYPES);
   if (!type) {
-    return { valid: false, error: 'File type not allowed. Please upload PNG, JPG or WebP images.', type: null };
+    return { valid: false, error: 'File type not allowed. Please upload a PNG or JPEG image.', type: null };
   }
   return { valid: true, error: null, type };
 }

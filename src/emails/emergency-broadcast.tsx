@@ -11,6 +11,7 @@ interface EmergencyBroadcastEmailProps {
   estateEmail?: string;
   estatePhone?: string;
   estateAddress?: string;
+  estateLogoUrl?: string;
   estateWebsite?: string;
   title: string;
   content: string;
@@ -24,6 +25,7 @@ export function EmergencyBroadcastEmail({
   estateEmail,
   estatePhone,
   estateAddress,
+  estateLogoUrl,
   estateWebsite,
   title,
   content,
@@ -38,6 +40,7 @@ export function EmergencyBroadcastEmail({
       estateEmail={estateEmail}
       estatePhone={estatePhone}
       estateAddress={estateAddress}
+      estateLogoUrl={estateLogoUrl}
       estateWebsite={estateWebsite}
     >
       {/* Emergency Banner */}

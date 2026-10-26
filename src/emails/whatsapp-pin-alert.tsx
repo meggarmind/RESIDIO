@@ -12,6 +12,7 @@ interface WhatsAppPinAlertEmailProps {
   estateEmail?: string;
   estatePhone?: string;
   estateAddress?: string;
+  estateLogoUrl?: string;
   estateWebsite?: string;
 }
 
@@ -25,14 +26,14 @@ export function whatsAppPinAlertSubject(event: WhatsAppPinAlertEvent): string {
   return HEADINGS[event];
 }
 
-export function WhatsAppPinAlertEmail({ firstName, event, maskedNumbers, estateName, estateEmail, estatePhone, estateAddress, estateWebsite }: WhatsAppPinAlertEmailProps) {
+export function WhatsAppPinAlertEmail({ firstName, event, maskedNumbers, estateName, estateEmail, estatePhone, estateAddress, estateWebsite, estateLogoUrl }: WhatsAppPinAlertEmailProps) {
   const numbers = maskedNumbers.length ? maskedNumbers.join(', ') : 'your WhatsApp number';
   const what = event === 'reset'
     ? `The estate office reset the PIN that protects your financial standing on the estate WhatsApp Assistant (${numbers}). You will need a new setup code from the estate office to set a PIN again.`
     : `The PIN that protects your financial standing on the estate WhatsApp Assistant was ${event === 'set' ? 'set' : 'changed'} from ${numbers}.`;
 
   return (
-    <EmailLayout preview={HEADINGS[event]} estateName={estateName} estateEmail={estateEmail} estatePhone={estatePhone} estateAddress={estateAddress} estateWebsite={estateWebsite}>
+    <EmailLayout preview={HEADINGS[event]} estateName={estateName} estateEmail={estateEmail} estatePhone={estatePhone} estateAddress={estateAddress} estateWebsite={estateWebsite} estateLogoUrl={estateLogoUrl}>
       <Heading style={heading}>{HEADINGS[event]}</Heading>
       <Text style={paragraph}>Hi {firstName},</Text>
       <Text style={paragraph}>{what}</Text>

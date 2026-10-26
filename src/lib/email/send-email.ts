@@ -1,6 +1,7 @@
 import { getEmailTransportError, sendViaResend } from './transport';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getRawSettingsAsService, getSettingValueAsService } from '@/lib/settings/service';
+import { usableEstateLogoUrl } from '@/lib/branding/estate-logo';
 import type { SendEmailOptions, SendEmailResult, EmailLogEntry, EstateEmailSettings } from './types';
 
 /**
@@ -67,7 +68,7 @@ async function logEmail(entry: EmailLogEntry): Promise<void> {
 export async function getEstateEmailSettings(): Promise<EstateEmailSettings> {
   // Service-role read: cron and webhook sends have no session, so the RLS-bound
   // `getSettings` would return no rows and every field would fall back (#1198).
-  const settings = await getRawSettingsAsService(['estate_name', 'estate_email', 'estate_phone', 'estate_address', 'estate_website_url']);
+  const settings = await getRawSettingsAsService(['estate_name', 'estate_email', 'estate_phone', 'estate_address', 'estate_website_url', 'estate_logo_url']);
   const value = (key: string) => {
     const raw = settings.status === 'ok' ? settings.values.get(key) : null;
     return typeof raw === 'string' && raw.trim() ? raw.trim() : undefined;
@@ -79,6 +80,7 @@ export async function getEstateEmailSettings(): Promise<EstateEmailSettings> {
     estatePhone: value('estate_phone'),
     estateAddress: value('estate_address'),
     estateWebsite: value('estate_website_url'),
+    estateLogoUrl: usableEstateLogoUrl(settings.status === 'ok' ? settings.values.get('estate_logo_url') : null),
   };
 }
 

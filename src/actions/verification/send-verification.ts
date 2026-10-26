@@ -105,6 +105,7 @@ export async function sendEmailVerification(residentId: string): Promise<SendVer
       otp,
       expiryMinutes: TOKEN_EXPIRY_MINUTES,
       estateName: estateSettings.estateName,
+      estateLogoUrl: estateSettings.estateLogoUrl,
     }),
     emailType: 'notification',
     residentOverride: override.residentOverride,

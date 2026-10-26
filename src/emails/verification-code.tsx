@@ -9,6 +9,7 @@ interface VerificationCodeEmailProps {
   estateEmail?: string;
   estatePhone?: string;
   estateAddress?: string;
+  estateLogoUrl?: string;
 }
 
 export function VerificationCodeEmail({
@@ -19,6 +20,7 @@ export function VerificationCodeEmail({
   estateEmail,
   estatePhone,
   estateAddress,
+  estateLogoUrl,
 }: VerificationCodeEmailProps) {
   return (
     <EmailLayout
@@ -27,6 +29,7 @@ export function VerificationCodeEmail({
       estateEmail={estateEmail}
       estatePhone={estatePhone}
       estateAddress={estateAddress}
+      estateLogoUrl={estateLogoUrl}
     >
       <Heading style={heading}>Verify Your Email</Heading>
 

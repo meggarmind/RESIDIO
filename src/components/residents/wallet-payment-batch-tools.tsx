@@ -53,7 +53,7 @@ export function WalletPaymentBatchTools({
     section: 'settle' | 'prepay';
 }) {
     const queryClient = useQueryClient();
-    const { estateName } = useEstateDetails();
+    const { estateName, estateLogoUrl } = useEstateDetails();
     // CORE.md s6: settle and prepay need billing.manage_wallets; viewers see the invoices and receipts only.
     const { hasPermission } = useAuth();
     const canManageWallet = hasPermission(PERMISSIONS.BILLING_MANAGE_WALLETS);
@@ -302,7 +302,7 @@ export function WalletPaymentBatchTools({
                     <div className="border-t pt-4">
                         <p className="mb-2 text-sm font-medium">Latest batch receipt</p>
                         <div className="overflow-hidden rounded-lg border bg-muted/20">
-                            <PaymentReceipt payment={receipt} estateName={estateName} />
+                            <PaymentReceipt payment={receipt} estateName={estateName} estateLogoUrl={estateLogoUrl} />
                         </div>
                     </div>
                 )}

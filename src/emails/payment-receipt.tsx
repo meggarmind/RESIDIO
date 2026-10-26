@@ -18,6 +18,7 @@ interface PaymentReceiptEmailProps {
   estateEmail?: string;
   estatePhone?: string;
   estateAddress?: string;
+  estateLogoUrl?: string;
   /** Admin-edited wording (merged templates). Omitted means the built-in text. */
   copy?: Record<string, string>;
 }
@@ -38,6 +39,7 @@ export function PaymentReceiptEmail({
   estateEmail,
   estatePhone,
   estateAddress,
+  estateLogoUrl,
   copy,
 }: PaymentReceiptEmailProps) {
   const formattedAmount = new Intl.NumberFormat('en-NG', {
@@ -60,6 +62,7 @@ export function PaymentReceiptEmail({
       estateEmail={estateEmail}
       estatePhone={estatePhone}
       estateAddress={estateAddress}
+      estateLogoUrl={estateLogoUrl}
     >
       <Heading style={heading}>{text('heading')}</Heading>
 

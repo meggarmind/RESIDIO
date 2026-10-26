@@ -22,7 +22,7 @@ interface PaymentDetailPageProps {
 export default function PaymentDetailPage({ params }: PaymentDetailPageProps) {
     const { id } = use(params);
     const receiptRef = useRef<HTMLDivElement>(null);
-    const { estateName } = useEstateDetails();
+    const { estateName, estateLogoUrl } = useEstateDetails();
     const { data: payment, isLoading, error } = usePayment(id);
 
     const handlePrint = () => {
@@ -178,7 +178,7 @@ export default function PaymentDetailPage({ params }: PaymentDetailPageProps) {
                         </CardHeader>
                         <CardContent>
                             <div className="border rounded-lg overflow-hidden">
-                                <PaymentReceipt ref={receiptRef} payment={payment} estateName={estateName} />
+                                <PaymentReceipt ref={receiptRef} payment={payment} estateName={estateName} estateLogoUrl={estateLogoUrl} />
                             </div>
                         </CardContent>
                     </Card>

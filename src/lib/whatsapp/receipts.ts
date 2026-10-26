@@ -1,4 +1,5 @@
 import { createElement } from 'react';
+import { getEstateLogoUrl } from '@/lib/branding/estate-logo-server';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getRawSettingsAsService } from '@/lib/settings/service';
@@ -80,6 +81,6 @@ async function estateAddress(): Promise<string> {
 export async function storeReceiptPdf(input: Omit<ChatPdfInput, 'label' | 'fromDate' | 'toDate' | 'rowCount'>, receipt: PaymentReceiptData): Promise<string> {
   const day = lagosDateString(new Date(receipt.paymentDate));
   return storeChatPdf('receipts', { ...input, label: 'receipt', fromDate: day, toDate: day, rowCount: 1 }, async () =>
-    renderToBuffer(createElement(PaymentReceiptPDF, { receipt, estateName: await estateName(), estateAddress: await estateAddress() }) as Parameters<typeof renderToBuffer>[0])
+    renderToBuffer(createElement(PaymentReceiptPDF, { receipt, estateName: await estateName(), estateAddress: await estateAddress(), estateLogoUrl: await getEstateLogoUrl() }) as Parameters<typeof renderToBuffer>[0])
   );
 }
