@@ -33,6 +33,21 @@ const PATH = '/collections';
 /** The collection tables are not in the generated types until the #1194 migration is applied and db:types re-run. */
 const db = () => createAdminClient() as unknown as SupabaseClient;
 
+const PAGE_SIZE = 1000;
+
+/** PostgREST caps one response at max_rows, so read in ranges until a short page. */
+async function readAll<T>(
+  page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+): Promise<{ data: T[]; error: string | null }> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await page(from, from + PAGE_SIZE - 1);
+    if (error) return { data: [], error: error.message };
+    rows.push(...(data ?? []));
+    if ((data?.length ?? 0) < PAGE_SIZE) return { data: rows, error: null };
+  }
+}
+
 const COLLECTION_COLUMNS = 'id, name, description, collection_type, opens_on, closes_on, target_amount, item_price, non_resident_price, is_active, created_at';
 const PAYMENT_COLUMNS = 'id, collection_id, payer_id, house_id, quantity, unit_price, amount, payment_date, method, reference, receipt_number, item_reference, notes, given_at, reversed_at, reversal_reason, created_at, payer:collection_payers(id, resident_id, full_name, phone, email, resident:residents(first_name, last_name, resident_code)), house:houses(house_number, short_name, street:streets(name))';
 const PARTY_COLUMNS = 'id, collection_id, collection_payment_id, name, email, sms_phone, whatsapp_phone, channels';
@@ -121,14 +136,15 @@ export async function getCollections(): Promise<Result<CollectionListItem[]>> {
   const client = db();
   const [collections, payments] = await Promise.all([
     client.from('collections').select(COLLECTION_COLUMNS).order('opens_on', { ascending: false }),
-    // shortcut: every payment's report columns in one read; move the totals into a view when an estate passes ~50k collection payments.
-    client.from('collection_payments').select('collection_id, payer_id, amount, quantity, given_at, reversed_at'),
+    readAll((from, to) =>
+      client.from('collection_payments').select('id, collection_id, payer_id, amount, quantity, given_at, reversed_at').order('id').range(from, to),
+    ),
   ]);
   if (collections.error) return { data: null, error: collections.error.message };
-  if (payments.error) return { data: null, error: payments.error.message };
+  if (payments.error) return { data: null, error: payments.error };
 
   const byCollection = new Map<string, Array<Pick<CollectionPayment, 'payer_id' | 'amount' | 'quantity' | 'given_at' | 'reversed_at'>>>();
-  for (const payment of (payments.data ?? []) as Array<CollectionPayment>) {
+  for (const payment of payments.data as unknown as Array<CollectionPayment>) {
     byCollection.set(payment.collection_id, [...(byCollection.get(payment.collection_id) ?? []), payment]);
   }
   return {
@@ -159,18 +175,30 @@ export async function getCollection(id: string): Promise<Result<CollectionDetail
   if (error) return { data: null, error: error.message };
   if (!collection) return { data: null, error: 'Collection not found' };
 
-  const [payments, parties] = await Promise.all([
-    client.from('collection_payments').select(PAYMENT_COLUMNS).eq('collection_id', id).order('payment_date', { ascending: false }).order('created_at', { ascending: false }),
-    client.from('collection_notified_parties').select(PARTY_COLUMNS).order('created_at'),
-  ]);
-  if (payments.error) return { data: null, error: payments.error.message };
-  if (parties.error) return { data: null, error: parties.error.message };
+  const payments = await readAll((from, to) =>
+    client.from('collection_payments').select(PAYMENT_COLUMNS).eq('collection_id', id).order('payment_date', { ascending: false }).order('created_at', { ascending: false }).order('id').range(from, to),
+  );
+  if (payments.error) return { data: null, error: payments.error };
 
-  const paymentRows = (payments.data ?? []) as unknown as CollectionPayment[];
+  const paymentRows = payments.data as unknown as CollectionPayment[];
+  const partyReads = [
+    readAll((from, to) => client.from('collection_notified_parties').select(PARTY_COLUMNS).eq('collection_id', id).order('created_at').order('id').range(from, to)),
+  ];
+  for (let i = 0; i < paymentRows.length; i += 100) {
+    const ids = paymentRows.slice(i, i + 100).map((payment) => payment.id);
+    partyReads.push(
+      readAll((from, to) => client.from('collection_notified_parties').select(PARTY_COLUMNS).in('collection_payment_id', ids).order('created_at').order('id').range(from, to)),
+    );
+  }
+  const parties = { data: [] as NotifiedParty[], error: null as string | null };
+  for (const read of await Promise.all(partyReads)) {
+    if (read.error) return { data: null, error: read.error };
+    parties.data.push(...(read.data as unknown as NotifiedParty[]));
+  }
   const paymentIds = new Set(paymentRows.map((payment) => payment.id));
   const paymentParties: Record<string, NotifiedParty[]> = {};
   const notifiedParties: NotifiedParty[] = [];
-  for (const party of (parties.data ?? []) as NotifiedParty[]) {
+  for (const party of parties.data) {
     if (party.collection_id === id) notifiedParties.push(party);
     else if (party.collection_payment_id && paymentIds.has(party.collection_payment_id)) {
       (paymentParties[party.collection_payment_id] ??= []).push(party);
