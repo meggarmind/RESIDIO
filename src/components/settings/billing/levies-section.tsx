@@ -106,6 +106,9 @@ export function LeviesSection() {
                 ) : (
                   <li><strong>{preview.invoices}</strong> levy invoice(s) for <strong>{preview.houses}</strong> house(s), <strong>{formatCurrency(preview.totalAmount)}</strong> in total.</li>
                 )}
+                {preview.autoGenerateEnabled && Object.entries(preview.byCategory).map(([category, line]) => (
+                  <li key={category}>{category.replace(/_/g, ' ')}: {line.invoices} invoice(s), {formatCurrency(line.totalAmount)}</li>
+                ))}
                 <li>{preview.housesChecked} active house(s) checked; {preview.alreadyCharged} levy charge(s) already made are skipped.</li>
                 {preview.warnings.map((warning) => (
                   <li key={warning} className="text-destructive">{warning}</li>

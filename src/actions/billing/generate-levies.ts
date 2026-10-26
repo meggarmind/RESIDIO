@@ -464,7 +464,7 @@ export async function previewRetroactiveLevies(): Promise<{ data: RetroactiveLev
         fetchAllRows<{ house_id: string; billing_profile_id: string }>((from, to) =>
             supabase.from('house_levy_history').select('house_id, billing_profile_id').order('id').range(from, to)),
         supabase.from('billing_profiles')
-            .select('id, name, payer, target_type, applicable_roles, is_development_levy, billing_items(amount)')
+            .select('id, name, payer, target_type, applicable_roles, is_development_levy, charge_category, billing_items(amount)')
             .eq('is_active', true).eq('is_one_time', true),
     ]);
 

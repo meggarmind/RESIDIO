@@ -27,7 +27,7 @@ const residentOf = (id: string) => `res-${id}`;
 const HOUSES = Array.from({ length: 12 }, (_, i) => ({ id: houseId(i + 1), house_number: `H${i + 1}` }));
 // House n: n % 3 === 0 already has the levy (skipped), n % 3 === 1 fails the invoice insert (error), else generated.
 const outcomeOf = (id: string) => (Number(id.slice(0, 8)) % 3 === 0 ? 'skipped' : Number(id.slice(0, 8)) % 3 === 1 ? 'error' : 'generated');
-const PROFILE = { id: 'profile-1', name: 'Gate levy', payer: 'landlord', applicable_roles: null, is_one_time: true, is_development_levy: false, billing_items: [{ id: 'item-1', name: 'Fee', amount: 100, frequency: 'one_time', is_mandatory: true }] };
+const PROFILE = { id: 'profile-1', name: 'Gate levy', payer: 'landlord', applicable_roles: null, is_one_time: true, is_development_levy: false, charge_category: 'development_levy', billing_items: [{ id: 'item-1', name: 'Fee', amount: 100, frequency: 'one_time', is_mandatory: true }] };
 
 let invoiceInserts: Array<Record<string, unknown>>;
 let houseSingleReads: number;
@@ -115,6 +115,12 @@ describe('generateRetroactiveLevies (#778)', () => {
       expect(insert.due_date).toBe(due.toISOString().split('T')[0]);
       expect(insert.created_by).toBe('user-1');
     }
+  });
+
+  it('copies the profile charge category to every levy invoice (#1193)', async () => {
+    await generateRetroactiveLevies();
+    expect(invoiceInserts).toHaveLength(8);
+    expect(invoiceInserts.every((insert) => insert.charge_category === 'development_levy')).toBe(true);
   });
 
   it('suffixes the levy number when the house already has a levy number today (#1057)', async () => {
