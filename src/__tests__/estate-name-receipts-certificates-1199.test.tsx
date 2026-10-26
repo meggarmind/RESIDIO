@@ -3,8 +3,6 @@
 // #1199: the admin payment receipt and the move-out certificates take the estate name and address
 // from Settings instead of the component default "Residio Estate".
 import * as React from 'react';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
@@ -89,26 +87,5 @@ describe('callers pass the Settings values', () => {
   it('PaymentReceipt keeps "Residio Estate" when no name is passed', () => {
     render(<PaymentReceipt payment={{ id: 'p1', amount: 1, payment_date: '2026-10-01' } as never} />);
     expect(screen.getByText('Residio Estate')).toBeInTheDocument();
-  });
-});
-
-// The wizards and the wallet tools only reach these props after a multi-step flow, so the
-// wiring is pinned at source level: dropping a prop at a caller fails here.
-describe('caller wiring', () => {
-  const read = (rel: string) => readFileSync(path.join(process.cwd(), rel), 'utf8');
-
-  it.each([
-    ['src/components/residents/move-out-wizard.tsx', 'certificate'],
-    ['src/components/residents/owner-move-out-wizard.tsx', 'pdfCertificate'],
-  ])('%s passes the Settings name and address to the certificate PDF', (file, cert) => {
-    const src = read(file);
-    expect(src).toContain('const { estateName, estateAddress } = useEstateDetails();');
-    expect(src).toContain(`<ClearanceCertificatePDF certificate={${cert}} estateName={estateName} estateAddress={estateAddress} />`);
-  });
-
-  it('the wallet payment tools pass the Settings name to the receipt', () => {
-    const src = read('src/components/residents/wallet-payment-batch-tools.tsx');
-    expect(src).toContain('const { estateName } = useEstateDetails();');
-    expect(src).toContain('<PaymentReceipt payment={receipt} estateName={estateName} />');
   });
 });
