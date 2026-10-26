@@ -676,11 +676,13 @@ export interface Database {
           identifier_unverified: boolean;
           identifier_note: string | null;
           is_new_never_occupied: boolean; // #1068: no occupant dues while vacant
+          dues_paid_by_landlord: boolean; // #1192
+          dues_reminder_target: string; // #1192: tenant | landlord | both
           created_at: string;
           updated_at: string;
           created_by: string | null;
         };
-        Insert: Omit<Database['public']['Tables']['houses']['Row'], 'id' | 'created_at' | 'updated_at' | 'is_occupied' | 'number_of_plots' | 'short_name' | 'identifier_unverified' | 'identifier_note' | 'is_new_never_occupied'> & {
+        Insert: Omit<Database['public']['Tables']['houses']['Row'], 'id' | 'created_at' | 'updated_at' | 'is_occupied' | 'number_of_plots' | 'short_name' | 'identifier_unverified' | 'identifier_note' | 'is_new_never_occupied' | 'dues_paid_by_landlord' | 'dues_reminder_target'> & {
           id?: string;
           is_occupied?: boolean;
           number_of_plots?: number;
@@ -688,6 +690,8 @@ export interface Database {
           identifier_unverified?: boolean;
           identifier_note?: string | null;
           is_new_never_occupied?: boolean;
+          dues_paid_by_landlord?: boolean;
+          dues_reminder_target?: string;
         };
         Update: Partial<Database['public']['Tables']['houses']['Insert']>;
       };
