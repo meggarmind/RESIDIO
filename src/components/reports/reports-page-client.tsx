@@ -44,6 +44,7 @@ import { ReportSchedulesPanel } from '@/components/reports/report-schedules';
 import { useCan } from '@/components/auth/can';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { WalletBatchReconciliationPanel } from '@/components/reports/wallet-batch-reconciliation-panel';
+import { useGeneralSettings } from '@/hooks/use-settings';
 import { useGenerateReport, useGeneratedReports, useDeleteGeneratedReport, useReportSchedules, useReportArchive, type GeneratedReport } from '@/hooks/use-reports';
 import type { ArchivedReport } from '@/actions/reports/get-report-archive';
 import type { ReportRequestFormData } from '@/lib/validators/reports';
@@ -329,6 +330,9 @@ function QuickStatsCard() {
 export function ReportsPageClient() {
     const [activeTab, setActiveTab] = useState<string>('new');
     const [selectedReport, setSelectedReport] = useState<GeneratedReport | null>(null);
+    const { data: generalSettings } = useGeneralSettings();
+    // Empty falls through to ReportViewer's own default.
+    const estateName = String(generalSettings?.find((setting) => setting.key === 'estate_name')?.value ?? '').trim() || undefined;
     const { data: reportsData, isLoading: reportsLoading } = useGeneratedReports();
     const reports = reportsData?.data || [];
     const reportsCount = reportsData?.count || 0;
@@ -370,7 +374,7 @@ export function ReportsPageClient() {
                 report={selectedReport}
                 onBack={handleBackFromViewer}
                 onSelectVersion={setSelectedReport}
-                estateName="Residio Estate"
+                estateName={estateName}
             />
         );
     }

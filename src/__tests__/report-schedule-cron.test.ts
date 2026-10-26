@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   archiveInsert: vi.fn(),
   upload: vi.fn(),
   sendEmail: vi.fn(),
+  renderReportPdf: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -45,9 +46,12 @@ vi.mock('@/lib/reports/report-generator', () => ({
   generateReportWithClient: async () => ({ report: { data: {} }, error: null }),
 }));
 vi.mock('@/lib/pdf/reports/renderer', () => ({
-  renderReportPdf: async () => Buffer.from('pdf'),
+  renderReportPdf: mocks.renderReportPdf,
 }));
-vi.mock('@/lib/email/send-email', () => ({ sendEmail: mocks.sendEmail }));
+vi.mock('@/lib/email/send-email', () => ({
+  sendEmail: mocks.sendEmail,
+  getEstateEmailSettings: async () => ({ estateName: 'Palm Grove Estate', estateAddress: '1 Palm Road' }),
+}));
 vi.mock('@/lib/audit/logger', () => ({ logAudit: vi.fn() }));
 
 import { processDueSchedules } from '@/lib/reports/process-schedules';
@@ -57,6 +61,7 @@ describe('processDueSchedules', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.upload.mockResolvedValue({ error: null });
+    mocks.renderReportPdf.mockResolvedValue(Buffer.from('pdf'));
     mocks.sendEmail.mockResolvedValue({ success: true });
   });
 
@@ -71,6 +76,10 @@ describe('processDueSchedules', () => {
     expect(mocks.sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({ to: [{ email: 'treasurer@example.com', name: 'Monthly finance' }] }),
     );
+    // #1203: the PDF and the email body carry the Settings estate, not the product name.
+    expect(mocks.renderReportPdf).toHaveBeenCalledWith('financial_overview', {}, 'Palm Grove Estate');
+    const body = mocks.sendEmail.mock.calls[0][0].react;
+    expect(body.props).toMatchObject({ estateName: 'Palm Grove Estate', preview: 'Financial Overview from Palm Grove Estate' });
     const update = mocks.scheduleUpdate.mock.calls[0][0] as { next_run_at: string; last_run_at: string };
     expect(new Date(update.next_run_at).getTime()).toBeGreaterThan(new Date(update.last_run_at).getTime());
   });
