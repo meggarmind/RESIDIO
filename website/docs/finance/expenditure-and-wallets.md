@@ -7,8 +7,8 @@ residio_sources:
   - src/actions/expenses/**
   - src/actions/finance/**
   - src/actions/billing/wallet.ts
-residio_verified_commit: 610d6a54
-residio_verified_at: '2026-10-20'
+residio_verified_commit: a0917953
+residio_verified_at: '2026-10-26'
 residio_app_version: '0.4.0'
 ---
 
