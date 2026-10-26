@@ -8,7 +8,7 @@ import { laterMigrations, loadSchema, replay } from '@/__tests__/helpers/pglite-
  * the permission check). Each test is rolled back.
  */
 
-const MIGRATION = '20261103110000_wallet_credit_transfers.sql';
+const MIGRATION = '20261103120000_wallet_credit_transfers.sql';
 const ADMIN = '11111111-1111-1111-1111-111111111111';
 const NO_PERMISSION = '22222222-2222-2222-2222-222222222222';
 
