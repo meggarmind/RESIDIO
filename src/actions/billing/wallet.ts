@@ -10,6 +10,7 @@ import { debitWalletForInvoiceAtomic, type WalletInvoiceDebitResult } from '@/li
 import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
 import { chargeLabel } from '@/lib/whatsapp/assistant-format';
 import { DEFAULT_CHARGE_CATEGORY } from '@/lib/billing/charge-categories';
+import { eligibleSettlementInvoiceIds } from '@/lib/billing/eligible-invoices';
 
 export type WalletTransaction = {
     id: string;
@@ -321,18 +322,9 @@ export async function allocateWalletToInvoices(
     // not yet create a payment batch (chargeCategory alone is not batch metadata).
     if (options && Object.keys(batch).length > 0) {
         const settlementDate = paymentDate || new Date().toISOString().slice(0, 10);
-        let query = supabase
-            .from('invoices')
-            .select('id, period_start, due_date')
-            .eq('resident_id', residentId)
-            .eq('charge_category', chargeCategory)
-            .in('status', ['unpaid', 'partially_paid'])
-            .gte('amount_due', 0)
-            .lte('period_start', settlementDate);
-        if (houseId) query = query.eq('house_id', houseId);
-        const eligible = await query.order('period_start', { ascending: true }).order('due_date', { ascending: true });
-        if (eligible.error) return { success: false, invoicesPaid: 0, totalAllocated: 0, error: eligible.error.message };
-        const invoiceIds = (eligible.data || []).map((invoice) => invoice.id);
+        const eligible = await eligibleSettlementInvoiceIds(supabase, { residentId, houseId, chargeCategory, settlementDate });
+        if (eligible.error) return { success: false, invoicesPaid: 0, totalAllocated: 0, error: eligible.error };
+        const invoiceIds = eligible.ids;
 
         if (invoiceIds.length === 0) {
             if (Number(options.creditAmount || 0) > 0) {
