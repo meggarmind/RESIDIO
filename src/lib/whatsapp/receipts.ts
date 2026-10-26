@@ -37,7 +37,7 @@ export async function getReceiptPayments(residentId: string, houseId: string, li
 export async function loadReceipt(residentId: string, houseId: string, paymentId: string): Promise<PaymentReceiptData | null> {
   const { data, error } = await createAdminClient()
     .from('payment_records')
-    .select('id, amount, payment_date, method, reference_number, is_verified, verified_at, resident:residents(first_name, last_name, resident_code), house:houses(house_number, short_name, street:streets(name))')
+    .select('id, amount, payment_date, method, reference_number, is_verified, verified_at, resident:residents!payment_records_resident_id_fkey(first_name, last_name, resident_code), house:houses(house_number, short_name, street:streets(name))')
     .eq('id', paymentId)
     .eq('resident_id', residentId)
     .eq('house_id', houseId)

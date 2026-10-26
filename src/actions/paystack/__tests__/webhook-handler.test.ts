@@ -18,6 +18,7 @@ vi.mock('@/lib/supabase/admin', () => ({
             table === 'paystack_transactions'
               ? { data: state.transaction, error: state.transaction ? null : { message: 'none' } }
               : { data: { first_name: 'Ada', last_name: 'Obi' }, error: null },
+          maybeSingle: async () => ({ data: table === 'invoices' ? { charge_category: 'development_levy' } : null, error: null }),
         }),
       }),
       update: (data: Record<string, unknown>) => {
@@ -85,9 +86,19 @@ describe('processPaystackWebhook (real handler)', () => {
     expect(result).toMatchObject({ success: true, action: 'payment_created', payment_id: 'pay-1' });
     expect(state.inserted[0]).toMatchObject({ amount: 1500, method: 'online', paystack_reference: 'ref-1' });
     expect(state.updates).toContainEqual({ table: 'paystack_transactions', data: { payment_id: 'pay-1' } });
-    expect(creditWallet).toHaveBeenCalledWith('res-1', 1500, 'payment', 'pay-1', expect.any(String));
-    expect(allocateWalletToInvoices).toHaveBeenCalledWith('res-1', 'house-1');
+    expect(state.inserted[0]).toMatchObject({ charge_category: 'dues', paid_by_resident_id: 'res-1' });
+    expect(creditWallet).toHaveBeenCalledWith('res-1', 1500, 'payment', 'pay-1', expect.any(String), 'dues');
+    expect(allocateWalletToInvoices).toHaveBeenCalledWith('res-1', 'house-1', undefined, { chargeCategory: 'dues' });
     expect(logAudit).toHaveBeenCalledTimes(1);
+  });
+
+  it('records a payment for an invoice under that invoice\'s charge category (#1190)', async () => {
+    state.transaction = { ...state.transaction, invoice_id: 'inv-1' };
+    const payload = body();
+    await processPaystackWebhook(payload, sign(payload));
+    expect(state.inserted[0]).toMatchObject({ charge_category: 'development_levy' });
+    expect(creditWallet).toHaveBeenCalledWith('res-1', 1500, 'payment', 'pay-1', expect.any(String), 'development_levy');
+    expect(allocateWalletToInvoices).toHaveBeenCalledWith('res-1', 'house-1', undefined, { chargeCategory: 'development_levy' });
   });
 
   it('does not create a second payment for a redelivered success', async () => {

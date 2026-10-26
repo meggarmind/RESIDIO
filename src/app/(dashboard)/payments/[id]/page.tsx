@@ -4,6 +4,7 @@ import { use, useRef } from 'react';
 import { PaymentForm } from '@/components/payments/payment-form';
 import { PaymentReceipt } from '@/components/payments/payment-receipt';
 import { UnverifyPaymentButton } from '@/components/payments/unverify-payment-button';
+import { RetagPaymentButton } from '@/components/payments/retag-payment-button';
 import { DeletePaymentButton } from '@/components/payments/delete-payment-button';
 import { EmailReceiptDialog } from '@/components/payments/email-receipt-dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -110,6 +111,7 @@ export default function PaymentDetailPage({ params }: PaymentDetailPageProps) {
                 </div>
                 <div className="flex gap-2">
                     <UnverifyPaymentButton paymentId={id} isVerified={payment.is_verified} />
+                    <RetagPaymentButton paymentId={id} chargeCategory={payment.charge_category} />
                     <EmailReceiptDialog
                         paymentId={id}
                         trigger={
