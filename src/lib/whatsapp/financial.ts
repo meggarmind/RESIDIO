@@ -20,6 +20,7 @@ import { hashWhatsAppLinkCode, type WhatsAppResidentIdentity } from '@/lib/whats
 import { sendWhatsAppPinAlert } from '@/lib/whatsapp/pin-alert';
 import type { AccountStatementData } from '@/lib/billing/account-statement-data';
 import { fetchAccountBalance, isResidentRollForwardEnabled } from '@/lib/billing/account-balance';
+import { statementRowCount } from '@/lib/billing/statement-categories';
 import {
   STATEMENT_CHAT_ROW_LIMIT,
   createStatementRequest,
@@ -1306,7 +1307,7 @@ async function deliverStatementPdf(turn: Turn, period: StatementPeriod): Promise
   const loaded = await repository.loadStatement(accountOf(turn, house), house.id, period, new Date());
   if (!loaded) return respond(turn, `${withContact(turn, NO_MOVE_IN_REPLY)}\n${footer(turn)}`, 'financial');
   const { fromDate, toDate, statement } = loaded;
-  const rowCount = statement.transactions.length;
+  const rowCount = statementRowCount(statement);
   const input = requestInput(turn, house, period, fromDate, toDate, rowCount);
 
   if (rowCount <= STATEMENT_CHAT_ROW_LIMIT) {
@@ -1348,6 +1349,7 @@ async function confirmStatementEmail(turn: Turn, period: StatementPeriod): Promi
   const loaded = await repository.loadStatement(accountOf(turn, house), house.id, period, new Date());
   if (!loaded) return respond(turn, `${withContact(turn, NO_MOVE_IN_REPLY)}\n${footer(turn)}`, 'financial');
   const { fromDate, toDate, statement } = loaded;
+  const rowCount = statementRowCount(statement);
   await repository.logDisclosure({
     residentId: turn.identity.id,
     phoneNumber: turn.phoneNumber,
@@ -1356,9 +1358,9 @@ async function confirmStatementEmail(turn: Turn, period: StatementPeriod): Promi
     pinAuthenticated: turn.session.pinAuthenticated,
     accountResidentId: house.accountResidentId,
     channel: 'email',
-    metadata: { period, row_count: statement.transactions.length },
+    metadata: { period, row_count: rowCount },
   });
-  const requestId = await repository.createStatementRequest({ ...requestInput(turn, house, period, fromDate, toDate, statement.transactions.length), status: 'queued' });
+  const requestId = await repository.createStatementRequest({ ...requestInput(turn, house, period, fromDate, toDate, rowCount), status: 'queued' });
   await repository.queueStatementEmail(requestId, turn.identity.id, email);
   turn.answered = true;
   return respondAnswer(turn, `${statementHeading(period, house, fromDate, toDate)}\nYour PDF is queued for ${maskEmail(email)}. It will arrive within 15 minutes.`);
