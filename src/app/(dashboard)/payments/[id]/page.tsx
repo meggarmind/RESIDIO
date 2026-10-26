@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePayment } from '@/hooks/use-payments';
+import { useEstateDetails } from '@/hooks/use-estate-details';
 import { Printer, ArrowLeft, FileText, Pencil, Mail } from 'lucide-react';
 import Link from 'next/link';
 
@@ -21,6 +22,7 @@ interface PaymentDetailPageProps {
 export default function PaymentDetailPage({ params }: PaymentDetailPageProps) {
     const { id } = use(params);
     const receiptRef = useRef<HTMLDivElement>(null);
+    const { estateName } = useEstateDetails();
     const { data: payment, isLoading, error } = usePayment(id);
 
     const handlePrint = () => {
@@ -176,7 +178,7 @@ export default function PaymentDetailPage({ params }: PaymentDetailPageProps) {
                         </CardHeader>
                         <CardContent>
                             <div className="border rounded-lg overflow-hidden">
-                                <PaymentReceipt ref={receiptRef} payment={payment} />
+                                <PaymentReceipt ref={receiptRef} payment={payment} estateName={estateName} />
                             </div>
                         </CardContent>
                     </Card>

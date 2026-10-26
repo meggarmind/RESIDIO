@@ -24,6 +24,7 @@ import { prepayFutureInvoices } from '@/actions/billing/prepay-future-invoices';
 import { getWalletPaymentBatch, getWalletPaymentBatches } from '@/actions/billing/get-wallet-payment-batch';
 import { PaymentReceipt } from '@/components/payments/payment-receipt';
 import { useWallet } from '@/hooks/use-wallet';
+import { useEstateDetails } from '@/hooks/use-estate-details';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 
@@ -52,6 +53,7 @@ export function WalletPaymentBatchTools({
     section: 'settle' | 'prepay';
 }) {
     const queryClient = useQueryClient();
+    const { estateName } = useEstateDetails();
     // CORE.md s6: settle and prepay need billing.manage_wallets; viewers see the invoices and receipts only.
     const { hasPermission } = useAuth();
     const canManageWallet = hasPermission(PERMISSIONS.BILLING_MANAGE_WALLETS);
@@ -300,7 +302,7 @@ export function WalletPaymentBatchTools({
                     <div className="border-t pt-4">
                         <p className="mb-2 text-sm font-medium">Latest batch receipt</p>
                         <div className="overflow-hidden rounded-lg border bg-muted/20">
-                            <PaymentReceipt payment={receipt} />
+                            <PaymentReceipt payment={receipt} estateName={estateName} />
                         </div>
                     </div>
                 )}

@@ -89,10 +89,12 @@ export async function GET(
     // Get estate name from settings
     const estateNameSetting = await getSettingValue('estate_name');
     const estateName = typeof estateNameSetting === 'string' ? estateNameSetting : 'Residio Estate';
+    const estateAddressSetting = await getSettingValue('estate_address');
+    const estateAddress = typeof estateAddressSetting === 'string' ? estateAddressSetting.trim() : '';
 
     // Generate PDF
     const pdfBuffer = await renderToBuffer(
-      InvoiceReceiptPDF({ invoice, estateName })
+      InvoiceReceiptPDF({ invoice, estateName, estateAddress })
     );
 
     // Convert Buffer to Uint8Array for NextResponse compatibility

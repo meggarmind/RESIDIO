@@ -71,6 +71,10 @@ vi.mock('@/hooks/use-wallet', () => ({
   useWallet: () => ({ data: { data: { id: 'w1', balance: 1000 } }, isLoading: false }),
 }));
 
+vi.mock('@/hooks/use-estate-details', () => ({
+  useEstateDetails: () => ({ estateName: undefined, estateAddress: undefined }),
+}));
+
 vi.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
