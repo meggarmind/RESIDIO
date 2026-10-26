@@ -177,11 +177,22 @@ export async function splitLandlordDues(input: z.input<typeof splitSchema>): Pro
     if (error || !plan || !landlord) return { results: [], receiptErrors: [], error: error || 'Split not available' };
     if (!plan.walletId) return { results: [], receiptErrors: [], error: 'The landlord has no Dues wallet' };
 
-    const allocations = parsed.data.allocations.map((a) => ({ ...a, amount: Math.round(a.amount * 100) / 100 }));
+    const merged = new Map<string, { houseId: string; tenantId: string; amount: number }>();
+    for (const a of parsed.data.allocations) {
+        const key = `${a.houseId}:${a.tenantId}`;
+        const entry = merged.get(key) ?? { houseId: a.houseId, tenantId: a.tenantId, amount: 0 };
+        entry.amount = Math.round((entry.amount + a.amount) * 100) / 100;
+        merged.set(key, entry);
+    }
+    const allocations = [...merged.values()];
     const total = allocations.reduce((sum, a) => sum + a.amount, 0);
     for (const allocation of allocations) {
-        if (!plan.flats.some((f) => f.houseId === allocation.houseId && f.tenantId === allocation.tenantId)) {
+        const flat = plan.flats.find((f) => f.houseId === allocation.houseId && f.tenantId === allocation.tenantId);
+        if (!flat) {
             return { results: [], receiptErrors: [], error: 'Each tenant must owe dues in one of the landlord\'s flats' };
+        }
+        if (allocation.amount > flat.owed) {
+            return { results: [], receiptErrors: [], error: `${flat.tenantName} owes less than that in ${flat.houseLabel}` };
         }
     }
     if (total > plan.walletBalance) {
@@ -208,15 +219,16 @@ export async function splitLandlordDues(input: z.input<typeof splitSchema>): Pro
             totalSettled: transfer.totalSettled ?? 0,
         });
         const tenant = tenants?.get(allocation.tenantId);
-        if (transfer.success && tenant) {
+        const settled = transfer.totalSettled ?? 0;
+        if (transfer.success && tenant && settled > 0) {
             const tenantInvoices = (invoices || []).filter(
                 (i) => i.house_id === allocation.houseId && i.resident_id === allocation.tenantId,
             );
             receipts.push({
                 tenant,
                 flat: flat.houseLabel,
-                amount: allocation.amount,
-                months: coveredMonths(tenantInvoices, allocation.amount),
+                amount: settled,
+                months: coveredMonths(tenantInvoices, settled),
             });
         }
     }

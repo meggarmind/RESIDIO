@@ -114,8 +114,33 @@ describe('splitLandlordDues (#1192)', () => {
   });
 
   it('a part payment lists only the months it reaches', async () => {
+    mocks.transferWalletCredit.mockResolvedValue({ success: true, error: null, totalSettled: 20000, settlementError: null });
     await splitLandlordDues({ houseId: id(1, 'c'), allocations: [{ houseId: id(1, 'c'), tenantId: id(1, 'b'), amount: 20000 }] });
     expect(mocks.sendLandlordDuesReceipts.mock.calls[0][0].tenants[0].months).toEqual(['Sep 2026']);
+  });
+
+  it('refuses an allocation above what the tenant owes, before any transfer', async () => {
+    const result = await splitLandlordDues({
+      houseId: id(1, 'c'),
+      allocations: [{ houseId: id(1, 'c'), tenantId: id(1, 'b'), amount: 80000 }],
+    });
+    expect(result.error).toMatch(/owes less than that/);
+    expect(mocks.transferWalletCredit).not.toHaveBeenCalled();
+  });
+
+  it('adds duplicate flats together before checking what is owed', async () => {
+    const flat = { houseId: id(1, 'c'), tenantId: id(1, 'b'), amount: 30000 };
+    const result = await splitLandlordDues({ houseId: id(1, 'c'), allocations: [flat, flat] });
+    expect(result.error).toMatch(/owes less than that/);
+    expect(mocks.transferWalletCredit).not.toHaveBeenCalled();
+  });
+
+  it('receipts the amount actually settled, not the amount requested', async () => {
+    mocks.transferWalletCredit.mockResolvedValue({ success: true, error: null, totalSettled: 25000, settlementError: null });
+    await splitLandlordDues({ houseId: id(1, 'c'), allocations: [{ houseId: id(1, 'c'), tenantId: id(1, 'b'), amount: 50000 }] });
+    const [receipt] = mocks.sendLandlordDuesReceipts.mock.calls[0][0].tenants;
+    expect(receipt.amount).toBe(25000);
+    expect(receipt.months).toEqual(['Sep 2026']);
   });
 
   it('refuses a split above the landlord Dues wallet balance, before any transfer', async () => {
