@@ -19,7 +19,7 @@ function createQuery(result: QueryResult) {
   const query: Record<string, unknown> = {
     then: (resolve: (value: QueryResult) => unknown) => resolve(result),
   };
-  for (const method of ['select', 'eq', 'neq', 'or', 'gte', 'lte', 'lt', 'order', 'single']) {
+  for (const method of ['select', 'eq', 'in', 'neq', 'or', 'gte', 'lte', 'lt', 'order', 'single']) {
     query[method] = (...args: unknown[]) => {
       calls.push([method, args]);
       return query;
@@ -101,7 +101,7 @@ describe('getAccountStatement', () => {
         { data: [], error: null },
       ],
       payment_records: [{ data: [{ id: 'p1', amount: 5000, payment_date: '2015-01-01', reference_number: 'TRX-1', method: 'bank_transfer', notes: null }], error: null }],
-      resident_wallets: [{ data: { id: 'w' }, error: null }],
+      resident_wallets: [{ data: [{ id: 'w' }], error: null }],
       wallet_transactions: [{ data: [{ id: 'w1', type: 'credit', amount: 5000, description: null, reference_type: 'payment', reference_id: 'p1', created_at: '2015-01-01T00:00:00Z' }], error: null }],
     });
 
@@ -180,7 +180,7 @@ describe('getAccountStatement', () => {
     expect(house.queries.map((q) => q.table)).not.toContain('resident_wallets');
     expect(house.rpc).toHaveBeenCalledWith('resident_account_balance', expect.objectContaining({ p_house_id: 'h1' }));
 
-    const all = setup({ ...structuredClone(APRIL_PAID_IN_MAY), resident_wallets: [{ data: { id: 'w' }, error: null }], wallet_transactions: [{ data: [], error: null }] }, balanceOf({ opening_balance: 10000, closing_balance: 0, total_paid: 10000 }));
+    const all = setup({ ...structuredClone(APRIL_PAID_IN_MAY), resident_wallets: [{ data: [{ id: 'w' }], error: null }], wallet_transactions: [{ data: [], error: null }] }, balanceOf({ opening_balance: 10000, closing_balance: 0, total_paid: 10000 }));
     await getAccountStatement({ residentId: 'r1', fromDate: '2026-05-01', toDate: '2026-10-20' });
     const wallet = all.queries.find((q) => q.table === 'wallet_transactions')!;
     expect(args(wallet.calls, 'gte')).toEqual([['created_at', '2026-04-30T23:00:00.000Z']]);
@@ -191,7 +191,7 @@ describe('getAccountStatement', () => {
     asAdmin(true);
     setup({
       residents: [{ data: RESIDENT, error: null }],
-      resident_wallets: [{ data: { id: 'w' }, error: null }],
+      resident_wallets: [{ data: [{ id: 'w' }], error: null }],
       wallet_transactions: [{ data: [{ id: 'w1', type: 'credit', amount: 60000, description: 'Legacy credit', reference_type: 'legacy_tracker_credit', reference_id: null, created_at: '2026-06-01T09:00:00Z' }], error: null }],
     }, balanceOf({ closing_balance: -60000, total_wallet_credits: 60000 }));
 

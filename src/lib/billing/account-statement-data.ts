@@ -208,22 +208,22 @@ export async function loadAccountStatement(
         return { data: null, error: paymentError.message };
     }
 
-    // 5. Get wallet transactions in period; the wallet is not per property, so a roll-forward
-    // statement for one house leaves it out (#863 decision 7).
+    // 5. Get wallet transactions in period, across the resident's wallets (one per charge category,
+    // #1189); a wallet is not per property, so a roll-forward statement for one house leaves them
+    // out (#863 decision 7).
     let walletTransactions: LedgerWalletTransaction[] = [];
 
     if (!(rollForward && houseId)) {
-        const { data: wallet } = await supabase
+        const { data: wallets } = await supabase
             .from('resident_wallets')
             .select('id')
-            .eq('resident_id', residentId)
-            .single();
+            .eq('resident_id', residentId);
 
-        if (wallet) {
+        if (wallets && wallets.length > 0) {
             let walletQuery = supabase
                 .from('wallet_transactions')
                 .select('id, type, amount, description, reference_type, reference_id, created_at')
-                .eq('wallet_id', wallet.id);
+                .in('wallet_id', wallets.map((wallet) => wallet.id));
             walletQuery = walletQuery.gte('created_at', lagosDayStart(fromDate)).lt('created_at', lagosDayStart(toDate, 1));
             const { data: walletTx } = await walletQuery.order('created_at', { ascending: true });
 

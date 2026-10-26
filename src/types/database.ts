@@ -1292,6 +1292,7 @@ export interface BillingProfile {
   is_active: boolean;
   target_type: BillingTargetType;
   payer: 'occupant' | 'landlord';
+  charge_category: string; // charge_categories.code; the invoices and the wallet that pays them (#1189)
   applicable_roles: BillableRole[] | null;
   is_one_time: boolean;
   is_development_levy: boolean; // True for Development Levy profiles (flat fee per house)

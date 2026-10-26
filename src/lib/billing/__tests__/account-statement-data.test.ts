@@ -8,13 +8,15 @@ function stubClient() {
     const calls: Record<string, Filter[]> = {};
     const from = (table: string) => {
         const log = (calls[table] ??= []);
-        const result = table === 'residents' || table === 'resident_wallets'
+        const result = table === 'residents'
             ? { data: { id: 'x', first_name: 'A', last_name: 'B', entity_type: 'individual' }, error: null }
-            : { data: [], error: null };
+            : table === 'resident_wallets'
+                ? { data: [{ id: 'x' }], error: null }
+                : { data: [], error: null };
         const q: Record<string, unknown> = {
             then: (res: (v: unknown) => unknown) => Promise.resolve(result).then(res),
         };
-        for (const op of ['select', 'eq', 'neq', 'gte', 'lte', 'lt', 'or', 'order', 'single']) {
+        for (const op of ['select', 'eq', 'in', 'neq', 'gte', 'lte', 'lt', 'or', 'order', 'single']) {
             q[op] = (...args: unknown[]) => {
                 log.push({ op, args });
                 return op === 'single' ? Promise.resolve(result) : q;

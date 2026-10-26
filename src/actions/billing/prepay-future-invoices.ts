@@ -92,12 +92,13 @@ export async function prepayFutureInvoices(
         id: string;
         name: string;
         is_one_time: boolean;
+        charge_category: string;
         billing_items: Array<{ id: string; name: string; amount: number; frequency: string; is_mandatory: boolean }>;
     } | null = null;
     if (house.billing_profile_id) {
         const { data } = await supabase
             .from('billing_profiles')
-            .select('id, name, is_one_time, billing_items(id, name, amount, frequency, is_mandatory)')
+            .select('id, name, is_one_time, charge_category, billing_items(id, name, amount, frequency, is_mandatory)')
             .eq('id', house.billing_profile_id)
             .eq('is_active', true)
             .single();
@@ -105,7 +106,7 @@ export async function prepayFutureInvoices(
     } else if (house.house_type_id) {
         const { data } = await supabase
             .from('house_types')
-            .select('billing_profile:billing_profiles(id, name, is_one_time, billing_items(id, name, amount, frequency, is_mandatory))')
+            .select('billing_profile:billing_profiles(id, name, is_one_time, charge_category, billing_items(id, name, amount, frequency, is_mandatory))')
             .eq('id', house.house_type_id)
             .single();
         billingProfile = (Array.isArray(data?.billing_profile) ? data?.billing_profile[0] : data?.billing_profile) ?? null;
@@ -182,6 +183,7 @@ export async function prepayFutureInvoices(
                 amount_paid: 0,
                 status: 'unpaid',
                 invoice_type: billingProfile.is_one_time ? 'LEVY' : 'SERVICE_CHARGE',
+                charge_category: billingProfile.charge_category,
                 rate_snapshot: rateSnapshot,
                 due_date: month,
                 period_start: month,
@@ -252,6 +254,8 @@ export async function prepayFutureInvoices(
         p_credit_amount: totalAmount,
         p_batch_amount: totalAmount,
         p_created_by: auth.userId,
+        // The invoices take the profile's charge category, so the prepayment goes to that wallet (#1189).
+        p_charge_category: billingProfile.charge_category,
     });
     if (error) {
         await supabase.from('payment_records').update({ status: 'failed' }).eq('id', sourcePayment.id);

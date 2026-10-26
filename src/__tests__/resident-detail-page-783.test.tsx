@@ -66,7 +66,7 @@ vi.mock('@/hooks/use-verification', () => ({
 }));
 
 vi.mock('@/hooks/use-wallet', () => ({
-  useWallet: () => ({ data: { data: { balance: 0 } } }),
+  useResidentWallets: () => ({ data: { total: 0, wallets: [] } }),
 }));
 
 vi.mock('@/components/ui/page-transition', () => ({

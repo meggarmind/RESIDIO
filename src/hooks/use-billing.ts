@@ -23,6 +23,7 @@ import type {
 } from '@/lib/validators/billing';
 import { getInvoices, getInvoiceSummary, getResidentIndebtedness, getHousePaymentStatus, getResidentCrossPropertyPaymentSummary } from '@/actions/billing/get-invoices';
 import { generateMonthlyInvoices } from '@/actions/billing/generate-invoices';
+import { getChargeCategories } from '@/actions/billing/charge-categories';
 import {
     prepareInvoiceGenerationRun,
     approveInvoiceGenerationRun,
@@ -55,6 +56,18 @@ export function useBillingProfiles() {
             return result.data;
         },
         staleTime: POLLING_INTERVALS.BACKGROUND, // 5 minutes - billing profiles change infrequently
+    });
+}
+
+export function useChargeCategories() {
+    return useQuery({
+        queryKey: ['charge-categories'],
+        queryFn: async () => {
+            const result = await getChargeCategories();
+            if (result.error) throw new Error(result.error);
+            return result.data;
+        },
+        staleTime: POLLING_INTERVALS.BACKGROUND,
     });
 }
 

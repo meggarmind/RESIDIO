@@ -136,7 +136,12 @@ describe('debitWalletForInvoice', () => {
 
 describe('debitWalletForInvoiceAtomic', () => {
     it('refuses an empty wallet and an already-paid invoice without calling the RPC', async () => {
-        const empty = fakeClient({ tables: { resident_wallets: { id: WALLET, balance: 0 } } });
+        const empty = fakeClient({
+            tables: {
+                resident_wallets: { id: WALLET, balance: 0 },
+                invoices: { id: INVOICE, amount_due: 50, amount_paid: 0, invoice_number: 'INV-1', house_id: null },
+            },
+        });
         expect((await debitWalletForInvoiceAtomic(empty.client, RESIDENT, INVOICE)).error).toBe('Insufficient wallet balance');
         expect(empty.rpcCalls).toHaveLength(0);
 
@@ -149,6 +154,18 @@ describe('debitWalletForInvoiceAtomic', () => {
         expect((await debitWalletForInvoiceAtomic(paid.client, RESIDENT, INVOICE)).error).toBe('Invoice already paid');
         expect(paid.rpcCalls).toHaveLength(0);
         expect(writes(paid.calls)).toEqual([]);
+    });
+
+    it('settles from the wallet of the invoice charge category (#1189)', async () => {
+        const levy = fakeClient({
+            tables: {
+                resident_wallets: { id: WALLET, balance: 100 },
+                invoices: { id: INVOICE, amount_due: 50, amount_paid: 0, invoice_number: 'INV-1', house_id: null, charge_category: 'development_levy' },
+            },
+            rpc: () => ({ data: { success: true, total_allocated: 50, new_wallet_balance: 50 }, error: null }),
+        });
+        await debitWalletForInvoiceAtomic(levy.client, RESIDENT, INVOICE);
+        expect(levy.rpcCalls[0].args).toMatchObject({ p_invoice_ids: [INVOICE], p_charge_category: 'development_levy' });
     });
 });
 

@@ -34,7 +34,7 @@ vi.mock('@/actions/billing/get-invoices', () => ({
   getResidentIndebtedness: vi.fn(async () => ({ data: { totalUnpaid: 0, invoiceCount: 0 }, error: null })),
 }));
 vi.mock('@/actions/billing/wallet', () => ({
-  getOrCreateWallet: vi.fn(async () => ({ data: { balance: 100 }, error: null })),
+  getResidentWallets: vi.fn(async () => ({ data: { total: 100, wallets: [] }, error: null })),
 }));
 
 const RESIDENT = {

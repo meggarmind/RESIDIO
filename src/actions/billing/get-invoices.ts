@@ -277,6 +277,7 @@ type ResidentIndebtedness = DebtStatusFields & {
     invoiceCount: number;
     unpaidCount: number;
     partiallyPaidCount: number;
+    unpaidByCategory: Record<string, number>;
 }
 
 export async function getResidentIndebtedness(residentId: string): Promise<{ data: ResidentIndebtedness | null; error: string | null }> {
@@ -293,9 +294,23 @@ export async function getResidentIndebtedness(residentId: string): Promise<{ dat
         return { data: null, error: error.message };
     }
 
+    const { data: unpaidInvoices, error: unpaidError } = await supabase
+        .from('invoices')
+        .select('charge_category, amount_due, amount_paid')
+        .eq('resident_id', residentId)
+        .neq('status', 'void');
+    if (unpaidError) {
+        return { data: null, error: unpaidError.message };
+    }
+    const unpaidByCategory: Record<string, number> = {};
+    for (const invoice of unpaidInvoices || []) {
+        const outstanding = Math.max(Number(invoice.amount_due) - Number(invoice.amount_paid), 0);
+        if (outstanding > 0) unpaidByCategory[invoice.charge_category] = (unpaidByCategory[invoice.charge_category] || 0) + outstanding;
+    }
+
     try {
         const settings = await readDebtStatusSettings(supabase);
-        return { data: withDebtLabel(data as Omit<ResidentIndebtedness, 'debtStatusLabel'>, settings), error: null };
+        return { data: withDebtLabel({ ...(data as Omit<ResidentIndebtedness, 'debtStatusLabel' | 'unpaidByCategory'>), unpaidByCategory }, settings), error: null };
     } catch (e) {
         return { data: null, error: e instanceof Error ? e.message : 'Debt status could not be read' };
     }

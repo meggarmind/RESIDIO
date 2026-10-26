@@ -768,13 +768,13 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
     },
 
     async getWalletBalance(residentId) {
+      // The total of the resident's wallets, one per charge category (#1189).
       const { data, error } = await createAdminClient()
         .from('resident_wallets')
         .select('balance')
-        .eq('resident_id', residentId)
-        .maybeSingle();
+        .eq('resident_id', residentId);
       if (error) throw error;
-      return Number(data?.balance || 0);
+      return (data || []).reduce((sum, wallet) => sum + Number(wallet.balance || 0), 0);
     },
 
     async setAlertsOn(residentId, phoneNumber, on) {

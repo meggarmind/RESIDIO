@@ -7,7 +7,8 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { getResidentIndebtedness } from '@/actions/billing/get-invoices';
-import { getOrCreateWallet } from '@/actions/billing/wallet';
+import { getResidentWallets } from '@/actions/billing/wallet';
+import { netClearanceByCategory } from '@/lib/billing/category-clearance';
 import { getSystemSetting } from '@/lib/settings/get-system-setting';
 import { sendEmail } from '@/lib/email/send-email';
 import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
@@ -60,9 +61,9 @@ export type MoveOutOwnerResponse = {
 export async function checkOwnerClearance(
     residentId: string
 ): Promise<{ data: OwnerClearanceCheck | null; error: string | null }> {
-    // Get wallet balance
-    const { data: wallet } = await getOrCreateWallet(residentId);
-    const walletBalance = wallet?.balance || 0;
+    // Get wallet balance: the total of the resident's wallets, one per charge category (#1189)
+    const { data: wallets } = await getResidentWallets(residentId);
+    const walletBalance = wallets?.total || 0;
 
     // Get unpaid invoices
     const { data: indebtedness, error } = await getResidentIndebtedness(residentId);
@@ -71,10 +72,12 @@ export async function checkOwnerClearance(
     }
 
     const totalUnpaid = indebtedness?.totalUnpaid || 0;
-    const netBalance = walletBalance - totalUnpaid;
+    const { canProceed, netBalance } = netClearanceByCategory(
+        Object.fromEntries((wallets?.wallets || []).map((wallet) => [wallet.charge_category, wallet.balance])),
+        indebtedness?.unpaidByCategory || {}
+    );
     const unpaidInvoiceCount = indebtedness?.invoiceCount || 0;
 
-    const canProceed = netBalance >= 0;
     const message = canProceed
         ? netBalance > 0
             ? `Owner has a credit balance of ₦${netBalance.toLocaleString()}. Proceed with move-out.`

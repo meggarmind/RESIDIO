@@ -26,6 +26,9 @@ export const billingItemSchema = z.object({
 
 export type BillingItemData = z.infer<typeof billingItemSchema>;
 
+// A charge_categories.code (#1189)
+export const chargeCategoryCodeSchema = z.string().regex(/^[a-z][a-z0-9_]*$/, 'Invalid charge category');
+
 // Base billing profile schema (without refinements for form type inference)
 const baseBillingProfileSchema = z.object({
   name: z.string().min(1, 'Profile name is required'),
@@ -33,6 +36,7 @@ const baseBillingProfileSchema = z.object({
   is_active: z.boolean().default(true),
   target_type: billingTargetTypeEnum.default('house'),
   payer: billingPayerEnum.default('occupant'), // Who is billed: the occupant, or a landlord (#1068)
+  charge_category: chargeCategoryCodeSchema.default('dues'),
   applicable_roles: z.array(billableRoleEnum).optional().nullable(),
   is_one_time: z.boolean().default(false),
   is_development_levy: z.boolean().default(false), // True for Development Levy profiles (flat fee per house)

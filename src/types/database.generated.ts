@@ -1056,6 +1056,7 @@ export type Database = {
       billing_profiles: {
         Row: {
           applicable_roles: string[] | null
+          charge_category: string
           created_at: string
           created_by: string | null
           description: string | null
@@ -1071,6 +1072,7 @@ export type Database = {
         }
         Insert: {
           applicable_roles?: string[] | null
+          charge_category?: string
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -1086,6 +1088,7 @@ export type Database = {
         }
         Update: {
           applicable_roles?: string[] | null
+          charge_category?: string
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -1100,6 +1103,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "billing_profiles_charge_category_fkey"
+            columns: ["charge_category"]
+            isOneToOne: false
+            referencedRelation: "charge_categories"
+            referencedColumns: ["code"]
+          },
           {
             foreignKeyName: "billing_profiles_created_by_fkey"
             columns: ["created_by"]
@@ -1146,6 +1156,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      charge_categories: {
+        Row: {
+          code: string
+          created_at: string
+          is_active: boolean
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          is_active?: boolean
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          is_active?: boolean
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       document_access_logs: {
         Row: {
@@ -3012,6 +3049,7 @@ export type Database = {
           amount_paid: number
           billing_profile_id: string | null
           billing_profile_version_id: string | null
+          charge_category: string
           correction_reason: string | null
           correction_type: string | null
           created_at: string
@@ -3036,6 +3074,7 @@ export type Database = {
           amount_paid?: number
           billing_profile_id?: string | null
           billing_profile_version_id?: string | null
+          charge_category?: string
           correction_reason?: string | null
           correction_type?: string | null
           created_at?: string
@@ -3060,6 +3099,7 @@ export type Database = {
           amount_paid?: number
           billing_profile_id?: string | null
           billing_profile_version_id?: string | null
+          charge_category?: string
           correction_reason?: string | null
           correction_type?: string | null
           created_at?: string
@@ -3080,6 +3120,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "invoices_charge_category_fkey"
+            columns: ["charge_category"]
+            isOneToOne: false
+            referencedRelation: "charge_categories"
+            referencedColumns: ["code"]
+          },
           {
             foreignKeyName: "invoices_billing_profile_id_fkey"
             columns: ["billing_profile_id"]
@@ -4566,6 +4613,7 @@ export type Database = {
       resident_wallets: {
         Row: {
           balance: number
+          charge_category: string
           created_at: string
           id: string
           resident_id: string
@@ -4573,6 +4621,7 @@ export type Database = {
         }
         Insert: {
           balance?: number
+          charge_category?: string
           created_at?: string
           id?: string
           resident_id: string
@@ -4580,6 +4629,7 @@ export type Database = {
         }
         Update: {
           balance?: number
+          charge_category?: string
           created_at?: string
           id?: string
           resident_id?: string
@@ -4587,9 +4637,16 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "resident_wallets_charge_category_fkey"
+            columns: ["charge_category"]
+            isOneToOne: false
+            referencedRelation: "charge_categories"
+            referencedColumns: ["code"]
+          },
+          {
             foreignKeyName: "resident_wallets_resident_id_fkey"
             columns: ["resident_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -5600,6 +5657,7 @@ export type Database = {
         Row: {
           amount: number
           batch_type: string
+          charge_category: string
           created_at: string
           created_by: string | null
           house_id: string | null
@@ -5616,6 +5674,7 @@ export type Database = {
         Insert: {
           amount: number
           batch_type: string
+          charge_category?: string
           created_at?: string
           created_by?: string | null
           house_id?: string | null
@@ -5632,6 +5691,7 @@ export type Database = {
         Update: {
           amount?: number
           batch_type?: string
+          charge_category?: string
           created_at?: string
           created_by?: string | null
           house_id?: string | null
@@ -5646,6 +5706,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "wallet_payment_batches_charge_category_fkey"
+            columns: ["charge_category"]
+            isOneToOne: false
+            referencedRelation: "charge_categories"
+            referencedColumns: ["code"]
+          },
           {
             foreignKeyName: "wallet_payment_batches_created_by_fkey"
             columns: ["created_by"]
@@ -6146,6 +6213,7 @@ export type Database = {
     Functions: {
       adjust_wallet_credit: {
         Args: {
+          p_charge_category?: string
           p_amount: number
           p_description?: string
           p_reference_id?: string
@@ -6156,6 +6224,7 @@ export type Database = {
       }
       adjust_wallet_debit: {
         Args: {
+          p_charge_category?: string
           p_amount: number
           p_description?: string
           p_reference_id?: string
@@ -6422,6 +6491,7 @@ export type Database = {
       }
       settle_wallet_invoices: {
         Args: {
+          p_charge_category?: string
           p_batch_amount?: number
           p_batch_type: string
           p_created_by?: string
@@ -6436,6 +6506,7 @@ export type Database = {
       }
       settle_wallet_invoices_idempotent: {
         Args: {
+          p_charge_category?: string
           p_batch_amount?: number
           p_batch_type: string
           p_created_by?: string

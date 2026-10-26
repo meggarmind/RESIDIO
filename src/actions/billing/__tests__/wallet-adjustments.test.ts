@@ -86,6 +86,7 @@ describe('manual wallet adjustments', () => {
       p_reference_type: 'adjustment',
       p_reference_id: referenceId,
       p_description: 'Correction',
+      p_charge_category: 'dues',
     });
     expect(order).toEqual(['rpc', 'audit']);
     expect(mocks.logAudit).toHaveBeenCalledWith(expect.objectContaining({

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { IconBox } from '@/components/ui/icon-box';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useWallet, useYearlyWalletTransactions } from '@/hooks/use-wallet';
+import { useResidentWallets, useYearlyWalletTransactions } from '@/hooks/use-wallet';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { formatCurrency } from '@/lib/utils';
@@ -19,7 +19,7 @@ interface WalletBalanceProps {
 
 export function WalletBalance({ residentId, showActions = true }: WalletBalanceProps) {
   const [isAdjustmentDialogOpen, setIsAdjustmentDialogOpen] = useState(false);
-  const { data: walletData, isLoading: walletLoading } = useWallet(residentId);
+  const { data: walletData, isLoading: walletLoading } = useResidentWallets(residentId);
   // Shares its cache key with the Transaction History ledger, so the Money tab
   // makes one ledger request rather than a separate 1000-row fetch (#783).
   const { data: yearlyData } = useYearlyWalletTransactions(residentId);
@@ -43,8 +43,11 @@ export function WalletBalance({ residentId, showActions = true }: WalletBalanceP
     );
   }
 
-  const wallet = walletData?.data;
-  const balance = wallet?.balance || 0;
+  // One wallet per charge category (#1189): the headline is their total.
+  const balance = walletData?.total || 0;
+  const categoryLines = walletData?.wallets || [];
+  // A manual adjustment goes to the Dues wallet.
+  const duesBalance = categoryLines.find((line) => line.charge_category === 'dues')?.balance || 0;
   const years = yearlyData || [];
   const totalCredits = years.reduce((sum, y) => sum + y.total_credits, 0);
   const totalDebits = years.reduce((sum, y) => sum + y.total_debits, 0);
@@ -70,6 +73,14 @@ export function WalletBalance({ residentId, showActions = true }: WalletBalanceP
             )}
           </div>
           <p className={`text-2xl font-bold ${balanceColor}`}>{formatCurrency(balance)}</p>
+          <dl className="space-y-1 text-xs" aria-label="Wallet balance by charge category">
+            {categoryLines.map((line) => (
+              <div key={line.charge_category} className="flex items-center justify-between gap-2">
+                <dt className="text-muted-foreground">{line.name}</dt>
+                <dd className="font-medium tabular-nums">{formatCurrency(line.balance)}</dd>
+              </div>
+            ))}
+          </dl>
           <dl className="grid grid-cols-2 gap-3 border-t pt-3 text-xs">
             <div>
               <dt className="flex items-center gap-1 text-muted-foreground">
@@ -93,7 +104,7 @@ export function WalletBalance({ residentId, showActions = true }: WalletBalanceP
       {canShowAdjustment && (
         <WalletAdjustmentDialog
           residentId={residentId}
-          currentBalance={balance}
+          currentBalance={duesBalance}
           open={isAdjustmentDialogOpen}
           onOpenChange={setIsAdjustmentDialogOpen}
         />

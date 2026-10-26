@@ -157,7 +157,7 @@ async function generateLeviesForHouseInRun(
         const { data: oneTimeProfiles, error: profilesError } = await supabase
             .from('billing_profiles')
             .select(`
-                id, name, payer, target_type, applicable_roles, is_one_time, is_development_levy,
+                id, name, payer, target_type, applicable_roles, is_one_time, is_development_levy, charge_category,
                 billing_items(id, name, amount, frequency, is_mandatory)
             `)
             .eq('is_active', true)
@@ -258,6 +258,7 @@ async function generateLeviesForHouseInRun(
                         amount_paid: 0,
                         status: 'unpaid',
                         invoice_type: 'LEVY' as const,
+                        charge_category: profile.charge_category,
                         rate_snapshot: rateSnapshot,
                         due_date: dueDate.toISOString().split('T')[0],
                         period_start: now.toISOString().split('T')[0],
