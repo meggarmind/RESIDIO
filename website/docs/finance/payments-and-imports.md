@@ -11,7 +11,7 @@ residio_sources:
   - src/actions/imports/**
   - src/components/imports/**
   - src/lib/parsers/**
-residio_verified_commit: de3a81fc
+residio_verified_commit: ad2bd9eb
 residio_verified_at: '2026-10-26'
 residio_app_version: '0.4.0'
 ---

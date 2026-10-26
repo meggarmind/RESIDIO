@@ -7,7 +7,7 @@ residio_sources:
   - src/actions/collections/**
   - src/components/collections/**
   - src/lib/collections/**
-residio_verified_commit: d1972e55
+residio_verified_commit: ad2bd9eb
 residio_verified_at: '2026-10-26'
 residio_app_version: '0.4.0'
 ---
