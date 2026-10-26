@@ -9,7 +9,8 @@ import { residentHasHouse } from '@/lib/payments/house-membership';
 import { findLockedFieldChanges, VERIFIED_LOCK_MESSAGE } from '@/lib/payments/verified-lock';
 import { z } from 'zod';
 
-const updatePaymentSchema = paymentFormSchema.partial();
+// The category moves money between wallets, so it changes only through retagPaymentCategory (#1190).
+const updatePaymentSchema = paymentFormSchema.omit({ charge_category: true }).partial();
 
 export async function updatePayment(id: string, data: z.infer<typeof updatePaymentSchema>) {
     // Authorization check - only admin, chairman, financial_secretary can update payments
@@ -70,6 +71,8 @@ export async function updatePayment(id: string, data: z.infer<typeof updatePayme
     if (input.method !== undefined) updates.method = input.method;
     if (input.reference_number !== undefined) updates.reference_number = input.reference_number;
     if (input.notes !== undefined) updates.notes = input.notes;
+    if (input.paid_by_resident_id !== undefined) updates.paid_by_resident_id = input.paid_by_resident_id;
+    if (input.paid_by_name !== undefined) updates.paid_by_name = input.paid_by_name?.trim() || null;
     if (input.payment_date) updates.payment_date = input.payment_date.toISOString();
     if (input.period_start) updates.period_start = input.period_start.toISOString();
     if (input.period_end) updates.period_end = input.period_end.toISOString();

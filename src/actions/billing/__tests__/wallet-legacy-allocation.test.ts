@@ -71,7 +71,7 @@ describe('allocateWalletToInvoices legacy loop (#778)', () => {
     expect(mocks.tables.filter((t) => t === 'resident_wallets')).toHaveLength(3);
   });
 
-  it('stops on the priority-house list too', async () => {
+  it('stops inside the payment house too', async () => {
     mocks.debit.mockImplementationOnce(debited(100, 0));
     const res = await allocateWalletToInvoices('res-1', 'house-1');
     expect(res).toEqual({ success: true, invoicesPaid: 1, totalAllocated: 100, error: null });

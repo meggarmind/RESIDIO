@@ -14,6 +14,11 @@ export const paymentFormSchema = z.object({
     notes: z.string().optional().or(z.literal('')),
     period_start: z.date().optional().nullable(),
     period_end: z.date().optional().nullable(),
+    // What the payment is for (#1190): the wallet it credits. Omitted means Dues (owner decision 2).
+    charge_category: z.string().regex(/^[a-z][a-z0-9_]*$/, 'Invalid charge category').optional(),
+    // Who paid (#1190), when not the resident whose wallet is credited.
+    paid_by_resident_id: z.guid().optional().nullable(),
+    paid_by_name: z.string().trim().max(200).optional().nullable().or(z.literal('')),
 });
 
 export type PaymentFormData = z.infer<typeof paymentFormSchema>;

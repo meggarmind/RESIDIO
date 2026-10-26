@@ -6,6 +6,7 @@
  * Matches email transactions to residents and processes them into payments.
  * Implements high-confidence auto-processing and admin review queue.
  */
+import { DEFAULT_CHARGE_CATEGORY } from '@/lib/billing/charge-categories';
 import { notifyAdmins } from '@/lib/notifications/admin-notifier';
 
 import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
@@ -639,6 +640,9 @@ async function createPaymentFromTransaction(
     notes: `Email import: ${transaction.description}`,
     email_import_id: transaction.email_import_id,
     email_transaction_id: transaction.id,
+    // The sender was matched to this resident, so they paid it; no purpose is known: Dues (#1190).
+    charge_category: DEFAULT_CHARGE_CATEGORY,
+    paid_by_resident_id: transaction.matched_resident_id,
   });
 
   if (result.error) {

@@ -11,6 +11,7 @@ import type {
   WebhookProcessingResult,
 } from '@/lib/paystack';
 import { creditWallet, allocateWalletToInvoices } from '@/actions/billing/wallet';
+import { invoiceChargeCategory } from '@/lib/billing/charge-categories';
 import { logAudit } from '@/lib/audit/logger';
 
 /**
@@ -106,6 +107,8 @@ export async function processPaystackWebhook(
   // Process successful payment
   if (status === 'success' && !existingTransaction.payment_id) {
     const amountNaira = koboToNaira(txData.amount);
+    // The payment is for the invoice it was started from (#1190); the payer is that resident.
+    const chargeCategory = await invoiceChargeCategory(adminSupabase, existingTransaction.invoice_id);
 
     // Create payment record
     const { data: paymentRecord, error: paymentError } = await adminSupabase
@@ -119,6 +122,8 @@ export async function processPaystackWebhook(
         method: 'online',
         reference_number: txData.reference,
         paystack_reference: txData.reference,
+        charge_category: chargeCategory,
+        paid_by_resident_id: existingTransaction.resident_id,
         notes: `Online payment via ${txData.channel || 'Paystack'} (webhook)`,
       })
       .select()
@@ -141,7 +146,8 @@ export async function processPaystackWebhook(
       amountNaira,
       'payment',
       paymentRecord.id,
-      `Online payment via ${txData.channel || 'Paystack'}`
+      `Online payment via ${txData.channel || 'Paystack'}`,
+      chargeCategory
     );
 
     if (!creditResult.success) {
@@ -151,7 +157,9 @@ export async function processPaystackWebhook(
     // Auto-allocate to invoices
     const allocateResult = await allocateWalletToInvoices(
       existingTransaction.resident_id,
-      existingTransaction.house_id
+      existingTransaction.house_id,
+      undefined,
+      { chargeCategory }
     );
 
     if (allocateResult.success && allocateResult.invoicesPaid > 0) {

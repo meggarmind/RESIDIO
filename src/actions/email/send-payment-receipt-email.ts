@@ -164,7 +164,7 @@ export async function sendPaymentReceiptEmail(
       period_end,
       is_verified,
       verified_at,
-      resident:residents(
+      resident:residents!payment_records_resident_id_fkey(
         id,
         first_name,
         last_name,

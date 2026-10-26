@@ -117,7 +117,7 @@ export async function getDashboardStats(): Promise<{ data: DashboardStats | null
                 id,
                 amount,
                 payment_date,
-                resident:residents(first_name, last_name)
+                resident:residents!payment_records_resident_id_fkey(first_name, last_name)
             `)
             .order('payment_date', { ascending: false })
             .limit(3);
