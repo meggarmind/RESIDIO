@@ -7,8 +7,11 @@ residio_sources:
   - src/app/(dashboard)/houses/**
   - src/actions/houses/**
   - src/components/houses/**
-residio_verified_commit: e1cc4f52
-residio_verified_at: '2026-10-22'
+  - src/actions/billing/landlord-dues-split.ts
+  - src/lib/billing/landlord-dues.ts
+  - src/lib/billing/landlord-dues-receipts.ts
+residio_verified_commit: 7dcc1133
+residio_verified_at: '2026-10-26'
 residio_app_version: '0.4.0'
 ---
 
@@ -60,6 +63,34 @@ An Occupant is always sponsored by the house's Owner-Occupier or Renter. **Link 
 *update houses*. **Delete house** is in the **…** menu beside Edit and needs *delete houses*; it
 stays disabled, with the reason shown, until every resident has been removed, and it asks for
 confirmation before deleting.
+
+## Dues paid by landlord
+
+Some landlords pay the dues of their tenants, for example one payment for flats F1 to F4. The
+tenant still owes the dues and the invoices stay in the tenant's name; the landlord pays them.
+Turn this on under **Billing → Dues paid by landlord** on the house page (*update houses*; the
+change is audited), and choose who gets the dues reminders:
+
+| Dues reminders go to | Who gets them |
+| --- | --- |
+| Tenant only (default) | the tenant, as for any other house |
+| Landlord only | the landlord only |
+| Tenant and landlord | both |
+
+The landlord gets one reminder for all of their flats that have this setting, with the amount
+per flat. Only Dues reminders follow the setting: levies already go to the landlord.
+
+Record the landlord's payment as a Dues payment to the landlord. Then choose **Split to tenants**
+(*transfer wallet credit*). It shows the landlord's Dues wallet and each of their flats with what
+its tenant owes. Accept the amounts, edit them, or set a flat to 0 to leave it out; the total
+cannot be more than the wallet holds. Each flat's share is a [Transfer credit](../finance/expenditure-and-wallets.md)
+to the tenant's Dues wallet, which then pays the tenant's Dues invoices in that flat, oldest first.
+Each transfer is audited, and so is the split.
+
+After a split, the landlord gets one receipt with the amount per flat, and each tenant gets
+"Your dues for Sep 2026 and Oct 2026 were paid by your landlord". Receipts go by email and
+WhatsApp under the same rules as a payment receipt: the **Sending** switch for receipts, the
+resident's preferences and, for WhatsApp, the opt-in.
 
 ## Occupancy is not a manual label
 
