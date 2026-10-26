@@ -30,12 +30,17 @@ import { useCreatePayment, useUpdatePayment, useResidentPropertiesForPayment } f
 import { useResidentOptions } from '@/hooks/use-residents';
 import { getLockedPaymentFields, VERIFIED_LOCK_MESSAGE } from '@/lib/payments/verified-lock';
 import { paymentFormSchema, type PaymentFormData } from '@/lib/validators/payment';
+import { ChargeCategorySelect } from '@/components/billing/charge-category-select';
+import { DEFAULT_CHARGE_CATEGORY } from '@/lib/billing/charge-categories';
 import type { Database } from '@/types/database.generated';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { formatCurrency, cn } from '@/lib/utils';
 import { Home, AlertTriangle, MapPin, Loader2, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+// Select items cannot hold an empty value; this one means "paid by the resident whose wallet is credited".
+const PAID_BY_SELF = '__resident__';
 
 interface PaymentFormProps {
     initialData?: Database['public']['Tables']['payment_records']['Row'];
@@ -68,6 +73,9 @@ export function PaymentForm({ initialData, residentId, onSuccess }: PaymentFormP
             notes: initialData?.notes ?? '',
             period_start: initialData?.period_start ? new Date(initialData.period_start) : undefined,
             period_end: initialData?.period_end ? new Date(initialData.period_end) : undefined,
+            charge_category: initialData?.charge_category ?? DEFAULT_CHARGE_CATEGORY,
+            paid_by_resident_id: initialData?.paid_by_resident_id ?? null,
+            paid_by_name: initialData?.paid_by_name ?? '',
         },
     });
 
@@ -92,7 +100,10 @@ export function PaymentForm({ initialData, residentId, onSuccess }: PaymentFormP
         setSubmitState('loading');
         try {
             if (isEditing) {
-                await updateMutation.mutateAsync({ id: initialData.id, data });
+                // The category changes only through Change category on the payment page (#1190).
+                const { charge_category: _chargeCategory, ...edits } = data;
+                void _chargeCategory;
+                await updateMutation.mutateAsync({ id: initialData.id, data: edits });
                 toast.success('Payment updated');
             } else {
                 await createMutation.mutateAsync(data);
@@ -307,6 +318,73 @@ export function PaymentForm({ initialData, residentId, onSuccess }: PaymentFormP
                         )}
                     />
                 </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                    <FormField
+                        control={form.control}
+                        name="charge_category"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Payment for</FormLabel>
+                                <ChargeCategorySelect
+                                    value={field.value ?? DEFAULT_CHARGE_CATEGORY}
+                                    onChange={field.onChange}
+                                    disabled={isEditing}
+                                />
+                                <FormDescription>
+                                    {isEditing
+                                        ? 'Use Change category on this page to move the money to another wallet'
+                                        : 'The wallet this payment credits. It pays only invoices of this category'}
+                                </FormDescription>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+
+                    <FormField
+                        control={form.control}
+                        name="paid_by_resident_id"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Paid by</FormLabel>
+                                <Select
+                                    onValueChange={(value) => field.onChange(value === PAID_BY_SELF ? null : value)}
+                                    value={field.value || PAID_BY_SELF}
+                                    disabled={residentsLoading}
+                                >
+                                    <FormControl>
+                                        <SelectTrigger aria-label="Paid by">
+                                            <SelectValue placeholder="The resident above" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value={PAID_BY_SELF}>The resident above</SelectItem>
+                                        {residents.map((r) => (
+                                            <SelectItem key={r.id} value={r.id}>
+                                                {r.first_name} {r.last_name} ({r.resident_code})
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
+
+                <FormField
+                    control={form.control}
+                    name="paid_by_name"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Payer name (Optional)</FormLabel>
+                            <FormControl>
+                                <Input placeholder="Name on the transfer, if not a resident" {...field} value={field.value || ''} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
 
                 <FormField
                     control={form.control}

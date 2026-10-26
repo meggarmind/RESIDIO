@@ -11,6 +11,9 @@ vi.mock('@/hooks/use-payments', () => ({
   useUpdatePayment: () => ({ mutateAsync: updateSpy }),
   useResidentPropertiesForPayment: () => ({ data: undefined, isLoading: false }),
 }));
+vi.mock('@/hooks/use-billing', () => ({
+  useChargeCategories: () => ({ data: [{ code: 'dues', name: 'Dues', sort_order: 1 }] }),
+}));
 vi.mock('@/hooks/use-residents', () => ({
   useResidentOptions: () => ({ data: { data: [] }, isLoading: false }),
 }));

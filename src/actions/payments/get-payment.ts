@@ -9,13 +9,19 @@ export async function getPayment(id: string) {
         .from('payment_records')
         .select(`
             *,
-            resident:residents(
+            resident:residents!payment_records_resident_id_fkey(
                 id,
                 first_name,
                 last_name,
                 resident_code,
                 phone_primary,
                 email
+            ),
+            paid_by:residents!payment_records_paid_by_resident_id_fkey(
+                id,
+                first_name,
+                last_name,
+                resident_code
             )
         `)
         .eq('id', id)
