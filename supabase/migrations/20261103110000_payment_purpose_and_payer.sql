@@ -146,6 +146,9 @@ BEGIN
     IF NOT FOUND THEN
         RAISE EXCEPTION 'Payment not found';
     END IF;
+    IF v_payment.status <> 'paid' THEN
+        RAISE EXCEPTION 'Only a paid payment can change category';
+    END IF;
     IF v_payment.charge_category = p_charge_category THEN
         RAISE EXCEPTION 'Payment is already %', p_charge_category;
     END IF;
