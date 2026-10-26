@@ -26,6 +26,8 @@ Logging an expense, the **Petty cash** menu (top up, manage accounts), and the r
 
 Wallet credit represents resident funds that may be allocated against eligible invoices. When a payment is recorded, review the allocation result rather than assuming the amount remains unallocated.
 
+Each resident has one wallet per **charge category**: Dues, Development Levy and Transformer Fee. An invoice takes the category of its billing profile, and a wallet pays only invoices of its own category, so Development Levy money is never spent on dues. A recorded payment goes to the Dues wallet and pays Dues invoices only. A manual wallet adjustment changes the Dues wallet.
+
 :::warning[Financial control]
 Never use an expenditure record to correct a resident payment. Correct the source transaction through the payment workflow so the audit trail stays accurate.
 :::
