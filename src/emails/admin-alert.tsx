@@ -13,6 +13,7 @@ interface AdminAlertEmailProps {
   estateEmail?: string;
   estatePhone?: string;
   estateAddress?: string;
+  estateLogoUrl?: string;
   estateWebsite?: string;
   title: string;
   severity: 'info' | 'warning' | 'critical';
@@ -28,6 +29,7 @@ export function AdminAlertEmail({
   estateEmail,
   estatePhone,
   estateAddress,
+  estateLogoUrl,
   estateWebsite,
   title,
   severity,
@@ -52,6 +54,7 @@ export function AdminAlertEmail({
       estateEmail={estateEmail}
       estatePhone={estatePhone}
       estateAddress={estateAddress}
+      estateLogoUrl={estateLogoUrl}
       estateWebsite={estateWebsite}
     >
       {/* Alert Banner */}

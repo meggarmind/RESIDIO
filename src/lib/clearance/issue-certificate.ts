@@ -1,4 +1,5 @@
 import { createElement } from 'react';
+import { usableEstateLogoUrl } from '@/lib/branding/estate-logo';
 import { renderToBuffer } from '@react-pdf/renderer';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/server';
@@ -45,12 +46,12 @@ export interface IssuedCertificate {
 const copies = (client: ReturnType<typeof createAdminClient>) => (client as unknown as SupabaseClient).from('clearance_certificate_copies');
 
 async function estateDetails() {
-  const settings = await getRawSettingsAsService(['estate_name', 'estate_address']);
+  const settings = await getRawSettingsAsService(['estate_name', 'estate_address', 'estate_logo_url']);
   const value = (key: string) => {
     const raw = settings.status === 'ok' ? settings.values.get(key) : null;
     return typeof raw === 'string' && raw.trim() ? raw.trim() : undefined;
   };
-  return { estateName: value('estate_name') ?? 'Residio Estate', estateAddress: value('estate_address') ?? '' };
+  return { estateName: value('estate_name') ?? 'Residio Estate', estateAddress: value('estate_address') ?? '', estateLogoUrl: usableEstateLogoUrl(settings.status === 'ok' ? settings.values.get('estate_logo_url') : null) };
 }
 
 async function signedUrl(client: ReturnType<typeof createAdminClient>, path: string): Promise<string> {

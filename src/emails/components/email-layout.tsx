@@ -16,6 +16,7 @@ interface EmailLayoutProps {
   estatePhone?: string;
   estateAddress?: string;
   estateWebsite?: string;
+  estateLogoUrl?: string;
   children: React.ReactNode;
 }
 
@@ -26,6 +27,7 @@ export function EmailLayout({
   estatePhone,
   estateAddress,
   estateWebsite,
+  estateLogoUrl,
   children,
 }: EmailLayoutProps) {
   return (
@@ -34,7 +36,7 @@ export function EmailLayout({
       <Preview>{preview}</Preview>
       <Body style={main}>
         <Container style={container}>
-          <EmailHeader estateName={estateName} />
+          <EmailHeader estateName={estateName} estateLogoUrl={estateLogoUrl} />
           <Section style={content}>{children}</Section>
           <EmailFooter
             estateName={estateName}

@@ -127,6 +127,7 @@ async function sendEmailBroadcast(
             estatePhone: estateSettings.estatePhone,
             estateAddress: estateSettings.estateAddress,
             estateWebsite: estateSettings.estateWebsite,
+            estateLogoUrl: estateSettings.estateLogoUrl,
             title,
             content,
             summary,

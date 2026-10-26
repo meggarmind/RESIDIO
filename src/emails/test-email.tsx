@@ -6,6 +6,7 @@ interface TestEmailProps {
   estateEmail?: string;
   estatePhone?: string;
   estateAddress?: string;
+  estateLogoUrl?: string;
   recipientEmail: string;
 }
 
@@ -14,6 +15,7 @@ export function TestEmail({
   estateEmail,
   estatePhone,
   estateAddress,
+  estateLogoUrl,
   recipientEmail,
 }: TestEmailProps) {
   const timestamp = new Date().toLocaleString('en-NG', {
@@ -28,6 +30,7 @@ export function TestEmail({
       estateEmail={estateEmail}
       estatePhone={estatePhone}
       estateAddress={estateAddress}
+      estateLogoUrl={estateLogoUrl}
     >
       <Heading style={heading}>Test Email</Heading>
 

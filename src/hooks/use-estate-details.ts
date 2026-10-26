@@ -1,7 +1,8 @@
+import { usableEstateLogoUrl } from '@/lib/branding/estate-logo';
 import { useGeneralSettings } from './use-settings';
 
 /**
- * Estate name and address from Settings > Estate.
+ * Estate name, address and logo from Settings > Estate.
  * A key that is unset or blank is undefined, so a component's own default still applies.
  */
 export function useEstateDetails() {
@@ -12,5 +13,9 @@ export function useEstateDetails() {
     return typeof raw === 'string' && raw.trim() ? raw.trim() : undefined;
   };
 
-  return { estateName: value('estate_name'), estateAddress: value('estate_address') };
+  return {
+    estateName: value('estate_name'),
+    estateAddress: value('estate_address'),
+    estateLogoUrl: usableEstateLogoUrl(settings?.find((s) => s.key === 'estate_logo_url')?.value),
+  };
 }
