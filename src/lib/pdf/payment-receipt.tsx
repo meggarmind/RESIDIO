@@ -41,7 +41,7 @@ export interface PaymentReceiptData {
  * payment is credited to the wallet and is not tied to a single invoice, so this one describes the
  * payment itself.
  */
-export function PaymentReceiptPDF({ receipt, estateName = 'Residio Estate' }: { receipt: PaymentReceiptData; estateName?: string }) {
+export function PaymentReceiptPDF({ receipt, estateName = 'Residio Estate', estateAddress = '' }: { receipt: PaymentReceiptData; estateName?: string; estateAddress?: string }) {
   const rows: Array<[string, string]> = [
     ['Receipt number', receipt.receiptNumber],
     ['Payment date', formatPdfDate(receipt.paymentDate)],
@@ -85,6 +85,7 @@ export function PaymentReceiptPDF({ receipt, estateName = 'Residio Estate' }: { 
 
         <View style={styles.footer}>
           <Text style={[styles.footerText, { fontFamily: 'Helvetica-Bold', marginBottom: 2 }]}>{estateName}</Text>
+          {estateAddress ? <Text style={styles.footerText}>{estateAddress}</Text> : null}
           <Text style={styles.footerText}>Powered by Residio</Text>
         </View>
       </Page>

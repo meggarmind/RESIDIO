@@ -4,8 +4,7 @@ import { FINANCE_VIEW_PERMISSIONS, PERMISSIONS, extractRoleName } from '@/lib/au
 import { readTotpSecret } from '@/lib/auth/two-factor-secrets';
 import { matchTotpStep } from '@/lib/auth/totp';
 import { recordAudit, type AuditEntry } from '@/lib/audit/recorder';
-import { sendEmail } from '@/lib/email/send-email';
-import { getRawSettingsAsService } from '@/lib/settings/service';
+import { sendEmail, getEstateEmailSettings } from '@/lib/email/send-email';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
 import { createAdminClient } from '@/lib/supabase/server';
 import { maskPhone } from '@/lib/utils';
@@ -526,10 +525,7 @@ export function createSupabaseWhatsAppAdminRepository(): WhatsAppAdminRepository
     async emailAdmin(account, event, phoneNumber) {
       const email = account.email?.trim();
       if (!email) return;
-      const settings = await getRawSettingsAsService(['estate_name']);
-      const estateName = settings.status === 'ok' && typeof settings.values.get('estate_name') === 'string'
-        ? (settings.values.get('estate_name') as string)
-        : 'Residio Estate';
+      const estate = await getEstateEmailSettings();
       const result = await sendEmail({
         to: { email, name: account.fullName },
         subject: whatsAppAdminAlertSubject(event),
@@ -537,7 +533,7 @@ export function createSupabaseWhatsAppAdminRepository(): WhatsAppAdminRepository
           firstName: account.fullName.split(' ')[0] || account.fullName,
           event,
           maskedNumber: maskPhone(phoneNumber),
-          estateName,
+          ...estate,
           lockMinutes: ADMIN_LOCK_MINUTES,
         }),
         emailType: 'notification',
