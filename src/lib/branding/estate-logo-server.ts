@@ -1,5 +1,5 @@
 import { getRawSettingsAsService } from '@/lib/settings/service';
-import { usableEstateLogoUrl } from './estate-logo';
+import { estateLogoDataUri } from './estate-logo';
 
 /**
  * The estate logo URL for server-made PDFs, or undefined for none. Service-role read, so
@@ -7,5 +7,5 @@ import { usableEstateLogoUrl } from './estate-logo';
  */
 export async function getEstateLogoUrl(): Promise<string | undefined> {
   const settings = await getRawSettingsAsService(['estate_logo_url']);
-  return settings.status === 'ok' ? usableEstateLogoUrl(settings.values.get('estate_logo_url')) : undefined;
+  return settings.status === 'ok' ? estateLogoDataUri(settings.values.get('estate_logo_url')) : undefined;
 }

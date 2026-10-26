@@ -1,5 +1,5 @@
 import { createElement } from 'react';
-import { usableEstateLogoUrl } from '@/lib/branding/estate-logo';
+import { estateLogoDataUri } from '@/lib/branding/estate-logo';
 import { renderToBuffer } from '@react-pdf/renderer';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/server';
@@ -51,7 +51,7 @@ async function estateDetails() {
     const raw = settings.status === 'ok' ? settings.values.get(key) : null;
     return typeof raw === 'string' && raw.trim() ? raw.trim() : undefined;
   };
-  return { estateName: value('estate_name') ?? 'Residio Estate', estateAddress: value('estate_address') ?? '', estateLogoUrl: usableEstateLogoUrl(settings.status === 'ok' ? settings.values.get('estate_logo_url') : null) };
+  return { estateName: value('estate_name') ?? 'Residio Estate', estateAddress: value('estate_address') ?? '', estateLogoUrl: await estateLogoDataUri(settings.status === 'ok' ? settings.values.get('estate_logo_url') : null) };
 }
 
 async function signedUrl(client: ReturnType<typeof createAdminClient>, path: string): Promise<string> {

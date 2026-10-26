@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createElement } from 'react';
 import { render } from '@react-email/components';
 import { renderToBuffer } from '@react-pdf/renderer';
@@ -13,7 +13,7 @@ vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
 // No network in Vitest: the PDF image fetch is replaced by a 1x1 PNG data URI below.
 const PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
-import { usableEstateLogoUrl } from '@/lib/branding/estate-logo';
+import { usableEstateLogoUrl, estateLogoDataUri } from '@/lib/branding/estate-logo';
 import { getEstateLogoUrl } from '@/lib/branding/estate-logo-server';
 import { getEstateEmailSettings } from '@/lib/email/send-email';
 import { EmailLayout } from '@/emails/components/email-layout';
@@ -115,4 +115,23 @@ describe('PDF logo', () => {
     expect(withLogo.length).toBeGreaterThan(without.length);
     expect(Math.abs(webp.length - without.length)).toBeLessThan(200);
   }, 30_000);
+});
+
+describe('estateLogoDataUri (#1202)', () => {
+  const png = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 1, 2]);
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('returns a PNG data URI for a fetched PNG', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(png)));
+    expect(await estateLogoDataUri('https://x/a.png')).toBe(`data:image/png;base64,${btoa(String.fromCharCode(...png))}`);
+  });
+
+  it.each([
+    ['a failed fetch', () => Promise.reject(new Error('down'))],
+    ['a 404', () => Promise.resolve(new Response('no', { status: 404 }))],
+    ['a non-PNG/JPEG body', () => Promise.resolve(new Response('<svg/>'))],
+  ])('returns undefined on %s', async (_n, impl) => {
+    vi.stubGlobal('fetch', vi.fn(impl));
+    expect(await estateLogoDataUri('https://x/a.png')).toBeUndefined();
+  });
 });
