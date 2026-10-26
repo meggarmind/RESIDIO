@@ -18,6 +18,7 @@ import {
   Upload,
   Mail,
   Receipt,
+  HandCoins,
   Shield,
   Briefcase,
   FileBarChart,
@@ -323,6 +324,15 @@ const NAV_ACTION_LOG: NavItem = {
   permissions: [PERMISSIONS.SYSTEM_VIEW_SYSTEM_LOG],
 };
 
+// Collections ledger (#1194): contributions and item purchases, outside billing.
+const NAV_COLLECTIONS: NavItem = {
+  id: 'collections',
+  title: 'Collections',
+  href: '/collections',
+  icon: HandCoins,
+  permissions: [PERMISSIONS.COLLECTIONS_VIEW],
+};
+
 const NAV_PROJECTS: NavItem = {
   id: 'projects',
   title: 'Capital Projects',
@@ -363,7 +373,7 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
   {
     id: 'financial',
     label: 'Financial',
-    items: [NAV_PAYMENTS, NAV_BILLING, NAV_EXPENDITURE],
+    items: [NAV_PAYMENTS, NAV_BILLING, NAV_COLLECTIONS, NAV_EXPENDITURE],
   },
   {
     id: 'operations',

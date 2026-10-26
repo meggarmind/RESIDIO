@@ -55,7 +55,8 @@ export type PermissionCategory =
   | 'two_factor'   // Two-factor authentication
   | 'finance'       // Expenditure and Petty Cash
   | 'projects'      // Capital Projects
-  | 'groups';       // Recipient groups (#819)
+  | 'groups'        // Recipient groups (#819)
+  | 'collections';  // Collections ledger (#1194)
 
 // Account approval lifecycle (profiles.account_status).
 // Only 'active' resolves a role, resident link or permissions — the auth helpers
@@ -355,6 +356,9 @@ export type AuditEntityType =
   | 'whatsapp_admin_bindings'       // WhatsApp number pinned to an admin account (#972)
   | 'whatsapp_admin_requests'       // Admin actions asked for on WhatsApp (#972)
   | 'recipient_groups'             // Named lists of residents to send to (#819)
+  | 'collections'                  // Collections ledger (#1194)
+  | 'collection_payments'          // Payments into a collection (#1194)
+  | 'collection_notified_parties'  // Who is told about an item purchase payment (#1194)
   | 'visitor_vehicles'             // Visitor Vehicle Registration
   // Unified Expenditure Engine
   | 'expenses'                     // Expense records
@@ -458,6 +462,9 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   whatsapp_admin_bindings: 'WhatsApp Admin Link',       // WhatsApp admin mode (#972)
   whatsapp_admin_requests: 'WhatsApp Admin Request',    // WhatsApp admin mode (#972)
   recipient_groups: 'Recipient Group',                  // Recipient groups (#819)
+  collections: 'Collection',                            // Collections ledger (#1194)
+  collection_payments: 'Collection Payment',            // Collections ledger (#1194)
+  collection_notified_parties: 'Notified Party',        // Collections ledger (#1194)
   visitor_vehicles: 'Visitor Vehicle',                  // Visitor Management Enhancement
   // Unified Expenditure Engine
   expenses: 'Expense',                                  // Expense Management
