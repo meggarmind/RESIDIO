@@ -15,6 +15,16 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { calculateImportReconciliation } from '@/lib/imports/reconciliation';
 import { NO_MATCHED_ROWS_MESSAGE, hasMatchedRows } from '@/lib/imports/submit-guard';
+import { createAdminClient } from '@/lib/supabase/server';
+import {
+  noticePostedParts,
+  postCollectionParts,
+  reverseCollectionParts,
+  type CollectionPart,
+  type PostedCollectionPart,
+} from '@/lib/collections/intake';
+import { billingRemainder } from '@/lib/collections/ledger';
+import type { SupabaseClient } from '@supabase/supabase-js';
 // ============================================================
 
 // ============================================================
@@ -582,6 +592,41 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
     };
   }
 
+  // Lines marked "Collection" in the review (#1195). The columns are not in the generated types yet.
+  const intakeRows = await fetchAllRows((from, to) =>
+    (supabase as unknown as SupabaseClient)
+      .from('bank_statement_rows')
+      .select('id, collection_parts, matched_charge_category')
+      .eq('import_id', import_id)
+      .not('collection_parts', 'is', null)
+      .order('id')
+      .range(from, to)
+  );
+  if (intakeRows.error) {
+    const failWrite = await updateImportStatus({ import_id, status: 'failed', created_rows: 0 });
+    if (failWrite.error) {
+      console.error('processImport: failed to mark import failed after collection parts read error', import_id, failWrite.error);
+    }
+    return {
+      success: false,
+      created_count: 0,
+      created_payments_count: 0,
+      created_expenses_count: 0,
+      skipped_count: 0,
+      error_count: 1,
+      errors: [{ row_id: '', error: intakeRows.error }],
+      import_id,
+    };
+  }
+  const intakeByRow = new Map(
+    ((intakeRows.data ?? []) as Array<{ id: string; collection_parts: CollectionPart[] | null; matched_charge_category: string | null }>)
+      .filter((r) => Array.isArray(r.collection_parts) && r.collection_parts.length > 0)
+      .map((r) => [r.id, { parts: r.collection_parts as CollectionPart[], chargeCategory: r.matched_charge_category }])
+  );
+  // The collection tables are written with the service role, after the imports.review check above.
+  let adminDb: SupabaseClient | null = null;
+  const collectionsDb = () => (adminDb ??= createAdminClient() as unknown as SupabaseClient);
+
   const result: ProcessImportResult = {
     success: true,
     created_count: 0,
@@ -595,7 +640,7 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
 
   // Credits that reach the duplicate check: their hashes are loaded once and checked in memory (#777).
   const dupCandidates = skip_duplicates
-    ? rows.filter((r) => r.transaction_type !== 'debit' && r.matched_resident_id && r.transaction_date)
+    ? rows.filter((r) => r.transaction_type !== 'debit' && (r.matched_resident_id || intakeByRow.has(r.id)) && r.transaction_date)
     : [];
   const hashIndex = await loadHashIndex(supabase, dupCandidates.map((r) => r.transaction_hash));
   const threshold = dupCandidates.length > 0 ? await readDuplicateThreshold(supabase) : undefined;
@@ -627,7 +672,8 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
   for (const row of rows) {
     // Check for explicit matches first
     const isDebit = row.transaction_type === 'debit';
-    const hasManualMatch = row.matched_resident_id || row.matched_project_id || row.matched_petty_cash_account_id || row.matched_expense_category_id;
+    const intake = isDebit ? undefined : intakeByRow.get(row.id);
+    const hasManualMatch = row.matched_resident_id || row.matched_project_id || row.matched_petty_cash_account_id || row.matched_expense_category_id || intake;
 
     // Skip if no match found (and we are skipping unmatched)
     if (!hasManualMatch && !row.tag_id && skip_unmatched) {
@@ -668,7 +714,7 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
     }
 
     // Check for duplicates (only for residential payments/credits)
-    if (!isDebit && row.matched_resident_id && skip_duplicates && row.transaction_date) {
+    if (!isDebit && (row.matched_resident_id || intake) && skip_duplicates && row.transaction_date) {
       const dupCheck =
         duplicateByHash(row.transaction_hash, hashIndex) ??
         (await guardrailDuplicate(
@@ -820,6 +866,31 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
         // Handle CREDIT transaction - Create Payment (existing logic)
         // ============================================================
 
+        // Collection parts first (#1195): they never credit a wallet. A failed billing part reverses them.
+        let posted: PostedCollectionPart[] = [];
+        if (intake) {
+          const remainder = billingRemainder(row.amount, intake.parts.map((part) => part.amount));
+          if (remainder < 0 || (remainder > 0) !== Boolean(row.matched_resident_id)) {
+            throw new Error('The collection parts no longer match the bank amount; assign the line again');
+          }
+          const postResult = await postCollectionParts(collectionsDb(), intake.parts, {
+            paymentDate: row.transaction_date || new Date().toISOString().split('T')[0],
+            method: 'bank_transfer',
+            reference: row.reference || null,
+            notes: `Imported from bank statement: ${row.description}`,
+            bankRowId: row.id,
+            userId: auth.userId,
+          });
+          if ('error' in postResult) throw new Error(postResult.error);
+          posted = postResult.posted;
+          if (!row.matched_resident_id) {
+            await markCreated(row, { payment_id: null });
+            await noticePostedParts(posted);
+            result.created_count++;
+            continue;
+          }
+        }
+
         // Ensure we have a resident match if we got here
         if (!row.matched_resident_id) {
           throw new Error('Resident matching required for payment creation');
@@ -827,7 +898,7 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
 
         const paymentResult = await createPaymentCore({
           resident_id: row.matched_resident_id,
-          amount: row.amount,
+          amount: intake ? billingRemainder(row.amount, intake.parts.map((part) => part.amount)) : row.amount,
           payment_date: new Date(row.transaction_date || new Date()),
           status: 'paid',
           method: 'bank_transfer',
@@ -837,12 +908,16 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
           import_row_id: row.id,
           is_verified: true, // Bank statement imports are auto-verified
           bank_row_id: row.id,
-          // The bank sender was matched to this resident, so they paid it; no purpose is known: Dues (#1190).
-          charge_category: DEFAULT_CHARGE_CATEGORY,
+          // The bank sender was matched to this resident, so they paid it; no purpose is known: Dues (#1190),
+          // unless the review split the line and chose the billing part's category (#1195).
+          charge_category: intake?.chargeCategory || DEFAULT_CHARGE_CATEGORY,
           paid_by_resident_id: row.matched_resident_id,
         }, { trustedVerification: true });
 
         if (paymentResult.error) {
+          if (posted.length > 0) {
+            await reverseCollectionParts(collectionsDb(), posted, `Billing part not recorded: ${paymentResult.error}`, auth.userId);
+          }
           throw new Error(paymentResult.error);
         }
 
@@ -850,6 +925,7 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
         await markCreated(row, {
           payment_id: paymentResult.data?.id,
         });
+        await noticePostedParts(posted);
 
         result.created_payments_count++;
         result.created_count++;

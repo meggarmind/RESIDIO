@@ -7,7 +7,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { uid } from '@/__tests__/helpers/recording-supabase';
 import { processImport } from '@/actions/imports/process-import';
 
-const { authorizePermission, createServerSupabaseClient, logAudit, createPaymentCore, createExpense, updateImportStatus } =
+const {
+  authorizePermission, createServerSupabaseClient, logAudit, createPaymentCore, createExpense, updateImportStatus,
+  postCollectionParts, reverseCollectionParts, noticePostedParts,
+} =
   vi.hoisted(() => ({
     authorizePermission: vi.fn(),
     createServerSupabaseClient: vi.fn(),
@@ -15,10 +18,14 @@ const { authorizePermission, createServerSupabaseClient, logAudit, createPayment
     createPaymentCore: vi.fn(),
     createExpense: vi.fn(),
     updateImportStatus: vi.fn(),
+    postCollectionParts: vi.fn(),
+    reverseCollectionParts: vi.fn(),
+    noticePostedParts: vi.fn(),
   }));
 
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission }));
-vi.mock('@/lib/supabase/server', () => ({ createServerSupabaseClient }));
+vi.mock('@/lib/supabase/server', () => ({ createServerSupabaseClient, createAdminClient: vi.fn(() => ({ admin: true })) }));
+vi.mock('@/lib/collections/intake', () => ({ postCollectionParts, reverseCollectionParts, noticePostedParts }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit }));
 vi.mock('@/lib/payments/create-payment', () => ({ createPaymentCore }));
 vi.mock('@/actions/expenses/create-expense', () => ({ createExpense }));
@@ -27,7 +34,7 @@ vi.mock('@/lib/imports/update-import-status', () => ({ updateImportStatus }));
 vi.mock('@/lib/notifications/admin-notifier', () => ({ notifyAdmins: vi.fn() }));
 
 type Row = Record<string, unknown>;
-type Filter = { kind: 'eq' | 'in' | 'gte' | 'lte'; col: string; val: unknown };
+type Filter = { kind: 'eq' | 'in' | 'gte' | 'lte' | 'notnull'; col: string; val: unknown };
 type Entry = { table: string; op: string; vals?: Row; filters: Filter[]; range?: [number, number] };
 
 let db: Record<string, Row[]>;
@@ -57,6 +64,8 @@ function makeSupabase() {
       chain.in = (col: string, val: unknown) => (entry.filters.push({ kind: 'in', col, val }), chain);
       chain.gte = (col: string, val: unknown) => (entry.filters.push({ kind: 'gte', col, val }), chain);
       chain.lte = (col: string, val: unknown) => (entry.filters.push({ kind: 'lte', col, val }), chain);
+      // Only .not(col, 'is', null) is used.
+      chain.not = (col: string) => (entry.filters.push({ kind: 'notnull', col, val: null }), chain);
       chain.order = (col: string) => (orders.push(col), chain);
       chain.range = (from: number, to: number) => ((entry.range = [from, to]), chain);
 
@@ -66,6 +75,7 @@ function makeSupabase() {
             const v = r[f.col];
             if (f.kind === 'eq') return v === f.val;
             if (f.kind === 'in') return (f.val as unknown[]).includes(v);
+            if (f.kind === 'notnull') return v != null;
             if (f.kind === 'gte') return cmp(v, f.val) >= 0;
             return cmp(v, f.val) <= 0;
           })
@@ -167,6 +177,9 @@ beforeEach(() => {
     input.amount === 666 ? { data: null, error: 'Payment write failed' } : { data: { id: uid(5000 + ++paymentSeq) }, error: null }
   );
   createExpense.mockImplementation(async () => ({ data: { id: uid(6000 + ++paymentSeq) }, error: null }));
+  postCollectionParts.mockImplementation(async (_db: unknown, parts: Array<{ amount: number }>) => ({
+    posted: parts.map((part, i) => ({ id: uid(4000 + i), receipt_number: `COL-2026-00000${i + 1}`, amount: part.amount })),
+  }));
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
@@ -282,3 +295,62 @@ describe('processImport query count (#777)', () => {
 // Before #777 this fixture took 507 queries (three hash reads, the guardrail reads and a status update per row);
 // after, 118: one guardrail read and one created-status write per created row, the rest batched.
 const QUERY_BUDGET = 150;
+
+describe('processImport collection lines (#1195)', () => {
+  const COLLECTION = uid(3001);
+  const PAYER = uid(3002);
+  const part = (amount: number) => ({ collection_id: COLLECTION, payer_id: PAYER, house_id: null, quantity: null, unit_price: null, amount });
+
+  it('a line marked Collection records the collection payment and never a billing payment', async () => {
+    const line = row({ amount: 5000, matched_resident_id: null, collection_parts: [part(5000)], reference: 'BANK-1' });
+    seed([line]);
+
+    const res = await processImport({ import_id: IMPORT });
+
+    expect(createPaymentCore).not.toHaveBeenCalled();
+    expect(postCollectionParts).toHaveBeenCalledWith({ admin: true }, [part(5000)], expect.objectContaining({
+      bankRowId: line.id, reference: 'BANK-1', method: 'bank_transfer', paymentDate: '2026-01-10',
+    }));
+    expect(noticePostedParts).toHaveBeenCalledTimes(1);
+    expect(statusOf(line.id)).toEqual(['created', null, null]);
+    expect(res).toMatchObject({ created_count: 1, created_payments_count: 0 });
+  });
+
+  it('a split line posts the collection parts and the rest as a billing payment of the chosen category', async () => {
+    const line = row({ amount: 10000.5, collection_parts: [part(2500.25), part(1000)], matched_charge_category: 'development_levy' });
+    seed([line]);
+
+    await processImport({ import_id: IMPORT });
+
+    expect(createPaymentCore).toHaveBeenCalledWith(
+      expect.objectContaining({ resident_id: RESIDENT, amount: 6500.25, charge_category: 'development_levy', bank_row_id: line.id }),
+      { trustedVerification: true }
+    );
+    expect(statusOf(line.id)).toEqual(['created', null, uid(5001)]);
+  });
+
+  it('reverses the posted collection parts when the billing part fails', async () => {
+    const line = row({ amount: 1666, collection_parts: [part(1000)] });
+    seed([line]);
+
+    await processImport({ import_id: IMPORT });
+
+    expect(reverseCollectionParts).toHaveBeenCalledWith(
+      { admin: true },
+      [expect.objectContaining({ id: uid(4000), amount: 1000 })],
+      'Billing part not recorded: Payment write failed',
+      'user-1'
+    );
+    expect(statusOf(line.id)).toEqual(['error', 'Payment write failed', null]);
+  });
+
+  it('refuses a line whose parts no longer match its amount, and posts nothing', async () => {
+    const line = row({ amount: 4000, matched_resident_id: null, collection_parts: [part(5000)] });
+    seed([line]);
+
+    await processImport({ import_id: IMPORT });
+
+    expect(postCollectionParts).not.toHaveBeenCalled();
+    expect(statusOf(line.id)[0]).toBe('error');
+  });
+});

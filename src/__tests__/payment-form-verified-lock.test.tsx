@@ -10,7 +10,9 @@ vi.mock('@/hooks/use-payments', () => ({
   useCreatePayment: () => ({ mutateAsync: vi.fn() }),
   useUpdatePayment: () => ({ mutateAsync: updateSpy }),
   useResidentPropertiesForPayment: () => ({ data: undefined, isLoading: false }),
+  useRecordSplitPayment: () => ({ mutateAsync: vi.fn() }),
 }));
+vi.mock('@/hooks/use-collections', () => ({ useOpenCollections: () => ({ data: undefined }) }));
 vi.mock('@/hooks/use-billing', () => ({
   useChargeCategories: () => ({ data: [{ code: 'dues', name: 'Dues', sort_order: 1 }] }),
 }));

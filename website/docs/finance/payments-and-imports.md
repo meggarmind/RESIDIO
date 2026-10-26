@@ -11,7 +11,7 @@ residio_sources:
   - src/actions/imports/**
   - src/components/imports/**
   - src/lib/parsers/**
-residio_verified_commit: de3a81fc
+residio_verified_commit: 4039bd1b
 residio_verified_at: '2026-10-26'
 residio_app_version: '0.4.0'
 ---
@@ -34,13 +34,21 @@ Use **Transactions** for individual payment records and **Import Statement** for
 
 A payment for a house pays only that house's invoices. Any amount left over stays as wallet credit; it is never moved to another house.
 
-Payments from a bank statement or email import are recorded as Dues, paid by the matched resident. A Paystack payment takes the category of the invoice it was started from.
+### Split a payment between billing and a collection
+
+When a resident pays one sum for dues and a collection (for example dues and the End of Year Party), turn on **Part of this payment is for a collection** before saving. Enter the full amount received in **Amount**, then add one or more collection parts: the collection and the amount, or the quantity for an item purchase. The form shows how much goes to the wallet. Saving records each collection part as a payment into its collection, with its own `COL-` receipt, and the rest as a billing payment in the **Payment for** category. The parts always add up to the amount received. If the billing payment cannot be saved (for example it is a duplicate), the collection parts are reversed. A split where the collection parts take the whole amount is refused: record that payment in **Collections** instead. Splitting needs `payments.create` and `collections.manage`.
+
+Payments from a bank statement or email import are recorded as Dues, paid by the matched resident, unless the review marked the line as a collection (see below). A Paystack payment takes the category of the invoice it was started from.
 
 ## Change what a payment is for
 
 Open the payment and choose **Change category**, then pick the new category. The amount moves from the resident's wallet of the old category to the wallet of the new one and stays there as credit; settle invoices from the wallet afterwards. The change is recorded in the audit log and needs the `billing.manage_wallets` permission.
 
 It is refused when the payment has already paid invoices ("This payment has already paid invoices. Reverse its settlement before changing its category"), or when the old wallet no longer holds the payment's amount. **Payment for** cannot be changed with **Edit Details**.
+
+### Move a payment to a collection
+
+When a payment was recorded as billing but was money for a collection, open it and choose **Move to collection**. Pick the collection, the quantity for an item purchase, and give a reason. In one step, anything the payment paid is unpaid again, its credit leaves the wallet, the money is recorded in the collection with its own receipt, and the payment record is removed. The move is refused when the credit has already been spent, and for an item purchase when quantity × price is not the payment amount. It needs `payments.delete` and `collections.manage`, and both sides are recorded in the audit log. To move it back, use **Move to billing** on the collection payment (see [Collections](./collections)).
 
 To delete a payment, open it and choose **Delete** on its page. This needs the `payments.delete` permission and asks for confirmation first. Afterwards you return to the resident's page, or to **Transactions** when the payment has no resident.
 
@@ -51,10 +59,10 @@ An uploaded statement never posts payments on its own. It is submitted, approved
 1. Open **Transactions → Import Statement**.
 2. Upload the approved statement file. Lines already stored by an earlier import (for example an overlapping statement period), and a repeat of an identical line in the same file, are skipped rather than failing the upload; a notice says how many lines were skipped as already imported.
 3. Review parsed rows and duplicate warnings.
-4. Correct categorization or matching issues in the preview.
+4. Correct categorization or matching issues in the preview. For money that is for a collection, open the line's assignment and choose the **Collection** tab (credits only): choose the payer (a resident or a non-resident) and one or more collections with their amounts or quantities. The parts must add up to the bank amount. To split the line, for example dues and a party contribution from one resident, turn on **Rest of the amount is a billing payment** and choose its category: the rest goes to that resident's wallet as an ordinary payment. The line shows **Collection** or **Split** in the preview. Marking a line needs `imports.review` and `collections.manage`. A new assignment or **Unmatch** clears the collection marking.
 5. Check that the total and row count match the source statement, then choose **Submit for approval**. This needs the `imports.review` permission and opens the import's page. An import with no matched rows cannot be submitted: the button is disabled on the import's page and the server refuses it with "No matched rows to process, so there is nothing to submit."
 6. An approver opens the import (from the **Import History** page, using the **Needs approval** filter, or from the "Bank Import Awaiting Approval" notification) and chooses **Approve**, or **Reject** with a required reason. Approve needs `imports.approve`; Reject needs `imports.reject`. The person who submitted an import cannot approve it: a different approver is required, and the page shows "You submitted this import, so a different approver is required" if they try. The submitter can still reject their own submission to withdraw it.
-7. Only an approved import can be processed. Once approved, anyone with `imports.review` (including the submitter) opens the import, picks the processing options (mode, skip duplicates, skip unmatched) and chooses **Process payments**. Payments are created and wallets credited only at this step.
+7. Only an approved import can be processed. Once approved, anyone with `imports.review` (including the submitter) opens the import, picks the processing options (mode, skip duplicates, skip unmatched) and chooses **Process payments**. Payments are created and wallets credited only at this step. A line marked **Collection** creates a collection payment, linked to the bank line, and never credits a wallet; a split line creates its collection payments and a billing payment for the rest. If the billing part of a split line fails, its collection payments are reversed and the line shows the error.
 
 Once an import is submitted, its rows are locked: matching, unmatching, skipping or re-running the auto-match is refused with "This import's rows can no longer be changed" for an import that is awaiting approval, approved, posting, completed, failed or rejected. Rows can only be edited while the import is pending or processing. To change a submitted import, reject it and upload the statement again.
 
