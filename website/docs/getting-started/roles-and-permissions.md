@@ -55,7 +55,7 @@ Two-factor authentication is optional: it applies only to accounts that have tur
 | Role | Titles | Typical responsibility | Primary guide sections |
 | --- | --- | --- | --- |
 | Super Administrator | — | Full estate configuration and oversight. An operator role, not tied to a resident | All sections |
-| Chairman | Chairman, Vice Chairman | Governance, approvals, reports, settings, projects and role assignment | Dashboard, operations, reports, settings |
+| Chairman | Chairman, Vice Chairman | Governance, approvals, reports, settings, projects, collections and role assignment | Dashboard, operations, reports, settings |
 | Financial Officer | Treasurer, Financial Secretary | Payments, billing, imports, expenditure, and finance reports | Finance |
 | Secretary | Secretary, Assistant Secretary | Documents, communications, and resident records | Residents, operations |
 | Security Officer | Chief Security Officer, Assistant Chief Security Officer | Security contacts, access records, and gate operations | Security |

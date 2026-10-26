@@ -163,6 +163,10 @@ export const PERMISSIONS = {
   GROUPS_VIEW: 'groups.view',
   GROUPS_MANAGE: 'groups.manage',
 
+  // Collections ledger: contributions and item purchases outside billing (#1194)
+  COLLECTIONS_VIEW: 'collections.view',
+  COLLECTIONS_MANAGE: 'collections.manage',
+
   // Report Subscriptions Module (Phase 16)
   REPORT_SUBSCRIPTIONS_VIEW: 'report_subscriptions.view',
   REPORT_SUBSCRIPTIONS_MANAGE: 'report_subscriptions.manage',
@@ -268,6 +272,8 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   // the actions it drives.
   '/personnel': [PERMISSIONS.VENDORS_VIEW],
   '/projects': [PERMISSIONS.PROJECTS_VIEW],
+  // Collections ledger (#1194).
+  '/collections': [PERMISSIONS.COLLECTIONS_VIEW],
   '/expenditure': [PERMISSIONS.EXPENDITURE_VIEW],
   '/notifications': [PERMISSIONS.NOTIFICATIONS_VIEW],
   // Mirrors /reports: the analytics dashboard composes the same three report
