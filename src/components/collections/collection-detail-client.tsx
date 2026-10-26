@@ -19,6 +19,7 @@ import { CollectionFormDialog } from '@/components/collections/collection-form-d
 import { EMPTY_NOTIFIED_PARTY, NotifiedPartyFields } from '@/components/collections/notified-party-fields';
 import { RecordPaymentDialog } from '@/components/collections/record-payment-dialog';
 import { MoveToBillingDialog } from '@/components/collections/move-to-billing-dialog';
+import { PayerStatementDialog } from '@/components/collections/payer-statement-dialog';
 import {
   addCollectionNotifiedParty,
   removeCollectionNotifiedParty,
@@ -58,6 +59,7 @@ export function CollectionDetailClient({ detail }: { detail: CollectionDetail })
   const [editing, setEditing] = useState(false);
   const [reversing, setReversing] = useState<CollectionPayment | null>(null);
   const [movingToBilling, setMovingToBilling] = useState<CollectionPayment | null>(null);
+  const [statementFor, setStatementFor] = useState<CollectionPayment | null>(null);
   const [reason, setReason] = useState('');
   const [addingParty, setAddingParty] = useState(false);
   const [party, setParty] = useState<NotifiedPartyInput>(EMPTY_NOTIFIED_PARTY);
@@ -222,6 +224,9 @@ export function CollectionDetailClient({ detail }: { detail: CollectionDetail })
                     <TableCell label="Payer">
                       {payerName(payment.payer)}
                       <span className="ml-1 text-xs text-muted-foreground">{payment.payer?.resident_id ? '' : '(non-resident)'}</span>
+                      <Button variant="link" size="sm" className="ml-1 h-auto p-0 text-xs" onClick={() => setStatementFor(payment)}>
+                        Statement
+                      </Button>
                       {(paymentParties[payment.id] ?? []).length > 0 && (
                         <span className="block text-xs text-muted-foreground">
                           Notified: {(paymentParties[payment.id] ?? []).map((p) => p.name).join(', ')}
@@ -325,6 +330,14 @@ export function CollectionDetailClient({ detail }: { detail: CollectionDetail })
 
       {recording && <RecordPaymentDialog collection={collection} open={recording} onOpenChange={setRecording} />}
       {movingToBilling && <MoveToBillingDialog payment={movingToBilling} onOpenChange={(open) => !open && setMovingToBilling(null)} />}
+      {statementFor && (
+        <PayerStatementDialog
+          payerId={statementFor.payer_id}
+          payerName={payerName(statementFor.payer)}
+          open
+          onOpenChange={(open) => !open && setStatementFor(null)}
+        />
+      )}
       {editing && <CollectionFormDialog collection={collection} open={editing} onOpenChange={setEditing} />}
 
       <Dialog open={reversing !== null} onOpenChange={(open) => !open && setReversing(null)}>

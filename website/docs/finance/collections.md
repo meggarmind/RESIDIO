@@ -7,7 +7,9 @@ residio_sources:
   - src/actions/collections/**
   - src/components/collections/**
   - src/lib/collections/**
-residio_verified_commit: 4039bd1b
+  - src/app/api/collections/**
+  - src/lib/billing/statement-categories.ts
+residio_verified_commit: 87b8d265
 residio_verified_at: '2026-10-26'
 residio_app_version: '0.4.0'
 ---
@@ -54,6 +56,18 @@ A notified party is someone told about a payment, such as the security superviso
 Each party has a name and the channels to use: email, WhatsApp or SMS. The message gives the payer's name, the item, quantity, amount, date, receipt number and reference. It never gives the payer's phone number or email. The party does not need a login.
 
 WhatsApp reaches a party only when that number has opted in to WhatsApp messages, the same rule as every other WhatsApp message. SMS is not available yet. When a channel cannot be used, the confirmation after recording says so. A message that fails later shows in **System → Notification History**.
+
+## Collections on a statement
+
+A resident's account statement is laid out by wallet category: one section for each of Dues, Development Levy and Transformer Fee that has activity in the period or a balance carried in, each with its own opening balance, running balance and closing balance. The account summary at the top is the total of them.
+
+Below those, a **Collections** section lists each collection payment the resident made in the period, with its collection, receipt number and amount, and the total. Collections are not charges, so this section never changes a balance. A reversed payment is not listed. A payment recorded against a house appears on that house's statement only; one with no house appears on every statement of the resident. Reading collection payments needs the `collections.view` permission, so a statement made by someone without it, or one a resident downloads for themselves, has no Collections section.
+
+The same layout is sent by WhatsApp and email. A statement counts its Collections lines with its other rows when deciding between chat (up to 40 rows) and email.
+
+## Print a payer's statement
+
+For a payer who is not a resident, or any payer, choose **Statement** beside their name in a collection's payment list. Pick the period (this year to today by default) and choose **Download PDF**. The statement lists every payment that payer made into any collection in the period, with a total. It needs `collections.view`.
 
 ## Correct a payment
 
