@@ -444,6 +444,7 @@ async function sendEmailReminder(params: {
         estateEmail: estateSettings.estateEmail,
         estatePhone: estateSettings.estatePhone,
         estateAddress: estateSettings.estateAddress,
+        estateLogoUrl: estateSettings.estateLogoUrl,
         escalationLevel,
         reminderCount,
       }),

@@ -7,14 +7,15 @@ interface WhatsAppDebtReportEmailProps {
   estateEmail?: string;
   estatePhone?: string;
   estateAddress?: string;
+  estateLogoUrl?: string;
   estateWebsite?: string;
   scopeLabel: string;
 }
 
 /** The debt status report an admin asked for on WhatsApp (#982). The PDF is attached. */
-export function WhatsAppDebtReportEmail({ firstName, estateName, estateEmail, estatePhone, estateAddress, estateWebsite, scopeLabel }: WhatsAppDebtReportEmailProps) {
+export function WhatsAppDebtReportEmail({ firstName, estateName, estateEmail, estatePhone, estateAddress, estateWebsite, estateLogoUrl, scopeLabel }: WhatsAppDebtReportEmailProps) {
   return (
-    <EmailLayout preview={`Debt status report: ${scopeLabel}`} estateName={estateName} estateEmail={estateEmail} estatePhone={estatePhone} estateAddress={estateAddress} estateWebsite={estateWebsite}>
+    <EmailLayout preview={`Debt status report: ${scopeLabel}`} estateName={estateName} estateEmail={estateEmail} estatePhone={estatePhone} estateAddress={estateAddress} estateWebsite={estateWebsite} estateLogoUrl={estateLogoUrl}>
       <Heading style={heading}>Debt status report</Heading>
       <Text style={paragraph}>Hi {firstName},</Text>
       <Text style={paragraph}>

@@ -38,6 +38,7 @@ import {
 import { pdf } from '@react-pdf/renderer';
 import { ClearanceCertificatePDF } from '@/lib/pdf/clearance-certificate';
 import { useEstateDetails } from '@/hooks/use-estate-details';
+import { estateLogoDataUri } from '@/lib/branding/estate-logo';
 
 interface OwnerMoveOutWizardProps {
     open: boolean;
@@ -69,7 +70,7 @@ export function OwnerMoveOutWizard({
     isSelfService = false,
 }: OwnerMoveOutWizardProps) {
     const queryClient = useQueryClient();
-    const { estateName, estateAddress } = useEstateDetails();
+    const { estateName, estateAddress, estateLogoUrl } = useEstateDetails();
     const [currentStep, setCurrentStep] = useState<WizardStep>('clearance');
     const [validityDays, setValidityDays] = useState<number>(7);
     const [notes, setNotes] = useState<string>('');
@@ -144,7 +145,7 @@ export function OwnerMoveOutWizard({
                 destination: 'leaving_estate' as const,
                 destinationHouse: null,
             };
-            const doc = <ClearanceCertificatePDF certificate={pdfCertificate} estateName={estateName} estateAddress={estateAddress} />;
+            const doc = <ClearanceCertificatePDF certificate={pdfCertificate} estateName={estateName} estateAddress={estateAddress} estateLogoUrl={await estateLogoDataUri(estateLogoUrl)} />;
             const blob = await pdf(doc).toBlob();
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');

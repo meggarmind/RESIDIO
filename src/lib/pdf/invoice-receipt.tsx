@@ -7,6 +7,7 @@ import {
 } from '@react-pdf/renderer';
 import { format } from 'date-fns';
 import { formatPdfCurrency } from '@/lib/pdf/format-currency';
+import { PdfEstateLogo } from '@/lib/pdf/estate-logo';
 import type { InvoiceWithDetails } from '@/types/database';
 
 // Styles for PDF
@@ -227,6 +228,7 @@ interface InvoiceReceiptPDFProps {
   invoice: InvoiceWithDetails;
   estateName?: string;
   estateAddress?: string;
+  estateLogoUrl?: string;
 }
 
 /**
@@ -235,7 +237,7 @@ interface InvoiceReceiptPDFProps {
  * Generates a downloadable PDF receipt for paid invoices.
  * Uses @react-pdf/renderer for server-side PDF generation.
  */
-export function InvoiceReceiptPDF({ invoice, estateName = 'Residio Estate', estateAddress = '' }: InvoiceReceiptPDFProps) {
+export function InvoiceReceiptPDF({ invoice, estateName = 'Residio Estate', estateAddress = '', estateLogoUrl }: InvoiceReceiptPDFProps) {
   const isPartial = invoice.status === 'partially_paid';
   const isPaid = invoice.status === 'paid' || isPartial;
   const receiptNumber = invoice.invoice_number;
@@ -267,6 +269,7 @@ export function InvoiceReceiptPDF({ invoice, estateName = 'Residio Estate', esta
         <View style={styles.header}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <View>
+              <PdfEstateLogo url={estateLogoUrl} />
               <Text style={styles.estateName}>{estateName}</Text>
               <Text style={{ fontSize: 10, color: '#666', marginTop: 4 }}>
                 Official Management Receipt

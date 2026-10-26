@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { usableEstateLogoUrl } from '@/lib/branding/estate-logo';
 import { createAdminClient } from '@/lib/supabase/server';
 import { recordAudit } from '@/lib/audit/recorder';
 import { sendEmail } from '@/lib/email/send-email';
@@ -78,12 +79,12 @@ export type EmailChangeConfirm =
   | { status: 'wrong' | 'locked' | 'expired' | 'failed' };
 
 async function estateEmailSettings() {
-  const settings = await getRawSettingsAsService(['estate_name', 'estate_email', 'estate_phone', 'estate_address']);
+  const settings = await getRawSettingsAsService(['estate_name', 'estate_email', 'estate_phone', 'estate_address', 'estate_logo_url']);
   const value = (key: string) => {
     const raw = settings.status === 'ok' ? settings.values.get(key) : null;
     return typeof raw === 'string' && raw.trim() ? raw.trim() : undefined;
   };
-  return { estateName: value('estate_name') ?? 'Residio Estate', estateEmail: value('estate_email'), estatePhone: value('estate_phone'), estateAddress: value('estate_address') };
+  return { estateName: value('estate_name') ?? 'Residio Estate', estateEmail: value('estate_email'), estatePhone: value('estate_phone'), estateAddress: value('estate_address'), estateLogoUrl: usableEstateLogoUrl(settings.status === 'ok' ? settings.values.get('estate_logo_url') : null) };
 }
 
 /** Sends the existing 6-digit verification code to the NEW address; nothing is saved until it comes back. */

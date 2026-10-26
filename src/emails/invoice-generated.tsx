@@ -21,6 +21,7 @@ interface InvoiceGeneratedEmailProps {
   estateEmail?: string;
   estatePhone?: string;
   estateAddress?: string;
+  estateLogoUrl?: string;
   invoiceUrl?: string;
   /** Admin-edited wording (merged templates). Omitted means the built-in text. */
   copy?: Record<string, string>;
@@ -40,6 +41,7 @@ export function InvoiceGeneratedEmail({
   estateEmail,
   estatePhone,
   estateAddress,
+  estateLogoUrl,
   invoiceUrl,
   copy,
 }: InvoiceGeneratedEmailProps) {
@@ -72,6 +74,7 @@ export function InvoiceGeneratedEmail({
       estateEmail={estateEmail}
       estatePhone={estatePhone}
       estateAddress={estateAddress}
+      estateLogoUrl={estateLogoUrl}
     >
       <Heading style={heading}>{text('heading')}</Heading>
 

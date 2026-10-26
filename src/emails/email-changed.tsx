@@ -9,6 +9,7 @@ interface EmailChangedEmailProps {
   estateEmail?: string;
   estatePhone?: string;
   estateAddress?: string;
+  estateLogoUrl?: string;
 }
 
 /** Sent to the OLD address when a resident changes their email over WhatsApp (#816 decision 7). */
@@ -19,6 +20,7 @@ export function EmailChangedEmail({
   estateEmail,
   estatePhone,
   estateAddress,
+  estateLogoUrl,
 }: EmailChangedEmailProps) {
   return (
     <EmailLayout
@@ -27,6 +29,7 @@ export function EmailChangedEmail({
       estateEmail={estateEmail}
       estatePhone={estatePhone}
       estateAddress={estateAddress}
+      estateLogoUrl={estateLogoUrl}
     >
       <Heading style={heading}>Your email was changed</Heading>
 

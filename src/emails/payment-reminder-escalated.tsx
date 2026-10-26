@@ -25,6 +25,7 @@ interface PaymentReminderEscalatedProps {
   estateEmail?: string;
   estatePhone?: string;
   estateAddress?: string;
+  estateLogoUrl?: string;
   paymentUrl?: string;
   escalationLevel: ReminderEscalationLevel;
   reminderCount?: number; // How many reminders have been sent
@@ -119,6 +120,7 @@ export function PaymentReminderEscalatedEmail(props: PaymentReminderEscalatedPro
     estateEmail,
     estatePhone,
     estateAddress,
+    estateLogoUrl,
     paymentUrl,
     escalationLevel,
     reminderCount,
@@ -151,6 +153,7 @@ export function PaymentReminderEscalatedEmail(props: PaymentReminderEscalatedPro
       estateEmail={estateEmail}
       estatePhone={estatePhone}
       estateAddress={estateAddress}
+      estateLogoUrl={estateLogoUrl}
     >
       <Heading style={getHeadingStyle(content.boxStyle)}>
         {text(`${escalationLevel}.subject`)}

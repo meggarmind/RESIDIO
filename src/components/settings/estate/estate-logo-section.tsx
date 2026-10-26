@@ -29,9 +29,9 @@ export function EstateLogoSection() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg'];
     if (!allowedTypes.includes(file.type)) {
-      toast.error('Please upload a PNG, JPG, or WebP image');
+      toast.error('Please upload a PNG or JPEG image');
       return;
     }
 
@@ -87,7 +87,7 @@ export function EstateLogoSection() {
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept="image/png,image/jpeg,image/jpg,image/webp"
+                      accept="image/png,image/jpeg,image/jpg"
                       onChange={handleLogoUpload}
                       className="hidden"
                       id={controlId}

@@ -7,6 +7,7 @@ import {
 } from '@react-pdf/renderer';
 import { format } from 'date-fns';
 import { formatPdfCurrency } from '@/lib/pdf/format-currency';
+import { PdfEstateLogo } from '@/lib/pdf/estate-logo';
 import type { AccountStatementData, StatementTransaction } from '@/actions/billing/get-account-statement';
 
 // ============================================================
@@ -320,9 +321,10 @@ interface AccountStatementPDFProps {
   data: AccountStatementData;
   estateName?: string;
   estateAddress?: string;
+  estateLogoUrl?: string;
 }
 
-export function AccountStatementPDF({ data, estateName = 'Residio Estate', estateAddress = '' }: AccountStatementPDFProps) {
+export function AccountStatementPDF({ data, estateName = 'Residio Estate', estateAddress = '', estateLogoUrl }: AccountStatementPDFProps) {
   const {
     resident,
     house,
@@ -347,6 +349,7 @@ export function AccountStatementPDF({ data, estateName = 'Residio Estate', estat
         <View style={styles.header}>
           <View style={styles.headerRow}>
             <View>
+              <PdfEstateLogo url={estateLogoUrl} />
               <Text style={styles.estateName}>{estateName}</Text>
               <Text style={styles.estateSubtitle}>Account Statement</Text>
             </View>

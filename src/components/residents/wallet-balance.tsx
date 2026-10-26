@@ -9,8 +9,9 @@ import { useResidentWallets, useYearlyWalletTransactions } from '@/hooks/use-wal
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { formatCurrency } from '@/lib/utils';
-import { Wallet, Plus, TrendingUp, TrendingDown } from 'lucide-react';
+import { Wallet, Plus, TrendingUp, TrendingDown, ArrowRightLeft } from 'lucide-react';
 import { WalletAdjustmentDialog } from './wallet-adjustment-dialog';
+import { WalletTransferDialog } from './wallet-transfer-dialog';
 
 interface WalletBalanceProps {
   residentId: string;
@@ -19,6 +20,7 @@ interface WalletBalanceProps {
 
 export function WalletBalance({ residentId, showActions = true }: WalletBalanceProps) {
   const [isAdjustmentDialogOpen, setIsAdjustmentDialogOpen] = useState(false);
+  const [isTransferDialogOpen, setIsTransferDialogOpen] = useState(false);
   const { data: walletData, isLoading: walletLoading } = useResidentWallets(residentId);
   // Shares its cache key with the Transaction History ledger, so the Money tab
   // makes one ledger request rather than a separate 1000-row fetch (#783).
@@ -30,6 +32,7 @@ export function WalletBalance({ residentId, showActions = true }: WalletBalanceP
   const { hasPermission } = useAuth();
   const canAdjustWallet = hasPermission(PERMISSIONS.BILLING_MANAGE_WALLETS);
   const canShowAdjustment = showActions && canAdjustWallet;
+  const canShowTransfer = showActions && hasPermission(PERMISSIONS.BILLING_TRANSFER_WALLET_CREDIT);
 
   if (walletLoading) {
     return (
@@ -65,12 +68,20 @@ export function WalletBalance({ residentId, showActions = true }: WalletBalanceP
               </IconBox>
               Wallet balance
             </p>
-            {canShowAdjustment && (
-              <Button size="sm" variant="outline" className="h-7 text-xs min-h-11 md:min-h-0" onClick={() => setIsAdjustmentDialogOpen(true)}>
-                <Plus className="h-3.5 w-3.5 mr-1" />
-                Adjust
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {canShowTransfer && (
+                <Button size="sm" variant="outline" className="h-7 text-xs min-h-11 md:min-h-0" onClick={() => setIsTransferDialogOpen(true)}>
+                  <ArrowRightLeft className="h-3.5 w-3.5 mr-1" />
+                  Transfer credit
+                </Button>
+              )}
+              {canShowAdjustment && (
+                <Button size="sm" variant="outline" className="h-7 text-xs min-h-11 md:min-h-0" onClick={() => setIsAdjustmentDialogOpen(true)}>
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  Adjust
+                </Button>
+              )}
+            </div>
           </div>
           <p className={`text-2xl font-bold ${balanceColor}`}>{formatCurrency(balance)}</p>
           <dl className="space-y-1 text-xs" aria-label="Wallet balance by charge category">
@@ -107,6 +118,16 @@ export function WalletBalance({ residentId, showActions = true }: WalletBalanceP
           currentBalance={duesBalance}
           open={isAdjustmentDialogOpen}
           onOpenChange={setIsAdjustmentDialogOpen}
+        />
+      )}
+
+      {/* Transfer Dialog -- mounted only for holders of billing.transfer_wallet_credit (#1191) */}
+      {canShowTransfer && (
+        <WalletTransferDialog
+          residentId={residentId}
+          wallets={categoryLines}
+          open={isTransferDialogOpen}
+          onOpenChange={setIsTransferDialogOpen}
         />
       )}
     </>

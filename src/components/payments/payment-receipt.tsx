@@ -33,10 +33,11 @@ interface PaymentReceiptProps {
         } | null;
     };
     estateName?: string;
+    estateLogoUrl?: string;
 }
 
 export const PaymentReceipt = forwardRef<HTMLDivElement, PaymentReceiptProps>(
-    ({ payment, estateName = 'Residio Estate' }, ref) => {
+    ({ payment, estateName = 'Residio Estate', estateLogoUrl }, ref) => {
         const receiptNumber = payment.reference_number || `RCP-${payment.id.slice(0, 8).toUpperCase()}`;
 
         return (
@@ -47,6 +48,10 @@ export const PaymentReceipt = forwardRef<HTMLDivElement, PaymentReceiptProps>(
             >
                 {/* Header */}
                 <div className="text-center border-b-2 border-black pb-4 mb-6">
+                    {estateLogoUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element -- print receipt, logo is an external public URL
+                        <img src={estateLogoUrl} alt={estateName} className="mx-auto mb-2 h-12 object-contain" />
+                    )}
                     <h1 className="text-2xl font-bold uppercase tracking-wider">{estateName}</h1>
                     <p className="text-sm text-gray-600 mt-1">Payment Receipt</p>
                 </div>
