@@ -161,7 +161,10 @@ describe('processDueSchedules (/api/cron/process-report-schedules)', () => {
       generateReportWithClient: mocks.generateReportWithClient,
     }));
     vi.doMock('@/lib/pdf/reports/renderer', () => ({ renderReportPdf: vi.fn() }));
-    vi.doMock('@/lib/email/send-email', () => ({ sendEmail: vi.fn() }));
+    vi.doMock('@/lib/email/send-email', () => ({
+      sendEmail: vi.fn(),
+      getEstateEmailSettings: vi.fn().mockResolvedValue({ estateName: 'Test Estate' }),
+    }));
     vi.doMock('@/lib/audit/logger', () => ({ logAudit: vi.fn() }));
     const { processDueSchedules } = await import('@/lib/reports/process-schedules');
     const result = await processDueSchedules();

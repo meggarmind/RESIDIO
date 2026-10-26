@@ -3,6 +3,7 @@ import { getPayments } from '@/actions/payments/get-payments';
 import { getPayment } from '@/actions/payments/get-payment';
 import { createPayment } from '@/actions/payments/create-payment';
 import { updatePayment } from '@/actions/payments/update-payment';
+import { retagPaymentCategory } from '@/actions/payments/retag-payment';
 import { unverifyPayment, bulkVerifyPayments } from '@/actions/finance/manual-verification';
 import { deletePayment } from '@/actions/payments/delete-payment';
 import { getPaymentStats } from '@/actions/payments/get-payment-stats';
@@ -93,6 +94,30 @@ export function useUnverifyPayment() {
             queryClient.invalidateQueries({ queryKey: ['payment'] });
             queryClient.invalidateQueries({ queryKey: ['payment-stats'] });
             toast.success('Payment un-verified');
+        },
+        onError: (error) => {
+            toast.error(error.message);
+        },
+    });
+}
+
+export function useRetagPayment() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ id, chargeCategory }: { id: string; chargeCategory: string }) => {
+            const result = await retagPaymentCategory(id, chargeCategory);
+            if (!result.success) throw new Error(result.error || 'Failed to change the payment category');
+            return result;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['payments'] });
+            queryClient.invalidateQueries({ queryKey: ['payment'] });
+            queryClient.invalidateQueries({ queryKey: ['resident-wallet'] });
+            queryClient.invalidateQueries({ queryKey: ['wallet'] });
+            queryClient.invalidateQueries({ queryKey: ['wallet-transactions'] });
+            queryClient.invalidateQueries({ queryKey: ['yearly-wallet-transactions'] });
+            toast.success('Payment category changed');
         },
         onError: (error) => {
             toast.error(error.message);

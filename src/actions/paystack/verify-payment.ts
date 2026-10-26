@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { verifyTransaction, koboToNaira, isPaystackConfigured } from '@/lib/paystack';
 import type { VerifyPaymentResult, PaystackTransactionStatus } from '@/lib/paystack';
 import { creditWallet, allocateWalletToInvoices } from '@/actions/billing/wallet';
+import { invoiceChargeCategory } from '@/lib/billing/charge-categories';
 import { logAudit } from '@/lib/audit/logger';
 
 // Input validation
@@ -110,6 +111,8 @@ export async function verifyPaystackPayment(
   // If payment was successful, create payment record and allocate
   if (status === 'success' && !existingTransaction.payment_id) {
     const amountNaira = koboToNaira(txData.amount);
+    // The payment is for the invoice it was started from (#1190); the payer is that resident.
+    const chargeCategory = await invoiceChargeCategory(adminSupabase, existingTransaction.invoice_id);
 
     // Create payment record
     const { data: paymentRecord, error: paymentError } = await adminSupabase
@@ -123,6 +126,8 @@ export async function verifyPaystackPayment(
         method: 'online',
         reference_number: reference,
         paystack_reference: reference,
+        charge_category: chargeCategory,
+        paid_by_resident_id: existingTransaction.resident_id,
         notes: `Online payment via ${txData.channel || 'Paystack'}`,
       })
       .select()
@@ -148,7 +153,8 @@ export async function verifyPaystackPayment(
       amountNaira,
       'payment',
       paymentRecord.id,
-      `Online payment via ${txData.channel || 'Paystack'}`
+      `Online payment via ${txData.channel || 'Paystack'}`,
+      chargeCategory
     );
 
     if (!creditResult.success) {
@@ -158,7 +164,9 @@ export async function verifyPaystackPayment(
     // Auto-allocate to invoices (prioritize the invoice this payment was for)
     const allocateResult = await allocateWalletToInvoices(
       existingTransaction.resident_id,
-      existingTransaction.house_id
+      existingTransaction.house_id,
+      undefined,
+      { chargeCategory }
     );
 
     if (allocateResult.success && allocateResult.invoicesPaid > 0) {

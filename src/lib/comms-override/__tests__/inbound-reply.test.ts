@@ -44,6 +44,7 @@ describe('inbound WhatsApp Assistant replies are exempt from the redirect (decis
       findRosterMatches: vi.fn().mockResolvedValue([]),
       findLinkedResidents: vi.fn().mockResolvedValue([]),
       rememberPendingContact: vi.fn(),
+      getAssistantName: vi.fn().mockResolvedValue('Residio Assistant'),
     };
     await handleResidentMessage(inbound, { repository: repository as never });
 
@@ -57,6 +58,7 @@ describe('inbound WhatsApp Assistant replies are exempt from the redirect (decis
       getOptIn: vi.fn().mockResolvedValue(false),
       setOptIn: vi.fn(),
       rememberPendingContact: vi.fn(),
+      getAssistantName: vi.fn().mockResolvedValue('Residio Assistant'),
       consumeLinkToken: vi.fn().mockResolvedValue(null),
       findLinkCodeIssuer: vi.fn().mockResolvedValue(null),
       sendLinkNotice: vi.fn().mockResolvedValue(undefined),

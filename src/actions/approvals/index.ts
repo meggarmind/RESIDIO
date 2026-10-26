@@ -131,7 +131,7 @@ export async function getApprovalRequests(params: {
       } else if (request.entity_type === 'payment_record') {
         const { data: payment } = await supabase
           .from('payment_records')
-          .select('amount, resident:residents(first_name, last_name)')
+          .select('amount, resident:residents!payment_records_resident_id_fkey(first_name, last_name)')
           .eq('id', request.entity_id)
           .single();
 

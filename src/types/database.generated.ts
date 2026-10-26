@@ -3729,6 +3729,7 @@ export type Database = {
           amount: number
           approval_request_id: string | null
           bank_row_id: string | null
+          charge_category: string
           created_at: string | null
           email_import_id: string | null
           email_transaction_id: string | null
@@ -3739,6 +3740,8 @@ export type Database = {
           is_verified: boolean
           method: Database["public"]["Enums"]["payment_method"] | null
           notes: string | null
+          paid_by_name: string | null
+          paid_by_resident_id: string | null
           payment_date: string
           paystack_reference: string | null
           period_end: string | null
@@ -3757,6 +3760,7 @@ export type Database = {
           amount: number
           approval_request_id?: string | null
           bank_row_id?: string | null
+          charge_category?: string
           created_at?: string | null
           email_import_id?: string | null
           email_transaction_id?: string | null
@@ -3767,6 +3771,8 @@ export type Database = {
           is_verified?: boolean
           method?: Database["public"]["Enums"]["payment_method"] | null
           notes?: string | null
+          paid_by_name?: string | null
+          paid_by_resident_id?: string | null
           payment_date?: string
           paystack_reference?: string | null
           period_end?: string | null
@@ -3785,6 +3791,7 @@ export type Database = {
           amount?: number
           approval_request_id?: string | null
           bank_row_id?: string | null
+          charge_category?: string
           created_at?: string | null
           email_import_id?: string | null
           email_transaction_id?: string | null
@@ -3795,6 +3802,8 @@ export type Database = {
           is_verified?: boolean
           method?: Database["public"]["Enums"]["payment_method"] | null
           notes?: string | null
+          paid_by_name?: string | null
+          paid_by_resident_id?: string | null
           payment_date?: string
           paystack_reference?: string | null
           period_end?: string | null
@@ -3810,6 +3819,13 @@ export type Database = {
           verified_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "payment_records_charge_category_fkey"
+            columns: ["charge_category"]
+            isOneToOne: false
+            referencedRelation: "charge_categories"
+            referencedColumns: ["code"]
+          },
           {
             foreignKeyName: "payment_records_approval_request_id_fkey"
             columns: ["approval_request_id"]
@@ -3857,6 +3873,13 @@ export type Database = {
             columns: ["import_row_id"]
             isOneToOne: false
             referencedRelation: "bank_statement_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_records_paid_by_resident_id_fkey"
+            columns: ["paid_by_resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
             referencedColumns: ["id"]
           },
           {
@@ -6484,6 +6507,10 @@ export type Database = {
           p_requester_resident_id: string
         }
         Returns: boolean
+      }
+      retag_payment_charge_category: {
+        Args: { p_charge_category: string; p_payment_id: string }
+        Returns: Json
       }
       reverse_wallet_payment_batch: {
         Args: { p_batch_id: string; p_reversed_by?: string }
