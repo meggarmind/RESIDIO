@@ -5,7 +5,6 @@ const mocks = vi.hoisted(() => ({
   createServerSupabaseClient: vi.fn(),
   logAudit: vi.fn(),
   revalidatePath: vi.fn(),
-  getOrCreateWallet: vi.fn(),
   rpc: vi.fn(),
   tables: {} as Record<string, { data: unknown; error: unknown }>,
   calls: [] as Array<[string, string, unknown[]]>,
@@ -15,7 +14,6 @@ vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: mocks.authorizePer
 vi.mock('@/lib/supabase/server', () => ({ createServerSupabaseClient: mocks.createServerSupabaseClient }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit: mocks.logAudit }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
-vi.mock('@/actions/billing/wallet', () => ({ getOrCreateWallet: mocks.getOrCreateWallet }));
 
 import { getWalletTransferTargets, reverseWalletTransfer, transferWalletCredit } from '@/actions/billing/wallet-transfers';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
@@ -61,7 +59,6 @@ beforeEach(() => {
   };
   mocks.authorizePermission.mockResolvedValue({ authorized: true, userId: actorId });
   mocks.createServerSupabaseClient.mockResolvedValue({ rpc: mocks.rpc, from });
-  mocks.getOrCreateWallet.mockResolvedValue({ data: { id: toWalletId }, error: null });
   mocks.rpc.mockImplementation(async (name: string) => {
     if (name === 'transfer_wallet_credit') {
       return {
@@ -71,6 +68,7 @@ beforeEach(() => {
           from_resident_id: landlordId,
           from_charge_category: 'dues',
           from_balance: 500,
+          to_wallet_id: toWalletId,
           to_balance: 2000,
         },
         error: null,
@@ -174,10 +172,10 @@ describe('transferWalletCredit', () => {
     const result = await transferWalletCredit(transferInput);
 
     expect(result).toEqual({ success: true, error: null, transferId, totalSettled: 1500, settlementError: null });
-    expect(mocks.getOrCreateWallet).toHaveBeenCalledWith(tenantId, 'dues');
     expect(mocks.rpc).toHaveBeenNthCalledWith(1, 'transfer_wallet_credit', {
       p_from_wallet: fromWalletId,
-      p_to_wallet: toWalletId,
+      p_to_resident: tenantId,
+      p_to_category: 'dues',
       p_amount: 2000,
       p_reason: 'Landlord pays tenant dues',
     });

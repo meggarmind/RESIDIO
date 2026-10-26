@@ -8,7 +8,6 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { callWalletPaymentRpc } from '@/lib/billing/wallet-payment-rpc';
 import { houseLabel } from '@/lib/whatsapp/financial';
-import { getOrCreateWallet } from '@/actions/billing/wallet';
 
 /**
  * Admin "Transfer credit" (#1191, owner decision 6 of #1188): move credit between the wallets of one
@@ -123,12 +122,10 @@ export async function transferWalletCredit(input: z.input<typeof transferSchema>
         if (!link) return { success: false, error: 'The receiving resident is not linked to that house' };
     }
 
-    const target = await getOrCreateWallet(toResidentId, toChargeCategory);
-    if (!target.data) return { success: false, error: target.error || 'Receiving wallet not found' };
-
     const { data, error } = await (supabase as unknown as RpcClient).rpc('transfer_wallet_credit', {
         p_from_wallet: fromWalletId,
-        p_to_wallet: target.data.id,
+        p_to_resident: toResidentId,
+        p_to_category: toChargeCategory,
         p_amount: amount,
         p_reason: reason,
     });
@@ -154,7 +151,7 @@ export async function transferWalletCredit(input: z.input<typeof transferSchema>
             from_resident_id: data.from_resident_id,
             from_charge_category: data.from_charge_category,
             from_balance: data.from_balance,
-            to_wallet_id: target.data.id,
+            to_wallet_id: data.to_wallet_id,
             to_resident_id: toResidentId,
             to_charge_category: toChargeCategory,
             to_balance: data.to_balance,
