@@ -110,6 +110,7 @@ describe('Settings/System search entry permissions', () => {
       '/system/audit-logs': ['settings.view_audit_logs'],
       '/system/notification-queue': ['notifications.manage'],
       '/system/notification-history': ['notifications.manage'],
+      '/system/whatsapp-messages': ['whatsapp.view'],
       '/system/data-tools': ['settings.manage_general'],
       '/system/cron-status': ['system.monitor'],
       '/system/action-log': ['system.view_system_log'],

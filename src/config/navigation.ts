@@ -34,6 +34,7 @@ import {
   Activity,
   LayoutDashboard,
   ScrollText,
+  MessageSquare,
 } from 'lucide-react';
 import { PERMISSIONS, type Permission } from '@/lib/auth/action-roles';
 
@@ -294,6 +295,16 @@ const NAV_NOTIFICATION_HISTORY: NavItem = {
   permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE],
 };
 
+// Moved out of Settings > WhatsApp: every WhatsApp send is live state, not
+// configuration (ADR-0004). Same permission as getWhatsAppOutboundSends.
+const NAV_WHATSAPP_MESSAGES: NavItem = {
+  id: 'system-whatsapp-messages',
+  title: 'WhatsApp Messages',
+  href: '/system/whatsapp-messages',
+  icon: MessageSquare,
+  permissions: [PERMISSIONS.WHATSAPP_VIEW],
+};
+
 const NAV_DATA_TOOLS: NavItem = {
   id: 'system-data-tools',
   title: 'Data Tools',
@@ -389,6 +400,7 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
       NAV_AUDIT_LOGS,
       NAV_NOTIFICATION_QUEUE,
       NAV_NOTIFICATION_HISTORY,
+      NAV_WHATSAPP_MESSAGES,
       NAV_DATA_TOOLS,
       NAV_CRON_STATUS,
       NAV_ACTION_LOG,

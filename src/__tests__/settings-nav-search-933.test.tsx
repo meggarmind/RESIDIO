@@ -65,12 +65,13 @@ describe('Monitoring entry in the System group', () => {
   const system = settingsConfig.find((g) => g.title === 'System')!;
   const monitoring = system.items.find((i) => i.title === 'Monitoring')!;
 
-  it('links to the four /system pages, each marked as opening System', () => {
+  it('links to the five /system pages, each marked as opening System', () => {
     expect(monitoring.children!.map((c) => c.href)).toEqual([
       '/system/audit-logs',
       '/system/cron-status',
       '/system/notification-queue',
       '/system/notification-history',
+      '/system/whatsapp-messages',
     ]);
     expect(monitoring.children!.every((c) => c.opensSystem)).toBe(true);
   });
@@ -81,6 +82,7 @@ describe('Monitoring entry in the System group', () => {
       [PERMISSIONS.SYSTEM_MONITOR],
       [PERMISSIONS.NOTIFICATIONS_MANAGE],
       [PERMISSIONS.NOTIFICATIONS_MANAGE],
+      [PERMISSIONS.WHATSAPP_VIEW],
     ]);
   });
 
