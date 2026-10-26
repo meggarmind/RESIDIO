@@ -7,7 +7,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import type { WhatsAppRolloutMode } from '@/lib/whatsapp/rollout';
 import { replayHeldWhatsAppMessages } from '@/lib/whatsapp/held-replay';
-import { fetchResidentOptions, type ResidentOption } from '@/lib/residents/resident-options';
+import { buildPilotRoster, type OptInRow, type PilotRosterResident, type PilotRosterStreet, type ResidentRow } from '@/lib/whatsapp/pilot-roster';
 
 export type PilotSettings = {
   mode: WhatsAppRolloutMode;
@@ -89,16 +89,41 @@ export async function getWhatsAppPilotSettings(): Promise<{
   };
 }
 
-export type PilotResidentOption = ResidentOption;
+export type PilotRoster = { residents: PilotRosterResident[]; streets: PilotRosterStreet[] };
 
-/** Picker source for the pilot resident list (#801). See fetchResidentOptions. */
-export async function getWhatsAppPilotResidentOptions(): Promise<{
-  data: PilotResidentOption[];
-  error: string | null;
-}> {
+/**
+ * Source for the pilot residents table (#801): every resident with active houses, roles and a
+ * masked WhatsApp consent, plus the street list for the pilot street choice. Includes inactive
+ * residents so already-saved IDs still render by name.
+ */
+export async function getWhatsAppPilotRoster(): Promise<{ data: PilotRoster; error: string | null }> {
+  const empty: PilotRoster = { residents: [], streets: [] };
   const authorization = await authorizePermission(PERMISSIONS.WHATSAPP_VIEW);
-  if (!authorization.authorized) return { data: [], error: authorization.error || 'Unauthorized' };
-  return fetchResidentOptions(createAdminClient());
+  if (!authorization.authorized) return { data: empty, error: authorization.error || 'Unauthorized' };
+  const client = createAdminClient();
+  const [residentsResult, optInsResult, streetsResult] = await Promise.all([
+    client
+      .from('residents')
+      .select('id, first_name, last_name, resident_code, resident_houses!resident_id(is_active, resident_role, house:houses(house_number, street_id, street:streets(name)))')
+      .order('first_name')
+      .order('last_name')
+      // shortcut: capped at 1000 residents, as in fetchResidentOptions; saved IDs past the cap show as Unknown.
+      .limit(1000),
+    client
+      .from('whatsapp_optins')
+      .select('resident_id, phone_number, opted_in, deactivated_at')
+      .order('updated_at', { ascending: false }),
+    client.from('streets').select('id, name').order('name'),
+  ]);
+  const error = residentsResult.error || optInsResult.error || streetsResult.error;
+  if (error) return { data: empty, error: error.message };
+  return {
+    data: {
+      residents: buildPilotRoster((residentsResult.data || []) as unknown as ResidentRow[], (optInsResult.data || []) as unknown as OptInRow[]),
+      streets: (streetsResult.data || []) as PilotRosterStreet[],
+    },
+    error: null,
+  };
 }
 
 export async function updateWhatsAppPilotSettings(input: PilotSettings): Promise<{ success: boolean; error: string | null }> {
