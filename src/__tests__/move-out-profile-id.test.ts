@@ -31,7 +31,7 @@ const h = vi.hoisted(() => ({
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: h.authorizePermission }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit: h.logAudit }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
-vi.mock('@/lib/email/send-email', () => ({ sendEmail: vi.fn(async () => ({})) }));
+vi.mock('@/lib/email/send-email', () => ({ sendEmail: vi.fn(async () => ({})), getEstateEmailSettings: vi.fn(async () => ({ estateName: 'Test Estate' })) }));
 vi.mock('@/lib/clearance/issue-certificate', () => ({ issueClearanceCertificate: vi.fn(async () => ({ documentId: 'doc-1', filePath: 'x', pdf: Buffer.alloc(0), alreadyIssued: false })) }));
 // The stored flag (#716) comes from flagState; the lookup itself is covered in comms-override/__tests__.
 const flagState = vi.hoisted(() => ({ byId: new Map<string, boolean | null>(), error: null as string | null }));
