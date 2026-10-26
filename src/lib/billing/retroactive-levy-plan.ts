@@ -13,6 +13,7 @@ export type LevyPlanProfile = {
   target_type: string;
   applicable_roles: string[] | null;
   is_development_levy: boolean | null;
+  charge_category: string;
   billing_items: { amount: number | null }[] | null;
 };
 
@@ -23,6 +24,8 @@ export type RetroactiveLevyPlan = {
   invoices: number;
   totalAmount: number;
   alreadyCharged: number;
+  /** The invoices and naira total above, split by the profile's charge category. */
+  byCategory: Record<string, { invoices: number; totalAmount: number }>;
   /** Houses where a landlord-paid levy was not raised because no landlord is on record. */
   warnings: string[];
 };
@@ -41,6 +44,7 @@ export function planRetroactiveLevies(input: {
     invoices: 0,
     totalAmount: 0,
     alreadyCharged: 0,
+    byCategory: {},
     warnings: [],
   };
   // Every house returns early when the setting is off, so nothing is generated.
@@ -80,6 +84,10 @@ export function planRetroactiveLevies(input: {
       if (total === 0) continue;
       houseInvoices++;
       plan.totalAmount += total;
+      const category = plan.byCategory[profile.charge_category] ?? { invoices: 0, totalAmount: 0 };
+      category.invoices++;
+      category.totalAmount += total;
+      plan.byCategory[profile.charge_category] = category;
     }
     if (houseInvoices > 0) {
       plan.houses++;
