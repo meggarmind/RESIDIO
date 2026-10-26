@@ -59,7 +59,9 @@ describe('estate logo loaders', () => {
     getRawSettingsAsService.mockResolvedValue({ status: 'error', message: 'boom' });
     await expect(getEstateLogoUrl()).resolves.toBeUndefined();
     getRawSettingsAsService.mockResolvedValue({ status: 'ok', values: new Map([['estate_logo_url', 'https://x/a.jpg']]) });
-    await expect(getEstateLogoUrl()).resolves.toBe('https://x/a.jpg');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]))));
+    await expect(getEstateLogoUrl()).resolves.toMatch(/^data:image\/jpeg;base64,/);
+    vi.unstubAllGlobals();
   });
 });
 
