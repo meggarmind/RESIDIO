@@ -32,7 +32,7 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Finance',
-      items: ['finance/invoices-and-dues', 'finance/payments-and-imports', 'finance/expenditure-and-wallets', 'finance/reports-and-analytics'],
+      items: ['finance/invoices-and-dues', 'finance/payments-and-imports', 'finance/collections', 'finance/expenditure-and-wallets', 'finance/reports-and-analytics'],
     },
     {
       type: 'category',
