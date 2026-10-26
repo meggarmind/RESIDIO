@@ -7,6 +7,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { callWalletPaymentRpc } from '@/lib/billing/wallet-payment-rpc';
+import { DEFAULT_CHARGE_CATEGORY } from '@/lib/billing/charge-categories';
 
 const settleWalletInvoicesSchema = z.object({
     residentId: z.guid(),
@@ -18,6 +19,7 @@ const settleWalletInvoicesSchema = z.object({
 
 export type SettleWalletInvoicesInput = z.infer<typeof settleWalletInvoicesSchema>;
 
+/** The balance of the resident's Dues wallet (#1189). */
 export async function getResidentWalletBalance(residentId: string) {
     const auth = await authorizePermission(PERMISSIONS.BILLING_VIEW);
     if (!auth.authorized) {
@@ -29,6 +31,7 @@ export async function getResidentWalletBalance(residentId: string) {
         .from('resident_wallets')
         .select('balance')
         .eq('resident_id', residentId)
+        .eq('charge_category', DEFAULT_CHARGE_CATEGORY)
         .maybeSingle();
 
     return {
@@ -51,6 +54,7 @@ export type SettleWalletInvoicesResult = {
     error?: string;
 };
 
+/** The resident's payable Dues invoices: the ones the Dues wallet can settle (#1189). */
 export async function getResidentPayableInvoices(residentId: string) {
     const auth = await authorizePermission(PERMISSIONS.BILLING_VIEW);
     if (!auth.authorized) {
@@ -62,6 +66,7 @@ export async function getResidentPayableInvoices(residentId: string) {
         .from('invoices')
         .select('id, invoice_number, house_id, amount_due, amount_paid, status, period_start, period_end, due_date')
         .eq('resident_id', residentId)
+        .eq('charge_category', DEFAULT_CHARGE_CATEGORY)
         .in('status', ['unpaid', 'partially_paid'])
         .gt('amount_due', 0)
         .order('period_start', { ascending: true });
@@ -90,7 +95,7 @@ export async function settleWalletInvoices(
     const supabase = await createServerSupabaseClient();
     const { data: invoices, error: invoiceError } = await supabase
         .from('invoices')
-        .select('id, resident_id, house_id, status, amount_due, amount_paid, period_start, period_end')
+        .select('id, resident_id, house_id, status, amount_due, amount_paid, period_start, period_end, charge_category')
         .eq('resident_id', parsed.data.residentId)
         .in('id', parsed.data.invoiceIds);
 
@@ -103,6 +108,12 @@ export async function settleWalletInvoices(
     if (invoices.some((invoice) => !['unpaid', 'partially_paid'].includes(invoice.status))) {
         return { success: false, error: 'Only unpaid or partially paid invoices can be settled' };
     }
+    // A wallet pays only invoices of its own charge category (#1189).
+    const categories = new Set(invoices.map((invoice) => invoice.charge_category));
+    if (categories.size !== 1) {
+        return { success: false, error: 'Invoices from different charge categories cannot be settled together' };
+    }
+    const [chargeCategory] = categories;
 
     const orderedInvoiceIds = [...parsed.data.invoiceIds].sort((a, b) => {
         const invoiceA = invoices.find((invoice) => invoice.id === a);
@@ -122,6 +133,7 @@ export async function settleWalletInvoices(
         p_credit_amount: 0,
         p_batch_amount: null,
         p_created_by: auth.userId,
+        p_charge_category: chargeCategory,
     });
 
     if (error) {
@@ -164,6 +176,7 @@ export async function settleWalletInvoices(
             partial_count: partialCount,
             remaining_outstanding: remainingOutstanding,
             total_allocated: result.total_allocated,
+            charge_category: chargeCategory,
             receipt_number: result.receipt_number,
             period_start: result.period_start,
             period_end: result.period_end,

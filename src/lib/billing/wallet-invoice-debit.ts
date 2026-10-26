@@ -1,19 +1,20 @@
 import { callWalletPaymentRpc } from '@/lib/billing/wallet-payment-rpc';
+import { DEFAULT_CHARGE_CATEGORY } from '@/lib/billing/charge-categories';
 
 /**
  * Minimal structural type for the Supabase client used here. Typed loosely so
  * the helper can be unit-tested without a network client.
  */
+type Filter = {
+    eq: (column: string, value: string) => Filter;
+    maybeSingle: () => PromiseLike<{
+        data: Record<string, unknown> | null;
+        error: { message: string } | null;
+    }>;
+};
 type QueryClient = {
     from: (table: string) => {
-        select: (columns: string) => {
-            eq: (column: string, value: string) => {
-                maybeSingle: () => PromiseLike<{
-                    data: Record<string, unknown> | null;
-                    error: { message: string } | null;
-                }>;
-            };
-        };
+        select: (columns: string) => Filter;
     };
 };
 
@@ -36,7 +37,8 @@ const fail = (error: string): WalletInvoiceDebitResult => ({
 });
 
 /**
- * Pay (fully or partially) one invoice from the resident's wallet, atomically.
+ * Pay (fully or partially) one invoice from the resident's wallet of the invoice's charge
+ * category (#1189), atomically.
  *
  * NOT an authorization boundary: this is a plain library function with no
  * permission check. Callers decide who may reach it. The exported server action
@@ -55,22 +57,24 @@ export async function debitWalletForInvoiceAtomic(
 ): Promise<WalletInvoiceDebitResult> {
     const db = supabase as QueryClient;
 
+    const { data: invoice, error: invoiceError } = await db
+        .from('invoices')
+        .select('id, amount_due, amount_paid, invoice_number, house_id, charge_category')
+        .eq('id', invoiceId)
+        .maybeSingle();
+    if (invoiceError || !invoice) return fail('Invoice not found');
+    const chargeCategory = (invoice.charge_category as string | null) ?? DEFAULT_CHARGE_CATEGORY;
+
     const { data: wallet, error: walletError } = await db
         .from('resident_wallets')
         .select('id, balance')
         .eq('resident_id', residentId)
+        .eq('charge_category', chargeCategory)
         .maybeSingle();
     if (walletError) return fail(walletError.message);
 
     const balance = Number(wallet?.balance ?? 0);
     if (!wallet || balance <= 0) return fail('Insufficient wallet balance');
-
-    const { data: invoice, error: invoiceError } = await db
-        .from('invoices')
-        .select('id, amount_due, amount_paid, invoice_number, house_id')
-        .eq('id', invoiceId)
-        .maybeSingle();
-    if (invoiceError || !invoice) return fail('Invoice not found');
 
     const remainingDue = Number(invoice.amount_due) - Number(invoice.amount_paid);
     if (remainingDue <= 0) return fail('Invoice already paid');
@@ -81,6 +85,7 @@ export async function debitWalletForInvoiceAtomic(
         p_batch_type: 'existing_wallet_settlement',
         p_payment_date: new Date().toISOString().slice(0, 10),
         p_house_id: (invoice.house_id as string | null) ?? null,
+        p_charge_category: chargeCategory,
     });
     if (rpc.error) return fail(rpc.error.message);
 

@@ -77,4 +77,16 @@ describe('ordinary wallet allocation atomicity', () => {
       p_batch_type: 'payment_received',
     }));
   });
+
+  it('offers only Dues invoices and settles from the Dues wallet (#1189)', async () => {
+    const query = invoiceQuery();
+    mocks.createServerSupabaseClient.mockResolvedValue({ from: vi.fn(() => query) });
+
+    await allocateWalletToInvoices(residentId, null, '2025-09-15', { creditAmount: 50000 });
+
+    expect(query.eq).toHaveBeenCalledWith('charge_category', 'dues');
+    expect(mocks.callWalletPaymentRpc).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      p_charge_category: 'dues',
+    }));
+  });
 });

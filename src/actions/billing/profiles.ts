@@ -2,7 +2,7 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
-import { billingProfileSchema, type BillingProfileData } from '@/lib/validators/billing';
+import { billingProfileSchema, chargeCategoryCodeSchema, type BillingProfileData } from '@/lib/validators/billing';
 import { canAutoApprove } from '@/actions/approvals';
 import { createApprovalRequest } from '@/lib/approvals/create-approval-request';
 import { logAudit, getChangedValues } from '@/lib/audit/logger';
@@ -41,6 +41,7 @@ export async function createBillingProfile(data: BillingProfileData) {
             is_active: result.data.is_active,
             target_type: result.data.target_type,
             payer: result.data.payer,
+            charge_category: result.data.charge_category,
             applicable_roles: result.data.applicable_roles || null,
             is_one_time: result.data.is_one_time,
             is_development_levy: result.data.is_development_levy || false,
@@ -308,6 +309,11 @@ export async function updateBillingProfile(
     if (data.is_active !== undefined) updateData.is_active = data.is_active;
     if (data.target_type !== undefined) updateData.target_type = data.target_type;
     if (data.payer !== undefined) updateData.payer = data.payer;
+    if (data.charge_category !== undefined) {
+        const category = chargeCategoryCodeSchema.safeParse(data.charge_category);
+        if (!category.success) return { success: false, error: 'Invalid charge category' };
+        updateData.charge_category = category.data;
+    }
     if (data.applicable_roles !== undefined) updateData.applicable_roles = data.applicable_roles || null;
     if (data.is_one_time !== undefined) updateData.is_one_time = data.is_one_time;
     if (data.is_development_levy !== undefined) updateData.is_development_levy = data.is_development_levy;
@@ -397,6 +403,7 @@ export async function duplicateBillingProfile(id: string) {
             is_active: source.is_active,
             target_type: source.target_type,
             payer: source.payer,
+            charge_category: source.charge_category,
             applicable_roles: source.applicable_roles,
             is_one_time: source.is_one_time,
             is_development_levy: source.is_development_levy,

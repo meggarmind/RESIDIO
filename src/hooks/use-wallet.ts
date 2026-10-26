@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getOrCreateWallet, getWalletTransactions, getYearlyWalletTransactions, creditWallet, debitWallet } from '@/actions/billing/wallet';
+import { getOrCreateWallet, getResidentWallets, getWalletTransactions, getYearlyWalletTransactions, creditWallet, debitWallet } from '@/actions/billing/wallet';
 import { toast } from 'sonner';
 
 // Hook to get or create wallet for a resident
@@ -9,6 +9,20 @@ export function useWallet(residentId: string) {
   return useQuery({
     queryKey: ['wallet', residentId],
     queryFn: () => getOrCreateWallet(residentId),
+    enabled: !!residentId,
+  });
+}
+
+// Hook to get the total of a resident's wallets and one line per charge category (#1189).
+// The key starts with ['wallet', residentId], so every wallet invalidation refreshes it too.
+export function useResidentWallets(residentId: string) {
+  return useQuery({
+    queryKey: ['wallet', residentId, 'by-category'],
+    queryFn: async () => {
+      const result = await getResidentWallets(residentId);
+      if (result.error) throw new Error(result.error);
+      return result.data;
+    },
     enabled: !!residentId,
   });
 }

@@ -30,6 +30,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Trash2, Plus, AlertTriangle } from 'lucide-react';
 import { useBillingProfile, useUpdateBillingProfile, useCheckEffectiveDateImpact } from '@/hooks/use-billing';
+import { ChargeCategorySelect } from '@/components/billing/charge-category-select';
 import { BILLABLE_ROLE_OPTIONS, BILLING_TARGET_LABELS, type BillingProfileWithItems } from '@/types/database';
 
 const editProfileSchema = z.object({
@@ -38,6 +39,7 @@ const editProfileSchema = z.object({
     is_active: z.boolean(),
     target_type: z.enum(['house', 'resident']),
     payer: z.enum(['occupant', 'landlord']),
+    charge_category: z.string().min(1),
     applicable_roles: z.array(z.enum(['resident_landlord', 'non_resident_landlord', 'tenant', 'developer'])).optional().nullable(),
     is_one_time: z.boolean(),
     effective_date: z.string().optional(),
@@ -90,6 +92,7 @@ export function BillingProfileEditDialog({
             is_active: true,
             target_type: 'house',
             payer: 'occupant',
+            charge_category: 'dues',
             applicable_roles: null,
             is_one_time: false,
             effective_date: '',
@@ -120,6 +123,7 @@ export function BillingProfileEditDialog({
                 is_active: profile.is_active,
                 target_type: profile.target_type as 'house' | 'resident',
                 payer: (profile.payer as 'occupant' | 'landlord') ?? 'occupant',
+                charge_category: profile.charge_category ?? 'dues',
                 applicable_roles: profile.applicable_roles || null,
                 is_one_time: profile.is_one_time,
                 effective_date: profile.effective_date || '',
@@ -229,6 +233,23 @@ export function BillingProfileEditDialog({
                                                         <SelectItem value="landlord">Owner (Owner-Occupier, else Property Owner, else Developer)</SelectItem>
                                                     </SelectContent>
                                                 </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    <FormField
+                                        control={form.control}
+                                        name="charge_category"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Charge category</FormLabel>
+                                                <FormControl>
+                                                    <ChargeCategorySelect value={field.value} onChange={field.onChange} />
+                                                </FormControl>
+                                                <FormDescription>
+                                                    Invoices from this profile are paid only from the resident&apos;s wallet of the same category.
+                                                </FormDescription>
                                                 <FormMessage />
                                             </FormItem>
                                         )}

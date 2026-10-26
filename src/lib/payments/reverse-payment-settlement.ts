@@ -28,7 +28,7 @@ export async function reversePaymentSettlement(
 ): Promise<string | null> {
     const { data: batches, error: batchError } = await supabase
         .from('wallet_payment_batches')
-        .select('id, status, resident_id')
+        .select('id, status, resident_id, charge_category')
         .eq('source_payment_id', payment.id);
     if (batchError) return batchError.message;
 
@@ -38,6 +38,7 @@ export async function reversePaymentSettlement(
                 .from('resident_wallets')
                 .select('balance')
                 .eq('resident_id', batch.resident_id)
+                .eq('charge_category', batch.charge_category)
                 .single();
             if (walletError || !wallet) return walletError?.message || 'The resident wallet could not be found';
             const { data: items, error: itemsError } = await supabase

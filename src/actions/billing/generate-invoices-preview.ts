@@ -14,6 +14,7 @@ import {
 } from '@/lib/billing/invoice-generation';
 import { getSystemSetting } from '@/lib/settings/get-system-setting';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { DEFAULT_CHARGE_CATEGORY } from '@/lib/billing/charge-categories';
 
 export interface PreviewInvoiceItem {
   houseId: string;
@@ -106,7 +107,7 @@ export async function generateInvoicesPreview(
   if (!profileIds.length) return { ...emptyResult(), summary: { ...emptyResult().summary, totalHouses: houses?.length || 0 } };
 
   const [{ data: profiles, error: profilesError }, { data: versions, error: versionsError }] = await Promise.all([
-    supabase.from('billing_profiles').select('id, name, payer, target_type, applicable_roles, is_one_time').in('id', profileIds).eq('is_active', true),
+    supabase.from('billing_profiles').select('id, name, payer, target_type, applicable_roles, is_one_time, charge_category').in('id', profileIds).eq('is_active', true),
     supabase.from('billing_profile_versions').select('id, billing_profile_id, effective_from, billing_profile_version_items(id, name, amount, frequency, is_mandatory)').in('billing_profile_id', profileIds),
   ]);
   if (profilesError || versionsError) return emptyResult(profilesError?.message || versionsError?.message || 'Could not load billing profiles');
@@ -167,7 +168,10 @@ export async function generateInvoicesPreview(
     const preview = await Promise.all(resolution.candidates.map(async (candidate) => {
       const [existingResult, walletResult] = await Promise.all([
         supabase.from('invoices').select('id').eq('resident_id', candidate.residentId).eq('house_id', candidate.houseId!).eq('billing_profile_version_id', candidate.billingProfileVersionId).eq('period_start', candidate.periodStart).eq('period_end', candidate.periodEnd).maybeSingle(),
-        supabase.from('resident_wallets').select('balance').eq('resident_id', candidate.residentId).maybeSingle(),
+        // A new invoice is settled only from the wallet of its profile's charge category (#1189).
+        supabase.from('resident_wallets').select('balance').eq('resident_id', candidate.residentId)
+          .eq('charge_category', (profiles || []).find((profile) => profile.id === candidate.billingProfileId)?.charge_category ?? DEFAULT_CHARGE_CATEGORY)
+          .maybeSingle(),
       ]);
       const house = generationHouses.find((item) => item.id === candidate.houseId)!;
       const resident = house.residents.find((item) => item.id === candidate.residentId)!;

@@ -121,6 +121,30 @@ describe('admin wallet settlement actions', () => {
     expect(mocks.logAudit).toHaveBeenCalledTimes(1);
   });
 
+  it('settles from the wallet of the invoices category and refuses mixed categories (#1189)', async () => {
+    const invoice = (id: string, charge_category: string) => ({
+      id, resident_id: residentId, house_id: null, status: 'unpaid', amount_due: 50000, amount_paid: 0,
+      period_start: '2025-09-01', period_end: '2025-09-30', charge_category,
+    });
+    mocks.createServerSupabaseClient.mockResolvedValue({
+      from: vi.fn(() => queryResult([invoice(earlyInvoiceId, 'dues'), invoice(lateInvoiceId, 'development_levy')])),
+    });
+    await expect(settleWalletInvoices({ residentId, invoiceIds: [earlyInvoiceId, lateInvoiceId], requestKey })).resolves.toEqual({
+      success: false,
+      error: 'Invoices from different charge categories cannot be settled together',
+    });
+    expect(mocks.callWalletPaymentRpc).not.toHaveBeenCalled();
+
+    mocks.createServerSupabaseClient.mockResolvedValue({
+      from: vi.fn(() => queryResult([invoice(earlyInvoiceId, 'development_levy')])),
+    });
+    mocks.callWalletPaymentRpc.mockResolvedValue({ data: { success: true, batch_id: batchId, allocations: [] }, error: null });
+    await settleWalletInvoices({ residentId, invoiceIds: [earlyInvoiceId], requestKey });
+    expect(mocks.callWalletPaymentRpc).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      p_charge_category: 'development_levy',
+    }));
+  });
+
   it('returns a retry result without changing financial totals', async () => {
     mocks.callWalletPaymentRpc.mockResolvedValue({
       data: {
