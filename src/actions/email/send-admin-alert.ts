@@ -82,7 +82,7 @@ export async function sendAdminAlert(options: AdminAlertOptions): Promise<{ succ
             subject: `${severityEmoji[options.severity]} [${options.severity.toUpperCase()}] ${options.title}`,
             emailType: 'admin_alert',
             react: AdminAlertEmail({
-                estateName: estateSettings.estateName,
+                ...estateSettings,
                 title: options.title,
                 severity: options.severity,
                 message: options.message,

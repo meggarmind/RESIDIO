@@ -1,14 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { sendWhatsAppPinAlert } from '@/lib/whatsapp/pin-alert';
 import { createAdminClient } from '@/lib/supabase/server';
-import { sendEmail } from '@/lib/email/send-email';
+import { sendEmail, getEstateEmailSettings } from '@/lib/email/send-email';
 import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
-import { getRawSettingsAsService } from '@/lib/settings/service';
 
 vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
-vi.mock('@/lib/email/send-email', () => ({ sendEmail: vi.fn() }));
+vi.mock('@/lib/email/send-email', () => ({ sendEmail: vi.fn(), getEstateEmailSettings: vi.fn() }));
 vi.mock('@/lib/comms-override/resident-flag', () => ({ resolveResidentOverride: vi.fn() }));
-vi.mock('@/lib/settings/service', () => ({ getRawSettingsAsService: vi.fn() }));
 
 type Result = { data?: unknown; error?: unknown };
 function query(result: Result) {
@@ -31,7 +29,7 @@ describe('WhatsApp PIN alert email (#892)', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.mocked(resolveResidentOverride).mockResolvedValue({ ok: true, residentOverride: null });
-    vi.mocked(getRawSettingsAsService).mockResolvedValue({ status: 'ok', values: new Map([['estate_name', 'Oak Estate']]) } as never);
+    vi.mocked(getEstateEmailSettings).mockResolvedValue({ estateName: 'Oak Estate', estateAddress: '1 Oak Rd' });
     vi.mocked(sendEmail).mockResolvedValue({ success: true });
   });
 

@@ -2,6 +2,7 @@ import { createElement } from 'react';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getRawSettingsAsService } from '@/lib/settings/service';
+import { getEstateEmailSettings } from '@/lib/email/send-email';
 import { getDebtStatuses, readDebtStatusSettings } from '@/lib/billing/debt-status';
 import { addToQueue, PRIORITY } from '@/lib/notifications/queue';
 import { DebtStatusPdf, type DebtStatusPdfRow } from '@/lib/pdf/reports/debt-status-pdf';
@@ -184,13 +185,12 @@ export async function buildDebtReportEmail(metadata: Record<string, unknown>) {
   const request = metadata.whatsapp_debt_report as (DebtReportScope & { scopeLabel?: string }) | undefined;
   if (!request || !Array.isArray(request.streetIds)) throw new Error('Debt report request is malformed');
   const { pdf, scopeLabel: label } = await renderDebtStatusReport({ all: request.all === true, streetIds: request.streetIds });
-  const estate = await getRawSettingsAsService(['estate_name']);
-  const name = estate.status === 'ok' ? estate.values.get('estate_name') : null;
+  const estate = await getEstateEmailSettings();
   const fullName = typeof metadata.admin_name === 'string' ? metadata.admin_name : 'there';
   return {
     react: createElement(WhatsAppDebtReportEmail, {
       firstName: fullName.split(' ')[0] || fullName,
-      estateName: typeof name === 'string' && name.trim() ? name.trim() : 'Residio Estate',
+      ...estate,
       scopeLabel: label,
     }),
     attachments: [{ filename: `debt-status-${new Date().toISOString().slice(0, 10)}.pdf`, content: pdf }],
