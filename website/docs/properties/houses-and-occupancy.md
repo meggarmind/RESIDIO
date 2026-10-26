@@ -83,7 +83,7 @@ per flat. Only Dues reminders follow the setting: levies already go to the landl
 Record the landlord's payment as a Dues payment to the landlord. Then choose **Split to tenants**
 (*transfer wallet credit*). It shows the landlord's Dues wallet and each of their flats with what
 its tenant owes. Accept the amounts, edit them, or set a flat to 0 to leave it out; the total
-cannot be more than the wallet holds. Each flat's share is a [Transfer credit](../finance/expenditure-and-wallets.md)
+cannot be more than the wallet holds, and a flat cannot get more than its tenant owes. Each flat's share is a [Transfer credit](../finance/expenditure-and-wallets.md)
 to the tenant's Dues wallet, which then pays the tenant's Dues invoices in that flat, oldest first.
 Each transfer is audited, and so is the split.
 
