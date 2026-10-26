@@ -7,7 +7,6 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { callWalletPaymentRpc } from '@/lib/billing/wallet-payment-rpc';
-import { houseLabel } from '@/lib/whatsapp/financial';
 
 /**
  * Admin "Transfer credit" (#1191, owner decision 6 of #1188): move credit between the wallets of one
@@ -47,6 +46,13 @@ const reverseSchema = z.object({
  * The houses the resident is actively linked to, each with the residents actively linked to it
  * (the resident included): the people credit can be transferred to.
  */
+// Not imported from lib/whatsapp/financial: that module drags the report PDFs into client bundles that import this file.
+function labelHouse(embed: unknown): string {
+    const house = (Array.isArray(embed) ? embed[0] : embed) as { house_number: string; short_name: string | null; street: { name: string } | { name: string }[] | null };
+    const street = Array.isArray(house.street) ? house.street[0]?.name : house.street?.name;
+    return house.short_name || `${house.house_number}, ${street || 'Estate'}`;
+}
+
 export async function getWalletTransferTargets(
     residentId: string,
 ): Promise<{ data: WalletTransferTarget[] | null; error: string | null }> {
@@ -82,7 +88,7 @@ export async function getWalletTransferTargets(
         }
         return {
             houseId,
-            houseLabel: link?.house ? houseLabel(link.house) : 'House',
+            houseLabel: link?.house ? labelHouse(link.house) : 'House',
             residents: [...residents].map(([id, name]) => ({ id, name })),
         };
     });
