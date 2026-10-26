@@ -309,6 +309,7 @@ function identityRepository(overrides: Partial<WhatsAppIdentityRepository> = {})
     optOutOfSurveys: vi.fn().mockResolvedValue(undefined),
     claimBlockedReply: vi.fn().mockResolvedValue(true),
     getEstateName: vi.fn().mockResolvedValue('Palm Estate'),
+    getAssistantName: vi.fn().mockResolvedValue('Palm Estate Assistant'),
     ...overrides,
   };
 }

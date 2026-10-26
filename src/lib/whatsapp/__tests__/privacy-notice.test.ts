@@ -49,6 +49,11 @@ describe('WhatsApp privacy notice', () => {
     vi.unstubAllEnvs();
   });
 
+  it('uses assistant_name for {{App Assistant}} when set', async () => {
+    withSettings({ whatsapp_privacy_notice_version: 'v1', whatsapp_privacy_notice_text: 'Hi from {{App Assistant}}', estate_name: 'Palm Estate', assistant_name: ' Ada ' });
+    await expect(loadWhatsAppPrivacyNotice()).resolves.toEqual({ version: 'v1', text: 'Hi from Ada' });
+  });
+
   it('falls back to the default estate name when estate_name is blank', async () => {
     withSettings({ whatsapp_privacy_notice_version: 'v1', whatsapp_privacy_notice_text: '{{App Name}} / {{App Assistant}}', estate_name: '  ' });
     await expect(loadWhatsAppPrivacyNotice()).resolves.toEqual({ version: 'v1', text: 'Residio Estate / Residio Estate Assistant' });
@@ -66,7 +71,7 @@ describe('WhatsApp privacy notice', () => {
 });
 
 describe('renderPrivacyNoticeText', () => {
-  const ctx = { origin: 'https://estate.test', estateName: 'Palm Estate' };
+  const ctx = { origin: 'https://estate.test', estateName: 'Palm Estate', assistantName: 'Palm Estate Assistant' };
 
   it('replaces every exact placeholder and leaves unknown or differently-cased ones', () => {
     expect(renderPrivacyNoticeText('{{App Name}} {{App Name}} {{App Assistant}} {{URL}} {{url}} {{app name}} {{Other}}', ctx)).toBe(
@@ -75,7 +80,7 @@ describe('renderPrivacyNoticeText', () => {
   });
 
   it('inserts an estate name containing $& literally', () => {
-    expect(renderPrivacyNoticeText('Hi {{App Name}}', { origin: null, estateName: 'A$&B$1' })).toBe('Hi A$&B$1');
+    expect(renderPrivacyNoticeText('Hi {{App Name}}', { origin: null, estateName: 'A$&B$1', assistantName: 'X' })).toBe('Hi A$&B$1');
   });
 
   it('returns null for {{URL}} without an origin, but not for text that does not use it', () => {

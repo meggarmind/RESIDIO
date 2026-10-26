@@ -1,4 +1,5 @@
 import { getConfiguredPublicOrigin } from '@/lib/http/public-origin';
+import { resolveAssistantName } from '@/lib/whatsapp/assistant-name';
 import { getRawSettingsAsService } from '@/lib/settings/service';
 
 export const PRIVACY_NOTICE_VERSION_KEY = 'whatsapp_privacy_notice_version';
@@ -19,13 +20,13 @@ function settingText(value: unknown): string {
  */
 export function renderPrivacyNoticeText(
   text: string,
-  { origin, estateName }: { origin: string | null; estateName: string }
+  { origin, estateName, assistantName }: { origin: string | null; estateName: string; assistantName: string }
 ): string | null {
   if (text.includes('{{URL}}') && !origin) return null;
   const values: Record<string, string> = {
     '{{URL}}': origin ?? '',
     '{{App Name}}': estateName,
-    '{{App Assistant}}': `${estateName} Assistant`,
+    '{{App Assistant}}': assistantName,
   };
   return text.replace(/\{\{(?:URL|App Name|App Assistant)\}\}/g, (token) => values[token]);
 }
@@ -36,16 +37,18 @@ export function renderPrivacyNoticeText(
  * stored value, so consent stays keyed on it.
  */
 export async function loadWhatsAppPrivacyNotice(): Promise<WhatsAppPrivacyNotice | null> {
-  const result = await getRawSettingsAsService([PRIVACY_NOTICE_VERSION_KEY, PRIVACY_NOTICE_TEXT_KEY, 'estate_name']);
+  const result = await getRawSettingsAsService([PRIVACY_NOTICE_VERSION_KEY, PRIVACY_NOTICE_TEXT_KEY, 'estate_name', 'assistant_name']);
   if (result.status === 'error') {
     throw new Error(`WhatsApp privacy notice lookup failed: ${result.message}`);
   }
   const version = settingText(result.values.get(PRIVACY_NOTICE_VERSION_KEY));
   const text = settingText(result.values.get(PRIVACY_NOTICE_TEXT_KEY));
   if (!version || !text) return null;
+  const estateName = settingText(result.values.get('estate_name')) || 'Residio Estate';
   const rendered = renderPrivacyNoticeText(text, {
     origin: getConfiguredPublicOrigin(),
-    estateName: settingText(result.values.get('estate_name')) || 'Residio Estate',
+    estateName,
+    assistantName: resolveAssistantName(result.values.get('assistant_name'), estateName),
   });
   if (rendered === null) {
     console.error('WhatsApp privacy notice not sent: it contains {{URL}} but NEXT_PUBLIC_SITE_URL is not a valid http(s) URL', { version });
