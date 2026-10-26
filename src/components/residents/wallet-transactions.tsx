@@ -26,14 +26,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useYearlyWalletTransactions } from '@/hooks/use-wallet';
+import { useReverseWalletTransfer, useYearlyWalletTransactions } from '@/hooks/use-wallet';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import type { YearlyWalletTransactionSummary } from '@/actions/billing/wallet';
 import { getInvoiceById } from '@/actions/billing/get-invoices';
 import { formatCurrency } from '@/lib/utils';
 import { groupInvoiceDebits, groupPeriodLabel, type InvoiceDebitGroup } from '@/lib/billing/ledger-groups';
 import { format } from 'date-fns';
 import Link from 'next/link';
-import { ArrowUpCircle, ArrowDownCircle, Receipt, FileText, ExternalLink, Loader2, ChevronDown, CalendarDays } from 'lucide-react';
+import { ArrowUpCircle, ArrowDownCircle, Receipt, FileText, ExternalLink, Loader2, ChevronDown, CalendarDays, ArrowRightLeft } from 'lucide-react';
 
 interface WalletTransactionsProps {
   residentId: string;
@@ -103,8 +107,13 @@ const WalletTransactionRow = memo(function WalletTransactionRow({
               {transaction.payment_reference}
             </p>
           )}
-          {transaction.reference_type && transaction.reference_id && (
-            <ReferenceLink type={transaction.reference_type} id={transaction.reference_id} />
+          {transaction.reference_type === 'wallet_transfer' && transaction.reference_id ? (
+            // The debit row's id is the transfer id; the credit row references it (#1191).
+            <TransferReference transferId={isCredit ? transaction.reference_id : transaction.id} />
+          ) : (
+            transaction.reference_type && transaction.reference_id && (
+              <ReferenceLink type={transaction.reference_type} id={transaction.reference_id} />
+            )
           )}
         </div>
       </TableCell>
@@ -323,6 +332,45 @@ function ReferenceLink({ type, id }: { type: string; id: string }) {
   }
 
   return <span className="text-xs text-muted-foreground capitalize">{type}</span>;
+}
+
+/** A transfer between wallets (#1191), with a Reverse control for holders of the transfer permission. */
+function TransferReference({ transferId }: { transferId: string }) {
+  const { hasPermission } = useAuth();
+  const reverse = useReverseWalletTransfer();
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState('');
+
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      <span className="flex items-center gap-1 text-muted-foreground">
+        <ArrowRightLeft className="h-3 w-3" />
+        Transfer
+      </span>
+      {hasPermission(PERMISSIONS.BILLING_TRANSFER_WALLET_CREDIT) && (
+        <Popover open={open} onOpenChange={(next) => { setOpen(next); if (next) setReason(''); }}>
+          <PopoverTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-auto px-1 py-0 text-xs text-primary hover:text-primary">
+              Reverse
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-72 space-y-2 p-4">
+            <Label htmlFor={`reverse-${transferId}`}>Reason for reversing this transfer</Label>
+            <Textarea id={`reverse-${transferId}`} rows={2} value={reason} onChange={(event) => setReason(event.target.value)} />
+            <Button
+              size="sm"
+              className="w-full"
+              disabled={!reason.trim() || reverse.isPending}
+              onClick={() => reverse.mutate({ transferId, reason: reason.trim() }, { onSuccess: () => setOpen(false) })}
+            >
+              {reverse.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Reverse transfer
+            </Button>
+          </PopoverContent>
+        </Popover>
+      )}
+    </div>
+  );
 }
 
 function InvoiceReferencePopover({ invoiceId }: { invoiceId: string }) {

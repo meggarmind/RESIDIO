@@ -65,6 +65,8 @@ export const PERMISSIONS = {
   BILLING_MANAGE_PROFILE_VERSIONS: 'billing.manage_profile_versions',
   BILLING_APPLY_LATE_FEES: 'billing.apply_late_fees',
   BILLING_MANAGE_WALLETS: 'billing.manage_wallets',
+  // Move credit between wallets of one person or of persons linked to one house, and reverse it (#1191).
+  BILLING_TRANSFER_WALLET_CREDIT: 'billing.transfer_wallet_credit',
   BILLING_REQUEST_LATE_FEE_WAIVER: 'billing.request_late_fee_waiver',
   BILLING_APPROVE_LATE_FEE_WAIVER: 'billing.approve_late_fee_waiver',
 
