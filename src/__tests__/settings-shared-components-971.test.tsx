@@ -53,6 +53,20 @@ describe('dashboard shell scroll model (M1)', () => {
     expect(main).toHaveClass('overflow-y-auto', 'min-h-0', 'flex-1');
   });
 
+  it('cannot be scrolled by scrollIntoView, and absolute children anchor to <main> (#1220)', () => {
+    const { container } = render(
+      <DashboardShell>
+        <div role="status" className="sr-only" />
+      </DashboardShell>,
+    );
+    // overflow-hidden is still a scroll container for programmatic scrolls; overflow-clip is not.
+    expect(container.firstElementChild).toHaveClass('overflow-clip');
+    expect(container.firstElementChild).not.toHaveClass('overflow-hidden');
+    // A `sr-only` (position: absolute) child must take <main> as its containing block, or it
+    // extends the shell's scrollable overflow and the nav's scrollIntoView moves the shell.
+    expect(screen.getByRole('main')).toHaveClass('relative');
+  });
+
   it('the page nav follows the scrolling <main>, not the window', () => {
     vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
       cb(0);
