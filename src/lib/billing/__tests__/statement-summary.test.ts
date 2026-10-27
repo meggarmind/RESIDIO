@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { buildStatementLedger, type LedgerInvoice } from '@/lib/billing/statement-ledger';
+import { buildStatementLedger, type LedgerInvoice, type LedgerPayment } from '@/lib/billing/statement-ledger';
 
 const monthly = (name: string, year: number, month: number, amount: number, id = `${name}-${year}-${month}`): LedgerInvoice => ({
   id,
   invoice_number: `INV-${id}`,
   amount_due: amount,
-  status: 'paid',
+  status: 'unpaid',
   invoice_type: 'SERVICE_CHARGE',
   period_start: `${year}-${String(month).padStart(2, '0')}-01`,
   period_end: null,
@@ -13,61 +13,102 @@ const monthly = (name: string, year: number, month: number, amount: number, id =
   billing_profile_name: name,
 });
 
-const input = () => ({
-  openingBalance: 2000,
-  invoices: [
-    ...Array.from({ length: 10 }, (_, i) => monthly('Security dues', 2026, i + 1, 10_000)),
-    monthly('Security dues', 2025, 12, 10_000),
-    monthly('Waste', 2026, 3, 1500),
-    monthly('Waste', 2026, 4, 1500),
-    monthly('Levy', 2026, 5, 7000),
-  ],
-  payments: [{ id: 'p1', amount: 25_000, payment_date: '2026-03-15', reference_number: 'T1', method: 'bank_transfer', notes: null }],
-  walletTransactions: [
-    { id: 'w1', type: 'credit' as const, amount: 3000, description: 'Manual credit', reference_type: null, reference_id: null, created_at: '2026-06-02T09:00:00Z' },
-    { id: 'w2', type: 'debit' as const, amount: 500, description: 'Manual debit', reference_type: null, reference_id: null, created_at: '2026-07-02T09:00:00Z' },
-    { id: 'w3', type: 'debit' as const, amount: 10_000, description: null, reference_type: 'invoice', reference_id: 'x', created_at: '2026-02-02T09:00:00Z' },
-  ],
+const payment = (id: string, date: string, amount: number): LedgerPayment => ({
+  id, amount, payment_date: date, reference_number: id, method: 'bank_transfer', notes: null,
 });
 
-describe('buildStatementLedger summary mode', () => {
-  const detailed = buildStatementLedger(input());
-  const summary = buildStatementLedger({ ...input(), mode: 'summary' });
+// The KOA-18A sample statement: Nov 2025 to Oct 2026 at 10k, paid 50k in Feb and 90k in Oct.
+const sample = () => ({
+  openingBalance: 0,
+  invoices: [
+    monthly('Dues', 2025, 11, 10_000),
+    monthly('Dues', 2025, 12, 10_000),
+    ...Array.from({ length: 10 }, (_, i) => monthly('Dues', 2026, i + 1, 10_000)),
+  ],
+  payments: [payment('p1', '2026-02-01', 50_000), payment('p2', '2026-10-01', 90_000)],
+  walletTransactions: [],
+});
 
-  it('shows ten monthly invoices of one item and year as one line', () => {
-    const line = summary.transactions.find((t) => t.description.startsWith('Security dues · Jan–Oct 2026'));
-    expect(line?.description).toBe('Security dues · Jan–Oct 2026 · 10 invoices');
-    expect(line?.debit).toBe(100_000);
-    expect(line?.invoice_count).toBe(10);
+const rows = (result: ReturnType<typeof buildStatementLedger>) =>
+  result.transactions.map((t) => [t.description, t.debit, t.credit, t.balance]);
+
+describe('buildStatementLedger summary mode (#1234)', () => {
+  it('merges each run of unpaid invoices and keeps an invoice the credit pays on its own line', () => {
+    const summary = buildStatementLedger({ ...sample(), mode: 'summary' });
+    expect(rows(summary)).toEqual([
+      ['Dues · Nov 2025 – Feb 2026 · 4 invoices', 40_000, 0, 40_000],
+      ['Payment (bank_transfer)', 0, 50_000, -10_000],
+      ['Invoice #INV-Dues-2026-3 - Dues, MAR 2026', 10_000, 0, 0],
+      ['Dues · Apr – Oct 2026 · 7 invoices', 70_000, 0, 70_000],
+      ['Payment (bank_transfer)', 0, 90_000, -20_000],
+    ]);
+    const first = summary.transactions[0];
+    expect(first.date).toBe('2025-11-01');
+    expect(first.reference).toBe('INV-Dues-2025-11 – INV-Dues-2026-2');
+    expect(first.invoice_count).toBe(4);
+    expect(first.invoice_id).toBeUndefined();
   });
 
-  it('keeps separate lines per billing item and per year, and leaves a lone invoice alone', () => {
-    const descriptions = summary.transactions.map((t) => t.description);
-    expect(descriptions).toContain('Waste · Mar–Apr 2026 · 2 invoices');
-    expect(descriptions.filter((d) => d.includes('Security dues'))).toHaveLength(2);
-    expect(descriptions).toContain('Invoice #INV-Security dues-2025-12 - Security dues, DEC 2025');
-    expect(descriptions).toContain('Invoice #INV-Levy-2026-5 - Levy, MAY 2026');
+  it('keeps an invoice that credit pays only partly on its own line, then starts a run', () => {
+    const summary = buildStatementLedger({
+      openingBalance: -5_000,
+      invoices: [monthly('Dues', 2026, 1, 10_000), monthly('Dues', 2026, 2, 10_000), monthly('Dues', 2026, 3, 10_000)],
+      payments: [], walletTransactions: [], mode: 'summary',
+    });
+    expect(rows(summary)).toEqual([
+      ['Invoice #INV-Dues-2026-1 - Dues, JAN 2026', 10_000, 0, 5_000],
+      ['Dues · Feb – Mar 2026 · 2 invoices', 20_000, 0, 25_000],
+    ]);
   });
 
-  it('keeps payments and manual wallet rows line by line', () => {
-    expect(summary.transactions.filter((t) => t.type === 'payment')).toHaveLength(1);
-    expect(summary.transactions.filter((t) => t.type === 'wallet_credit' || t.type === 'wallet_debit')).toHaveLength(2);
+  it('stops a run at a manual wallet row, a new amount, another item and a missing month', () => {
+    const summary = buildStatementLedger({
+      openingBalance: 0,
+      invoices: [
+        monthly('Dues', 2026, 1, 10_000), monthly('Dues', 2026, 2, 10_000),
+        monthly('Dues', 2026, 3, 10_000), monthly('Dues', 2026, 4, 10_000),
+        monthly('Dues', 2026, 5, 12_500), monthly('Dues', 2026, 6, 12_500),
+        monthly('Dues', 2026, 8, 12_500), monthly('Dues', 2026, 9, 12_500),
+        monthly('Waste', 2026, 10, 12_500, 'w-10'),
+      ],
+      payments: [],
+      walletTransactions: [
+        { id: 'w1', type: 'debit' as const, amount: 500, description: 'Manual debit', reference_type: null, reference_id: null, created_at: '2026-02-15T09:00:00Z' },
+      ],
+      mode: 'summary',
+    });
+    expect(summary.transactions.map((t) => t.description)).toEqual([
+      'Dues · Jan – Feb 2026 · 2 invoices',
+      'Manual debit',
+      'Dues · Mar – Apr 2026 · 2 invoices',
+      'Dues · May – Jun 2026 · 2 invoices',
+      'Dues · Aug – Sep 2026 · 2 invoices',
+      'Invoice #INV-w-10 - Waste, OCT 2026',
+    ]);
   });
 
-  it('matches the detailed statement on totals and closing balance, and ends on the same running balance', () => {
+  it('never merges an invoice without a billing period', () => {
+    const undated = { ...monthly('Dues', 2026, 2, 10_000), period_start: null, created_at: '2026-02-10T00:00:00Z' };
+    const summary = buildStatementLedger({
+      openingBalance: 0, invoices: [monthly('Dues', 2026, 1, 10_000), undated], payments: [], walletTransactions: [], mode: 'summary',
+    });
+    expect(summary.transactions.map((t) => t.invoice_count)).toEqual([undefined, undefined]);
+  });
+
+  it('matches the detailed statement on totals, closing balance and the final running balance', () => {
+    const detailed = buildStatementLedger(sample());
+    const summary = buildStatementLedger({ ...sample(), mode: 'summary' });
     expect(summary.summary).toEqual(detailed.summary);
     expect(summary.closingBalance).toBe(detailed.closingBalance);
-    expect(summary.transactions.at(-1)?.balance).toBe(detailed.transactions.at(-1)?.balance);
     expect(summary.transactions.at(-1)?.balance).toBe(detailed.closingBalance);
   });
 
-  it('exposes every monthly invoice for the appendix', () => {
-    expect(summary.monthlyInvoices).toHaveLength(14);
+  it('exposes every monthly invoice for the appendix, and leaves detailed output unchanged', () => {
+    const detailed = buildStatementLedger(sample());
+    const summary = buildStatementLedger({ ...sample(), mode: 'summary' });
+    expect(summary.monthlyInvoices).toHaveLength(12);
     expect(summary.monthlyInvoices).toEqual(detailed.transactions.filter((t) => t.type === 'invoice'));
-  });
-
-  it('leaves detailed output unchanged when no mode is given', () => {
-    expect(buildStatementLedger({ ...input(), mode: 'detailed' }).transactions).toEqual(detailed.transactions);
-    expect(detailed.transactions).toHaveLength(14 + 1 + 2);
+    expect(buildStatementLedger({ ...sample(), mode: 'detailed' }).transactions).toEqual(detailed.transactions);
+    expect(detailed.transactions).toHaveLength(14);
   });
 });

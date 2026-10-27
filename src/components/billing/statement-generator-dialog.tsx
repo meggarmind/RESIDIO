@@ -324,7 +324,7 @@ export function StatementGeneratorDialog({
                                 checked={summaryView}
                                 onCheckedChange={(checked) => setSummaryView(checked === true)}
                             />
-                            <Label htmlFor="summaryView">Group monthly invoices by billing item and year</Label>
+                            <Label htmlFor="summaryView">Merge unpaid monthly invoices in a row into one line</Label>
                         </div>
                         {summaryView && (
                             <div className="flex items-center gap-2">

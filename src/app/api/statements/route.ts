@@ -19,7 +19,7 @@ import { format } from 'date-fns';
  * - houseId: Optional - filter by specific property
  * - fromDate: Required - start date (YYYY-MM-DD)
  * - toDate: Required - end date (YYYY-MM-DD)
- * - view: Optional - 'summary' folds monthly invoices into one line per billing item per year
+ * - view: Optional - 'summary' folds each run of unpaid monthly invoices into one line (#1234)
  * - detail: Optional - '1' adds the monthly detail appendix to a summary statement
  *
  * Authorization:

@@ -56,52 +56,67 @@ function lagosYearMonth(dateStr: string): { year: number; month: number } {
   return { year: lagos.getUTCFullYear(), month: lagos.getUTCMonth() };
 }
 
-/**
- * Folds the invoice lines of one billing item and calendar year into one line (a lone invoice
- * stays as it is). The line sits at the last invoice's date and the running balance is redone,
- * so opening, closing and the totals match the detailed statement.
- */
-function summariseInvoices(transactions: StatementTransaction[], names: Map<string, string>, openingBalance: number) {
-  const groups = new Map<string, StatementTransaction[]>();
-  for (const tx of transactions) {
-    if (tx.type !== 'invoice') continue;
-    const key = `${names.get(tx.id)}|${lagosYearMonth(tx.date).year}`;
-    groups.set(key, [...(groups.get(key) ?? []), tx]);
-  }
+/** Months since year 0 of a period start, so two months in sequence differ by one. */
+function monthIndex(dateStr: string): number {
+  const { year, month } = lagosYearMonth(dateStr);
+  return year * 12 + month;
+}
 
-  const folded = new Set<string>();
-  const result: StatementTransaction[] = [];
+/**
+ * Folds each run of unpaid monthly invoices into one line (#1234). A run is two or more invoices in
+ * sequence with the same billing item and amount, for months in sequence, each added in full to the
+ * debt. Any other row stops the run, and so does an invoice the credit pays fully or partly: it
+ * stays on its own line. The line sits at the first invoice's date and shows the balance at the end
+ * of the run, so opening, closing and the totals match the detailed statement.
+ */
+function summariseInvoices(transactions: StatementTransaction[], names: Map<string, string>, periodStarts: Map<string, string>) {
+  const runs: StatementTransaction[][] = [];
+  let run: StatementTransaction[] = [];
+  const close = () => {
+    if (run.length) runs.push(run);
+    run = [];
+  };
+
   for (const tx of transactions) {
-    const key = `${names.get(tx.id)}|${lagosYearMonth(tx.date).year}`;
-    const members = tx.type === 'invoice' ? groups.get(key)! : [];
-    if (members.length < 2) {
-      result.push({ ...tx });
+    const start = periodStarts.get(tx.id);
+    // A balance in credit before the invoice means the credit pays some or all of it.
+    const unpaid = tx.type === 'invoice' && start !== undefined && tx.balance - tx.debit > -0.005;
+    if (!unpaid) {
+      close();
+      runs.push([tx]);
       continue;
     }
-    if (folded.has(key) || tx !== members[members.length - 1]) continue;
-    folded.add(key);
-    const first = lagosYearMonth(members[0].date);
-    const last = lagosYearMonth(tx.date);
-    const months = first.month === last.month ? MONTHS[last.month] : `${MONTHS[first.month]}–${MONTHS[last.month]}`;
-    result.push({
-      id: `inv-grp-${key}`,
-      date: tx.date,
+    const prev = run.at(-1);
+    const continues = prev
+      && names.get(prev.id) === names.get(tx.id)
+      && prev.debit === tx.debit
+      && monthIndex(periodStarts.get(prev.id)!) + 1 === monthIndex(start);
+    if (!continues) close();
+    run.push(tx);
+  }
+  close();
+
+  return runs.map((members): StatementTransaction => {
+    if (members.length < 2) return { ...members[0] };
+    const first = members[0];
+    const last = members[members.length - 1];
+    const from = lagosYearMonth(periodStarts.get(first.id)!);
+    const to = lagosYearMonth(periodStarts.get(last.id)!);
+    const months = from.year === to.year
+      ? `${MONTHS[from.month]} – ${MONTHS[to.month]} ${to.year}`
+      : `${MONTHS[from.month]} ${from.year} – ${MONTHS[to.month]} ${to.year}`;
+    return {
+      id: `inv-run-${first.id}`,
+      date: first.date,
       type: 'invoice',
-      description: `${names.get(tx.id)} · ${months} ${last.year} · ${members.length} invoices`,
-      reference: null,
+      description: `${names.get(first.id)} · ${months} · ${members.length} invoices`,
+      reference: first.reference && last.reference ? `${first.reference} – ${last.reference}` : null,
       debit: members.reduce((sum, m) => sum + m.debit, 0),
       credit: 0,
-      balance: 0,
+      balance: last.balance,
       invoice_count: members.length,
-    });
-  }
-
-  let balance = openingBalance;
-  for (const tx of result) {
-    balance += tx.debit - tx.credit;
-    tx.balance = balance;
-  }
-  return result;
+    };
+  });
 }
 
 export function buildStatementLedger(input: {
@@ -109,15 +124,17 @@ export function buildStatementLedger(input: {
   invoices: LedgerInvoice[];
   payments: LedgerPayment[];
   walletTransactions: LedgerWalletTransaction[];
-  /** `summary` folds monthly invoices into one line per billing item per year; payments stay line by line. */
+  /** `summary` folds each run of unpaid monthly invoices into one line (#1234); payments stay line by line. */
   mode?: 'detailed' | 'summary';
 }) {
   const { openingBalance } = input;
   const transactions: StatementTransaction[] = [];
   const itemNames = new Map<string, string>();
+  const periodStarts = new Map<string, string>();
 
   for (const invoice of input.invoices) {
     const amount = invoice.amount_due || 0;
+    if (invoice.period_start) periodStarts.set(`inv-${invoice.id}`, invoice.period_start);
     itemNames.set(`inv-${invoice.id}`, chargeLabel({ invoice_type: invoice.invoice_type, profileName: invoice.billing_profile_name, periodStart: null }));
     transactions.push({
       id: `inv-${invoice.id}`,
@@ -189,7 +206,7 @@ export function buildStatementLedger(input: {
   summary.netChange = summary.totalInvoiced + summary.totalDebits - summary.totalPaid - summary.totalCredits;
 
   return {
-    transactions: input.mode === 'summary' ? summariseInvoices(transactions, itemNames, openingBalance) : transactions,
+    transactions: input.mode === 'summary' ? summariseInvoices(transactions, itemNames, periodStarts) : transactions,
     // The monthly lines, kept for the optional statement appendix.
     monthlyInvoices: transactions.filter((t) => t.type === 'invoice'),
     summary,

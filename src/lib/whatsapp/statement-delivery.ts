@@ -59,10 +59,11 @@ export async function estateName(): Promise<string> {
 /**
  * The admin account statement for one resident and house, read with the service-role client.
  * Resident-facing, so its balances are the roll-forward ones only once the setting is on (#863).
+ * Runs of unpaid monthly invoices are merged into one line (#1234).
  */
 export async function loadWhatsAppStatement(residentId: string, houseId: string, fromDate: string, toDate: string): Promise<AccountStatementData> {
   const rollForward = await isResidentRollForwardEnabled();
-  const { data, error } = await loadAccountStatement(createAdminClient(), { residentId, houseId, fromDate, toDate }, { rollForward });
+  const { data, error } = await loadAccountStatement(createAdminClient(), { residentId, houseId, fromDate, toDate }, { rollForward, mode: 'summary' });
   if (error || !data) throw new Error(`Statement could not be built: ${error || 'no data'}`);
   return data;
 }
