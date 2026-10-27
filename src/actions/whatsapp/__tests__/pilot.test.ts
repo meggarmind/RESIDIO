@@ -3,7 +3,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { logAudit } from '@/lib/audit/logger';
 import { createAdminClient } from '@/lib/supabase/server';
 import { replayHeldWhatsAppMessages } from '@/lib/whatsapp/held-replay';
-import { getWhatsAppPilotResidentOptions, promoteWhatsAppPilotToEstate, setWhatsAppEnabled, updateWhatsAppPilotSettings, type PilotSettings } from '../pilot';
+import { getWhatsAppPilotRoster, promoteWhatsAppPilotToEstate, setWhatsAppEnabled, updateWhatsAppPilotSettings, type PilotSettings } from '../pilot';
 
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: vi.fn() }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit: vi.fn() }));
@@ -229,12 +229,23 @@ describe('updateWhatsAppPilotSettings', () => {
   });
 });
 
-describe('getWhatsAppPilotResidentOptions (#801)', () => {
-  function residentsQuery(result: { data?: unknown; error?: unknown }) {
+describe('getWhatsAppPilotRoster (#801)', () => {
+  function tableQuery(result: { data?: unknown; error?: unknown }, terminal: 'limit' | 'order') {
     const chain = {} as Record<string, ReturnType<typeof vi.fn>>;
-    for (const method of ['select', 'order']) chain[method] = vi.fn().mockReturnValue(chain);
-    chain.limit = vi.fn().mockResolvedValue(result);
+    chain.select = vi.fn().mockReturnValue(chain);
+    if (terminal === 'limit') {
+      chain.order = vi.fn().mockReturnValue(chain);
+      chain.limit = vi.fn().mockResolvedValue(result);
+    } else {
+      chain.order = vi.fn().mockResolvedValue(result);
+    }
     return chain;
+  }
+
+  function mockTables(residents: { data?: unknown; error?: unknown }, optIns: { data?: unknown; error?: unknown }, streets: { data?: unknown; error?: unknown }) {
+    const chains = { residents: tableQuery(residents, 'limit'), whatsapp_optins: tableQuery(optIns, 'order'), streets: tableQuery(streets, 'order') };
+    vi.mocked(createAdminClient).mockReturnValue({ from: vi.fn((table: keyof typeof chains) => chains[table]) } as never);
+    return chains;
   }
 
   beforeEach(() => {
@@ -244,40 +255,42 @@ describe('getWhatsAppPilotResidentOptions (#801)', () => {
 
   it('authorizes with WHATSAPP_VIEW first and reads nothing when denied', async () => {
     vi.mocked(authorizePermission).mockResolvedValue({ authorized: false, error: 'Forbidden' } as never);
-    await expect(getWhatsAppPilotResidentOptions()).resolves.toEqual({ data: [], error: 'Forbidden' });
+    await expect(getWhatsAppPilotRoster()).resolves.toEqual({ data: { residents: [], streets: [] }, error: 'Forbidden' });
     expect(authorizePermission).toHaveBeenCalledWith('whatsapp.view');
     expect(createAdminClient).not.toHaveBeenCalled();
   });
 
-  it('returns id, name and a non-contact detail from the active house', async () => {
-    const chain = residentsQuery({
-      data: [
-        {
+  it('returns active houses with roles, masked consent numbers and the streets', async () => {
+    mockTables(
+      {
+        data: [{
           id: 'res-1', first_name: 'Ada', last_name: 'Okoro', resident_code: 'RES001',
           resident_houses: [
-            { is_active: false, house: { house_number: '3', street: { name: 'Old Road' } } },
-            { is_active: true, house: { house_number: '12', street: { name: 'Palm Close' } } },
+            { is_active: false, resident_role: 'tenant', house: { house_number: '3', street_id: 'st-old', street: { name: 'Old Road' } } },
+            { is_active: true, resident_role: 'resident_landlord', house: { house_number: '12', street_id: 'st-1', street: { name: 'Palm Close' } } },
           ],
-        },
-        { id: 'res-2', first_name: 'Bola', last_name: null, resident_code: 'RES002', resident_houses: [] },
-      ],
-      error: null,
-    });
-    vi.mocked(createAdminClient).mockReturnValue({ from: vi.fn().mockReturnValue(chain) } as never);
+        }],
+        error: null,
+      },
+      { data: [{ resident_id: 'res-1', phone_number: '+2348031234567', opted_in: true, deactivated_at: null }], error: null },
+      { data: [{ id: 'st-1', name: 'Palm Close' }], error: null },
+    );
 
-    await expect(getWhatsAppPilotResidentOptions()).resolves.toEqual({
-      data: [
-        { id: 'res-1', name: 'Ada Okoro', detail: 'RES001 · 12 Palm Close' },
-        { id: 'res-2', name: 'Bola', detail: 'RES002' },
-      ],
+    await expect(getWhatsAppPilotRoster()).resolves.toEqual({
+      data: {
+        residents: [{
+          id: 'res-1', name: 'Ada Okoro', code: 'RES001',
+          houses: [{ label: '12 Palm Close', streetId: 'st-1', role: 'Owner-Occupier' }],
+          optIn: 'opted_in', phone: '+234****567',
+        }],
+        streets: [{ id: 'st-1', name: 'Palm Close' }],
+      },
       error: null,
     });
-    const columns = chain.select.mock.calls[0][0] as string;
-    expect(columns).not.toMatch(/phone|email/);
   });
 
-  it('surfaces a read error with an empty list', async () => {
-    vi.mocked(createAdminClient).mockReturnValue({ from: vi.fn().mockReturnValue(residentsQuery({ data: null, error: { message: 'boom' } })) } as never);
-    await expect(getWhatsAppPilotResidentOptions()).resolves.toEqual({ data: [], error: 'boom' });
+  it('surfaces a read error with an empty roster', async () => {
+    mockTables({ data: [], error: null }, { data: null, error: { message: 'boom' } }, { data: [], error: null });
+    await expect(getWhatsAppPilotRoster()).resolves.toEqual({ data: { residents: [], streets: [] }, error: 'boom' });
   });
 });

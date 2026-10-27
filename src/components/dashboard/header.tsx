@@ -109,17 +109,6 @@ export function Header({ onMenuClick }: HeaderProps) {
             </TooltipProvider>
 
 
-            {/* Page Title / Greeting */}
-            <div className="hidden md:block ml-2">
-              {pathname === '/dashboard' && mounted && profile ? (
-                <h1 className="text-xl font-bold tracking-tight">
-                  {getGreeting()}, {profile.full_name?.split(' ')[0] || 'there'}
-                </h1>
-              ) : pathname === '/dashboard' ? (
-                <h1 className="text-xl font-bold tracking-tight">Dashboard</h1>
-              ) : null}
-            </div>
-
             {/* Mobile Page Identity */}
             <div className="md:hidden ml-2 flex-1 overflow-hidden">
               {pathname === '/dashboard' ? (
