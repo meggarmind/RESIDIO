@@ -1999,7 +1999,9 @@ async function converse(turn: Turn, expired: boolean, endedOnPurpose = false): P
   }
   if (CONTACT_WORDS.has(input)) return showContact(turn);
   if (input === '0') {
-    const backToFinancial = node === 'answer' || node === 'link_pick' || node === 'statement_period' || node.startsWith('report_') || node.startsWith('receipt_') || node.startsWith('property:') || node.startsWith('statement_email:');
+    // After a final answer the Financial menu is already on screen, and its "Reply 0 for menu" means the
+    // main menu. With no property chosen yet, Financial standing would only ask "Which property?" again.
+    const backToFinancial = node === 'link_pick' || node === 'statement_period' || node.startsWith('report_') || node.startsWith('receipt_') || (node.startsWith('property:') && !!turn.session.selectedHouseId) || node.startsWith('statement_email:');
     return backToFinancial && turn.identity.financialEligible ? enterFinancial(turn, 'menu') : showMain(turn);
   }
 
