@@ -386,6 +386,17 @@ export function DocumentsTable({
               <Skeleton key={i} className="h-16 w-full" />
             ))}
           </div>
+        ) : documents.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground">
+            <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p className="text-lg font-medium">No documents found</p>
+            {canUpload && (
+              <Button className="mt-4" onClick={() => setUploadOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Upload First Document
+              </Button>
+            )}
+          </div>
         ) : viewMode === 'grid' ? (
           <div className="animate-slide-up">
             <DocumentGrid
@@ -398,17 +409,6 @@ export function DocumentsTable({
               canEdit={canEdit}
               canDelete={canDelete}
             />
-          </div>
-        ) : documents.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p className="text-lg font-medium">No documents found</p>
-            {canUpload && (
-              <Button className="mt-4" onClick={() => setUploadOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Upload First Document
-              </Button>
-            )}
           </div>
         ) : (
           <div className="space-y-4">

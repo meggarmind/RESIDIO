@@ -11,7 +11,6 @@ import {
   EnhancedTableCard,
   EnhancedPageHeader,
 } from '@/components/dashboard/enhanced-stat-card';
-import { ModernDocumentsEmptyState } from '@/components/dashboard/modern-empty-state';
 
 export default function DocumentsPage() {
   const [monthStart] = useState(() => Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -83,15 +82,11 @@ export default function DocumentsPage() {
 
       {/* Documents Table */}
       <EnhancedTableCard title="Documents Repository" description="Full registry of active estate documents and files.">
-        {totalDocs === 0 && !isLoading ? (
-          <ModernDocumentsEmptyState />
-        ) : (
-          <DocumentsTable
-            canUpload={canUpload}
-            canEdit={canEdit}
-            canDelete={canDelete}
-          />
-        )}
+        <DocumentsTable
+          canUpload={canUpload}
+          canEdit={canEdit}
+          canDelete={canDelete}
+        />
       </EnhancedTableCard>
     </div>
   );
