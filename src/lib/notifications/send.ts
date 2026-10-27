@@ -410,6 +410,14 @@ async function sendAdminAddressedEmail(item: NotificationQueueItem): Promise<Sen
 }
 
 /**
+ * A collection receipt or notified-party email to someone with no resident record (#1194): no resident flag
+ * exists, so like the admin emails it follows the global switch.
+ */
+async function sendNonResidentCollectionEmail(item: NotificationQueueItem): Promise<SendNotificationResult> {
+  return sendNotification(item);
+}
+
+/**
  * Looks the queue row's resident flag up and sends. Fails closed: if the flag cannot be read the
  * message is NOT sent (never sent as if the flag were null), and the failure is retryable because
  * an unreadable table is transient.
@@ -417,6 +425,9 @@ async function sendAdminAddressedEmail(item: NotificationQueueItem): Promise<Sen
 async function sendWithResidentFlag(item: NotificationQueueItem): Promise<SendNotificationResult> {
   if (!item.recipient_id && item.channel === 'email' && typeof item.metadata?.admin_profile_id === 'string') {
     return sendAdminAddressedEmail(item);
+  }
+  if (!item.recipient_id && item.channel === 'email' && typeof item.metadata?.collection_notice === 'string') {
+    return sendNonResidentCollectionEmail(item);
   }
   const override = item.recipient_id
     ? await resolveResidentOverride([item.recipient_id])

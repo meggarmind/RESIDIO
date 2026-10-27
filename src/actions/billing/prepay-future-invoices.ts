@@ -10,8 +10,8 @@ import type { RateSnapshot } from '@/types/database';
 import { callWalletPaymentRpc } from '@/lib/billing/wallet-payment-rpc';
 
 const futurePrepaymentSchema = z.object({
-    residentId: z.string().uuid(),
-    houseId: z.string().uuid(),
+    residentId: z.guid(),
+    houseId: z.guid(),
     startMonth: z.string().regex(/^\d{4}-\d{2}-01$/),
     endMonth: z.string().regex(/^\d{4}-\d{2}-01$/),
     paymentDate: z.string().date().optional(),
@@ -92,12 +92,13 @@ export async function prepayFutureInvoices(
         id: string;
         name: string;
         is_one_time: boolean;
+        charge_category: string;
         billing_items: Array<{ id: string; name: string; amount: number; frequency: string; is_mandatory: boolean }>;
     } | null = null;
     if (house.billing_profile_id) {
         const { data } = await supabase
             .from('billing_profiles')
-            .select('id, name, is_one_time, billing_items(id, name, amount, frequency, is_mandatory)')
+            .select('id, name, is_one_time, charge_category, billing_items(id, name, amount, frequency, is_mandatory)')
             .eq('id', house.billing_profile_id)
             .eq('is_active', true)
             .single();
@@ -105,7 +106,7 @@ export async function prepayFutureInvoices(
     } else if (house.house_type_id) {
         const { data } = await supabase
             .from('house_types')
-            .select('billing_profile:billing_profiles(id, name, is_one_time, billing_items(id, name, amount, frequency, is_mandatory))')
+            .select('billing_profile:billing_profiles(id, name, is_one_time, charge_category, billing_items(id, name, amount, frequency, is_mandatory))')
             .eq('id', house.house_type_id)
             .single();
         billingProfile = (Array.isArray(data?.billing_profile) ? data?.billing_profile[0] : data?.billing_profile) ?? null;
@@ -149,8 +150,6 @@ export async function prepayFutureInvoices(
             continue;
         }
 
-        const year = month.slice(0, 4);
-        const monthNumber = month.slice(5, 7);
         const periodEnd = monthEnd(month);
         const rateSnapshot: RateSnapshot = {
             billing_profile_id: billingProfile.id,
@@ -165,19 +164,26 @@ export async function prepayFutureInvoices(
             total_amount: monthlyTotal,
         };
 
+        // #1169: yearly running number INV-<YYYY>-<000123>, allocated race-safely in SQL.
+        const { data: invoiceNumber, error: invoiceNumberError } = await supabase.rpc('next_invoice_number', {
+            p_period_start: month,
+        });
+        if (invoiceNumberError || !invoiceNumber) {
+            return { success: false, error: invoiceNumberError?.message || `Could not allocate an invoice number for ${month}` };
+        }
+
         const { data: invoice, error: invoiceError } = await supabase
             .from('invoices')
             .insert({
                 resident_id: parsed.data.residentId,
                 house_id: parsed.data.houseId,
                 billing_profile_id: billingProfile.id,
-                invoice_number: house.short_name
-                    ? `INV-${house.short_name}-${year}-${monthNumber}`
-                    : `INV-${year}${monthNumber}-${house.id.substring(0, 8).toUpperCase()}`,
+                invoice_number: invoiceNumber,
                 amount_due: monthlyTotal,
                 amount_paid: 0,
                 status: 'unpaid',
                 invoice_type: billingProfile.is_one_time ? 'LEVY' : 'SERVICE_CHARGE',
+                charge_category: billingProfile.charge_category,
                 rate_snapshot: rateSnapshot,
                 due_date: month,
                 period_start: month,
@@ -248,6 +254,8 @@ export async function prepayFutureInvoices(
         p_credit_amount: totalAmount,
         p_batch_amount: totalAmount,
         p_created_by: auth.userId,
+        // The invoices take the profile's charge category, so the prepayment goes to that wallet (#1189).
+        p_charge_category: billingProfile.charge_category,
     });
     if (error) {
         await supabase.from('payment_records').update({ status: 'failed' }).eq('id', sourcePayment.id);

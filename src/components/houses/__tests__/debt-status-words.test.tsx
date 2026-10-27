@@ -85,3 +85,37 @@ describe('CrossPropertyPaymentSummary shows the shared debt status word (#983)',
     expect(screen.getAllByText(LABELS[status])).toHaveLength(2);
   });
 });
+
+describe('HousePaymentStatus shows the wallet credit under a Credit status (#1162)', () => {
+  const creditHouse = () => ({
+    ...housePayload('credit', 'credit'),
+    totalOutstanding: 0,
+    walletBalance: 20000,
+    residents: [{ ...housePayload('credit', 'credit').residents[0], outstanding: 0, walletBalance: 12345 }],
+  });
+
+  it('the Debt Status tile shows the wallet balance, not the zero outstanding', () => {
+    mocks.house = creditHouse();
+    render(<HousePaymentStatus houseId="h1" />);
+    expect(screen.getByText(/20,000/)).toBeTruthy();
+    expect(screen.getByText('Wallet credit')).toBeTruthy();
+  });
+
+  it('the resident row shows that resident\'s wallet credit', () => {
+    mocks.house = creditHouse();
+    render(<HousePaymentStatus houseId="h1" />);
+    fireEvent.click(screen.getByText(/Breakdown by Resident/));
+    expect(screen.getByText(/12,345(\.00)? credit/)).toBeTruthy();
+  });
+
+  it('an owing house still shows the outstanding amount and no wallet label', () => {
+    const owing = housePayload('outstanding', 'outstanding');
+    mocks.house = { ...owing, walletBalance: 777, residents: [{ ...owing.residents[0], walletBalance: 888 }] };
+    render(<HousePaymentStatus houseId="h1" />);
+    fireEvent.click(screen.getByText(/Breakdown by Resident/));
+    expect(screen.queryByText(/888/)).toBeNull();
+    expect(screen.getAllByText(/60/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/777/)).toBeNull();
+    expect(screen.queryByText('Wallet credit')).toBeNull();
+  });
+});

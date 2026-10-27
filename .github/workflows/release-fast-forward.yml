@@ -1,0 +1,177 @@
+name: Release fast-forward
+
+# Promotes `stage` to `master` by fast-forward, so `master` holds the exact commit that ran on
+# Stage, then tags that commit (#1137). Run by hand only (Actions > Release fast-forward > Run
+# workflow); nothing triggers it. The merge-commit release (a `stage` -> `master` PR, release.yml)
+# stays available until the owner switches over.
+#
+# This workflow needs a repository setting that is not made yet: `master` branch protection must
+# let this workflow's push through. Until then the push is refused, and the run fails with a
+# message saying so. Nothing else is changed by a refused run.
+#
+# Checks, in order, before `master` moves:
+#   1. the commit is the tip of `stage`
+#   2. `master` is an ancestor of it (so the push is a fast-forward)
+#   3. Stage runs that exact commit (the release gate's check A, #1136)
+#   4. the dispatcher confirms UAT and DAST passed on it (the release gate's check B has no PR
+#      label to read here)
+#
+# After a fast-forward `master` is an ancestor of `stage`, so no merge-back PR is needed.
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Full SHA of the stage commit to release (must be the tip of stage)
+        type: string
+        required: true
+      bump:
+        description: Release size, as the release:* labels (none promotes without a tag)
+        type: choice
+        options: [patch, minor, major, none]
+        required: true
+      uat_dast_passed:
+        description: Confirm UAT and DAST passed on this exact commit
+        type: boolean
+        required: true
+
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Fast-forward master and tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+    env:
+      SHA: ${{ inputs.sha }}
+      BUMP: ${{ inputs.bump }}
+    steps:
+      - name: Check out the stage commit
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.sha }}
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+
+      - name: Check the commit can be promoted
+        env:
+          UAT_DAST_PASSED: ${{ inputs.uat_dast_passed }}
+        run: |
+          if [ "$UAT_DAST_PASSED" != "true" ]; then
+            echo "::error::UAT and DAST have not been confirmed as passed on ${SHA}. Not promoting."
+            exit 1
+          fi
+          if [ "$(git rev-parse HEAD)" != "$SHA" ]; then
+            echo "::error::Input sha must be the full 40-character commit SHA. Not promoting."
+            exit 1
+          fi
+          if [ "$(git rev-parse origin/stage)" != "$SHA" ]; then
+            echo "::error::${SHA} is not the tip of stage ($(git rev-parse origin/stage)). Not promoting."
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor origin/master "$SHA"; then
+            echo "::error::master ($(git rev-parse origin/master)) is not an ancestor of ${SHA}, so this is not a fast-forward. Merge master into stage first (CORE.md section 7). Not promoting."
+            exit 1
+          fi
+
+      - name: Check Stage runs the commit
+        run: |
+          deployed=""
+          # The image build and deploy lag a push, so retry for about 10 minutes.
+          for attempt in $(seq 1 20); do
+            deployed=$(curl -fsS --max-time 20 https://stage.feyijimi.ng/api/version | jq -r '.sha // empty') || deployed=""
+            if [ "$deployed" = "$SHA" ]; then
+              echo "Stage runs $SHA."
+              exit 0
+            fi
+            echo "Attempt $attempt: Stage reports '${deployed:-unavailable}', waiting for $SHA."
+            sleep 30
+          done
+          echo "::error::Stage is not running this commit. Stage sha: ${deployed:-unavailable}. Not promoting."
+          exit 1
+
+      - name: Work out the version
+        id: version
+        env:
+          PR_LABELS: '["release:${{ inputs.bump }}"]'
+        run: node scripts/release-version.mjs
+
+      - name: Check the tag is free
+        if: steps.version.outputs.tag != ''
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if git rev-parse --quiet --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "::error::Tag ${TAG} already exists. Not moving it; tags are immutable."
+            exit 1
+          fi
+          existing=$(git tag --list 'v*' --points-at "${SHA}")
+          if [ -n "${existing}" ]; then
+            echo "::error::${SHA} already carries release tag(s): ${existing}. Not adding ${TAG} to the same commit."
+            exit 1
+          fi
+
+      # Fast-forward only: git refuses a push that is not one, and branch protection refuses it
+      # without the exception. Re-running after a failed tag step finds master already at SHA.
+      - name: Fast-forward master
+        run: |
+          if ! git push origin "${SHA}:refs/heads/master"; then
+            echo "::error::The push to master was refused. Either master is not an ancestor of ${SHA}, or master branch protection has no exception for this workflow yet (the owner grants it, #1137). master was not changed."
+            exit 1
+          fi
+          echo "master is at \`${SHA}\`." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Push the tag
+        if: steps.version.outputs.tag != ''
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          REASON: ${{ steps.version.outputs.reason }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag --annotate "${TAG}" "${SHA}" --message "Release ${TAG} (fast-forward, ${REASON})"
+          git push origin "refs/tags/${TAG}"
+          echo "Tagged \`${TAG}\` on \`${SHA}\` (${REASON})." >> "$GITHUB_STEP_SUMMARY"
+
+  # Writes the new tag into residio-prod's build variables (#421). It never deploys Prod.
+  coolify-version:
+    name: Set the Prod build version in Coolify
+    needs: promote
+    if: needs.promote.outputs.tag != ''
+    permissions:
+      contents: read
+    uses: ./.github/workflows/coolify-version.yml
+    with:
+      environment: production
+      ref: ${{ inputs.sha }}
+    secrets:
+      COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
+      COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+      CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+      CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+      COOLIFY_APP_UUID_PROD: ${{ secrets.COOLIFY_APP_UUID_PROD }}
+
+  # Drafts the release notes page for the new tag (#1236, docs/agents/release-notes.md).
+  release-notes:
+    name: Draft the release notes page
+    needs: promote
+    if: needs.promote.outputs.tag != ''
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    uses: ./.github/workflows/release-notes.yml
+    with:
+      tag: ${{ needs.promote.outputs.tag }}

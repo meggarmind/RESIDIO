@@ -8,9 +8,10 @@ residio_sources:
   - src/actions/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp-admin/**
+  - src/app/(dashboard)/system/whatsapp-monitoring/**
   - src/app/api/whatsapp/**
-residio_verified_commit: 1f9d7b2
-residio_verified_at: '2026-10-24'
+residio_verified_commit: 97ac657
+residio_verified_at: '2026-10-27'
 residio_app_version: '0.4.0'
 ---
 
@@ -109,7 +110,14 @@ While the switch is off, a resident who writes in gets one reply, "The estate As
 | `Pilot` | Only named residents, plus every resident on one nominated street. |
 | `Estate` | All residents. |
 
-Use **Rollout and pilot controls** to set the mode. In pilot mode you choose pilot residents by name from a searchable list (each entry shows the resident code and house, to tell same-name residents apart), a pilot street, or both — a resident matching either rule is included.
+Use **Rollout and pilot controls** to set the mode. In pilot mode you choose a **pilot street** by name, pilot residents by name, or both. A resident who matches either rule is included.
+
+The **Pilot residents** table shows everyone in the pilot: each person chosen by name, plus each resident with an active house on the pilot street. Each row shows the resident code, house and role, the masked WhatsApp number, the consent state, and why the person is in the pilot (**Name**, **Street** or both).
+
+- Search by name, code, house or role. Filter to residents chosen by name, residents from the pilot street, or residents who are not opted in.
+- **Add pilot residents** opens a searchable list. Each entry shows the resident code and house, to tell same-name residents apart.
+- The remove button removes a resident chosen by name. To remove a street member, change the pilot street.
+- Changes apply only when you click **Save rollout controls**. Until then, the page shows that the pilot list changed.
 
 ### Promote a pilot to the estate
 
@@ -128,7 +136,7 @@ Moving straight from `Disabled` to `Estate` sends the first real message to ever
 A resident only receives WhatsApp messages after an approved consent record exists. Invoice reminders and payment confirmations check this when the message is created, so a resident without consent gets no queued message at all (an invoice reminder run reports it as "recipient has not opted in"). The check is repeated at send time.
 
 - **Import opt-ins** loads approved consent records from CSV in bulk.
-- The operations console lists current opt-ins and any pending contacts awaiting confirmation. With the WhatsApp manage permission, each opt-in row has **Issue link code**, **Issue setup code** and **Reset PIN** (see [Issuing codes](#issuing-codes)).
+- **System → WhatsApp Monitoring** lists current opt-ins (the opt-in registry) and any pending contacts awaiting confirmation. The CSV opt-in import stays in Settings → WhatsApp. With the WhatsApp manage permission, each opt-in row has **Issue link code**, **Issue setup code** and **Reset PIN** (see [Issuing codes](#issuing-codes)).
 
 Pending contacts are people who have messaged the number but are not yet matched to a resident record. Resolve them by confirming identity against the resident directory — never by guessing from the phone number alone.
 
@@ -141,7 +149,7 @@ The alerts opt-in above covers messages the estate sends. Before the assistant u
 
 Every decision (identity confirmed or disputed, notice accepted or declined) is logged permanently with the number, the notice version and the WhatsApp message that carried it. `STOP` and `START` keep their meaning for alerts.
 
-**Privacy notice** in the Resident bot section holds the notice text and version. Changing the version asks every resident to accept again. A text change is refused unless the version changes too, so each accepted version covers one wording. The text is sent in the chat, so WhatsApp formatting (`*bold*`, `_italic_`) works. These placeholders are filled when the message is sent: `{{URL}}` (the public site address from `NEXT_PUBLIC_SITE_URL`), `{{App Name}}` (the estate name) and `{{App Assistant}}` (the estate name followed by `Assistant`). If the text has `{{URL}}` and no site address is set, the notice counts as not published and nothing is sent. The notice can link to the public privacy policy at `/privacy-policy`, which needs no sign-in.
+**Privacy notice** in the Resident bot section holds the notice text and version. The Assistant name is the **Assistant name** in Settings > Estate > Assistant, or the estate name followed by `Assistant` when that is empty. The Assistant uses it in the welcome to an unmatched number, the survey question, the privacy notice and the session-end message. Changing the version asks every resident to accept again. A text change is refused unless the version changes too, so each accepted version covers one wording. The text is sent in the chat, so WhatsApp formatting (`*bold*`, `_italic_`) works. These placeholders are filled when the message is sent: `{{URL}}` (the public site address from `NEXT_PUBLIC_SITE_URL`), `{{App Name}}` (the estate name) and `{{App Assistant}}` (the Assistant name). If the text has `{{URL}}` and no site address is set, the notice counts as not published and nothing is sent. The notice can link to the public privacy policy at `/privacy-policy`, which needs no sign-in.
 
 If a holder answers **No, not me**, the number is marked **disputed** in Pending contacts, admins are notified, and the assistant shows no details for it. After checking, an admin with WhatsApp manage permission clicks **Clear dispute**; the number then gets the identity read-back again on its next message. A link code does not lift a dispute; only clearing it does.
 
@@ -223,7 +231,7 @@ The reset is written to the audit log. The PIN and the code are never recorded.
 
 ## What residents see
 
-Residents reply with numbers or fixed keywords; the Assistant does not interpret free text. Every reply that is an answer ends with `Reply 0 for menu or 9 to contact the estate office.`
+Residents reply with numbers or fixed keywords; the Assistant does not interpret free text. A reply that is a final answer (what the resident owes, recent payments, a wallet balance, a receipt or statement) is followed by the menu `0` would open, the Financial menu for a resident in Financial standing, so the next number can be sent straight away. The menu is its own second message, so the answer can be forwarded without it. A reply that still asks for input (a statement period, a receipt pick, the steps to report a payment) keeps its own prompt. A receipt or statement PDF arrives with its plain caption, then the menu.
 
 The main menu opens with `Hi <first name>, what would you like to do?` and lists:
 
@@ -248,6 +256,7 @@ A co-resident whose sponsor (the resident landlord or tenant of the same house) 
 
 Every statement is a PDF, never chat text. Choosing a period sends one of these, and the reply names only the period, the property and where the PDF is going; it carries no statement rows. A statement that cannot be made gets the failure reply and the estate office line, not a text fallback.
 
+- **What the PDF shows:** one section per wallet category (Dues, Development Levy, Transformer Fee) with its own running balance, then a Collections section listing the resident's collection payments in the period. Monthly invoices in a row with no payment between them, for the same charge and amount, show as one line with the month range (for example `Nov 2025 – Feb 2026 · 4 invoices`); an invoice that credit pays fully or partly stays on its own line. Collection lines count as rows below.
 - **Up to 40 rows:** the account statement PDF is attached in chat. It is stored privately, Chatmaid is given a link that works for 1 hour, and the file is deleted 12 hours later. If Chatmaid reports the send failed, it is sent once more with a fresh link.
 - **Over 40 rows:** the resident is offered email to their address on file, shown masked (`a***@gmail.com`). On `1` the email is queued and arrives with the PDF attached within 15 minutes, through the notification queue, so the communications override applies to it. The request moves from queued to sent once the email has gone.
 - **No email on file:** the resident is told so, and the request appears under **Statement requested, no email** in the operations console until an email is added and the statement is sent.
@@ -272,7 +281,7 @@ Beyond answers, a resident can make four changes from chat. Each is recorded in 
 
 ### Feedback survey
 
-After a request goes well, the Assistant asks `How was Residio Assistant today?` with `1. Good / 2. Okay / 3. Poor`. It asks only when:
+After a request goes well, the Assistant asks `How was <Assistant name> today?` with `1. Good / 2. Okay / 3. Poor`. It asks only when:
 
 - the resident replies `thanks` or `ok` right after a financial answer, or
 - a payment report or a clearance certificate request has just been accepted.
@@ -331,17 +340,19 @@ Queued notifications, clearance certificate copies and approval outcome messages
 
 ## The operations console
 
-The console on the same page shows today's activity: inbound messages, outbound messages, delivery failures, template errors, and cap limit events. It also lists undelivered messages, active sessions and the disclosure log, and the **Resident feedback** counts (see *Feedback survey* above).
+The console on the same page shows today's activity: inbound messages, outbound messages, delivery failures, template errors, and cap limit events. It also lists undelivered messages and the **Resident feedback** counts (see *Feedback survey* above).
+
+The logs an admin watches are on their own page, **System → WhatsApp Monitoring** (sidebar link in the System section): sent messages, the opt-in registry, pending contacts, active sessions, the disclosure log and clearance certificate copies not sent. To monitor it, choose an auto-refresh interval from 1 to 30 minutes, or press **Refresh now**. Either one refreshes every panel on the page.
 
 The **undelivered messages** list covers the last 7 days. It shows each WhatsApp message the provider reported as failed, or that Chatmaid accepted but never confirmed as sent within 15 minutes. Each row shows the time, the resident (when known), the masked number, whether it was a reply or a notification, the provider's reason, and the id of the resident message it answered. Those residents may not have received the message, so contact them another way. Residio does not resend these messages automatically.
 
-The **Sent messages** card on the same page lists every WhatsApp message the app sent, newest first, 25 to a page: the time, whether it was a reply or a notification, the resident, the masked number (last 4 digits), the status (pending, sent, delivered or failed), the error code, and the id of the resident message it answered. Filter by status or purpose. It shows no message text, because none is stored, and covers the 90-day retention window. Assistant replies appear here and not in **System → Notification queue**, which links to this card.
+The **Sent messages** list on that page shows every WhatsApp message the app sent, newest first, 25 to a page: the time, whether it was a reply or a notification, the resident, the masked number (last 4 digits), the status (pending, sent, delivered or failed), the error code, and the id of the resident message it answered. Filter by status or purpose. It shows no message text, because none is stored, and covers the 90-day retention window. Assistant replies appear here and not in **System → Notification queue**, which links to the monitoring page.
 
 The **Statement requested, no email** list shows residents who asked for a statement too long for chat and have no email on file. Add their email to clear it.
 
-The **Clearance certificate copies not sent** list shows each copy of an issued certificate that did not reach a member of the copy group (WhatsApp switched off, outside the rollout, not opted in, no WhatsApp number, or the provider refused), with the reason and the number of tries. A copy held back by a cap is not listed while it waits to send automatically; it appears here only if that later send fails or its queued message is cancelled. With the WhatsApp manage permission each row has a **Retry**, which sends it again with a fresh link. A failed copy never holds up the resident's own certificate.
+The **Clearance certificate copies not sent** list on the monitoring page shows each copy of an issued certificate that did not reach a member of the copy group (WhatsApp switched off, outside the rollout, not opted in, no WhatsApp number, or the provider refused), with the reason and the number of tries. A copy held back by a cap is not listed while it waits to send automatically; it appears here only if that later send fails or its queued message is cancelled. With the WhatsApp manage permission each row has a **Retry**, which sends it again with a fresh link. A failed copy never holds up the resident's own certificate.
 
-The **disclosure log** records every occasion on which financial information was released over WhatsApp, with its channel: `chat` for an answer, `pdf` for a statement or receipt PDF sent in chat, and `email` for one sent by email. Treat it as an audit surface: it is the evidence that a disclosure was authorised, and it should never be cleared to tidy a screen.
+The **disclosure log** on the monitoring page records every occasion on which financial information was released over WhatsApp, with its channel: `chat` for an answer, `pdf` for a statement or receipt PDF sent in chat, and `email` for one sent by email. Treat it as an audit surface: it is the evidence that a disclosure was authorised, and it should never be cleared to tidy a screen.
 
 ## Data retention
 
@@ -369,7 +380,7 @@ The cleanup runs automatically shortly after midnight, documented on the Schedul
 | Resident forgot their PIN | Confirm identity, then use **Reset PIN** and give them the setup code |
 | A resident says their email code does not work | It expires after 30 minutes, 5 wrong codes cancel it, and only 3 codes are sent an hour. They reply `EMAIL` to start again |
 | A resident's payment report never shows up | Check **Approvals** for a *Payment Reported on WhatsApp* request. Approving it needs both the approvals and the verify payments permissions |
-| A clearance certificate copy did not reach an estate official | See **Clearance certificate copies not sent** in the console; usually the official has not opted in |
+| A clearance certificate copy did not reach an estate official | See **Clearance certificate copies not sent** on System → WhatsApp Monitoring; usually the official has not opted in |
 | A link or setup code is not accepted | It expired, was already used, or a newer setup code replaced it. Issue a new one |
 | Test connection fails | The provider rejected the saved credentials — recheck the access token or auth token against the provider's console. For Chatmaid, the from-number may not be a paired phone, or the paired phone is not connected to the bridge |
 | A WhatsApp send is blocked with "is the WhatsApp from-number" | The communications override points WhatsApp at the bridge phone itself. Change the override WhatsApp number (or the override phone, if the WhatsApp number is blank) under **Settings → Communications override** |

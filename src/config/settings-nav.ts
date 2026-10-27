@@ -145,7 +145,7 @@ export const settingsConfig: SettingsGroup[] = [
                             {
                                 id: "assistant-name",
                                 label: "Assistant name",
-                                help: "Defaults to \"[Estate Name] Assistant\" when left blank.",
+                                help: "Used by the dashboard assistant and the WhatsApp Assistant. Defaults to \"[Estate Name] Assistant\" when left blank.",
                                 keywords: ["bot name", "rename"],
                             },
                         ],
@@ -735,6 +735,7 @@ export const settingsConfig: SettingsGroup[] = [
                     { title: "Scheduled Jobs", href: "/system/cron-status", description: "Whether the scheduled jobs are running", permissions: [PERMISSIONS.SYSTEM_MONITOR], opensSystem: true },
                     { title: "Notification Queue", href: "/system/notification-queue", description: "Messages waiting to be sent", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE], opensSystem: true },
                     { title: "Notification History", href: "/system/notification-history", description: "Messages already sent", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE], opensSystem: true },
+                    { title: "WhatsApp Monitoring", href: "/system/whatsapp-monitoring", description: "WhatsApp sends, opt-ins, sessions and disclosures", permissions: [PERMISSIONS.WHATSAPP_VIEW], opensSystem: true },
                 ]
             },
         ]

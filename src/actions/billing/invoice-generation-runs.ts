@@ -9,8 +9,8 @@ import { prepareInvoiceGenerationRunCore } from '@/lib/billing/invoice-generatio
 import { canCancelInvoiceGenerationRun, canRetryInvoiceGenerationRun } from '@/lib/billing/invoice-generation-run-policy';
 import { createAdminClient, createServerSupabaseClient } from '@/lib/supabase/server';
 
-const runIdSchema = z.string().uuid();
-const candidateIdsSchema = z.array(z.string().uuid()).min(1);
+const runIdSchema = z.guid();
+const candidateIdsSchema = z.array(z.guid()).min(1);
 const readRun = async (id: string) => createAdminClient().from('invoice_generation_runs').select('*').eq('id', id).single();
 
 export async function prepareInvoiceGenerationRun(input: z.input<typeof InvoiceGenerationRequestSchema>) {

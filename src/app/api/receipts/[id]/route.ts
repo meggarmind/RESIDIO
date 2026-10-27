@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getEstateLogoUrl } from '@/lib/branding/estate-logo-server';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { getInvoiceById } from '@/actions/billing/get-invoices';
@@ -89,10 +90,12 @@ export async function GET(
     // Get estate name from settings
     const estateNameSetting = await getSettingValue('estate_name');
     const estateName = typeof estateNameSetting === 'string' ? estateNameSetting : 'Residio Estate';
+    const estateAddressSetting = await getSettingValue('estate_address');
+    const estateAddress = typeof estateAddressSetting === 'string' ? estateAddressSetting.trim() : '';
 
     // Generate PDF
     const pdfBuffer = await renderToBuffer(
-      InvoiceReceiptPDF({ invoice, estateName })
+      InvoiceReceiptPDF({ invoice, estateName, estateAddress, estateLogoUrl: await getEstateLogoUrl() })
     );
 
     // Convert Buffer to Uint8Array for NextResponse compatibility

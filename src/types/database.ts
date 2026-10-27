@@ -55,7 +55,8 @@ export type PermissionCategory =
   | 'two_factor'   // Two-factor authentication
   | 'finance'       // Expenditure and Petty Cash
   | 'projects'      // Capital Projects
-  | 'groups';       // Recipient groups (#819)
+  | 'groups'        // Recipient groups (#819)
+  | 'collections';  // Collections ledger (#1194)
 
 // Account approval lifecycle (profiles.account_status).
 // Only 'active' resolves a role, resident link or permissions — the auth helpers
@@ -355,6 +356,9 @@ export type AuditEntityType =
   | 'whatsapp_admin_bindings'       // WhatsApp number pinned to an admin account (#972)
   | 'whatsapp_admin_requests'       // Admin actions asked for on WhatsApp (#972)
   | 'recipient_groups'             // Named lists of residents to send to (#819)
+  | 'collections'                  // Collections ledger (#1194)
+  | 'collection_payments'          // Payments into a collection (#1194)
+  | 'collection_notified_parties'  // Who is told about an item purchase payment (#1194)
   | 'visitor_vehicles'             // Visitor Vehicle Registration
   // Unified Expenditure Engine
   | 'expenses'                     // Expense records
@@ -458,6 +462,9 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   whatsapp_admin_bindings: 'WhatsApp Admin Link',       // WhatsApp admin mode (#972)
   whatsapp_admin_requests: 'WhatsApp Admin Request',    // WhatsApp admin mode (#972)
   recipient_groups: 'Recipient Group',                  // Recipient groups (#819)
+  collections: 'Collection',                            // Collections ledger (#1194)
+  collection_payments: 'Collection Payment',            // Collections ledger (#1194)
+  collection_notified_parties: 'Notified Party',        // Collections ledger (#1194)
   visitor_vehicles: 'Visitor Vehicle',                  // Visitor Management Enhancement
   // Unified Expenditure Engine
   expenses: 'Expense',                                  // Expense Management
@@ -669,11 +676,13 @@ export interface Database {
           identifier_unverified: boolean;
           identifier_note: string | null;
           is_new_never_occupied: boolean; // #1068: no occupant dues while vacant
+          dues_paid_by_landlord: boolean; // #1192
+          dues_reminder_target: string; // #1192: tenant | landlord | both
           created_at: string;
           updated_at: string;
           created_by: string | null;
         };
-        Insert: Omit<Database['public']['Tables']['houses']['Row'], 'id' | 'created_at' | 'updated_at' | 'is_occupied' | 'number_of_plots' | 'short_name' | 'identifier_unverified' | 'identifier_note' | 'is_new_never_occupied'> & {
+        Insert: Omit<Database['public']['Tables']['houses']['Row'], 'id' | 'created_at' | 'updated_at' | 'is_occupied' | 'number_of_plots' | 'short_name' | 'identifier_unverified' | 'identifier_note' | 'is_new_never_occupied' | 'dues_paid_by_landlord' | 'dues_reminder_target'> & {
           id?: string;
           is_occupied?: boolean;
           number_of_plots?: number;
@@ -681,6 +690,8 @@ export interface Database {
           identifier_unverified?: boolean;
           identifier_note?: string | null;
           is_new_never_occupied?: boolean;
+          dues_paid_by_landlord?: boolean;
+          dues_reminder_target?: string;
         };
         Update: Partial<Database['public']['Tables']['houses']['Insert']>;
       };
@@ -1285,6 +1296,7 @@ export interface BillingProfile {
   is_active: boolean;
   target_type: BillingTargetType;
   payer: 'occupant' | 'landlord';
+  charge_category: string; // charge_categories.code; the invoices and the wallet that pays them (#1189)
   applicable_roles: BillableRole[] | null;
   is_one_time: boolean;
   is_development_levy: boolean; // True for Development Levy profiles (flat fee per house)

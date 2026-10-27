@@ -41,6 +41,7 @@ export const adminOnlyRoutes = [
     // /dashboard?error=unauthorized rather than to the portal. Listing them
     // sends residents where they belong instead.
     '/announcements', '/documents',
+    '/collections',
 ];
 
 /**

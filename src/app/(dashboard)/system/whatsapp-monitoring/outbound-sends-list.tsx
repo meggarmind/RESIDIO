@@ -24,7 +24,7 @@ export function OutboundSendsList() {
   const total = data?.data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / OUTBOUND_SENDS_PAGE_SIZE));
 
-  return <Card id="sent-messages">
+  return <Card>
     <CardHeader><CardTitle>Sent messages</CardTitle><CardDescription>Every WhatsApp message the app sends, assistant replies included. Message text is not stored, so it is not shown. Kept for 90 days.</CardDescription></CardHeader>
     <CardContent className="space-y-3">
       <div className="flex flex-wrap gap-2">

@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { getEstateLogoUrl } from '@/lib/branding/estate-logo-server';
+import { usableEstateLogoUrl } from '@/lib/branding/estate-logo';
 import { createElement } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { renderToBuffer } from '@react-pdf/renderer';
@@ -57,10 +59,11 @@ export async function estateName(): Promise<string> {
 /**
  * The admin account statement for one resident and house, read with the service-role client.
  * Resident-facing, so its balances are the roll-forward ones only once the setting is on (#863).
+ * Runs of unpaid monthly invoices are merged into one line (#1234).
  */
 export async function loadWhatsAppStatement(residentId: string, houseId: string, fromDate: string, toDate: string): Promise<AccountStatementData> {
   const rollForward = await isResidentRollForwardEnabled();
-  const { data, error } = await loadAccountStatement(createAdminClient(), { residentId, houseId, fromDate, toDate }, { rollForward });
+  const { data, error } = await loadAccountStatement(createAdminClient(), { residentId, houseId, fromDate, toDate }, { rollForward, mode: 'summary' });
   if (error || !data) throw new Error(`Statement could not be built: ${error || 'no data'}`);
   return data;
 }
@@ -103,8 +106,14 @@ export async function loadWhatsAppStatementForPeriod(residentId: string, houseId
   return { fromDate, toDate, statement: await loadWhatsAppStatement(residentId, houseId, fromDate, toDate) };
 }
 
+async function estateAddress(): Promise<string> {
+  const settings = await getRawSettingsAsService(['estate_address']);
+  const value = settings.status === 'ok' ? settings.values.get('estate_address') : null;
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 async function renderStatementPdf(statement: AccountStatementData): Promise<Buffer> {
-  return renderToBuffer(AccountStatementPDF({ data: statement, estateName: await estateName() }));
+  return renderToBuffer(AccountStatementPDF({ data: statement, estateName: await estateName(), estateAddress: await estateAddress(), estateLogoUrl: await getEstateLogoUrl() }));
 }
 
 async function signedUrl(path: string): Promise<string> {
@@ -268,7 +277,7 @@ export async function buildStatementEmail(requestId: string) {
   const [pdf, name, contact] = await Promise.all([
     renderStatementPdf(statement),
     estateName(),
-    getRawSettingsAsService(['estate_email', 'estate_phone', 'estate_address']),
+    getRawSettingsAsService(['estate_email', 'estate_phone', 'estate_address', 'estate_logo_url']),
   ]);
   const value = (key: string) => {
     const raw = contact.status === 'ok' ? contact.values.get(key) : null;
@@ -283,6 +292,7 @@ export async function buildStatementEmail(requestId: string) {
       estateEmail: value('estate_email'),
       estatePhone: value('estate_phone'),
       estateAddress: value('estate_address'),
+      estateLogoUrl: usableEstateLogoUrl(contact.status === 'ok' ? contact.values.get('estate_logo_url') : null),
       residentName: statement.resident.name,
       propertyLabel,
       periodLabel,

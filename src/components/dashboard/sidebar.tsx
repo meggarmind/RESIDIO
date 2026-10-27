@@ -173,28 +173,56 @@ export function Sidebar({ className }: SidebarProps) {
                     >
 
 
-                      <item.icon className={cn('h-4 w-4 flex-shrink-0', (isActive || isParentOfActive) ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} />
-                      {isExpanded && (
-                        <>
-                          <span className="flex-1 truncate whitespace-nowrap">{item.title}</span>
-                          {showBadgeCount && (
-                            <Badge
-                              variant="destructive"
-                              className="h-5 min-w-[20px] px-1.5 text-xs"
+                      {(() => {
+                        const label = (
+                          <>
+                            <item.icon className={cn('h-4 w-4 flex-shrink-0', (isActive || isParentOfActive) ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} />
+                            {isExpanded && (
+                              <>
+                                <span className="flex-1 truncate whitespace-nowrap">{item.title}</span>
+                                {showBadgeCount && (
+                                  <Badge
+                                    variant="destructive"
+                                    className="h-5 min-w-[20px] px-1.5 text-xs"
+                                  >
+                                    {pendingCount}
+                                  </Badge>
+                                )}
+                              </>
+                            )}
+                          </>
+                        );
+                        if (!(hasChildren && isExpanded)) return label;
+                        // Label opens the landing page; the chevron alone toggles the sub-list (#1180).
+                        return (
+                          <>
+                            <Link
+                              href={item.href}
+                              onClick={() => setMenuOpen(item.id, true)}
+                              className="flex min-w-0 flex-1 items-center gap-3"
                             >
-                              {pendingCount}
-                            </Badge>
-                          )}
-                          {hasChildren && (
-                            <ChevronDown
-                              className={cn(
-                                'h-3.5 w-3.5 transition-transform duration-200 opacity-60 group-hover:opacity-100',
-                                isMenuExpanded && 'rotate-180'
-                              )}
-                            />
-                          )}
-                        </>
-                      )}
+                              {label}
+                            </Link>
+                            <button
+                              type="button"
+                              aria-expanded={isMenuExpanded}
+                              aria-label={`Show ${item.title} pages`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleSubmenu(item.id, isMenuExpanded);
+                              }}
+                              className="-my-1 -mr-1 rounded p-1"
+                            >
+                              <ChevronDown
+                                className={cn(
+                                  'h-3.5 w-3.5 transition-transform duration-200 opacity-60 group-hover:opacity-100',
+                                  isMenuExpanded && 'rotate-180'
+                                )}
+                              />
+                            </button>
+                          </>
+                        );
+                      })()}
                       {showOpsDot && (
                         <span
                           role="img"
@@ -217,12 +245,7 @@ export function Sidebar({ className }: SidebarProps) {
                           </TooltipContent>
                         </Tooltip>
                       ) : hasChildren ? (
-                        <button
-                          onClick={() => toggleSubmenu(item.id, isMenuExpanded)}
-                          className="w-full text-left"
-                        >
-                          {navLink}
-                        </button>
+                        navLink
                       ) : (
                         <Link href={item.href}>{navLink}</Link>
                       )}

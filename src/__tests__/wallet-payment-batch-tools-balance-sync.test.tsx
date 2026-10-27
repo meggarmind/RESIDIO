@@ -87,7 +87,7 @@ function renderWithClient() {
   });
   render(
     <QueryClientProvider client={queryClient}>
-      <WalletPaymentBatchTools residentId={RESIDENT_ID} houses={[]} />
+      <WalletPaymentBatchTools residentId={RESIDENT_ID} houses={[]} section="settle" />
     </QueryClientProvider>
   );
   return queryClient;
@@ -98,7 +98,7 @@ async function openSettleDialog() {
   await waitFor(() => {
     expect(screen.getByText('INV-0001')).toBeInTheDocument();
   });
-  fireEvent.click(screen.getByRole('checkbox'));
+  fireEvent.click(screen.getByRole('checkbox', { name: /select all invoices/i }));
 
   const trigger = await screen.findByRole('button', { name: /settle selected/i });
   await waitFor(() => expect(trigger).not.toBeDisabled());

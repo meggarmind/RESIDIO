@@ -28,10 +28,13 @@ import { useCreateResident, useUpdateResident, useResidentOptions, DuplicateResi
 import { DuplicateResidentDialog } from '@/components/residents/duplicate-resident-dialog';
 import type { CreateResidentOptions } from '@/actions/residents/create-resident';
 import type { DuplicateResidentMatch } from '@/lib/residents/duplicate-match';
-import { createResidentBaseSchema, resolveSubmittedCorporateFields, type CreateResidentData, type ResidentFormData, requiresSponsor, sponsorRolesFor, describeSponsorRoles } from '@/lib/validators/resident';
+import { createResidentSchema, resolveSubmittedCorporateFields, type CreateResidentData, type ResidentFormData, requiresSponsor, sponsorRolesFor, describeSponsorRoles } from '@/lib/validators/resident';
 import { toast } from 'sonner';
 import type { Resident, ResidentRole, EntityType } from '@/types/database';
 import { PRIMARY_ROLE_OPTIONS, SECONDARY_ROLE_OPTIONS, CORPORATE_ROLE_OPTIONS, ENTITY_TYPE_LABELS, RESIDENT_ROLE_LABELS, RESIDENT_TYPE_LABELS } from '@/types/database';
+import { Check, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { allowedResidentTypes, deriveHouseState } from '@/lib/residents/house-state';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useAuth } from '@/lib/auth/auth-provider';
@@ -46,17 +49,25 @@ import {
   selectValueToFlag,
 } from '@/lib/comms-override/resident-flag-ui';
 
-// House state type for context from house detail page
-export type HouseState = 'empty' | 'has_tenant' | 'has_resident_landlord' | 'has_non_resident_landlord';
+// Creating a resident is a wizard (#1135); editing keeps the single page.
+type WizardStep = 'details' | 'house' | 'entity' | 'emergency' | 'comms' | 'notes';
+
+const WIZARD_STEPS: { id: WizardStep; title: string; optional: boolean; fields: (keyof CreateResidentData)[] }[] = [
+  { id: 'details', title: 'Personal Information', optional: false, fields: ['first_name', 'last_name', 'email', 'phone_primary', 'phone_secondary', 'resident_type'] },
+  { id: 'house', title: 'House Assignment', optional: true, fields: ['house_id', 'resident_role', 'move_in_date', 'sponsor_resident_id'] },
+  { id: 'entity', title: 'Entity Type', optional: true, fields: ['entity_type', 'company_name', 'rc_number', 'liaison_contact_name', 'liaison_contact_phone'] },
+  { id: 'emergency', title: 'Emergency Contact', optional: true, fields: ['emergency_contact_name', 'emergency_contact_phone', 'emergency_contact_relationship', 'emergency_contact_resident_id'] },
+  { id: 'comms', title: 'Communications', optional: true, fields: ['use_override_comms'] },
+  { id: 'notes', title: 'Notes', optional: true, fields: ['notes'] },
+];
 
 interface ResidentFormProps {
   resident?: Resident;
   onSuccess?: () => void;
   preselectedHouseId?: string;
-  houseState?: HouseState | null;
 }
 
-export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseState }: ResidentFormProps) {
+export function ResidentForm({ resident, onSuccess, preselectedHouseId }: ResidentFormProps) {
   const router = useRouter();
   const { hasPermission } = useAuth();
   // Communications override control (#716): hidden entirely without settings.manage_general. The
@@ -73,44 +84,28 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
   const updateMutation = useUpdateResident();
 
   const isEditing = !!resident;
-  // Use the same schema for both create and edit - house assignment fields are optional
-  const schema = createResidentBaseSchema;
+  const isWizard = !isEditing;
+  const steps = WIZARD_STEPS.filter((st) => st.id !== 'comms' || canManageOverride);
+  const [stepIndex, setStepIndex] = React.useState(0);
+  const currentStep = steps[stepIndex];
+  const isLastStep = stepIndex === steps.length - 1;
+  // Edit renders every section; the create wizard renders the current step only.
+  const showStep = (id: WizardStep) => !isWizard || currentStep.id === id;
   const defaultContactMode = resident?.emergency_contact_resident_id ? 'linked' : 'manual';
   const [contactMode, setContactMode] = React.useState<'manual' | 'linked'>(defaultContactMode);
 
-  // Determine if house is locked (coming from house detail page with context)
-  const isHouseLocked = !!houseState && !!preselectedHouseId;
-
-  // Determine allowed resident types based on house state
-  const allowedResidentTypes = React.useMemo(() => {
-    if (!houseState) return ['primary', 'secondary'];
-    switch (houseState) {
-      case 'empty':
-      case 'has_non_resident_landlord':
-        return ['primary', 'secondary']; // All types allowed
-      case 'has_tenant':
-      case 'has_resident_landlord':
-        return ['secondary']; // Only secondary allowed
-      default:
-        return ['primary', 'secondary'];
-    }
-  }, [houseState]);
-
-  // Check if only secondary residents are allowed
-  const onlySecondaryAllowed = allowedResidentTypes.length === 1 && allowedResidentTypes[0] === 'secondary';
-
-  // Determine default resident type based on house state
-  const defaultResidentType = onlySecondaryAllowed ? 'secondary' : (resident?.resident_type ?? 'primary');
+  // Determine if house is locked (coming from the house detail page)
+  const isHouseLocked = !!preselectedHouseId;
 
   const form = useForm<CreateResidentData>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(createResidentSchema),
     defaultValues: {
       first_name: resident?.first_name ?? '',
       last_name: resident?.last_name ?? '',
       email: resident?.email ?? '',
       phone_primary: resident?.phone_primary ?? '',
       phone_secondary: resident?.phone_secondary ?? '',
-      resident_type: defaultResidentType,
+      resident_type: resident?.resident_type ?? 'primary',
       entity_type: resident?.entity_type ?? 'individual',
       company_name: resident?.company_name ?? '',
       rc_number: resident?.rc_number ?? '',
@@ -147,6 +142,13 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
   // Fetch residents for selected house (used for sponsor selection)
   // This is much more efficient than fetching all 1000 residents
   const { data: houseResidents } = useHouseResidents(selectedHouseId);
+
+  // The house state comes from the house's live residents, never from the URL. The server re-checks on submit.
+  const onlySecondaryAllowed = React.useMemo(() => {
+    if (!houseResidents || !residentRole) return false;
+    const allowed = allowedResidentTypes(deriveHouseState(houseResidents.map((r) => r.resident_role)), residentRole);
+    return allowed.length === 1 && allowed[0] === 'secondary';
+  }, [houseResidents, residentRole]);
 
   // Role options filtered by resident type and entity type
   const availableRoles = React.useMemo(() => {
@@ -195,7 +197,7 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
       setDuplicatePrompt(null);
       toast.success(options?.linkToResidentId ? 'House linked to existing resident' : 'Resident created successfully');
       onSuccess?.();
-      router.push('/residents');
+      router.push(preselectedHouseId ? `/houses/${preselectedHouseId}` : '/residents');
     } catch (error) {
       if (error instanceof DuplicateResidentError) {
         setDuplicatePrompt({ createData, matches: error.matches });
@@ -306,6 +308,29 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
   // Determine if sponsor selection should be shown
   const showSponsorField = residentRole && requiresSponsor(residentRole as ResidentRole);
 
+  // Validate the fields of the current step, then advance; errors stay on the step.
+  async function goNext() {
+    if (await form.trigger(currentStep.fields)) setStepIndex(stepIndex + 1);
+  }
+
+  // A submit-time error on a field of an earlier step sends the user back to that step.
+  function onInvalid(errors: Record<string, unknown>) {
+    const first = steps.findIndex((st) => st.fields.some((f) => f in errors));
+    if (first >= 0) setStepIndex(first);
+  }
+
+  const submitNow = form.handleSubmit(onSubmit, onInvalid);
+
+  // Enter advances the wizard; only the last step (or the Create button) submits.
+  function handleFormSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (isWizard && !isLastStep) {
+      void goNext();
+      return;
+    }
+    void submitNow(e);
+  }
+
   return (
     <Form {...form}>
       <DuplicateResidentDialog
@@ -316,8 +341,33 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
         onCreateAnyway={() => duplicatePrompt && runCreate(duplicatePrompt.createData, { createAnyway: true })}
         onCancel={() => setDuplicatePrompt(null)}
       />
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-w-3xl">
+      <form onSubmit={handleFormSubmit} className="space-y-6 max-w-3xl">
+        {isWizard && (
+          <nav aria-label="Progress" className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            {steps.map((st, index) => (
+              <div
+                key={st.id}
+                aria-current={index === stepIndex ? 'step' : undefined}
+                className={cn('flex items-center gap-2 text-sm', index === stepIndex ? 'font-medium' : 'text-muted-foreground')}
+              >
+                <span
+                  className={cn(
+                    'flex h-6 w-6 items-center justify-center rounded-full border text-xs',
+                    index < stepIndex && 'border-primary bg-primary text-primary-foreground',
+                    index === stepIndex && 'border-primary'
+                  )}
+                >
+                  {index < stepIndex ? <Check className="h-3 w-3" /> : index + 1}
+                </span>
+                {st.title}
+                {st.optional && <span className="text-xs text-muted-foreground">(optional)</span>}
+              </div>
+            ))}
+          </nav>
+        )}
+
         {/* Personal Information */}
+        {showStep('details') && (
         <div className="space-y-4">
           <h3 className="text-lg font-medium">Personal Information</h3>
           <div className="grid gap-4 md:grid-cols-2">
@@ -426,7 +476,10 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
           </div>
         </div>
 
+        )}
+
         {/* Entity Type */}
+        {showStep('entity') && (
         <div className="space-y-4">
           <h3 className="text-lg font-medium">Entity Type</h3>
           <div className="grid gap-4 md:grid-cols-2">
@@ -522,8 +575,10 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
           </div>
         </div>
 
+        )}
+
         {/* House Assignment (only for new residents) */}
-        {!isEditing && (
+        {!isEditing && showStep('house') && (
           <div className="space-y-4">
             <h3 className="text-lg font-medium">House Assignment</h3>
             <div className="grid gap-4 md:grid-cols-2">
@@ -682,6 +737,7 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
         )}
 
         {/* Emergency Contact */}
+        {showStep('emergency') && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-medium">Emergency Contact</h3>
@@ -777,8 +833,10 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
           )}
         </div>
 
+        )}
+
         {/* Communications override (#716): settings.manage_general only */}
-        {canManageOverride && (
+        {canManageOverride && showStep('comms') && (
           <FormField
             control={form.control}
             name="use_override_comms"
@@ -810,6 +868,7 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
         )}
 
         {/* Notes */}
+        {showStep('notes') && (
         <FormField
           control={form.control}
           name="notes"
@@ -827,11 +886,30 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
             </FormItem>
           )}
         />
+        )}
 
-        <div className="flex gap-4">
-          <Button type="submit" disabled={isLoading}>
-            {isLoading ? 'Saving...' : isEditing ? 'Update Resident' : 'Create Resident'}
-          </Button>
+        <div className="flex flex-wrap gap-4">
+          {isWizard && stepIndex > 0 && (
+            <Button type="button" variant="outline" onClick={() => setStepIndex(stepIndex - 1)}>
+              Back
+            </Button>
+          )}
+          {isWizard && !isLastStep && (
+            <Button type="button" onClick={goNext}>
+              {currentStep.optional ? 'Next (or skip)' : 'Next'}
+            </Button>
+          )}
+          {(!isWizard || stepIndex > 0 || isLastStep) && (
+            <Button
+              type={isWizard && !isLastStep ? 'button' : 'submit'}
+              variant={isWizard && !isLastStep ? 'secondary' : 'default'}
+              disabled={isLoading}
+              onClick={isWizard && !isLastStep ? submitNow : undefined}
+            >
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isLoading ? 'Saving...' : isEditing ? 'Update Resident' : 'Create Resident'}
+            </Button>
+          )}
           <Button type="button" variant="outline" onClick={() => router.back()}>
             Cancel
           </Button>

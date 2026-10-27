@@ -40,6 +40,7 @@ import { ConnectionSettings } from '@/app/(dashboard)/settings/whatsapp/connecti
 import { ForcePinToggle } from '@/app/(dashboard)/settings/whatsapp/force-pin-toggle';
 import { RollForwardBalanceToggle } from '@/app/(dashboard)/settings/whatsapp/roll-forward-balance-toggle';
 import { OperationsConsole } from '@/app/(dashboard)/settings/whatsapp/operations-console';
+import { WhatsAppActivityLogs } from '@/app/(dashboard)/system/whatsapp-monitoring/activity-logs';
 import { OptInImport } from '@/app/(dashboard)/settings/whatsapp/opt-in-import';
 import { PilotControls } from '@/app/(dashboard)/settings/whatsapp/pilot-controls';
 import { WhatsAppEnabledToggle } from '@/app/(dashboard)/settings/whatsapp/whatsapp-enabled-toggle';
@@ -74,7 +75,7 @@ function Page() {
       <PilotControls
         initial={{
           mode: 'pilot',
-          residentIds: [],
+          residentIds: ['res-1'],
           streetId: '',
           outboundDailyCap: 100,
           outboundBurstCap: 20,
@@ -85,13 +86,18 @@ function Page() {
           surveyResponseRetentionDays: 90,
           outboundSendRetentionDays: 90,
         }}
-        residentOptions={[{ id: 'res-1', name: 'Ada Okoro', detail: 'RES001 · 12 Palm Close' }]}
+        roster={{
+          residents: [{ id: 'res-1', name: 'Ada Okoro', code: 'RES001', houses: [{ label: '12 Palm Close', streetId: 'st-1', role: 'Renter' }], optIn: 'opted_in', phone: '+234****567' }],
+          streets: [{ id: 'st-1', name: 'Palm Close' }],
+        }}
       />
-      <OperationsConsole
+      <WhatsAppActivityLogs
         optIns={[]}
         pending={[{ phone_number: '+2348000000001', status: 'pending', source: 'bot', first_seen_at: '2026-10-01T00:00:00Z', last_seen_at: '2026-10-01T00:00:00Z', resident: null }]}
         sessions={[{ phone_number: '+2348000000002', current_node: 'menu', pin_authenticated: false, selected_house_id: null, expires_at: '2026-10-02T00:00:00Z', updated_at: '2026-10-01T00:00:00Z', resident: person, house: null }]}
         disclosures={[]}
+      />
+      <OperationsConsole
         health={{ inboundToday: 0, outboundToday: 0, deliveryFailuresToday: 0, templateErrorsToday: 0, capLimitEventsToday: 0 }}
       />
     </div>
@@ -106,7 +112,9 @@ const WRITE_CONTROLS: [string, RegExp][] = [
   ['button', /^Save template content SIDs$/],
   ['button', /^Save rollout controls$/],
   ['button', /^Promote estate-wide$/],
-  ['button', /^Choose pilot residents$/],
+  ['button', /^Add pilot residents$/],
+  ['button', /^Remove Ada Okoro$/],
+  ['combobox', /^Pilot street/],
   ['button', /^Import opt-ins$/],
   ['button', /^Attach$/],
   ['button', /^Ignore$/],
@@ -155,9 +163,10 @@ describe('WhatsApp settings permission gating (issue #7)', () => {
     mocks.permissions = [PERMISSIONS.WHATSAPP_VIEW, PERMISSIONS.WHATSAPP_MANAGE];
     render(<Page />);
 
-    for (const name of [/^Disconnect$/, /^Test connection$/, /^Save template content SIDs$/, /^Save rollout controls$/, /^Promote estate-wide$/, /^Choose pilot residents$/, /^Ignore$/, /^Reset$/, /^Import opt-ins$/]) {
+    for (const name of [/^Disconnect$/, /^Test connection$/, /^Save template content SIDs$/, /^Save rollout controls$/, /^Promote estate-wide$/, /^Add pilot residents$/, /^Remove Ada Okoro$/, /^Ignore$/, /^Reset$/, /^Import opt-ins$/]) {
       expect(screen.getByRole('button', { name })).toBeEnabled();
     }
+    expect(screen.getByRole('combobox', { name: /^Pilot street/ })).toBeEnabled();
     expect(screen.getByRole('switch', { name: /Enable the WhatsApp channel/ })).toBeEnabled();
     expect(screen.getByRole('switch', { name: /Require PIN/ })).toBeEnabled();
     expect(screen.getByRole('switch', { name: /roll-forward balance/ })).toBeEnabled();

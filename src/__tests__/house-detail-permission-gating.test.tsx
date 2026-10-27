@@ -48,6 +48,7 @@ vi.mock('@/hooks/use-houses', () => ({
     },
   }),
   useDeleteHouse: mocks.mutation,
+  useHouses: () => ({ data: undefined }),
   useOwnershipHistory: () => ({ data: [], isLoading: false }),
 }));
 vi.mock('@/hooks/use-billing', () => ({

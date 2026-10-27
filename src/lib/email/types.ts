@@ -57,4 +57,5 @@ export interface EstateEmailSettings {
   estatePhone?: string;
   estateAddress?: string;
   estateWebsite?: string;
+  estateLogoUrl?: string;
 }

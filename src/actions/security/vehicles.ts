@@ -294,7 +294,7 @@ export async function createVehicle(formData: CreateVisitorVehicleData): Promise
 // vehicle_type / is_primary on every partial update. contact_id is not editable
 // (a vehicle cannot be re-parented through the ordinary edit). Unknown keys are stripped.
 const updateVehicleFieldsSchema = z.object({
-  id: z.string().uuid('Invalid vehicle ID'),
+  id: z.guid('Invalid vehicle ID'),
   vehicle_type: vehicleTypeEnum.optional(),
   plate_number: z.string().min(2, 'Plate number is required').max(20, 'Plate number is too long').optional(),
   make: z.string().optional().or(z.literal('')),

@@ -9,8 +9,8 @@ residio_sources:
   - src/components/residents/duplicate-resident-dialog.tsx
   - src/actions/residents/assign-house.ts
   - src/actions/residents/add-household-member.ts
-residio_verified_commit: 952b0988
-residio_verified_at: '2026-10-22'
+residio_verified_commit: b81942b0
+residio_verified_at: '2026-10-24'
 residio_app_version: '0.4.0'
 ---
 
@@ -28,14 +28,16 @@ Use this workflow when a new resident needs an account and a property assignment
 
 ## Create the record
 
-1. Open **Residents → Add Resident**.
-2. Enter the identity and contact details.
-3. Select the resident type and occupancy role.
-4. Add the house assignment when the form provides it, or save and assign it from the resident detail page.
-5. If you hold the **Manage General Settings** permission (`settings.manage_general`), choose how the resident's messages are handled under **Communications override** (see below). Everyone else does not see this control.
-6. Review the summary carefully, then select **Create resident**.
+1. Open **Residents → Add Resident**, or press **Add New** on a house's **Residents** tab. From a house, a **Back to** link at the top of the page returns to that house, and creating the resident returns you there too.
+2. The form is a wizard. Step 1, **Personal Information**, holds the required details: first name, last name, primary phone and resident type. Select **Next**; a step with a missing or invalid field does not advance.
+3. Step 2, **House Assignment**, sets the occupancy role and house. It is optional: save without it and assign the house from the resident detail page. When the house already has a Renter or an Owner-Occupier, only a secondary resident type can be added; Residio checks this against the house's current residents when you save, not against the link you opened.
+4. The remaining steps are optional: **Entity Type** (a Corporate Entity needs a company name), **Emergency Contact**, **Communications** and **Notes**. Select **Next (or skip)** to pass over one.
+5. If you hold the **Manage General Settings** permission (`settings.manage_general`), the **Communications** step lets you choose how the resident's messages are handled (see **Communications override** below). Everyone else does not see this step.
+6. From step 2 onward you can select **Create Resident** at any time; if a field on an earlier step is invalid, Residio takes you back to that step.
 7. If a message says the person may already be a resident, follow **When Residio finds an existing resident** below.
 8. Record the generated resident code in the approved estate process.
+
+Editing an existing resident keeps the single-page form.
 
 ### Sponsors
 

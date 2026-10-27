@@ -112,6 +112,8 @@ export function HousePaymentStatus({ houseId, className }: HousePaymentStatusPro
 
   const hasOutstanding = isOwed(status.debtStatus);
   const hasOverdue = status.overdueCount > 0;
+  // A credit status means nothing is owed, so the figure that matters is the wallet credit (#1162).
+  const isCredit = status.debtStatus === 'credit';
   const collectionRate = status.totalDue > 0
     ? Math.round((status.totalPaid / status.totalDue) * 100)
     : 100;
@@ -191,8 +193,11 @@ export function HousePaymentStatus({ houseId, className }: HousePaymentStatusPro
                 ? 'text-red-700 dark:text-red-300'
                 : 'text-green-700 dark:text-green-300'
             )}>
-              {formatCurrency(status.totalOutstanding)}
+              {formatCurrency(isCredit ? status.walletBalance : status.totalOutstanding)}
             </p>
+            {isCredit && (
+              <p className="text-xs text-muted-foreground">Wallet credit</p>
+            )}
           </div>
         </div>
 
@@ -324,6 +329,11 @@ export function HousePaymentStatus({ houseId, className }: HousePaymentStatusPro
                     {resident.outstanding > 0 && (
                       <p className="mt-1 text-sm font-semibold text-red-600 dark:text-red-400">
                         {formatCurrency(resident.outstanding)}
+                      </p>
+                    )}
+                    {resident.debtStatus === 'credit' && resident.walletBalance > 0 && (
+                      <p className="mt-1 text-sm font-semibold text-green-600 dark:text-green-400">
+                        {formatCurrency(resident.walletBalance)} credit
                       </p>
                     )}
                   </div>

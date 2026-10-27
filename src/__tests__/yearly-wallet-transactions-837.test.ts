@@ -13,10 +13,10 @@ const RESIDENT = '11111111-1111-4111-8111-111111111111';
 const WALLET = '33333333-3333-4333-8333-333333333333';
 const SERVER_MAX_ROWS = 1000; // PostgREST max_rows
 
-type Row = { id: string; type: 'credit' | 'debit'; amount: number; balance_after: number; created_at: string };
+type Row = { id: string; wallet_id?: string; type: 'credit' | 'debit'; amount: number; balance_after: number; created_at: string };
 
 /** Fake client whose wallet_transactions reads honour .range() and the server row cap. */
-function fakeClient(rows: Row[]) {
+function fakeClient(rows: Row[], walletIds: string[] = [WALLET]) {
     const selects: string[] = [];
     const client = {
         from(table: string) {
@@ -27,6 +27,7 @@ function fakeClient(rows: Row[]) {
                     return builder;
                 },
                 eq: () => builder,
+                in: () => builder,
                 order: () => builder,
                 range: (from: number, to: number) => {
                     range = [from, to];
@@ -34,6 +35,7 @@ function fakeClient(rows: Row[]) {
                 },
                 single: () => Promise.resolve({ data: { id: WALLET, resident_id: RESIDENT, balance: 0 }, error: null }),
                 then: (resolve: (v: unknown) => unknown) => {
+                    if (table === 'resident_wallets') return resolve({ data: walletIds.map((id) => ({ id })), error: null });
                     const [from, to] = range ?? [0, rows.length - 1];
                     const end = Math.min(to + 1, from + SERVER_MAX_ROWS);
                     return resolve({ data: rows.slice(from, end), error: null });
@@ -90,8 +92,24 @@ describe('getYearlyWalletTransactions (#837)', () => {
         for (const columns of selects) {
             expect(columns).not.toContain('*');
             expect(columns.split(',').map((c) => c.trim()).sort()).toEqual(
-                ['amount', 'balance_after', 'created_at', 'description', 'id', 'reference_id', 'reference_type', 'type']
+                ['amount', 'balance_after', 'created_at', 'description', 'id', 'reference_id', 'reference_type', 'type', 'wallet_id']
             );
         }
+    });
+
+    it('closes each year at the sum of every wallet, one per charge category (#1189)', async () => {
+        const LEVY = '44444444-4444-4444-8444-444444444444';
+        const rows: Row[] = [
+            { id: 'd2', wallet_id: WALLET, type: 'credit', amount: 100, balance_after: 300, created_at: '2025-03-01T12:00:00Z' },
+            { id: 'l1', wallet_id: LEVY, type: 'credit', amount: 50, balance_after: 50, created_at: '2024-09-01T12:00:00Z' },
+            { id: 'd1', wallet_id: WALLET, type: 'credit', amount: 200, balance_after: 200, created_at: '2024-02-01T12:00:00Z' },
+        ];
+        const { client } = fakeClient(rows, [WALLET, LEVY]);
+        createServerSupabaseClient.mockResolvedValue(client);
+
+        const { data } = await getYearlyWalletTransactions(RESIDENT);
+
+        // 2025: Dues 300 + the levy wallet's 50 carried from 2024.
+        expect(data.map((y) => [y.year, y.closing_balance])).toEqual([[2025, 350], [2024, 250]]);
     });
 });

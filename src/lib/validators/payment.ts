@@ -4,8 +4,8 @@ export const paymentStatusEnum = z.enum(['pending', 'paid', 'overdue', 'failed']
 export const paymentMethodEnum = z.enum(['cash', 'bank_transfer', 'pos', 'cheque', 'online']);
 
 export const paymentFormSchema = z.object({
-    resident_id: z.string().uuid('Resident is required'),
-    house_id: z.string().uuid().optional().nullable(),
+    resident_id: z.guid('Resident is required'),
+    house_id: z.guid().optional().nullable(),
     amount: z.number().positive('Amount must be positive'),
     payment_date: z.date(),
     status: paymentStatusEnum,
@@ -14,20 +14,25 @@ export const paymentFormSchema = z.object({
     notes: z.string().optional().or(z.literal('')),
     period_start: z.date().optional().nullable(),
     period_end: z.date().optional().nullable(),
+    // What the payment is for (#1190): the wallet it credits. Omitted means Dues (owner decision 2).
+    charge_category: z.string().regex(/^[a-z][a-z0-9_]*$/, 'Invalid charge category').optional(),
+    // Who paid (#1190), when not the resident whose wallet is credited.
+    paid_by_resident_id: z.guid().optional().nullable(),
+    paid_by_name: z.string().trim().max(200).optional().nullable().or(z.literal('')),
 });
 
 export type PaymentFormData = z.infer<typeof paymentFormSchema>;
 
 // Schema for creating split payments across multiple houses
 export const splitPaymentSchema = z.object({
-    resident_id: z.string().uuid('Resident is required'),
+    resident_id: z.guid('Resident is required'),
     total_amount: z.number().positive('Total amount must be positive'),
     payment_date: z.date(),
     method: paymentMethodEnum.optional().nullable(),
     reference_number: z.string().optional().or(z.literal('')),
     notes: z.string().optional().or(z.literal('')),
     splits: z.array(z.object({
-        house_id: z.string().uuid('House is required'),
+        house_id: z.guid('House is required'),
         amount: z.number().positive('Amount must be positive'),
     })).min(1, 'At least one house must be selected'),
 }).refine(
@@ -42,7 +47,7 @@ export type SplitPaymentFormData = z.infer<typeof splitPaymentSchema>;
 
 export const paymentSearchSchema = z.object({
     status: paymentStatusEnum.optional(),
-    resident_id: z.string().uuid().optional(),
+    resident_id: z.guid().optional(),
     query: z.string().optional(),
     start_date: z.string().optional(),
     end_date: z.string().optional(), // ISO strings for range query

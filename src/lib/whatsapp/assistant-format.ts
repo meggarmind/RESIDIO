@@ -55,6 +55,12 @@ export function formatDay(value: string | Date): string {
 }
 
 /** Payment references are shown by their last 4 characters only (#804 harmonised format). */
+/** `mmm yyyy` (Jan 2027) from a `YYYY-MM-DD` date: a month name, never a month number. */
+export function formatMonth(value: string): string {
+  const [year, month] = value.split('-').map(Number);
+  return `${MONTHS[month - 1]} ${year}`;
+}
+
 export function maskReference(reference: string | null | undefined): string | null {
   const trimmed = reference?.trim();
   if (!trimmed) return null;

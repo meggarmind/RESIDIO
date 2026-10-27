@@ -7,9 +7,12 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { getResidentIndebtedness } from '@/actions/billing/get-invoices';
-import { getOrCreateWallet } from '@/actions/billing/wallet';
+import { getResidentWallets } from '@/actions/billing/wallet';
+import { netClearanceByCategory } from '@/lib/billing/category-clearance';
 import { getSystemSetting } from '@/lib/settings/get-system-setting';
-import { sendEmail } from '@/lib/email/send-email';
+import * as React from 'react';
+import { sendEmail, getEstateEmailSettings } from '@/lib/email/send-email';
+import { ClearanceCertificateEmail } from '@/emails/clearance-certificate';
 import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
 import { issueClearanceCertificate } from '@/lib/clearance/issue-certificate';
 import type { ResidentRole } from '@/types/database';
@@ -60,9 +63,9 @@ export type MoveOutOwnerResponse = {
 export async function checkOwnerClearance(
     residentId: string
 ): Promise<{ data: OwnerClearanceCheck | null; error: string | null }> {
-    // Get wallet balance
-    const { data: wallet } = await getOrCreateWallet(residentId);
-    const walletBalance = wallet?.balance || 0;
+    // Get wallet balance: the total of the resident's wallets, one per charge category (#1189)
+    const { data: wallets } = await getResidentWallets(residentId);
+    const walletBalance = wallets?.total || 0;
 
     // Get unpaid invoices
     const { data: indebtedness, error } = await getResidentIndebtedness(residentId);
@@ -71,10 +74,12 @@ export async function checkOwnerClearance(
     }
 
     const totalUnpaid = indebtedness?.totalUnpaid || 0;
-    const netBalance = walletBalance - totalUnpaid;
+    const { canProceed, netBalance } = netClearanceByCategory(
+        Object.fromEntries((wallets?.wallets || []).map((wallet) => [wallet.charge_category, wallet.balance])),
+        indebtedness?.unpaidByCategory || {}
+    );
     const unpaidInvoiceCount = indebtedness?.invoiceCount || 0;
 
-    const canProceed = netBalance >= 0;
     const message = canProceed
         ? netBalance > 0
             ? `Owner has a credit balance of ₦${netBalance.toLocaleString()}. Proceed with move-out.`
@@ -288,11 +293,8 @@ export async function initiateOwnerMoveOut(
         description: 'Marked resident inactive after move-out',
     });
 
-    // 3. Update house occupancy
-    await supabase
-        .from('houses')
-        .update({ is_occupied: false })
-        .eq('id', houseId);
+    // 3. House occupancy is recomputed by the update_house_occupancy trigger on the role change
+    // above (#1148); a direct write here could clobber a remaining residing link.
 
     // 4. Record in ownership history
     await adminClient
@@ -358,6 +360,7 @@ export async function initiateOwnerMoveOut(
     if (emailOverride && !emailOverride.ok) {
         console.error('[moveOutOwner] Email not sent:', emailOverride.error);
     } else if (resident.email && emailOverride?.ok) {
+        const estateSettings = await getEstateEmailSettings();
         await sendEmail({
             to: {
                 email: resident.email,
@@ -367,7 +370,13 @@ export async function initiateOwnerMoveOut(
             subject: 'Move-Out Clearance Certificate',
             emailType: 'clearance_certificate',
             residentOverride: emailOverride.residentOverride,
-            react: undefined,
+            react: React.createElement(ClearanceCertificateEmail, {
+                residentName: `${resident.first_name} ${resident.last_name}`,
+                houseAddress,
+                certificateNumber,
+                validUntil: certificate.validUntil,
+                ...estateSettings,
+            }),
             metadata: {
                 certificateNumber,
                 validUntil: certificate.validUntil,

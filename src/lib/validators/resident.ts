@@ -57,7 +57,7 @@ const baseResidentSchema = z.object({
   emergency_contact_name: z.string().optional().or(z.literal('')),
   emergency_contact_phone: z.string().optional().or(z.literal('')),
   emergency_contact_relationship: z.string().optional().or(z.literal('')),
-  emergency_contact_resident_id: z.string().uuid().optional().or(z.literal('')),
+  emergency_contact_resident_id: z.guid().optional().or(z.literal('')),
   notes: z.string().optional().or(z.literal('')),
   // Communications override flag (#716): null = follow the environment default. The server
   // honours it only for users who hold settings.manage_general.
@@ -83,11 +83,11 @@ export type ResidentFormData = z.infer<typeof baseResidentSchema>;
 
 // House assignment schema with new roles
 export const houseAssignmentSchema = z.object({
-  house_id: z.string().uuid('Please select a house'),
+  house_id: z.guid('Please select a house'),
   resident_role: residentRoleEnum,
   move_in_date: z.string().optional(),
   // Sponsor fields for secondary roles
-  sponsor_resident_id: z.string().uuid().optional().nullable(),
+  sponsor_resident_id: z.guid().optional().nullable(),
 }).refine(
   (data) => {
     // sponsor-required roles (see sponsorRequiredRoles)
@@ -106,10 +106,10 @@ export type HouseAssignmentData = z.infer<typeof houseAssignmentSchema>;
 
 // Base schema for creating resident with house assignment (without refinements)
 const createResidentBaseSchema = baseResidentSchema.extend({
-  house_id: z.string().uuid('Please select a house').optional(),
+  house_id: z.guid('Please select a house').optional(),
   resident_role: residentRoleEnum.optional(),
   move_in_date: z.string().optional(),
-  sponsor_resident_id: z.string().uuid().optional().nullable(),
+  sponsor_resident_id: z.guid().optional().nullable(),
 });
 
 // Combined schema for creating resident with house assignment (with refinements for validation)
@@ -180,8 +180,8 @@ export const residentSearchSchema = z.object({
   type: z.enum(['primary', 'secondary']).optional(),
   entity_type: entityTypeEnum.optional(),
   resident_role: z.array(residentRoleEnum).optional(),
-  street_id: z.string().uuid().optional(),
-  house_id: z.string().uuid().optional(),
+  street_id: z.guid().optional(),
+  house_id: z.guid().optional(),
   sort_by: z.enum(['resident_code', 'first_name', 'house_number']).optional(),
   sort_order: z.enum(['asc', 'desc']).optional(),
   page: z.number().min(1).default(1),

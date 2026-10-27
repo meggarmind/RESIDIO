@@ -44,7 +44,17 @@ import {
 import { addToQueue } from '@/lib/notifications/queue';
 import { shouldSendToResident } from '@/lib/notifications/preferences';
 import { formatDueText, formatEventCurrency, getEventContent } from '@/lib/notifications/event-content';
-import { buildInvoiceReminderWhatsApp } from '@/lib/whatsapp/outbound';
+import { buildInvoiceReminderWhatsApp, buildLandlordDuesReminderWhatsApp } from '@/lib/whatsapp/outbound';
+import {
+  duesReminderRecipients,
+  findHouseLandlords,
+  formatDuesLines,
+  formatNgn,
+  type DuesLine,
+} from '@/lib/billing/landlord-dues';
+import { LandlordDuesEmail } from '@/emails/landlord-dues';
+import { formatDay } from '@/lib/whatsapp/assistant-format';
+import type { NotificationChannel } from '@/lib/notifications/types';
 
 /**
  * Invoice with related data for reminder sending
@@ -56,6 +66,8 @@ interface InvoiceForReminder {
   amount_paid: number;
   due_date: string;
   status: string;
+  charge_category: string | null;
+  house_id: string | null;
   resident: {
     id: string;
     first_name: string;
@@ -65,10 +77,22 @@ interface InvoiceForReminder {
   };
   house: {
     house_number: string;
+    short_name: string | null;
+    dues_paid_by_landlord: boolean;
+    dues_reminder_target: string;
     street: {
       name: string;
     } | null;
   };
+}
+
+/** A Dues invoice of a "Dues paid by landlord" house whose reminder goes to the landlord (#1192). */
+interface LandlordReminderLine {
+  invoice: InvoiceForReminder;
+  amountRemaining: number;
+  channels: NotificationChannel[];
+  /** False when the tenant's reminder already advanced this invoice's escalation. */
+  advanceEscalation: boolean;
 }
 
 /**
@@ -117,6 +141,9 @@ export async function processInvoiceReminders(): Promise<ProcessRemindersResult>
   today.setHours(0, 0, 0, 0);
   const todayStr = today.toISOString().split('T')[0];
 
+  // Reminders for flagged houses that go to the landlord, sent as one per landlord after the steps.
+  const landlordLines: LandlordReminderLine[] = [];
+
   // Process each active step in the schedule
   for (const step of steps) {
     if (!step.isActive) continue;
@@ -143,8 +170,13 @@ export async function processInvoiceReminders(): Promise<ProcessRemindersResult>
     for (const invoice of invoices) {
       result.processed++;
 
-      // Skip if no contact info
-      if (!invoice.resident.email && !invoice.resident.phone_primary) {
+      // A "Dues paid by landlord" house may route the reminder to the landlord (#1192).
+      const recipients = duesReminderRecipients(invoice.house, invoice.charge_category);
+      const tenantReachable =
+        recipients.tenant && Boolean(invoice.resident.email || invoice.resident.phone_primary);
+
+      // Skip if no one to send to
+      if (!tenantReachable && !recipients.landlord) {
         result.skipped++;
         continue;
       }
@@ -185,39 +217,49 @@ export async function processInvoiceReminders(): Promise<ProcessRemindersResult>
         continue;
       }
 
-      // Send reminders via configured channels
-      const sendResults = await sendReminderToChannels({
-        invoice,
-        step,
-        amountRemaining,
-        estateSettings,
-        todayStr,
-        reminderCount: (escalationState.current_level || 0) + 1,
-      });
+      let tenantSent = false;
+      if (tenantReachable) {
+        // Send reminders via configured channels
+        const sendResults = await sendReminderToChannels({
+          invoice,
+          step,
+          amountRemaining,
+          estateSettings,
+          todayStr,
+          reminderCount: (escalationState.current_level || 0) + 1,
+        });
 
-      // Update results
-      if (sendResults.email) result.sent.email++;
-      if (sendResults.sms) result.sent.sms++;
-      if (sendResults.whatsapp) result.sent.whatsapp++;
-      if (sendResults.errors.length > 0) {
-        result.failed++;
-        result.errors.push(...sendResults.errors.map(e => ({
-          invoiceId: invoice.id,
-          error: e,
-        })));
+        // Update results
+        if (sendResults.email) result.sent.email++;
+        if (sendResults.sms) result.sent.sms++;
+        if (sendResults.whatsapp) result.sent.whatsapp++;
+        if (sendResults.errors.length > 0) {
+          result.failed++;
+          result.errors.push(...sendResults.errors.map(e => ({
+            invoiceId: invoice.id,
+            error: e,
+          })));
+        }
+
+        // Advance escalation state
+        tenantSent = sendResults.email || sendResults.sms || sendResults.whatsapp;
+        if (tenantSent) {
+          await advanceEscalation({
+            entityType: 'invoice',
+            entityId: invoice.id,
+            residentId: invoice.resident.id,
+            notificationId: `reminder-${Date.now()}`,
+          });
+        }
       }
 
-      // Advance escalation state
-      if (sendResults.email || sendResults.sms || sendResults.whatsapp) {
-        await advanceEscalation({
-          entityType: 'invoice',
-          entityId: invoice.id,
-          residentId: invoice.resident.id,
-          notificationId: `reminder-${Date.now()}`,
-        });
+      if (recipients.landlord) {
+        landlordLines.push({ invoice, amountRemaining, channels: step.channels, advanceEscalation: !tenantSent });
       }
     }
   }
+
+  await sendLandlordReminders(landlordLines, estateSettings, todayStr, result);
 
   // The run is recorded by the cron route's System Action Log row (withSystemLog). There is no
   // session here, so updateSetting and logAudit could never write (#846).
@@ -242,6 +284,8 @@ async function getInvoicesForReminder(
       amount_paid,
       due_date,
       status,
+      charge_category,
+      house_id,
       resident:residents!invoices_resident_id_fkey(
         id,
         first_name,
@@ -251,6 +295,9 @@ async function getInvoicesForReminder(
       ),
       house:houses!invoices_house_id_fkey(
         house_number,
+        short_name,
+        dues_paid_by_landlord,
+        dues_reminder_target,
         street:streets(name)
       )
     `)
@@ -268,6 +315,126 @@ async function getInvoicesForReminder(
   }
 
   return { invoices: (data || []) as unknown as InvoiceForReminder[] };
+}
+
+/**
+ * Dues paid by landlord (#1192): one reminder per landlord listing the amount per flat, on the
+ * channels of the steps that picked the flats. The flats' escalation advances once a channel sends.
+ */
+async function sendLandlordReminders(
+  lines: LandlordReminderLine[],
+  estateSettings: EstateEmailSettings,
+  todayStr: string,
+  result: ProcessRemindersResult,
+): Promise<void> {
+  if (lines.length === 0) return;
+
+  const houseIds = [...new Set(lines.map((line) => line.invoice.house_id).filter((id): id is string => Boolean(id)))];
+  const { data: landlords, error } = await findHouseLandlords(createAdminClient(), houseIds);
+  if (error) {
+    result.failed++;
+    result.errors.push({ invoiceId: 'landlords', error: `Failed to load landlords: ${error}` });
+    return;
+  }
+
+  const groups = new Map<string, { landlord: NonNullable<ReturnType<typeof landlords.get>>; lines: LandlordReminderLine[] }>();
+  for (const line of lines) {
+    const landlord = line.invoice.house_id ? landlords.get(line.invoice.house_id) : undefined;
+    if (!landlord) {
+      result.failed++;
+      result.errors.push({ invoiceId: line.invoice.id, error: 'Landlord reminder: no landlord on record' });
+      continue;
+    }
+    const group = groups.get(landlord.id) ?? { landlord, lines: [] };
+    group.lines.push(line);
+    groups.set(landlord.id, group);
+  }
+
+  for (const { landlord, lines: group } of groups.values()) {
+    const landlordName = `${landlord.first_name} ${landlord.last_name}`;
+    const flats: DuesLine[] = group.map((line) => ({
+      label: houseLabel(line.invoice.house),
+      amount: line.amountRemaining,
+    }));
+    const total = flats.reduce((sum, flat) => sum + flat.amount, 0);
+    const dueDate = group.map((line) => line.invoice.due_date).sort()[0];
+    const channels = new Set(group.flatMap((line) => line.channels));
+    let sent = false;
+
+    if (channels.has('email') && landlord.email) {
+      const override = await resolveResidentOverride([landlord.id]);
+      if (!override.ok) {
+        result.errors.push({ invoiceId: group[0].invoice.id, error: `Landlord email: ${override.error}` });
+      } else {
+        const emailResult = await sendEmail({
+          to: { email: landlord.email, name: landlordName, residentId: landlord.id },
+          subject: `Dues for your flats: ${formatNgn(total)} due ${formatDay(dueDate)}`,
+          react: LandlordDuesEmail({
+            estateName: estateSettings.estateName || 'Estate',
+            estateEmail: estateSettings.estateEmail,
+            estatePhone: estateSettings.estatePhone,
+            estateAddress: estateSettings.estateAddress,
+            estateLogoUrl: estateSettings.estateLogoUrl,
+            heading: 'Dues reminder for your flats',
+            recipientName: landlordName,
+            paragraphs: [`These dues are due on ${formatDay(dueDate)}. You pay them for your tenants.`],
+            lines: flats.map((flat) => ({ label: flat.label, amount: formatNgn(flat.amount) })),
+            total: formatNgn(total),
+          }),
+          emailType: 'payment_reminder',
+          residentOverride: override.residentOverride,
+          metadata: { landlordDuesReminder: true, invoiceIds: group.map((line) => line.invoice.id) },
+        });
+        if (emailResult.success) {
+          result.sent.email++;
+          sent = true;
+        } else {
+          result.errors.push({ invoiceId: group[0].invoice.id, error: `Landlord email: ${emailResult.error}` });
+        }
+      }
+    }
+
+    if (channels.has('whatsapp') && landlord.phone_primary) {
+      const prefCheck = await shouldSendToResident({ residentId: landlord.id, category: 'invoice', channel: 'whatsapp' });
+      if (prefCheck.shouldSend && (await isWhatsAppOptedIn(landlord.id, landlord.phone_primary))) {
+        const queued = await addToQueue(buildLandlordDuesReminderWhatsApp({
+          landlordId: landlord.id,
+          landlordPhone: landlord.phone_primary,
+          landlordName,
+          flatLines: formatDuesLines(flats),
+          total,
+          dueDate,
+          dedupeDay: todayStr,
+        }));
+        if (queued.success) {
+          result.sent.whatsapp++;
+          sent = true;
+        } else if (!queued.isDuplicate) {
+          result.errors.push({ invoiceId: group[0].invoice.id, error: `Landlord WhatsApp: ${queued.error}` });
+        }
+      }
+    }
+
+    if (!sent) {
+      result.failed++;
+      result.errors.push({ invoiceId: group[0].invoice.id, error: 'Landlord reminder: no channel reached the landlord' });
+      continue;
+    }
+    for (const line of group) {
+      if (!line.advanceEscalation) continue;
+      await advanceEscalation({
+        entityType: 'invoice',
+        entityId: line.invoice.id,
+        residentId: line.invoice.resident.id,
+        notificationId: `landlord-reminder-${Date.now()}`,
+      });
+    }
+  }
+}
+
+function houseLabel(house: InvoiceForReminder['house']): string {
+  if (house?.short_name) return house.short_name;
+  return house?.street?.name ? `${house.house_number}, ${house.street.name}` : house?.house_number || 'House';
 }
 
 /**
@@ -444,6 +611,7 @@ async function sendEmailReminder(params: {
         estateEmail: estateSettings.estateEmail,
         estatePhone: estateSettings.estatePhone,
         estateAddress: estateSettings.estateAddress,
+        estateLogoUrl: estateSettings.estateLogoUrl,
         escalationLevel,
         reminderCount,
       }),

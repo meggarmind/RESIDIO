@@ -36,6 +36,7 @@ const statement = {
   closingBalance: -2000,
   summary: { totalInvoiced: 0, totalPaid: 0, totalCredits: 0, totalDebits: 0, netChange: 0 },
   transactions: [],
+  categories: [],
   generatedAt: '2026-10-20T10:00:00Z',
   generatedBy: null,
 } as AccountStatementData;
@@ -220,7 +221,7 @@ describe('WhatsApp statement by email (#804 decision 24)', () => {
     const email = await buildStatementEmail('request-1');
 
     // Resident-facing: the pre-#863 balance while balance_roll_forward_resident_enabled has no row.
-    expect(loadAccountStatement).toHaveBeenCalledWith(expect.anything(), { residentId: 'resident-1', houseId: 'house-1', fromDate: '2026-01-01', toDate: '2026-10-20' }, { rollForward: false });
+    expect(loadAccountStatement).toHaveBeenCalledWith(expect.anything(), { residentId: 'resident-1', houseId: 'house-1', fromDate: '2026-01-01', toDate: '2026-10-20' }, { rollForward: false, mode: 'summary' });
     expect(email.attachments).toEqual([{ filename: 'statement-2026-01-01-to-2026-10-20.pdf', content: Buffer.from('%PDF') }]);
     expect(email.react.props).toMatchObject({
       estateName: 'Palm Estate',
@@ -244,7 +245,7 @@ describe('WhatsApp statement by email (#804 decision 24)', () => {
 
     await buildStatementEmail('request-1');
 
-    expect(loadAccountStatement).toHaveBeenLastCalledWith(expect.anything(), { residentId: 'sponsor-1', houseId: 'house-1', fromDate: '2026-01-01', toDate: '2026-10-20' }, { rollForward: false });
+    expect(loadAccountStatement).toHaveBeenLastCalledWith(expect.anything(), { residentId: 'sponsor-1', houseId: 'house-1', fromDate: '2026-01-01', toDate: '2026-10-20' }, { rollForward: false, mode: 'summary' });
   });
 
   it("refuses a co-resident's emailed statement once the sponsor has moved out (#1071 decision 7)", async () => {
@@ -271,7 +272,7 @@ describe('Resident roll-forward setting (#863)', () => {
     await loadWhatsAppStatementForPeriod('resident-1', 'house-1', 'this_year', new Date('2026-10-20T10:00:00Z'));
 
     expect(getSettingResultAsService).toHaveBeenCalledWith('balance_roll_forward_resident_enabled');
-    expect(loadAccountStatement).toHaveBeenLastCalledWith(expect.anything(), { residentId: 'resident-1', houseId: 'house-1', fromDate: '2026-01-01', toDate: '2026-10-20' }, { rollForward: true });
+    expect(loadAccountStatement).toHaveBeenLastCalledWith(expect.anything(), { residentId: 'resident-1', houseId: 'house-1', fromDate: '2026-01-01', toDate: '2026-10-20' }, { rollForward: true, mode: 'summary' });
   });
 });
 

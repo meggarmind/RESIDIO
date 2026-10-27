@@ -7,7 +7,13 @@ import {
 } from '@react-pdf/renderer';
 import { format } from 'date-fns';
 import { formatPdfCurrency } from '@/lib/pdf/format-currency';
-import type { AccountStatementData, StatementTransaction } from '@/actions/billing/get-account-statement';
+import { PdfEstateLogo } from '@/lib/pdf/estate-logo';
+import type {
+  AccountStatementData,
+  CollectionsStatementSection,
+  StatementTransaction,
+} from '@/lib/billing/account-statement-data';
+import type { CollectionsStatementData } from '@/lib/collections/statement-data';
 
 // ============================================================
 // Account Statement PDF Styles
@@ -178,9 +184,12 @@ const styles = StyleSheet.create({
     fontSize: 8,
   },
   // Column widths for transaction table
-  colDate: { width: '12%' },
+  colDate: { width: '17%' },
   colType: { width: '10%' },
-  colDescription: { width: '34%' },
+  colDescription: { width: '29%' },
+  colAppendixDescription: { width: '58%' },
+  colCollectionDescription: { width: '47%' },
+  colCollectionReceipt: { width: '18%' },
   colDebit: { width: '13%', textAlign: 'right' },
   colCredit: { width: '13%', textAlign: 'right' },
   colBalance: { width: '18%', textAlign: 'right' },
@@ -275,7 +284,7 @@ function formatCurrency(amount: number): string {
 
 function formatDate(dateStr: string): string {
   try {
-    return format(new Date(dateStr), 'dd MMM yyyy');
+    return format(new Date(dateStr), 'dd MMMM yyyy');
   } catch {
     return dateStr;
   }
@@ -315,12 +324,160 @@ function getTypeLabel(type: StatementTransaction['type']) {
 // PDF Component
 // ============================================================
 
+interface LedgerTableProps {
+  transactions: StatementTransaction[];
+  openingBalance: number;
+  closingBalance: number;
+  period: AccountStatementData['period'];
+}
+
+/** The opening row, transaction rows and closing row of one running balance (the account, or one wallet category). */
+function LedgerTable({ transactions, openingBalance, closingBalance, period }: LedgerTableProps) {
+  return (
+    <View style={styles.table}>
+      {/* Table Header */}
+      <View style={styles.tableHeader}>
+        <Text style={[styles.tableHeaderCell, styles.colDate]}>Date</Text>
+        <Text style={[styles.tableHeaderCell, styles.colType]}>Type</Text>
+        <Text style={[styles.tableHeaderCell, styles.colDescription]}>Description</Text>
+        <Text style={[styles.tableHeaderCell, styles.colDebit]}>Debit</Text>
+        <Text style={[styles.tableHeaderCell, styles.colCredit]}>Credit</Text>
+        <Text style={[styles.tableHeaderCell, styles.colBalance]}>Balance</Text>
+      </View>
+
+      {/* Opening Balance Row */}
+      <View style={styles.balanceRow}>
+        <Text style={[styles.balanceRowText, styles.colDate]}>
+          {formatDate(period.from)}
+        </Text>
+        <Text style={[styles.balanceRowText, styles.colType]}></Text>
+        <Text style={[styles.balanceRowText, styles.colDescription]}>
+          Opening Balance
+        </Text>
+        <Text style={[styles.balanceRowText, styles.colDebit]}></Text>
+        <Text style={[styles.balanceRowText, styles.colCredit]}></Text>
+        <Text style={[
+          styles.balanceRowText,
+          styles.colBalance,
+          openingBalance > 0 ? styles.balancePositive : openingBalance < 0 ? styles.balanceNegative : styles.balanceZero
+        ]}>
+          {formatCurrency(Math.abs(openingBalance))}
+          {openingBalance > 0 ? ' DR' : openingBalance < 0 ? ' CR' : ''}
+        </Text>
+      </View>
+
+      {/* Transaction Rows */}
+      {transactions.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyText}>No transactions in this period</Text>
+        </View>
+      ) : (
+        transactions.map((tx, index) => (
+          <View
+            key={tx.id}
+            style={[
+              styles.tableRow,
+              index === transactions.length - 1 ? styles.tableRowLast : {},
+              index % 2 === 1 ? styles.tableRowAlt : {},
+            ]}
+          >
+            <Text style={[styles.tableCell, styles.colDate]}>
+              {formatDate(tx.date)}
+            </Text>
+            <View style={styles.colType}>
+              <View style={[styles.typeBadge, getTypeStyle(tx.type)]}>
+                <Text>{getTypeLabel(tx.type)}</Text>
+              </View>
+            </View>
+            <View style={styles.colDescription}>
+              <Text style={styles.tableCell}>{tx.description}</Text>
+              {tx.reference && (
+                <Text style={[styles.tableCell, { color: '#999999', fontSize: 7 }]}>
+                  Ref: {tx.reference}
+                </Text>
+              )}
+            </View>
+            <Text style={[styles.tableCell, styles.colDebit, tx.debit > 0 ? styles.summaryValueDebt : {}]}>
+              {tx.debit > 0 ? formatCurrency(tx.debit) : '-'}
+            </Text>
+            <Text style={[styles.tableCell, styles.colCredit, tx.credit > 0 ? styles.summaryValueCredit : {}]}>
+              {tx.credit > 0 ? formatCurrency(tx.credit) : '-'}
+            </Text>
+            <Text style={[
+              styles.tableCell,
+              styles.colBalance,
+              tx.balance > 0 ? styles.balancePositive : tx.balance < 0 ? styles.balanceNegative : styles.balanceZero
+            ]}>
+              {formatCurrency(Math.abs(tx.balance))}
+              {tx.balance > 0 ? ' DR' : tx.balance < 0 ? ' CR' : ''}
+            </Text>
+          </View>
+        ))
+      )}
+
+      {/* Closing Balance Row */}
+      <View style={[styles.balanceRow, { borderTopWidth: 2, borderTopColor: '#1a1a1a' }]}>
+        <Text style={[styles.balanceRowText, styles.colDate]}>
+          {formatDate(period.to)}
+        </Text>
+        <Text style={[styles.balanceRowText, styles.colType]}></Text>
+        <Text style={[styles.balanceRowText, styles.colDescription]}>
+          Closing Balance
+        </Text>
+        <Text style={[styles.balanceRowText, styles.colDebit]}></Text>
+        <Text style={[styles.balanceRowText, styles.colCredit]}></Text>
+        <Text style={[
+          styles.balanceRowText,
+          styles.colBalance,
+          closingBalance > 0 ? styles.balancePositive : closingBalance < 0 ? styles.balanceNegative : styles.balanceZero
+        ]}>
+          {formatCurrency(Math.abs(closingBalance))}
+          {closingBalance > 0 ? ' DR' : closingBalance < 0 ? ' CR' : ''}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+/** What the resident paid into Collections: listed, never part of a balance (#1196). */
+function CollectionsTable({ collections }: { collections: CollectionsStatementSection }) {
+  return (
+    <View style={styles.table}>
+      <View style={styles.tableHeader}>
+        <Text style={[styles.tableHeaderCell, styles.colDate]}>Date</Text>
+        <Text style={[styles.tableHeaderCell, styles.colCollectionDescription]}>Collection</Text>
+        <Text style={[styles.tableHeaderCell, styles.colCollectionReceipt]}>Receipt</Text>
+        <Text style={[styles.tableHeaderCell, styles.colBalance]}>Amount</Text>
+      </View>
+      {collections.lines.map((line, index) => (
+        <View key={line.id} wrap={false} style={[styles.tableRow, index % 2 === 1 ? styles.tableRowAlt : {}]}>
+          <Text style={[styles.tableCell, styles.colDate]}>{formatDate(line.date)}</Text>
+          <Text style={[styles.tableCell, styles.colCollectionDescription]}>
+            {line.collection_name}
+            {line.quantity && line.unit_price ? ` (${line.quantity} x ${formatCurrency(line.unit_price)})` : ''}
+          </Text>
+          <Text style={[styles.tableCell, styles.colCollectionReceipt]}>{line.receipt_number}</Text>
+          <Text style={[styles.tableCell, styles.colBalance]}>{formatCurrency(line.amount)}</Text>
+        </View>
+      ))}
+      <View style={[styles.balanceRow, { borderTopWidth: 2, borderTopColor: '#1a1a1a' }]}>
+        <Text style={[styles.balanceRowText, styles.colDate]}></Text>
+        <Text style={[styles.balanceRowText, styles.colCollectionDescription]}>Collections total</Text>
+        <Text style={[styles.balanceRowText, styles.colCollectionReceipt]}></Text>
+        <Text style={[styles.balanceRowText, styles.colBalance]}>{formatCurrency(collections.total)}</Text>
+      </View>
+    </View>
+  );
+}
+
 interface AccountStatementPDFProps {
   data: AccountStatementData;
   estateName?: string;
+  estateAddress?: string;
+  estateLogoUrl?: string;
 }
 
-export function AccountStatementPDF({ data, estateName = 'Residio Estate' }: AccountStatementPDFProps) {
+export function AccountStatementPDF({ data, estateName = 'Residio Estate', estateAddress = '', estateLogoUrl }: AccountStatementPDFProps) {
   const {
     resident,
     house,
@@ -329,6 +486,9 @@ export function AccountStatementPDF({ data, estateName = 'Residio Estate' }: Acc
     closingBalance,
     summary,
     transactions,
+    categories,
+    collections,
+    monthlyDetail,
     generatedAt,
     generatedBy,
   } = data;
@@ -344,6 +504,7 @@ export function AccountStatementPDF({ data, estateName = 'Residio Estate' }: Acc
         <View style={styles.header}>
           <View style={styles.headerRow}>
             <View>
+              <PdfEstateLogo url={estateLogoUrl} />
               <Text style={styles.estateName}>{estateName}</Text>
               <Text style={styles.estateSubtitle}>Account Statement</Text>
             </View>
@@ -431,112 +592,35 @@ export function AccountStatementPDF({ data, estateName = 'Residio Estate' }: Acc
           </View>
         </View>
 
-        {/* Transaction Table */}
-        <View style={styles.transactionSection}>
-          <Text style={styles.sectionTitle}>Transaction Details</Text>
-          <View style={styles.table}>
-            {/* Table Header */}
-            <View style={styles.tableHeader}>
-              <Text style={[styles.tableHeaderCell, styles.colDate]}>Date</Text>
-              <Text style={[styles.tableHeaderCell, styles.colType]}>Type</Text>
-              <Text style={[styles.tableHeaderCell, styles.colDescription]}>Description</Text>
-              <Text style={[styles.tableHeaderCell, styles.colDebit]}>Debit</Text>
-              <Text style={[styles.tableHeaderCell, styles.colCredit]}>Credit</Text>
-              <Text style={[styles.tableHeaderCell, styles.colBalance]}>Balance</Text>
+        {/* One section per wallet category, each with its own running balance (#1196) */}
+        {categories.length > 0 ? (
+          categories.map((section) => (
+            <View key={section.code} style={styles.transactionSection}>
+              <Text style={styles.sectionTitle}>{section.name}</Text>
+              <LedgerTable
+                transactions={section.transactions}
+                openingBalance={section.openingBalance}
+                closingBalance={section.closingBalance}
+                period={period}
+              />
             </View>
-
-            {/* Opening Balance Row */}
-            <View style={styles.balanceRow}>
-              <Text style={[styles.balanceRowText, styles.colDate]}>
-                {formatDate(period.from)}
-              </Text>
-              <Text style={[styles.balanceRowText, styles.colType]}></Text>
-              <Text style={[styles.balanceRowText, styles.colDescription]}>
-                Opening Balance
-              </Text>
-              <Text style={[styles.balanceRowText, styles.colDebit]}></Text>
-              <Text style={[styles.balanceRowText, styles.colCredit]}></Text>
-              <Text style={[
-                styles.balanceRowText,
-                styles.colBalance,
-                openingBalance > 0 ? styles.balancePositive : openingBalance < 0 ? styles.balanceNegative : styles.balanceZero
-              ]}>
-                {formatCurrency(Math.abs(openingBalance))}
-                {openingBalance > 0 ? ' DR' : openingBalance < 0 ? ' CR' : ''}
-              </Text>
-            </View>
-
-            {/* Transaction Rows */}
-            {transactions.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyText}>No transactions in this period</Text>
-              </View>
-            ) : (
-              transactions.map((tx, index) => (
-                <View
-                  key={tx.id}
-                  style={[
-                    styles.tableRow,
-                    index === transactions.length - 1 ? styles.tableRowLast : {},
-                    index % 2 === 1 ? styles.tableRowAlt : {},
-                  ]}
-                >
-                  <Text style={[styles.tableCell, styles.colDate]}>
-                    {formatDate(tx.date)}
-                  </Text>
-                  <View style={styles.colType}>
-                    <View style={[styles.typeBadge, getTypeStyle(tx.type)]}>
-                      <Text>{getTypeLabel(tx.type)}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.colDescription}>
-                    <Text style={styles.tableCell}>{tx.description}</Text>
-                    {tx.reference && (
-                      <Text style={[styles.tableCell, { color: '#999999', fontSize: 7 }]}>
-                        Ref: {tx.reference}
-                      </Text>
-                    )}
-                  </View>
-                  <Text style={[styles.tableCell, styles.colDebit, tx.debit > 0 ? styles.summaryValueDebt : {}]}>
-                    {tx.debit > 0 ? formatCurrency(tx.debit) : '-'}
-                  </Text>
-                  <Text style={[styles.tableCell, styles.colCredit, tx.credit > 0 ? styles.summaryValueCredit : {}]}>
-                    {tx.credit > 0 ? formatCurrency(tx.credit) : '-'}
-                  </Text>
-                  <Text style={[
-                    styles.tableCell,
-                    styles.colBalance,
-                    tx.balance > 0 ? styles.balancePositive : tx.balance < 0 ? styles.balanceNegative : styles.balanceZero
-                  ]}>
-                    {formatCurrency(Math.abs(tx.balance))}
-                    {tx.balance > 0 ? ' DR' : tx.balance < 0 ? ' CR' : ''}
-                  </Text>
-                </View>
-              ))
-            )}
-
-            {/* Closing Balance Row */}
-            <View style={[styles.balanceRow, { borderTopWidth: 2, borderTopColor: '#1a1a1a' }]}>
-              <Text style={[styles.balanceRowText, styles.colDate]}>
-                {formatDate(period.to)}
-              </Text>
-              <Text style={[styles.balanceRowText, styles.colType]}></Text>
-              <Text style={[styles.balanceRowText, styles.colDescription]}>
-                Closing Balance
-              </Text>
-              <Text style={[styles.balanceRowText, styles.colDebit]}></Text>
-              <Text style={[styles.balanceRowText, styles.colCredit]}></Text>
-              <Text style={[
-                styles.balanceRowText,
-                styles.colBalance,
-                isClosingDebt ? styles.balancePositive : isClosingCredit ? styles.balanceNegative : styles.balanceZero
-              ]}>
-                {formatCurrency(Math.abs(closingBalance))}
-                {isClosingDebt ? ' DR' : isClosingCredit ? ' CR' : ''}
-              </Text>
-            </View>
+          ))
+        ) : (
+          <View style={styles.transactionSection}>
+            <Text style={styles.sectionTitle}>Transaction Details</Text>
+            <LedgerTable transactions={transactions} openingBalance={openingBalance} closingBalance={closingBalance} period={period} />
           </View>
-        </View>
+        )}
+
+        {collections && collections.lines.length > 0 && (
+          <View style={styles.transactionSection}>
+            <Text style={styles.sectionTitle}>Collections</Text>
+            <Text style={[styles.accountDetail, { marginBottom: 6 }]}>
+              Payments you made into estate collections. They are not charges and do not change any balance above.
+            </Text>
+            <CollectionsTable collections={collections} />
+          </View>
+        )}
 
         {/* Footer */}
         <View style={styles.footer}>
@@ -545,6 +629,7 @@ export function AccountStatementPDF({ data, estateName = 'Residio Estate' }: Acc
               <Text style={[styles.footerText, { fontFamily: 'Helvetica-Bold', marginBottom: 2 }]}>
                 {estateName}
               </Text>
+              {estateAddress ? <Text style={styles.footerText}>{estateAddress}</Text> : null}
               <Text style={styles.footerText}>
                 Powered by Residio
               </Text>
@@ -561,6 +646,112 @@ export function AccountStatementPDF({ data, estateName = 'Residio Estate' }: Acc
         </View>
 
         {/* Page Number */}
+        <Text
+          style={styles.pageNumber}
+          render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+          fixed
+        />
+      </Page>
+
+      {monthlyDetail && monthlyDetail.length > 0 && (
+        <Page size="A4" style={styles.page}>
+          <Text style={styles.sectionTitle}>Monthly Detail</Text>
+          <View style={styles.table}>
+            <View style={styles.tableHeader}>
+              <Text style={[styles.tableHeaderCell, styles.colDate]}>Date</Text>
+              <Text style={[styles.tableHeaderCell, styles.colAppendixDescription]}>Description</Text>
+              <Text style={[styles.tableHeaderCell, styles.colDebit]}>Amount</Text>
+            </View>
+            {monthlyDetail.map((tx, index) => (
+              <View key={tx.id} wrap={false} style={[styles.tableRow, index % 2 === 1 ? styles.tableRowAlt : {}]}>
+                <Text style={[styles.tableCell, styles.colDate]}>{formatDate(tx.date)}</Text>
+                <Text style={[styles.tableCell, styles.colAppendixDescription]}>{tx.description}</Text>
+                <Text style={[styles.tableCell, styles.colDebit]}>{formatCurrency(tx.debit)}</Text>
+              </View>
+            ))}
+          </View>
+          <Text
+            style={styles.pageNumber}
+            render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+            fixed
+          />
+        </Page>
+      )}
+    </Document>
+  );
+}
+
+interface CollectionsStatementPDFProps {
+  data: CollectionsStatementData;
+  estateName?: string;
+  estateAddress?: string;
+  estateLogoUrl?: string;
+}
+
+/** The statement printed for one collection payer, resident or not (#1196). */
+export function CollectionsStatementPDF({ data, estateName = 'Residio Estate', estateAddress = '', estateLogoUrl }: CollectionsStatementPDFProps) {
+  const { payer, period, collections, generatedAt } = data;
+  return (
+    <Document>
+      <Page size="A4" style={styles.page}>
+        <View style={styles.header}>
+          <View style={styles.headerRow}>
+            <View>
+              <PdfEstateLogo url={estateLogoUrl} />
+              <Text style={styles.estateName}>{estateName}</Text>
+              <Text style={styles.estateSubtitle}>Collections Statement</Text>
+            </View>
+            <View>
+              <Text style={styles.documentTitle}>COLLECTIONS STATEMENT</Text>
+              <Text style={styles.statementPeriod}>
+                {formatDate(period.from)} to {formatDate(period.to)}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.accountInfo}>
+          <View style={styles.accountBlock}>
+            <Text style={styles.sectionTitle}>Payer</Text>
+            <View style={styles.accountBox}>
+              <Text style={styles.accountName}>{payer.name}</Text>
+              {payer.residentCode && <Text style={styles.accountDetail}>Code: {payer.residentCode}</Text>}
+              {payer.email && <Text style={styles.accountDetail}>{payer.email}</Text>}
+              {payer.phone && <Text style={styles.accountDetail}>{payer.phone}</Text>}
+            </View>
+          </View>
+          <View style={styles.accountBlockRight}>
+            <Text style={styles.sectionTitle}>Statement Date</Text>
+            <View style={[styles.accountBox, { alignItems: 'flex-end' }]}>
+              <Text style={styles.accountDetail}>Generated: {formatDate(generatedAt)}</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.transactionSection}>
+          <Text style={styles.sectionTitle}>Payments into collections</Text>
+          {collections.lines.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>No collection payments in this period</Text>
+            </View>
+          ) : (
+            <CollectionsTable collections={collections} />
+          )}
+        </View>
+
+        <View style={styles.footer}>
+          <View style={styles.footerRow}>
+            <View>
+              <Text style={[styles.footerText, { fontFamily: 'Helvetica-Bold', marginBottom: 2 }]}>{estateName}</Text>
+              {estateAddress ? <Text style={styles.footerText}>{estateAddress}</Text> : null}
+              <Text style={styles.footerText}>Powered by Residio</Text>
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={styles.footerText}>Collections are not charges: nothing here is owed.</Text>
+            </View>
+          </View>
+        </View>
+
         <Text
           style={styles.pageNumber}
           render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}

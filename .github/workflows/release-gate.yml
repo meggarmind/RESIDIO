@@ -1,0 +1,63 @@
+name: Release gate
+
+# A release PR (head ref `stage`) into `master` may merge only if Stage is running its exact head
+# commit (check A) and the owner has recorded that UAT and DAST passed (check B, the
+# `uat-dast-passed` label). Any other head ref, such as a hotfix branch, passes without the checks.
+# Making these checks required on `master` is a repository setting (#1136).
+
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  stage-runs-commit:
+    name: Stage runs this commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      HEAD_REF: ${{ github.event.pull_request.head.ref }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Compare Stage's deployed sha with the PR head
+        run: |
+          if [ "$HEAD_REF" != "stage" ]; then
+            echo "::notice::Head ref is '$HEAD_REF', not 'stage'. The release gate does not apply."
+            exit 0
+          fi
+          deployed=""
+          # The image build and deploy lag a push, so retry for about 10 minutes.
+          for attempt in $(seq 1 20); do
+            deployed=$(curl -fsS --max-time 20 https://stage.feyijimi.ng/api/version | jq -r '.sha // empty') || deployed=""
+            if [ "$deployed" = "$HEAD_SHA" ]; then
+              echo "Stage runs $HEAD_SHA."
+              exit 0
+            fi
+            echo "Attempt $attempt: Stage reports '${deployed:-unavailable}', waiting for $HEAD_SHA."
+            sleep 30
+          done
+          echo "::error::Stage is not running this commit. Stage sha: ${deployed:-unavailable}. PR head sha: $HEAD_SHA."
+          exit 1
+
+  uat-dast-passed:
+    name: UAT and DAST passed
+    runs-on: ubuntu-latest
+    env:
+      HEAD_REF: ${{ github.event.pull_request.head.ref }}
+      LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+    steps:
+      - name: Require the uat-dast-passed label
+        run: |
+          if [ "$HEAD_REF" != "stage" ]; then
+            echo "::notice::Head ref is '$HEAD_REF', not 'stage'. The release gate does not apply."
+            exit 0
+          fi
+          if echo "$LABELS" | jq -e 'index("uat-dast-passed")' > /dev/null; then
+            echo "Label uat-dast-passed is present."
+            exit 0
+          fi
+          echo "::error::UAT and DAST have not been recorded as passed. The owner adds the label uat-dast-passed after both pass on this commit."
+          exit 1

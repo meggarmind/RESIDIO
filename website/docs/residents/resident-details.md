@@ -8,8 +8,9 @@ residio_sources:
   - src/actions/residents/unassign-house.ts
   - src/actions/residents/merge-residents.ts
   - src/components/residents/resident-merge-dialog.tsx
-residio_verified_commit: 8442c6ff
-residio_verified_at: '2026-10-21'
+  - src/components/residents/wallet-transfer-dialog.tsx
+residio_verified_commit: 781fe578
+residio_verified_at: '2026-10-26'
 residio_app_version: '0.4.0'
 ---
 
@@ -22,7 +23,7 @@ The resident profile is the best place to understand one person across identity,
 ## Tabs
 
 - **Overview:** identity and contact details (including the emergency contact), contact verification status, the financial summary, and house assignments.
-- **Money:** wallet balance and adjustments, wallet payment batches, the wallet ledger, payment history (20 per page), and payment aliases.
+- **Money:** wallet balance and adjustments (the balance is the total of the resident's wallets, with one line per charge category: Dues, Development Levy, Transformer Fee; an adjustment changes the Dues wallet; **Transfer credit** moves credit to another wallet of the resident or to a resident linked to the same house, and a transfer line in the ledger has **Reverse**), wallet payment batches (from the Dues wallet, so only Dues invoices are listed) (tick invoices one by one, use the header checkbox to select all, or **Select what the wallet covers** to pick the oldest invoices the balance can pay, including the one that only partly fits), and the wallet ledger, which also lists payments that credited the wallet and shows monthly invoice debits as one line per billing item per year (expand a line to see the months). Pending and failed payments, which credit nothing, show in an **Unposted payments** list above the ledger. Payment aliases open from the **Payment aliases** button. On wide screens the ledger sits on the left and the balance and actions on the right.
 - **Security:** security contacts registered by the resident.
 - **Notes:** internal notes, for users who can view notes.
 
@@ -41,6 +42,7 @@ Buttons appear only for users who hold the permission the action needs:
 | Link house, Move out, Transfer, Remove assignment | `houses.assign_resident` |
 | Add, edit, activate or delete a payment alias | `residents.update` |
 | Wallet adjustment, settle invoices from the wallet, prepay future months | `billing.manage_wallets` |
+| Transfer credit, reverse a transfer | `billing.transfer_wallet_credit` |
 | Record payment | `payments.create` |
 
 **Verify contact** marks every unverified contact detail (email and phone) as verified by an admin, and the resident as verified, after a confirmation dialog.

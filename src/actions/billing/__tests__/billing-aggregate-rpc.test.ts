@@ -24,7 +24,12 @@ describe('billing aggregate RPC adapters', () => {
     settingRows.current = [];
     createServerSupabaseClient.mockResolvedValue({
       rpc,
-      from: () => ({ select: () => ({ in: async () => ({ data: settingRows.current, error: null }) }) }),
+      from: (table: string) => ({
+        select: () =>
+          table === 'invoices'
+            ? { eq: () => ({ neq: async () => ({ data: [], error: null }) }) }
+            : { in: async () => ({ data: settingRows.current, error: null }) },
+      }),
     });
   });
 
@@ -52,7 +57,7 @@ describe('billing aggregate RPC adapters', () => {
     rpc.mockResolvedValue({ data, error: null });
 
     await expect(getResidentIndebtedness('resident-1')).resolves.toEqual({
-      data: { ...data, debtStatusLabel: 'Outstanding' },
+      data: { ...data, unpaidByCategory: {}, debtStatusLabel: 'Outstanding' },
       error: null,
     });
     expect(rpc).toHaveBeenCalledWith('get_resident_indebtedness', { p_resident_id: 'resident-1' });

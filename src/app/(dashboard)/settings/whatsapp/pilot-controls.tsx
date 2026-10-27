@@ -5,11 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
-import { promoteWhatsAppPilotToEstate, updateWhatsAppPilotSettings, type PilotResidentOption } from '@/actions/whatsapp/pilot';
-import { ResidentPicker } from '@/components/residents/resident-picker';
+import { promoteWhatsAppPilotToEstate, updateWhatsAppPilotSettings, type PilotRoster } from '@/actions/whatsapp/pilot';
+import { PilotResidentsTable } from '@/app/(dashboard)/settings/whatsapp/pilot-residents-table';
 import type { WhatsAppRolloutMode } from '@/lib/whatsapp/rollout';
 
-export function PilotControls({ initial, residentOptions, residentOptionsError }: { initial: {
+export function PilotControls({ initial, roster, rosterError }: { initial: {
   mode: WhatsAppRolloutMode;
   residentIds: string[];
   streetId: string;
@@ -21,7 +21,7 @@ export function PilotControls({ initial, residentOptions, residentOptionsError }
   processedMessageRetentionDays: number;
   surveyResponseRetentionDays: number;
   outboundSendRetentionDays: number;
-}; residentOptions: PilotResidentOption[]; residentOptionsError?: string | null }) {
+}; roster: PilotRoster; rosterError?: string | null }) {
   const { hasPermission } = useAuth();
   const canManage = hasPermission(PERMISSIONS.WHATSAPP_MANAGE);
   const [mode, setMode] = useState(initial.mode);
@@ -39,6 +39,8 @@ export function PilotControls({ initial, residentOptions, residentOptionsError }
   const [outboundSendRetentionDays, setOutboundSendRetentionDays] = useState(String(initial.outboundSendRetentionDays));
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [savedPilot, setSavedPilot] = useState({ residentIds: initial.residentIds, streetId: initial.streetId });
+  const pilotChanged = streetId !== savedPilot.streetId || residentIds.join() !== savedPilot.residentIds.join();
 
   function save() {
     startTransition(async () => {
@@ -55,6 +57,7 @@ export function PilotControls({ initial, residentOptions, residentOptionsError }
         surveyResponseRetentionDays: Number(surveyRetentionDays),
         outboundSendRetentionDays: Number(outboundSendRetentionDays),
       });
+      if (!result.error) setSavedPilot({ residentIds, streetId: streetId.trim() });
       setMessage(result.error || 'Pilot controls saved');
     });
   }
@@ -67,8 +70,7 @@ export function PilotControls({ initial, residentOptions, residentOptionsError }
     <div className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">Rollout mode</span><select value={mode} onChange={(event) => setMode(event.target.value as WhatsAppRolloutMode)} className="h-9 w-full rounded-md border bg-background px-3"><option value="disabled">Disabled</option><option value="pilot">Pilot</option><option value="estate">Estate-wide</option></select></label>
-        <label className="space-y-1 text-sm"><span className="text-muted-foreground">Pilot street ID</span><Input value={streetId} onChange={(event) => setStreetId(event.target.value)} placeholder="Optional" /></label>
-        <div className="space-y-1 text-sm sm:col-span-2"><span className="text-muted-foreground">Pilot residents</span><ResidentPicker options={residentOptions} value={residentIds} onChange={setResidentIds} disabled={!canManage} error={residentOptionsError} triggerLabel="Choose pilot residents" /></div>
+        <div className="sm:col-span-2"><PilotResidentsTable roster={roster.residents} streets={roster.streets} error={rosterError} residentIds={residentIds} onResidentIdsChange={setResidentIds} streetId={streetId} onStreetIdChange={setStreetId} disabled={!canManage} /></div>
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">Daily outbound cap</span><Input type="number" min="0" value={outboundCap} onChange={(event) => setOutboundCap(event.target.value)} /></label>
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">Burst cap</span><Input type="number" min="0" value={burstCap} onChange={(event) => setBurstCap(event.target.value)} /></label>
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">Burst window (minutes)</span><Input type="number" min="1" value={burstWindow} onChange={(event) => setBurstWindow(event.target.value)} /></label>
@@ -78,7 +80,7 @@ export function PilotControls({ initial, residentOptions, residentOptionsError }
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">Survey answer retention (days)</span><Input type="number" min="1" max="365" value={surveyRetentionDays} onChange={(event) => setSurveyRetentionDays(event.target.value)} /></label>
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">Outbound send record retention (days)</span><Input type="number" min="1" max="365" value={outboundSendRetentionDays} onChange={(event) => setOutboundSendRetentionDays(event.target.value)} /></label>
       </div>
-      <div className="flex items-center gap-3"><Button type="button" size="sm" disabled={isPending || !canManage} onClick={save}>Save rollout controls</Button>{mode === 'pilot' ? <Button type="button" size="sm" variant="outline" disabled={isPending || !canManage} onClick={promote}>Promote estate-wide</Button> : null}{message ? <span className="text-xs text-muted-foreground">{message}</span> : null}</div>
+      <div className="flex items-center gap-3"><Button type="button" size="sm" disabled={isPending || !canManage} onClick={save}>Save rollout controls</Button>{mode === 'pilot' ? <Button type="button" size="sm" variant="outline" disabled={isPending || !canManage} onClick={promote}>Promote estate-wide</Button> : null}{pilotChanged ? <span className="text-xs text-amber-600">Pilot list changed. Save to apply.</span> : null}{message ? <span className="text-xs text-muted-foreground">{message}</span> : null}</div>
     </div>
   );
 }

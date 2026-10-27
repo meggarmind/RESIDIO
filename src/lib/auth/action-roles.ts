@@ -65,6 +65,8 @@ export const PERMISSIONS = {
   BILLING_MANAGE_PROFILE_VERSIONS: 'billing.manage_profile_versions',
   BILLING_APPLY_LATE_FEES: 'billing.apply_late_fees',
   BILLING_MANAGE_WALLETS: 'billing.manage_wallets',
+  // Move credit between wallets of one person or of persons linked to one house, and reverse it (#1191).
+  BILLING_TRANSFER_WALLET_CREDIT: 'billing.transfer_wallet_credit',
   BILLING_REQUEST_LATE_FEE_WAIVER: 'billing.request_late_fee_waiver',
   BILLING_APPROVE_LATE_FEE_WAIVER: 'billing.approve_late_fee_waiver',
 
@@ -162,6 +164,10 @@ export const PERMISSIONS = {
   // Recipient groups: named lists of residents to send to (#819)
   GROUPS_VIEW: 'groups.view',
   GROUPS_MANAGE: 'groups.manage',
+
+  // Collections ledger: contributions and item purchases outside billing (#1194)
+  COLLECTIONS_VIEW: 'collections.view',
+  COLLECTIONS_MANAGE: 'collections.manage',
 
   // Report Subscriptions Module (Phase 16)
   REPORT_SUBSCRIPTIONS_VIEW: 'report_subscriptions.view',
@@ -268,6 +274,8 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   // the actions it drives.
   '/personnel': [PERMISSIONS.VENDORS_VIEW],
   '/projects': [PERMISSIONS.PROJECTS_VIEW],
+  // Collections ledger (#1194).
+  '/collections': [PERMISSIONS.COLLECTIONS_VIEW],
   '/expenditure': [PERMISSIONS.EXPENDITURE_VIEW],
   '/notifications': [PERMISSIONS.NOTIFICATIONS_VIEW],
   // Mirrors /reports: the analytics dashboard composes the same three report
@@ -283,6 +291,7 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/system/accounts': [PERMISSIONS.SYSTEM_ASSIGN_ROLES],
   '/system/notification-queue': [PERMISSIONS.NOTIFICATIONS_MANAGE],
   '/system/notification-history': [PERMISSIONS.NOTIFICATIONS_MANAGE],
+  '/system/whatsapp-monitoring': [PERMISSIONS.WHATSAPP_VIEW],
   '/system/data-tools': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
   // Canonical home for cron job status, moved from /settings/cron-status and
   // /settings/system/health (#174, ADR-0004: live system state is not

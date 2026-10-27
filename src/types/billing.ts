@@ -27,6 +27,7 @@ export interface BillingProfileWithItems {
   applicable_roles: BillableRole[] | null;
   is_one_time: boolean;
   is_development_levy?: boolean;
+  charge_category?: string; // charge_categories.code, copied to the invoice (#1189)
   billing_items?: BillingItem[];
 }
 

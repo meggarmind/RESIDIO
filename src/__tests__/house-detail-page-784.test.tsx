@@ -87,6 +87,7 @@ vi.mock('@/hooks/use-houses', () => ({
     },
   }),
   useDeleteHouse: mutation(mocks.deleteHouse),
+  useHouses: () => ({ data: undefined }),
   useOwnershipHistory: () => {
     mocks.historyCalls += 1;
     return {

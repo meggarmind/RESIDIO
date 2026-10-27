@@ -283,6 +283,7 @@ export async function initiateTwoFactorSetup(
         otp,
         expiryMinutes: TOKEN_EXPIRY_MINUTES,
         estateName: estateSettings.estateName,
+        estateLogoUrl: estateSettings.estateLogoUrl,
       }),
       emailType: 'notification',
       metadata: { purpose: '2fa_setup' },

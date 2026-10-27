@@ -12,8 +12,9 @@ import type { ResidentOption } from '@/lib/residents/resident-options';
  * Multi-select over residents by name; the value stays a list of resident UUIDs. Mirrors
  * TagPicker. Shared by the WhatsApp pilot list (#801) and recipient groups (#819).
  * `warnings` maps a resident ID to a short reason shown on its badge, e.g. `not opted in`.
+ * `hideSelected` drops the badges when the caller lists the selection itself, e.g. as a table.
  */
-export function ResidentPicker({ options, value, onChange, disabled, error, triggerLabel = 'Choose residents', warnings }: {
+export function ResidentPicker({ options, value, onChange, disabled, error, triggerLabel = 'Choose residents', warnings, hideSelected }: {
   options: ResidentOption[];
   value: string[];
   onChange: (residentIds: string[]) => void;
@@ -21,6 +22,7 @@ export function ResidentPicker({ options, value, onChange, disabled, error, trig
   error?: string | null;
   triggerLabel?: string;
   warnings?: Record<string, string>;
+  hideSelected?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const byId = new Map(options.map((option) => [option.id, option]));
@@ -29,7 +31,7 @@ export function ResidentPicker({ options, value, onChange, disabled, error, trig
 
   return (
     <div className="space-y-2">
-      {value.length > 0 && (
+      {!hideSelected && value.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {value.map((id) => {
             // A saved ID with no matching resident (deleted, or the list failed to load) stays visible and removable.

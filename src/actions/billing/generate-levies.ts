@@ -157,7 +157,7 @@ async function generateLeviesForHouseInRun(
         const { data: oneTimeProfiles, error: profilesError } = await supabase
             .from('billing_profiles')
             .select(`
-                id, name, payer, target_type, applicable_roles, is_one_time, is_development_levy,
+                id, name, payer, target_type, applicable_roles, is_one_time, is_development_levy, charge_category,
                 billing_items(id, name, amount, frequency, is_mandatory)
             `)
             .eq('is_active', true)
@@ -258,6 +258,7 @@ async function generateLeviesForHouseInRun(
                         amount_paid: 0,
                         status: 'unpaid',
                         invoice_type: 'LEVY' as const,
+                        charge_category: profile.charge_category,
                         rate_snapshot: rateSnapshot,
                         due_date: dueDate.toISOString().split('T')[0],
                         period_start: now.toISOString().split('T')[0],
@@ -463,7 +464,7 @@ export async function previewRetroactiveLevies(): Promise<{ data: RetroactiveLev
         fetchAllRows<{ house_id: string; billing_profile_id: string }>((from, to) =>
             supabase.from('house_levy_history').select('house_id, billing_profile_id').order('id').range(from, to)),
         supabase.from('billing_profiles')
-            .select('id, name, payer, target_type, applicable_roles, is_development_levy, billing_items(amount)')
+            .select('id, name, payer, target_type, applicable_roles, is_development_levy, charge_category, billing_items(amount)')
             .eq('is_active', true).eq('is_one_time', true),
     ]);
 

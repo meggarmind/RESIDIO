@@ -2,10 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { CalendarRange, CheckSquare, Loader2, Receipt, WalletCards } from 'lucide-react';
+import { CalendarRange, CheckSquare, Loader2, Receipt } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -25,6 +24,7 @@ import { prepayFutureInvoices } from '@/actions/billing/prepay-future-invoices';
 import { getWalletPaymentBatch, getWalletPaymentBatches } from '@/actions/billing/get-wallet-payment-batch';
 import { PaymentReceipt } from '@/components/payments/payment-receipt';
 import { useWallet } from '@/hooks/use-wallet';
+import { useEstateDetails } from '@/hooks/use-estate-details';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 
@@ -41,14 +41,19 @@ type PayableInvoice = {
 
 type HouseOption = { id: string; label: string };
 
+// The Money tab opens this content from two rail buttons (#1142): `settle` shows
+// the pending invoices and batch receipts, `prepay` the future-month form.
 export function WalletPaymentBatchTools({
     residentId,
     houses,
+    section,
 }: {
     residentId: string;
     houses: HouseOption[];
+    section: 'settle' | 'prepay';
 }) {
     const queryClient = useQueryClient();
+    const { estateName, estateLogoUrl } = useEstateDetails();
     // CORE.md s6: settle and prepay need billing.manage_wallets; viewers see the invoices and receipts only.
     const { hasPermission } = useAuth();
     const canManageWallet = hasPermission(PERMISSIONS.BILLING_MANAGE_WALLETS);
@@ -101,6 +106,25 @@ export function WalletPaymentBatchTools({
 
     const toggleInvoice = (id: string) => {
         setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+    };
+
+    const allSelected = invoices.length > 0 && selected.length === invoices.length;
+    const someSelected = selected.length > 0 && !allSelected;
+
+    const toggleAll = () => {
+        setSelected(allSelected ? [] : invoices.map((invoice) => invoice.id));
+    };
+
+    // Mirrors the settle RPC, which allocates oldest period first and may part-pay the last invoice.
+    const selectWhatWalletCovers = () => {
+        const ids: string[] = [];
+        let left = walletBalance ?? 0;
+        for (const invoice of invoices) {
+            if (left <= 0) break;
+            ids.push(invoice.id);
+            left -= Number(invoice.amount_due) - Number(invoice.amount_paid);
+        }
+        setSelected(ids);
     };
 
     const handleSettle = async () => {
@@ -165,24 +189,18 @@ export function WalletPaymentBatchTools({
         await loadInvoices();
     };
 
+    const dateField = (
+        <div className="space-y-1.5">
+            <Label htmlFor="wallet-payment-date">Payment date</Label>
+            <Input id="wallet-payment-date" type="date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} />
+        </div>
+    );
+
     return (
-        <Card className="mt-4">
-            <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-sm">
-                    <WalletCards className="h-4 w-4" />
-                    Wallet payment batches
-                </CardTitle>
-                <CardDescription className="text-xs">
-                    Settle several invoices with one receipt, or prepay future months.
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-5">
-                {canManageWallet && (
+        <div className="space-y-5">
+                {section === 'settle' && canManageWallet && (
                 <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-                    <div className="space-y-1.5">
-                        <Label htmlFor="wallet-payment-date">Payment date</Label>
-                        <Input id="wallet-payment-date" type="date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} />
-                    </div>
+                    {dateField}
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
                             <Button disabled={isSettling || selected.length === 0} className="min-h-11 md:min-h-0">
@@ -216,7 +234,30 @@ export function WalletPaymentBatchTools({
                 </div>
                 )}
 
+                {section === 'settle' && (
                 <div className="rounded-lg border divide-y max-h-64 overflow-y-auto">
+                    {canManageWallet && invoices.length > 0 && (
+                        <div className="sticky top-0 z-10 flex min-h-11 flex-wrap items-center gap-3 bg-background p-3 text-sm">
+                            <input
+                                type="checkbox"
+                                aria-label="Select all invoices"
+                                aria-checked={someSelected ? 'mixed' : allSelected}
+                                checked={allSelected}
+                                ref={(element) => { if (element) element.indeterminate = someSelected; }}
+                                onChange={toggleAll}
+                            />
+                            <span className="flex-1 text-muted-foreground">{selected.length} of {invoices.length} selected</span>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={!walletBalance || walletBalance <= 0}
+                                onClick={selectWhatWalletCovers}
+                            >
+                                Select what the wallet covers
+                            </Button>
+                        </div>
+                    )}
                     {isLoading && <p className="p-4 text-sm text-muted-foreground">Loading pending invoices…</p>}
                     {!isLoading && invoices.length === 0 && <p className="p-4 text-sm text-muted-foreground">No pending invoices.</p>}
                     {invoices.map((invoice) => {
@@ -233,10 +274,12 @@ export function WalletPaymentBatchTools({
                         );
                     })}
                 </div>
+                )}
 
-                {canManageWallet && (
-                <div className="border-t pt-4 space-y-3">
+                {section === 'prepay' && canManageWallet && (
+                <div className="space-y-3">
                     <div className="flex items-center gap-2 text-sm font-medium"><CalendarRange className="h-4 w-4" /> Future prepayment</div>
+                    {dateField}
                     <div className="grid gap-3 sm:grid-cols-3">
                         <div className="space-y-1.5">
                             <Label htmlFor="prepay-house">House</Label>
@@ -259,12 +302,12 @@ export function WalletPaymentBatchTools({
                     <div className="border-t pt-4">
                         <p className="mb-2 text-sm font-medium">Latest batch receipt</p>
                         <div className="overflow-hidden rounded-lg border bg-muted/20">
-                            <PaymentReceipt payment={receipt} />
+                            <PaymentReceipt payment={receipt} estateName={estateName} estateLogoUrl={estateLogoUrl} />
                         </div>
                     </div>
                 )}
 
-                {batches.length > 0 && (
+                {section === 'settle' && batches.length > 0 && (
                     <div className="border-t pt-4 space-y-2">
                         <p className="text-sm font-medium">Recent batch receipts</p>
                         <div className="space-y-2">
@@ -288,7 +331,6 @@ export function WalletPaymentBatchTools({
                         </div>
                     </div>
                 )}
-            </CardContent>
-        </Card>
+        </div>
     );
 }

@@ -8,6 +8,9 @@ import { logAudit } from '@/lib/audit/logger';
 import { callWalletPaymentRpc } from '@/lib/billing/wallet-payment-rpc';
 import { debitWalletForInvoiceAtomic, type WalletInvoiceDebitResult } from '@/lib/billing/wallet-invoice-debit';
 import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
+import { chargeLabel } from '@/lib/whatsapp/assistant-format';
+import { DEFAULT_CHARGE_CATEGORY } from '@/lib/billing/charge-categories';
+import { eligibleSettlementInvoiceIds } from '@/lib/billing/eligible-invoices';
 
 export type WalletTransaction = {
     id: string;
@@ -24,13 +27,27 @@ export type WalletTransaction = {
 type WalletWithBalance = {
     id: string;
     resident_id: string;
+    charge_category: string;
     balance: number;
 }
+
+export type ResidentWalletLine = {
+    charge_category: string;
+    name: string;
+    wallet_id: string | null;
+    balance: number;
+};
+
+export type ResidentWallets = {
+    total: number;
+    wallets: ResidentWalletLine[];
+};
 
 type WalletAdjustmentResult = {
     success?: boolean;
     new_balance?: number;
     wallet_id?: string;
+    charge_category?: string;
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -59,24 +76,28 @@ type WalletAdjustmentRpcClient = {
 };
 
 /**
- * Get or create a wallet for a resident
+ * Get or create a resident's wallet of one charge category (Dues unless named, #1189)
  */
-export async function getOrCreateWallet(residentId: string): Promise<{ data: WalletWithBalance | null; error: string | null }> {
+export async function getOrCreateWallet(
+    residentId: string,
+    chargeCategory: string = DEFAULT_CHARGE_CATEGORY,
+): Promise<{ data: WalletWithBalance | null; error: string | null }> {
     const supabase = await createServerSupabaseClient();
 
     // Try to get existing wallet
     const { data: wallet, error } = await supabase
         .from('resident_wallets')
-        .select('id, resident_id, balance')
+        .select('id, resident_id, charge_category, balance')
         .eq('resident_id', residentId)
+        .eq('charge_category', chargeCategory)
         .single();
 
     if (error && error.code === 'PGRST116') {
         // Not found, create new wallet
         const { data: newWallet, error: createError } = await supabase
             .from('resident_wallets')
-            .insert({ resident_id: residentId, balance: 0 })
-            .select('id, resident_id, balance')
+            .insert({ resident_id: residentId, charge_category: chargeCategory, balance: 0 })
+            .select('id, resident_id, charge_category, balance')
             .single();
 
         if (createError) {
@@ -91,14 +112,49 @@ export async function getOrCreateWallet(residentId: string): Promise<{ data: Wal
 }
 
 /**
- * Credit a resident's wallet (add funds)
+ * The total of a resident's wallets and one line per active charge category (#1189). A category
+ * the resident has no wallet for shows ₦0. Read-only: creates no wallet.
+ */
+export async function getResidentWallets(residentId: string): Promise<{ data: ResidentWallets | null; error: string | null }> {
+    const supabase = await createServerSupabaseClient();
+
+    const [walletsResult, categoriesResult] = await Promise.all([
+        supabase.from('resident_wallets').select('id, charge_category, balance').eq('resident_id', residentId),
+        supabase.from('charge_categories').select('code, name, sort_order, is_active').order('sort_order', { ascending: true }),
+    ]);
+    if (walletsResult.error) return { data: null, error: walletsResult.error.message };
+    if (categoriesResult.error) return { data: null, error: categoriesResult.error.message };
+
+    const walletByCategory = new Map((walletsResult.data || []).map((wallet) => [wallet.charge_category, wallet]));
+    const wallets = (categoriesResult.data || [])
+        // An inactive category still shows while its wallet holds money.
+        .filter((category) => category.is_active || Number(walletByCategory.get(category.code)?.balance || 0) !== 0)
+        .map((category) => {
+            const wallet = walletByCategory.get(category.code);
+            return {
+                charge_category: category.code,
+                name: category.name,
+                wallet_id: wallet?.id ?? null,
+                balance: Number(wallet?.balance || 0),
+            };
+        });
+
+    return {
+        data: { total: (walletsResult.data || []).reduce((sum, wallet) => sum + Number(wallet.balance), 0), wallets },
+        error: null,
+    };
+}
+
+/**
+ * Credit a resident's wallet (add funds) of one charge category (Dues unless named)
  */
 export async function creditWallet(
     residentId: string,
     amount: number,
     referenceType?: string,
     referenceId?: string,
-    description?: string
+    description?: string,
+    chargeCategory: string = DEFAULT_CHARGE_CATEGORY,
 ): Promise<{ success: boolean; newBalance: number; error: string | null }> {
     // Permission check
     const auth = await authorizePermission(PERMISSIONS.BILLING_MANAGE_WALLETS);
@@ -116,6 +172,7 @@ export async function creditWallet(
         p_reference_type: referenceType?.trim() || null,
         p_reference_id: referenceId || null,
         p_description: description?.trim() || `Credit of ₦${amount.toLocaleString()}`,
+        p_charge_category: chargeCategory,
     });
 
     if (error || !data || data.success !== true || typeof data.new_balance !== 'number' || !data.wallet_id) {
@@ -128,7 +185,7 @@ export async function creditWallet(
         entityId: data.wallet_id,
         entityDisplay: `Wallet credit for resident ${residentId}`,
         oldValues: { balance: data.new_balance - amount },
-        newValues: { balance: data.new_balance, amount_credited: amount, reference_type: referenceType },
+        newValues: { balance: data.new_balance, amount_credited: amount, reference_type: referenceType, charge_category: chargeCategory },
     });
 
     revalidatePath('/residents');
@@ -136,14 +193,15 @@ export async function creditWallet(
 }
 
 /**
- * Debit a resident's wallet (remove funds) - for manual adjustments
+ * Debit a resident's wallet (remove funds) of one charge category (Dues unless named) - for manual adjustments
  */
 export async function debitWallet(
     residentId: string,
     amount: number,
     referenceType?: string,
     referenceId?: string,
-    description?: string
+    description?: string,
+    chargeCategory: string = DEFAULT_CHARGE_CATEGORY,
 ): Promise<{ success: boolean; newBalance: number; error: string | null }> {
     // Permission check
     const auth = await authorizePermission(PERMISSIONS.BILLING_MANAGE_WALLETS);
@@ -161,6 +219,7 @@ export async function debitWallet(
         p_reference_type: referenceType?.trim() || null,
         p_reference_id: referenceId || null,
         p_description: description?.trim() || `Debit of ₦${amount.toLocaleString()}`,
+        p_charge_category: chargeCategory,
     });
 
     if (error || !data || data.success !== true || typeof data.new_balance !== 'number' || !data.wallet_id) {
@@ -173,7 +232,7 @@ export async function debitWallet(
         entityId: data.wallet_id,
         entityDisplay: `Wallet debit for resident ${residentId}`,
         oldValues: { balance: data.new_balance + amount },
-        newValues: { balance: data.new_balance, amount_debited: amount, reference_type: referenceType },
+        newValues: { balance: data.new_balance, amount_debited: amount, reference_type: referenceType, charge_category: chargeCategory },
     });
 
     revalidatePath('/residents');
@@ -229,18 +288,21 @@ export async function debitWalletForInvoice(
 }
 
 /**
- * Allocate wallet balance to all unpaid invoices (FIFO by due_date)
- * If priorityHouseId is provided, prioritize invoices for that house first
+ * Allocate a wallet to unpaid invoices of its charge category (FIFO by due_date). A payment pays
+ * the invoices of its own category, Dues when it names none (#1188 decision 2, #1190); a wallet
+ * never pays another category (#1189). If houseId is provided, only that house's invoices are
+ * paid and any leftover stays as credit: money is never moved to another house (decision 3).
  */
 export async function allocateWalletToInvoices(
     residentId: string,
-    priorityHouseId?: string | null,
+    houseId?: string | null,
     paymentDate?: string,
     options?: {
         sourcePaymentId?: string | null;
         batchAmount?: number | null;
         batchType?: 'payment_received' | 'existing_wallet_settlement' | 'future_prepayment';
         creditAmount?: number | null;
+        chargeCategory?: string;
     },
 ): Promise<{
     success: boolean;
@@ -251,38 +313,18 @@ export async function allocateWalletToInvoices(
     receiptNumber?: string;
 }> {
     const supabase = await createServerSupabaseClient();
+    const { chargeCategory = DEFAULT_CHARGE_CATEGORY, ...batch } = options ?? {};
 
     // Ordinary payment and approval flows use the same atomic primitive as
     // explicit admin settlement when batch metadata is supplied. This keeps
     // the new wallet credit and all eligible invoice allocations in one DB
     // transaction, while preserving the legacy allocator for callers that do
-    // not yet create a payment batch.
-    if (options) {
+    // not yet create a payment batch (chargeCategory alone is not batch metadata).
+    if (options && Object.keys(batch).length > 0) {
         const settlementDate = paymentDate || new Date().toISOString().slice(0, 10);
-        const fetchEligible = async (houseId?: string | null) => {
-            let query = supabase
-                .from('invoices')
-                .select('id, period_start, due_date')
-                .eq('resident_id', residentId)
-                .in('status', ['unpaid', 'partially_paid'])
-                .gte('amount_due', 0)
-                .lte('period_start', settlementDate);
-            if (houseId) query = query.eq('house_id', houseId);
-            const result = await query.order('period_start', { ascending: true }).order('due_date', { ascending: true });
-            return result;
-        };
-
-        const invoiceIds: string[] = [];
-        if (priorityHouseId) {
-            const priority = await fetchEligible(priorityHouseId);
-            if (priority.error) return { success: false, invoicesPaid: 0, totalAllocated: 0, error: priority.error.message };
-            invoiceIds.push(...(priority.data || []).map((invoice) => invoice.id));
-        }
-        const general = await fetchEligible();
-        if (general.error) return { success: false, invoicesPaid: 0, totalAllocated: 0, error: general.error.message };
-        for (const invoice of general.data || []) {
-            if (!invoiceIds.includes(invoice.id)) invoiceIds.push(invoice.id);
-        }
+        const eligible = await eligibleSettlementInvoiceIds(supabase, { residentId, houseId, chargeCategory, settlementDate });
+        if (eligible.error) return { success: false, invoicesPaid: 0, totalAllocated: 0, error: eligible.error };
+        const invoiceIds = eligible.ids;
 
         if (invoiceIds.length === 0) {
             if (Number(options.creditAmount || 0) > 0) {
@@ -292,6 +334,7 @@ export async function allocateWalletToInvoices(
                     'payment',
                     options.sourcePaymentId || undefined,
                     'Payment retained as wallet credit because no eligible invoice was found',
+                    chargeCategory,
                 );
                 return { success: credit.success, invoicesPaid: 0, totalAllocated: 0, error: credit.error };
             }
@@ -304,9 +347,10 @@ export async function allocateWalletToInvoices(
             p_batch_type: options.batchType || 'payment_received',
             p_payment_date: settlementDate,
             p_source_payment_id: options.sourcePaymentId || null,
-            p_house_id: priorityHouseId || null,
+            p_house_id: houseId || null,
             p_credit_amount: Number(options.creditAmount || 0),
             p_batch_amount: options.batchAmount == null ? null : Number(options.batchAmount),
+            p_charge_category: chargeCategory,
         });
         if (rpcResult.error) return { success: false, invoicesPaid: 0, totalAllocated: 0, error: rpcResult.error.message };
 
@@ -336,49 +380,19 @@ export async function allocateWalletToInvoices(
     const walletEmptyAfterDebit = async (result: WalletInvoiceDebitResult) => {
         if (result.newBalance !== null) return result.newBalance <= 0;
         if (result.error === 'Insufficient wallet balance') return true;
-        const { data: wallet } = await getOrCreateWallet(residentId);
+        const { data: wallet } = await getOrCreateWallet(residentId, chargeCategory);
         return !wallet || wallet.balance <= 0;
     };
 
-    // If priority house provided, get those invoices first
-    if (priorityHouseId) {
-        const { data: priorityInvoices, error: priorityError } = await supabase
-            .from('invoices')
-            .select('id, amount_due, amount_paid, invoice_number, invoice_type, correction_type')
-            .eq('resident_id', residentId)
-            .eq('house_id', priorityHouseId)
-            .in('status', ['unpaid', 'partially_paid'])
-            .gte('amount_due', 0) // Exclude credit notes (negative amounts)
-            .order('due_date', { ascending: true });
-
-        if (!priorityError && priorityInvoices && priorityInvoices.length > 0) {
-            for (const invoice of priorityInvoices) {
-                const result = await debitWalletForInvoiceAtomic(supabase, residentId, invoice.id);
-                if (result.success && result.amountDebited > 0) {
-                    invoicesPaid++;
-                    totalAllocated += result.amountDebited;
-                    console.log(`[Wallet] Allocated ₦${result.amountDebited} to priority house invoice ${invoice.invoice_number}`);
-                }
-
-                if (await walletEmptyAfterDebit(result)) {
-                    return { success: true, invoicesPaid, totalAllocated, error: null };
-                }
-            }
-        }
-    }
-
-    // Get all remaining unpaid invoices (excluding priority house if provided)
+    // Legacy callers (no payment batch): the wallet of the category, inside the house when one is given.
     let query = supabase
         .from('invoices')
         .select('id, amount_due, amount_paid, invoice_type, correction_type')
         .eq('resident_id', residentId)
+        .eq('charge_category', chargeCategory)
         .in('status', ['unpaid', 'partially_paid'])
         .gte('amount_due', 0); // Exclude credit notes (negative amounts)
-
-    // Exclude priority house invoices (already processed)
-    if (priorityHouseId) {
-        query = query.neq('house_id', priorityHouseId);
-    }
+    if (houseId) query = query.eq('house_id', houseId);
 
     const { data: invoices, error: invoicesError } = await query.order('due_date', { ascending: true });
 
@@ -401,8 +415,17 @@ export async function allocateWalletToInvoices(
     return { success: true, invoicesPaid, totalAllocated, error: null };
 }
 
+/** Ids of every wallet of a resident, one per charge category (#1189). */
+async function residentWalletIds(
+    supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+    residentId: string,
+): Promise<{ ids: string[]; error: string | null }> {
+    const { data, error } = await supabase.from('resident_wallets').select('id').eq('resident_id', residentId);
+    return { ids: (data || []).map((wallet) => wallet.id), error: error?.message || null };
+}
+
 /**
- * Get wallet transactions for a resident
+ * Get wallet transactions for a resident, across all of the resident's wallets
  */
 export async function getWalletTransactions(
     residentId: string,
@@ -410,15 +433,16 @@ export async function getWalletTransactions(
 ): Promise<{ data: WalletTransaction[]; error: string | null }> {
     const supabase = await createServerSupabaseClient();
 
-    const { data: wallet } = await getOrCreateWallet(residentId);
-    if (!wallet) {
+    const wallets = await residentWalletIds(supabase, residentId);
+    if (wallets.error) return { data: [], error: wallets.error };
+    if (wallets.ids.length === 0) {
         return { data: [], error: null };
     }
 
     const { data, error } = await supabase
         .from('wallet_transactions')
         .select('*')
-        .eq('wallet_id', wallet.id)
+        .in('wallet_id', wallets.ids)
         .order('created_at', { ascending: false })
         .limit(limit);
 
@@ -440,21 +464,32 @@ export interface YearlyWalletTransactionSummary {
 
 // Only the columns the yearly Transaction History view renders (#837).
 const YEARLY_WALLET_TRANSACTION_COLUMNS =
-    'id, type, amount, balance_after, reference_type, reference_id, description, created_at';
+    'id, wallet_id, type, amount, balance_after, reference_type, reference_id, description, created_at';
 
-export type YearlyWalletTransaction = Omit<WalletTransaction, 'wallet_id'>;
+export type YearlyWalletTransaction = Omit<WalletTransaction, 'wallet_id'> & {
+    // Which of the resident's wallets (one per charge category, #1189) the row belongs to.
+    wallet_id?: string;
+    // Set on credit rows that came from a payment (#1142).
+    payment_method?: string | null;
+    payment_reference?: string | null;
+    // Set on debit rows settling an invoice, so the ledger can group them by billing item.
+    invoice_item?: string | null;
+    invoice_period_start?: string | null;
+    invoice_number?: string | null;
+};
 
 /**
- * Get the resident wallet ledger grouped by calendar year for the expandable
- * Transaction History view on the resident detail page.
+ * Get the resident wallet ledger, across all of the resident's wallets, grouped by calendar year for
+ * the expandable Transaction History view on the resident detail page.
  */
 export async function getYearlyWalletTransactions(
     residentId: string
 ): Promise<{ data: YearlyWalletTransactionSummary[]; error: string | null }> {
     const supabase = await createServerSupabaseClient();
 
-    const { data: wallet } = await getOrCreateWallet(residentId);
-    if (!wallet) {
+    const wallets = await residentWalletIds(supabase, residentId);
+    if (wallets.error) return { data: [], error: wallets.error };
+    if (wallets.ids.length === 0) {
         return { data: [], error: null };
     }
 
@@ -463,7 +498,7 @@ export async function getYearlyWalletTransactions(
         supabase
             .from('wallet_transactions')
             .select(YEARLY_WALLET_TRANSACTION_COLUMNS)
-            .eq('wallet_id', wallet.id)
+            .in('wallet_id', wallets.ids)
             .order('created_at', { ascending: false })
             .order('id', { ascending: false })
             .range(from, to)
@@ -473,8 +508,53 @@ export async function getYearlyWalletTransactions(
         return { data: [], error };
     }
 
+    // One batched read for the method and bank ref of every payment-linked row.
+    const paymentIds = [...new Set((data || [])
+        .filter((t) => t.reference_type === 'payment' && t.reference_id)
+        .map((t) => t.reference_id as string))];
+    const paymentById = new Map<string, { method: string | null; reference_number: string | null }>();
+    for (let i = 0; i < paymentIds.length; i += 200) {
+        const { data: payments, error: paymentsError } = await supabase
+            .from('payment_records')
+            .select('id, method, reference_number')
+            .in('id', paymentIds.slice(i, i + 200));
+        if (paymentsError) {
+            return { data: [], error: paymentsError.message };
+        }
+        for (const payment of payments || []) paymentById.set(payment.id, payment);
+    }
+
+    const invoiceIds = [...new Set((data || [])
+        .filter((t) => t.reference_type === 'invoice' && t.reference_id)
+        .map((t) => t.reference_id as string))];
+    const invoiceById = new Map<string, { invoice_number: string; invoice_type: string; period_start: string | null; billing_profile: { name: string } | { name: string }[] | null }>();
+    for (let i = 0; i < invoiceIds.length; i += 200) {
+        const { data: invoices, error: invoicesError } = await supabase
+            .from('invoices')
+            .select('id, invoice_number, invoice_type, period_start, billing_profile:billing_profiles(name)')
+            .in('id', invoiceIds.slice(i, i + 200));
+        if (invoicesError) {
+            return { data: [], error: invoicesError.message };
+        }
+        for (const invoice of invoices || []) invoiceById.set(invoice.id, invoice);
+    }
+
     const byYear = new Map<number, YearlyWalletTransactionSummary>();
     for (const transaction of data || []) {
+        const invoice = transaction.reference_type === 'invoice' && transaction.reference_id
+            ? invoiceById.get(transaction.reference_id)
+            : undefined;
+        if (invoice) {
+            const profile = Array.isArray(invoice.billing_profile) ? invoice.billing_profile[0] : invoice.billing_profile;
+            transaction.invoice_item = chargeLabel({ invoice_type: invoice.invoice_type, profileName: profile?.name ?? null, periodStart: null });
+            transaction.invoice_period_start = invoice.period_start;
+            transaction.invoice_number = invoice.invoice_number;
+        }
+        const payment = transaction.reference_id ? paymentById.get(transaction.reference_id) : undefined;
+        if (payment) {
+            transaction.payment_method = payment.method;
+            transaction.payment_reference = payment.reference_number;
+        }
         const year = new Date(transaction.created_at).getFullYear();
         if (!byYear.has(year)) {
             byYear.set(year, {
@@ -499,9 +579,17 @@ export async function getYearlyWalletTransactions(
         summary.transactions.push(transaction);
     }
 
-    for (const summary of byYear.values()) {
-        // Entries are descending, so the first entry holds the year-end balance.
-        summary.closing_balance = Number(summary.transactions[0]?.balance_after) || 0;
+    // Year-end balance: the sum, over the resident's wallets, of each wallet's last balance_after
+    // up to that year's end. Entries are descending, so walk them oldest first.
+    const lastBalanceByWallet = new Map<string, number>();
+    const ascending = [...(data || [])].reverse();
+    let next = 0;
+    for (const summary of [...byYear.values()].sort((a, b) => a.year - b.year)) {
+        while (next < ascending.length && new Date(ascending[next].created_at).getFullYear() <= summary.year) {
+            lastBalanceByWallet.set(ascending[next].wallet_id ?? '', Number(ascending[next].balance_after) || 0);
+            next++;
+        }
+        summary.closing_balance = [...lastBalanceByWallet.values()].reduce((sum, value) => sum + value, 0);
     }
 
     return {

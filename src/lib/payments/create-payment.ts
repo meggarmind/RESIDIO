@@ -13,18 +13,19 @@ import { addToQueue } from '@/lib/notifications/queue'
 import { isEventChannelEnabled } from '@/lib/notifications/event-content'
 import { lagosDateString } from '@/lib/whatsapp/assistant-format'
 import { residentHasHouse } from '@/lib/payments/house-membership'
+import { DEFAULT_CHARGE_CATEGORY } from '@/lib/billing/charge-categories'
 
 // Extended schema to include import tracking fields, house association, and verification
 export const extendedPaymentSchema = paymentFormSchema.extend({
-    import_id: z.string().uuid().optional(),
-    import_row_id: z.string().uuid().optional(),
-    split_payment_group_id: z.string().uuid().optional().nullable(),
+    import_id: z.guid().optional(),
+    import_row_id: z.guid().optional(),
+    split_payment_group_id: z.guid().optional().nullable(),
     // Email import tracking (Phase 17)
-    email_import_id: z.string().uuid().optional(),
-    email_transaction_id: z.string().uuid().optional(),
+    email_import_id: z.guid().optional(),
+    email_transaction_id: z.guid().optional(),
     // Unified Expenditure Engine: Verification fields
     is_verified: z.boolean().optional(),
-    bank_row_id: z.string().uuid().optional(),
+    bank_row_id: z.guid().optional(),
 })
 
 export type CreatePaymentInput = z.infer<typeof extendedPaymentSchema>
@@ -75,6 +76,8 @@ export async function createPaymentCore(
         }
     }
 
+    const chargeCategory = result.data.charge_category || DEFAULT_CHARGE_CATEGORY
+
     // Check for duplicates
     const { checkDuplicateGuardrail } = await import('@/lib/matching/duplicate-matcher');
     const dupResult = await checkDuplicateGuardrail({
@@ -110,6 +113,9 @@ export async function createPaymentCore(
         is_verified: isVerified,
         verified_at: isVerified ? new Date().toISOString() : null,
         bank_row_id: bankRowId,
+        charge_category: chargeCategory,
+        paid_by_resident_id: result.data.paid_by_resident_id || null,
+        paid_by_name: result.data.paid_by_name?.trim() || null,
     }).select().single()
 
     if (error) {
@@ -127,6 +133,7 @@ export async function createPaymentCore(
             batchAmount: result.data.amount,
             batchType: 'payment_received',
             creditAmount: result.data.amount,
+            chargeCategory,
         },
     )
     if (allocateResult.success && allocateResult.invoicesPaid > 0) {
@@ -166,6 +173,9 @@ export async function createPaymentCore(
             reference_number: result.data.reference_number,
             from_import: !!result.data.import_id,
             is_split_payment: !!result.data.split_payment_group_id,
+            charge_category: chargeCategory,
+            paid_by_resident_id: result.data.paid_by_resident_id || null,
+            paid_by_name: result.data.paid_by_name?.trim() || null,
         },
     })
 

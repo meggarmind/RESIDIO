@@ -6,6 +6,7 @@ interface WhatsAppStatementEmailProps {
   estateEmail?: string;
   estatePhone?: string;
   estateAddress?: string;
+  estateLogoUrl?: string;
   residentName: string;
   propertyLabel: string;
   periodLabel: string;
@@ -19,6 +20,7 @@ export function WhatsAppStatementEmail({
   estateEmail,
   estatePhone,
   estateAddress,
+  estateLogoUrl,
   residentName,
   propertyLabel,
   periodLabel,
@@ -32,6 +34,7 @@ export function WhatsAppStatementEmail({
       estateEmail={estateEmail}
       estatePhone={estatePhone}
       estateAddress={estateAddress}
+      estateLogoUrl={estateLogoUrl}
     >
       <Heading style={heading}>Your account statement</Heading>
 

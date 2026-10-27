@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   canPerformWhatsAppFinancialLookup,
   composeOweAnswer,
+  nextPaymentDueDate,
   composeRecentPaymentsAnswer,
   composeWalletAnswer,
   createSupabaseWhatsAppFinancialRepository,
@@ -94,6 +95,7 @@ function statementData(rows: number): AccountStatementData {
     closingBalance: 510000,
     summary: { totalInvoiced: 0, totalPaid: 0, totalCredits: 0, totalDebits: 0, netChange: 0 },
     transactions: Array.from({ length: rows }, (_, index) => ({ id: `t${index}`, date: '2026-10-01', type: 'invoice' as const, description: 'x', reference: null, debit: 1, credit: 0, balance: 1 })),
+    categories: [],
     generatedAt: '2026-10-20T10:00:00Z',
     generatedBy: null,
   };
@@ -147,6 +149,7 @@ function repository(houses: FinancialHouse[] = [PALM], overrides: Partial<WhatsA
     createCoResidentLinkCode: vi.fn().mockResolvedValue(null),
     getStatementPeriods: vi.fn().mockResolvedValue(['this_month', 'this_year', 'last_six_months', 'last_twelve_months', 'all_time', 'since_move_in']),
     getEstateName: vi.fn().mockResolvedValue('Palm Estate'),
+    getAssistantName: vi.fn().mockResolvedValue('Palm Estate Assistant'),
     loadStatement: vi.fn().mockResolvedValue({ fromDate: '2026-10-01', toDate: '2026-10-20', statement: statementData(3) }),
     storeStatementPdf: vi.fn().mockResolvedValue('https://storage.test/signed/statement.pdf'),
     getResidentEmail: vi.fn().mockResolvedValue('ada.example@gmail.com'),
@@ -175,10 +178,14 @@ async function chat(
   options: Partial<WhatsAppFinancialHandlerOptions> = {}
 ): Promise<string[]> {
   const send = vi.fn().mockResolvedValue({ success: true });
+  const replies: string[] = [];
   for (const text of texts) {
+    send.mockClear();
     await handleFinancialMessage(message(text), who, { repository: repo, optedIn: true, send, ...options });
+    // A final answer and its menu are two messages (#1179); join them so a test reads one reply per inbound text.
+    replies.push(...(send.mock.calls.length ? [send.mock.calls.map((call) => call[0].body as string).join('\n\n')] : []));
   }
-  return send.mock.calls.map((call) => call[0].body as string);
+  return replies;
 }
 
 const MAIN_MENU = [
@@ -205,6 +212,11 @@ const FINANCIAL_MENU = [
   FOOTER,
 ].join('\n');
 
+/** A final answer ends with a blank line and the Financial menu (#1164). */
+// No property is selected after an all-properties summary, so the menu has no property-specific lines.
+const ALL_PROPERTIES_MENU = FINANCIAL_MENU.replace('8. Link a co-resident\n', '');
+const thenMenu = (...lines: string[]) => `${lines.join('\n')}\n\n${FINANCIAL_MENU}`;
+
 describe('WhatsApp Assistant menus (#804 harmonised)', () => {
   it('greets a single-house resident and walks Financial standing to What I owe and back', async () => {
     const repo = repository();
@@ -212,7 +224,7 @@ describe('WhatsApp Assistant menus (#804 harmonised)', () => {
 
     expect(replies[0]).toBe(MAIN_MENU);
     expect(replies[1]).toBe(FINANCIAL_MENU);
-    expect(replies[2]).toBe([
+    expect(replies[2]).toBe(thenMenu(
       '*What you owe, 12 Palm Close*',
       'Outstanding: ₦125,000.00',
       'Overdue: ₦75,000.00 across 2 invoices (oldest due 1 Aug 2026)',
@@ -221,8 +233,7 @@ describe('WhatsApp Assistant menus (#804 harmonised)', () => {
       'Next due: ₦50,000.00 on 1 Nov 2026, Security dues, NOV 2026 (invoice INV-2026-0412)',
       'Awaiting verification: ₦25,000.00',
       'Reply PAY for how to pay',
-      FOOTER,
-    ].join('\n'));
+    ));
     // 0 goes back one level: answer to Financial standing, then to the main menu.
     expect(replies[3]).toBe(FINANCIAL_MENU);
     expect(replies[4]).toBe(MAIN_MENU);
@@ -244,7 +255,7 @@ describe('WhatsApp Assistant menus (#804 harmonised)', () => {
     const repo = repository();
     const replies = await chat(repo, ['wallet', 'payments', 'arrears', 'pay']);
 
-    expect(replies[0]).toBe(['*Wallet*', 'Balance: ₦15,000.00', FOOTER].join('\n'));
+    expect(replies[0]).toBe(thenMenu('*Wallet*', 'Balance: ₦15,000.00'));
     expect(replies[1]).toContain('*Recent payments, 12 Palm Close*');
     expect(replies[2]).toContain('*What you owe, 12 Palm Close*');
     expect(replies[3]).toBe(['*How to pay*', 'Pay into Palm Estate, account 0123456789.', FOOTER].join('\n'));
@@ -518,7 +529,7 @@ describe('WhatsApp Assistant statement (#804 decisions 22-23)', () => {
 
     expect(replies[0]).toBe(['Which period?', '1. This month', '2. This year', '3. Last 6 months', '4. Last 12 months', '5. All time', '6. Since move-in', 'Reply with the period number.'].join('\n'));
     expect(repo.loadStatement).toHaveBeenCalledWith('resident-1', 'house-1', 'last_six_months', expect.any(Date));
-    expect(replies[1]).toBe(['*Statement, last 6 months, 12 Palm Close*', '1 Oct 2026 to 20 Oct 2026', 'Your PDF is attached.', FOOTER].join('\n'));
+    expect(replies[1]).toBe(thenMenu('*Statement, last 6 months, 12 Palm Close*', '1 Oct 2026 to 20 Oct 2026', 'Your PDF is attached.'));
     expect(repo.logDisclosure).toHaveBeenCalledWith(expect.objectContaining({ menuItem: 'statement', houseId: 'house-1', channel: 'pdf' }));
   });
 
@@ -539,7 +550,7 @@ describe('WhatsApp Assistant statement (#804 decisions 22-23)', () => {
     const send = vi.fn().mockResolvedValue({ success: true });
     for (const text of ['statement', '6']) await handleFinancialMessage(message(text), identity, { repository: repo, optedIn: true, send });
 
-    expect(send.mock.calls[1][0].body).toBe(['*Statement, 12 Palm Close*', '3 Feb 2025 (move-in) to 20 Oct 2026', 'Your PDF is attached.', FOOTER].join('\n'));
+    expect(send.mock.calls[1][0].body).toBe(['*Statement, 12 Palm Close*', '3 Feb 2025 (move-in) to 20 Oct 2026', 'Your PDF is attached.'].join('\n'));
     expect(repo.logDisclosure).toHaveBeenCalledWith(expect.objectContaining({ metadata: { period: 'since_move_in', row_count: 0 } }));
   });
 
@@ -571,33 +582,47 @@ describe('WhatsApp Assistant statement (#804 decisions 22-23)', () => {
 describe('WhatsApp Assistant answers (#804 decisions 20, 21, 28)', () => {
   it('shows empty and paid-up states for What I owe', () => {
     const none: OwedFigures = { invoiceCount: 0, outstanding: 0, overdue: null, next: null, awaitingVerification: 0 };
-    expect(composeOweAnswer(none, '12 Palm Close', true, true)).toBe(['*What you owe, 12 Palm Close*', 'No bills on record for 12 Palm Close.', FOOTER].join('\n'));
-    expect(composeOweAnswer({ ...none, invoiceCount: 4, awaitingVerification: 5000 }, '12 Palm Close', true, true)).toBe([
+    expect(composeOweAnswer(none, '12 Palm Close', true)).toBe(['*What you owe, 12 Palm Close*', 'No bills on record for 12 Palm Close.'].join('\n'));
+    expect(composeOweAnswer({ ...none, invoiceCount: 4, awaitingVerification: 5000 }, '12 Palm Close', true)).toBe([
       '*What you owe, 12 Palm Close*',
-      "You're fully paid up for 12 Palm Close.",
+      'You are fully paid up for 12 Palm Close.',
       'Awaiting verification: ₦5,000.00',
-      FOOTER,
+    ].join('\n'));
+    expect(composeOweAnswer({ ...none, invoiceCount: 4, nextPaymentDue: '2027-01-01' }, '12 Palm Close', true)).toBe([
+      '*What you owe, 12 Palm Close*',
+      'You are fully paid up for 12 Palm Close.',
+      'Next payment due Jan 2027',
     ].join('\n'));
   });
 
+  it('dates the next payment to the first month that payments and wallet credit do not cover', () => {
+    expect(nextPaymentDueDate('2026-10-01', '2026-10-27', 0)).toBe('2026-11-01');
+    // KOA-18A: paid to Oct 2026, wallet covers Nov and Dec.
+    expect(nextPaymentDueDate('2026-10-01', '2026-10-27', 2)).toBe('2027-01-01');
+    // Prepaid ahead: the latest billed period is in the future.
+    expect(nextPaymentDueDate('2027-03-01', '2026-10-27', 0)).toBe('2027-04-01');
+    // Billing stopped: never a past month.
+    expect(nextPaymentDueDate('2026-06-01', '2026-10-27', 1)).toBe('2026-11-01');
+    expect(nextPaymentDueDate('2026-12-01', '2026-12-05', 0)).toBe('2027-01-01');
+  });
+
   it('omits the overdue and next-due lines when there are none', () => {
-    const body = composeOweAnswer({ ...OWED, overdue: null, next: null, awaitingVerification: 0 }, '12 Palm Close', false, false);
-    expect(body).toBe(['*What you owe, 12 Palm Close*', 'Outstanding: ₦125,000.00', 'Reply 0 for menu.'].join('\n'));
+    const body = composeOweAnswer({ ...OWED, overdue: null, next: null, awaitingVerification: 0 }, '12 Palm Close', false);
+    expect(body).toBe(['*What you owe, 12 Palm Close*', 'Outstanding: ₦125,000.00'].join('\n'));
   });
 
   it('lists recent payments with method, masked reference and verification tag', () => {
     const body = composeRecentPaymentsAnswer([
       { amount: 50000, payment_date: '2026-10-12', method: 'bank_transfer', reference_number: 'FT2610123456', is_verified: true },
       { amount: 20000, payment_date: '2026-09-01T10:00:00Z', method: null, reference_number: null, is_verified: false },
-    ], '12 Palm Close', true);
+    ], '12 Palm Close');
 
     expect(body).toBe([
       '*Recent payments, 12 Palm Close*',
       '1. 12 Oct 2026  ₦50,000.00  bank transfer  ref ••••3456',
       '2. 1 Sep 2026  ₦20,000.00  payment  (awaiting verification)',
-      FOOTER,
     ].join('\n'));
-    expect(composeRecentPaymentsAnswer([], '12 Palm Close', true)).toContain('No payments recorded for 12 Palm Close.');
+    expect(composeRecentPaymentsAnswer([], '12 Palm Close')).toContain('No payments recorded for 12 Palm Close.');
   });
 });
 
@@ -901,13 +926,15 @@ describe('WhatsApp What I owe figures (#811, #804 decision 20)', () => {
   type InvoiceRow = { invoice_number: string; amount_due: number; amount_paid: number; due_date: string; status?: string; invoice_type?: string; period_start?: string; billing_profile?: { name: string } | null };
 
   /** Behaves like PostgREST per table: applies filters, caps a response at max_rows (1000), counts for head selects. */
-  function mockTables(rows: InvoiceRow[], unverifiedPayments: number[] = []) {
+  function mockTables(rows: InvoiceRow[], unverifiedPayments: number[] = [], walletBalance: number | null = null) {
     const all = rows.map((row) => ({ status: row.amount_paid >= row.amount_due ? 'paid' : 'unpaid', ...row }));
     const from = vi.fn((table: string) => {
       let filtered = [...all];
       let head = false;
       const result = () => table === 'payment_records'
         ? { data: unverifiedPayments.map((amount) => ({ amount })), error: null }
+        : table === 'resident_wallets'
+          ? { data: walletBalance === null ? [] : [{ balance: walletBalance }], error: null }
         : head
           ? { count: filtered.length, data: null, error: null }
           : { data: filtered.slice(0, 1000), error: null };
@@ -926,6 +953,15 @@ describe('WhatsApp What I owe figures (#811, #804 decision 20)', () => {
           return chain;
         }),
         order: vi.fn(() => chain),
+        not: vi.fn((column: 'period_start') => {
+          filtered = filtered.filter((row) => row[column] != null);
+          return chain;
+        }),
+        limit: vi.fn(() => chain),
+        maybeSingle: vi.fn(async () => ({
+          data: [...filtered].sort((a, b) => String(b.period_start).localeCompare(String(a.period_start)))[0] ?? null,
+          error: null,
+        })),
         then: (resolve: (value: unknown) => unknown) => resolve(result()),
       };
       return chain;
@@ -957,7 +993,8 @@ describe('WhatsApp What I owe figures (#811, #804 decision 20)', () => {
     const statusFilters: Array<{ table: string; values: string[] }> = [];
     const from = vi.fn((table: string) => {
       const chain: Record<string, unknown> = {};
-      for (const op of ['select', 'eq', 'neq', 'order']) chain[op] = vi.fn(() => chain);
+      for (const op of ['select', 'eq', 'neq', 'not', 'order', 'limit']) chain[op] = vi.fn(() => chain);
+      chain.maybeSingle = vi.fn(async () => ({ data: null, error: null }));
       chain.in = vi.fn((column: string, values: string[]) => {
         if (column === 'status') statusFilters.push({ table, values });
         return chain;
@@ -1030,6 +1067,85 @@ describe('WhatsApp What I owe figures (#811, #804 decision 20)', () => {
     const owed = await createSupabaseWhatsAppFinancialRepository().getOwed('resident-1', 'house-1');
 
     expect(owed).toMatchObject({ invoiceCount: 30, outstanding: 0, overdue: null, next: null });
+    expect(owed.nextPaymentDue).toBeUndefined();
+  });
+
+  it('dates the next payment after the latest billed period when every invoice is paid', async () => {
+    mockTables([
+      { invoice_number: 'INV-SEP', amount_due: 5000, amount_paid: 5000, due_date: '2026-10-01', invoice_type: 'SERVICE_CHARGE', period_start: '2026-09-01' },
+      { invoice_number: 'INV-OCT', amount_due: 5000, amount_paid: 5000, due_date: '2026-10-31', invoice_type: 'SERVICE_CHARGE', period_start: '2026-10-01' },
+    ]);
+
+    const owed = await createSupabaseWhatsAppFinancialRepository().getOwed('resident-1', 'house-1');
+
+    expect(owed).toMatchObject({ outstanding: 0, next: null, nextPaymentDue: '2026-11-01' });
+  });
+
+  it('moves the next payment past the months the wallet credit covers', async () => {
+    mockTables([
+      { invoice_number: 'INV-OCT', amount_due: 10000, amount_paid: 10000, due_date: '2026-10-31', invoice_type: 'SERVICE_CHARGE', period_start: '2026-10-01' },
+    ], [], 25000);
+
+    const owed = await createSupabaseWhatsAppFinancialRepository().getOwed('resident-1', 'house-1');
+
+    expect(owed).toMatchObject({ outstanding: 0, nextPaymentDue: '2027-01-01' });
+  });
+});
+
+describe('WhatsApp Assistant ends a final answer with the menu as its own message (#1164, #1179)', () => {
+  it('lets the next item number follow an answer with no 0 in between', async () => {
+    const replies = await chat(repository(), ['hi', '1', '1', '2', '3']);
+    expect(replies[2]).toMatch(/^\*What you owe, 12 Palm Close\*[\s\S]*\n\nFinancial standing\n1\. What I owe/);
+    expect(replies[3]).toMatch(/^\*Recent payments, 12 Palm Close\*/);
+    expect(replies[4]).toContain('1. This month');
+  });
+
+  it('keeps the selected property heading and the switch line in the menu a multi-house resident sees', async () => {
+    const replies = await chat(repository([PALM, CEDAR]), ['payments', '2']);
+    expect(replies[1]).toContain('\n\nFinancial standing: 4 Cedar Way\n');
+    expect(replies[1]).toContain('10. Switch property (now: 4 Cedar Way)');
+  });
+
+  it('adds no menu to a reply that asks for input', async () => {
+    const replies = await chat(repository(), ['statement', 'report']);
+    for (const reply of replies) expect(reply).not.toContain('Financial standing');
+  });
+
+  it('still honours 0 after an answer', async () => {
+    const replies = await chat(repository(), ['1', '1', '0']);
+    expect(replies[2]).toMatch(/^Financial standing\n/);
+  });
+
+  it('sends the answer and the menu as two messages, in order, saving the session at answer (#1179)', async () => {
+    const repo = repository();
+    const send = vi.fn().mockResolvedValue({ success: true });
+    for (const text of ['hi', '1']) await handleFinancialMessage(message(text), identity, { repository: repo, optedIn: true, send });
+    send.mockClear();
+    await handleFinancialMessage(message('1'), identity, { repository: repo, optedIn: true, send });
+
+    expect(send).toHaveBeenCalledTimes(2);
+    const [answer, menu] = send.mock.calls.map((call) => call[0]);
+    expect(answer.body).toMatch(/^\*What you owe, 12 Palm Close\*/);
+    expect(answer.body).not.toContain('Financial standing\n');
+    expect(menu.body).toBe(FINANCIAL_MENU);
+    expect(vi.mocked(repo.saveSession).mock.calls.at(-1)![0].currentNode).toBe('answer');
+  });
+
+  it('sends no menu when the answer send fails (#1179)', async () => {
+    const repo = repository();
+    const send = vi.fn().mockResolvedValue({ success: false, error: 'down' });
+    await expect(handleFinancialMessage(message('owe'), identity, { repository: repo, optedIn: true, send })).rejects.toThrow('down');
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('still saves the session at answer when the menu send fails (#1179)', async () => {
+    const repo = repository();
+    const send = vi.fn().mockResolvedValueOnce({ success: true }).mockResolvedValueOnce({ success: true }).mockResolvedValueOnce({ success: true }).mockResolvedValue({ success: false, error: 'down' });
+    for (const text of ['hi', '1']) await handleFinancialMessage(message(text), identity, { repository: repo, optedIn: true, send });
+    send.mockReset().mockResolvedValueOnce({ success: true }).mockResolvedValue({ success: false, error: 'down' });
+    await expect(handleFinancialMessage(message('1'), identity, { repository: repo, optedIn: true, send })).rejects.toThrow('down');
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(repo.saveSession).mock.calls.at(-1)![0].currentNode).toBe('answer');
   });
 });
 
@@ -1038,7 +1154,6 @@ describe('WhatsApp statement PDF delivery (#804 decision 24, #917)', () => {
     '*Statement, this month, 12 Palm Close*',
     '1 Oct 2026 to 20 Oct 2026',
     'Your PDF is attached.',
-    FOOTER,
   ].join('\n');
   const long = () => ({ loadStatement: vi.fn().mockResolvedValue({ fromDate: '2026-10-01', toDate: '2026-10-20', statement: statementData(41) }) });
 
@@ -1050,6 +1165,7 @@ describe('WhatsApp statement PDF delivery (#804 decision 24, #917)', () => {
     await handleFinancialMessage(choice, identity, { repository: repo, optedIn: true, send });
 
     expect(send.mock.calls[1][0]).toMatchObject({ body: PDF_TEXT, mediaUrls: ['https://storage.test/signed/statement.pdf'] });
+    expect(send.mock.calls[2][0]).toMatchObject({ body: FINANCIAL_MENU });
     expect(repo.loadStatement).toHaveBeenCalledWith('resident-1', 'house-1', 'this_month', expect.any(Date));
     expect(repo.storeStatementPdf).toHaveBeenCalledWith(
       expect.objectContaining({ residentId: 'resident-1', houseId: 'house-1', period: 'this_month', fromDate: '2026-10-01', toDate: '2026-10-20', rowCount: 40, inboundMessageId: choice.id, replyText: PDF_TEXT }),
@@ -1065,7 +1181,7 @@ describe('WhatsApp statement PDF delivery (#804 decision 24, #917)', () => {
 
     expect(replies[1]).toBe(['*Statement, this month, 12 Palm Close*', '1 Oct 2026 to 20 Oct 2026', 'This statement is too long for chat. Send the PDF to a***@gmail.com? Reply 1 Yes, 2 No.'].join('\n'));
     expect(repo.storeStatementPdf).not.toHaveBeenCalled();
-    expect(replies[2]).toBe(['*Statement, this month, 12 Palm Close*', '1 Oct 2026 to 20 Oct 2026', 'Your PDF is queued for a***@gmail.com. It will arrive within 15 minutes.', FOOTER].join('\n'));
+    expect(replies[2]).toBe(thenMenu('*Statement, this month, 12 Palm Close*', '1 Oct 2026 to 20 Oct 2026', 'Your PDF is queued for a***@gmail.com. It will arrive within 15 minutes.'));
     expect(repo.createStatementRequest).toHaveBeenCalledWith(expect.objectContaining({ status: 'queued', rowCount: 41, houseId: 'house-1' }));
     expect(repo.queueStatementEmail).toHaveBeenCalledWith('request-1', 'resident-1', 'ada.example@gmail.com');
     expect(vi.mocked(repo.logDisclosure).mock.calls.map((call) => call[0].channel)).toEqual(['email']);
@@ -1075,7 +1191,7 @@ describe('WhatsApp statement PDF delivery (#804 decision 24, #917)', () => {
     const repo = repository([PALM], long());
     const replies = await chat(repo, ['statement', '1', '2']);
 
-    expect(replies[2]).toBe(`Nothing was sent.\n${FOOTER}`);
+    expect(replies[2]).toBe(thenMenu('Nothing was sent.'));
     expect(repo.queueStatementEmail).not.toHaveBeenCalled();
     expect(repo.logDisclosure).not.toHaveBeenCalled();
   });
@@ -1084,7 +1200,7 @@ describe('WhatsApp statement PDF delivery (#804 decision 24, #917)', () => {
     const repo = repository([PALM], { ...long(), getResidentEmail: vi.fn().mockResolvedValue(null) });
     const replies = await chat(repo, ['statement', '1']);
 
-    expect(replies[1]).toBe(`We don't have an email for you. Reply EMAIL to add one now.\n${CONTACT}\n${FOOTER}`);
+    expect(replies[1]).toBe(thenMenu("We don't have an email for you. Reply EMAIL to add one now.", CONTACT));
     expect(repo.createStatementRequest).toHaveBeenCalledWith(expect.objectContaining({ status: 'awaiting_email', rowCount: 41 }));
     expect(repo.queueStatementEmail).not.toHaveBeenCalled();
     // Nothing has left the estate yet, so nothing is logged.
@@ -1493,9 +1609,10 @@ describe('WhatsApp Assistant receipts (#816 decision 14)', () => {
       FOOTER,
     ].join('\n'));
     expect(repo.loadReceipt).toHaveBeenCalledWith('resident-1', 'house-1', 'payment-1');
-    const body = ['*Receipt, 12 Palm Close*', '₦50,000.00 on 12 Oct 2026. Your PDF is attached.', FOOTER].join('\n');
+    const body = ['*Receipt, 12 Palm Close*', '₦50,000.00 on 12 Oct 2026. Your PDF is attached.'].join('\n');
     expect(repo.storeReceiptPdf).toHaveBeenCalledWith({ residentId: 'resident-1', phoneNumber: '+2348000000000', houseId: 'house-1', inboundMessageId: expect.any(String), replyText: body }, RECEIPT);
     expect(send.mock.calls[1][0]).toMatchObject({ body, mediaUrls: ['https://storage.test/signed/receipt.pdf'] });
+    expect(send.mock.calls[2][0]).toMatchObject({ body: FINANCIAL_MENU });
   });
 
   it('logs the list and the PDF as disclosures, the PDF before the file exists', async () => {
@@ -1512,7 +1629,7 @@ describe('WhatsApp Assistant receipts (#816 decision 14)', () => {
     const repo = receiptRepo();
     const replies = await chat(repo, ['receipt', '2']);
 
-    expect(replies[1]).toBe(`A receipt is available once this payment is verified.\n${FOOTER}`);
+    expect(replies[1]).toBe(thenMenu('A receipt is available once this payment is verified.'));
     expect(repo.loadReceipt).not.toHaveBeenCalled();
     expect(repo.storeReceiptPdf).not.toHaveBeenCalled();
   });
@@ -1520,7 +1637,7 @@ describe('WhatsApp Assistant receipts (#816 decision 14)', () => {
   it('gives the same answer when a payment listed as verified is no longer verified', async () => {
     const repo = receiptRepo({ loadReceipt: vi.fn().mockResolvedValue(null) });
     const replies = await chat(repo, ['receipt', '1']);
-    expect(replies[1]).toBe(`A receipt is available once this payment is verified.\n${FOOTER}`);
+    expect(replies[1]).toBe(thenMenu('A receipt is available once this payment is verified.'));
     expect(repo.storeReceiptPdf).not.toHaveBeenCalled();
   });
 
@@ -1533,7 +1650,7 @@ describe('WhatsApp Assistant receipts (#816 decision 14)', () => {
 
   it('says so when there are no payments', async () => {
     const replies = await chat(repository(), ['receipt']);
-    expect(replies[0]).toBe(`*Receipts, 12 Palm Close*\nNo payments recorded for 12 Palm Close.\n${FOOTER}`);
+    expect(replies[0]).toBe(thenMenu('*Receipts, 12 Palm Close*', 'No payments recorded for 12 Palm Close.'));
   });
 
   it('counts toward the daily caps: no list and no file when the resident is capped', async () => {
@@ -1581,12 +1698,11 @@ describe('WhatsApp Assistant clearance certificate (#816 decision 15)', () => {
     const repo = repository();
     const replies = await chat(repo, ['clearance']);
 
-    expect(replies[0]).toBe([
+    expect(replies[0]).toBe(thenMenu(
       '*Clearance certificate, 12 Palm Close*',
       'You owe ₦125,000.00 on 12 Palm Close, so a certificate cannot be requested yet.',
       'Reply PAY for how to pay',
-      FOOTER,
-    ].join('\n'));
+    ));
     expect(repo.requestClearance).not.toHaveBeenCalled();
   });
 
@@ -1595,11 +1711,10 @@ describe('WhatsApp Assistant clearance certificate (#816 decision 15)', () => {
     const replies = await chat(repo, ['1', '7']);
 
     expect(repo.requestClearance).toHaveBeenCalledWith({ residentId: 'resident-1', residentName: 'Ada Example', houseId: 'house-1', houseLabel: '12 Palm Close' });
-    expect(replies[1]).toBe([
+    expect(replies[1]).toBe(thenMenu(
       '*Clearance certificate, 12 Palm Close*',
       'Your clearance certificate request for 12 Palm Close was sent to the estate office. The certificate will be sent here once it is approved.',
-      FOOTER,
-    ].join('\n'));
+    ));
   });
 
   it('says so when a request for the property is already waiting', async () => {
@@ -1614,12 +1729,11 @@ describe('WhatsApp Assistant clearance certificate (#816 decision 15)', () => {
     const replies = await chat(repo, ['clearance'], tenant);
 
     expect(repo.requestClearance).toHaveBeenCalledWith(expect.objectContaining({ residentId: 'resident-2', houseId: 'house-1' }));
-    expect(replies[0]).toBe([
+    expect(replies[0]).toBe(thenMenu(
       '*Clearance certificate, 12 Palm Close*',
       'A clearance certificate request for 12 Palm Close is already waiting for approval. Nothing new was sent.',
       CONTACT,
-      FOOTER,
-    ].join('\n'));
+    ));
     expect(replies[0]).not.toMatch(/your (clearance|request)/i);
   });
 
@@ -1665,7 +1779,7 @@ describe('WhatsApp Assistant clearance certificate (#816 decision 15)', () => {
 });
 
 describe('WhatsApp Assistant satisfaction survey (#872)', () => {
-  const ASK = ['How was Residio Assistant today?', '1. Good', '2. Okay', '3. Poor'].join('\n');
+  const ASK = ['How was Palm Estate Assistant today?', '1. Good', '2. Okay', '3. Poor'].join('\n');
   const REASONS = [
     'Sorry about that. What went wrong?',
     '1. Too slow',
@@ -1688,6 +1802,12 @@ describe('WhatsApp Assistant satisfaction survey (#872)', () => {
     expect(repo.answerSurvey).toHaveBeenCalledWith('resident-1', 'survey-1', { score: 'good' });
     expect(replies[2]).toBe(`Thanks for the feedback.\n${FOOTER}`);
     expect(repo.saveSession).toHaveBeenLastCalledWith(expect.objectContaining({ currentNode: 'main', draft: null }));
+  });
+
+  it('names the Assistant from the repository in the survey question', async () => {
+    const repo = due({ getAssistantName: vi.fn().mockResolvedValue('Ada') });
+    const replies = await chat(repo, ['wallet', 'thanks']);
+    expect(replies[1]).toBe(ASK.replace('Palm Estate Assistant', 'Ada'));
   });
 
   it('stores an Okay score', async () => {
@@ -1732,7 +1852,7 @@ describe('WhatsApp Assistant satisfaction survey (#872)', () => {
 
     expect(repo.askSurvey).toHaveBeenCalledTimes(1);
     expect(replies[1]).toBe(UNRECOGNISED);
-    expect(replies.join('\n')).not.toContain('How was Residio Assistant today?');
+    expect(replies.join('\n')).not.toContain('How was Palm Estate Assistant today?');
   });
 
   it('asks nothing for a thank-you that is not right after a financial answer', async () => {
@@ -1740,7 +1860,7 @@ describe('WhatsApp Assistant satisfaction survey (#872)', () => {
     const replies = await chat(repo, ['hi', 'thanks', 'wallet', 'hi', 'thanks']);
 
     expect(repo.askSurvey).not.toHaveBeenCalled();
-    expect(replies.join('\n')).not.toContain('How was Residio Assistant today?');
+    expect(replies.join('\n')).not.toContain('How was Palm Estate Assistant today?');
   });
 
   it('asks nothing after an answer that is not a success: an amount owed on a clearance, a capped lookup, no receipt', async () => {
@@ -1818,7 +1938,7 @@ describe('WhatsApp Assistant satisfaction survey (#872)', () => {
     vi.useRealTimers();
 
     expect(repo.askSurvey).not.toHaveBeenCalled();
-    expect(replies[4]).not.toContain('How was Residio Assistant today?');
+    expect(replies[4]).not.toContain('How was Palm Estate Assistant today?');
   });
 
   it('asks after an accepted clearance request, and not when one is already waiting', async () => {
@@ -1899,12 +2019,12 @@ describe('What I owe roll-forward balance (#863)', () => {
 
   it('signs the roll-forward balance: owed, in credit, or Nil, never floored at zero', () => {
     const base: OwedFigures = { invoiceCount: 0, outstanding: 0, rollForward: true, overdue: null, next: null, awaitingVerification: 0 };
-    expect(composeOweAnswer({ ...base, outstanding: -60000 }, '12 Palm Close', true, true)).toBe(
-      ['*What you owe, 12 Palm Close*', 'Outstanding: ₦60,000.00 in credit', FOOTER].join('\n'));
-    expect(composeOweAnswer({ ...base, outstanding: 0, invoiceCount: 2 }, '12 Palm Close', true, true)).toBe(
-      ['*What you owe, 12 Palm Close*', 'Outstanding: Nil', FOOTER].join('\n'));
-    expect(composeOweAnswer({ ...base, outstanding: 1250.5, invoiceCount: 1, awaitingVerification: 300 }, '12 Palm Close', true, true)).toBe(
-      ['*What you owe, 12 Palm Close*', 'Outstanding: ₦1,250.50 owed', 'Awaiting verification: ₦300.00', 'Reply PAY for how to pay', FOOTER].join('\n'));
+    expect(composeOweAnswer({ ...base, outstanding: -60000 }, '12 Palm Close', true)).toBe(
+      ['*What you owe, 12 Palm Close*', 'Outstanding: ₦60,000.00 in credit'].join('\n'));
+    expect(composeOweAnswer({ ...base, outstanding: 0, invoiceCount: 2 }, '12 Palm Close', true)).toBe(
+      ['*What you owe, 12 Palm Close*', 'Outstanding: Nil'].join('\n'));
+    expect(composeOweAnswer({ ...base, outstanding: 1250.5, invoiceCount: 1, awaitingVerification: 300 }, '12 Palm Close', true)).toBe(
+      ['*What you owe, 12 Palm Close*', 'Outstanding: ₦1,250.50 owed', 'Awaiting verification: ₦300.00', 'Reply PAY for how to pay'].join('\n'));
   });
 });
 
@@ -1955,7 +2075,7 @@ describe('ending the session with an exit word (#1069)', () => {
     phoneNumber: '+2348000000000', residentId: 'resident-1', currentNode, selectedHouseId: 'house-1', pinAuthenticated: true,
     expiresAt: new Date(Date.now() + 600_000).toISOString(), draft: { houseId: 'house-1', amount: 5000 }, ...over,
   });
-  const THANKS = 'Thank you for using the Palm Estate Assistant. Your session has ended. Your PIN is locked. Send HI at any time to start again.';
+  const THANKS = 'Thank you for using Palm Estate Assistant. Your session has ended. Your PIN is locked. Send HI at any time to start again.';
 
   it.each(['exit', 'end', 'close', 'bye', 'goodbye', 'quit', ' QUIT ', 'Goodbye'])('%s ends an unlocked session in the main menu', async (word) => {
     const repo = repository();
@@ -1965,6 +2085,13 @@ describe('ending the session with an exit word (#1069)', () => {
     const saved = vi.mocked(repo.saveSession).mock.calls.at(-1)![0];
     expect(saved).toMatchObject({ pinAuthenticated: false, draft: null });
     expect(Date.parse(saved.expiresAt)).toBeLessThanOrEqual(Date.now());
+  });
+
+  it('names the Assistant from the repository when the session ends', async () => {
+    const repo = repository([PALM], { getAssistantName: vi.fn().mockResolvedValue('Ada') });
+    repo.setStoredSession(stored('main'));
+    const replies = await chat(repo, ['bye']);
+    expect(replies).toEqual([THANKS.replace('Palm Estate Assistant', 'Ada')]);
   });
 
   it('ends a session inside the free-text report reference step and drops the draft', async () => {
@@ -2031,14 +2158,14 @@ describe('WhatsApp Assistant several houses (#1073)', () => {
     const repo = twoHouseRepo({ getOwed: vi.fn(async (_resident: string, house: string) => (house === 'house-1' ? figures(50000, 1000) : figures(25000, 500))) });
     const replies = await chat(repo, ['owe', '3']);
 
-    expect(replies[1]).toBe(['*What you owe, all your properties*', '12 Palm Close: ₦50,000.00', '4 Cedar Way: ₦25,000.00', 'Total: ₦75,000.00', 'Awaiting verification: ₦1,500.00', 'Reply PAY for how to pay', FOOTER].join('\n'));
+    expect(replies[1]).toBe(['*What you owe, all your properties*', '12 Palm Close: ₦50,000.00', '4 Cedar Way: ₦25,000.00', 'Total: ₦75,000.00', 'Awaiting verification: ₦1,500.00', 'Reply PAY for how to pay', '', ALL_PROPERTIES_MENU].join('\n'));
     expect(repo.getOwed).toHaveBeenCalledWith('resident-1', 'house-1');
     expect(repo.getOwed).toHaveBeenCalledWith('resident-1', 'house-2');
   });
 
   it('shows Nil for a paid-up house and no PAY line when nothing is owed', async () => {
     const replies = await chat(twoHouseRepo({ getOwed: vi.fn().mockResolvedValue(figures(0)) }), ['owe', '3']);
-    expect(replies[1]).toBe(['*What you owe, all your properties*', '12 Palm Close: Nil', '4 Cedar Way: Nil', 'Total: Nil', FOOTER].join('\n'));
+    expect(replies[1]).toBe(['*What you owe, all your properties*', '12 Palm Close: Nil', '4 Cedar Way: Nil', 'Total: Nil', '', ALL_PROPERTIES_MENU].join('\n'));
   });
 
   it('totals only what is owed, so a credit on one house never hides a debt on another', async () => {
@@ -2046,7 +2173,7 @@ describe('WhatsApp Assistant several houses (#1073)', () => {
     const repo = twoHouseRepo({ getOwed: vi.fn(async (_resident: string, house: string) => (house === 'house-1' ? rolled(50000) : rolled(-60000))) });
     const replies = await chat(repo, ['owe', '3']);
 
-    expect(replies[1]).toBe(['*What you owe, all your properties*', '12 Palm Close: ₦50,000.00 owed', '4 Cedar Way: ₦60,000.00 in credit', 'Total: ₦50,000.00 owed', 'Reply PAY for how to pay', FOOTER].join('\n'));
+    expect(replies[1]).toBe(['*What you owe, all your properties*', '12 Palm Close: ₦50,000.00 owed', '4 Cedar Way: ₦60,000.00 in credit', 'Total: ₦50,000.00 owed', 'Reply PAY for how to pay', '', ALL_PROPERTIES_MENU].join('\n'));
   });
 
   it('counts one summary as one lookup and writes one disclosure row', async () => {
@@ -2079,8 +2206,8 @@ describe('WhatsApp Assistant several houses (#1073)', () => {
   });
 
   it('labels the wallet as covering every property only when there are several', async () => {
-    expect(composeWalletAnswer(15000, false, true)).toBe(['*Wallet (all your properties)*', 'Balance: ₦15,000.00', 'Reply 0 for menu.'].join('\n'));
-    expect(composeWalletAnswer(15000, false)).toBe(['*Wallet*', 'Balance: ₦15,000.00', 'Reply 0 for menu.'].join('\n'));
+    expect(composeWalletAnswer(15000, true)).toBe(['*Wallet (all your properties)*', 'Balance: ₦15,000.00'].join('\n'));
+    expect(composeWalletAnswer(15000)).toBe(['*Wallet*', 'Balance: ₦15,000.00'].join('\n'));
     expect((await chat(twoHouseRepo(), ['wallet', '1']))[1]).toContain('*Wallet (all your properties)*');
     expect((await chat(repository([PALM]), ['wallet']))[0]).toContain('*Wallet*\n');
   });
@@ -2093,14 +2220,14 @@ describe('WhatsApp Assistant several houses (#1073)', () => {
   });
 
   it('names the charge on the Next due line of a roll-forward balance too', () => {
-    const body = composeOweAnswer({ ...OWED, rollForward: true }, '12 Palm Close', false, false);
+    const body = composeOweAnswer({ ...OWED, rollForward: true }, '12 Palm Close', false);
     expect(body).toContain('- Security dues, AUG 2026: ₦50,000.00');
     expect(body).toContain('Next due: ₦50,000.00 on 1 Nov 2026, Security dues, NOV 2026 (invoice INV-2026-0412)');
   });
 
   it('lists at most five overdue charges and counts the rest', () => {
     const charges = Array.from({ length: 7 }, (_, index) => ({ label: `Security dues, ${index + 1}`, amount: 1000 }));
-    const body = composeOweAnswer({ ...OWED, overdue: { total: 7000, count: 7, oldestDue: '2026-08-01', charges } }, '12 Palm Close', false, false);
+    const body = composeOweAnswer({ ...OWED, overdue: { total: 7000, count: 7, oldestDue: '2026-08-01', charges } }, '12 Palm Close', false);
     expect(body.split('\n').filter((line) => line.startsWith('- '))).toHaveLength(6);
     expect(body).toContain('- and 2 more');
   });
@@ -2113,7 +2240,7 @@ describe('WhatsApp Assistant several houses (#1073)', () => {
     for (const role of ['non_resident_landlord', 'developer']) {
       const repo = repository([{ ...PALM, role }]);
       const replies = await chat(repo, ['clearance']);
-      expect(replies[0]).toBe(`A clearance certificate can only be requested for the property you live in.\n${FOOTER}`);
+      expect(replies[0]).toBe(`A clearance certificate can only be requested for the property you live in.\n\n${FINANCIAL_MENU.replace('8. Link a co-resident\n', '').replace('7. Clearance certificate\n', '')}`);
       expect(repo.requestClearance).not.toHaveBeenCalled();
       expect(repo.logDisclosure).not.toHaveBeenCalled();
     }

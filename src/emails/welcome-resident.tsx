@@ -11,6 +11,7 @@ interface WelcomeResidentEmailProps {
   estateEmail?: string;
   estatePhone?: string;
   estateAddress?: string;
+  estateLogoUrl?: string;
   portalUrl?: string;
   /** Admin-edited wording (merged templates). Omitted means the built-in text. */
   copy?: Record<string, string>;
@@ -25,6 +26,7 @@ export function WelcomeResidentEmail({
   estateEmail,
   estatePhone,
   estateAddress,
+  estateLogoUrl,
   portalUrl,
   copy,
 }: WelcomeResidentEmailProps) {
@@ -41,6 +43,7 @@ export function WelcomeResidentEmail({
       estateEmail={estateEmail}
       estatePhone={estatePhone}
       estateAddress={estateAddress}
+      estateLogoUrl={estateLogoUrl}
     >
       <Heading style={heading}>{text('heading')}</Heading>
 

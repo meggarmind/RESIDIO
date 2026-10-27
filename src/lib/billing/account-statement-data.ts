@@ -1,7 +1,14 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { createAdminClient, createServerSupabaseClient } from '@/lib/supabase/server';
 import type { InvoiceStatus, InvoiceType } from '@/types/database';
-import { buildStatementLedger, type LedgerWalletTransaction } from '@/lib/billing/statement-ledger';
+import { buildStatementLedger, MIRRORED_WALLET_REFERENCES, type LedgerWalletTransaction } from '@/lib/billing/statement-ledger';
 import { fetchAccountBalance, type AccountBalance } from '@/lib/billing/account-balance';
+import {
+    buildCategorySections,
+    buildCollectionsSection,
+    categoryOf,
+    type CollectionPaymentRow,
+} from '@/lib/billing/statement-categories';
 
 type StatementClient = Awaited<ReturnType<typeof createServerSupabaseClient>> | ReturnType<typeof createAdminClient>;
 
@@ -32,6 +39,43 @@ export type StatementTransaction = {
     invoice_status?: InvoiceStatus;
     invoice_type?: InvoiceType;
     period?: string;
+    // Set on a summary line: how many monthly invoices it combines.
+    invoice_count?: number;
+};
+
+export type StatementSummary = {
+    totalInvoiced: number;
+    totalPaid: number;
+    totalCredits: number;
+    totalDebits: number;
+    netChange: number;
+};
+
+/** One wallet category on a statement (#1196): its own opening, running balance and closing. */
+export type CategoryStatementSection = {
+    code: string;
+    name: string;
+    openingBalance: number;
+    closingBalance: number;
+    summary: StatementSummary;
+    transactions: StatementTransaction[];
+};
+
+/** A collection payment the resident made in the period (#1196). It never changes a balance. */
+export type CollectionStatementLine = {
+    id: string;
+    date: string;
+    collection_name: string;
+    receipt_number: string;
+    reference: string | null;
+    quantity: number | null;
+    unit_price: number | null;
+    amount: number;
+};
+
+export type CollectionsStatementSection = {
+    lines: CollectionStatementLine[];
+    total: number;
 };
 
 export type AccountStatementData = {
@@ -61,15 +105,15 @@ export type AccountStatementData = {
     // Closing balance at end of period
     closingBalance: number;
     // Summary totals
-    summary: {
-        totalInvoiced: number;
-        totalPaid: number;
-        totalCredits: number;
-        totalDebits: number;
-        netChange: number;
-    };
-    // Transaction list (chronological)
+    summary: StatementSummary;
+    // Transaction list (chronological), every category together
     transactions: StatementTransaction[];
+    // One section per wallet category with activity or a balance, each with its own running balance (#1196)
+    categories: CategoryStatementSection[];
+    // Collection payments in the period; absent when there are none
+    collections?: CollectionsStatementSection;
+    // Every monthly invoice line, present only when the summary statement asks for the appendix.
+    monthlyDetail?: StatementTransaction[];
     // Generated metadata
     generatedAt: string;
     generatedBy: string | null;
@@ -97,11 +141,13 @@ export type GetAccountStatementResponse = {
  * The admin statement always sets it; resident-facing statements set it only once
  * balance_roll_forward_resident_enabled is on. Without it the statement is built as before #863.
  * Either way, timestamp columns are bounded by the Lagos day (#945).
+ * `mode: 'summary'` folds each run of unpaid monthly invoices into one line (#1144, #1234); balances
+ * and totals are unchanged. The admin statement dialog and WhatsApp ask for it; the default is detailed.
  */
 export async function loadAccountStatement(
     supabase: StatementClient,
     params: GetAccountStatementParams,
-    { rollForward }: { rollForward: boolean }
+    { rollForward, mode = 'detailed', includeMonthlyDetail = false }: { rollForward: boolean; mode?: 'detailed' | 'summary'; includeMonthlyDetail?: boolean }
 ): Promise<GetAccountStatementResponse> {
     const { residentId, houseId, fromDate, toDate } = params;
 
@@ -162,6 +208,7 @@ export async function loadAccountStatement(
             period_start,
             period_end,
             created_at,
+            charge_category,
             billing_profile:billing_profiles(name)
         `)
         .eq('resident_id', residentId)
@@ -181,7 +228,7 @@ export async function loadAccountStatement(
     // 4. Get payments in period
     let paymentQuery = supabase
         .from('payment_records')
-        .select('id, amount, payment_date, reference_number, method, notes')
+        .select('id, amount, payment_date, reference_number, method, notes, charge_category')
         .eq('resident_id', residentId)
         .eq('status', 'paid')
         .gte('payment_date', fromDate)
@@ -202,32 +249,40 @@ export async function loadAccountStatement(
         return { data: null, error: paymentError.message };
     }
 
-    // 5. Get wallet transactions in period; the wallet is not per property, so a roll-forward
-    // statement for one house leaves it out (#863 decision 7).
+    // 5. Get wallet transactions in period, across the resident's wallets (one per charge category,
+    // #1189); a wallet is not per property, so a roll-forward statement for one house leaves them
+    // out (#863 decision 7).
     let walletTransactions: LedgerWalletTransaction[] = [];
+    const walletCategories = new Map<string, string>();
 
     if (!(rollForward && houseId)) {
-        const { data: wallet } = await supabase
+        const { data: wallets } = await supabase
             .from('resident_wallets')
-            .select('id')
-            .eq('resident_id', residentId)
-            .single();
+            .select('id, charge_category')
+            .eq('resident_id', residentId);
 
-        if (wallet) {
+        for (const wallet of wallets || []) walletCategories.set(wallet.id, wallet.charge_category);
+
+        if (wallets && wallets.length > 0) {
             let walletQuery = supabase
                 .from('wallet_transactions')
-                .select('id, type, amount, description, reference_type, reference_id, created_at')
-                .eq('wallet_id', wallet.id);
+                .select('id, wallet_id, type, amount, description, reference_type, reference_id, created_at')
+                .in('wallet_id', wallets.map((wallet) => wallet.id));
             walletQuery = walletQuery.gte('created_at', lagosDayStart(fromDate)).lt('created_at', lagosDayStart(toDate, 1));
             const { data: walletTx } = await walletQuery.order('created_at', { ascending: true });
 
-            walletTransactions = (walletTx || []) as LedgerWalletTransaction[];
+            walletTransactions = (walletTx || []).map((tx) => ({
+                ...tx,
+                charge_category: walletCategories.get(tx.wallet_id) ?? null,
+            })) as LedgerWalletTransaction[];
         }
     }
 
     // 6. Calculate opening balance
     let openingBalance = 0;
     let balance: AccountBalance | null = null;
+    const categoryOpenings = new Map<string, number>();
+    const addOpening = (code: string, amount: number) => categoryOpenings.set(code, (categoryOpenings.get(code) ?? 0) + amount);
 
     if (rollForward) {
         try {
@@ -237,11 +292,49 @@ export async function loadAccountStatement(
             return { data: null, error: error instanceof Error ? error.message : 'Account balance could not be read' };
         }
         openingBalance = balance.openingBalance;
+
+        // The same rows the balance counts, before the period, split by category (#1196).
+        const before = lagosDayStart(fromDate);
+        let priorInvoices = supabase
+            .from('invoices')
+            .select('amount_due, charge_category')
+            .eq('resident_id', residentId)
+            .neq('status', 'void')
+            .or(`period_start.lt.${fromDate},and(period_start.is.null,created_at.lt."${before}")`);
+        let priorPayments = supabase
+            .from('payment_records')
+            .select('amount, charge_category')
+            .eq('resident_id', residentId)
+            .eq('status', 'paid')
+            .eq('is_verified', true)
+            .lt('payment_date', fromDate);
+        if (houseId) {
+            priorInvoices = priorInvoices.eq('house_id', houseId);
+            priorPayments = priorPayments.eq('house_id', houseId);
+        }
+        const [invoicesBefore, paymentsBefore, walletBefore] = await Promise.all([
+            priorInvoices,
+            priorPayments,
+            walletCategories.size > 0
+                ? supabase.from('wallet_transactions').select('wallet_id, type, amount, reference_type').in('wallet_id', [...walletCategories.keys()]).lt('created_at', before)
+                : Promise.resolve({ data: [], error: null }),
+        ]);
+        const failed = invoicesBefore.error || paymentsBefore.error || walletBefore.error;
+        if (failed) {
+            console.error('[account-statement] category opening read failed', { residentId, houseId, fromDate, error: failed });
+            return { data: null, error: failed.message };
+        }
+        for (const row of invoicesBefore.data || []) addOpening(categoryOf(row), row.amount_due || 0);
+        for (const row of paymentsBefore.data || []) addOpening(categoryOf(row), -(row.amount || 0));
+        for (const row of walletBefore.data || []) {
+            if (row.reference_type && MIRRORED_WALLET_REFERENCES.has(row.reference_type)) continue;
+            addOpening(walletCategories.get(row.wallet_id) ?? 'dues', row.type === 'credit' ? -row.amount : row.amount);
+        }
     } else {
         // Invoices billed before fromDate, less what is allocated to them today
         let priorInvoiceQuery = supabase
             .from('invoices')
-            .select('amount_due, amount_paid')
+            .select('amount_due, amount_paid, charge_category')
             .eq('resident_id', residentId)
             .neq('status', 'void')
             .or(`period_start.lt.${fromDate},and(period_start.is.null,created_at.lt."${lagosDayStart(fromDate)}")`);
@@ -254,22 +347,26 @@ export async function loadAccountStatement(
 
         if (priorInvoices) {
             priorInvoices.forEach((inv) => {
-                openingBalance += (inv.amount_due || 0) - (inv.amount_paid || 0);
+                const owed = (inv.amount_due || 0) - (inv.amount_paid || 0);
+                openingBalance += owed;
+                addOpening(categoryOf(inv), owed);
             });
         }
     }
 
     // 7-8. Build the chronological ledger and its totals
+    const ledgerInvoices = (invoices || []).map((invoice) => {
+        // billing_profile can be array or single object depending on Supabase relationship
+        const bpData = invoice.billing_profile as { name: string }[] | { name: string } | null;
+        const billingProfile = Array.isArray(bpData) ? bpData[0] : bpData;
+        return { ...invoice, billing_profile_name: billingProfile?.name ?? null };
+    });
     const ledger = buildStatementLedger({
         openingBalance,
-        invoices: (invoices || []).map((invoice) => {
-            // billing_profile can be array or single object depending on Supabase relationship
-            const bpData = invoice.billing_profile as { name: string }[] | { name: string } | null;
-            const billingProfile = Array.isArray(bpData) ? bpData[0] : bpData;
-            return { ...invoice, billing_profile_name: billingProfile?.name ?? null };
-        }),
+        invoices: ledgerInvoices,
         payments: payments || [],
         walletTransactions,
+        mode,
     });
     const { transactions } = ledger;
     let { summary, closingBalance } = ledger;
@@ -291,7 +388,30 @@ export async function loadAccountStatement(
         closingBalance = balance.closingBalance;
     }
 
-    // 9. Get current user for generated by
+    // 9. Category sections, each its own ledger, and the Collections the resident paid into (#1196)
+    const { data: categoryRows } = await supabase
+        .from('charge_categories')
+        .select('code, name')
+        .order('sort_order', { ascending: true });
+    const categories = buildCategorySections({
+        categories: categoryRows || [],
+        openings: categoryOpenings,
+        invoices: ledgerInvoices,
+        payments: payments || [],
+        walletTransactions,
+        mode,
+    });
+    const categoriesClosing = categories.reduce((sum, section) => sum + section.closingBalance, 0);
+    if (Math.abs(categoriesClosing - closingBalance) >= 0.005) {
+        console.error('[account-statement] category sections disagree with the closing balance', {
+            residentId, houseId, fromDate, toDate, categoriesClosing, closingBalance,
+        });
+    }
+
+    const collectionsResult = await loadCollectionPayments(supabase, { residentId, houseId, fromDate, toDate });
+    if (collectionsResult.error) return { data: null, error: collectionsResult.error };
+
+    // 10. Get current user for generated by
     const { data: { user } } = await supabase.auth.getUser();
     let generatedBy: string | null = null;
     if (user) {
@@ -324,9 +444,47 @@ export async function loadAccountStatement(
         closingBalance,
         summary,
         transactions,
+        categories,
+        collections: buildCollectionsSection(collectionsResult.rows),
+        monthlyDetail: mode === 'summary' && includeMonthlyDetail ? ledger.monthlyInvoices : undefined,
         generatedAt: new Date().toISOString(),
         generatedBy,
     };
 
     return { data: statementData, error: null };
+}
+
+/**
+ * What the resident paid into Collections in the period, newest last (#1196). Collections are money that
+ * is not billing, so these rows only list; they never touch a balance. A payment recorded against a house
+ * shows on that house's statement only; one with no house shows on every statement of the resident.
+ * The collections tables are not in the generated types, hence the cast. Reading them needs collections.view.
+ */
+async function loadCollectionPayments(
+    supabase: StatementClient,
+    { residentId, houseId, fromDate, toDate }: { residentId: string; houseId?: string | null; fromDate: string; toDate: string }
+): Promise<{ rows: CollectionPaymentRow[]; error: string | null }> {
+    const client = supabase as unknown as SupabaseClient;
+    const { data: payer, error: payerError } = await client
+        .from('collection_payers')
+        .select('id')
+        .eq('resident_id', residentId)
+        .maybeSingle();
+    if (payerError) return { rows: [], error: payerError.message };
+    if (!payer) return { rows: [], error: null };
+
+    const { data, error } = await client
+        .from('collection_payments')
+        .select('id, amount, quantity, unit_price, payment_date, reference, receipt_number, house_id, collection:collections!collection_id(name)')
+        .eq('payer_id', payer.id)
+        .is('reversed_at', null)
+        .gte('payment_date', fromDate)
+        .lte('payment_date', toDate)
+        .order('payment_date', { ascending: true })
+        .order('created_at', { ascending: true });
+    if (error) return { rows: [], error: error.message };
+
+    const rows = ((data || []) as unknown as Array<CollectionPaymentRow & { house_id: string | null }>)
+        .filter((row) => !houseId || !row.house_id || row.house_id === houseId);
+    return { rows, error: null };
 }

@@ -1,4 +1,5 @@
 import { createElement } from 'react';
+import { getEstateLogoUrl } from '@/lib/branding/estate-logo-server';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getRawSettingsAsService } from '@/lib/settings/service';
@@ -37,7 +38,7 @@ export async function getReceiptPayments(residentId: string, houseId: string, li
 export async function loadReceipt(residentId: string, houseId: string, paymentId: string): Promise<PaymentReceiptData | null> {
   const { data, error } = await createAdminClient()
     .from('payment_records')
-    .select('id, amount, payment_date, method, reference_number, is_verified, verified_at, resident:residents(first_name, last_name, resident_code), house:houses(house_number, short_name, street:streets(name))')
+    .select('id, amount, payment_date, method, reference_number, is_verified, verified_at, resident:residents!payment_records_resident_id_fkey(first_name, last_name, resident_code), house:houses(house_number, short_name, street:streets(name))')
     .eq('id', paymentId)
     .eq('resident_id', residentId)
     .eq('house_id', houseId)
@@ -70,10 +71,16 @@ async function estateName(): Promise<string> {
   return typeof value === 'string' && value.trim() ? value.trim() : 'Residio Estate';
 }
 
+async function estateAddress(): Promise<string> {
+  const settings = await getRawSettingsAsService(['estate_address']);
+  const value = settings.status === 'ok' ? settings.values.get('estate_address') : null;
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 /** Stores the receipt PDF privately for 12 hours and returns a 1-hour signed URL for the reply. */
 export async function storeReceiptPdf(input: Omit<ChatPdfInput, 'label' | 'fromDate' | 'toDate' | 'rowCount'>, receipt: PaymentReceiptData): Promise<string> {
   const day = lagosDateString(new Date(receipt.paymentDate));
   return storeChatPdf('receipts', { ...input, label: 'receipt', fromDate: day, toDate: day, rowCount: 1 }, async () =>
-    renderToBuffer(createElement(PaymentReceiptPDF, { receipt, estateName: await estateName() }) as Parameters<typeof renderToBuffer>[0])
+    renderToBuffer(createElement(PaymentReceiptPDF, { receipt, estateName: await estateName(), estateAddress: await estateAddress(), estateLogoUrl: await getEstateLogoUrl() }) as Parameters<typeof renderToBuffer>[0])
   );
 }

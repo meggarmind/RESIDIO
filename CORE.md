@@ -123,9 +123,11 @@ loaded machine are ~4x slower and time out falsely (#497).
 
 ### Design system
 
-Follow `DESIGN_AGENTS.md` for all UI work: OKLCH colors, `new-york` shadcn style, lucide icons
-in `IconBox` wrappers, tactile micro-animations. Wrap raw shadcn components in semantic layout
-components rather than using them directly in pages.
+`DESIGN.md` holds the visual tokens (colors, type scale, radii, shadows, motion).
+`docs/design/admin_portal/` is the prescriptive guide for every admin page: archetypes, canonical
+components, mobile rules and the audit checklist (owner decision 2026-10-24, #1145).
+`DESIGN_AGENTS.md` only points at both and keeps the agent workflow rules. Wrap raw shadcn
+components in semantic layout components rather than using them directly in pages.
 
 ### Date format in messages and reports
 
@@ -319,7 +321,8 @@ mislead the next session.
 ```
 feature branch --PR--> stage   (Coolify residio-stage-image, deployed by CI from GHCR on every push; Residio_Stage: UAT)
 stage --PR "Release vX.Y.Z" (merge commit)--> master   (Coolify residio-prod, Residio_Prod)
-after EVERY release and hotfix: sync PR (branch cut from stage, master merged in) --> stage
+after EVERY merge-commit release and hotfix: sync PR (branch cut from stage, master merged in) --> stage
+(a fast-forward release, #1137, needs no sync PR)
 hotfix: branch from master --PR--> master, then the sync PR above
 ```
 
@@ -327,7 +330,7 @@ hotfix: branch from master --PR--> master, then the sync PR above
   `master`. Both branches are protected and require the `PR gate` check.
 - **Promote with a merge commit, never a squash**, so `stage` and `master` keep a shared history
   and the next release PR does not re-present already-shipped commits.
-- **After every release and every hotfix, merge `master` back into `stage`** in its own PR,
+- **After every merge-commit release and every hotfix, merge `master` back into `stage`** in its own PR,
   before the next release. Both branches require "up to date before merging", and a merge-commit
   promotion leaves `master` holding a merge commit that `stage` lacks, so the next release PR
   shows BEHIND and cannot merge until this is done. Open the PR from a branch **cut from `stage`**
@@ -336,6 +339,14 @@ hotfix: branch from master --PR--> master, then the sync PR above
   commit, never a squash**, or `master` does not enter `stage`'s history. After a plain release it
   changes no file (check: the merged tree equals `stage`'s tree); after a hotfix it carries the
   fix.
+- **Fast-forward release** (#1137, available once the owner grants `master` branch protection an
+  exception for it): run `.github/workflows/release-fast-forward.yml` by hand with the full SHA of
+  `stage`'s tip, the release size and the UAT/DAST confirmation. It checks that the commit is
+  `stage`'s tip, that `master` is its ancestor and that Stage runs it, pushes it to `master` as a
+  fast-forward and tags it. `master` then holds the exact commit that ran on Stage, so **no
+  merge-back PR is needed after a fast-forward release**. The merge-commit path above, and its
+  merge-back, stay for hotfixes and until the owner switches over. `release.yml` tags a merge
+  commit with two parents, or a commit that is on `stage` and not already tagged.
 - **Label every PR into `master`** with exactly one of `release:major` (not a drop-in upgrade:
   new required env var, breaking migration, access-control API change), `release:minor` (new
   capability, drop-in), `release:patch` (fixes) or `release:none`. On merge,
@@ -343,6 +354,16 @@ hotfix: branch from master --PR--> master, then the sync PR above
   is still deployed by hand). No
   label means no tag. **The tag is the version**: nothing is committed to `master`, and
   `package.json`'s `version` is not hand-edited.
+- **Every release tag gets a release notes page** in the admin guide wiki,
+  `website/docs/release-notes/vX-Y-Z.md`, plus its row in that folder's `index.md` (owner
+  request 2026-10-27, #1236). It says what is new and what changed, from a product view, in
+  ASD-STE100. `release.yml` and `release-fast-forward.yml` call `release-notes.yml`, which pushes
+  a draft on `chore/release-notes-vX-Y-Z` and opens an issue and a draft PR into `stage`. The
+  session that handles the release finishes the page and takes that PR through the gate. Style
+  guide and template: `docs/agents/release-notes.md`.
+- **Release gate** (#1136): on a PR from `stage` into `master`, `.github/workflows/release-gate.yml`
+  fails unless Stage's `/api/version` `sha` equals the PR head SHA and the PR carries the label
+  `uat-dast-passed`, which only the owner sets after UAT and DAST pass. A hotfix PR passes.
 - **Rollback is the previous release on `master`** (its `vX.Y.Z` tag; for releases before the
   first tag, its merge commit), redeployed in Coolify, or a revert PR. Never move `stage`,
   `master` or tag refs by hand.

@@ -18,6 +18,7 @@ import {
   Upload,
   Mail,
   Receipt,
+  HandCoins,
   Shield,
   Briefcase,
   FileBarChart,
@@ -33,6 +34,7 @@ import {
   Activity,
   LayoutDashboard,
   ScrollText,
+  MessageSquare,
 } from 'lucide-react';
 import { PERMISSIONS, type Permission } from '@/lib/auth/action-roles';
 
@@ -293,6 +295,16 @@ const NAV_NOTIFICATION_HISTORY: NavItem = {
   permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE],
 };
 
+// Moved out of Settings > WhatsApp: every WhatsApp send is live state, not
+// configuration (ADR-0004). Same permission as getWhatsAppOutboundSends.
+const NAV_WHATSAPP_MONITORING: NavItem = {
+  id: 'system-whatsapp-monitoring',
+  title: 'WhatsApp Monitoring',
+  href: '/system/whatsapp-monitoring',
+  icon: MessageSquare,
+  permissions: [PERMISSIONS.WHATSAPP_VIEW],
+};
+
 const NAV_DATA_TOOLS: NavItem = {
   id: 'system-data-tools',
   title: 'Data Tools',
@@ -321,6 +333,15 @@ const NAV_ACTION_LOG: NavItem = {
   href: '/system/action-log',
   icon: ScrollText,
   permissions: [PERMISSIONS.SYSTEM_VIEW_SYSTEM_LOG],
+};
+
+// Collections ledger (#1194): contributions and item purchases, outside billing.
+const NAV_COLLECTIONS: NavItem = {
+  id: 'collections',
+  title: 'Collections',
+  href: '/collections',
+  icon: HandCoins,
+  permissions: [PERMISSIONS.COLLECTIONS_VIEW],
 };
 
 const NAV_PROJECTS: NavItem = {
@@ -363,7 +384,7 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
   {
     id: 'financial',
     label: 'Financial',
-    items: [NAV_PAYMENTS, NAV_BILLING, NAV_EXPENDITURE],
+    items: [NAV_PAYMENTS, NAV_BILLING, NAV_COLLECTIONS, NAV_EXPENDITURE],
   },
   {
     id: 'operations',
@@ -379,6 +400,7 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
       NAV_AUDIT_LOGS,
       NAV_NOTIFICATION_QUEUE,
       NAV_NOTIFICATION_HISTORY,
+      NAV_WHATSAPP_MONITORING,
       NAV_DATA_TOOLS,
       NAV_CRON_STATUS,
       NAV_ACTION_LOG,

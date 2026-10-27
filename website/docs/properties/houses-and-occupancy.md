@@ -7,8 +7,12 @@ residio_sources:
   - src/app/(dashboard)/houses/**
   - src/actions/houses/**
   - src/components/houses/**
-residio_verified_commit: e1cc4f52
-residio_verified_at: '2026-10-22'
+  - src/actions/billing/landlord-dues-split.ts
+  - src/lib/billing/landlord-dues.ts
+  - src/lib/billing/landlord-dues-receipts.ts
+  - src/lib/billing/house-obligations.ts
+residio_verified_commit: 87b8d265
+residio_verified_at: '2026-10-26'
 residio_app_version: '0.4.0'
 ---
 
@@ -40,7 +44,7 @@ residents and the house's debt status: Outstanding, Arrears, Paid in Full or Cre
 amount owed beside it when there is one. If the status cannot be loaded, the line says "Debt
 status unavailable" rather than showing nothing owed.
 
-The page opens on **Residents**. **Billing** holds the payment status and yearly ledger, and
+The page opens on **Residents**. **Billing** holds the payment status, the obligations by role, the dues setting and the yearly ledger, and
 **History** the ownership and occupancy timeline (the latest 100 events). Each tab is kept in the
 address as `?tab=`, so a link opens the same tab.
 
@@ -60,6 +64,45 @@ An Occupant is always sponsored by the house's Owner-Occupier or Renter. **Link 
 *update houses*. **Delete house** is in the **…** menu beside Edit and needs *delete houses*; it
 stays disabled, with the reason shown, until every resident has been removed, and it asks for
 confirmation before deleting.
+
+## Obligations by role
+
+**Billing → Obligations by role** shows what each party of the house owes, from its invoices (void ones left out):
+
+- **Occupant dues**: charges billed to the occupant, such as monthly Dues. A charge from before billing profiles existed counts here.
+- **Landlord levies**: charges billed to the landlord, such as the Development Levy and the Transformer Fee.
+
+Each party shows what is owed now and, per wallet category, what was paid of what was billed. The party billing picks today is marked **Billed now**, even before their first invoice, so a house with the setting below shows both the tenant and the landlord. A former payer who still has invoices stays in the list. Overpaying an invoice never shows as a negative amount owed.
+
+**Who paid** lists the payments recorded for the house, grouped by who received them and who paid. A landlord paying a tenant's dues shows as "Lola Landlord paid for Tobi Tenant" with the total and the date of the last payment, apart from the tenant paying for themselves. The page shows what billing access allows the signed-in user to read.
+
+## Dues paid by landlord
+
+Some landlords pay the dues of their tenants, for example one payment for flats F1 to F4. The
+tenant still owes the dues and the invoices stay in the tenant's name; the landlord pays them.
+Turn this on under **Billing → Dues paid by landlord** on the house page (*update houses*; the
+change is audited), and choose who gets the dues reminders:
+
+| Dues reminders go to | Who gets them |
+| --- | --- |
+| Tenant only (default) | the tenant, as for any other house |
+| Landlord only | the landlord only |
+| Tenant and landlord | both |
+
+The landlord gets one reminder for all of their flats that have this setting, with the amount
+per flat. Only Dues reminders follow the setting: levies already go to the landlord.
+
+Record the landlord's payment as a Dues payment to the landlord. Then choose **Split to tenants**
+(*transfer wallet credit*). It shows the landlord's Dues wallet and each of their flats with what
+its tenant owes. Accept the amounts, edit them, or set a flat to 0 to leave it out; the total
+cannot be more than the wallet holds, and a flat cannot get more than its tenant owes. Each flat's share is a [Transfer credit](../finance/expenditure-and-wallets.md)
+to the tenant's Dues wallet, which then pays the tenant's Dues invoices in that flat, oldest first.
+Each transfer is audited, and so is the split.
+
+After a split, the landlord gets one receipt with the amount per flat, and each tenant gets
+"Your dues for Sep 2026 and Oct 2026 were paid by your landlord". Receipts go by email and
+WhatsApp under the same rules as a payment receipt: the **Sending** switch for receipts, the
+resident's preferences and, for WhatsApp, the opt-in.
 
 ## Occupancy is not a manual label
 

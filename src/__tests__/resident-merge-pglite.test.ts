@@ -347,6 +347,25 @@ describe('resident merge: money', () => {
     expect(await q(`SELECT 1 FROM public.payment_records WHERE resident_id = $1`, [d])).toHaveLength(0);
     expect(await q(`SELECT 1 FROM public.invoices WHERE resident_id = $1`, [d])).toHaveLength(0);
   });
+
+  it('combines the wallets category by category (#1189)', async () => {
+    const k = await resident();
+    const d = await resident();
+    const kDues = (await one(`INSERT INTO public.resident_wallets (resident_id, balance) VALUES ($1, 50) RETURNING id`, [k])).id;
+    await db.query(
+      `INSERT INTO public.resident_wallets (resident_id, charge_category, balance) VALUES ($1, 'dues', 100), ($1, 'development_levy', 70)`,
+      [d]
+    );
+
+    const res = (await merge(k, d)).rows![0].r;
+
+    expect(res.wallet.combined).toBe(true);
+    const wallets = await q(`SELECT charge_category, balance FROM public.resident_wallets WHERE resident_id = $1 ORDER BY charge_category`, [k]);
+    expect(wallets.map((w) => `${w.charge_category}:${Number(w.balance)}`)).toEqual(['development_levy:70', 'dues:150']);
+    expect((await one(`SELECT id FROM public.resident_wallets WHERE resident_id = $1 AND charge_category = 'dues'`, [k])).id).toBe(kDues);
+    const dup = await q(`SELECT balance FROM public.resident_wallets WHERE resident_id = $1`, [d]);
+    expect(dup.map((w) => Number(w.balance))).toEqual([0, 0]);
+  });
 });
 
 describe('resident merge: owner decisions', () => {

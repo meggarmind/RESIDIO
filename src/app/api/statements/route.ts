@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getEstateLogoUrl } from '@/lib/branding/estate-logo-server';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { resolveAccess, toAccessClient } from '@/lib/auth/access';
@@ -18,6 +19,8 @@ import { format } from 'date-fns';
  * - houseId: Optional - filter by specific property
  * - fromDate: Required - start date (YYYY-MM-DD)
  * - toDate: Required - end date (YYYY-MM-DD)
+ * - view: Optional - 'summary' folds each run of unpaid monthly invoices into one line (#1234)
+ * - detail: Optional - '1' adds the monthly detail appendix to a summary statement
  *
  * Authorization:
  * - Admin users with billing.view permission can generate for any resident
@@ -30,6 +33,8 @@ export async function GET(request: NextRequest) {
     const houseId = searchParams.get('houseId');
     const fromDate = searchParams.get('fromDate');
     const toDate = searchParams.get('toDate');
+    const summary = searchParams.get('view') === 'summary';
+    const includeMonthlyDetail = searchParams.get('detail') === '1';
 
     // Validate required parameters
     if (!residentId) {
@@ -113,7 +118,11 @@ export async function GET(request: NextRequest) {
       houseId: houseId || undefined,
       fromDate,
       toDate,
-    }, { rollForward: hasBillingPermission || await isResidentRollForwardEnabled() });
+    }, {
+      rollForward: hasBillingPermission || await isResidentRollForwardEnabled(),
+      mode: summary ? 'summary' : 'detailed',
+      includeMonthlyDetail,
+    });
 
     if (statementError || !statementData) {
       return NextResponse.json(
@@ -125,10 +134,12 @@ export async function GET(request: NextRequest) {
     // Get estate name from settings
     const estateNameSetting = await getSettingValue('estate_name');
     const estateName = typeof estateNameSetting === 'string' ? estateNameSetting : 'Residio Estate';
+    const estateAddressSetting = await getSettingValue('estate_address');
+    const estateAddress = typeof estateAddressSetting === 'string' ? estateAddressSetting.trim() : '';
 
     // Generate PDF
     const pdfBuffer = await renderToBuffer(
-      AccountStatementPDF({ data: statementData, estateName })
+      AccountStatementPDF({ data: statementData, estateName, estateAddress, estateLogoUrl: await getEstateLogoUrl() })
     );
 
     // Convert Buffer to Uint8Array for NextResponse compatibility

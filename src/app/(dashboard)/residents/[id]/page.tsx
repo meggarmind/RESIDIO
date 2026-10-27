@@ -32,7 +32,7 @@ import { ResidentMergeDialog } from '@/components/residents/resident-merge-dialo
 import { AccountStatusBadge } from '@/components/residents/status-badge';
 import { useResident, useDeleteResident, useUpdateResidentStatus, useVerifyResident } from '@/hooks/use-residents';
 import { useVerificationStatus, useAdminVerifyContact } from '@/hooks/use-verification';
-import { useWallet } from '@/hooks/use-wallet';
+import { useResidentWallets } from '@/hooks/use-wallet';
 import { LinkedHouses } from '@/components/residents/linked-houses';
 import { CrossPropertyPaymentSummary } from '@/components/residents/cross-property-payment-summary';
 import { resolveResidentTab, isResidentNotFoundError } from '@/components/residents/resident-detail-tabs';
@@ -93,7 +93,7 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
   const updateStatusMutation = useUpdateResidentStatus();
   const verifyMutation = useVerifyResident();
   const adminVerify = useAdminVerifyContact();
-  const { data: walletData } = useWallet(id);
+  const { data: walletData } = useResidentWallets(id);
   const headerRef = useRef<HTMLDivElement>(null);
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
@@ -115,8 +115,8 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
   const canDeleteNotes = hasPermission(PERMISSIONS.NOTES_DELETE);
 
   const activeTab = resolveResidentTab(tabParam, canViewNotes);
-  const wallet = walletData?.data;
-  const walletBalance = wallet?.balance || 0;
+  // The total of the resident's wallets, one per charge category (#1189).
+  const walletBalance = walletData?.total || 0;
   const emailVerified = !!verificationStatus?.email?.verified;
   const phoneVerified = !!verificationStatus?.phone?.verified;
 

@@ -103,7 +103,8 @@ Since 2026-10-11 (owner decision, #420) `stage` is the **leading integration bra
 ```
 feature branch --PR--> stage   (Coolify residio-stage-image, stage.<domain>, Residio_Stage: UAT; deployed by CI)
 stage --PR "Release vX.Y.Z" (merge commit)--> master   (Coolify residio-prod, app.<domain>, Residio_Prod)
-after EVERY release and hotfix: sync PR (branch cut from stage, master merged in) --> stage
+after EVERY merge-commit release and hotfix: sync PR (branch cut from stage, master merged in) --> stage
+(a fast-forward release, #1137, needs no sync PR)
 hotfix: branch from master --PR--> master, then the sync PR above
 ```
 
@@ -121,7 +122,26 @@ hotfix: branch from master --PR--> master, then the sync PR above
   `release:*` label on a PR into `stage` does nothing. No release label deploys anything:
   Stage deploys from `stage-image.yml` on every push to `stage` (#1114, which retired the
   `stage-deploy` job of #525), and Prod is never deployed from CI.
-- **After every release, sync `master` back into `stage`** in its own PR, before the next
+- **The release gate** (`.github/workflows/release-gate.yml`, #1136) runs on every PR into
+  `master` and applies only when the head ref is `stage`; a hotfix PR passes. Check **Stage runs
+  this commit** polls `https://stage.feyijimi.ng/api/version` for about 10 minutes and fails
+  unless its `sha` equals the PR head SHA. Check **UAT and DAST passed** fails unless the PR
+  carries the label `uat-dast-passed`, which only the owner sets, after UAT and DAST pass on that
+  exact commit. A new push to `stage` changes the head SHA: re-run UAT and DAST, and re-apply
+  the label if it was removed. Both checks become blocking once the owner marks them required on
+  `master`.
+- **Fast-forward release** (#1137). Once the owner grants `master` branch protection an exception
+  for it, run `.github/workflows/release-fast-forward.yml` (Actions > Run workflow) with the full
+  SHA of the tip of `stage`, the release size (`patch`, `minor`, `major` or `none`) and the
+  `uat_dast_passed` confirmation. The run fails, changing nothing, unless the commit is the tip of
+  `stage`, `master` is its ancestor, Stage's `/api/version` reports that sha and UAT and DAST are
+  confirmed. It then pushes the commit to `master` as a fast-forward, tags it `vX.Y.Z` and sets
+  the Prod build version in Coolify. If branch protection refuses the push, the run says so and
+  `master` is untouched. `release.yml` accepts a release commit that is a merge commit with two
+  parents, or one that is on `stage` and not already tagged; no existing tag moves. After a
+  fast-forward release `master` is an ancestor of `stage`, so **the sync step below is not
+  needed**.
+- **After every merge-commit release, sync `master` back into `stage`** in its own PR, before the next
   release. Both branches require "up to date before merging" (`strict`), and a merge-commit
   release leaves `master` with a merge commit `stage` lacks, so the next release PR reads
   BEHIND and cannot merge (first seen on the v1.1.0 release, PR #660, fixed by #663). Do it from

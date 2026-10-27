@@ -37,6 +37,6 @@ If the aging figures cannot be loaded, the card says *Invoice aging unavailable*
 3. Review the preview or parameters.
 4. Generate and download the report only after confirming the scope.
 
-Scheduled reports are set up on the **Schedules** tab; creating or changing a schedule needs the manage report schedules permission. They are generated and delivered by a scheduled job, without anyone signed in.
+Scheduled reports are set up on the **Schedules** tab; creating or changing a schedule needs the manage report schedules permission. They are generated and delivered by a scheduled job, without anyone signed in. Each scheduled email carries the report as a PDF attachment, with a short message naming the report and the period it covers. Report PDFs, the on-screen report and these emails all show the estate name from **Settings > Estate**.
 
 Reports are snapshots. If a number looks wrong, trace it back to residents, invoices, payments, or expenditure instead of editing the report output.

@@ -13,13 +13,13 @@
 //   3. submitting the dialog reaches `useCreditWallet` / `useDebitWallet`.
 
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 
 import { WalletBalance } from '@/components/residents/wallet-balance';
 import { WalletAdjustmentDialog } from '@/components/residents/wallet-adjustment-dialog';
 import {
-  useWallet,
+  useResidentWallets,
   useYearlyWalletTransactions,
   useCreditWallet,
   useDebitWallet,
@@ -27,7 +27,7 @@ import {
 import { useAuth } from '@/lib/auth/auth-provider';
 
 vi.mock('@/hooks/use-wallet', () => ({
-  useWallet: vi.fn(),
+  useResidentWallets: vi.fn(),
   useYearlyWalletTransactions: vi.fn(),
   useCreditWallet: vi.fn(),
   useDebitWallet: vi.fn(),
@@ -37,7 +37,7 @@ vi.mock('@/lib/auth/auth-provider', () => ({
   useAuth: vi.fn(),
 }));
 
-const mockedUseWallet = vi.mocked(useWallet);
+const mockedUseResidentWallets = vi.mocked(useResidentWallets);
 const mockedUseYearlyWalletTransactions = vi.mocked(useYearlyWalletTransactions);
 const mockedUseCreditWallet = vi.mocked(useCreditWallet);
 const mockedUseDebitWallet = vi.mocked(useDebitWallet);
@@ -82,10 +82,10 @@ function mockIdleMutations() {
 /** Wire the wallet read hooks to a settled wallet with one credit and one debit. */
 function mockWalletReads(balance = 50000) {
   mockIdleMutations();
-  mockedUseWallet.mockReturnValue({
-    data: { data: { id: 'w1', resident_id: 'r1', balance } },
+  mockedUseResidentWallets.mockReturnValue({
+    data: { total: balance, wallets: [{ charge_category: 'dues', name: 'Dues', wallet_id: 'w1', balance }] },
     isLoading: false,
-  } as unknown as ReturnType<typeof useWallet>);
+  } as unknown as ReturnType<typeof useResidentWallets>);
   mockedUseYearlyWalletTransactions.mockReturnValue({
     data: [{ year: 2026, total_credits: 80000, total_debits: 30000, net_change: 50000, closing_balance: 50000, transactions: [] }],
     isLoading: false,
@@ -106,6 +106,33 @@ const MANAGE_WALLETS = 'billing.manage_wallets';
 /** The route's VIEW permission -- deliberately NOT what the button is gated on. */
 const RESIDENTS_VIEW = 'residents.view';
 
+describe('WalletBalance per charge category (#1189)', () => {
+  it('shows the total and one line per category', () => {
+    mockIdleMutations();
+    mockedUseResidentWallets.mockReturnValue({
+      data: {
+        total: 7500,
+        wallets: [
+          { charge_category: 'dues', name: 'Dues', wallet_id: 'w1', balance: 5000 },
+          { charge_category: 'development_levy', name: 'Development Levy', wallet_id: 'w2', balance: 2500 },
+          { charge_category: 'transformer_fee', name: 'Transformer Fee', wallet_id: null, balance: 0 },
+        ],
+      },
+      isLoading: false,
+    } as unknown as ReturnType<typeof useResidentWallets>);
+    mockedUseYearlyWalletTransactions.mockReturnValue({ data: [], isLoading: false } as unknown as ReturnType<typeof useYearlyWalletTransactions>);
+    mockPermissions([RESIDENTS_VIEW]);
+
+    render(<WalletBalance residentId="r1" />);
+
+    expect(screen.getByText('₦7,500.00')).toBeInTheDocument();
+    const lines = within(screen.getByLabelText('Wallet balance by charge category'));
+    expect(lines.getByText('Dues').nextElementSibling).toHaveTextContent('₦5,000.00');
+    expect(lines.getByText('Development Levy').nextElementSibling).toHaveTextContent('₦2,500.00');
+    expect(lines.getByText('Transformer Fee').nextElementSibling).toHaveTextContent('₦0.00');
+  });
+});
+
 describe('WalletBalance adjustment control permission gate (#120)', () => {
   it('hides the Adjust control from a user lacking billing.manage_wallets', () => {
     mockWalletReads();
@@ -114,7 +141,7 @@ describe('WalletBalance adjustment control permission gate (#120)', () => {
     render(<WalletBalance residentId="r1" />);
 
     // The balance itself stays visible -- this is a read-only view, not a denial.
-    expect(screen.getByText('Current Balance')).toBeInTheDocument();
+    expect(screen.getByText('Wallet balance')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /adjust/i })).not.toBeInTheDocument();
   });
 
@@ -124,7 +151,7 @@ describe('WalletBalance adjustment control permission gate (#120)', () => {
 
     render(<WalletBalance residentId="r1" />);
 
-    expect(screen.getByText('Current Balance')).toBeInTheDocument();
+    expect(screen.getByText('Wallet balance')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /adjust/i })).toBeInTheDocument();
   });
 

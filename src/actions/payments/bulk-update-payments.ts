@@ -8,7 +8,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 
 const bulkUpdateSchema = z.object({
-    ids: z.array(z.string().uuid()).min(1, 'At least one payment ID is required'),
+    ids: z.array(z.guid()).min(1, 'At least one payment ID is required'),
     status: paymentStatusEnum,
 });
 

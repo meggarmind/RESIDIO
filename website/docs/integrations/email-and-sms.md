@@ -68,6 +68,8 @@ A multi-channel emergency announcement bypasses the normal reminder cadence. Whi
 - Payment reminder (escalating), sent by the scheduled reminders, with separate wording for each stage from friendly to overdue
 - New invoice
 
+Collection receipts and the messages to a collection's notified parties use fixed wording that is not listed here; see [Collections](../finance/collections.md). An email to a non-resident payer or notified party follows the same Testing redirect as every other email.
+
 Choose **Edit** on an email to change its wording. What you can edit depends on the email:
 
 - **Welcome email and payment receipt:** subject, heading, opening message and sign-off.

@@ -2,14 +2,16 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
+import { IconBox } from '@/components/ui/icon-box';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useWallet, useYearlyWalletTransactions } from '@/hooks/use-wallet';
+import { useResidentWallets, useYearlyWalletTransactions } from '@/hooks/use-wallet';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { formatCurrency } from '@/lib/utils';
-import { Wallet, Plus, TrendingUp, TrendingDown } from 'lucide-react';
+import { Wallet, Plus, TrendingUp, TrendingDown, ArrowRightLeft } from 'lucide-react';
 import { WalletAdjustmentDialog } from './wallet-adjustment-dialog';
+import { WalletTransferDialog } from './wallet-transfer-dialog';
 
 interface WalletBalanceProps {
   residentId: string;
@@ -18,7 +20,8 @@ interface WalletBalanceProps {
 
 export function WalletBalance({ residentId, showActions = true }: WalletBalanceProps) {
   const [isAdjustmentDialogOpen, setIsAdjustmentDialogOpen] = useState(false);
-  const { data: walletData, isLoading: walletLoading } = useWallet(residentId);
+  const [isTransferDialogOpen, setIsTransferDialogOpen] = useState(false);
+  const { data: walletData, isLoading: walletLoading } = useResidentWallets(residentId);
   // Shares its cache key with the Transaction History ledger, so the Money tab
   // makes one ledger request rather than a separate 1000-row fetch (#783).
   const { data: yearlyData } = useYearlyWalletTransactions(residentId);
@@ -29,29 +32,25 @@ export function WalletBalance({ residentId, showActions = true }: WalletBalanceP
   const { hasPermission } = useAuth();
   const canAdjustWallet = hasPermission(PERMISSIONS.BILLING_MANAGE_WALLETS);
   const canShowAdjustment = showActions && canAdjustWallet;
+  const canShowTransfer = showActions && hasPermission(PERMISSIONS.BILLING_TRANSFER_WALLET_CREDIT);
 
   if (walletLoading) {
     return (
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-            <Wallet className="h-4 w-4" />
-            Wallet Balance
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Skeleton className="h-12 w-full" />
-          <div className="grid grid-cols-2 gap-3">
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
-          </div>
+        <CardContent className="space-y-3 p-4">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-4 w-full" />
         </CardContent>
       </Card>
     );
   }
 
-  const wallet = walletData?.data;
-  const balance = wallet?.balance || 0;
+  // One wallet per charge category (#1189): the headline is their total.
+  const balance = walletData?.total || 0;
+  const categoryLines = walletData?.wallets || [];
+  // A manual adjustment goes to the Dues wallet.
+  const duesBalance = categoryLines.find((line) => line.charge_category === 'dues')?.balance || 0;
   const years = yearlyData || [];
   const totalCredits = years.reduce((sum, y) => sum + y.total_credits, 0);
   const totalDebits = years.reduce((sum, y) => sum + y.total_debits, 0);
@@ -61,54 +60,54 @@ export function WalletBalance({ residentId, showActions = true }: WalletBalanceP
   return (
     <>
       <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+        <CardContent className="space-y-3 p-4">
+          <div className="flex items-center justify-between gap-2">
+            <p className="flex items-center gap-2 text-sm font-semibold">
+              <IconBox color="green" size="sm" className="h-8 w-8">
                 <Wallet className="h-4 w-4" />
-                Wallet Balance
-              </CardTitle>
-              <CardDescription className="text-xs">Resident payment wallet</CardDescription>
+              </IconBox>
+              Wallet balance
+            </p>
+            <div className="flex items-center gap-2">
+              {canShowTransfer && (
+                <Button size="sm" variant="outline" className="h-7 text-xs min-h-11 md:min-h-0" onClick={() => setIsTransferDialogOpen(true)}>
+                  <ArrowRightLeft className="h-3.5 w-3.5 mr-1" />
+                  Transfer credit
+                </Button>
+              )}
+              {canShowAdjustment && (
+                <Button size="sm" variant="outline" className="h-7 text-xs min-h-11 md:min-h-0" onClick={() => setIsAdjustmentDialogOpen(true)}>
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  Adjust
+                </Button>
+              )}
             </div>
-            {canShowAdjustment && (
-              <Button size="sm" variant="outline" className="h-7 text-xs min-h-11 md:min-h-0" onClick={() => setIsAdjustmentDialogOpen(true)}>
-                <Plus className="h-3.5 w-3.5 mr-1" />
-                Adjust
-              </Button>
-            )}
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Current Balance */}
-          <div className="text-center">
-            <p className="text-xs text-muted-foreground mb-1">Current Balance</p>
-            <p className={`text-2xl font-bold ${balanceColor}`}>{formatCurrency(balance)}</p>
-          </div>
-
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 gap-3">
-            {/* Total Credits */}
-            <div className="border rounded-lg p-3 bg-green-50 dark:bg-green-950/20">
-              <div className="flex items-center gap-1.5 mb-1">
+          <p className={`text-2xl font-bold ${balanceColor}`}>{formatCurrency(balance)}</p>
+          <dl className="space-y-1 text-xs" aria-label="Wallet balance by charge category">
+            {categoryLines.map((line) => (
+              <div key={line.charge_category} className="flex items-center justify-between gap-2">
+                <dt className="text-muted-foreground">{line.name}</dt>
+                <dd className="font-medium tabular-nums">{formatCurrency(line.balance)}</dd>
+              </div>
+            ))}
+          </dl>
+          <dl className="grid grid-cols-2 gap-3 border-t pt-3 text-xs">
+            <div>
+              <dt className="flex items-center gap-1 text-muted-foreground">
                 <TrendingUp className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
-                <p className="text-xs font-medium text-green-600 dark:text-green-400">Total Credits</p>
-              </div>
-              <p className="text-base font-semibold text-green-700 dark:text-green-300">
-                {formatCurrency(totalCredits)}
-              </p>
+                Total credits
+              </dt>
+              <dd className="mt-0.5 text-sm font-semibold">{formatCurrency(totalCredits)}</dd>
             </div>
-
-            {/* Total Debits */}
-            <div className="border rounded-lg p-3 bg-red-50 dark:bg-red-950/20">
-              <div className="flex items-center gap-1.5 mb-1">
+            <div>
+              <dt className="flex items-center gap-1 text-muted-foreground">
                 <TrendingDown className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
-                <p className="text-xs font-medium text-red-600 dark:text-red-400">Total Debits</p>
-              </div>
-              <p className="text-base font-semibold text-red-700 dark:text-red-300">
-                {formatCurrency(totalDebits)}
-              </p>
+                Total debits
+              </dt>
+              <dd className="mt-0.5 text-sm font-semibold">{formatCurrency(totalDebits)}</dd>
             </div>
-          </div>
+          </dl>
         </CardContent>
       </Card>
 
@@ -116,9 +115,19 @@ export function WalletBalance({ residentId, showActions = true }: WalletBalanceP
       {canShowAdjustment && (
         <WalletAdjustmentDialog
           residentId={residentId}
-          currentBalance={balance}
+          currentBalance={duesBalance}
           open={isAdjustmentDialogOpen}
           onOpenChange={setIsAdjustmentDialogOpen}
+        />
+      )}
+
+      {/* Transfer Dialog -- mounted only for holders of billing.transfer_wallet_credit (#1191) */}
+      {canShowTransfer && (
+        <WalletTransferDialog
+          residentId={residentId}
+          wallets={categoryLines}
+          open={isTransferDialogOpen}
+          onOpenChange={setIsTransferDialogOpen}
         />
       )}
     </>

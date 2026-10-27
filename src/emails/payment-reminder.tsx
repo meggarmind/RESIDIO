@@ -14,6 +14,7 @@ interface PaymentReminderEmailProps {
   estateEmail?: string;
   estatePhone?: string;
   estateAddress?: string;
+  estateLogoUrl?: string;
   paymentUrl?: string;
   /** Admin-edited wording (merged templates). Omitted means the built-in text. */
   copy?: Record<string, string>;
@@ -31,6 +32,7 @@ export function PaymentReminderEmail({
   estateEmail,
   estatePhone,
   estateAddress,
+  estateLogoUrl,
   paymentUrl,
   copy,
 }: PaymentReminderEmailProps) {
@@ -65,6 +67,7 @@ export function PaymentReminderEmail({
       estateEmail={estateEmail}
       estatePhone={estatePhone}
       estateAddress={estateAddress}
+      estateLogoUrl={estateLogoUrl}
     >
       <Heading style={heading}>{text('heading')}</Heading>
 

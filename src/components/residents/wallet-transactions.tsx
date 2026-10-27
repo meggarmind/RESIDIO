@@ -26,13 +26,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useYearlyWalletTransactions } from '@/hooks/use-wallet';
+import { useReverseWalletTransfer, useYearlyWalletTransactions } from '@/hooks/use-wallet';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import type { YearlyWalletTransactionSummary } from '@/actions/billing/wallet';
 import { getInvoiceById } from '@/actions/billing/get-invoices';
 import { formatCurrency } from '@/lib/utils';
+import { groupInvoiceDebits, groupPeriodLabel, type InvoiceDebitGroup } from '@/lib/billing/ledger-groups';
 import { format } from 'date-fns';
 import Link from 'next/link';
-import { ArrowUpCircle, ArrowDownCircle, Receipt, FileText, ExternalLink, Loader2, ChevronDown, CalendarDays } from 'lucide-react';
+import { ArrowUpCircle, ArrowDownCircle, Receipt, FileText, ExternalLink, Loader2, ChevronDown, CalendarDays, ArrowRightLeft } from 'lucide-react';
 
 interface WalletTransactionsProps {
   residentId: string;
@@ -48,6 +53,11 @@ type TransactionRow = {
   description?: string | null;
   reference_type?: string | null;
   reference_id?: string | null;
+  payment_method?: string | null;
+  payment_reference?: string | null;
+  invoice_item?: string | null;
+  invoice_period_start?: string | null;
+  invoice_number?: string | null;
 };
 
 const WalletTransactionRow = memo(function WalletTransactionRow({
@@ -90,8 +100,20 @@ const WalletTransactionRow = memo(function WalletTransactionRow({
       <TableCell>
         <div className="space-y-1 text-sm">
           <p>{transaction.description || '-'}</p>
-          {transaction.reference_type && transaction.reference_id && (
-            <ReferenceLink type={transaction.reference_type} id={transaction.reference_id} />
+          {isCredit && (transaction.payment_method || transaction.payment_reference) && (
+            <p className="text-xs text-muted-foreground">
+              <span className="capitalize">{transaction.payment_method?.replaceAll('_', ' ')}</span>
+              {transaction.payment_method && transaction.payment_reference && ' · '}
+              {transaction.payment_reference}
+            </p>
+          )}
+          {transaction.reference_type === 'wallet_transfer' && transaction.reference_id ? (
+            // The debit row's id is the transfer id; the credit row references it (#1191).
+            <TransferReference transferId={isCredit ? transaction.reference_id : transaction.id} />
+          ) : (
+            transaction.reference_type && transaction.reference_id && (
+              <ReferenceLink type={transaction.reference_type} id={transaction.reference_id} />
+            )
           )}
         </div>
       </TableCell>
@@ -105,8 +127,53 @@ type FilteredYearlySummary = YearlyWalletTransactionSummary & {
   netChange: number;
 };
 
-function YearlyWalletTransactionRow({ summary }: { summary: FilteredYearlySummary }) {
+function InvoiceDebitGroupRow({ group }: { group: InvoiceDebitGroup<TransactionRow> }) {
   const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <TableRow
+        className="cursor-pointer bg-muted/30 hover:bg-muted/50"
+        onClick={() => setOpen(!open)}
+        tabIndex={0}
+        aria-expanded={open}
+        onKeyDown={(event) => {
+          if (event.target !== event.currentTarget) return;
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setOpen(!open);
+          }
+        }}
+      >
+        <TableCell className="py-2 pl-8 text-sm">
+          <div className="flex items-center gap-2">
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
+            {groupPeriodLabel(group.rows)}
+          </div>
+        </TableCell>
+        <TableCell>
+          <div className="flex items-center gap-2">
+            <ArrowDownCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+            <span className="capitalize">debit</span>
+          </div>
+        </TableCell>
+        <TableCell className="text-right font-semibold text-red-600 dark:text-red-400">
+          -{formatCurrency(group.total)}
+        </TableCell>
+        <TableCell className="text-right font-medium">{formatCurrency(group.closingBalance)}</TableCell>
+        <TableCell className="text-sm">
+          {group.item} · {group.rows.length} invoices
+        </TableCell>
+      </TableRow>
+      {open && group.rows.map((transaction) => (
+        <WalletTransactionRow key={transaction.id} transaction={transaction} />
+      ))}
+    </>
+  );
+}
+
+function YearlyWalletTransactionRow({ summary, defaultOpen }: { summary: FilteredYearlySummary; defaultOpen: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
 
   return (
     <>
@@ -157,8 +224,10 @@ function YearlyWalletTransactionRow({ summary }: { summary: FilteredYearlySummar
             <TableCell className="py-1 text-right text-xs font-medium text-muted-foreground">Balance</TableCell>
             <TableCell className="py-1 text-xs font-medium text-muted-foreground">Details</TableCell>
           </TableRow>
-          {summary.transactions.map((transaction) => (
-            <WalletTransactionRow key={transaction.id} transaction={transaction} />
+          {groupInvoiceDebits(summary.transactions).map((entry) => (
+            entry.kind === 'group'
+              ? <InvoiceDebitGroupRow key={entry.id} group={entry} />
+              : <WalletTransactionRow key={entry.row.id} transaction={entry.row} />
           ))}
         </>
       )}
@@ -222,7 +291,8 @@ export function WalletTransactions({ residentId }: WalletTransactionsProps) {
             <p className="text-sm text-muted-foreground">No transactions yet</p>
           </div>
         ) : (
-          <div className="border rounded-md">
+          // Capped height so a long year scrolls inside the card, not the page (#1166).
+          <div data-testid="wallet-transactions-scroll" className="max-h-[32rem] overflow-y-auto rounded-md border scrollbar-modern">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -234,8 +304,8 @@ export function WalletTransactions({ residentId }: WalletTransactionsProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {yearlyTransactions.map((summary) => (
-                  <YearlyWalletTransactionRow key={summary.year} summary={summary} />
+                {yearlyTransactions.map((summary, index) => (
+                  <YearlyWalletTransactionRow key={summary.year} summary={summary} defaultOpen={index === 0} />
                 ))}
               </TableBody>
             </Table>
@@ -262,6 +332,45 @@ function ReferenceLink({ type, id }: { type: string; id: string }) {
   }
 
   return <span className="text-xs text-muted-foreground capitalize">{type}</span>;
+}
+
+/** A transfer between wallets (#1191), with a Reverse control for holders of the transfer permission. */
+function TransferReference({ transferId }: { transferId: string }) {
+  const { hasPermission } = useAuth();
+  const reverse = useReverseWalletTransfer();
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState('');
+
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      <span className="flex items-center gap-1 text-muted-foreground">
+        <ArrowRightLeft className="h-3 w-3" />
+        Transfer
+      </span>
+      {hasPermission(PERMISSIONS.BILLING_TRANSFER_WALLET_CREDIT) && (
+        <Popover open={open} onOpenChange={(next) => { setOpen(next); if (next) setReason(''); }}>
+          <PopoverTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-auto px-1 py-0 text-xs text-primary hover:text-primary">
+              Reverse
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-72 space-y-2 p-4">
+            <Label htmlFor={`reverse-${transferId}`}>Reason for reversing this transfer</Label>
+            <Textarea id={`reverse-${transferId}`} rows={2} value={reason} onChange={(event) => setReason(event.target.value)} />
+            <Button
+              size="sm"
+              className="w-full"
+              disabled={!reason.trim() || reverse.isPending}
+              onClick={() => reverse.mutate({ transferId, reason: reason.trim() }, { onSuccess: () => setOpen(false) })}
+            >
+              {reverse.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Reverse transfer
+            </Button>
+          </PopoverContent>
+        </Popover>
+      )}
+    </div>
+  );
 }
 
 function InvoiceReferencePopover({ invoiceId }: { invoiceId: string }) {

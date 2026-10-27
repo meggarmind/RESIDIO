@@ -2,10 +2,10 @@
 //
 // Issue #783: the resident detail page.
 //   1. Write controls in LinkedHouses, PaymentAliases, WalletPaymentBatchTools and
-//      ResidentPayments are hidden from a user without the matching WRITE permission
+//      the Money tab actions are hidden from a user without the matching WRITE permission
 //      (CORE.md s6), and shown to a holder.
 //   2. The Link dialog's house and sponsor lists load only while the dialog is open.
-//   3. Payments are paged on the server.
+//   3. Unposted (pending/failed) payments show in a strip that hides when empty.
 //   4. Legacy tab links resolve, and a load failure is not reported as "not found".
 // The rendered page is covered in resident-detail-page-783.test.tsx.
 
@@ -16,11 +16,12 @@ import '@testing-library/jest-dom/vitest';
 import { LinkedHouses } from '@/components/residents/linked-houses';
 import { PaymentAliases } from '@/components/residents/payment-aliases';
 import { WalletPaymentBatchTools } from '@/components/residents/wallet-payment-batch-tools';
-import { ResidentPayments } from '@/components/residents/resident-payments';
+import { ResidentMoneyTab } from '@/components/residents/resident-money-tab';
 import { resolveResidentTab, isResidentNotFoundError } from '@/components/residents/resident-detail-tabs';
 import { useHousesWithRoles } from '@/hooks/use-houses';
 import { useResidents } from '@/hooks/use-residents';
 import { usePayments } from '@/hooks/use-payments';
+import { UnpostedPaymentsStrip } from '@/components/residents/unposted-payments-strip';
 import type { ResidentWithHouses } from '@/types/database';
 
 const auth = vi.hoisted(() => ({ granted: [] as string[] }));
@@ -60,15 +61,18 @@ vi.mock('@/hooks/use-imports', () => ({
 }));
 
 vi.mock('@/hooks/use-payments', () => ({
-  usePayments: vi.fn(() => ({ data: { data: [], count: 45 }, isLoading: false })),
+  usePayments: vi.fn(() => ({ data: { data: [], count: 0 }, isLoading: false })),
 }));
 
-vi.mock('@/components/payments/payment-table', () => ({
-  PaymentTable: () => <div data-testid="payment-table" />,
-}));
+vi.mock('@/components/residents/wallet-balance', () => ({ WalletBalance: () => <div data-testid="wallet-balance" /> }));
+vi.mock('@/components/residents/wallet-transactions', () => ({ WalletTransactions: () => <div data-testid="wallet-transactions" /> }));
 
 vi.mock('@/hooks/use-wallet', () => ({
   useWallet: () => ({ data: { data: { id: 'w1', balance: 1000 } }, isLoading: false }),
+}));
+
+vi.mock('@/hooks/use-estate-details', () => ({
+  useEstateDetails: () => ({ estateName: undefined, estateAddress: undefined }),
 }));
 
 vi.mock('@tanstack/react-query', () => ({
@@ -192,7 +196,7 @@ describe('PaymentAliases write controls (#783)', () => {
 describe('WalletPaymentBatchTools write controls (#783)', () => {
   it('hides settle, invoice selection and prepay without billing.manage_wallets', async () => {
     auth.granted = ['billing.view'];
-    render(<WalletPaymentBatchTools residentId="r1" houses={[]} />);
+    render(<WalletPaymentBatchTools residentId="r1" houses={[]} section="settle" />);
 
     await waitFor(() => expect(screen.getByText('INV-0001')).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: /settle selected/i })).not.toBeInTheDocument();
@@ -200,40 +204,82 @@ describe('WalletPaymentBatchTools write controls (#783)', () => {
     expect(screen.queryByRole('button', { name: /create and pay future invoices/i })).not.toBeInTheDocument();
   });
 
-  it('shows them with billing.manage_wallets', async () => {
+  it('shows settle and invoice selection with billing.manage_wallets', async () => {
     auth.granted = ['billing.manage_wallets'];
-    render(<WalletPaymentBatchTools residentId="r1" houses={[]} />);
+    render(<WalletPaymentBatchTools residentId="r1" houses={[]} section="settle" />);
 
     await waitFor(() => expect(screen.getByText('INV-0001')).toBeInTheDocument());
     expect(screen.getByRole('button', { name: /settle selected/i })).toBeInTheDocument();
-    expect(screen.getByRole('checkbox')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /select all invoices/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('checkbox')).toHaveLength(2);
+  });
+
+  it('shows prepay with billing.manage_wallets, and hides it without', () => {
+    auth.granted = ['billing.manage_wallets'];
+    const { unmount } = render(<WalletPaymentBatchTools residentId="r1" houses={[]} section="prepay" />);
     expect(screen.getByRole('button', { name: /create and pay future invoices/i })).toBeInTheDocument();
+    unmount();
+
+    auth.granted = ['billing.view'];
+    render(<WalletPaymentBatchTools residentId="r1" houses={[]} section="prepay" />);
+    expect(screen.queryByRole('button', { name: /create and pay future invoices/i })).not.toBeInTheDocument();
   });
 });
 
-describe('ResidentPayments (#783)', () => {
-  it('hides Record Payment without payments.create', () => {
-    auth.granted = ['payments.view'];
-    render(<ResidentPayments residentId="r1" />);
+describe('ResidentMoneyTab actions (#1142)', () => {
+  it('hides Record, Settle and Prepay without the write permissions', () => {
+    auth.granted = ['payments.view', 'billing.view'];
+    render(<ResidentMoneyTab resident={RESIDENT} />);
+    expect(screen.queryByRole('link', { name: /record payment/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /settle invoices/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /prepay/i })).not.toBeInTheDocument();
+  });
+
+  it('shows Record with payments.create, linking to the new-payment form', () => {
+    auth.granted = ['payments.create'];
+    render(<ResidentMoneyTab resident={RESIDENT} />);
+    expect(screen.getByRole('link', { name: /record payment/i })).toHaveAttribute('href', '/payments/new?residentId=r1');
+    expect(screen.queryByRole('button', { name: /settle invoices/i })).not.toBeInTheDocument();
+  });
+
+  it('shows Settle and Prepay with billing.manage_wallets', () => {
+    auth.granted = ['billing.manage_wallets'];
+    render(<ResidentMoneyTab resident={RESIDENT} />);
+    expect(screen.getByRole('button', { name: /settle invoices/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /prepay/i })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /record payment/i })).not.toBeInTheDocument();
   });
 
-  it('shows Record Payment with payments.create', () => {
-    auth.granted = ['payments.create'];
-    render(<ResidentPayments residentId="r1" />);
-    expect(screen.getByRole('link', { name: /record payment/i })).toBeInTheDocument();
+  it('keeps aliases off the page until the button is pressed', () => {
+    auth.granted = ['residents.update'];
+    render(<ResidentMoneyTab resident={RESIDENT} />);
+    expect(screen.queryByText('J Doe Ltd')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /payment aliases \(1\)/i }));
+    expect(screen.getByText('J Doe Ltd')).toBeInTheDocument();
+  });
+});
+
+describe('UnpostedPaymentsStrip (#1142)', () => {
+  const payment = { id: 'p1', payment_date: '2026-10-01', amount: 5000, method: 'bank_transfer', status: 'pending' };
+
+  it('lists pending and failed payments with a link to each', () => {
+    vi.mocked(usePayments).mockImplementation(((params: { status?: string }) => ({
+      data: { data: params.status === 'pending' ? [payment] : [{ ...payment, id: 'p2', status: 'failed' }], count: 1 },
+      isLoading: false,
+    })) as unknown as typeof usePayments);
+    render(<UnpostedPaymentsStrip residentId="r1" />);
+
+    expect(screen.getByText('Unposted payments (2)')).toBeInTheDocument();
+    expect(screen.getByText('Pending')).toBeInTheDocument();
+    expect(screen.getByText('Failed')).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: /view payment/i })[0]).toHaveAttribute('href', '/payments/p1');
   });
 
-  it('pages on the server: 20 per page, next page requests page 2', async () => {
-    render(<ResidentPayments residentId="r1" />);
-    expect(vi.mocked(usePayments).mock.calls[0][0]).toMatchObject({ resident_id: 'r1', limit: 20, page: 1 });
-    expect(screen.getByText('Page 1 of 3')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: /next/i }));
-
-    await waitFor(() => {
-      expect(vi.mocked(usePayments).mock.calls.at(-1)?.[0]).toMatchObject({ page: 2 });
-    });
+  it('renders nothing when there are none', () => {
+    vi.mocked(usePayments).mockImplementation((() => ({ data: { data: [], count: 0 }, isLoading: false })) as unknown as typeof usePayments);
+    render(<UnpostedPaymentsStrip residentId="r1" />);
+    expect(screen.queryByTestId('unposted-payments')).not.toBeInTheDocument();
   });
 });
 

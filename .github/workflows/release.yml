@@ -14,6 +14,9 @@ name: Release
 #
 # Stage is not touched here: it deploys from stage-image.yml on every push to `stage` (#1114).
 #
+# A fast-forward release (release-fast-forward.yml, #1137) tags in its own workflow and does not
+# come through here.
+#
 # Merges into `stage` never run this: a release:* label on a feature PR has no effect.
 #
 # The first time, run this workflow by hand (Actions > Release > Run workflow) to create the
@@ -72,10 +75,11 @@ jobs:
             echo "::error::Tag ${TAG} already exists. Not moving it; tags are immutable."
             exit 1
           fi
-          # Guard (#1116): a release is a merge commit (CORE.md section 7), on a commit no release owns.
+          # Guard (#1116, #1137): a release is a merge commit with two parents (CORE.md section 7),
+          # or a commit that is on stage. A squash on master is neither, so it is refused.
           parents=$(git rev-list --parents -n 1 "${MERGE_SHA}" | wc -w)
-          if [ "${parents}" -lt 3 ]; then
-            echo "::error::${MERGE_SHA} has fewer than two parents, so it is not a merge commit. Release PRs must be merged with a merge commit, never a squash. Not tagging."
+          if [ "${parents}" -lt 3 ] && ! git merge-base --is-ancestor "${MERGE_SHA}" origin/stage; then
+            echo "::error::${MERGE_SHA} has fewer than two parents and is not on stage, so it is neither a merge-commit release nor a stage commit. Release PRs must be merged with a merge commit, never a squash. Not tagging."
             exit 1
           fi
           existing=$(git tag --list 'v*' --points-at "${MERGE_SHA}")
@@ -116,6 +120,19 @@ jobs:
       CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
       CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
       COOLIFY_APP_UUID_PROD: ${{ secrets.COOLIFY_APP_UUID_PROD }}
+
+  # Drafts the release notes page for the new tag (#1236, docs/agents/release-notes.md).
+  release-notes:
+    name: Draft the release notes page
+    needs: tag
+    if: needs.tag.outputs.tag != ''
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    uses: ./.github/workflows/release-notes.yml
+    with:
+      tag: ${{ needs.tag.outputs.tag }}
 
   # One-off setup, safe to re-run: creates or updates the four release labels.
   # GitHub rejects a label description over 100 characters (HTTP 422);

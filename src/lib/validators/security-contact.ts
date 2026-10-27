@@ -28,8 +28,8 @@ const recurringScheduleSchema = z.object({
 
 // Base security contact schema
 const baseSecurityContactSchema = z.object({
-  resident_id: z.string().uuid('Please select a resident'),
-  category_id: z.string().uuid('Please select a category'),
+  resident_id: z.guid('Please select a resident'),
+  category_id: z.guid('Please select a category'),
 
   // Basic info (required)
   full_name: z.string().min(2, 'Full name must be at least 2 characters'),
@@ -71,14 +71,14 @@ export type CreateSecurityContactData = z.infer<typeof createSecurityContactSche
 
 // Update security contact schema (all fields optional except id)
 export const updateSecurityContactSchema = baseSecurityContactSchema.partial().extend({
-  id: z.string().uuid('Invalid contact ID'),
+  id: z.guid('Invalid contact ID'),
 });
 
 export type UpdateSecurityContactData = z.infer<typeof updateSecurityContactSchema>;
 
 // Update security contact status schema
 export const updateSecurityContactStatusSchema = z.object({
-  id: z.string().uuid('Invalid contact ID'),
+  id: z.guid('Invalid contact ID'),
   status: securityContactStatusEnum,
   reason: z.string().optional(),
 });
@@ -87,7 +87,7 @@ export type UpdateSecurityContactStatusData = z.infer<typeof updateSecurityConta
 
 // Create access code schema
 export const createAccessCodeSchema = z.object({
-  contact_id: z.string().uuid('Invalid contact ID'),
+  contact_id: z.guid('Invalid contact ID'),
   code_type: accessCodeTypeEnum,
   validity_days: z.number().min(1, 'Validity must be at least 1 day').max(365, 'Validity cannot exceed 365 days').optional(),
   valid_from: z.string().datetime().optional(), // ISO datetime string
@@ -111,7 +111,7 @@ export type CreateAccessCodeData = z.infer<typeof createAccessCodeSchema>;
 
 // Revoke access code schema
 export const revokeAccessCodeSchema = z.object({
-  code_id: z.string().uuid('Invalid code ID'),
+  code_id: z.guid('Invalid code ID'),
   reason: z.string().optional(),
 });
 
@@ -126,9 +126,9 @@ export type VerifyAccessCodeData = z.infer<typeof verifyAccessCodeSchema>;
 
 // Check-in schema (record access log entry)
 export const checkInSchema = z.object({
-  access_code_id: z.string().uuid().optional().nullable(), // Optional if manual check-in
-  contact_id: z.string().uuid('Contact ID is required'),
-  vehicle_id: z.string().uuid('Invalid vehicle ID').optional().nullable(), // Must belong to contact_id
+  access_code_id: z.guid().optional().nullable(), // Optional if manual check-in
+  contact_id: z.guid('Contact ID is required'),
+  vehicle_id: z.guid('Invalid vehicle ID').optional().nullable(), // Must belong to contact_id
   gate_location: z.string().optional().or(z.literal('')),
   notes: z.string().optional().or(z.literal('')),
 });
@@ -137,7 +137,7 @@ export type CheckInData = z.infer<typeof checkInSchema>;
 
 // Check-out schema
 export const checkOutSchema = z.object({
-  log_id: z.string().uuid('Invalid log ID'),
+  log_id: z.guid('Invalid log ID'),
   notes: z.string().optional().or(z.literal('')),
 });
 
@@ -145,7 +145,7 @@ export type CheckOutData = z.infer<typeof checkOutSchema>;
 
 // Flag access schema (for suspicious activity)
 export const flagAccessSchema = z.object({
-  log_id: z.string().uuid('Invalid log ID'),
+  log_id: z.guid('Invalid log ID'),
   flag_reason: z.string().min(5, 'Please provide a reason for flagging (minimum 5 characters)'),
 });
 
@@ -154,8 +154,8 @@ export type FlagAccessData = z.infer<typeof flagAccessSchema>;
 // Security contact filters/search schema
 export const securityContactFiltersSchema = z.object({
   search: z.string().optional(),
-  resident_id: z.string().uuid().optional(),
-  category_id: z.string().uuid().optional(),
+  resident_id: z.guid().optional(),
+  category_id: z.guid().optional(),
   status: securityContactStatusEnum.optional(),
   expiring_within_days: z.number().min(1).max(90).optional(), // Find contacts expiring soon
   page: z.number().min(1).optional().default(1),
@@ -166,8 +166,8 @@ export type SecurityContactFilters = z.input<typeof securityContactFiltersSchema
 
 // Access logs filters schema
 export const accessLogsFiltersSchema = z.object({
-  contact_id: z.string().uuid().optional(),
-  resident_id: z.string().uuid().optional(),
+  contact_id: z.guid().optional(),
+  resident_id: z.guid().optional(),
   date_from: z.string().datetime().optional(),
   date_to: z.string().datetime().optional(),
   flagged_only: z.boolean().optional(),
@@ -180,7 +180,7 @@ export type AccessLogsFilters = z.input<typeof accessLogsFiltersSchema>;
 
 // Category update schema (admin only)
 export const updateCategorySchema = z.object({
-  id: z.string().uuid('Invalid category ID'),
+  id: z.guid('Invalid category ID'),
   name: z.string().min(2, 'Category name must be at least 2 characters').optional(),
   description: z.string().optional().or(z.literal('')),
   default_validity_days: z.number().min(1).max(365).optional(),
@@ -230,7 +230,7 @@ export function isValidAccessCodeFormat(code: string): boolean {
 
 // Visitor Vehicle schema
 export const createVisitorVehicleSchema = z.object({
-  contact_id: z.string().uuid('Invalid contact ID'),
+  contact_id: z.guid('Invalid contact ID'),
   vehicle_type: vehicleTypeEnum.default('car'),
   plate_number: z.string().min(2, 'Plate number is required').max(20, 'Plate number is too long'),
   make: z.string().optional().or(z.literal('')),
@@ -246,19 +246,19 @@ export type CreateVisitorVehicleData = z.infer<typeof createVisitorVehicleSchema
 
 // Update visitor vehicle schema
 export const updateVisitorVehicleSchema = createVisitorVehicleSchema.partial().extend({
-  id: z.string().uuid('Invalid vehicle ID'),
+  id: z.guid('Invalid vehicle ID'),
 });
 
 export type UpdateVisitorVehicleData = z.infer<typeof updateVisitorVehicleSchema>;
 
 // Enhanced check-in schema with duration and vehicle
 export const enhancedCheckInSchema = z.object({
-  access_code_id: z.string().uuid().optional().nullable(),
-  contact_id: z.string().uuid('Contact ID is required'),
+  access_code_id: z.guid().optional().nullable(),
+  contact_id: z.guid('Contact ID is required'),
   gate_location: z.string().optional().or(z.literal('')),
   notes: z.string().optional().or(z.literal('')),
   expected_duration_minutes: z.number().min(1).max(1440).optional().nullable(), // Max 24 hours
-  vehicle_id: z.string().uuid().optional().nullable(),
+  vehicle_id: z.guid().optional().nullable(),
   entry_method: z.enum(['code', 'photo', 'manual', 'vehicle_plate']).optional().nullable(),
   photo_url: z.string().url().optional().or(z.literal('')),
 });
@@ -267,7 +267,7 @@ export type EnhancedCheckInData = z.infer<typeof enhancedCheckInSchema>;
 
 // Photo capture schema for visitor photos at gate
 export const visitorPhotoCaptureSchema = z.object({
-  contact_id: z.string().uuid('Invalid contact ID'),
+  contact_id: z.guid('Invalid contact ID'),
   photo_data: z.string().min(1, 'Photo data is required'), // Base64 encoded image
   capture_type: z.enum(['profile', 'gate_entry']).default('profile'),
 });
@@ -276,7 +276,7 @@ export type VisitorPhotoCaptureData = z.infer<typeof visitorPhotoCaptureSchema>;
 
 // Recurring schedule update schema
 export const updateRecurringScheduleSchema = z.object({
-  contact_id: z.string().uuid('Invalid contact ID'),
+  contact_id: z.guid('Invalid contact ID'),
   is_recurring: z.boolean(),
   recurrence_pattern: visitorRecurrencePatternEnum.optional().nullable(),
   recurrence_days: z.array(dayOfWeekEnum).optional().nullable(),
@@ -315,8 +315,8 @@ export type UpdateRecurringScheduleData = z.infer<typeof updateRecurringSchedule
 
 // Visitor analytics filters schema
 export const visitorAnalyticsFiltersSchema = z.object({
-  resident_id: z.string().uuid().optional(),
-  category_id: z.string().uuid().optional(),
+  resident_id: z.guid().optional(),
+  category_id: z.guid().optional(),
   is_recurring: z.boolean().optional(),
   is_frequent_visitor: z.boolean().optional(),
   min_visits: z.number().min(1).optional(),
