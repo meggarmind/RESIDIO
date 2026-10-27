@@ -534,6 +534,32 @@ describe('processQueue exhausted-row guard', () => {
       error_message: 'Max attempts exceeded',
     });
   });
+
+  it('settles a WhatsApp statement request when its exhausted row is failed (#1252)', async () => {
+    const meta = { whatsapp_statement_request_id: 'request-1' };
+    useFake({
+      notification_queue: [queueRow({ attempts: 5, max_attempts: 5, metadata: meta })],
+      notification_history: [],
+    });
+
+    await processQueue();
+
+    expect(mocks.settleFailedStatementEmail).toHaveBeenCalledWith(meta, 'Max attempts exceeded');
+  });
+
+  it('does not settle an exhausted row that is not a statement email, and survives a settle error (#1252)', async () => {
+    useFake({ notification_queue: [queueRow({ attempts: 5, max_attempts: 5 })], notification_history: [] });
+    await processQueue();
+    expect(mocks.settleFailedStatementEmail).not.toHaveBeenCalled();
+
+    mocks.settleFailedStatementEmail.mockRejectedValue(new Error('db down'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    useFake({
+      notification_queue: [queueRow({ attempts: 5, max_attempts: 5, metadata: { whatsapp_statement_request_id: 'request-1' } })],
+      notification_history: [],
+    });
+    await expect(processQueue()).resolves.toMatchObject({ failed: 1 });
+  });
 });
 
 describe('addToQueue max_attempts', () => {

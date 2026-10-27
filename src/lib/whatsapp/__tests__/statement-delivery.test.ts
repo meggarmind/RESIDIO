@@ -277,7 +277,11 @@ describe('WhatsApp statement by email (#804 decision 24)', () => {
     });
 
     it('sends nothing when no queued row changed, or the queue item is not a statement', async () => {
-      mockDb({ whatsapp_statement_requests: [{ data: [], error: null }] });
+      // The request row and house are readable, so only the changed-row guard can stop the notice.
+      mockDb({
+        whatsapp_statement_requests: [{ data: [], error: null }, { data: requestRow, error: null }],
+        houses: [{ data: houseRow, error: null }],
+      });
       await settleFailedStatementEmail({ whatsapp_statement_request_id: 'request-1' }, 'rejected');
       await settleFailedStatementEmail({ candidateId: 'c' }, 'rejected');
       await settleFailedStatementEmail(null, 'rejected');

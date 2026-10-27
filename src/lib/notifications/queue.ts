@@ -274,6 +274,7 @@ export async function processQueue(options?: {
       console.error(`[Queue] Failed to reclaim stale processing item ${row.id}:`, reclaimError);
     } else if (exhausted) {
       await settleClearanceCopy(metadata, 'Max attempts exceeded');
+      // No statement-email settle here: a row stuck in processing may already have been emailed (#1252).
     }
   }
 
@@ -354,6 +355,13 @@ export async function processQueue(options?: {
         })
         .eq('id', item.id);
       await settleClearanceCopy(item.metadata, 'Max attempts exceeded');
+      if (typeof item.metadata?.whatsapp_statement_request_id === 'string') {
+        try {
+          await (await import('@/lib/whatsapp/statement-delivery')).settleFailedStatementEmail(item.metadata, 'Max attempts exceeded');
+        } catch (error) {
+          console.error('[Queue] Failed statement request could not be settled:', { queueId: item.id, error });
+        }
+      }
       result.failed++;
       result.errors.push({
         queueId: item.id,
