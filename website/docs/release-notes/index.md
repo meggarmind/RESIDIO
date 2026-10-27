@@ -22,6 +22,7 @@ The newest release is at the top of the table.
 
 | Release | Date | Type | What changed |
 | --- | --- | --- | --- |
+| [v2.1.0](./v2-1-0.md) | 27 October 2026 | Minor | Draft: to be written. |
 | [v2.0.0](./v2-0-0.md) | 24 October 2026 | Major | Resident role groups, announcements that target groups with reach preview, a simpler WhatsApp Financial menu, and two required migrations. |
 | [v1.11.0](./v1-11-0.md) | 23 October 2026 | Minor | Payer setting for billing profiles, co-resident sponsor rule, better WhatsApp Assistant, and security and duplicate-message fixes. |
 | [v1.10.0](./v1-10-0.md) | 22 October 2026 | Minor | Merge duplicate residents, protected WhatsApp admin mode, two-factor settings, shared debt status, and billing and payment fixes. |
