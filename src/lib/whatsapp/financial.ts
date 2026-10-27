@@ -21,6 +21,7 @@ import { sendWhatsAppPinAlert } from '@/lib/whatsapp/pin-alert';
 import type { AccountStatementData } from '@/lib/billing/account-statement-data';
 import { fetchAccountBalance, isResidentRollForwardEnabled } from '@/lib/billing/account-balance';
 import { statementRowCount } from '@/lib/billing/statement-categories';
+import { DEFAULT_CHARGE_CATEGORY } from '@/lib/billing/charge-categories';
 import {
   STATEMENT_CHAT_ROW_LIMIT,
   createStatementRequest,
@@ -74,6 +75,7 @@ import {
   chargeLabel,
   contactLine,
   formatDay,
+  formatMonth,
   formatBalance,
   formatNaira,
   lagosDateString,
@@ -378,16 +380,14 @@ function plural(count: number, word: string): string {
 const OVERDUE_CHARGES_SHOWN = 5;
 
 /**
- * The due date of the first month after the latest billed service-charge period whose due date
- * is not already past, by the same rule as invoice generation (period start + due window).
+ * The first day of the first month that is not paid: the month after the latest billed
+ * service-charge period, moved on by the months the wallet credit covers, and never a past month.
  */
-export function nextServiceChargeDue(latestPeriodStart: string, today: string, dueWindowDays: number): string {
+export function nextPaymentDueDate(latestPeriodStart: string, today: string, monthsCovered: number): string {
   const [year, month] = latestPeriodStart.split('-').map(Number);
-  for (let offset = 1; ; offset++) {
-    const due = new Date(Date.UTC(year, month - 1 + offset, 1));
-    due.setUTCDate(due.getUTCDate() + dueWindowDays);
-    const dueDate = due.toISOString().slice(0, 10);
-    if (dueDate >= today) return dueDate;
+  for (let offset = 1 + Math.max(monthsCovered, 0); ; offset++) {
+    const start = new Date(Date.UTC(year, month - 1 + offset, 1)).toISOString().slice(0, 10);
+    if (start >= today) return start;
   }
 }
 
@@ -415,7 +415,7 @@ export function composeOweAnswer(figures: OwedFigures, houseLabel: string, showP
     lines.push(`No bills on record for ${houseLabel}.`);
   } else if (figures.outstanding <= 0) {
     lines.push(`You are fully paid up for ${houseLabel}.`);
-    if (figures.nextPaymentDue) lines.push(`Next payment due ${formatDay(figures.nextPaymentDue)}`);
+    if (figures.nextPaymentDue) lines.push(`Next payment due ${formatMonth(figures.nextPaymentDue)}`);
   } else {
     lines.push(`Outstanding: ${formatNaira(figures.outstanding)}`);
     if (figures.overdue) {
@@ -754,23 +754,32 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
       const unpaid = (unpaidResult.data || []).filter((invoice) => remaining(invoice) > 0);
       let nextPaymentDue: string | null = null;
       if (!unpaid.length) {
-        const [latestResult, windowResult] = await Promise.all([
-          supabase
-            .from('invoices')
-            .select('period_start')
-            .eq('resident_id', residentId)
-            .eq('house_id', houseId)
-            .eq('invoice_type', 'SERVICE_CHARGE')
-            .neq('status', 'void')
-            .not('period_start', 'is', null)
-            .order('period_start', { ascending: false })
-            .limit(1)
-            .maybeSingle(),
-          getSettingResultAsService('invoice_due_window_days'),
-        ]);
+        const latestResult = await supabase
+          .from('invoices')
+          .select('period_start, amount_due, charge_category')
+          .eq('resident_id', residentId)
+          .eq('house_id', houseId)
+          .eq('invoice_type', 'SERVICE_CHARGE')
+          .neq('status', 'void')
+          .not('period_start', 'is', null)
+          .order('period_start', { ascending: false })
+          .limit(1)
+          .maybeSingle();
         if (latestResult.error) throw latestResult.error;
-        const dueWindowDays = (windowResult.status === 'ok' && Number(windowResult.value)) || 30;
-        if (latestResult.data?.period_start) nextPaymentDue = nextServiceChargeDue(latestResult.data.period_start, today, dueWindowDays);
+        const latest = latestResult.data;
+        if (latest?.period_start) {
+          // Credit in the wallet of the charge's category pays the coming months at the latest rate.
+          const walletResult = await supabase
+            .from('resident_wallets')
+            .select('balance')
+            .eq('resident_id', residentId)
+            .eq('charge_category', latest.charge_category || DEFAULT_CHARGE_CATEGORY);
+          if (walletResult.error) throw walletResult.error;
+          const credit = (walletResult.data || []).reduce((sum, wallet) => sum + Number(wallet.balance || 0), 0);
+          const rate = Number(latest.amount_due);
+          const monthsCovered = rate > 0 ? Math.floor(credit / rate) : 0;
+          nextPaymentDue = nextPaymentDueDate(latest.period_start, today, monthsCovered);
+        }
       }
       const overdue = unpaid.filter((invoice) => invoice.due_date.slice(0, 10) < today);
       const next = unpaid.find((invoice) => invoice.due_date.slice(0, 10) >= today);
