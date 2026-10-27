@@ -10,7 +10,7 @@ residio_sources:
   - src/app/(dashboard)/settings/whatsapp-admin/**
   - src/app/(dashboard)/system/whatsapp-monitoring/**
   - src/app/api/whatsapp/**
-residio_verified_commit: 97ac657
+residio_verified_commit: 32ffc274
 residio_verified_at: '2026-10-27'
 residio_app_version: '0.4.0'
 ---
