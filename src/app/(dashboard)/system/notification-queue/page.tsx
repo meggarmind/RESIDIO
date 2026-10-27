@@ -14,7 +14,7 @@ export default function NotificationQueuePage() {
         </p>
         <p className="mt-1 text-sm text-muted-foreground">
           WhatsApp assistant replies do not use this queue. See them under{' '}
-          <Link href="/settings/whatsapp#sent-messages" className="underline">Settings &gt; WhatsApp &gt; Sent messages</Link>.
+          <Link href="/system/whatsapp-monitoring" className="underline">WhatsApp Monitoring</Link>.
         </p>
       </div>
 

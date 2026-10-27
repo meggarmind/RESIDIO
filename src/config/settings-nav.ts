@@ -735,6 +735,7 @@ export const settingsConfig: SettingsGroup[] = [
                     { title: "Scheduled Jobs", href: "/system/cron-status", description: "Whether the scheduled jobs are running", permissions: [PERMISSIONS.SYSTEM_MONITOR], opensSystem: true },
                     { title: "Notification Queue", href: "/system/notification-queue", description: "Messages waiting to be sent", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE], opensSystem: true },
                     { title: "Notification History", href: "/system/notification-history", description: "Messages already sent", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE], opensSystem: true },
+                    { title: "WhatsApp Monitoring", href: "/system/whatsapp-monitoring", description: "WhatsApp sends, opt-ins, sessions and disclosures", permissions: [PERMISSIONS.WHATSAPP_VIEW], opensSystem: true },
                 ]
             },
         ]
