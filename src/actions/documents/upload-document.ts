@@ -36,7 +36,7 @@ function validateFile(
   if (!ALLOWED_DOCUMENT_MIME_TYPES.includes(file.type as typeof ALLOWED_DOCUMENT_MIME_TYPES[number])) {
     return {
       valid: false,
-      error: 'File type not allowed. Please upload PDF, DOCX, XLSX, or TXT files.',
+      error: 'File type not allowed. Please upload PDF, DOCX, XLSX, TXT, JPG, PNG, or WebP files.',
     };
   }
 

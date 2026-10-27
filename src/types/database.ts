@@ -2128,6 +2128,9 @@ export const ALLOWED_DOCUMENT_MIME_TYPES = [
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // XLSX
   'text/plain', // TXT
+  'image/jpeg', // JPG
+  'image/png', // PNG
+  'image/webp', // WebP
 ] as const;
 
 export const DOCUMENT_MIME_TYPE_LABELS: Record<string, string> = {
@@ -2135,6 +2138,9 @@ export const DOCUMENT_MIME_TYPE_LABELS: Record<string, string> = {
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word Document',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'Excel Spreadsheet',
   'text/plain': 'Text File',
+  'image/jpeg': 'JPEG Image',
+  'image/png': 'PNG Image',
+  'image/webp': 'WebP Image',
 };
 
 export const DOCUMENT_FILE_EXTENSIONS: Record<string, string> = {
@@ -2142,6 +2148,9 @@ export const DOCUMENT_FILE_EXTENSIONS: Record<string, string> = {
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
   'text/plain': '.txt',
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
 };
 
 // Maximum file size for document upload (50MB)

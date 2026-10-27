@@ -78,6 +78,12 @@ const getFileTypeInfo = (mimeType: string | null): { label: string; color: strin
       return { label: 'XLSX', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' };
     case 'text/plain':
       return { label: 'TXT', color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200' };
+    case 'image/jpeg':
+      return { label: 'JPG', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' };
+    case 'image/png':
+      return { label: 'PNG', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' };
+    case 'image/webp':
+      return { label: 'WebP', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' };
     default:
       return { label: 'File', color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200' };
   }

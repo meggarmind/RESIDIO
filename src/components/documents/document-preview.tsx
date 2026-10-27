@@ -73,6 +73,7 @@ export function DocumentPreview({ document, open, onOpenChange }: DocumentPrevie
   };
 
   const isPdfPreviewable = document?.mime_type === 'application/pdf';
+  const isImagePreviewable = !!document?.mime_type?.startsWith('image/');
 
   if (!document) return null;
 
@@ -130,6 +131,13 @@ export function DocumentPreview({ document, open, onOpenChange }: DocumentPrevie
                 src={viewUrl}
                 className="w-full h-[500px] border rounded-lg"
                 title={document.title}
+              />
+            ) : isImagePreviewable && viewUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- signed storage URL
+              <img
+                src={viewUrl}
+                alt={document.title}
+                className="max-h-[500px] mx-auto rounded-lg border object-contain"
               />
             ) : (
               <div className="flex flex-col items-center justify-center h-96 bg-muted rounded-lg">

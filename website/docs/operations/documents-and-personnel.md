@@ -7,8 +7,8 @@ residio_sources:
   - src/app/(dashboard)/personnel/**
   - src/actions/documents/**
   - src/actions/personnel/**
-residio_verified_commit: e24b7386
-residio_verified_at: '2026-10-20'
+residio_verified_commit: 9071816
+residio_verified_at: '2026-10-27'
 residio_app_version: '0.4.0'
 ---
 
@@ -17,6 +17,8 @@ residio_app_version: '0.4.0'
 ## Documents
 
 Use **Documents** to upload, categorize, and retrieve estate records. Choose a clear category, title, and access scope. Check the detail page after upload to confirm the file is available to the intended audience.
+
+The **Upload** button shows for users with the document upload permission, also when the library is empty. A document can be a PDF, DOCX, XLSX, TXT, JPG, PNG or WebP file, up to 50 MB. The preview shows PDF and image files. For other file types, download the file to view it.
 
 Search matches whole words in a document's title, description and file name, and lists title matches first, then description, then file name. A search can use quotes for an exact phrase and `-word` to exclude a word. If no whole word matches, search falls back to matching part of the text, so a fragment such as `inv` still finds "Invoice register".
 
