@@ -70,7 +70,6 @@ export const publicRoutePrefixes = [
     '/auth',
     '/maintenance',
     '/privacy-policy',
-    '/guide', // public admin guide, served from the Docker image (#1238)
     '/api',
 ];
 
@@ -80,6 +79,8 @@ export const publicRoutePrefixes = [
  */
 export function isPublicRoute(pathname: string): boolean {
     if (pathname === '/') return true;
+    // The public admin guide (#1238), matched by path segment so a future /guides page stays private.
+    if (pathname === '/guide' || pathname.startsWith('/guide/')) return true;
     return publicRoutePrefixes.some((prefix) => pathname.startsWith(prefix));
 }
 

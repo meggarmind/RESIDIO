@@ -115,11 +115,13 @@ RUN npm ci
 
 COPY website/ ./
 
-# DOCS_BASE_URL makes every link and asset path start with /guide/. DOCS_URL only
-# feeds absolute URLs (sitemap, canonical tags), so a neutral placeholder keeps the
-# image environment-agnostic. Neither value is a secret.
+# DOCS_BASE_URL makes every link and asset path start with /guide/. DOCS_URL feeds
+# the absolute URLs (sitemap, canonical and link-preview tags), so it takes the
+# app's public origin. NEXT_PUBLIC_SITE_URL is already public and already binds
+# the image to one environment (see the builder stage). Neither value is a secret.
+ARG NEXT_PUBLIC_SITE_URL
 ENV DOCS_BASE_URL=/guide/ \
-    DOCS_URL=http://localhost:3000
+    DOCS_URL=${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
 RUN npm run build && mv build /guide-build-output
 
 # ==============================================================================

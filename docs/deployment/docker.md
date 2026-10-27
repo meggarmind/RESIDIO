@@ -235,9 +235,10 @@ The image also serves the admin guide (the Docusaurus site in `website/`) at
 `/guide`, with no login (#1238). A `guide` build stage runs `npm ci` and
 `npm run build` in `website/` with `DOCS_BASE_URL=/guide/`, and the runner stage
 copies the result to `/app/guide`. The route handler
-`src/app/guide/[[...path]]/route.ts` serves those files, and `/guide` is in
-`publicRoutePrefixes` in `src/middleware.ts`. `DOCS_URL` is a neutral placeholder
-because it only affects absolute URLs such as the sitemap. The GitHub Pages deploy
+`src/app/guide/[[...path]]/route.ts` serves those files, and `isPublicRoute` in
+`src/middleware.ts` admits `/guide` and `/guide/...` (by path segment, so `/guides`
+stays private). `DOCS_URL`, which sets the absolute URLs in the sitemap and the
+canonical and link-preview tags, takes `NEXT_PUBLIC_SITE_URL`. The GitHub Pages deploy
 is separate and unchanged. In `npm run dev` there is no `guide` folder, so `/guide`
 returns 404; the guide exists only in the Docker image.
 
