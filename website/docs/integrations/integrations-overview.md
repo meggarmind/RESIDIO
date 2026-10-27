@@ -23,7 +23,7 @@ Residio talks to a small set of external services. Most are configured with serv
 
 | Connection | What it does | Where you operate it |
 |---|---|---|
-| WhatsApp (Meta, Twilio or Chatmaid) | Resident messaging, identity checks, and balance lookups | **Settings → WhatsApp** |
+| WhatsApp (Meta, Twilio, Chatmaid or WAHA) | Resident messaging, identity checks, and balance lookups | **Settings → WhatsApp** |
 | Email (Resend) | Outbound notifications, reminders, receipts | **Settings → Email Settings** |
 | SMS (Termii) | Emergency broadcasts, two-factor codes (contact verification SMS is switched off until Termii is connected) | **Settings → Notifications** |
 | Gmail import | Pulls bank alerts and statements into the payment queue | **Settings → Gmail Import** |

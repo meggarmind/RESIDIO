@@ -29,13 +29,14 @@ The Financial PIN policy, opt-in import and operations console sit in a **Reside
 
 Before any message can be sent, the estate needs a WhatsApp provider connected. This no longer needs a developer or a redeploy — an admin with access to **Settings → WhatsApp** can connect, replace, or disconnect the provider directly from the connection card at the top of the page.
 
-Choose one of three providers. Only one is active at a time — saving a different provider replaces the current one.
+Choose one of four providers. Only one is active at a time — saving a different provider replaces the current one.
 
 | Provider | Why choose it |
 |---|---|
 | **Meta** (recommended) | Connects directly to the WhatsApp Cloud API, with no per-message middleman. |
 | **Twilio** | Adds a per-message cost on top of WhatsApp's own fees. Worth it mainly if the estate already runs other messaging through Twilio. |
 | **Chatmaid** | A WhatsApp Web bridge: it pairs with an ordinary WhatsApp number on a phone you keep connected, rather than using the WhatsApp Cloud API. Worth it when the estate wants to use an existing WhatsApp number. It has no delivery guarantee when the phone is offline — read [Chatmaid: what to know before choosing it](#chatmaid-what-to-know-before-choosing-it). |
+| **Self-hosted gateway (WAHA)** | A WhatsApp Web gateway the estate runs itself, beside Residio. It works like Chatmaid (a paired phone, no Cloud API) without a third-party bridge or its fees. Read [WAHA: the self-hosted gateway](#waha-the-self-hosted-gateway). |
 
 Whichever provider is chosen, have these details ready before you start:
 
@@ -44,6 +45,7 @@ Whichever provider is chosen, have these details ready before you start:
 | Meta | Access token, phone number ID, verify token, app secret |
 | Twilio | Account SID, auth token, a WhatsApp-enabled from-number |
 | Chatmaid | API key, webhook signing secret, and the from-number of the paired phone in international format (for example `+2348031234567`) |
+| WAHA | API key, webhook HMAC key, gateway URL (`https://`, no trailing slash), session name (usually `default`), and the from-number of the paired phone in international format |
 
 These all come from the provider's own console, not from Residio. For Chatmaid, enter the paired phone's own number, not the phone ID shown in the Chatmaid dashboard — that ID differs between Chatmaid's test and live environments.
 
@@ -69,7 +71,7 @@ For Chatmaid, the test also checks that the saved from-number is one of the phon
 
 ### How credentials are kept
 
-Secrets — access token, verify token, app secret, auth token, Chatmaid API key and webhook signing secret — are encrypted before they are stored, and Residio never displays them again after saving. The connection card only ever shows whether a credential is set, plus the non-secret details such as the phone number ID or from-number and who last saved the connection.
+Secrets — access token, verify token, app secret, auth token, Chatmaid and WAHA API keys, and webhook signing keys — are encrypted before they are stored, and Residio never displays them again after saving. The connection card only ever shows whether a credential is set, plus the non-secret details such as the phone number ID or from-number and who last saved the connection.
 
 To change a secret, use **Replace credentials** and enter it again in full; there is no way to view or partially edit a stored secret.
 
@@ -93,6 +95,26 @@ Chatmaid works through a phone that stays paired to the bridge, so the estate's 
 - **A sent message is not a delivered message.** Chatmaid accepts a message first and reports later whether it was sent or failed. Residio records each send and its outcome. When three messages fail within 10 minutes, admins receive a notification linking to **Settings → WhatsApp**. A message still unconfirmed 15 minutes after Chatmaid accepted it is treated as undelivered too: admins are notified by the next notification run, which happens every 15 minutes.
 - **Urgent messages fall back to SMS (currently off until the SMS provider is connected).** See the SMS fallback section on the Email and SMS page.
 - **Human takeover.** If someone on the estate team replies to a resident directly from the phone, the Assistant stays silent in that conversation for 30 minutes so the two do not talk over each other. The resident's messages during that time are still recorded and are not answered later. The one exception is `STOP`, which is honoured even during a takeover: the opt-out is saved and no reply is sent. When a phone number is shared by two or more residents, `STOP` opts out every resident that number matches.
+
+## WAHA: the self-hosted gateway
+
+WAHA is a WhatsApp Web gateway that runs as its own application on the estate's server, next to Residio. The phone is paired to WAHA by scanning a QR code in the WAHA dashboard. The container set-up and the pairing steps are in issue #1261.
+
+Fill in the connection card with these five fields:
+
+| Field | What to enter |
+|---|---|
+| API key | The WAHA API key. Residio sends it with every call to WAHA. |
+| Webhook HMAC key | The key WAHA signs its webhooks with (algorithm `sha512`). |
+| Gateway URL | The WAHA address, for example `https://waha.example.com`, with no slash at the end. |
+| Session | The WAHA session the phone is paired to. WAHA's default is `default`. |
+| From number | The paired phone's number in international format. |
+
+In WAHA, set the session webhook to the callback URL on the card (it ends in `/api/whatsapp/webhook/waha`), with the same HMAC key and the events `message`, `message.any`, `message.ack` and `session.status`. Residio rejects any call that is not signed with that key.
+
+**Test connection** reads the WAHA session. It passes only when the session status is `WORKING` and the phone paired to the session is the saved from-number. Otherwise it names the phone that is paired.
+
+WAHA behaves like Chatmaid in these ways: Residio checks the session before each send (at most every 30 seconds), admins are alerted when the session stops or needs a new QR scan and when it is working again, delivery is tracked from WAHA's acknowledgements, and the human takeover applies when someone types on the phone. Unlike Chatmaid, the `whatsapp-waha-reconcile` task reads back messages from the last 24 hours every 15 minutes and answers any the webhook missed. Messages from groups, from the estate's own number and from senders WhatsApp identifies only by a linked-device ID are not answered.
 
 ## Turning the channel on
 
@@ -257,7 +279,7 @@ A co-resident whose sponsor (the resident landlord or tenant of the same house) 
 Every statement is a PDF, never chat text. Choosing a period sends one of these, and the reply names only the period, the property and where the PDF is going; it carries no statement rows. A statement that cannot be made gets the failure reply and the estate office line, not a text fallback.
 
 - **What the PDF shows:** one section per wallet category (Dues, Development Levy, Transformer Fee) with its own running balance, then a Collections section listing the resident's collection payments in the period. Monthly invoices in a row with no payment between them, for the same charge and amount, show as one line with the month range (for example `Nov 2025 – Feb 2026 · 4 invoices`) and the balance at the end of the run. This applies also when a credit balance pays the invoices; a payment or wallet entry stops the run. The admin statement download, the chat PDF and the emailed PDF use the same PDF. Collection lines count as rows below.
-- **Up to 40 rows:** the account statement PDF is attached in chat. It is stored privately, Chatmaid is given a link that works for 1 hour, and the file is deleted 12 hours later. If Chatmaid reports the send failed, it is sent once more with a fresh link.
+- **Up to 40 rows:** the account statement PDF is attached in chat. It is stored privately, the bridge (Chatmaid or WAHA) is given a link that works for 1 hour, and the file is deleted 12 hours later. If the bridge reports the send failed, it is sent once more with a fresh link.
 - **Over 40 rows:** the resident is offered email to their address on file, shown masked (`a***@gmail.com`). On `1` the email is queued and arrives with the PDF attached within 15 minutes, through the notification queue, so the communications override applies to it. The request moves from queued to sent once the email has gone, and the resident gets one WhatsApp message: `Your PDF was emailed to a***@gmail.com.` If every send attempt fails, the request moves to failed and the resident gets `Sorry, we could not email your statement.` with the estate office phone, when one is set. Both messages follow the communications override. A cancelled request gets no message.
 - **No email on file:** the resident is told so, and the request appears under **Statement requested, no email** in the operations console until an email is added and the statement is sent.
 

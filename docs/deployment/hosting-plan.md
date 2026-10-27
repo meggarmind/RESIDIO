@@ -42,6 +42,7 @@ Hostinger KVM 2  (x86, 2 vCPU, 8 GB RAM, 100 GB NVMe)
 └── Coolify (Traefik terminates TLS)
     ├── residio-prod   -> app.<domain>    -> Supabase project Residio_Prod
     ├── residio-stage-image -> stage.<domain> -> Supabase project Residio_Stage (CI-built GHCR image)
+    ├── residio-waha-stage  -> WAHA WhatsApp gateway for Stage (#1260; set up by #1261)
     └── Scheduled tasks: the 11 scheduled cron routes (see "Scheduled tasks" below), on prod and stage
 ```
 
@@ -107,6 +108,7 @@ read from the container's environment by the command, so it is never written int
 | `whatsapp-retention` | `15 0 * * *` | 60000 |
 | `purge-performance-events` | `30 0 * * *` | 60000 |
 | `whatsapp-chatmaid-reconcile` | `*/15 * * * *` | 120000 |
+| `whatsapp-waha-reconcile` | `*/15 * * * *` | 120000 |
 | `generate-invoices` | `0 6 * * *` | 300000 |
 | `process-report-schedules` | `0 7 * * *` | 300000 |
 | `payment-reminders` | `0 8 * * *` | 120000 |
@@ -149,6 +151,9 @@ node -e "fetch('http://127.0.0.1:3000/api/cron/whatsapp-retention',{headers:{Aut
 # whatsapp-chatmaid-reconcile  (*/15 * * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/whatsapp-chatmaid-reconcile',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(120000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
 
+# whatsapp-waha-reconcile  (*/15 * * * *)
+node -e "fetch('http://127.0.0.1:3000/api/cron/whatsapp-waha-reconcile',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(120000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
+
 # generate-invoices  (0 6 * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/generate-invoices',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(300000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
 
@@ -178,6 +183,7 @@ node -e "fetch('http://127.0.0.1:3000/api/cron/process-notifications',{headers:{
 | 60 s | `process-notifications` | Declared `maxDuration`. |
 | 60 s | `expire-approvals` | One read, one set-based UPDATE inside `process_expired_approvals()` and one in-app notification per expired request (#558). Hourly, so the backlog is small. New route: the owner must create this Coolify task; nothing runs it until then. |
 | 120 s | `whatsapp-chatmaid-reconcile` | New route (#511): at most 3 Chatmaid list calls (15 s timeout each) plus the Assistant reply for any message the webhook missed. Nothing runs it until the owner creates this Coolify task. |
+| 120 s | `whatsapp-waha-reconcile` | New route (#1262): at most 3 WAHA message-list calls (15 s timeout each) plus the Assistant reply for any message the webhook missed. It does nothing unless WAHA is the active provider. Nothing runs it until the owner creates this Coolify task. |
 | 60 s | `purge-performance-events` | New route (#957): one `DELETE ... WHERE occurred_at < now() - 30 days` on `performance_events`. Nothing runs it until the owner creates this Coolify task. |
 | 60 s | `whatsapp-retention` | **Previously undeclared.** Four bulk `DELETE ... WHERE <timestamp> < cutoff` statements run in parallel (`src/lib/whatsapp/retention.ts`) and nothing else; it runs daily so the backlog is small. Anything near 60 s means something is wrong. |
 
@@ -187,7 +193,7 @@ the app logs and the run history before re-triggering anything that creates reco
 
 ### Not scheduled: `apply-late-fees`
 
-There are twelve cron routes and **eleven** schedules. `src/app/api/cron/apply-late-fees` exists and
+There are thirteen cron routes and **twelve** schedules in the table above. `src/app/api/cron/apply-late-fees` exists and
 authenticates like the others, but it has **never had a `vercel.json` entry** (its handler comment
 says "7 AM UTC daily (configured in vercel.json)"; that was never true), so late fees have never
 run on a schedule in any environment. It was left unscheduled because #399 listed nine schedules.
@@ -575,6 +581,13 @@ CI builds the image and Coolify only pulls it (#1114).
 | Auto-deploy on push | **Off**: deploy by hand after any migration (`CORE.md` §11) | **Off in Coolify**: `.github/workflows/stage-image.yml` builds a GHCR image and deploys it on every push to `stage` (#1114). The old source-built `residio-stage` is stopped and kept only for rollback |
 | Supabase | Residio_Prod | Residio_Stage |
 | Memory limit | ~2 GB | ~1 GB |
+
+A third application, `residio-waha-stage`, runs the self-hosted WhatsApp gateway WAHA
+(`devlikeapro/waha:noweb-2026.9.2`) for Stage (#1260, ADR-0008). It is not a Residio build: it is
+the WAHA image with its own volume for the session store. Residio reaches it by its base URL and
+API key, saved under **Settings > WhatsApp** (provider "Self-hosted gateway (WAHA)"), and WAHA
+calls `/api/whatsapp/webhook/waha` on `residio-stage-image`. Container settings and pairing are in
+#1261.
 
 Build variables (public; inlined into the browser bundle). On **Prod** they are Coolify build
 variables. On **Stage** they are build args of the CI image build, taken from the `STAGE_*`
