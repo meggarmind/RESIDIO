@@ -105,7 +105,27 @@ RUN node preflight-env.mjs --build
 RUN npm run build
 
 # ==============================================================================
-# Stage 3 — runner
+# Stage 3 — admin guide (Docusaurus), served by the app at /guide (#1238)
+# ==============================================================================
+FROM ${NODE_IMAGE} AS guide
+WORKDIR /website
+
+COPY website/package.json website/package-lock.json ./
+RUN npm ci
+
+COPY website/ ./
+
+# DOCS_BASE_URL makes every link and asset path start with /guide/. DOCS_URL feeds
+# the absolute URLs (sitemap, canonical and link-preview tags), so it takes the
+# app's public origin. NEXT_PUBLIC_SITE_URL is already public and already binds
+# the image to one environment (see the builder stage). Neither value is a secret.
+ARG NEXT_PUBLIC_SITE_URL
+ENV DOCS_BASE_URL=/guide/ \
+    DOCS_URL=${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+RUN npm run build && mv build /guide-build-output
+
+# ==============================================================================
+# Stage 4 — runner
 # ==============================================================================
 FROM ${NODE_IMAGE} AS runner
 WORKDIR /app
@@ -126,6 +146,8 @@ COPY --from=builder --chown=node:node /app/public ./public
 COPY --from=builder --chown=node:node /app/.next/standalone ./
 COPY --from=builder --chown=node:node /app/.next/static ./.next/static
 COPY --from=builder --chown=node:node /app/preflight-env.mjs ./preflight-env.mjs
+# Static admin guide; src/app/guide/[[...path]]/route.ts serves it from <cwd>/guide.
+COPY --from=guide --chown=node:node /guide-build-output ./guide
 
 USER node
 

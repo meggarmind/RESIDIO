@@ -82,3 +82,16 @@ ready-for-agent-issues.json
 logs
 npm-debug.log*
 *:Zone.Identifier
+
+# --- Admin guide sources (#1238) ----------------------------------------------
+# The `guide` stage builds website/ inside the image, so its sources must reach
+# the context. Patterns are root-relative and the last match wins, so the
+# re-include sits after the `website` rule above. The root `.env*`,
+# `node_modules` and `build` rules do not match nested folders, so the website's
+# own are excluded explicitly: a website .env file must never enter a layer.
+!website
+website/.env
+website/.env.*
+website/node_modules
+website/build
+website/.docusaurus
