@@ -1130,6 +1130,12 @@ describe('WhatsApp Assistant ends a final answer with the menu as its own messag
     expect(replies[1]).toBe(MAIN_MENU);
   });
 
+  it('goes back to Financial standing on 0 at Switch property, once a property is chosen', async () => {
+    const replies = await chat(repository([PALM, CEDAR]), ['1', '1', '10', '0']);
+    expect(replies[2]).toContain('Which property?');
+    expect(replies[3]).toContain('Financial standing: 12 Palm Close');
+  });
+
   it('sends the answer and the menu as two messages, in order, saving the session at answer (#1179)', async () => {
     const repo = repository();
     const send = vi.fn().mockResolvedValue({ success: true });
