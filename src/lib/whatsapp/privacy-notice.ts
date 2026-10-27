@@ -8,6 +8,8 @@ export const PRIVACY_NOTICE_TEXT_KEY = 'whatsapp_privacy_notice_text';
 export interface WhatsAppPrivacyNotice {
   version: string;
   text: string;
+  /** Set when the text places the version itself with `{{Version}}`, so no separate version line is added. */
+  versionInText?: true;
 }
 
 function settingText(value: unknown): string {
@@ -20,15 +22,16 @@ function settingText(value: unknown): string {
  */
 export function renderPrivacyNoticeText(
   text: string,
-  { origin, estateName, assistantName }: { origin: string | null; estateName: string; assistantName: string }
+  { origin, estateName, assistantName, version = '' }: { origin: string | null; estateName: string; assistantName: string; version?: string }
 ): string | null {
   if (text.includes('{{URL}}') && !origin) return null;
   const values: Record<string, string> = {
     '{{URL}}': origin ?? '',
     '{{App Name}}': estateName,
     '{{App Assistant}}': assistantName,
+    '{{Version}}': version,
   };
-  return text.replace(/\{\{(?:URL|App Name|App Assistant)\}\}/g, (token) => values[token]);
+  return text.replace(/\{\{(?:URL|App Name|App Assistant|Version)\}\}/g, (token) => values[token]);
 }
 
 /**
@@ -49,12 +52,13 @@ export async function loadWhatsAppPrivacyNotice(): Promise<WhatsAppPrivacyNotice
     origin: getConfiguredPublicOrigin(),
     estateName,
     assistantName: resolveAssistantName(result.values.get('assistant_name'), estateName),
+    version,
   });
   if (rendered === null) {
     console.error('WhatsApp privacy notice not sent: it contains {{URL}} but NEXT_PUBLIC_SITE_URL is not a valid http(s) URL', { version });
     return null;
   }
-  return { version, text: rendered };
+  return { version, text: rendered, ...(text.includes('{{Version}}') ? { versionInText: true as const } : {}) };
 }
 
 /** `Contact the estate office on <phone> or <email>.`, or '' when both settings are empty. */
