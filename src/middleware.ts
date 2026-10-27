@@ -70,6 +70,7 @@ export const publicRoutePrefixes = [
     '/auth',
     '/maintenance',
     '/privacy-policy',
+    '/guide', // public admin guide, served from the Docker image (#1238)
     '/api',
 ];
 
