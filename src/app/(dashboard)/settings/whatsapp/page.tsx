@@ -31,6 +31,10 @@ const DISCONNECTED_STATUS: WhatsAppConnectionStatus = {
   hasAuthToken: false,
   hasChatmaidApiKey: false,
   hasChatmaidWebhookSecret: false,
+  hasWahaApiKey: false,
+  hasWahaWebhookSecret: false,
+  wahaBaseUrl: null,
+  wahaSession: null,
   templateContentSids: null,
 };
 
