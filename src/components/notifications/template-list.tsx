@@ -34,10 +34,11 @@ import {
   type ContentChannel,
 } from '@/lib/notifications/event-content-registry';
 import type { NotificationTemplate } from '@/lib/notifications/types';
+import { isBridgeProviderName } from '@/lib/whatsapp/bridge-provider';
 
 interface TemplateListProps {
   channel?: ContentChannel;
-  /** WhatsApp only: the active provider. Anything but Chatmaid shows the code-owned template read-only. */
+  /** WhatsApp only: the active provider. Anything but a bridge (Chatmaid, WAHA) shows the code-owned template read-only. */
   whatsappProvider?: string | null;
   /** Edit controls show only when the viewer holds notifications.manage. */
   canManage: boolean;
@@ -54,7 +55,7 @@ export function TemplateList({
 }: TemplateListProps) {
   const { data: templates, isLoading } = useNotificationTemplates({ channel });
   const setEnabled = useSetEventChannelEnabled();
-  const readOnly = channel === 'whatsapp' && whatsappProvider !== 'chatmaid';
+  const readOnly = channel === 'whatsapp' && !isBridgeProviderName(whatsappProvider);
 
   if (isLoading) {
     return <div className="text-center py-8 text-muted-foreground">Loading...</div>;
