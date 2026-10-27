@@ -1,5 +1,5 @@
 import type { StatementTransaction } from '@/actions/billing/get-account-statement';
-import { chargeLabel } from '@/lib/whatsapp/assistant-format';
+import { invoiceLabel } from '@/lib/billing/invoice-label';
 
 export interface LedgerInvoice {
   id: string;
@@ -11,6 +11,8 @@ export interface LedgerInvoice {
   period_end: string | null;
   created_at: string;
   billing_profile_name: string | null;
+  /** The rates as billed; its item names label the invoice (#1253). */
+  rate_snapshot?: unknown;
   charge_category?: string | null;
 }
 
@@ -135,12 +137,12 @@ export function buildStatementLedger(input: {
   for (const invoice of input.invoices) {
     const amount = invoice.amount_due || 0;
     if (invoice.period_start) periodStarts.set(`inv-${invoice.id}`, invoice.period_start);
-    itemNames.set(`inv-${invoice.id}`, chargeLabel({ invoice_type: invoice.invoice_type, profileName: invoice.billing_profile_name, periodStart: null }));
+    itemNames.set(`inv-${invoice.id}`, invoiceLabel({ invoice_type: invoice.invoice_type, rate_snapshot: invoice.rate_snapshot, profileName: invoice.billing_profile_name, periodStart: null }));
     transactions.push({
       id: `inv-${invoice.id}`,
       date: invoiceStatementDate(invoice),
       type: 'invoice',
-      description: `Invoice #${invoice.invoice_number} - ${chargeLabel({ invoice_type: invoice.invoice_type, profileName: invoice.billing_profile_name, periodStart: invoice.period_start })}`,
+      description: `Invoice #${invoice.invoice_number} - ${invoiceLabel({ invoice_type: invoice.invoice_type, rate_snapshot: invoice.rate_snapshot, profileName: invoice.billing_profile_name, periodStart: invoice.period_start })}`,
       reference: invoice.invoice_number,
       debit: amount,
       credit: 0,

@@ -209,6 +209,7 @@ export async function loadAccountStatement(
             period_end,
             created_at,
             charge_category,
+            rate_snapshot,
             billing_profile:billing_profiles(name)
         `)
         .eq('resident_id', residentId)
