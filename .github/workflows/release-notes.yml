@@ -1,0 +1,126 @@
+name: Release notes
+
+# Drafts the release notes page for a release tag (#1236). Process and style guide:
+# docs/agents/release-notes.md.
+#
+# Called by release.yml and release-fast-forward.yml right after they push a tag. A tag pushed
+# with GITHUB_TOKEN starts no other workflow, so `on: push: tags` would never fire here.
+# Run it by hand (Actions > Release notes > Run workflow) to draft a page for a tag again.
+#
+# The run cuts `chore/release-notes-vX-Y-Z` from `stage`, writes the draft page and its index
+# row, pushes the branch, opens a tracking issue and tries to open a draft PR into `stage`. A
+# session then rewrites the draft in ASD-STE100 and takes the PR through the gate. Nothing here
+# touches `master`, and nothing merges.
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to draft the page for, for example v1.12.0
+        type: string
+        required: true
+
+permissions: {}
+
+concurrency:
+  group: release-notes-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  draft:
+    name: Draft the release notes page
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    env:
+      TAG: ${{ inputs.tag }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Check the tag name
+        run: |
+          if ! [[ "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::${TAG} is not a release tag (vX.Y.Z)."
+            exit 1
+          fi
+
+      # Full history and tags: the script lists the commits between the previous tag and this one.
+      - name: Check out stage
+        uses: actions/checkout@v5
+        with:
+          ref: stage
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+
+      - name: Stop if the branch exists
+        id: branch
+        run: |
+          branch="chore/release-notes-${TAG//./-}"
+          echo "name=${branch}" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --heads origin "${branch}" >/dev/null; then
+            echo "Branch ${branch} already exists. Not drafting again." >> "$GITHUB_STEP_SUMMARY"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Draft the page
+        if: steps.branch.outputs.exists != 'true'
+        run: node scripts/release-notes-draft.mjs "${TAG}" --repo "${REPO}"
+
+      - name: Push the branch, open the issue and the PR
+        if: steps.branch.outputs.exists != 'true'
+        env:
+          BRANCH: ${{ steps.branch.outputs.name }}
+        run: |
+          if git diff --quiet -- website/docs/release-notes; then
+            echo "The page for ${TAG} is already written on stage. Nothing to draft." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          slug="${TAG//./-}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "${BRANCH}"
+          git add "website/docs/release-notes/${slug}.md" website/docs/release-notes/index.md
+          git commit -m "docs(release-notes): draft the page for ${TAG}"
+          git push origin "${BRANCH}"
+
+          issue_body=$(cat <<EOF
+          ## Summary
+          Release ${TAG} needs its release notes page. The release workflow pushed a draft on \`${BRANCH}\`.
+
+          ## What Breaks If This Is Never Done
+          The admin guide has no record of what ${TAG} changed for admins.
+
+          ## Scope
+          \`website/docs/release-notes/${slug}.md\` and its row in \`website/docs/release-notes/index.md\`.
+
+          ## Success criteria
+          The page follows docs/agents/release-notes.md: product view, ASD-STE100, no draft box, no "Draft input" section, no \`residio_release_draft\` line. The index row has a one-line summary.
+
+          ## Validation
+          \`npm run build\` in \`website/\` passes.
+          EOF
+          )
+          issue_url=$(gh issue create --repo "${REPO}" --title "Release notes page for ${TAG}" \
+            --body "${issue_body}" --label documentation)
+          issue="${issue_url##*/}"
+
+          pr_body="Closes #${issue}. Draft release notes page for ${TAG}, made by the release notes workflow. Rewrite it per docs/agents/release-notes.md before review. A PR opened by GITHUB_TOKEN does not start PR gate: dispatch it by hand (CORE.md section 16)."
+          if pr_url=$(gh pr create --repo "${REPO}" --draft --base stage --head "${BRANCH}" \
+              --title "docs(release-notes): page for ${TAG}" --body "${pr_body}"); then
+            echo "Opened ${pr_url} and #${issue}." >> "$GITHUB_STEP_SUMMARY"
+          else
+            gh issue comment "${issue}" --repo "${REPO}" \
+              --body "The workflow could not open the PR. Open it by hand from \`${BRANCH}\` into \`stage\`."
+            echo "Opened #${issue}. The PR could not be opened; the issue says so." >> "$GITHUB_STEP_SUMMARY"
+          fi

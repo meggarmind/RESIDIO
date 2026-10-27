@@ -141,8 +141,8 @@ export type GetAccountStatementResponse = {
  * The admin statement always sets it; resident-facing statements set it only once
  * balance_roll_forward_resident_enabled is on. Without it the statement is built as before #863.
  * Either way, timestamp columns are bounded by the Lagos day (#945).
- * `mode: 'summary'` folds monthly invoices into one line per billing item per year (#1144); balances
- * and totals are unchanged. Only the admin statement dialog asks for it, so the default is detailed.
+ * `mode: 'summary'` folds each run of unpaid monthly invoices into one line (#1144, #1234); balances
+ * and totals are unchanged. The admin statement dialog and WhatsApp ask for it; the default is detailed.
  */
 export async function loadAccountStatement(
     supabase: StatementClient,

@@ -1,3 +1,5 @@
+import {readdirSync} from 'node:fs';
+import path from 'node:path';
 import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
@@ -12,6 +14,14 @@ import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
 
  Create as many sidebars as you want.
  */
+// Release notes pages (docs/agents/release-notes.md), newest first. Read from the folder, so the
+// release workflow adds a page without editing this file.
+const releaseNotes = readdirSync(path.join(__dirname, 'docs', 'release-notes'))
+  .map((file) => /^v(\d+)-(\d+)-(\d+)\.md$/.exec(file))
+  .filter((match): match is RegExpExecArray => match !== null)
+  .sort((a, b) => Number(b[1]) - Number(a[1]) || Number(b[2]) - Number(a[2]) || Number(b[3]) - Number(a[3]))
+  .map((match) => `release-notes/v${match[1]}-${match[2]}-${match[3]}`);
+
 const sidebars: SidebarsConfig = {
   adminGuideSidebar: [
     {
@@ -58,6 +68,12 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Administration',
       items: ['administration/audit-logs-and-data-management', 'administration/troubleshooting'],
+    },
+    {
+      type: 'category',
+      label: 'Release notes',
+      link: {type: 'doc', id: 'release-notes/index'},
+      items: releaseNotes,
     },
   ],
 };
