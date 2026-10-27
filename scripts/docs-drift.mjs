@@ -96,12 +96,16 @@ function unquote(value) {
   return quoted ? quoted[2] : trimmed;
 }
 
+// Release notes record past releases, so they have no app sources to drift from (#1236).
+const SKIPPED_DIRS = new Set(['release-notes']);
+
 function walk(dir) {
   const found = [];
   for (const entry of readdirSync(dir)) {
     const full = path.join(dir, entry);
-    if (statSync(full).isDirectory()) found.push(...walk(full));
-    else if (entry.endsWith('.md') || entry.endsWith('.mdx')) found.push(full);
+    if (statSync(full).isDirectory()) {
+      if (!SKIPPED_DIRS.has(entry)) found.push(...walk(full));
+    } else if (entry.endsWith('.md') || entry.endsWith('.mdx')) found.push(full);
   }
   return found;
 }
