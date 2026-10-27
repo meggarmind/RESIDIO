@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   canPerformWhatsAppFinancialLookup,
   composeOweAnswer,
+  nextServiceChargeDue,
   composeRecentPaymentsAnswer,
   composeWalletAnswer,
   createSupabaseWhatsAppFinancialRepository,
@@ -584,9 +585,24 @@ describe('WhatsApp Assistant answers (#804 decisions 20, 21, 28)', () => {
     expect(composeOweAnswer(none, '12 Palm Close', true)).toBe(['*What you owe, 12 Palm Close*', 'No bills on record for 12 Palm Close.'].join('\n'));
     expect(composeOweAnswer({ ...none, invoiceCount: 4, awaitingVerification: 5000 }, '12 Palm Close', true)).toBe([
       '*What you owe, 12 Palm Close*',
-      "You're fully paid up for 12 Palm Close.",
+      'You are fully paid up for 12 Palm Close.',
       'Awaiting verification: ₦5,000.00',
     ].join('\n'));
+    expect(composeOweAnswer({ ...none, invoiceCount: 4, nextPaymentDue: '2026-11-30' }, '12 Palm Close', true)).toBe([
+      '*What you owe, 12 Palm Close*',
+      'You are fully paid up for 12 Palm Close.',
+      'Next payment due 30 Nov 2026',
+    ].join('\n'));
+  });
+
+  it('dates the next payment from the month after the latest billed period', () => {
+    expect(nextServiceChargeDue('2026-10-01', '2026-10-27', 30)).toBe('2026-12-01');
+    expect(nextServiceChargeDue('2026-10-01', '2026-10-27', 0)).toBe('2026-11-01');
+    // Prepaid ahead: the latest billed period is in the future.
+    expect(nextServiceChargeDue('2027-03-01', '2026-10-27', 14)).toBe('2027-04-15');
+    // Billing stopped: skip months whose due date is already past.
+    expect(nextServiceChargeDue('2026-06-01', '2026-10-27', 0)).toBe('2026-11-01');
+    expect(nextServiceChargeDue('2026-12-01', '2026-12-05', 0)).toBe('2027-01-01');
   });
 
   it('omits the overdue and next-due lines when there are none', () => {
@@ -934,6 +950,15 @@ describe('WhatsApp What I owe figures (#811, #804 decision 20)', () => {
           return chain;
         }),
         order: vi.fn(() => chain),
+        not: vi.fn((column: 'period_start') => {
+          filtered = filtered.filter((row) => row[column] != null);
+          return chain;
+        }),
+        limit: vi.fn(() => chain),
+        maybeSingle: vi.fn(async () => ({
+          data: [...filtered].sort((a, b) => String(b.period_start).localeCompare(String(a.period_start)))[0] ?? null,
+          error: null,
+        })),
         then: (resolve: (value: unknown) => unknown) => resolve(result()),
       };
       return chain;
@@ -965,7 +990,8 @@ describe('WhatsApp What I owe figures (#811, #804 decision 20)', () => {
     const statusFilters: Array<{ table: string; values: string[] }> = [];
     const from = vi.fn((table: string) => {
       const chain: Record<string, unknown> = {};
-      for (const op of ['select', 'eq', 'neq', 'order']) chain[op] = vi.fn(() => chain);
+      for (const op of ['select', 'eq', 'neq', 'not', 'order', 'limit']) chain[op] = vi.fn(() => chain);
+      chain.maybeSingle = vi.fn(async () => ({ data: null, error: null }));
       chain.in = vi.fn((column: string, values: string[]) => {
         if (column === 'status') statusFilters.push({ table, values });
         return chain;
@@ -1038,6 +1064,19 @@ describe('WhatsApp What I owe figures (#811, #804 decision 20)', () => {
     const owed = await createSupabaseWhatsAppFinancialRepository().getOwed('resident-1', 'house-1');
 
     expect(owed).toMatchObject({ invoiceCount: 30, outstanding: 0, overdue: null, next: null });
+    expect(owed.nextPaymentDue).toBeUndefined();
+  });
+
+  it('dates the next payment after the latest billed period when every invoice is paid', async () => {
+    mockTables([
+      { invoice_number: 'INV-SEP', amount_due: 5000, amount_paid: 5000, due_date: '2026-10-01', invoice_type: 'SERVICE_CHARGE', period_start: '2026-09-01' },
+      { invoice_number: 'INV-OCT', amount_due: 5000, amount_paid: 5000, due_date: '2026-10-31', invoice_type: 'SERVICE_CHARGE', period_start: '2026-10-01' },
+    ]);
+    vi.mocked(getSettingResultAsService).mockImplementation(async (key) => (key === 'invoice_due_window_days' ? { status: 'ok', value: 14 } : { status: 'absent' }));
+
+    const owed = await createSupabaseWhatsAppFinancialRepository().getOwed('resident-1', 'house-1');
+
+    expect(owed).toMatchObject({ outstanding: 0, next: null, nextPaymentDue: '2026-11-15' });
   });
 });
 

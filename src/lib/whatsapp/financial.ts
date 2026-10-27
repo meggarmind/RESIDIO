@@ -222,6 +222,8 @@ export interface OwedFigures {
   /** `charges` names each overdue invoice by what it is for (#1073 decision 2), oldest first. */
   overdue: { total: number; count: number; oldestDue: string; charges: { label: string; amount: number }[] } | null;
   next: { amount: number; dueDate: string; invoiceNumber: string; label: string } | null;
+  /** When nothing is unpaid: the due date of the next service charge not yet billed. */
+  nextPaymentDue?: string | null;
   awaitingVerification: number;
 }
 
@@ -375,6 +377,20 @@ function plural(count: number, word: string): string {
 
 const OVERDUE_CHARGES_SHOWN = 5;
 
+/**
+ * The due date of the first month after the latest billed service-charge period whose due date
+ * is not already past, by the same rule as invoice generation (period start + due window).
+ */
+export function nextServiceChargeDue(latestPeriodStart: string, today: string, dueWindowDays: number): string {
+  const [year, month] = latestPeriodStart.split('-').map(Number);
+  for (let offset = 1; ; offset++) {
+    const due = new Date(Date.UTC(year, month - 1 + offset, 1));
+    due.setUTCDate(due.getUTCDate() + dueWindowDays);
+    const dueDate = due.toISOString().slice(0, 10);
+    if (dueDate >= today) return dueDate;
+  }
+}
+
 function overdueLines(overdue: NonNullable<OwedFigures['overdue']>): string[] {
   const shown = overdue.charges.slice(0, OVERDUE_CHARGES_SHOWN);
   const hidden = overdue.charges.length - shown.length;
@@ -398,7 +414,8 @@ export function composeOweAnswer(figures: OwedFigures, houseLabel: string, showP
   } else if (figures.invoiceCount === 0) {
     lines.push(`No bills on record for ${houseLabel}.`);
   } else if (figures.outstanding <= 0) {
-    lines.push(`You're fully paid up for ${houseLabel}.`);
+    lines.push(`You are fully paid up for ${houseLabel}.`);
+    if (figures.nextPaymentDue) lines.push(`Next payment due ${formatDay(figures.nextPaymentDue)}`);
   } else {
     lines.push(`Outstanding: ${formatNaira(figures.outstanding)}`);
     if (figures.overdue) {
@@ -735,6 +752,26 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
 
       const remaining = (invoice: { amount_due: number; amount_paid: number }) => Number(invoice.amount_due) - Number(invoice.amount_paid);
       const unpaid = (unpaidResult.data || []).filter((invoice) => remaining(invoice) > 0);
+      let nextPaymentDue: string | null = null;
+      if (!unpaid.length) {
+        const [latestResult, windowResult] = await Promise.all([
+          supabase
+            .from('invoices')
+            .select('period_start')
+            .eq('resident_id', residentId)
+            .eq('house_id', houseId)
+            .eq('invoice_type', 'SERVICE_CHARGE')
+            .neq('status', 'void')
+            .not('period_start', 'is', null)
+            .order('period_start', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+          getSettingResultAsService('invoice_due_window_days'),
+        ]);
+        if (latestResult.error) throw latestResult.error;
+        const dueWindowDays = (windowResult.status === 'ok' && Number(windowResult.value)) || 30;
+        if (latestResult.data?.period_start) nextPaymentDue = nextServiceChargeDue(latestResult.data.period_start, today, dueWindowDays);
+      }
       const overdue = unpaid.filter((invoice) => invoice.due_date.slice(0, 10) < today);
       const next = unpaid.find((invoice) => invoice.due_date.slice(0, 10) >= today);
       const label = (invoice: (typeof unpaid)[number]) => {
@@ -751,6 +788,7 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
           ? { total: overdue.reduce((sum, invoice) => sum + remaining(invoice), 0), count: overdue.length, oldestDue: overdue[0].due_date.slice(0, 10), charges: overdue.map((invoice) => ({ label: label(invoice), amount: remaining(invoice) })) }
           : null,
         next: next ? { amount: remaining(next), dueDate: next.due_date.slice(0, 10), invoiceNumber: next.invoice_number, label: label(next) } : null,
+        ...(nextPaymentDue && { nextPaymentDue }),
         awaitingVerification: balance
           ? balance.awaitingVerification
           : (unverifiedResult.data || []).reduce((sum, payment) => sum + Number(payment.amount || 0), 0),
