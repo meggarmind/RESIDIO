@@ -162,3 +162,16 @@ jobs:
       CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
       CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
       COOLIFY_APP_UUID_PROD: ${{ secrets.COOLIFY_APP_UUID_PROD }}
+
+  # Drafts the release notes page for the new tag (#1236, docs/agents/release-notes.md).
+  release-notes:
+    name: Draft the release notes page
+    needs: promote
+    if: needs.promote.outputs.tag != ''
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    uses: ./.github/workflows/release-notes.yml
+    with:
+      tag: ${{ needs.promote.outputs.tag }}
