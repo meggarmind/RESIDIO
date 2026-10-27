@@ -10,7 +10,7 @@ residio_sources:
   - src/app/(dashboard)/settings/whatsapp-admin/**
   - src/app/(dashboard)/system/whatsapp-monitoring/**
   - src/app/api/whatsapp/**
-residio_verified_commit: 97ac657
+residio_verified_commit: e29d51a
 residio_verified_at: '2026-10-27'
 residio_app_version: '0.4.0'
 ---
@@ -258,7 +258,7 @@ Every statement is a PDF, never chat text. Choosing a period sends one of these,
 
 - **What the PDF shows:** one section per wallet category (Dues, Development Levy, Transformer Fee) with its own running balance, then a Collections section listing the resident's collection payments in the period. Monthly invoices in a row with no payment between them, for the same charge and amount, show as one line with the month range (for example `Nov 2025 – Feb 2026 · 4 invoices`); an invoice that credit pays fully or partly stays on its own line. Collection lines count as rows below.
 - **Up to 40 rows:** the account statement PDF is attached in chat. It is stored privately, Chatmaid is given a link that works for 1 hour, and the file is deleted 12 hours later. If Chatmaid reports the send failed, it is sent once more with a fresh link.
-- **Over 40 rows:** the resident is offered email to their address on file, shown masked (`a***@gmail.com`). On `1` the email is queued and arrives with the PDF attached within 15 minutes, through the notification queue, so the communications override applies to it. The request moves from queued to sent once the email has gone.
+- **Over 40 rows:** the resident is offered email to their address on file, shown masked (`a***@gmail.com`). On `1` the email is queued and arrives with the PDF attached within 15 minutes, through the notification queue, so the communications override applies to it. The request moves from queued to sent once the email has gone, and the resident gets a WhatsApp message that says the PDF was emailed to the masked address. If the email fails for good, the request moves to failed and the resident gets a WhatsApp message that says it could not be emailed, with the estate office phone number when one is set.
 - **No email on file:** the resident is told so, and the request appears under **Statement requested, no email** in the operations console until an email is added and the statement is sent.
 
 ### Account actions

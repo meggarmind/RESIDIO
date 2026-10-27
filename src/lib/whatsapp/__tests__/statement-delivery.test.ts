@@ -3,14 +3,16 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { addToQueue } from '@/lib/notifications/queue';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { loadAccountStatement } from '@/lib/billing/account-statement-data';
-import { getSettingResultAsService } from '@/lib/settings/service';
+import { getRawSettingsAsService, getSettingResultAsService } from '@/lib/settings/service';
 import {
   buildStatementEmail,
   loadWhatsAppStatementForPeriod,
   markStatementEmailSent,
+  notifyStatementEmailed,
   purgeExpiredStatementFiles,
   queueStatementEmail,
   releaseStatementsAwaitingEmail,
+  settleFailedStatementEmail,
   retryFailedStatementSend,
   storeStatementPdf,
 } from '@/lib/whatsapp/statement-delivery';
@@ -187,17 +189,100 @@ describe('WhatsApp statement by email (#804 decision 24)', () => {
   });
 
   it('moves a queued request to sent once its email has left, and never revives a cancelled one (#917)', async () => {
-    const { calls } = mockDb({ whatsapp_statement_requests: [{ error: null }] });
+    const { calls } = mockDb({ whatsapp_statement_requests: [{ data: [{ id: 'request-1' }], error: null }] });
 
-    await markStatementEmailSent('request-1');
+    await expect(markStatementEmailSent('request-1')).resolves.toBe(true);
 
     expect(calls.find((call) => call.op === 'update')!.args[0]).toMatchObject({ status: 'sent' });
     expect(calls.filter((call) => call.op === 'eq').map((call) => call.args)).toEqual([['id', 'request-1'], ['status', 'queued']]);
   });
 
+  it('reports false when no row changed, so a cancelled or already sent request is not announced (#1252)', async () => {
+    mockDb({ whatsapp_statement_requests: [{ data: [], error: null }] });
+    await expect(markStatementEmailSent('request-1')).resolves.toBe(false);
+  });
+
   it('throws when the status update fails', async () => {
-    mockDb({ whatsapp_statement_requests: [{ error: { message: 'denied' } }] });
+    mockDb({ whatsapp_statement_requests: [{ data: null, error: { message: 'denied' } }] });
     await expect(markStatementEmailSent('request-1')).rejects.toMatchObject({ message: 'denied' });
+  });
+
+  describe('WhatsApp notices about the statement email (#1252)', () => {
+    const requestRow = { resident_id: 'resident-1', phone_number: '+2348000000000', house_id: 'house-1', period: 'this_month' };
+    const houseRow = { short_name: 'Block 18A', address: '12, Palm Close' };
+
+    it('tells the resident the PDF was emailed, to the masked address on file, with a per-request seed', async () => {
+      mockDb({ whatsapp_statement_requests: [{ data: requestRow, error: null }], houses: [{ data: houseRow, error: null }] });
+      vi.mocked(sendWhatsAppMessage).mockResolvedValue({ success: true });
+
+      await notifyStatementEmailed('request-1', 'ada@gmail.com');
+
+      expect(sendWhatsAppMessage).toHaveBeenCalledTimes(1);
+      expect(sendWhatsAppMessage).toHaveBeenCalledWith(
+        { to: '+2348000000000', body: '*Statement, this month, Block 18A*\nYour PDF was emailed to a***@gmail.com.\nReply 0 for menu', idempotencySeed: 'request-1:statement-emailed' },
+        undefined,
+        { residentOverride: true },
+        { residentId: 'resident-1' }
+      );
+    });
+
+    it('logs a failed notice and does not throw', async () => {
+      mockDb({ whatsapp_statement_requests: [{ data: requestRow, error: null }], houses: [{ data: houseRow, error: null }] });
+      vi.mocked(sendWhatsAppMessage).mockResolvedValue({ success: false, error: 'chatmaid down' });
+      const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      await expect(notifyStatementEmailed('request-1', 'ada@gmail.com')).resolves.toBeUndefined();
+      expect(log).toHaveBeenCalledWith('[whatsapp-statement] Notice send failed:', expect.objectContaining({ requestId: 'request-1', error: 'chatmaid down' }));
+      log.mockRestore();
+    });
+
+    it('marks a final failure failed and tells the resident, with the estate phone', async () => {
+      const { calls } = mockDb({
+        whatsapp_statement_requests: [{ data: [{ id: 'request-1' }], error: null }, { data: requestRow, error: null }],
+        houses: [{ data: houseRow, error: null }],
+      });
+      vi.mocked(getRawSettingsAsService).mockResolvedValueOnce({ status: 'ok', values: new Map([['estate_phone', ' 0800 123 ']]) } as never);
+      vi.mocked(sendWhatsAppMessage).mockResolvedValue({ success: true });
+      const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      await settleFailedStatementEmail({ whatsapp_statement_request_id: 'request-1' }, 'rejected');
+
+      expect(calls.find((call) => call.op === 'update')!.args[0]).toMatchObject({ status: 'failed' });
+      expect(calls.filter((call) => call.op === 'eq').slice(0, 2).map((call) => call.args)).toEqual([['id', 'request-1'], ['status', 'queued']]);
+      expect(sendWhatsAppMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: '*Statement, this month, Block 18A*\nSorry, we could not email your statement.\nPlease contact the estate office on 0800 123.\nReply 0 for menu',
+          idempotencySeed: 'request-1:statement-email-failed',
+        }),
+        undefined,
+        { residentOverride: true },
+        { residentId: 'resident-1' }
+      );
+      log.mockRestore();
+    });
+
+    it('omits the contact line when the estate phone is not set', async () => {
+      mockDb({
+        whatsapp_statement_requests: [{ data: [{ id: 'request-1' }], error: null }, { data: requestRow, error: null }],
+        houses: [{ data: houseRow, error: null }],
+      });
+      vi.mocked(getRawSettingsAsService).mockResolvedValueOnce({ status: 'ok', values: new Map() } as never);
+      vi.mocked(sendWhatsAppMessage).mockResolvedValue({ success: true });
+      const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      await settleFailedStatementEmail({ whatsapp_statement_request_id: 'request-1' }, 'rejected');
+
+      expect(vi.mocked(sendWhatsAppMessage).mock.calls[0][0].body).toBe('*Statement, this month, Block 18A*\nSorry, we could not email your statement.\nReply 0 for menu');
+      log.mockRestore();
+    });
+
+    it('sends nothing when no queued row changed, or the queue item is not a statement', async () => {
+      mockDb({ whatsapp_statement_requests: [{ data: [], error: null }] });
+      await settleFailedStatementEmail({ whatsapp_statement_request_id: 'request-1' }, 'rejected');
+      await settleFailedStatementEmail({ candidateId: 'c' }, 'rejected');
+      await settleFailedStatementEmail(null, 'rejected');
+      expect(sendWhatsAppMessage).not.toHaveBeenCalled();
+    });
   });
 
   it('queues every statement waiting for an email once the address exists', async () => {

@@ -14,7 +14,7 @@ import { addToQueue, PRIORITY } from '@/lib/notifications/queue';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
 import { getSponsoredHouses } from '@/lib/whatsapp/co-resident';
-import { earliestMoveIn, formatDay, formatNaira, offeredPeriods, PERIOD_LABELS, statementDates, type StatementPeriod } from '@/lib/whatsapp/assistant-format';
+import { earliestMoveIn, formatDay, formatNaira, maskEmail, offeredPeriods, PERIOD_LABELS, statementDates, type StatementPeriod } from '@/lib/whatsapp/assistant-format';
 
 /**
  * Statement PDF delivery for the WhatsApp Assistant (#804 decision 24, #917): every statement is a
@@ -216,14 +216,92 @@ export async function queueStatementEmail(requestId: string, residentId: string,
   if (error) throw error;
 }
 
-/** Moves a statement request from `queued` to `sent` once its email has left; a cancelled request stays cancelled. */
-export async function markStatementEmailSent(requestId: string): Promise<void> {
-  const { error } = await db()
+/**
+ * Moves a statement request from `queued` to `sent` once its email has left; a cancelled request stays
+ * cancelled. Returns whether a row changed, so a repeated call does not announce the email twice (#1252).
+ */
+export async function markStatementEmailSent(requestId: string): Promise<boolean> {
+  const { data, error } = await db()
     .from('whatsapp_statement_requests')
     .update({ status: 'sent', updated_at: new Date().toISOString() })
     .eq('id', requestId)
-    .eq('status', 'queued');
+    .eq('status', 'queued')
+    .select('id');
   if (error) throw error;
+  return (data?.length ?? 0) > 0;
+}
+
+interface NoticeRow {
+  resident_id: string;
+  phone_number: string;
+  house_id: string | null;
+  period: StatementPeriod;
+}
+
+/** The notice heading (#1252): the period and property, read without rebuilding the statement. */
+async function noticeHeading(requestId: string): Promise<{ row: NoticeRow; heading: string } | null> {
+  const { data, error } = await db()
+    .from('whatsapp_statement_requests')
+    .select('resident_id, phone_number, house_id, period')
+    .eq('id', requestId)
+    .maybeSingle();
+  if (error) throw error;
+  const row = data as NoticeRow | null;
+  if (!row) return null;
+  let property = 'your property';
+  if (row.house_id) {
+    const { data: house, error: houseError } = await createAdminClient().from('houses').select('short_name, address').eq('id', row.house_id).maybeSingle();
+    if (houseError) throw houseError;
+    property = house?.short_name || house?.address || property;
+  }
+  return { row, heading: `*Statement, ${PERIOD_LABELS[row.period] ?? row.period}, ${property}*` };
+}
+
+/** A system-initiated notice: it follows the communications override, and a failed send is logged, never thrown. */
+async function sendStatementNotice(requestId: string, row: NoticeRow, body: string, seed: string): Promise<void> {
+  const override = await resolveResidentOverride([row.resident_id]);
+  if (!override.ok) throw new Error(override.error);
+  const result = await sendWhatsAppMessage(
+    { to: row.phone_number, body, idempotencySeed: `${requestId}:${seed}` },
+    undefined,
+    { residentOverride: override.residentOverride },
+    { residentId: row.resident_id }
+  );
+  if (!result.success) console.error('[whatsapp-statement] Notice send failed:', { requestId, seed, error: result.error });
+}
+
+/** Tells the resident on WhatsApp that their statement email has left (#1252). `email` is the address on file. */
+export async function notifyStatementEmailed(requestId: string, email: string): Promise<void> {
+  const notice = await noticeHeading(requestId);
+  if (!notice) return;
+  const body = `${notice.heading}\nYour PDF was emailed to ${maskEmail(email)}.\nReply 0 for menu`;
+  await sendStatementNotice(requestId, notice.row, body, 'statement-emailed');
+}
+
+/**
+ * The statement email finally failed (#1252): moves the request `queued` to `failed` and, only if that
+ * changed a row, tells the resident on WhatsApp. `metadata` is the queue item's; other items are ignored.
+ */
+export async function settleFailedStatementEmail(metadata: Record<string, unknown> | null | undefined, error: string | null | undefined): Promise<void> {
+  const requestId = metadata?.whatsapp_statement_request_id;
+  if (typeof requestId !== 'string') return;
+  const { data, error: updateError } = await db()
+    .from('whatsapp_statement_requests')
+    .update({ status: 'failed', updated_at: new Date().toISOString() })
+    .eq('id', requestId)
+    .eq('status', 'queued')
+    .select('id');
+  if (updateError) throw updateError;
+  if (!data?.length) return;
+  console.error('[whatsapp-statement] Statement email failed:', { requestId, error });
+
+  const notice = await noticeHeading(requestId);
+  if (!notice) return;
+  const settings = await getRawSettingsAsService(['estate_phone']);
+  const phone = settings.status === 'ok' ? settings.values.get('estate_phone') : null;
+  const contact = typeof phone === 'string' && phone.trim() ? `\nPlease contact the estate office on ${phone.trim()}.` : '';
+  const body = `${notice.heading}\nSorry, we could not email your statement.${contact}\nReply 0 for menu`;
+  await sendStatementNotice(requestId, notice.row, body, 'statement-email-failed');
 }
 
 /**

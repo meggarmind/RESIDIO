@@ -30,7 +30,8 @@ vi.mock('@/lib/whatsapp/rollout', () => ({ isWhatsAppRecipientAllowed: vi.fn() }
 vi.mock('@/lib/sms/send-sms', () => ({ sendSms: vi.fn() }));
 const buildStatementEmail = vi.hoisted(() => vi.fn());
 const markStatementEmailSent = vi.hoisted(() => vi.fn());
-vi.mock('@/lib/whatsapp/statement-delivery', () => ({ buildStatementEmail, markStatementEmailSent }));
+const notifyStatementEmailed = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/whatsapp/statement-delivery', () => ({ buildStatementEmail, markStatementEmailSent, notifyStatementEmailed }));
 
 import { sendNotification } from '@/lib/notifications/send';
 import { PRIORITY } from '@/lib/notifications/queue';
@@ -108,6 +109,28 @@ describe('sendViaEmail (through sendNotification)', () => {
     expect(markStatementEmailSent).not.toHaveBeenCalled();
 
     markStatementEmailSent.mockRejectedValueOnce(new Error('db down'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const sent = await sendNotification(buildEmailItem({ metadata: { whatsapp_statement_request_id: 'request-1' } }));
+    expect(sent).toEqual({ success: true, externalId: 'rid-9' });
+  });
+
+  it('announces the email on WhatsApp once, to the address on file, only when the request moved to sent (#1252)', async () => {
+    buildStatementEmail.mockResolvedValue({ react: 'statement-email', attachments: [] });
+    markStatementEmailSent.mockResolvedValueOnce(true);
+    await sendNotification(buildEmailItem({ metadata: { whatsapp_statement_request_id: 'request-1' } }));
+    expect(notifyStatementEmailed).toHaveBeenCalledTimes(1);
+    expect(notifyStatementEmailed).toHaveBeenCalledWith('request-1', 'a@test.example');
+
+    notifyStatementEmailed.mockClear();
+    markStatementEmailSent.mockResolvedValueOnce(false); // cancelled, or already sent
+    await sendNotification(buildEmailItem({ metadata: { whatsapp_statement_request_id: 'request-1' } }));
+    expect(notifyStatementEmailed).not.toHaveBeenCalled();
+  });
+
+  it('a failed WhatsApp notice does not fail the email send (#1252)', async () => {
+    buildStatementEmail.mockResolvedValue({ react: 'statement-email', attachments: [] });
+    markStatementEmailSent.mockResolvedValueOnce(true);
+    notifyStatementEmailed.mockRejectedValueOnce(new Error('whatsapp down'));
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const sent = await sendNotification(buildEmailItem({ metadata: { whatsapp_statement_request_id: 'request-1' } }));
     expect(sent).toEqual({ success: true, externalId: 'rid-9' });

@@ -9,6 +9,17 @@ import { createFakeSupabase, type Row } from './helpers/fake-supabase';
 const mocks = vi.hoisted(() => ({
   resendSend: vi.fn(),
   isEmailConfigured: vi.fn(),
+  buildStatementEmail: vi.fn(),
+  markStatementEmailSent: vi.fn(),
+  notifyStatementEmailed: vi.fn(),
+  settleFailedStatementEmail: vi.fn(),
+}));
+
+vi.mock('@/lib/whatsapp/statement-delivery', () => ({
+  buildStatementEmail: mocks.buildStatementEmail,
+  markStatementEmailSent: mocks.markStatementEmailSent,
+  notifyStatementEmailed: mocks.notifyStatementEmailed,
+  settleFailedStatementEmail: mocks.settleFailedStatementEmail,
 }));
 
 vi.mock('@/lib/email/resend', () => ({
@@ -428,6 +439,45 @@ describe('sendAndRecordNotification requeue', () => {
 
     await sendAndRecordNotification(asItem(queueRow({ metadata: meta, attempts: 4 })));
     expect(fake.state.tables.invoice_generation_candidates[0].email_status).toBe('failed');
+  });
+
+  it('settles a WhatsApp statement email only when it finally fails (#1252)', async () => {
+    mocks.buildStatementEmail.mockResolvedValue({ react: 'statement-email', attachments: [] });
+    mocks.resendSend.mockResolvedValue({ data: null, error: transient });
+    const meta = { whatsapp_statement_request_id: 'request-1' };
+    useFake({ notification_queue: [queueRow({ metadata: meta })], notification_history: [] });
+
+    await sendAndRecordNotification(asItem(queueRow({ metadata: meta })));
+    expect(mocks.settleFailedStatementEmail).not.toHaveBeenCalled();
+
+    await sendAndRecordNotification(asItem(queueRow({ metadata: meta, attempts: 4 })));
+    expect(mocks.settleFailedStatementEmail).toHaveBeenCalledTimes(1);
+    expect(mocks.settleFailedStatementEmail).toHaveBeenCalledWith(meta, expect.any(String));
+  });
+
+  it('does not settle a statement email that was sent, or an email with no statement request (#1252)', async () => {
+    mocks.buildStatementEmail.mockResolvedValue({ react: 'statement-email', attachments: [] });
+    const meta = { whatsapp_statement_request_id: 'request-1' };
+    useFake({ notification_queue: [queueRow({ metadata: meta })], notification_history: [] });
+    await sendAndRecordNotification(asItem(queueRow({ metadata: meta })));
+
+    mocks.resendSend.mockResolvedValue({ data: null, error: { message: 'bad', statusCode: 422, name: 'validation_error' } });
+    useFake({ notification_queue: [queueRow()], notification_history: [] });
+    await sendAndRecordNotification(asItem(queueRow()));
+
+    expect(mocks.settleFailedStatementEmail).not.toHaveBeenCalled();
+  });
+
+  it('a settle error never escapes the queue processor (#1252)', async () => {
+    mocks.buildStatementEmail.mockResolvedValue({ react: 'statement-email', attachments: [] });
+    mocks.resendSend.mockResolvedValue({ data: null, error: { message: 'bad', statusCode: 422, name: 'validation_error' } });
+    mocks.settleFailedStatementEmail.mockRejectedValue(new Error('db down'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const meta = { whatsapp_statement_request_id: 'request-1' };
+    const fake = useFake({ notification_queue: [queueRow({ metadata: meta })], notification_history: [] });
+
+    await expect(sendAndRecordNotification(asItem(queueRow({ metadata: meta })))).resolves.not.toThrow();
+    expect(fake.state.tables.notification_queue[0].status).toBe('failed');
   });
 
   it('passes an idempotency key of <queue id>:<attempt> to Resend', async () => {
