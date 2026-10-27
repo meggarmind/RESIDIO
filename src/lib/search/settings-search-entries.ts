@@ -61,7 +61,7 @@ const SYSTEM_SUBTITLES: Record<string, string> = {
   '/system/audit-logs': 'System activity trail',
   '/system/notification-queue': 'Outgoing notification queue',
   '/system/notification-history': 'Sent notification records',
-  '/system/whatsapp-messages': 'Sent WhatsApp message log',
+  '/system/whatsapp-monitoring': 'WhatsApp sends, opt-ins, sessions and disclosures',
   '/system/data-tools': 'Export and bulk data utilities',
   '/system/cron-status': 'Scheduled job health',
 };

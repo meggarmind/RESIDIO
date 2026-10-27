@@ -101,6 +101,7 @@ export async function retryWhatsAppClearanceCopy(copyId: string): Promise<Result
     });
   }
   revalidatePath('/settings/whatsapp');
+  revalidatePath('/system/whatsapp-monitoring');
   return outcome.sent ? { success: true, data: null, error: null } : { success: false, data: null, error: `Not sent: ${outcome.reason}` };
 }
 

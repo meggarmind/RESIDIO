@@ -154,6 +154,7 @@ export async function resetWhatsAppPin(residentId: string): Promise<ActionResult
     },
   });
   revalidatePath('/settings/whatsapp');
+  revalidatePath('/system/whatsapp-monitoring');
 
   try {
     await sendWhatsAppPinAlert(residentId, 'reset');
@@ -275,6 +276,7 @@ export async function importWhatsAppOptIns(
       });
     }
     revalidatePath('/settings/whatsapp');
+    revalidatePath('/system/whatsapp-monitoring');
   }
 
   return { success: true, data: result, error: null };
@@ -337,6 +339,7 @@ export async function updateWhatsAppPendingContact(input: {
     newValues: { status: input.status, resident_id: input.status === 'attached' ? input.residentId : null },
   });
   revalidatePath('/settings/whatsapp');
+  revalidatePath('/system/whatsapp-monitoring');
 
   return { success: true, data: null, error: null };
 }
@@ -372,6 +375,7 @@ export async function resetWhatsAppSession(phoneNumber: string): Promise<ActionR
       oldValues: { phone_number: phoneNumber, resident_id: session.resident_id },
     });
     revalidatePath('/settings/whatsapp');
+    revalidatePath('/system/whatsapp-monitoring');
   }
 
   return { success: true, data: null, error: null };
@@ -511,6 +515,7 @@ export async function clearWhatsAppDisputedContact(phoneNumber: string): Promise
     newValues: { status: 'cleared', resident_id: contact.resident_id },
   });
   revalidatePath('/settings/whatsapp');
+  revalidatePath('/system/whatsapp-monitoring');
 
   return { success: true, data: null, error: null };
 }

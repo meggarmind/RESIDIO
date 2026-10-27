@@ -2,15 +2,11 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getWhatsAppOutboundSends } from '@/actions/whatsapp/admin-console';
 import { OUTBOUND_SENDS_PAGE_SIZE, OUTBOUND_SEND_PURPOSES } from '@/lib/whatsapp/outbound-send-list';
-
-// Auto-refresh choices in minutes. 0 turns auto-refresh off.
-export const REFRESH_INTERVAL_MINUTES = [0, 1, 2, 5, 10, 15, 30] as const;
 
 const STATUS_LABELS: Record<string, string> = { pending: 'Pending', sent: 'Sent', delivered: 'Delivered', failed: 'Failed' };
 
@@ -20,11 +16,9 @@ export function OutboundSendsList() {
   const [status, setStatus] = useState('');
   const [purpose, setPurpose] = useState('');
   const [page, setPage] = useState(0);
-  const [refreshMinutes, setRefreshMinutes] = useState(0);
-  const { data, isLoading, isFetching, refetch, dataUpdatedAt } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ['whatsapp-outbound-sends', status, purpose, page],
     queryFn: () => getWhatsAppOutboundSends({ status, purpose, page }),
-    refetchInterval: refreshMinutes > 0 ? refreshMinutes * 60_000 : false,
   });
   const rows = data?.data?.rows ?? [];
   const total = data?.data?.total ?? 0;
@@ -43,13 +37,6 @@ export function OutboundSendsList() {
           <option value={OUTBOUND_SEND_PURPOSES[0]}>Replies</option>
           <option value="notification">Notifications</option>
         </select>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          {dataUpdatedAt ? <span className="text-xs text-muted-foreground">Updated {formatDate(new Date(dataUpdatedAt).toISOString())}</span> : null}
-          <select aria-label="Auto-refresh" className="h-9 rounded-md border bg-background px-2 text-sm" value={refreshMinutes} onChange={(event) => setRefreshMinutes(Number(event.target.value))}>
-            {REFRESH_INTERVAL_MINUTES.map((minutes) => <option key={minutes} value={minutes}>{minutes === 0 ? 'Auto-refresh off' : `Every ${minutes} min`}</option>)}
-          </select>
-          <Button variant="outline" size="sm" disabled={isFetching} onClick={() => refetch()}><RefreshCw className={isFetching ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} aria-hidden />Refresh now</Button>
-        </div>
       </div>
       {data && !data.success ? <p className="text-sm text-destructive">{data.error}</p> : null}
       <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-left text-muted-foreground"><th className="pb-2 pr-4">Time</th><th className="pb-2 pr-4">Purpose</th><th className="pb-2 pr-4">Resident</th><th className="pb-2 pr-4">Number</th><th className="pb-2 pr-4">Status</th><th className="pb-2 pr-4">Error</th><th className="pb-2">Answering</th></tr></thead><tbody>

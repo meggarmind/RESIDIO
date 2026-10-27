@@ -71,7 +71,7 @@ describe('Monitoring entry in the System group', () => {
       '/system/cron-status',
       '/system/notification-queue',
       '/system/notification-history',
-      '/system/whatsapp-messages',
+      '/system/whatsapp-monitoring',
     ]);
     expect(monitoring.children!.every((c) => c.opensSystem)).toBe(true);
   });

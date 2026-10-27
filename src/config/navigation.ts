@@ -297,10 +297,10 @@ const NAV_NOTIFICATION_HISTORY: NavItem = {
 
 // Moved out of Settings > WhatsApp: every WhatsApp send is live state, not
 // configuration (ADR-0004). Same permission as getWhatsAppOutboundSends.
-const NAV_WHATSAPP_MESSAGES: NavItem = {
-  id: 'system-whatsapp-messages',
-  title: 'WhatsApp Messages',
-  href: '/system/whatsapp-messages',
+const NAV_WHATSAPP_MONITORING: NavItem = {
+  id: 'system-whatsapp-monitoring',
+  title: 'WhatsApp Monitoring',
+  href: '/system/whatsapp-monitoring',
   icon: MessageSquare,
   permissions: [PERMISSIONS.WHATSAPP_VIEW],
 };
@@ -400,7 +400,7 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
       NAV_AUDIT_LOGS,
       NAV_NOTIFICATION_QUEUE,
       NAV_NOTIFICATION_HISTORY,
-      NAV_WHATSAPP_MESSAGES,
+      NAV_WHATSAPP_MONITORING,
       NAV_DATA_TOOLS,
       NAV_CRON_STATUS,
       NAV_ACTION_LOG,
