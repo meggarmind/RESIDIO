@@ -10,7 +10,8 @@ export interface LedgerInvoice {
   period_start: string | null;
   period_end: string | null;
   created_at: string;
-  billing_profile_name: string | null;
+  /** What the invoice bills, from its rate snapshot (#1253); see invoiceChargeName. */
+  charge_name: string | null;
   charge_category?: string | null;
 }
 
@@ -63,13 +64,17 @@ function monthIndex(dateStr: string): number {
 }
 
 /**
- * Folds each run of unpaid monthly invoices into one line (#1234). A run is two or more invoices in
- * sequence with the same billing item and amount, for months in sequence, each added in full to the
- * debt. Any other row stops the run, and so does an invoice the credit pays fully or partly: it
- * stays on its own line. The line sits at the first invoice's date and shows the balance at the end
- * of the run, so opening, closing and the totals match the detailed statement.
+ * Folds each run of monthly invoices with no payment between them into one line (#1234). A run is two
+ * or more invoices in sequence with the same billing item and amount, for months in sequence, that
+ * are all added in full to the debt or all paid in full by a credit balance (#1253). Any other row
+ * stops the run, and an invoice the credit pays only partly stays on its own line. The line sits at
+ * the first invoice's date and shows the balance at the end of the run, so opening, closing and the
+ * totals match the detailed statement.
  */
 function summariseInvoices(transactions: StatementTransaction[], names: Map<string, string>, periodStarts: Map<string, string>) {
+  // The balance before the invoice is the balance after it, less its amount.
+  const payment = (tx: StatementTransaction) =>
+    tx.balance - tx.debit > -0.005 ? 'debt' : tx.balance < 0.005 ? 'credit' : 'partly';
   const runs: StatementTransaction[][] = [];
   let run: StatementTransaction[] = [];
   const close = () => {
@@ -79,18 +84,18 @@ function summariseInvoices(transactions: StatementTransaction[], names: Map<stri
 
   for (const tx of transactions) {
     const start = periodStarts.get(tx.id);
-    // A balance in credit before the invoice means the credit pays some or all of it.
-    const unpaid = tx.type === 'invoice' && start !== undefined && tx.balance - tx.debit > -0.005;
-    if (!unpaid) {
+    const kind = tx.type === 'invoice' && start !== undefined ? payment(tx) : null;
+    if (!kind || kind === 'partly') {
       close();
       runs.push([tx]);
       continue;
     }
     const prev = run.at(-1);
     const continues = prev
+      && payment(prev) === kind
       && names.get(prev.id) === names.get(tx.id)
       && prev.debit === tx.debit
-      && monthIndex(periodStarts.get(prev.id)!) + 1 === monthIndex(start);
+      && monthIndex(periodStarts.get(prev.id)!) + 1 === monthIndex(start!);
     if (!continues) close();
     run.push(tx);
   }
@@ -135,12 +140,12 @@ export function buildStatementLedger(input: {
   for (const invoice of input.invoices) {
     const amount = invoice.amount_due || 0;
     if (invoice.period_start) periodStarts.set(`inv-${invoice.id}`, invoice.period_start);
-    itemNames.set(`inv-${invoice.id}`, chargeLabel({ invoice_type: invoice.invoice_type, profileName: invoice.billing_profile_name, periodStart: null }));
+    itemNames.set(`inv-${invoice.id}`, chargeLabel({ invoice_type: invoice.invoice_type, profileName: invoice.charge_name, periodStart: null }));
     transactions.push({
       id: `inv-${invoice.id}`,
       date: invoiceStatementDate(invoice),
       type: 'invoice',
-      description: `Invoice #${invoice.invoice_number} - ${chargeLabel({ invoice_type: invoice.invoice_type, profileName: invoice.billing_profile_name, periodStart: invoice.period_start })}`,
+      description: `Invoice #${invoice.invoice_number} - ${chargeLabel({ invoice_type: invoice.invoice_type, profileName: invoice.charge_name, periodStart: invoice.period_start })}`,
       reference: invoice.invoice_number,
       debit: amount,
       credit: 0,

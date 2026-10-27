@@ -12,7 +12,7 @@ function invoice(overrides: Partial<LedgerInvoice> = {}): LedgerInvoice {
     period_end: '2015-01-31',
     // Legacy rows carry the import date here.
     created_at: '2026-08-09T22:35:50Z',
-    billing_profile_name: '5k per month',
+    charge_name: '5k per month',
     ...overrides,
   };
 }
@@ -30,8 +30,8 @@ describe('buildStatementLedger', () => {
     const { transactions } = buildStatementLedger({
       openingBalance: 0,
       invoices: [
-        invoice({ id: 'a', billing_profile_name: 'Security dues', period_start: '2026-10-01', period_end: '2026-10-31' }),
-        invoice({ id: 'b', invoice_number: 'LEV-1', invoice_type: 'LEVY', billing_profile_name: null, period_start: '2026-11-01', period_end: null }),
+        invoice({ id: 'a', charge_name: 'Security dues', period_start: '2026-10-01', period_end: '2026-10-31' }),
+        invoice({ id: 'b', invoice_number: 'LEV-1', invoice_type: 'LEVY', charge_name: null, period_start: '2026-11-01', period_end: null }),
       ],
       payments: [],
       walletTransactions: [],

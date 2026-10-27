@@ -10,7 +10,7 @@ const monthly = (name: string, year: number, month: number, amount: number, id =
   period_start: `${year}-${String(month).padStart(2, '0')}-01`,
   period_end: null,
   created_at: '2026-10-01T00:00:00Z',
-  billing_profile_name: name,
+  charge_name: name,
 });
 
 const payment = (id: string, date: string, amount: number): LedgerPayment => ({
@@ -33,7 +33,7 @@ const rows = (result: ReturnType<typeof buildStatementLedger>) =>
   result.transactions.map((t) => [t.description, t.debit, t.credit, t.balance]);
 
 describe('buildStatementLedger summary mode (#1234)', () => {
-  it('merges each run of unpaid invoices and keeps an invoice the credit pays on its own line', () => {
+  it('merges each run of unpaid invoices and keeps a lone credit-paid invoice on its own line', () => {
     const summary = buildStatementLedger({ ...sample(), mode: 'summary' });
     expect(rows(summary)).toEqual([
       ['Dues · Nov 2025 – Feb 2026 · 4 invoices', 40_000, 0, 40_000],
@@ -58,6 +58,30 @@ describe('buildStatementLedger summary mode (#1234)', () => {
     expect(rows(summary)).toEqual([
       ['Invoice #INV-Dues-2026-1 - Dues, JAN 2026', 10_000, 0, 5_000],
       ['Dues · Feb – Mar 2026 · 2 invoices', 20_000, 0, 25_000],
+    ]);
+  });
+
+  it('merges a run that a credit balance pays in full (#1253)', () => {
+    // The owner's sample: Apr to Oct 2021 at 5k each, paid from a 50k credit.
+    const summary = buildStatementLedger({
+      openingBalance: -50_000,
+      invoices: Array.from({ length: 7 }, (_, i) => monthly('Security Levy', 2021, i + 4, 5_000)),
+      payments: [], walletTransactions: [], mode: 'summary',
+    });
+    expect(rows(summary)).toEqual([
+      ['Security Levy · Apr – Oct 2021 · 7 invoices', 35_000, 0, -15_000],
+    ]);
+  });
+
+  it('never merges a credit-paid invoice with one that adds to the debt', () => {
+    const summary = buildStatementLedger({
+      openingBalance: -20_000,
+      invoices: [1, 2, 3, 4].map((m) => monthly('Dues', 2026, m, 10_000)),
+      payments: [], walletTransactions: [], mode: 'summary',
+    });
+    expect(rows(summary)).toEqual([
+      ['Dues · Jan – Feb 2026 · 2 invoices', 20_000, 0, 0],
+      ['Dues · Mar – Apr 2026 · 2 invoices', 20_000, 0, 20_000],
     ]);
   });
 

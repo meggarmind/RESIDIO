@@ -20,7 +20,7 @@ const invoice = (id: string, amount: number, category: string, period = '2026-10
   period_start: period,
   period_end: period,
   created_at: `${period}T08:00:00Z`,
-  billing_profile_name: null,
+  charge_name: null,
   charge_category: category,
 });
 

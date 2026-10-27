@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { createAdminClient, createServerSupabaseClient } from '@/lib/supabase/server';
 import type { InvoiceStatus, InvoiceType } from '@/types/database';
 import { buildStatementLedger, MIRRORED_WALLET_REFERENCES, type LedgerWalletTransaction } from '@/lib/billing/statement-ledger';
+import { invoiceChargeName } from '@/lib/billing/invoice-charge-name';
 import { fetchAccountBalance, type AccountBalance } from '@/lib/billing/account-balance';
 import {
     buildCategorySections,
@@ -209,6 +210,7 @@ export async function loadAccountStatement(
             period_end,
             created_at,
             charge_category,
+            rate_snapshot,
             billing_profile:billing_profiles(name)
         `)
         .eq('resident_id', residentId)
@@ -355,12 +357,10 @@ export async function loadAccountStatement(
     }
 
     // 7-8. Build the chronological ledger and its totals
-    const ledgerInvoices = (invoices || []).map((invoice) => {
-        // billing_profile can be array or single object depending on Supabase relationship
-        const bpData = invoice.billing_profile as { name: string }[] | { name: string } | null;
-        const billingProfile = Array.isArray(bpData) ? bpData[0] : bpData;
-        return { ...invoice, billing_profile_name: billingProfile?.name ?? null };
-    });
+    const ledgerInvoices = (invoices || []).map(({ rate_snapshot, billing_profile, ...invoice }) => ({
+        ...invoice,
+        charge_name: invoiceChargeName({ rate_snapshot, billing_profile }),
+    }));
     const ledger = buildStatementLedger({
         openingBalance,
         invoices: ledgerInvoices,

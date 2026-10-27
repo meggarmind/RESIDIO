@@ -1,14 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { getEstateLogoUrl } from '@/lib/branding/estate-logo-server';
 import { usableEstateLogoUrl } from '@/lib/branding/estate-logo';
 import { createElement } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { renderToBuffer } from '@react-pdf/renderer';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getRawSettingsAsService } from '@/lib/settings/service';
 import { loadAccountStatement, type AccountStatementData } from '@/lib/billing/account-statement-data';
 import { isResidentRollForwardEnabled } from '@/lib/billing/account-balance';
-import { AccountStatementPDF } from '@/lib/pdf/account-statement';
+import { renderAccountStatementPdf } from '@/lib/pdf/render-account-statement';
 import { WhatsAppStatementEmail } from '@/emails/whatsapp-statement';
 import { addToQueue, PRIORITY } from '@/lib/notifications/queue';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
@@ -106,16 +104,6 @@ export async function loadWhatsAppStatementForPeriod(residentId: string, houseId
   return { fromDate, toDate, statement: await loadWhatsAppStatement(residentId, houseId, fromDate, toDate) };
 }
 
-async function estateAddress(): Promise<string> {
-  const settings = await getRawSettingsAsService(['estate_address']);
-  const value = settings.status === 'ok' ? settings.values.get('estate_address') : null;
-  return typeof value === 'string' ? value.trim() : '';
-}
-
-async function renderStatementPdf(statement: AccountStatementData): Promise<Buffer> {
-  return renderToBuffer(AccountStatementPDF({ data: statement, estateName: await estateName(), estateAddress: await estateAddress(), estateLogoUrl: await getEstateLogoUrl() }));
-}
-
 async function signedUrl(path: string): Promise<string> {
   const signed = await createAdminClient().storage.from(MEDIA_BUCKET).createSignedUrl(path, SIGNED_URL_SECONDS);
   if (!signed.data?.signedUrl) throw new Error(`Statement signed URL failed: ${signed.error?.message || 'no URL'}`);
@@ -172,7 +160,7 @@ export async function storeStatementPdf(
   input: StatementRequestInput & { replyText: string },
   statement: AccountStatementData
 ): Promise<string> {
-  return storeChatPdf('statements', { ...input, label: input.period }, () => renderStatementPdf(statement));
+  return storeChatPdf('statements', { ...input, label: input.period }, () => renderAccountStatementPdf(statement));
 }
 
 /** An email request; `awaiting_email` is the console's "Statement requested, no email" flag. */
@@ -275,7 +263,7 @@ export async function buildStatementEmail(requestId: string) {
   }
   const statement = await loadWhatsAppStatement(sponsored?.sponsorId ?? request.resident_id, request.house_id, request.from_date, request.to_date);
   const [pdf, name, contact] = await Promise.all([
-    renderStatementPdf(statement),
+    renderAccountStatementPdf(statement),
     estateName(),
     getRawSettingsAsService(['estate_email', 'estate_phone', 'estate_address', 'estate_logo_url']),
   ]);

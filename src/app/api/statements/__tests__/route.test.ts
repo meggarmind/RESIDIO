@@ -47,9 +47,7 @@ async function load(options: Options & { residentRollForward?: boolean }) {
   vi.doMock('@/lib/supabase/server', () => ({ createServerSupabaseClient: async () => supabase }));
   vi.doMock('@/lib/billing/account-statement-data', () => ({ loadAccountStatement }));
   vi.doMock('@/lib/billing/account-balance', () => ({ isResidentRollForwardEnabled }));
-  vi.doMock('@/actions/settings/get-settings', () => ({ getSettingValue: vi.fn() }));
-  vi.doMock('@/lib/pdf/account-statement', () => ({ AccountStatementPDF: vi.fn() }));
-  vi.doMock('@react-pdf/renderer', () => ({ renderToBuffer: vi.fn() }));
+  vi.doMock('@/lib/pdf/render-account-statement', () => ({ renderAccountStatementPdf: vi.fn() }));
   const { GET } = await import('@/app/api/statements/route');
   return { supabase, loadAccountStatement, isResidentRollForwardEnabled, GET };
 }
@@ -70,9 +68,7 @@ describe('GET /api/statements authorization', { timeout: 15000 }, () => {
     vi.doUnmock('@/lib/supabase/server');
     vi.doUnmock('@/lib/billing/account-statement-data');
     vi.doUnmock('@/lib/billing/account-balance');
-    vi.doUnmock('@/actions/settings/get-settings');
-    vi.doUnmock('@/lib/pdf/account-statement');
-    vi.doUnmock('@react-pdf/renderer');
+    vi.doUnmock('@/lib/pdf/render-account-statement');
   });
 
   it('returns 401 when unauthenticated', async () => {

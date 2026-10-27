@@ -9,6 +9,7 @@ import { callWalletPaymentRpc } from '@/lib/billing/wallet-payment-rpc';
 import { debitWalletForInvoiceAtomic, type WalletInvoiceDebitResult } from '@/lib/billing/wallet-invoice-debit';
 import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
 import { chargeLabel } from '@/lib/whatsapp/assistant-format';
+import { invoiceChargeName } from '@/lib/billing/invoice-charge-name';
 import { DEFAULT_CHARGE_CATEGORY } from '@/lib/billing/charge-categories';
 import { eligibleSettlementInvoiceIds } from '@/lib/billing/eligible-invoices';
 
@@ -527,11 +528,11 @@ export async function getYearlyWalletTransactions(
     const invoiceIds = [...new Set((data || [])
         .filter((t) => t.reference_type === 'invoice' && t.reference_id)
         .map((t) => t.reference_id as string))];
-    const invoiceById = new Map<string, { invoice_number: string; invoice_type: string; period_start: string | null; billing_profile: { name: string } | { name: string }[] | null }>();
+    const invoiceById = new Map<string, { invoice_number: string; invoice_type: string; period_start: string | null; rate_snapshot: unknown; billing_profile: { name: string } | { name: string }[] | null }>();
     for (let i = 0; i < invoiceIds.length; i += 200) {
         const { data: invoices, error: invoicesError } = await supabase
             .from('invoices')
-            .select('id, invoice_number, invoice_type, period_start, billing_profile:billing_profiles(name)')
+            .select('id, invoice_number, invoice_type, period_start, rate_snapshot, billing_profile:billing_profiles(name)')
             .in('id', invoiceIds.slice(i, i + 200));
         if (invoicesError) {
             return { data: [], error: invoicesError.message };
@@ -545,8 +546,7 @@ export async function getYearlyWalletTransactions(
             ? invoiceById.get(transaction.reference_id)
             : undefined;
         if (invoice) {
-            const profile = Array.isArray(invoice.billing_profile) ? invoice.billing_profile[0] : invoice.billing_profile;
-            transaction.invoice_item = chargeLabel({ invoice_type: invoice.invoice_type, profileName: profile?.name ?? null, periodStart: null });
+            transaction.invoice_item = chargeLabel({ invoice_type: invoice.invoice_type, profileName: invoiceChargeName(invoice), periodStart: null });
             transaction.invoice_period_start = invoice.period_start;
             transaction.invoice_number = invoice.invoice_number;
         }
