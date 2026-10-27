@@ -195,6 +195,7 @@ const MAIN_MENU = [
   '4. Alert settings',
   '5. Update email',
   '9. Contact the estate office',
+  '',
   'Reply with a number.',
 ].join('\n');
 
@@ -209,6 +210,7 @@ const FINANCIAL_MENU = [
   '7. Clearance certificate',
   // A tenant with no linked co-resident is offered Link a co-resident (#1117).
   '8. Link a co-resident',
+  '',
   FOOTER,
 ].join('\n');
 
@@ -289,7 +291,7 @@ describe('WhatsApp Assistant menus (#804 harmonised)', () => {
     });
     const replies = await chat(repo, ['hi', '3', 'banana', '1', '1']);
 
-    expect(replies[0]).toBe(['Hi Ada, what would you like to do?', '1. Financial standing', '4. Alert settings', '5. Update email', 'Reply with a number.'].join('\n'));
+    expect(replies[0]).toBe(['Hi Ada, what would you like to do?', '1. Financial standing', '4. Alert settings', '5. Update email', '', 'Reply with a number.'].join('\n'));
     expect(replies[1]).toBe(UNRECOGNISED);
     // No contact line to add on the 2nd miss.
     expect(replies[2]).toBe(UNRECOGNISED);
@@ -338,7 +340,7 @@ describe('WhatsApp Assistant properties (#804 decision 12)', () => {
     const repo = repository([PALM, CEDAR]);
     const replies = await chat(repo, ['owe', '2', '0', '10', '1', '2']);
 
-    expect(replies[0]).toBe(['Which property?', '1. 12 Palm Close', '2. 4 Cedar Way', '3. All my properties', 'Reply with the property number.'].join('\n'));
+    expect(replies[0]).toBe(['Which property?', '1. 12 Palm Close', '2. 4 Cedar Way', '3. All my properties', '', 'Reply with the property number.'].join('\n'));
     expect(replies[1]).toContain('*What you owe, 4 Cedar Way*');
     expect(replies[2]).toContain('Financial standing: 4 Cedar Way');
     expect(replies[2]).toContain('10. Switch property (now: 4 Cedar Way)');
@@ -374,6 +376,7 @@ describe('WhatsApp Assistant community tier (#804 decision 15)', () => {
       '4. Alert settings',
       '5. Update email',
       '9. Contact the estate office',
+      '',
       'Reply with a number.',
     ].join('\n'));
     expect(replies[1]).toBe(UNRECOGNISED);
@@ -527,7 +530,7 @@ describe('WhatsApp Assistant statement (#804 decisions 22-23)', () => {
     const repo = repository();
     const replies = await chat(repo, ['statement', '3']);
 
-    expect(replies[0]).toBe(['Which period?', '1. This month', '2. This year', '3. Last 6 months', '4. Last 12 months', '5. All time', '6. Since move-in', 'Reply with the period number.'].join('\n'));
+    expect(replies[0]).toBe(['Which period?', '1. This month', '2. This year', '3. Last 6 months', '4. Last 12 months', '5. All time', '6. Since move-in', '', 'Reply with the period number.'].join('\n'));
     expect(repo.loadStatement).toHaveBeenCalledWith('resident-1', 'house-1', 'last_six_months', expect.any(Date));
     expect(replies[1]).toBe(thenMenu('*Statement, last 6 months, 12 Palm Close*', '1 Oct 2026 to 20 Oct 2026', 'Your PDF is attached.'));
     expect(repo.logDisclosure).toHaveBeenCalledWith(expect.objectContaining({ menuItem: 'statement', houseId: 'house-1', channel: 'pdf' }));
@@ -619,8 +622,13 @@ describe('WhatsApp Assistant answers (#804 decisions 20, 21, 28)', () => {
 
     expect(body).toBe([
       '*Recent payments, 12 Palm Close*',
-      '1. 12 Oct 2026  ₦50,000.00  bank transfer  ref ••••3456',
-      '2. 1 Sep 2026  ₦20,000.00  payment  (awaiting verification)',
+      '',
+      '1. 12 Oct 2026',
+      '₦50,000.00, bank transfer, ref ••••3456',
+      '',
+      '2. 1 Sep 2026',
+      '₦20,000.00, payment',
+      '_Awaiting verification_',
     ].join('\n'));
     expect(composeRecentPaymentsAnswer([], '12 Palm Close')).toContain('No payments recorded for 12 Palm Close.');
   });
@@ -1461,7 +1469,7 @@ describe('WhatsApp Assistant report a payment (#816 decisions 10-12)', () => {
     const repo = repository([PALM, CEDAR]);
     const replies = await chat(repo, ['report', '2', '75000']);
 
-    expect(replies[0]).toBe('Which property?\n1. 12 Palm Close\n2. 4 Cedar Way\nReply with the property number.');
+    expect(replies[0]).toBe('Which property?\n1. 12 Palm Close\n2. 4 Cedar Way\n\nReply with the property number.');
     expect(replies[1]).toContain('*Report a payment, 4 Cedar Way*');
     expect(replies[2]).toContain('₦75,000.00. When did you pay?');
   });
@@ -1603,8 +1611,14 @@ describe('WhatsApp Assistant receipts (#816 decision 14)', () => {
     expect(repo.getReceiptPayments).toHaveBeenCalledWith('resident-1', 'house-1', 5);
     expect(send.mock.calls[0][0].body).toBe([
       '*Receipts, 12 Palm Close*',
-      '1.  12 Oct 2026  ₦50,000.00  bank transfer',
-      '2.  3 Oct 2026  ₦25,000.00  payment  (awaiting verification)',
+      '',
+      '1. 12 Oct 2026',
+      '₦50,000.00, bank transfer',
+      '',
+      '2. 3 Oct 2026',
+      '₦25,000.00, payment',
+      '_Awaiting verification_',
+      '',
       'Reply 1–2 to get a receipt.',
       FOOTER,
     ].join('\n'));
@@ -2042,12 +2056,12 @@ describe('statement periods without a duplicate (#1069)', () => {
 
   it('lists five items with Since move-in as 5 when nothing predates the move-in', async () => {
     const replies = await chat(withPeriods(NO_EARLIER), ['statement']);
-    expect(replies[0]).toBe(['Which period?', '1. This month', '2. This year', '3. Last 6 months', '4. Last 12 months', '5. Since move-in', 'Reply with the period number.'].join('\n'));
+    expect(replies[0]).toBe(['Which period?', '1. This month', '2. This year', '3. Last 6 months', '4. Last 12 months', '5. Since move-in', '', 'Reply with the period number.'].join('\n'));
   });
 
   it('lists All time and no Since move-in when there is no move-in date', async () => {
     const replies = await chat(withPeriods(NO_MOVE_IN), ['statement']);
-    expect(replies[0]).toBe(['Which period?', '1. This month', '2. This year', '3. Last 6 months', '4. Last 12 months', '5. All time', 'Reply with the period number.'].join('\n'));
+    expect(replies[0]).toBe(['Which period?', '1. This month', '2. This year', '3. Last 6 months', '4. Last 12 months', '5. All time', '', 'Reply with the period number.'].join('\n'));
   });
 
   it('reads 5 against the list the resident saw, and 6 is then unrecognised', async () => {
@@ -2149,7 +2163,7 @@ describe('WhatsApp Assistant several houses (#1073)', () => {
   }
 
   it('offers All my properties last, only to a person with more than one house', async () => {
-    expect((await chat(twoHouseRepo(), ['owe']))[0]).toBe(['Which property?', '1. 12 Palm Close', '2. 4 Cedar Way', '3. All my properties', 'Reply with the property number.'].join('\n'));
+    expect((await chat(twoHouseRepo(), ['owe']))[0]).toBe(['Which property?', '1. 12 Palm Close', '2. 4 Cedar Way', '3. All my properties', '', 'Reply with the property number.'].join('\n'));
     expect((await chat(repository([PALM]), ['owe']))[0]).toContain('*What you owe, 12 Palm Close*');
     expect((await chat(twoHouseRepo(), ['payments']))[0]).not.toContain('All my properties');
   });

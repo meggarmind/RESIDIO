@@ -430,17 +430,26 @@ export function composeOweAnswer(figures: OwedFigures, houseLabel: string, showP
   return lines.join('\n');
 }
 
-export function composeRecentPaymentsAnswer(rows: PaymentRow[], houseLabel: string): string {
-  const lines = [`*Recent payments, ${houseLabel}*`];
-  if (rows.length === 0) lines.push(`No payments recorded for ${houseLabel}.`);
-  for (const [index, row] of rows.entries()) {
-    const parts = [formatDay(row.payment_date), formatNaira(Number(row.amount || 0)), row.method ? row.method.replaceAll('_', ' ') : 'payment'];
-    const reference = maskReference(row.reference_number);
-    if (reference) parts.push(reference);
-    if (row.is_verified !== true) parts.push('(awaiting verification)');
-    lines.push(`${index + 1}. ${parts.join('  ')}`);
-  }
+/**
+ * One payment as a list item: the date on the numbered line, then amount and method, then a status
+ * line when it is not verified. Items are separated by a blank line, so each one reads on its own.
+ */
+function paymentItem(
+  index: number,
+  payment: { payment_date: string; amount: number | string | null; method: string | null; reference_number?: string | null; is_verified: boolean | null }
+): string {
+  const detail = [formatNaira(Number(payment.amount || 0)), payment.method ? payment.method.replaceAll('_', ' ') : 'payment'];
+  const reference = maskReference(payment.reference_number);
+  if (reference) detail.push(reference);
+  const lines = [`${index + 1}. ${formatDay(payment.payment_date)}`, detail.join(', ')];
+  if (payment.is_verified !== true) lines.push('_Awaiting verification_');
   return lines.join('\n');
+}
+
+export function composeRecentPaymentsAnswer(rows: PaymentRow[], houseLabel: string): string {
+  const header = `*Recent payments, ${houseLabel}*`;
+  if (rows.length === 0) return `${header}\nNo payments recorded for ${houseLabel}.`;
+  return [header, ...rows.map((row, index) => paymentItem(index, row))].join('\n\n');
 }
 
 /** One line per property with what is outstanding there, then the total (#1073 decision 1). */
@@ -1066,7 +1075,7 @@ async function mainMenu(turn: Turn): Promise<string> {
   lines.push('4. Alert settings');
   lines.push('5. Update email');
   if (turn.contact) lines.push('9. Contact the estate office');
-  lines.push('Reply with a number.');
+  lines.push('', 'Reply with a number.');
   return lines.join('\n');
 }
 
@@ -1141,6 +1150,7 @@ function financialMenu(turn: Turn): string {
     ...(house && !OCCUPANT_ROLES.has(house.role) ? [] : ['7. Clearance certificate']),
     ...(showsLinkItem(turn) ? ['8. Link a co-resident'] : []),
     ...(showsSwitchItem(turn) && house ? [`10. Switch property (now: ${house.label})`] : []),
+    '',
     lastLine,
   ].join('\n');
 }
@@ -1149,12 +1159,12 @@ const ALL_PROPERTIES = 'All my properties';
 
 /** What I owe offers a summary of every property, as the last choice (#1073 decision 1). */
 function propertyPrompt(houses: FinancialHouse[], withAll = false): string {
-  return ['Which property?', ...houses.map((house, index) => `${index + 1}. ${house.label}`), ...(withAll ? [`${houses.length + 1}. ${ALL_PROPERTIES}`] : []), 'Reply with the property number.'].join('\n');
+  return ['Which property?', ...houses.map((house, index) => `${index + 1}. ${house.label}`), ...(withAll ? [`${houses.length + 1}. ${ALL_PROPERTIES}`] : []), '', 'Reply with the property number.'].join('\n');
 }
 
 function statementPeriodPrompt(periods: StatementPeriod[]): string {
   const label = (period: StatementPeriod) => PERIOD_LABELS[period].replace(/^\w/, (c) => c.toUpperCase());
-  return ['Which period?', ...periods.map((period, index) => `${index + 1}. ${label(period)}`), 'Reply with the period number.'].join('\n');
+  return ['Which period?', ...periods.map((period, index) => `${index + 1}. ${label(period)}`), '', 'Reply with the period number.'].join('\n');
 }
 
 async function miss(turn: Turn, node: string): Promise<void> {
@@ -1219,7 +1229,7 @@ async function enterFinancial(turn: Turn, target: Target, prefix?: string, prope
 }
 
 function coResidentPrompt(people: CoResident[]): string {
-  return ['Which co-resident?', ...people.map((person, index) => `${index + 1}. ${person.firstName} ${person.lastName}`), 'Reply with the number.'].join('\n');
+  return ['Which co-resident?', ...people.map((person, index) => `${index + 1}. ${person.firstName} ${person.lastName}`), '', 'Reply with the number.'].join('\n');
 }
 
 /**
@@ -1474,10 +1484,9 @@ async function showReceipts(turn: Turn, lead: string): Promise<void> {
   if (payments.length === 0) return respondAnswer(turn, `${lead}*Receipts, ${house.label}*\nNo payments recorded for ${house.label}.`);
 
   turn.session.draft = { payments: payments.map((payment) => ({ id: payment.id, verified: payment.is_verified })) } satisfies ReceiptDraft;
-  const lines = payments.map((payment, index) =>
-    [`${index + 1}.`, formatDay(payment.payment_date), formatNaira(payment.amount), payment.method ? payment.method.replaceAll('_', ' ') : 'payment', ...(payment.is_verified ? [] : ['(awaiting verification)'])].join('  ')
-  );
-  await respond(turn, [`${lead}*Receipts, ${house.label}*`, ...lines, payments.length === 1 ? 'Reply 1 to get a receipt.' : `Reply 1–${payments.length} to get a receipt.`, footer(turn)].join('\n'), 'receipt_pick');
+  const items = payments.map((payment, index) => paymentItem(index, payment));
+  const pick = payments.length === 1 ? 'Reply 1 to get a receipt.' : `Reply 1–${payments.length} to get a receipt.`;
+  await respond(turn, [`${lead}*Receipts, ${house.label}*`, ...items, `${pick}\n${footer(turn)}`].join('\n\n'), 'receipt_pick');
 }
 
 async function pickReceipt(turn: Turn, input: string): Promise<void> {
