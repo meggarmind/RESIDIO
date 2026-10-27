@@ -2,6 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { QRCodeSVG } from 'qrcode.react';
 
 /**
  * #1029: the Settings screen that turns two-factor login on and off for the signed-in admin.
@@ -46,6 +48,12 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+/** The path of a QR code drawn for `value`, to compare against what the screen draws. */
+const qrPath = (value: string) => {
+  const markup = renderToStaticMarkup(<QRCodeSVG value={value} />);
+  return [...markup.matchAll(/ d="([^"]+)"/g)].map((m) => m[1]).pop();
+};
+
 const typeCode = (code: string) =>
   fireEvent.change(screen.getByLabelText('Code from your authenticator app'), { target: { value: code } });
 
@@ -64,6 +72,12 @@ describe('two-factor settings controls', () => {
       'href',
       'otpauth://totp/Estate:a?secret=JBSWY3DPEHPK3PXP'
     );
+
+    // The QR code holds the same otpauth link, so scanning it adds the same key.
+    const qr = screen.getByRole('img', { name: 'QR code for your authenticator app' });
+    const drawn = [...qr.querySelectorAll('path')].map((p) => p.getAttribute('d')).pop();
+    expect(drawn).toBe(qrPath('otpauth://totp/Estate:a?secret=JBSWY3DPEHPK3PXP'));
+    expect(drawn).not.toBe(qrPath('otpauth://totp/Estate:a?secret=AAAAAAAAAAAAAAAA'));
 
     const turnOn = screen.getByRole('button', { name: 'Turn on' });
     expect(turnOn).toBeDisabled();
