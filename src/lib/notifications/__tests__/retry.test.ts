@@ -9,6 +9,13 @@ import { createFakeSupabase, type Row } from './helpers/fake-supabase';
 const mocks = vi.hoisted(() => ({
   resendSend: vi.fn(),
   isEmailConfigured: vi.fn(),
+  markStatementEmailFailed: vi.fn(),
+  sendStatementEmailFailedNotice: vi.fn(),
+}));
+
+vi.mock('@/lib/whatsapp/statement-delivery', () => ({
+  markStatementEmailFailed: mocks.markStatementEmailFailed,
+  sendStatementEmailFailedNotice: mocks.sendStatementEmailFailedNotice,
 }));
 
 vi.mock('@/lib/email/resend', () => ({
@@ -483,6 +490,46 @@ describe('processQueue exhausted-row guard', () => {
       status: 'failed',
       error_message: 'Max attempts exceeded',
     });
+  });
+
+  it('marks an exhausted WhatsApp statement email failed and tells the resident (#1252)', async () => {
+    mocks.markStatementEmailFailed.mockResolvedValue(true);
+    useFake({
+      notification_queue: [queueRow({ attempts: 5, max_attempts: 5, metadata: { whatsapp_statement_request_id: 'request-1' } })],
+      notification_history: [],
+    });
+
+    await processQueue();
+
+    expect(mocks.markStatementEmailFailed).toHaveBeenCalledWith('request-1');
+    expect(mocks.sendStatementEmailFailedNotice).toHaveBeenCalledWith('request-1');
+  });
+
+  it('sends no notice when the statement request had already left queued (#1252)', async () => {
+    mocks.markStatementEmailFailed.mockResolvedValue(false);
+    useFake({
+      notification_queue: [queueRow({ attempts: 5, max_attempts: 5, metadata: { whatsapp_statement_request_id: 'request-1' } })],
+      notification_history: [],
+    });
+
+    await processQueue();
+
+    expect(mocks.markStatementEmailFailed).toHaveBeenCalledWith('request-1');
+    expect(mocks.sendStatementEmailFailedNotice).not.toHaveBeenCalled();
+  });
+
+  it('leaves other exhausted rows alone and survives a settle error (#1252)', async () => {
+    useFake({ notification_queue: [queueRow({ attempts: 5, max_attempts: 5 })], notification_history: [] });
+    await processQueue();
+    expect(mocks.markStatementEmailFailed).not.toHaveBeenCalled();
+
+    mocks.markStatementEmailFailed.mockRejectedValue(new Error('db down'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    useFake({
+      notification_queue: [queueRow({ attempts: 5, max_attempts: 5, metadata: { whatsapp_statement_request_id: 'request-1' } })],
+      notification_history: [],
+    });
+    await expect(processQueue()).resolves.toMatchObject({ failed: 1 });
   });
 });
 
