@@ -10,7 +10,7 @@ residio_sources:
   - src/app/(dashboard)/settings/whatsapp-admin/**
   - src/app/(dashboard)/system/whatsapp-monitoring/**
   - src/app/api/whatsapp/**
-residio_verified_commit: 97ac657
+residio_verified_commit: c62ad1f
 residio_verified_at: '2026-10-27'
 residio_app_version: '0.4.0'
 ---
@@ -276,7 +276,7 @@ Beyond answers, a resident can make four changes from chat. Each is recorded in 
 - `9`, `HELP`, `AGENT` and `CONTACT` give the estate office line: phone, email and office hours from Estate Profile.
 - Keywords such as `OWE`, `PAYMENTS`, `STATEMENT`, `WALLET`, `PAY`, `NEWS`, `RECEIPT`, `REPORT`, `CLEARANCE`, `REMINDERS` and `EMAIL` jump straight to an item. Add the estate's own phrasing under **Extra keywords**.
 - A reply the Assistant does not understand gets `I didn't catch that.`; from the second in a row it adds the estate office line. Voice notes, images and stickers get a request to type instead.
-- After 15 minutes without activity the session ends: the next message says so, and the chosen property and the PIN unlock are forgotten.
+- After 15 minutes without activity the session ends, and the chosen property, the PIN unlock and any step in progress are forgotten. The next message says so only when the resident was in a step, for example reporting a payment or choosing a statement period, and the message is not HI, HELLO, MENU or START. The note adds that the PIN is needed again only when the PIN was unlocked. In all other cases the session starts again without the note, and the message is handled as usual: HI shows the main menu, and 1 asks for the PIN when one is needed.
 - If a lookup fails, the resident is told nothing was shown or changed and to try again shortly, with the estate office line.
 
 ### Feedback survey
