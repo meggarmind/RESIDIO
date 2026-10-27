@@ -20,6 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { HouseNeighbourNav } from '@/components/houses/house-neighbour-nav';
 import { IdentifierUnverifiedBadge } from '@/components/houses/identifier-unverified-badge';
 import { OccupancyBadge } from '@/components/residents/status-badge';
 import { useDeleteHouse } from '@/hooks/use-houses';
@@ -96,45 +97,44 @@ export function HouseHeader({ house, activeResidentCount }: HouseHeaderProps) {
         </div>
       </div>
 
-      {(canUpdateHouse || canDeleteHouse) && (
-        <div className="flex shrink-0 items-center gap-2 pl-14 sm:pl-0">
-          {canUpdateHouse && (
-            <Button variant="outline" asChild className={headerButtonClass}>
-              <Link href={`/houses/${house.id}?edit=true`}>
-                <Pencil className="h-4 w-4 mr-2" />
-                Edit
-              </Link>
-            </Button>
-          )}
-          {canDeleteHouse && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className={`${headerButtonClass} min-w-11 md:min-w-0`} aria-label="More house actions">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="max-w-64">
-                <DropdownMenuItem
-                  variant="destructive"
-                  disabled={hasResidents || deleteMutation.isPending}
-                  onSelect={() => setIsDeleteDialogOpen(true)}
-                  className="flex-col items-start gap-0.5"
-                >
-                  <span className="flex items-center">
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete house
+      <div className="flex shrink-0 flex-wrap items-center gap-2 pl-14 sm:pl-0">
+        <HouseNeighbourNav houseId={house.id} />
+        {canUpdateHouse && (
+          <Button variant="outline" asChild className={headerButtonClass}>
+            <Link href={`/houses/${house.id}?edit=true`}>
+              <Pencil className="h-4 w-4 mr-2" />
+              Edit
+            </Link>
+          </Button>
+        )}
+        {canDeleteHouse && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className={`${headerButtonClass} min-w-11 md:min-w-0`} aria-label="More house actions">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="max-w-64">
+              <DropdownMenuItem
+                variant="destructive"
+                disabled={hasResidents || deleteMutation.isPending}
+                onSelect={() => setIsDeleteDialogOpen(true)}
+                className="flex-col items-start gap-0.5"
+              >
+                <span className="flex items-center">
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete house
+                </span>
+                {hasResidents && (
+                  <span className="text-xs text-muted-foreground" data-testid="delete-disabled-reason">
+                    Remove all residents before deleting this house.
                   </span>
-                  {hasResidents && (
-                    <span className="text-xs text-muted-foreground" data-testid="delete-disabled-reason">
-                      Remove all residents before deleting this house.
-                    </span>
-                  )}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
-      )}
+                )}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
 
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
