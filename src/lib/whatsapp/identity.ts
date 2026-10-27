@@ -724,9 +724,12 @@ export function identityReadBack(identity: WhatsAppResidentIdentity, street: str
   );
 }
 
-/** The notice goes in the chat body; WhatsApp renders the admin's `*bold*` and `_italic_` itself. */
+/**
+ * The notice goes in the chat body; WhatsApp renders the admin's `*bold*` and `_italic_` itself.
+ * The version gets its own line unless the text already shows it with `{{Version}}`.
+ */
 function privacyNoticePrompt(notice: WhatsAppPrivacyNotice): string {
-  return [notice.text, `_Version ${notice.version}_`, '1. Accept\n2. Decline'].join('\n\n');
+  return [notice.text, ...(notice.versionInText ? [] : [`_Version ${notice.version}_`]), '1. Accept\n2. Decline'].join('\n\n');
 }
 
 async function sendReply(
