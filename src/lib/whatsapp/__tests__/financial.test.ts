@@ -222,7 +222,7 @@ const thenMenu = (...lines: string[]) => `${lines.join('\n')}\n\n${FINANCIAL_MEN
 describe('WhatsApp Assistant menus (#804 harmonised)', () => {
   it('greets a single-house resident and walks Financial standing to What I owe and back', async () => {
     const repo = repository();
-    const replies = await chat(repo, ['hi', '1', '1', '0', '0']);
+    const replies = await chat(repo, ['hi', '1', '1', '0']);
 
     expect(replies[0]).toBe(MAIN_MENU);
     expect(replies[1]).toBe(FINANCIAL_MENU);
@@ -236,9 +236,8 @@ describe('WhatsApp Assistant menus (#804 harmonised)', () => {
       'Awaiting verification: ₦25,000.00',
       'Reply PAY for how to pay',
     ));
-    // 0 goes back one level: answer to Financial standing, then to the main menu.
-    expect(replies[3]).toBe(FINANCIAL_MENU);
-    expect(replies[4]).toBe(MAIN_MENU);
+    // The answer already ends with the Financial menu, so its "Reply 0 for menu" opens the main menu.
+    expect(replies[3]).toBe(MAIN_MENU);
     expect(repo.getOwed).toHaveBeenCalledWith('resident-1', 'house-1');
     expect(repo.logDisclosure).toHaveBeenCalledTimes(1);
     expect(repo.logDisclosure).toHaveBeenCalledWith(expect.objectContaining({ menuItem: 'what_i_owe', houseId: 'house-1' }));
@@ -338,7 +337,7 @@ describe('WhatsApp Assistant menus (#804 harmonised)', () => {
 describe('WhatsApp Assistant properties (#804 decision 12)', () => {
   it('asks once per session which property, names it, and switches through item 10', async () => {
     const repo = repository([PALM, CEDAR]);
-    const replies = await chat(repo, ['owe', '2', '0', '10', '1', '2']);
+    const replies = await chat(repo, ['owe', '2', '2', '10', '1', '2']);
 
     expect(replies[0]).toBe(['Which property?', '1. 12 Palm Close', '2. 4 Cedar Way', '3. All my properties', '', 'Reply with the property number.'].join('\n'));
     expect(replies[1]).toContain('*What you owe, 4 Cedar Way*');
@@ -1119,9 +1118,22 @@ describe('WhatsApp Assistant ends a final answer with the menu as its own messag
     for (const reply of replies) expect(reply).not.toContain('Financial standing');
   });
 
-  it('still honours 0 after an answer', async () => {
+  it('opens the main menu on 0 after an answer, not the Financial menu sent with it', async () => {
     const replies = await chat(repository(), ['1', '1', '0']);
-    expect(replies[2]).toMatch(/^Financial standing\n/);
+    expect(replies[1].endsWith(FINANCIAL_MENU)).toBe(true);
+    expect(replies[2]).toBe(MAIN_MENU);
+  });
+
+  it('opens the main menu on 0 at the first property prompt, which would otherwise repeat', async () => {
+    const replies = await chat(repository([PALM, CEDAR]), ['1', '0']);
+    expect(replies[0]).toContain('Which property?');
+    expect(replies[1]).toBe(MAIN_MENU);
+  });
+
+  it('goes back to Financial standing on 0 at Switch property, once a property is chosen', async () => {
+    const replies = await chat(repository([PALM, CEDAR]), ['1', '1', '10', '0']);
+    expect(replies[2]).toContain('Which property?');
+    expect(replies[3]).toContain('Financial standing: 12 Palm Close');
   });
 
   it('sends the answer and the menu as two messages, in order, saving the session at answer (#1179)', async () => {
@@ -2262,7 +2274,7 @@ describe('WhatsApp Assistant several houses (#1073)', () => {
 
   it('hides the clearance item from the menu of a house the person does not live in', async () => {
     const repo = repository([PALM, LANDLORD_CEDAR]);
-    const replies = await chat(repo, ['payments', '2', '0', '10', '1']);
+    const replies = await chat(repo, ['payments', '2', '2', '10', '1']);
     expect(replies[2]).not.toContain('7. Clearance certificate');
     expect(replies[2]).toContain('Financial standing: 4 Cedar Way');
     expect(replies[4]).toContain('Financial standing: 12 Palm Close');
