@@ -291,6 +291,7 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/system/accounts': [PERMISSIONS.SYSTEM_ASSIGN_ROLES],
   '/system/notification-queue': [PERMISSIONS.NOTIFICATIONS_MANAGE],
   '/system/notification-history': [PERMISSIONS.NOTIFICATIONS_MANAGE],
+  '/system/whatsapp-monitoring': [PERMISSIONS.WHATSAPP_VIEW],
   '/system/data-tools': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
   // Canonical home for cron job status, moved from /settings/cron-status and
   // /settings/system/health (#174, ADR-0004: live system state is not

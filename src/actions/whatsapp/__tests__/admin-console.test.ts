@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { getWhatsAppClearanceCopyFailures, getWhatsAppDeliveryProblems, getWhatsAppDisclosureLogs, getWhatsAppHealth, getWhatsAppOutboundSends, getWhatsAppSessions, getWhatsAppStatementFlags, getWhatsAppSurveySummary, retryWhatsAppClearanceCopy } from '../admin-console';
 import { logAudit } from '@/lib/audit/logger';
 import { retryClearanceCopy } from '@/lib/clearance/issue-certificate';
-import { filterDisclosureLogs, filterOptIns } from '@/app/(dashboard)/settings/whatsapp/operations-console';
+import { filterDisclosureLogs, filterOptIns } from '@/app/(dashboard)/system/whatsapp-monitoring/activity-logs';
 
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: vi.fn() }));
 vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
