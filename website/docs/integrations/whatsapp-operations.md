@@ -110,7 +110,14 @@ While the switch is off, a resident who writes in gets one reply, "The estate As
 | `Pilot` | Only named residents, plus every resident on one nominated street. |
 | `Estate` | All residents. |
 
-Use **Rollout and pilot controls** to set the mode. In pilot mode you choose pilot residents by name from a searchable list (each entry shows the resident code and house, to tell same-name residents apart), a pilot street, or both — a resident matching either rule is included.
+Use **Rollout and pilot controls** to set the mode. In pilot mode you choose a **pilot street** by name, pilot residents by name, or both. A resident who matches either rule is included.
+
+The **Pilot residents** table shows everyone in the pilot: each person chosen by name, plus each resident with an active house on the pilot street. Each row shows the resident code, house and role, the masked WhatsApp number, the consent state, and why the person is in the pilot (**Name**, **Street** or both).
+
+- Search by name, code, house or role. Filter to residents chosen by name, residents from the pilot street, or residents who are not opted in.
+- **Add pilot residents** opens a searchable list. Each entry shows the resident code and house, to tell same-name residents apart.
+- The remove button removes a resident chosen by name. To remove a street member, change the pilot street.
+- Changes apply only when you click **Save rollout controls**. Until then, the page shows that the pilot list changed.
 
 ### Promote a pilot to the estate
 

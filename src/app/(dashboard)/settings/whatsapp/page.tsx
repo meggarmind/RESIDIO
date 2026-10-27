@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { getWhatsAppForcePin, getWhatsAppPrivacyNotice } from '@/actions/whatsapp/identity';
 import { SettingsPageHeader } from '@/components/settings/settings-page-header';
-import { getWhatsAppEnabled, getWhatsAppPilotResidentOptions, getWhatsAppPilotSettings } from '@/actions/whatsapp/pilot';
+import { getWhatsAppEnabled, getWhatsAppPilotRoster, getWhatsAppPilotSettings } from '@/actions/whatsapp/pilot';
 import { getWhatsAppDeliveryProblems, getWhatsAppHealth, getWhatsAppStatementFlags, getWhatsAppSurveySummary } from '@/actions/whatsapp/admin-console';
 import { getWhatsAppConnectionStatus, getWhatsAppOverrideNumbers, type WhatsAppConnectionStatus } from '@/actions/whatsapp/connection';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,14 +35,14 @@ const DISCONNECTED_STATUS: WhatsAppConnectionStatus = {
 };
 
 export default async function WhatsAppOperationsPage() {
-  const [forcePinResult, healthResult, pilotResult, connectionResult, overrideNumbersResult, whatsappEnabledResult, pilotResidentsResult, deliveryProblemsResult, assistantTextResult, statementFlagsResult, privacyNoticeResult, surveyResult, rollForwardResult] = await Promise.all([
+  const [forcePinResult, healthResult, pilotResult, connectionResult, overrideNumbersResult, whatsappEnabledResult, pilotRosterResult, deliveryProblemsResult, assistantTextResult, statementFlagsResult, privacyNoticeResult, surveyResult, rollForwardResult] = await Promise.all([
     getWhatsAppForcePin(),
     getWhatsAppHealth(),
     getWhatsAppPilotSettings(),
     getWhatsAppConnectionStatus(),
     getWhatsAppOverrideNumbers(),
     getWhatsAppEnabled(),
-    getWhatsAppPilotResidentOptions(),
+    getWhatsAppPilotRoster(),
     getWhatsAppDeliveryProblems(),
     getWhatsAppAssistantText(),
     getWhatsAppStatementFlags(),
@@ -73,7 +73,7 @@ export default async function WhatsAppOperationsPage() {
         <CardHeader><CardTitle>WhatsApp channel</CardTitle><CardDescription>Master on/off switch. Distinct from rollout mode below, which chooses who receives messages once this is on.</CardDescription></CardHeader>
         <CardContent className="flex items-center justify-between gap-4"><p className="text-sm text-muted-foreground">When off, no WhatsApp message can be sent regardless of rollout mode.</p><WhatsAppEnabledToggle initialValue={whatsappEnabledResult.data === true} /></CardContent>
       </Card>
-      <Card><CardHeader><CardTitle>Rollout and pilot controls</CardTitle><CardDescription>Keep WhatsApp disabled until a defined pilot is verified. Promotion is audited.</CardDescription></CardHeader><CardContent><PilotControls initial={pilotResult.data || { mode: 'disabled', residentIds: [], streetId: '', outboundDailyCap: 100, outboundBurstCap: 20, outboundBurstWindowMinutes: 10, financialLookupDailyCap: 500, sessionRetentionDays: 1, processedMessageRetentionDays: 2, surveyResponseRetentionDays: 90, outboundSendRetentionDays: 90 }} residentOptions={pilotResidentsResult.data} residentOptionsError={pilotResidentsResult.error} /></CardContent></Card>
+      <Card><CardHeader><CardTitle>Rollout and pilot controls</CardTitle><CardDescription>Keep WhatsApp disabled until a defined pilot is verified. Promotion is audited.</CardDescription></CardHeader><CardContent><PilotControls initial={pilotResult.data || { mode: 'disabled', residentIds: [], streetId: '', outboundDailyCap: 100, outboundBurstCap: 20, outboundBurstWindowMinutes: 10, financialLookupDailyCap: 500, sessionRetentionDays: 1, processedMessageRetentionDays: 2, surveyResponseRetentionDays: 90, outboundSendRetentionDays: 90 }} roster={pilotRosterResult.data} rosterError={pilotRosterResult.error} /></CardContent></Card>
       <p className="text-sm text-muted-foreground">
         Sent messages, the opt-in registry, pending contacts, active sessions, the disclosure log and clearance copies not sent are on{' '}
         <Link href="/system/whatsapp-monitoring" className="underline">System &gt; WhatsApp Monitoring</Link>.

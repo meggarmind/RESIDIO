@@ -75,7 +75,7 @@ function Page() {
       <PilotControls
         initial={{
           mode: 'pilot',
-          residentIds: [],
+          residentIds: ['res-1'],
           streetId: '',
           outboundDailyCap: 100,
           outboundBurstCap: 20,
@@ -86,7 +86,10 @@ function Page() {
           surveyResponseRetentionDays: 90,
           outboundSendRetentionDays: 90,
         }}
-        residentOptions={[{ id: 'res-1', name: 'Ada Okoro', detail: 'RES001 · 12 Palm Close' }]}
+        roster={{
+          residents: [{ id: 'res-1', name: 'Ada Okoro', code: 'RES001', houses: [{ label: '12 Palm Close', streetId: 'st-1', role: 'Renter' }], optIn: 'opted_in', phone: '+234****567' }],
+          streets: [{ id: 'st-1', name: 'Palm Close' }],
+        }}
       />
       <WhatsAppActivityLogs
         optIns={[]}
@@ -109,7 +112,9 @@ const WRITE_CONTROLS: [string, RegExp][] = [
   ['button', /^Save template content SIDs$/],
   ['button', /^Save rollout controls$/],
   ['button', /^Promote estate-wide$/],
-  ['button', /^Choose pilot residents$/],
+  ['button', /^Add pilot residents$/],
+  ['button', /^Remove Ada Okoro$/],
+  ['combobox', /^Pilot street/],
   ['button', /^Import opt-ins$/],
   ['button', /^Attach$/],
   ['button', /^Ignore$/],
@@ -158,9 +163,10 @@ describe('WhatsApp settings permission gating (issue #7)', () => {
     mocks.permissions = [PERMISSIONS.WHATSAPP_VIEW, PERMISSIONS.WHATSAPP_MANAGE];
     render(<Page />);
 
-    for (const name of [/^Disconnect$/, /^Test connection$/, /^Save template content SIDs$/, /^Save rollout controls$/, /^Promote estate-wide$/, /^Choose pilot residents$/, /^Ignore$/, /^Reset$/, /^Import opt-ins$/]) {
+    for (const name of [/^Disconnect$/, /^Test connection$/, /^Save template content SIDs$/, /^Save rollout controls$/, /^Promote estate-wide$/, /^Add pilot residents$/, /^Remove Ada Okoro$/, /^Ignore$/, /^Reset$/, /^Import opt-ins$/]) {
       expect(screen.getByRole('button', { name })).toBeEnabled();
     }
+    expect(screen.getByRole('combobox', { name: /^Pilot street/ })).toBeEnabled();
     expect(screen.getByRole('switch', { name: /Enable the WhatsApp channel/ })).toBeEnabled();
     expect(screen.getByRole('switch', { name: /Require PIN/ })).toBeEnabled();
     expect(screen.getByRole('switch', { name: /roll-forward balance/ })).toBeEnabled();
