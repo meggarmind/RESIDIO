@@ -11,7 +11,7 @@ residio_sources:
   - src/app/(dashboard)/system/whatsapp-monitoring/**
   - src/app/api/whatsapp/**
 <<<<<<< ours
-residio_verified_commit: b79337f
+residio_verified_commit: 3102d09
 =======
 residio_verified_commit: f51d871
 >>>>>>> theirs
