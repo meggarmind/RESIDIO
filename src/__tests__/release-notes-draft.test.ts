@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   INDEX_END,
   INDEX_START,
+  isFinished,
   longDate,
   pageSlug,
   prNumbersFromSubjects,
@@ -103,6 +104,11 @@ describe('renderDraft', () => {
     expect(draft).toContain("residio_release_date: '2026-10-30'");
     expect(draft).toContain('residio_release_draft: true');
     expect(draft).toContain('**Release date:** 30 October 2026.');
+  });
+
+  it('is not a finished page, so the next run may redraft it', () => {
+    expect(isFinished(draft)).toBe(false);
+    expect(isFinished(draft.replace('residio_release_draft: true\n', ''))).toBe(true);
   });
 
   it('keeps raw PR text inside one fenced block so MDX cannot parse it', () => {

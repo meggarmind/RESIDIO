@@ -94,6 +94,11 @@ export function prNumbersFromSubjects(subjects) {
   return [...found].sort((a, b) => a - b);
 }
 
+/** A page is finished once its draft line is gone. A finished page is never overwritten without --force. */
+export function isFinished(pageText) {
+  return !pageText.includes('residio_release_draft: true');
+}
+
 /** `2026-10-24` -> `24 October 2026` (CORE.md section 4: month as a name). */
 export function longDate(isoDate) {
   const [y, m, d] = isoDate.split('-').map(Number);
@@ -216,7 +221,7 @@ async function main() {
   }
 
   const pagePath = path.join(notesDir, `${pageSlug(tag)}.md`);
-  if (existsSync(pagePath) && !force && !readFileSync(pagePath, 'utf8').includes('residio_release_draft: true')) {
+  if (existsSync(pagePath) && !force && isFinished(readFileSync(pagePath, 'utf8'))) {
     console.log(`${path.relative(repoRoot, pagePath)} is already written. Not changed (use --force).`);
     return;
   }
