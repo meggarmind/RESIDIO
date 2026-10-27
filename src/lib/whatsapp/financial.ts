@@ -22,6 +22,7 @@ import type { AccountStatementData } from '@/lib/billing/account-statement-data'
 import { fetchAccountBalance, isResidentRollForwardEnabled } from '@/lib/billing/account-balance';
 import { statementRowCount } from '@/lib/billing/statement-categories';
 import { DEFAULT_CHARGE_CATEGORY } from '@/lib/billing/charge-categories';
+import { invoiceLabel } from '@/lib/billing/invoice-label';
 import {
   STATEMENT_CHAT_ROW_LIMIT,
   createStatementRequest,
@@ -72,7 +73,6 @@ import { answerSurvey, askSurvey } from '@/lib/whatsapp/survey-db';
 import {
   DEFAULT_KEYWORDS,
   answerFooter,
-  chargeLabel,
   contactLine,
   formatDay,
   formatMonth,
@@ -734,7 +734,7 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
       const [unpaidResult, countResult, unverifiedResult, balance] = await Promise.all([
         supabase
           .from('invoices')
-          .select('invoice_number, amount_due, amount_paid, due_date, invoice_type, period_start, billing_profile:billing_profiles(name)')
+          .select('invoice_number, amount_due, amount_paid, due_date, invoice_type, period_start, rate_snapshot, billing_profile:billing_profiles(name)')
           .eq('resident_id', residentId)
           .eq('house_id', houseId)
           .in('status', ['unpaid', 'partially_paid'])
@@ -794,7 +794,7 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
       const next = unpaid.find((invoice) => invoice.due_date.slice(0, 10) >= today);
       const label = (invoice: (typeof unpaid)[number]) => {
         const profile = Array.isArray(invoice.billing_profile) ? invoice.billing_profile[0] : invoice.billing_profile;
-        return chargeLabel({ invoice_type: invoice.invoice_type, profileName: profile?.name ?? null, periodStart: invoice.period_start });
+        return invoiceLabel({ invoice_type: invoice.invoice_type, rate_snapshot: invoice.rate_snapshot, profileName: profile?.name ?? null, periodStart: invoice.period_start });
       };
       return {
         invoiceCount: countResult.count || 0,
