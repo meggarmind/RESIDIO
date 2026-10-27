@@ -404,33 +404,64 @@ describe('WhatsApp Assistant community tier (#804 decision 15)', () => {
 });
 
 describe('WhatsApp Assistant session expiry (#804 amendment 1)', () => {
-  function expired(repo: Repo) {
+  function expired(repo: Repo, currentNode = 'answer') {
     repo.setStoredSession({
       phoneNumber: '+2348000000000',
       residentId: 'resident-1',
-      currentNode: 'answer',
+      currentNode,
       selectedHouseId: 'house-2',
       pinAuthenticated: true,
       expiresAt: new Date(Date.now() - 1000).toISOString(),
     });
   }
 
-  it('announces the expiry with the PIN clause and forgets the property and unlock', async () => {
+  it('greets without a notice, whatever step expired', async () => {
     const repo = repository([PALM, CEDAR]);
     vi.mocked(repo.getForcePin).mockResolvedValue(true);
-    expired(repo);
+    expired(repo, 'report_amount');
+
+    const replies = await chat(repo, ['hi']);
+
+    expect(replies[0]).toMatch(/^Hi Ada/);
+    expect(replies[0]).not.toMatch(/session ended/);
+    expect(repo.saveSession).toHaveBeenLastCalledWith(expect.objectContaining({ selectedHouseId: null, pinAuthenticated: false, currentNode: 'main' }));
+  });
+
+  it('answers the message of a fresh session, and the forgotten unlock asks for the PIN again', async () => {
+    const repo = repository([PALM, CEDAR]);
+    vi.mocked(repo.getForcePin).mockResolvedValue(true);
+    expired(repo, 'main');
 
     const replies = await chat(repo, ['1']);
 
+    expect(replies[0]).toMatch(/PIN/);
+    expect(replies[0]).not.toMatch(/session ended/);
+    expect(repo.getOwed).not.toHaveBeenCalled();
+  });
+
+  it('announces the expiry with the PIN clause when an unlocked step was in progress', async () => {
+    const repo = repository([PALM, CEDAR]);
+    vi.mocked(repo.getForcePin).mockResolvedValue(true);
+    expired(repo, 'report_amount');
+
+    const replies = await chat(repo, ['5000']);
+
     expect(replies[0]).toMatch(/^Your session ended after 15 minutes without activity, so your PIN is needed again\. Nothing was changed\.\n\nHi Ada/);
     expect(repo.getOwed).not.toHaveBeenCalled();
-    expect(repo.saveSession).toHaveBeenLastCalledWith(expect.objectContaining({ selectedHouseId: null, pinAuthenticated: false, currentNode: 'main' }));
+    expect(repo.saveSession).toHaveBeenLastCalledWith(expect.objectContaining({ selectedHouseId: null, pinAuthenticated: false, currentNode: 'main', draft: null }));
+  });
+
+  it('drops the PIN clause when the session was not unlocked', async () => {
+    const repo = repository([PALM, CEDAR]);
+    vi.mocked(repo.getForcePin).mockResolvedValue(true);
+    repo.setStoredSession({ phoneNumber: '+2348000000000', residentId: 'resident-1', currentNode: 'reminders_confirm', selectedHouseId: null, pinAuthenticated: false, expiresAt: new Date(Date.now() - 1000).toISOString() });
+    expect((await chat(repo, ['yes']))[0]).toMatch(/^Your session ended after 15 minutes without activity\. Nothing was changed\.\n\n/);
   });
 
   it('drops the PIN clause when no PIN gate applies', async () => {
     const repo = repository();
-    expired(repo);
-    expect((await chat(repo, ['1']))[0]).toMatch(/^Your session ended after 15 minutes without activity\. Nothing was changed\.\n\n/);
+    expired(repo, 'email_address~1');
+    expect((await chat(repo, ['ada@example.com']))[0]).toMatch(/^Your session ended after 15 minutes without activity\. Nothing was changed\.\n\n/);
   });
 });
 
@@ -2150,10 +2181,10 @@ describe('ending the session with an exit word (#1069)', () => {
     expect(replies[1]).not.toContain('15 minutes');
   });
 
-  it('still tells a resident whose session timed out about the 15 minutes', async () => {
+  it('still tells a resident whose session timed out mid-step about the 15 minutes', async () => {
     const repo = repository();
-    repo.setStoredSession(stored('main', { expiresAt: new Date(Date.now() - 1000).toISOString() }));
-    expect((await chat(repo, ['hi']))[0]).toMatch(/^Your session ended after 15 minutes/);
+    repo.setStoredSession(stored('statement_period', { expiresAt: new Date(Date.now() - 1000).toISOString() }));
+    expect((await chat(repo, ['2']))[0]).toMatch(/^Your session ended after 15 minutes/);
   });
 
   it('does not read a word inside a longer message as an exit', async () => {

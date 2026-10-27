@@ -10,7 +10,7 @@ residio_sources:
   - src/app/(dashboard)/settings/whatsapp-admin/**
   - src/app/(dashboard)/system/whatsapp-monitoring/**
   - src/app/api/whatsapp/**
-residio_verified_commit: e29d51a
+residio_verified_commit: c62ad1f
 residio_verified_at: '2026-10-27'
 residio_app_version: '0.4.0'
 ---
@@ -149,7 +149,7 @@ The alerts opt-in above covers messages the estate sends. Before the assistant u
 
 Every decision (identity confirmed or disputed, notice accepted or declined) is logged permanently with the number, the notice version and the WhatsApp message that carried it. `STOP` and `START` keep their meaning for alerts.
 
-**Privacy notice** in the Resident bot section holds the notice text and version. The Assistant name is the **Assistant name** in Settings > Estate > Assistant, or the estate name followed by `Assistant` when that is empty. The Assistant uses it in the welcome to an unmatched number, the survey question, the privacy notice and the session-end message. Changing the version asks every resident to accept again. A text change is refused unless the version changes too, so each accepted version covers one wording. The text is sent in the chat, so WhatsApp formatting (`*bold*`, `_italic_`) works. These placeholders are filled when the message is sent: `{{URL}}` (the public site address from `NEXT_PUBLIC_SITE_URL`), `{{App Name}}` (the estate name) and `{{App Assistant}}` (the Assistant name). If the text has `{{URL}}` and no site address is set, the notice counts as not published and nothing is sent. The notice can link to the public privacy policy at `/privacy-policy`, which needs no sign-in.
+**Privacy notice** in the Resident bot section holds the notice text and version. The Assistant name is the **Assistant name** in Settings > Estate > Assistant, or the estate name followed by `Assistant` when that is empty. The Assistant uses it in the welcome to an unmatched number, the survey question, the privacy notice and the session-end message. Changing the version asks every resident to accept again. A text change is refused unless the version changes too, so each accepted version covers one wording. The text is sent in the chat, so WhatsApp formatting (`*bold*`, `_italic_`) works. These placeholders are filled when the message is sent: `{{URL}}` (the public site address from `NEXT_PUBLIC_SITE_URL`), `{{App Name}}` (the estate name), `{{App Assistant}}` (the Assistant name) and `{{Version}}` (the notice version). The Assistant adds the version on its own line after the text, unless the text shows it with `{{Version}}`. If the text has `{{URL}}` and no site address is set, the notice counts as not published and nothing is sent. The notice can link to the public privacy policy at `/privacy-policy`, which needs no sign-in.
 
 If a holder answers **No, not me**, the number is marked **disputed** in Pending contacts, admins are notified, and the assistant shows no details for it. After checking, an admin with WhatsApp manage permission clicks **Clear dispute**; the number then gets the identity read-back again on its next message. A link code does not lift a dispute; only clearing it does.
 
@@ -276,7 +276,7 @@ Beyond answers, a resident can make four changes from chat. Each is recorded in 
 - `9`, `HELP`, `AGENT` and `CONTACT` give the estate office line: phone, email and office hours from Estate Profile.
 - Keywords such as `OWE`, `PAYMENTS`, `STATEMENT`, `WALLET`, `PAY`, `NEWS`, `RECEIPT`, `REPORT`, `CLEARANCE`, `REMINDERS` and `EMAIL` jump straight to an item. Add the estate's own phrasing under **Extra keywords**.
 - A reply the Assistant does not understand gets `I didn't catch that.`; from the second in a row it adds the estate office line. Voice notes, images and stickers get a request to type instead.
-- After 15 minutes without activity the session ends: the next message says so, and the chosen property and the PIN unlock are forgotten.
+- After 15 minutes without activity the session ends, and the chosen property, the PIN unlock and any step in progress are forgotten. The next message says so only when the resident was in a step, for example reporting a payment or choosing a statement period, and the message is not HI, HELLO, MENU or START. The note adds that the PIN is needed again only when the PIN was unlocked. In all other cases the session starts again without the note, and the message is handled as usual: HI shows the main menu, and 1 asks for the PIN when one is needed.
 - If a lookup fails, the resident is told nothing was shown or changed and to try again shortly, with the estate office line.
 
 ### Feedback survey
