@@ -7,7 +7,7 @@ residio_sources:
   - src/app/(dashboard)/personnel/**
   - src/actions/documents/**
   - src/actions/personnel/**
-residio_verified_commit: 45a2435
+residio_verified_commit: 9071816
 residio_verified_at: '2026-10-27'
 residio_app_version: '0.4.0'
 ---
