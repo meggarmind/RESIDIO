@@ -1938,7 +1938,7 @@ async function endSession(turn: Turn): Promise<void> {
   await turn.options.repository.saveSession(turn.session);
 }
 
-async function converse(turn: Turn, expired: boolean, endedOnPurpose = false): Promise<void> {
+async function converse(turn: Turn, expiredMidStep: { wasUnlocked: boolean } | null, endedOnPurpose = false): Promise<void> {
   const { text } = turn;
   const input = normalizeInput(text);
   let { node } = readNode(turn.session.currentNode);
@@ -1963,8 +1963,11 @@ async function converse(turn: Turn, expired: boolean, endedOnPurpose = false): P
   if (EXIT_WORDS.has(input)) return endSession(turn);
 
   if (endedOnPurpose) return showMain(turn);
-  if (expired) {
-    const pinClause = turn.identity.financialEligible && (await loadPinGate(turn)) ? ', so your PIN is needed again' : '';
+  // An expiry is announced only when the message may answer the old step's question. A greeting
+  // (YES excepted, which answers a confirm) and an expiry on the main menu start a fresh session
+  // silently; the PIN prompt says when the PIN is needed again.
+  if (expiredMidStep && (input === 'yes' || !GREETINGS.has(input))) {
+    const pinClause = expiredMidStep.wasUnlocked && turn.identity.financialEligible && (await loadPinGate(turn)) ? ', so your PIN is needed again' : '';
     return showMain(turn, `Your session ended after ${SESSION_MINUTES} minutes without activity${pinClause}. Nothing was changed.`);
   }
 
@@ -2137,7 +2140,9 @@ export async function handleFinancialMessage(
     }
     turn.settings = await options.repository.getAssistantSettings();
     turn.contact = contactLine({ phone: turn.settings.estatePhone, email: turn.settings.estateEmail, hours: turn.settings.officeHours }, new Date());
-    await converse(turn, expired, expired && stored?.currentNode === ENDED_NODE);
+    const expiredNode = expired && stored ? readNode(stored.currentNode).node : null;
+    const expiredMidStep = stored && expiredNode && expiredNode !== 'main' && expiredNode !== ENDED_NODE ? { wasUnlocked: stored.pinAuthenticated } : null;
+    await converse(turn, expiredMidStep, expired && stored?.currentNode === ENDED_NODE);
   } catch (error) {
     if (error instanceof ReplySendError) throw error;
     console.error('WhatsApp Assistant lookup failed:', error);
