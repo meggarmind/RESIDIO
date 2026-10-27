@@ -139,6 +139,15 @@ describe('identity read-back (#871 step 1)', () => {
     expect(onIdentified).not.toHaveBeenCalled();
   });
 
+  it('adds no version line when the notice shows the version itself', async () => {
+    const repo = repository(state({ step: `identity:${FINGERPRINT}` }), {
+      getPrivacyNotice: vi.fn().mockResolvedValue({ version: 'v1', text: 'Read the policy (version v1)', versionInText: true }),
+    });
+    const { send } = await run('1', repo);
+
+    expect(send.mock.calls[0][0].body).toBe('Read the policy (version v1)\n\n1. Accept\n2. Decline');
+  });
+
   it('asks again when the roster record changes', async () => {
     const repo = repository(confirmed({ privacy: { decision: 'privacy_accepted', version: 'v1' } }), {
       getStreetName: vi.fn().mockResolvedValue('Oak Avenue'),
