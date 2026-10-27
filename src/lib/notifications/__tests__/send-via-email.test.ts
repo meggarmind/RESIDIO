@@ -30,9 +30,20 @@ vi.mock('@/lib/whatsapp/rollout', () => ({ isWhatsAppRecipientAllowed: vi.fn() }
 vi.mock('@/lib/sms/send-sms', () => ({ sendSms: vi.fn() }));
 const buildStatementEmail = vi.hoisted(() => vi.fn());
 const markStatementEmailSent = vi.hoisted(() => vi.fn());
-vi.mock('@/lib/whatsapp/statement-delivery', () => ({ buildStatementEmail, markStatementEmailSent }));
+const sendStatementEmailedNotice = vi.hoisted(() => vi.fn());
+const markStatementEmailFailed = vi.hoisted(() => vi.fn());
+const sendStatementEmailFailedNotice = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/whatsapp/statement-delivery', () => ({
+  buildStatementEmail,
+  markStatementEmailSent,
+  sendStatementEmailedNotice,
+  markStatementEmailFailed,
+  sendStatementEmailFailedNotice,
+}));
 
-import { sendNotification } from '@/lib/notifications/send';
+import { createAdminClient } from '@/lib/supabase/server';
+import { createFakeSupabase } from './helpers/fake-supabase';
+import { sendAndRecordNotification, sendNotification } from '@/lib/notifications/send';
 import { PRIORITY } from '@/lib/notifications/queue';
 
 function buildEmailItem(overrides: Partial<Parameters<typeof sendNotification>[0]> = {}) {
@@ -111,6 +122,30 @@ describe('sendViaEmail (through sendNotification)', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const sent = await sendNotification(buildEmailItem({ metadata: { whatsapp_statement_request_id: 'request-1' } }));
     expect(sent).toEqual({ success: true, externalId: 'rid-9' });
+  });
+
+  it('tells the resident once the statement email is out, naming the address on file, and not for a cancelled request (#1252)', async () => {
+    buildStatementEmail.mockResolvedValue({ react: 'statement-email', attachments: [] });
+    const item = buildEmailItem({ metadata: { whatsapp_statement_request_id: 'request-1' } });
+
+    markStatementEmailSent.mockResolvedValueOnce(true);
+    await sendNotification(item);
+    expect(sendStatementEmailedNotice).toHaveBeenCalledTimes(1);
+    expect(sendStatementEmailedNotice).toHaveBeenCalledWith('request-1', 'a@test.example');
+
+    sendStatementEmailedNotice.mockClear();
+    markStatementEmailSent.mockResolvedValueOnce(false);
+    await sendNotification(item);
+    expect(sendStatementEmailedNotice).not.toHaveBeenCalled();
+  });
+
+  it('does not fail the email when the WhatsApp notice throws (#1252)', async () => {
+    buildStatementEmail.mockResolvedValue({ react: 'statement-email', attachments: [] });
+    markStatementEmailSent.mockResolvedValueOnce(true);
+    sendStatementEmailedNotice.mockRejectedValueOnce(new Error('chatmaid down'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const result = await sendNotification(buildEmailItem({ metadata: { whatsapp_statement_request_id: 'request-1' } }));
+    expect(result).toEqual({ success: true, externalId: 'rid-9' });
   });
 
   it('leaves other emails alone, and retries when the statement cannot be built', async () => {
@@ -213,5 +248,40 @@ describe('sendViaEmail (through sendNotification)', () => {
     const result = await sendNotification(buildEmailItem());
     expect(result).toEqual({ success: false, error: 'settings down', retryable: true });
     expect(mocks.send).not.toHaveBeenCalled();
+  });
+});
+
+describe('statement email that ends failed (#1252)', () => {
+  function statementItem(attempts: number) {
+    return buildEmailItem({ id: 'queue-1', attempts, max_attempts: 3, metadata: { whatsapp_statement_request_id: 'request-1' } });
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.isEmailConfigured.mockReturnValue(true);
+    settings({});
+    buildStatementEmail.mockRejectedValue(new Error('request missing'));
+    const fake = createFakeSupabase({ notification_queue: [{ id: 'queue-1' }], notification_history: [] });
+    vi.mocked(createAdminClient).mockReturnValue(fake.client as unknown as ReturnType<typeof createAdminClient>);
+  });
+
+  it('marks the request failed and tells the resident when no attempt is left', async () => {
+    markStatementEmailFailed.mockResolvedValueOnce(true);
+    await sendAndRecordNotification(statementItem(2));
+    expect(markStatementEmailFailed).toHaveBeenCalledWith('request-1');
+    expect(sendStatementEmailFailedNotice).toHaveBeenCalledTimes(1);
+    expect(sendStatementEmailFailedNotice).toHaveBeenCalledWith('request-1');
+  });
+
+  it('sends no notice when the request was not queued any more', async () => {
+    markStatementEmailFailed.mockResolvedValueOnce(false);
+    await sendAndRecordNotification(statementItem(2));
+    expect(sendStatementEmailFailedNotice).not.toHaveBeenCalled();
+  });
+
+  it('changes nothing while the queue row will be retried', async () => {
+    await sendAndRecordNotification(statementItem(0));
+    expect(markStatementEmailFailed).not.toHaveBeenCalled();
+    expect(sendStatementEmailFailedNotice).not.toHaveBeenCalled();
   });
 });

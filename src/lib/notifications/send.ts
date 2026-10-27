@@ -134,9 +134,12 @@ async function sendViaEmail(
     }
 
     if (typeof statementRequestId === 'string') {
-      // The email is out, so a failed status update must not fail the send: a retry would send it twice.
+      // The email is out, so a failed status update or notice must not fail the send: a retry would send it twice.
       try {
-        await (await import('@/lib/whatsapp/statement-delivery')).markStatementEmailSent(statementRequestId);
+        const delivery = await import('@/lib/whatsapp/statement-delivery');
+        if (await delivery.markStatementEmailSent(statementRequestId) && item.recipient_email) {
+          await delivery.sendStatementEmailedNotice(statementRequestId, item.recipient_email);
+        }
       } catch (error) {
         console.error('[notifications] Statement request could not be marked sent:', { statementRequestId, error });
       }
@@ -531,6 +534,19 @@ export async function sendAndRecordNotification(
 
   // A clearance copy the cap held back (#1044) leaves 'scheduled' once it is delivered or finally fails.
   if (!willRetry) await settleClearanceCopy(item.metadata, result.success ? null : result.error || 'send failed');
+
+  // A WhatsApp statement email that ended failed (#1252): the request leaves `queued` and the resident is told.
+  const failedStatementRequestId = item.metadata?.whatsapp_statement_request_id;
+  if (!result.success && !willRetry && typeof failedStatementRequestId === 'string') {
+    try {
+      const delivery = await import('@/lib/whatsapp/statement-delivery');
+      if (await delivery.markStatementEmailFailed(failedStatementRequestId)) {
+        await delivery.sendStatementEmailFailedNotice(failedStatementRequestId);
+      }
+    } catch (error) {
+      console.error('[notifications] Statement request could not be marked failed:', { failedStatementRequestId, error });
+    }
+  }
 
   const candidateId = item.metadata && typeof item.metadata.candidateId === 'string'
     ? item.metadata.candidateId
