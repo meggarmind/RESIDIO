@@ -33,13 +33,12 @@ const rows = (result: ReturnType<typeof buildStatementLedger>) =>
   result.transactions.map((t) => [t.description, t.debit, t.credit, t.balance]);
 
 describe('buildStatementLedger summary mode (#1234)', () => {
-  it('merges each run of unpaid invoices and keeps an invoice the credit pays on its own line', () => {
+  it('merges each run of unpaid invoices, including invoices the credit pays (#1253)', () => {
     const summary = buildStatementLedger({ ...sample(), mode: 'summary' });
     expect(rows(summary)).toEqual([
       ['Dues · Nov 2025 – Feb 2026 · 4 invoices', 40_000, 0, 40_000],
       ['Payment (bank_transfer)', 0, 50_000, -10_000],
-      ['Invoice #INV-Dues-2026-3 - Dues, MAR 2026', 10_000, 0, 0],
-      ['Dues · Apr – Oct 2026 · 7 invoices', 70_000, 0, 70_000],
+      ['Dues · Mar – Oct 2026 · 8 invoices', 80_000, 0, 70_000],
       ['Payment (bank_transfer)', 0, 90_000, -20_000],
     ]);
     const first = summary.transactions[0];
@@ -49,15 +48,45 @@ describe('buildStatementLedger summary mode (#1234)', () => {
     expect(first.invoice_id).toBeUndefined();
   });
 
-  it('keeps an invoice that credit pays only partly on its own line, then starts a run', () => {
+  it('merges a run that a credit balance pays partly, and shows the balance at its end', () => {
     const summary = buildStatementLedger({
       openingBalance: -5_000,
       invoices: [monthly('Dues', 2026, 1, 10_000), monthly('Dues', 2026, 2, 10_000), monthly('Dues', 2026, 3, 10_000)],
       payments: [], walletTransactions: [], mode: 'summary',
     });
     expect(rows(summary)).toEqual([
-      ['Invoice #INV-Dues-2026-1 - Dues, JAN 2026', 10_000, 0, 5_000],
-      ['Dues · Feb – Mar 2026 · 2 invoices', 20_000, 0, 25_000],
+      ['Dues · Jan – Mar 2026 · 3 invoices', 30_000, 0, 25_000],
+    ]);
+  });
+
+  // The owner's statement (#1253): seven NGN 5,000 invoices, Apr to Oct 2021, all paid from a 45,000 credit.
+  it('merges a run the credit pays in full, with no change to any balance', () => {
+    const input = {
+      openingBalance: -45_000,
+      invoices: Array.from({ length: 7 }, (_, i) => monthly('Security Levy', 2021, i + 4, 5_000)),
+      payments: [], walletTransactions: [],
+    };
+    const detailed = buildStatementLedger(input);
+    const summary = buildStatementLedger({ ...input, mode: 'summary' });
+    expect(rows(summary)).toEqual([
+      ['Security Levy · Apr – Oct 2021 · 7 invoices', 35_000, 0, -10_000],
+    ]);
+    expect(summary.summary).toEqual(detailed.summary);
+    expect(summary.closingBalance).toBe(-10_000);
+    expect(summary.closingBalance).toBe(detailed.closingBalance);
+    expect(detailed.transactions.at(-1)?.balance).toBe(-10_000);
+  });
+
+  it('stops a credit-paid run at a payment', () => {
+    const summary = buildStatementLedger({
+      openingBalance: -50_000,
+      invoices: [monthly('Dues', 2026, 1, 10_000), monthly('Dues', 2026, 2, 10_000), monthly('Dues', 2026, 3, 10_000)],
+      payments: [payment('p1', '2026-02-15', 5_000)], walletTransactions: [], mode: 'summary',
+    });
+    expect(rows(summary)).toEqual([
+      ['Dues · Jan – Feb 2026 · 2 invoices', 20_000, 0, -30_000],
+      ['Payment (bank_transfer)', 0, 5_000, -35_000],
+      ['Invoice #INV-Dues-2026-3 - Dues, MAR 2026', 10_000, 0, -25_000],
     ]);
   });
 

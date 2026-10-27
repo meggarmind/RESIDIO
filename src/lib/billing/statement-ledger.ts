@@ -66,10 +66,10 @@ function monthIndex(dateStr: string): number {
 
 /**
  * Folds each run of unpaid monthly invoices into one line (#1234). A run is two or more invoices in
- * sequence with the same billing item and amount, for months in sequence, each added in full to the
- * debt. Any other row stops the run, and so does an invoice the credit pays fully or partly: it
- * stays on its own line. The line sits at the first invoice's date and shows the balance at the end
- * of the run, so opening, closing and the totals match the detailed statement.
+ * sequence with the same billing item and amount, for months in sequence. A credit balance that
+ * pays the invoices does not stop the run (#1253); a payment, wallet or any other row does. The line
+ * sits at the first invoice's date and shows the balance at the end of the run, so opening, closing
+ * and the totals match the detailed statement.
  */
 function summariseInvoices(transactions: StatementTransaction[], names: Map<string, string>, periodStarts: Map<string, string>) {
   const runs: StatementTransaction[][] = [];
@@ -81,9 +81,7 @@ function summariseInvoices(transactions: StatementTransaction[], names: Map<stri
 
   for (const tx of transactions) {
     const start = periodStarts.get(tx.id);
-    // A balance in credit before the invoice means the credit pays some or all of it.
-    const unpaid = tx.type === 'invoice' && start !== undefined && tx.balance - tx.debit > -0.005;
-    if (!unpaid) {
+    if (tx.type !== 'invoice' || start === undefined) {
       close();
       runs.push([tx]);
       continue;
