@@ -961,7 +961,7 @@ describe('WhatsApp PIN lockout and hashing (#850, #891)', () => {
 });
 
 describe('WhatsApp What I owe figures (#811, #804 decision 20)', () => {
-  type InvoiceRow = { invoice_number: string; amount_due: number; amount_paid: number; due_date: string; status?: string; invoice_type?: string; period_start?: string; billing_profile?: { name: string } | null };
+  type InvoiceRow = { invoice_number: string; amount_due: number; amount_paid: number; due_date: string; status?: string; invoice_type?: string; period_start?: string; rate_snapshot?: unknown; billing_profile?: { name: string } | null };
 
   /** Behaves like PostgREST per table: applies filters, caps a response at max_rows (1000), counts for head selects. */
   function mockTables(rows: InvoiceRow[], unverifiedPayments: number[] = [], walletBalance: number | null = null) {
@@ -1057,6 +1057,14 @@ describe('WhatsApp What I owe figures (#811, #804 decision 20)', () => {
     const owed = await createSupabaseWhatsAppFinancialRepository().getOwed('resident-1', 'house-1');
     expect(owed.overdue?.charges).toEqual([{ label: 'Security dues, AUG 2026', amount: 5000 }]);
     expect(owed.next?.label).toBe('Development levy');
+  });
+
+  it('names an owed invoice by its rate snapshot, not the profile renamed since (#1253)', async () => {
+    mockTables([
+      { invoice_number: 'INV-1', amount_due: 5000, amount_paid: 0, due_date: '2021-04-01', invoice_type: 'SERVICE_CHARGE', period_start: '2021-04-01', rate_snapshot: { items: [{ name: 'Security Levy', amount: 5000 }] }, billing_profile: { name: '10k per month' } },
+    ]);
+    const owed = await createSupabaseWhatsAppFinancialRepository().getOwed('resident-1', 'house-1');
+    expect(owed.overdue?.charges).toEqual([{ label: 'Security Levy, APR 2021', amount: 5000 }]);
   });
 
   it('finds an unpaid invoice newer than more than 1000 fully paid ones', async () => {

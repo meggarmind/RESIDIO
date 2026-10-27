@@ -39,6 +39,16 @@ describe('buildStatementLedger', () => {
     expect(transactions.map((t) => t.description)).toEqual(['Invoice #LEGACY-IBB-1-2015-01 - Security dues, OCT 2026', 'Invoice #LEV-1 - Levy']);
   });
 
+  it('names an invoice by its rate snapshot items, not the profile renamed since (#1253)', () => {
+    const { transactions } = buildStatementLedger({
+      openingBalance: 0,
+      invoices: [invoice({ billing_profile_name: '10k per month', rate_snapshot: { items: [{ name: 'Security Levy', amount: 5000 }] } })],
+      payments: [],
+      walletTransactions: [],
+    });
+    expect(transactions[0].description).toBe('Invoice #LEGACY-IBB-1-2015-01 - Security Levy, JAN 2015');
+  });
+
   it('dates an invoice by the period it bills, not the day it was imported', () => {
     const { transactions } = buildStatementLedger({ openingBalance: 0, invoices: [invoice()], payments: [], walletTransactions: [] });
     expect(transactions[0].date).toBe('2015-01-01');

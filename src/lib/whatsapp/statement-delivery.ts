@@ -1,14 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { getEstateLogoUrl } from '@/lib/branding/estate-logo-server';
 import { usableEstateLogoUrl } from '@/lib/branding/estate-logo';
 import { createElement } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { renderToBuffer } from '@react-pdf/renderer';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getRawSettingsAsService } from '@/lib/settings/service';
 import { loadAccountStatement, type AccountStatementData } from '@/lib/billing/account-statement-data';
 import { isResidentRollForwardEnabled } from '@/lib/billing/account-balance';
-import { AccountStatementPDF } from '@/lib/pdf/account-statement';
+import { renderStatementPdf, statementEstateName as estateName } from '@/lib/billing/statement-pdf';
 import { WhatsAppStatementEmail } from '@/emails/whatsapp-statement';
 import { addToQueue, PRIORITY } from '@/lib/notifications/queue';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
@@ -50,11 +48,7 @@ export interface StatementRequestInput {
   inboundMessageId: string;
 }
 
-export async function estateName(): Promise<string> {
-  const settings = await getRawSettingsAsService(['estate_name']);
-  const value = settings.status === 'ok' ? settings.values.get('estate_name') : null;
-  return typeof value === 'string' && value.trim() ? value.trim() : 'Residio Estate';
-}
+export { estateName };
 
 /**
  * The admin account statement for one resident and house, read with the service-role client.
@@ -104,16 +98,6 @@ export async function loadWhatsAppStatementForPeriod(residentId: string, houseId
   if (period === 'since_move_in' && !moveIn) return null;
   const { fromDate, toDate } = statementDates(period, now, moveIn);
   return { fromDate, toDate, statement: await loadWhatsAppStatement(residentId, houseId, fromDate, toDate) };
-}
-
-async function estateAddress(): Promise<string> {
-  const settings = await getRawSettingsAsService(['estate_address']);
-  const value = settings.status === 'ok' ? settings.values.get('estate_address') : null;
-  return typeof value === 'string' ? value.trim() : '';
-}
-
-async function renderStatementPdf(statement: AccountStatementData): Promise<Buffer> {
-  return renderToBuffer(AccountStatementPDF({ data: statement, estateName: await estateName(), estateAddress: await estateAddress(), estateLogoUrl: await getEstateLogoUrl() }));
 }
 
 async function signedUrl(path: string): Promise<string> {
