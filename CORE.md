@@ -354,6 +354,13 @@ hotfix: branch from master --PR--> master, then the sync PR above
   is still deployed by hand). No
   label means no tag. **The tag is the version**: nothing is committed to `master`, and
   `package.json`'s `version` is not hand-edited.
+- **Every release tag gets a release notes page** in the admin guide wiki,
+  `website/docs/release-notes/vX-Y-Z.md`, plus its row in that folder's `index.md` (owner
+  request 2026-10-27, #1236). It says what is new and what changed, from a product view, in
+  ASD-STE100. `release.yml` and `release-fast-forward.yml` call `release-notes.yml`, which pushes
+  a draft on `chore/release-notes-vX-Y-Z` and opens an issue and a draft PR into `stage`. The
+  session that handles the release finishes the page and takes that PR through the gate. Style
+  guide and template: `docs/agents/release-notes.md`.
 - **Release gate** (#1136): on a PR from `stage` into `master`, `.github/workflows/release-gate.yml`
   fails unless Stage's `/api/version` `sha` equals the PR head SHA and the PR carries the label
   `uat-dast-passed`, which only the owner sets after UAT and DAST pass. A hotfix PR passes.
