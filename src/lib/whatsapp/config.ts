@@ -34,7 +34,29 @@ export interface ChatmaidWhatsAppConfig {
   baseUrl: string;
 }
 
-export type WhatsAppConfig = MetaWhatsAppConfig | TwilioWhatsAppConfig | ChatmaidWhatsAppConfig;
+/**
+ * WAHA: a self-hosted WhatsApp Web gateway run beside Residio (#1262).
+ *
+ * `baseUrl` is the gateway's own address and `session` the WAHA session the
+ * estate number is paired to. `fromNumber` is the sending number in E.164.
+ */
+export interface WahaWhatsAppConfig {
+  provider: 'waha';
+  apiKey: string;
+  webhookSecret: string;
+  baseUrl: string;
+  session: string;
+  fromNumber: string;
+}
+
+export type WhatsAppConfig =
+  | MetaWhatsAppConfig
+  | TwilioWhatsAppConfig
+  | ChatmaidWhatsAppConfig
+  | WahaWhatsAppConfig;
+
+// In its own module so client components can import it without the server config loader.
+export { isBridgeProvider } from '@/lib/whatsapp/bridge';
 
 /**
  * Why this is a result type rather than `WhatsAppConfig | null`:

@@ -6,7 +6,7 @@ export interface WhatsAppTextMessage {
   previewUrl?: boolean;
   /** Distinguishes this send from an identical earlier one (inbound message id). Chatmaid only (#842). */
   idempotencySeed?: string;
-  /** Public HTTPS URLs of files to attach, such as a signed PDF URL. Chatmaid only (#871). */
+  /** Public HTTPS URLs of files to attach, such as a signed PDF URL. Bridges only: Chatmaid and WAHA (#871). */
   mediaUrls?: string[];
 }
 

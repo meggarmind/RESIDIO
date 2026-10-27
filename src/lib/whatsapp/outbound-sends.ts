@@ -1,6 +1,7 @@
 import { notifyAdmins } from '@/lib/notifications/admin-notifier';
 import { createAdminClient } from '@/lib/supabase/server';
 import type { CommsPurpose } from '@/lib/comms-override/types';
+import { BRIDGE_PROVIDERS } from '@/lib/whatsapp/bridge';
 
 /**
  * Outbound WhatsApp sends and their provider delivery status (#839).
@@ -31,7 +32,7 @@ export type OutboundDeliveryStatus = 'sent' | 'delivered' | 'failed';
 /** Repeated failures that raise an admin notification: this many within the window. */
 export const OUTBOUND_FAILURE_ALERT_THRESHOLD = 3;
 export const OUTBOUND_FAILURE_ALERT_WINDOW_MINUTES = 10;
-/** A Chatmaid send still `pending` this long after acceptance is treated as failed. */
+/** A bridge (Chatmaid or WAHA) send still `pending` this long after acceptance is treated as failed. */
 export const OUTBOUND_PENDING_TIMEOUT_MINUTES = 15;
 
 // Status events can arrive out of order; a status only moves forward, so a
@@ -125,9 +126,10 @@ export async function countRecentOutboundFailures(
 }
 
 /**
- * Claims Chatmaid sends still `pending` past the timeout that no earlier sweep
- * has alerted on, and returns how many were claimed. Only Chatmaid reports
- * delivery status, so other providers' sends are never treated as stale.
+ * Claims bridge sends still `pending` past the timeout that no earlier sweep
+ * has alerted on, and returns how many were claimed. Only the bridges
+ * (Chatmaid, WAHA) report delivery status, so other providers' sends are
+ * never treated as stale.
  */
 export async function claimStalePendingSends(
   timeoutMinutes = OUTBOUND_PENDING_TIMEOUT_MINUTES
@@ -136,7 +138,7 @@ export async function claimStalePendingSends(
   const { data, error } = await createAdminClient()
     .from('whatsapp_outbound_sends')
     .update({ pending_alerted_at: new Date().toISOString() })
-    .eq('provider', 'chatmaid')
+    .in('provider', [...BRIDGE_PROVIDERS])
     .eq('status', 'pending')
     .is('pending_alerted_at', null)
     .lt('created_at', cutoff)
@@ -146,7 +148,7 @@ export async function claimStalePendingSends(
 }
 
 /**
- * Alerts admins once about Chatmaid sends accepted but never confirmed (#839
+ * Alerts admins once about bridge sends accepted but never confirmed (#839
  * point 4): silence from the provider is also a failure. Run by the
  * notification cron. Returns how many sends the alert covered.
  */
@@ -157,9 +159,9 @@ export async function alertStalePendingSends(): Promise<number> {
   const result = await notifyAdmins({
     title: 'WhatsApp messages were never confirmed as sent',
     body:
-      `${stale} WhatsApp message(s) were accepted by Chatmaid more than ${OUTBOUND_PENDING_TIMEOUT_MINUTES} minutes ago ` +
+      `${stale} WhatsApp message(s) were accepted by the WhatsApp provider more than ${OUTBOUND_PENDING_TIMEOUT_MINUTES} minutes ago ` +
       'with no sent or failed report. Residents may not have received them. Check the WhatsApp operations console ' +
-      'and the handset in the Chatmaid dashboard.',
+      'and the handset in the provider dashboard (Chatmaid or WAHA).',
     category: 'system',
     priority: 'high',
     actionUrl: '/settings/whatsapp',

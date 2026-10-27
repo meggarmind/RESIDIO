@@ -302,6 +302,50 @@ describe('loadWhatsAppConfigFromDb provider selection', () => {
     });
   });
 
+  const wahaRow = {
+    provider: 'waha',
+    waha_api_key_encrypted: 'ct-waha-key',
+    waha_webhook_secret_encrypted: 'ct-waha-hmac',
+    waha_base_url: 'https://waha.example.com',
+    waha_session: 'default',
+    whatsapp_from_number: '+2348031234567',
+  };
+
+  it('decodes an active WAHA row into a WAHA config', async () => {
+    mockActiveRow(wahaRow);
+
+    const { loadWhatsAppConfigFromDb } = await import('@/lib/whatsapp/config-db');
+
+    expect(await loadWhatsAppConfigFromDb()).toEqual({
+      status: 'ok',
+      config: {
+        provider: 'waha',
+        apiKey: 'plain(ct-waha-key)',
+        webhookSecret: 'plain(ct-waha-hmac)',
+        baseUrl: 'https://waha.example.com',
+        session: 'default',
+        fromNumber: '+2348031234567',
+      },
+    });
+  });
+
+  it.each([
+    ['API key', { waha_api_key_encrypted: null }],
+    ['webhook secret', { waha_webhook_secret_encrypted: null }],
+    ['base URL (no default)', { waha_base_url: '' }],
+    ['session (no default)', { waha_session: null }],
+    ['from number', { whatsapp_from_number: null }],
+  ])('reports a WAHA row missing its %s as unusable', async (_label, override) => {
+    mockActiveRow({ ...wahaRow, ...override });
+
+    const { loadWhatsAppConfigFromDb } = await import('@/lib/whatsapp/config-db');
+
+    expect(await loadWhatsAppConfigFromDb()).toEqual({
+      status: 'unusable',
+      reason: 'stored WAHA credentials are missing required fields',
+    });
+  });
+
   // The regression: every non-Twilio provider used to fall through to Meta
   // decoding. A row for an unknown provider that happens to carry complete
   // Meta columns must still be refused, not silently used as Meta.

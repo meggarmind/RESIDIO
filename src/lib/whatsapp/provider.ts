@@ -1,7 +1,8 @@
-import { resolveWhatsAppConfig, type ChatmaidWhatsAppConfig, type MetaWhatsAppConfig, type TwilioWhatsAppConfig, type WhatsAppConfig } from '@/lib/whatsapp/config';
+import { resolveWhatsAppConfig, type ChatmaidWhatsAppConfig, type MetaWhatsAppConfig, type TwilioWhatsAppConfig, type WahaWhatsAppConfig, type WhatsAppConfig } from '@/lib/whatsapp/config';
 import { createMetaWhatsAppProvider } from '@/lib/whatsapp/providers/meta';
 import { createTwilioWhatsAppProvider } from '@/lib/whatsapp/providers/twilio';
 import { createChatmaidWhatsAppProvider } from '@/lib/whatsapp/providers/chatmaid';
+import { createWahaWhatsAppProvider } from '@/lib/whatsapp/providers/waha';
 import { decideSend } from '@/lib/comms-override/gate';
 import { prefixText } from '@/lib/comms-override/labels';
 import { blockedError, toLogRecord } from '@/lib/comms-override/resolver';
@@ -38,13 +39,15 @@ type ProviderFactory = (config: WhatsAppConfig) => WhatsAppProvider;
  *
  * It does NOT govern inbound. Each provider has its own inbound route --
  * `src/app/api/whatsapp/webhook/route.ts` for Meta,
- * `src/app/api/whatsapp/webhook/twilio/route.ts` for Twilio, and
- * `src/app/api/whatsapp/webhook/chatmaid/route.ts` for Chatmaid -- and must,
+ * `src/app/api/whatsapp/webhook/twilio/route.ts` for Twilio,
+ * `src/app/api/whatsapp/webhook/chatmaid/route.ts` for Chatmaid and
+ * `src/app/api/whatsapp/webhook/waha/route.ts` for WAHA -- and must,
  * because webhook signature verification and payload parsing are
  * provider-specific in a way sending is not: Meta uses HMAC-SHA256 over the
  * raw body, Twilio HMAC-SHA1 over the URL plus sorted params, and Chatmaid a
  * third scheme again (`"{timestamp}.{raw_body}"`, see `buildChatmaidSignedPayload`
- * in `providers/chatmaid-inbound.ts`; `signature.ts` is Meta's verifier). Registering
+ * in `providers/chatmaid-inbound.ts`; `signature.ts` is Meta's verifier), and WAHA
+ * HMAC-SHA512 over the raw body (`providers/waha-inbound.ts`). Registering
  * a provider here makes it able to send; a separate route registration is
  * what makes it able to receive.
  */
@@ -52,6 +55,7 @@ const PROVIDER_REGISTRY: Partial<Record<WhatsAppConfig['provider'], ProviderFact
   meta: (config) => createMetaWhatsAppProvider(config as MetaWhatsAppConfig),
   twilio: (config) => createTwilioWhatsAppProvider(config as TwilioWhatsAppConfig),
   chatmaid: (config) => createChatmaidWhatsAppProvider(config as ChatmaidWhatsAppConfig),
+  waha: (config) => createWahaWhatsAppProvider(config as WahaWhatsAppConfig),
 };
 
 /**

@@ -4,7 +4,7 @@
  * Notification Template List Component
  *
  * Lists the events whose wording an admin can edit on one channel: the resident emails (#907) or
- * the Chatmaid WhatsApp texts (#908). The set is fixed by the event registry, so there is nothing
+ * the Chatmaid and WAHA WhatsApp texts (#908). The set is fixed by the event registry, so there is nothing
  * to create, duplicate or delete here.
  *
  * WhatsApp through Meta or Twilio sends code-owned approved templates, so those rows are read-only:
@@ -20,6 +20,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import Link from 'next/link';
+import { isBridgeProvider } from '@/lib/whatsapp/bridge';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
@@ -37,7 +38,7 @@ import type { NotificationTemplate } from '@/lib/notifications/types';
 
 interface TemplateListProps {
   channel?: ContentChannel;
-  /** WhatsApp only: the active provider. Anything but Chatmaid shows the code-owned template read-only. */
+  /** WhatsApp only: the active provider. Anything but a bridge (Chatmaid, WAHA) shows the code-owned template read-only. */
   whatsappProvider?: string | null;
   /** Edit controls show only when the viewer holds notifications.manage. */
   canManage: boolean;
@@ -54,7 +55,7 @@ export function TemplateList({
 }: TemplateListProps) {
   const { data: templates, isLoading } = useNotificationTemplates({ channel });
   const setEnabled = useSetEventChannelEnabled();
-  const readOnly = channel === 'whatsapp' && whatsappProvider !== 'chatmaid';
+  const readOnly = channel === 'whatsapp' && !isBridgeProvider(whatsappProvider);
 
   if (isLoading) {
     return <div className="text-center py-8 text-muted-foreground">Loading...</div>;

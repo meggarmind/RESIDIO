@@ -375,6 +375,20 @@ describe('WhatsApp notification dispatch', () => {
       });
     });
 
+    it('falls back to SMS the same way when the active provider is WAHA', async () => {
+      vi.mocked(sendWhatsAppTemplate).mockResolvedValue({ success: false, error: 'WAHA bridge is disconnected' });
+      vi.mocked(resolveWhatsAppConfig).mockResolvedValue({
+        status: 'ok',
+        config: { provider: 'waha', apiKey: 'k', webhookSecret: 'w', baseUrl: 'https://waha.test', session: 'default', fromNumber: '+15550001111' },
+      });
+      vi.mocked(sendSms).mockResolvedValue({ success: true, messageId: 'termii-2' });
+
+      const result = await sendNotification(buildQueueItem());
+
+      expect(sendSms).toHaveBeenCalledTimes(1);
+      expect(result).toMatchObject({ success: true, externalId: 'termii-2', metadata: { deliveredVia: 'sms_fallback' } });
+    });
+
     it('does not fall back to SMS for a non-URGENT send even when the provider is Chatmaid', async () => {
       vi.mocked(sendWhatsAppTemplate).mockResolvedValue({
         success: false,

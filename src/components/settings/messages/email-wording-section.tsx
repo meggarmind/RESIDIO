@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Sections of /settings/wording: edit the text of the resident emails (#907) and Chatmaid WhatsApp messages (#908).
+ * Sections of /settings/wording: edit the text of the resident emails (#907) and bridge (Chatmaid, WAHA) WhatsApp messages (#908).
  */
 
 import { useEffect, useState } from 'react';
@@ -24,6 +24,7 @@ import { getWhatsAppConnectionStatus } from '@/actions/whatsapp/connection';
 import { TemplateList } from '@/components/notifications/template-list';
 import { TemplateForm } from '@/components/notifications/template-form';
 import { useAuth } from '@/lib/auth/auth-provider';
+import { isBridgeProvider } from '@/lib/whatsapp/bridge';
 import { SettingsRow } from '@/components/settings/settings-row';
 import { SettingsSection } from '@/components/settings/settings-section';
 import {
@@ -43,7 +44,7 @@ export function WordingSections() {
   const [editTemplate, setEditTemplate] = useState<NotificationTemplate | null>(null);
   const [previewTemplateData, setPreviewTemplateData] = useState<NotificationTemplate | null>(null);
 
-  // Only Chatmaid renders editable text; for any other provider (or an unreadable status) the tab is read-only.
+  // Only a bridge (Chatmaid, WAHA) renders editable text; for any other provider (or an unreadable status) the tab is read-only.
   useEffect(() => {
     getWhatsAppConnectionStatus().then((result) => setWhatsappProvider(result.data?.provider ?? null));
   }, []);
@@ -80,17 +81,17 @@ export function WordingSections() {
       <SettingsSection
         id="whatsapp"
         title="WhatsApp"
-        summary={whatsappProvider === 'chatmaid' ? 'Editable: Chatmaid is the active provider' : 'Read-only: set in code for this provider'}
+        summary={isBridgeProvider(whatsappProvider) ? 'Editable: a WhatsApp Web bridge is the active provider' : 'Read-only: set in code for this provider'}
         defaultCollapsed
         instant
       >
         <SettingsRow rowId="whatsapp-wording" stacked>
           <div className="w-full space-y-3">
-            {whatsappProvider !== 'chatmaid' && (
+            {!isBridgeProvider(whatsappProvider) && (
               <p className="text-sm text-muted-foreground">
                 WhatsApp messages sent through Meta or Twilio use approved templates that are set in
-                code, so their wording cannot be edited here. Wording is editable when Chatmaid is the
-                active provider.
+                code, so their wording cannot be edited here. Wording is editable when Chatmaid or WAHA is
+                the active provider.
               </p>
             )}
             <TemplateList
