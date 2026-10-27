@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   canPerformWhatsAppFinancialLookup,
   composeOweAnswer,
-  nextServiceChargeDue,
+  nextPaymentDueDate,
   composeRecentPaymentsAnswer,
   composeWalletAnswer,
   createSupabaseWhatsAppFinancialRepository,
@@ -588,21 +588,22 @@ describe('WhatsApp Assistant answers (#804 decisions 20, 21, 28)', () => {
       'You are fully paid up for 12 Palm Close.',
       'Awaiting verification: ₦5,000.00',
     ].join('\n'));
-    expect(composeOweAnswer({ ...none, invoiceCount: 4, nextPaymentDue: '2026-11-30' }, '12 Palm Close', true)).toBe([
+    expect(composeOweAnswer({ ...none, invoiceCount: 4, nextPaymentDue: '2027-01-01' }, '12 Palm Close', true)).toBe([
       '*What you owe, 12 Palm Close*',
       'You are fully paid up for 12 Palm Close.',
-      'Next payment due 30 Nov 2026',
+      'Next payment due Jan 2027',
     ].join('\n'));
   });
 
-  it('dates the next payment from the month after the latest billed period', () => {
-    expect(nextServiceChargeDue('2026-10-01', '2026-10-27', 30)).toBe('2026-12-01');
-    expect(nextServiceChargeDue('2026-10-01', '2026-10-27', 0)).toBe('2026-11-01');
+  it('dates the next payment to the first month that payments and wallet credit do not cover', () => {
+    expect(nextPaymentDueDate('2026-10-01', '2026-10-27', 0)).toBe('2026-11-01');
+    // KOA-18A: paid to Oct 2026, wallet covers Nov and Dec.
+    expect(nextPaymentDueDate('2026-10-01', '2026-10-27', 2)).toBe('2027-01-01');
     // Prepaid ahead: the latest billed period is in the future.
-    expect(nextServiceChargeDue('2027-03-01', '2026-10-27', 14)).toBe('2027-04-15');
-    // Billing stopped: skip months whose due date is already past.
-    expect(nextServiceChargeDue('2026-06-01', '2026-10-27', 0)).toBe('2026-11-01');
-    expect(nextServiceChargeDue('2026-12-01', '2026-12-05', 0)).toBe('2027-01-01');
+    expect(nextPaymentDueDate('2027-03-01', '2026-10-27', 0)).toBe('2027-04-01');
+    // Billing stopped: never a past month.
+    expect(nextPaymentDueDate('2026-06-01', '2026-10-27', 1)).toBe('2026-11-01');
+    expect(nextPaymentDueDate('2026-12-01', '2026-12-05', 0)).toBe('2027-01-01');
   });
 
   it('omits the overdue and next-due lines when there are none', () => {
@@ -925,13 +926,15 @@ describe('WhatsApp What I owe figures (#811, #804 decision 20)', () => {
   type InvoiceRow = { invoice_number: string; amount_due: number; amount_paid: number; due_date: string; status?: string; invoice_type?: string; period_start?: string; billing_profile?: { name: string } | null };
 
   /** Behaves like PostgREST per table: applies filters, caps a response at max_rows (1000), counts for head selects. */
-  function mockTables(rows: InvoiceRow[], unverifiedPayments: number[] = []) {
+  function mockTables(rows: InvoiceRow[], unverifiedPayments: number[] = [], walletBalance: number | null = null) {
     const all = rows.map((row) => ({ status: row.amount_paid >= row.amount_due ? 'paid' : 'unpaid', ...row }));
     const from = vi.fn((table: string) => {
       let filtered = [...all];
       let head = false;
       const result = () => table === 'payment_records'
         ? { data: unverifiedPayments.map((amount) => ({ amount })), error: null }
+        : table === 'resident_wallets'
+          ? { data: walletBalance === null ? [] : [{ balance: walletBalance }], error: null }
         : head
           ? { count: filtered.length, data: null, error: null }
           : { data: filtered.slice(0, 1000), error: null };
@@ -1072,11 +1075,20 @@ describe('WhatsApp What I owe figures (#811, #804 decision 20)', () => {
       { invoice_number: 'INV-SEP', amount_due: 5000, amount_paid: 5000, due_date: '2026-10-01', invoice_type: 'SERVICE_CHARGE', period_start: '2026-09-01' },
       { invoice_number: 'INV-OCT', amount_due: 5000, amount_paid: 5000, due_date: '2026-10-31', invoice_type: 'SERVICE_CHARGE', period_start: '2026-10-01' },
     ]);
-    vi.mocked(getSettingResultAsService).mockImplementation(async (key) => (key === 'invoice_due_window_days' ? { status: 'ok', value: 14 } : { status: 'absent' }));
 
     const owed = await createSupabaseWhatsAppFinancialRepository().getOwed('resident-1', 'house-1');
 
-    expect(owed).toMatchObject({ outstanding: 0, next: null, nextPaymentDue: '2026-11-15' });
+    expect(owed).toMatchObject({ outstanding: 0, next: null, nextPaymentDue: '2026-11-01' });
+  });
+
+  it('moves the next payment past the months the wallet credit covers', async () => {
+    mockTables([
+      { invoice_number: 'INV-OCT', amount_due: 10000, amount_paid: 10000, due_date: '2026-10-31', invoice_type: 'SERVICE_CHARGE', period_start: '2026-10-01' },
+    ], [], 25000);
+
+    const owed = await createSupabaseWhatsAppFinancialRepository().getOwed('resident-1', 'house-1');
+
+    expect(owed).toMatchObject({ outstanding: 0, nextPaymentDue: '2027-01-01' });
   });
 });
 
