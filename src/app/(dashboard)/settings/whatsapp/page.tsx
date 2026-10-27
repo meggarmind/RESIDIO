@@ -1,6 +1,6 @@
 import { getWhatsAppForcePin, getWhatsAppOptIns, getWhatsAppPendingContacts, getWhatsAppPrivacyNotice } from '@/actions/whatsapp/identity';
 import { SettingsPageHeader } from '@/components/settings/settings-page-header';
-import { getWhatsAppEnabled, getWhatsAppPilotResidentOptions, getWhatsAppPilotSettings } from '@/actions/whatsapp/pilot';
+import { getWhatsAppEnabled, getWhatsAppPilotRoster, getWhatsAppPilotSettings } from '@/actions/whatsapp/pilot';
 import { getWhatsAppClearanceCopyFailures, getWhatsAppDeliveryProblems, getWhatsAppDisclosureLogs, getWhatsAppHealth, getWhatsAppSessions, getWhatsAppStatementFlags, getWhatsAppSurveySummary } from '@/actions/whatsapp/admin-console';
 import { getWhatsAppConnectionStatus, getWhatsAppOverrideNumbers, type WhatsAppConnectionStatus } from '@/actions/whatsapp/connection';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,7 +36,7 @@ const DISCONNECTED_STATUS: WhatsAppConnectionStatus = {
 };
 
 export default async function WhatsAppOperationsPage() {
-  const [optInResult, pendingResult, forcePinResult, sessionsResult, disclosuresResult, healthResult, pilotResult, connectionResult, overrideNumbersResult, whatsappEnabledResult, pilotResidentsResult, deliveryProblemsResult, assistantTextResult, statementFlagsResult, privacyNoticeResult, clearanceCopyFailuresResult, surveyResult, rollForwardResult] = await Promise.all([
+  const [optInResult, pendingResult, forcePinResult, sessionsResult, disclosuresResult, healthResult, pilotResult, connectionResult, overrideNumbersResult, whatsappEnabledResult, pilotRosterResult, deliveryProblemsResult, assistantTextResult, statementFlagsResult, privacyNoticeResult, clearanceCopyFailuresResult, surveyResult, rollForwardResult] = await Promise.all([
     getWhatsAppOptIns(),
     getWhatsAppPendingContacts(),
     getWhatsAppForcePin(),
@@ -47,7 +47,7 @@ export default async function WhatsAppOperationsPage() {
     getWhatsAppConnectionStatus(),
     getWhatsAppOverrideNumbers(),
     getWhatsAppEnabled(),
-    getWhatsAppPilotResidentOptions(),
+    getWhatsAppPilotRoster(),
     getWhatsAppDeliveryProblems(),
     getWhatsAppAssistantText(),
     getWhatsAppStatementFlags(),
@@ -79,7 +79,7 @@ export default async function WhatsAppOperationsPage() {
         <CardHeader><CardTitle>WhatsApp channel</CardTitle><CardDescription>Master on/off switch. Distinct from rollout mode below, which chooses who receives messages once this is on.</CardDescription></CardHeader>
         <CardContent className="flex items-center justify-between gap-4"><p className="text-sm text-muted-foreground">When off, no WhatsApp message can be sent regardless of rollout mode.</p><WhatsAppEnabledToggle initialValue={whatsappEnabledResult.data === true} /></CardContent>
       </Card>
-      <Card><CardHeader><CardTitle>Rollout and pilot controls</CardTitle><CardDescription>Keep WhatsApp disabled until a defined pilot is verified. Promotion is audited.</CardDescription></CardHeader><CardContent><PilotControls initial={pilotResult.data || { mode: 'disabled', residentIds: [], streetId: '', outboundDailyCap: 100, outboundBurstCap: 20, outboundBurstWindowMinutes: 10, financialLookupDailyCap: 500, sessionRetentionDays: 1, processedMessageRetentionDays: 2, surveyResponseRetentionDays: 90, outboundSendRetentionDays: 90 }} residentOptions={pilotResidentsResult.data} residentOptionsError={pilotResidentsResult.error} /></CardContent></Card>
+      <Card><CardHeader><CardTitle>Rollout and pilot controls</CardTitle><CardDescription>Keep WhatsApp disabled until a defined pilot is verified. Promotion is audited.</CardDescription></CardHeader><CardContent><PilotControls initial={pilotResult.data || { mode: 'disabled', residentIds: [], streetId: '', outboundDailyCap: 100, outboundBurstCap: 20, outboundBurstWindowMinutes: 10, financialLookupDailyCap: 500, sessionRetentionDays: 1, processedMessageRetentionDays: 2, surveyResponseRetentionDays: 90, outboundSendRetentionDays: 90 }} roster={pilotRosterResult.data} rosterError={pilotRosterResult.error} /></CardContent></Card>
       <OutboundSendsList />
       <details open={residentBotActive} className="space-y-4 rounded-lg border p-4">
         <summary className="cursor-pointer text-lg font-semibold">
