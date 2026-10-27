@@ -1,7 +1,8 @@
-import { getWhatsAppForcePin, getWhatsAppOptIns, getWhatsAppPendingContacts, getWhatsAppPrivacyNotice } from '@/actions/whatsapp/identity';
+import Link from 'next/link';
+import { getWhatsAppForcePin, getWhatsAppPrivacyNotice } from '@/actions/whatsapp/identity';
 import { SettingsPageHeader } from '@/components/settings/settings-page-header';
 import { getWhatsAppEnabled, getWhatsAppPilotRoster, getWhatsAppPilotSettings } from '@/actions/whatsapp/pilot';
-import { getWhatsAppClearanceCopyFailures, getWhatsAppDeliveryProblems, getWhatsAppDisclosureLogs, getWhatsAppHealth, getWhatsAppSessions, getWhatsAppStatementFlags, getWhatsAppSurveySummary } from '@/actions/whatsapp/admin-console';
+import { getWhatsAppDeliveryProblems, getWhatsAppHealth, getWhatsAppStatementFlags, getWhatsAppSurveySummary } from '@/actions/whatsapp/admin-console';
 import { getWhatsAppConnectionStatus, getWhatsAppOverrideNumbers, type WhatsAppConnectionStatus } from '@/actions/whatsapp/connection';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ForcePinToggle } from '@/app/(dashboard)/settings/whatsapp/force-pin-toggle';
@@ -13,10 +14,8 @@ import { OptInImport } from '@/app/(dashboard)/settings/whatsapp/opt-in-import';
 import { PrivacyNoticeSettings } from '@/app/(dashboard)/settings/whatsapp/privacy-notice-settings';
 import { PilotControls } from '@/app/(dashboard)/settings/whatsapp/pilot-controls';
 import { ConnectionSettings } from '@/app/(dashboard)/settings/whatsapp/connection-settings';
-import { ClearanceCopyFailures, type ClearanceCopyFailure } from '@/app/(dashboard)/settings/whatsapp/clearance-copy-failures';
-import { OutboundSendsList } from '@/app/(dashboard)/settings/whatsapp/outbound-sends-list';
 import { WhatsAppEnabledToggle } from '@/app/(dashboard)/settings/whatsapp/whatsapp-enabled-toggle';
-import { OperationsConsole, type DeliveryProblem, type Disclosure, type Health, type OptIn, type Pending, type Session, type StatementFlag, type SurveySummary } from '@/app/(dashboard)/settings/whatsapp/operations-console';
+import { OperationsConsole, type DeliveryProblem, type Health, type StatementFlag, type SurveySummary } from '@/app/(dashboard)/settings/whatsapp/operations-console';
 
 const DISCONNECTED_STATUS: WhatsAppConnectionStatus = {
   connected: false,
@@ -36,12 +35,8 @@ const DISCONNECTED_STATUS: WhatsAppConnectionStatus = {
 };
 
 export default async function WhatsAppOperationsPage() {
-  const [optInResult, pendingResult, forcePinResult, sessionsResult, disclosuresResult, healthResult, pilotResult, connectionResult, overrideNumbersResult, whatsappEnabledResult, pilotRosterResult, deliveryProblemsResult, assistantTextResult, statementFlagsResult, privacyNoticeResult, clearanceCopyFailuresResult, surveyResult, rollForwardResult] = await Promise.all([
-    getWhatsAppOptIns(),
-    getWhatsAppPendingContacts(),
+  const [forcePinResult, healthResult, pilotResult, connectionResult, overrideNumbersResult, whatsappEnabledResult, pilotRosterResult, deliveryProblemsResult, assistantTextResult, statementFlagsResult, privacyNoticeResult, surveyResult, rollForwardResult] = await Promise.all([
     getWhatsAppForcePin(),
-    getWhatsAppSessions(),
-    getWhatsAppDisclosureLogs(),
     getWhatsAppHealth(),
     getWhatsAppPilotSettings(),
     getWhatsAppConnectionStatus(),
@@ -52,7 +47,6 @@ export default async function WhatsAppOperationsPage() {
     getWhatsAppAssistantText(),
     getWhatsAppStatementFlags(),
     getWhatsAppPrivacyNotice(),
-    getWhatsAppClearanceCopyFailures(),
     getWhatsAppSurveySummary(),
     getResidentRollForwardBalance(),
   ]);
@@ -80,7 +74,10 @@ export default async function WhatsAppOperationsPage() {
         <CardContent className="flex items-center justify-between gap-4"><p className="text-sm text-muted-foreground">When off, no WhatsApp message can be sent regardless of rollout mode.</p><WhatsAppEnabledToggle initialValue={whatsappEnabledResult.data === true} /></CardContent>
       </Card>
       <Card><CardHeader><CardTitle>Rollout and pilot controls</CardTitle><CardDescription>Keep WhatsApp disabled until a defined pilot is verified. Promotion is audited.</CardDescription></CardHeader><CardContent><PilotControls initial={pilotResult.data || { mode: 'disabled', residentIds: [], streetId: '', outboundDailyCap: 100, outboundBurstCap: 20, outboundBurstWindowMinutes: 10, financialLookupDailyCap: 500, sessionRetentionDays: 1, processedMessageRetentionDays: 2, surveyResponseRetentionDays: 90, outboundSendRetentionDays: 90 }} roster={pilotRosterResult.data} rosterError={pilotRosterResult.error} /></CardContent></Card>
-      <OutboundSendsList />
+      <p className="text-sm text-muted-foreground">
+        Sent messages, the opt-in registry, pending contacts, active sessions, the disclosure log and clearance copies not sent are on{' '}
+        <Link href="/system/whatsapp-monitoring" className="underline">System &gt; WhatsApp Monitoring</Link>.
+      </p>
       <details open={residentBotActive} className="space-y-4 rounded-lg border p-4">
         <summary className="cursor-pointer text-lg font-semibold">
           Resident bot ({residentBotActive ? 'active' : 'inactive'})
@@ -109,16 +106,11 @@ export default async function WhatsAppOperationsPage() {
           <CardContent><PrivacyNoticeSettings initial={privacyNoticeResult.data || { version: '', text: '' }} /></CardContent>
         </Card>
         <OperationsConsole
-          optIns={(optInResult.data || []) as OptIn[]}
-          pending={(pendingResult.data || []) as Pending[]}
-          sessions={(sessionsResult.data || []) as Session[]}
-          disclosures={(disclosuresResult.data || []) as Disclosure[]}
           deliveryProblems={(deliveryProblemsResult.data || []) as DeliveryProblem[]}
           statementFlags={(statementFlagsResult.data || []) as StatementFlag[]}
           survey={(surveyResult.data || undefined) as SurveySummary | undefined}
           health={(healthResult.data || { inboundToday: 0, outboundToday: 0, deliveryFailuresToday: 0, templateErrorsToday: 0, capLimitEventsToday: 0 }) as Health}
         />
-        <ClearanceCopyFailures rows={(clearanceCopyFailuresResult.data || []) as ClearanceCopyFailure[]} />
       </details>
     </div>
   );
