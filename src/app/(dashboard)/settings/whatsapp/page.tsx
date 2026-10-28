@@ -147,7 +147,7 @@ export default async function WhatsAppOperationsPage() {
           <div className="w-full space-y-3">
             <p className="text-sm text-muted-foreground">
               Sent messages, the opt-in registry, pending contacts, active sessions, the disclosure log and clearance copies not sent are on{' '}
-              <Link href="/system/whatsapp-monitoring" className="underline">System &gt; WhatsApp Monitoring</Link>.
+              <Link href="/system/whatsapp-monitoring" className="underline">Oversight &gt; WhatsApp activity</Link>.
             </p>
             <OperationsConsole
               deliveryProblems={(deliveryProblemsResult.data || []) as DeliveryProblem[]}

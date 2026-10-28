@@ -8,7 +8,7 @@ export default function AnalyticsPage() {
   return (
     <div className="space-y-6">
       <EnhancedPageHeader
-        title="Financial Overview"
+        title="Collections dashboard"
         description="Revenue, collections, invoices, and estate portfolio health"
         icon={BarChart3}
       />

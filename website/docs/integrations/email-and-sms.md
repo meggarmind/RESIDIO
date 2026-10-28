@@ -104,13 +104,13 @@ Invoice reminders go out by email and WhatsApp only. SMS is switched off for rem
 
 ## The notification queue
 
-**System → Notification Queue** shows messages that Residio has created but not yet delivered. A healthy queue drains on each scheduled run.
+**Oversight → Notification queue** shows messages that Residio has created but not yet delivered. A healthy queue drains on each scheduled run.
 
 | Queue state | Meaning |
 |---|---|
 | Small, draining | Normal |
-| Growing steadily | The processing job is not running — check **System → Cron Status** |
-| Stuck with failures | The provider is rejecting sends — check **System → Notification History** for the error |
+| Growing steadily | The processing job is not running — check **Oversight → Scheduled jobs** |
+| Stuck with failures | The provider is rejecting sends — check **Oversight → Notification history** for the error |
 
 The processing job runs every 15 minutes. A send that fails for a temporary reason, such as a provider timeout or rate limit, goes back into the queue and is tried again after 15 minutes, then 1 hour, 6 hours and 24 hours, up to 5 attempts in all. Each failed attempt is still written to history as failed. A failure that is not known to be temporary is not retried. Email has a daily limit of 90 messages, counted from midnight UTC (setting `email_outbound_daily_cap`; 0 turns email off). When the limit is reached, further email waits in the queue until after midnight UTC and then sends. Login codes are not counted and are never held back. Each message is claimed before it is sent, so two runs that overlap, for example a manual run during the scheduled one, never send the same message twice. A message left marked processing for more than 30 minutes, because a run stopped part-way through, goes back into the queue and is sent on the next run. If the first run had already handed it to the provider, the resident may receive it once more: email is de-duplicated, WhatsApp is not. A message that keeps getting stuck is marked failed after as many tries as its attempt limit. Any failed message can be retried by hand, which starts its attempt count again from zero.
 
@@ -118,4 +118,4 @@ Do not clear the queue to make a warning disappear. Clearing it discards message
 
 ## History
 
-**System → Notification History** is the record of what was actually sent, to whom, and when. Use it to answer a resident who says they were never notified, before assuming a delivery fault.
+**Oversight → Notification history** is the record of what was actually sent, to whom, and when. Use it to answer a resident who says they were never notified, before assuming a delivery fault.

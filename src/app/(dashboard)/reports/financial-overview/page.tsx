@@ -6,7 +6,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { FinancialOverview } from '@/components/reports/financial-overview';
 
 export const metadata: Metadata = {
-  title: 'Financial Overview',
+  title: 'Income & expenses',
   description: 'View financial summary and transaction breakdown by category',
 };
 
@@ -29,7 +29,7 @@ export default async function FinancialOverviewPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium">Financial Overview</h3>
+        <h3 className="text-lg font-medium">Income & expenses</h3>
         <p className="text-sm text-muted-foreground">
           View financial summary and transaction breakdown from imported bank statements.
         </p>

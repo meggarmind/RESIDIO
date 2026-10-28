@@ -52,7 +52,7 @@ export default function AuditLogsPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h3 className="text-lg font-medium">Audit Logs</h3>
+        <h3 className="text-lg font-medium">Audit logs</h3>
         <p className="text-sm text-muted-foreground">
           View the complete audit trail of all significant actions in the system.
           Only admin and chairman roles can access this page.

@@ -22,7 +22,7 @@ export default function SystemPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium">System</h3>
+        <h3 className="text-lg font-medium">Oversight overview</h3>
         <p className="text-sm text-muted-foreground">
           Live and historical system state — cron jobs, the notification queue, audit activity,
           account approvals, and administrative data tools.

@@ -19,7 +19,7 @@ residio_app_version: '0.4.0'
 
 Much of Residio's routine work runs on a schedule rather than when you press a button. Invoices generate, reminders send, reports deliver, and mailboxes sync without anyone signing in. When something "did not happen", a scheduled job is usually the answer.
 
-Monitor them from **System → Cron Status**. This moved out of Settings because job status is something you watch, not something you configure — see [Troubleshooting](../administration/troubleshooting.md).
+Monitor them from **Oversight → Scheduled jobs**. This moved out of Settings because job status is something you watch, not something you configure — see [Troubleshooting](../administration/troubleshooting.md).
 
 ![Residio cron job status page showing per-job health cards](../assets/admin/cron-status.png)
 
@@ -46,13 +46,13 @@ The override does not reach three kinds of message, which staging can still send
 
 Invoice generation also has an off-server safety net: it checks production and staging and runs invoice generation only when the status page reports that job as Critical, so it normally does nothing.
 
-Each scheduled run is also recorded in **System → Action Log** with its outcome, duration and any error. See [Access and system health](../settings/access-and-system-health).
+Each scheduled run is also recorded in **Oversight → Action log** with its outcome, duration and any error. See [Access and system health](../settings/access-and-system-health).
 
 A late fee job also exists as an endpoint but has never been on the schedule. If your estate charges late fees, confirm with an engineer how that run is triggered before assuming it is automatic.
 
 ## Reading the status page
 
-**System → Cron Status** reports each monitored job as healthy, warning, critical, or unknown, alongside an overall status. It refreshes on its own while open.
+**Oversight → Scheduled jobs** reports each monitored job as healthy, warning, critical, or unknown, alongside an overall status. It refreshes on its own while open.
 
 | Status | What it means |
 |---|---|
@@ -71,13 +71,13 @@ The status page judges each job against a frequency it declares internally, and 
 |---|---|---|
 | Notification processing | Every 5 minutes (Warning after 10 minutes, Critical after 30) | Every 15 minutes |
 
-The practical effect is that **notification processing often reports Warning or Critical**: the card measures the time since the last message was sent, so it goes Critical whenever 30 minutes pass with nothing to send. Read that particular card against the queue itself rather than the badge: if **System → Notification Queue** is draining, the job is working.
+The practical effect is that **notification processing often reports Warning or Critical**: the card measures the time since the last message was sent, so it goes Critical whenever 30 minutes pass with nothing to send. Read that particular card against the queue itself rather than the badge: if **Oversight → Notification queue** is draining, the job is working.
 
 Treat this as a known reporting fault, not an outage. It is being tracked for repair.
 
 ## When a job has not run
 
-1. Confirm the status on **System → Cron Status**.
+1. Confirm the status on **Oversight → Scheduled jobs**.
 2. Check whether the estate is in maintenance mode, which suppresses scheduled work.
 3. Check the downstream surface — the notification queue, the import list, the invoice list — to see how much is outstanding.
 4. If the job is genuinely not running, escalate to an engineer. Job scheduling is a deployment concern, not a dashboard setting.

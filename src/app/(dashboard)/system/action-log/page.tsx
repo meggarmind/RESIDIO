@@ -67,7 +67,7 @@ export default function SystemActionLogPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium">Action Log</h3>
+        <h3 className="text-lg font-medium">Action log</h3>
         <p className="text-sm text-muted-foreground">
           What automated processes (cron jobs and webhooks) did, and whether it worked. Only
           super administrators can view this page.

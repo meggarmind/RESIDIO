@@ -157,7 +157,7 @@ Moving straight from `Disabled` to `Estate` sends the first real message to ever
 A resident only receives WhatsApp messages after an approved consent record exists. Invoice reminders and payment confirmations check this when the message is created, so a resident without consent gets no queued message at all (an invoice reminder run reports it as "recipient has not opted in"). The check is repeated at send time.
 
 - **Import opt-ins** loads approved consent records from CSV in bulk.
-- **System → WhatsApp Monitoring** lists current opt-ins (the opt-in registry) and any pending contacts awaiting confirmation. The CSV opt-in import stays in Settings → WhatsApp. With the WhatsApp manage permission, each opt-in row has **Issue link code**, **Issue setup code** and **Reset PIN** (see [Issuing codes](#issuing-codes)).
+- **Oversight → WhatsApp activity** lists current opt-ins (the opt-in registry) and any pending contacts awaiting confirmation. The CSV opt-in import stays in Settings → WhatsApp. With the WhatsApp manage permission, each opt-in row has **Issue link code**, **Issue setup code** and **Reset PIN** (see [Issuing codes](#issuing-codes)).
 
 Pending contacts are people who have messaged the number but are not yet matched to a resident record. Resolve them by confirming identity against the resident directory — never by guessing from the phone number alone.
 
@@ -363,11 +363,11 @@ Queued notifications, clearance certificate copies and approval outcome messages
 
 The console on the same page shows today's activity: inbound messages, outbound messages, delivery failures, template errors, and cap limit events. It also lists undelivered messages and the **Resident feedback** counts (see *Feedback survey* above).
 
-The logs an admin watches are on their own page, **System → WhatsApp Monitoring** (sidebar link in the System section): sent messages, the opt-in registry, pending contacts, active sessions, the disclosure log and clearance certificate copies not sent. To monitor it, choose an auto-refresh interval from 1 to 30 minutes, or press **Refresh now**. Either one refreshes every panel on the page.
+The logs an admin watches are on their own page, **Oversight → WhatsApp activity** (sidebar link **Oversight**): sent messages, the opt-in registry, pending contacts, active sessions, the disclosure log and clearance certificate copies not sent. To monitor it, choose an auto-refresh interval from 1 to 30 minutes, or press **Refresh now**. Either one refreshes every panel on the page.
 
 The **undelivered messages** list covers the last 7 days. It shows each WhatsApp message the provider reported as failed, or that Chatmaid accepted but never confirmed as sent within 15 minutes. Each row shows the time, the resident (when known), the masked number, whether it was a reply or a notification, the provider's reason, and the id of the resident message it answered. Those residents may not have received the message, so contact them another way. Residio does not resend these messages automatically.
 
-The **Sent messages** list on that page shows every WhatsApp message the app sent, newest first, 25 to a page: the time, whether it was a reply or a notification, the resident, the masked number (last 4 digits), the status (pending, sent, delivered or failed), the error code, and the id of the resident message it answered. Filter by status or purpose. It shows no message text, because none is stored, and covers the 90-day retention window. Assistant replies appear here and not in **System → Notification queue**, which links to the monitoring page.
+The **Sent messages** list on that page shows every WhatsApp message the app sent, newest first, 25 to a page: the time, whether it was a reply or a notification, the resident, the masked number (last 4 digits), the status (pending, sent, delivered or failed), the error code, and the id of the resident message it answered. Filter by status or purpose. It shows no message text, because none is stored, and covers the 90-day retention window. Assistant replies appear here and not in **Oversight → Notification queue**, which links to the monitoring page.
 
 The **Statement requested, no email** list shows residents who asked for a statement too long for chat and have no email on file. Add their email to clear it.
 
@@ -401,7 +401,7 @@ The cleanup runs automatically shortly after midnight, documented on the Schedul
 | Resident forgot their PIN | Confirm identity, then use **Reset PIN** and give them the setup code |
 | A resident says their email code does not work | It expires after 30 minutes, 5 wrong codes cancel it, and only 3 codes are sent an hour. They reply `EMAIL` to start again |
 | A resident's payment report never shows up | Check **Approvals** for a *Payment Reported on WhatsApp* request. Approving it needs both the approvals and the verify payments permissions |
-| A clearance certificate copy did not reach an estate official | See **Clearance certificate copies not sent** on System → WhatsApp Monitoring; usually the official has not opted in |
+| A clearance certificate copy did not reach an estate official | See **Clearance certificate copies not sent** on Oversight → WhatsApp activity; usually the official has not opted in |
 | A link or setup code is not accepted | It expired, was already used, or a newer setup code replaced it. Issue a new one |
 | Test connection fails | The provider rejected the saved credentials — recheck the access token or auth token against the provider's console. For Chatmaid, the from-number may not be a paired phone, or the paired phone is not connected to the bridge. For WAHA, the API key or server address may be wrong, the session may not be `WORKING`, or the from-number is not the paired phone |
 | A WhatsApp send is blocked with "is the WhatsApp from-number" | The communications override points WhatsApp at the bridge phone itself. Change the override WhatsApp number (or the override phone, if the WhatsApp number is blank) under **Settings → Communications override** |
