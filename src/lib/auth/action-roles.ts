@@ -361,7 +361,7 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/settings/debt-status': [PERMISSIONS.SETTINGS_MANAGE_DEBT_STATUS],
   // Merged Banking page (#935): the OR of bank accounts and tags (manage_reference) and duplicate matching
   // (manage_maintenance). The old /settings/bank-accounts and /settings/transaction-tags keys stay (ADR-0004).
-  '/settings/banking': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE, PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE],
+  '/settings/banking': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE, PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE, PERMISSIONS.SETTINGS_MANAGE_BILLING],
   '/settings/email-integration': [PERMISSIONS.EMAIL_IMPORTS_VIEW],
   '/settings/email-integration/config': [PERMISSIONS.EMAIL_IMPORTS_CONFIGURE],
 
