@@ -86,6 +86,8 @@ describe('sendViaEmail (through sendNotification)', () => {
     mocks.isEmailConfigured.mockReturnValue(true);
     mocks.send.mockResolvedValue({ data: { id: 'rid-9' }, error: null });
     settings({});
+    // The email daily cap (#1265) counts notification_history.
+    vi.mocked(createAdminClient).mockReturnValue(createFakeSupabase({ notification_history: [] }).client as unknown as ReturnType<typeof createAdminClient>);
   });
 
   it('returns its own message and does not send when email_enabled is false', async () => {
