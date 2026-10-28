@@ -78,6 +78,61 @@ function toUnixSecondsString(value: unknown): string {
 }
 
 /**
+ * Why an inbound WAHA message gets no answer (#1282). Recorded as a count by
+ * reason, never with the sender or the text.
+ */
+export type WahaIgnoreReason = 'group' | 'from_me' | 'lid_unresolved' | 'other_id' | 'no_text';
+
+export interface WahaInbound {
+  message: WhatsAppInboundMessage;
+  /** Null when the message goes to the Assistant. */
+  ignoredReason: WahaIgnoreReason | null;
+}
+
+function mapWahaMessage(message: Record<string, unknown>): WahaInbound | null {
+  const id = typeof message.id === 'string' && message.id.length > 0 ? message.id : null;
+  if (!id) {
+    return null;
+  }
+
+  const from = typeof message.from === 'string' ? message.from : '';
+  const timestamp = toUnixSecondsString(message.timestamp);
+  // `from` stays raw for an ignored message: it is never read, and an `@lid` must not pass for a phone number.
+  const ignored = (type: 'text' | 'group', ignoredReason: WahaIgnoreReason): WahaInbound => ({
+    message: { id, from, timestamp, type, text: null },
+    ignoredReason,
+  });
+
+  if (from.endsWith('@g.us') || from === 'status@broadcast') {
+    return ignored('group', 'group');
+  }
+  if (message.fromMe === true) {
+    return ignored('text', 'from_me');
+  }
+  if (from.endsWith('@lid')) {
+    return ignored('text', 'lid_unresolved');
+  }
+  const phone = from.endsWith('@c.us') ? normalizeChatmaidPhone(from) : null;
+  if (!phone) {
+    return ignored('text', 'other_id');
+  }
+
+  const hasMedia = message.hasMedia === true;
+  const body = typeof message.body === 'string' && message.body.length > 0 ? message.body : null;
+  return {
+    message: {
+      id,
+      from: phone,
+      timestamp,
+      type: hasMedia ? 'media' : 'text',
+      // 1:1 media gets the text-only reply (#804), so its caption is not read as a command.
+      text: hasMedia ? null : body,
+    },
+    ignoredReason: hasMedia || body ? null : 'no_text',
+  };
+}
+
+/**
  * Maps one WAHA message object (a webhook `payload`, or an item from the chats
  * store read) to the canonical inbound shape. Shared by the webhook and the
  * reconciliation cron, so both apply the same rules.
@@ -92,53 +147,48 @@ function toUnixSecondsString(value: unknown): string {
  * - `fromMe`: the handset's own message (the bot's reply, or an admin typing);
  * - `@g.us` groups: answering would disclose one resident's finances to the group;
  * - `status@broadcast`: status updates;
- * - `@lid`: a hidden id that carries no phone number. It is a known Baileys
- *   multi-device trap: a resident who is a linked-device contact can arrive as
- *   an `@lid` with no way to tell the number here (resolution is out of scope, #1262).
+ * - `@lid`: a hidden id that carries no phone number. This function does not
+ *   resolve it; the webhook does, with `resolveWahaInbound` (#1282).
  */
 export function wahaMessageToInbound(message: Record<string, unknown>): WhatsAppInboundMessage | null {
-  const id = typeof message.id === 'string' && message.id.length > 0 ? message.id : null;
-  if (!id) {
+  return mapWahaMessage(message)?.message ?? null;
+}
+
+/** Returns the `2348...@c.us` id WAHA holds for an `@lid`, or null when it knows none. */
+export type WahaLidLookup = (lid: string) => Promise<string | null>;
+
+/**
+ * `wahaMessageToInbound` plus the reason a message is ignored, with an `@lid`
+ * sender resolved to its phone number through `lookupLid` (#1282). The NOWEB
+ * engine can deliver a resident's id as `@lid`.
+ *
+ * A wrong mapping would answer the wrong resident, so only a `@c.us` answer is
+ * used. Anything else, including a failed lookup, leaves the message ignored as
+ * `lid_unresolved`.
+ */
+export async function resolveWahaInbound(
+  message: Record<string, unknown>,
+  lookupLid: WahaLidLookup
+): Promise<WahaInbound | null> {
+  const mapped = mapWahaMessage(message);
+  if (mapped?.ignoredReason !== 'lid_unresolved') {
+    return mapped;
+  }
+
+  const phoneId = await lookupLid(message.from as string).catch((error: unknown) => {
+    console.error('[waha-inbound] LID lookup failed:', error instanceof Error ? error.message : 'unknown error');
     return null;
-  }
-
-  const from = typeof message.from === 'string' ? message.from : '';
-  const timestamp = toUnixSecondsString(message.timestamp);
-  // `from` stays raw for an ignored message: it is never read, and an `@lid` must not pass for a phone number.
-  const ignored = (type: 'text' | 'group'): WhatsAppInboundMessage => ({ id, from, timestamp, type, text: null });
-
-  if (from.endsWith('@g.us') || from === 'status@broadcast') {
-    return ignored('group');
-  }
-  if (message.fromMe === true || from.endsWith('@lid') || !from.endsWith('@c.us')) {
-    return ignored('text');
-  }
-
-  const phone = normalizeChatmaidPhone(from);
-  if (!phone) {
-    return ignored('text');
-  }
-
-  const hasMedia = message.hasMedia === true;
-  const body = typeof message.body === 'string' && message.body.length > 0 ? message.body : null;
-  return {
-    id,
-    from: phone,
-    timestamp,
-    type: hasMedia ? 'media' : 'text',
-    // 1:1 media gets the text-only reply (#804), so its caption is not read as a command.
-    text: hasMedia ? null : body,
-  };
+  });
+  return phoneId?.endsWith('@c.us') ? mapWahaMessage({ ...message, from: phoneId }) : mapped;
 }
 
 /**
- * Parses a `message` or `message.any` webhook body into at most one canonical
+ * Parses a `message` or `message.any` webhook body into at most one inbound
  * message. Takes the whole body (`{ event, payload }`).
  */
-export function extractWahaMessages(body: unknown): WhatsAppInboundMessage[] {
+export async function extractWahaInbound(body: unknown, lookupLid: WahaLidLookup): Promise<WahaInbound | null> {
   const payload = payloadOf(body);
-  const message = payload ? wahaMessageToInbound(payload) : null;
-  return message ? [message] : [];
+  return payload ? resolveWahaInbound(payload, lookupLid) : null;
 }
 
 /**

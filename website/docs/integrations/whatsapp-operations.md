@@ -11,7 +11,7 @@ residio_sources:
   - src/app/(dashboard)/system/whatsapp-monitoring/**
   - src/app/(dashboard)/system/whatsapp-bot-health/**
   - src/app/api/whatsapp/**
-residio_verified_commit: 5103ef59
+residio_verified_commit: 34e0fdb9
 residio_verified_at: '2026-10-28'
 residio_app_version: '0.4.0'
 ---
@@ -114,7 +114,8 @@ WAHA works through a phone that stays paired to the session, so the same limits 
 - **PDF files.** Residio sends the message text first, then each PDF as a file.
 - **No duplicate guard.** WAHA has no idempotency key. If a send is retried after a timeout, the resident can receive the same text twice.
 - **Human takeover.** The pause works as for Chatmaid. If someone on the estate team replies from the phone, the Assistant stays silent in that conversation for 30 minutes. `STOP` is still honoured.
-- **Some senders are not answered.** WhatsApp can hide the number of a contact behind an internal `@lid` identifier. Residio cannot match such a sender to a resident, so it does not answer.
+- **Hidden sender numbers.** WhatsApp can hide the number of a contact behind an internal `@lid` identifier. Residio asks WAHA for the number behind it and answers the sender as usual. If WAHA does not know the number, Residio does not answer, because it cannot be sure who the sender is. The 15-minute catch-up does not look up these numbers, so a missed message from such a sender is not answered later.
+- **Ignored messages leave a reason.** Each message Residio does not answer leaves an `inbound_ignored` row in the System Action Log, with the reason only: `group`, `from_me`, `lid_unresolved`, `other_id`, `no_text` or `human_takeover`. The row holds no phone number and no message text.
 
 ## Turning the channel on
 

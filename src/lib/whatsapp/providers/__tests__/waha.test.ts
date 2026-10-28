@@ -3,6 +3,7 @@ import { isProviderSupported } from '@/lib/whatsapp/provider';
 import {
   createWahaWhatsAppProvider,
   fetchWahaConnectionStatus,
+  lookupWahaLidPhone,
   lookupWahaPhone,
 } from '@/lib/whatsapp/providers/waha';
 import type { WahaWhatsAppConfig } from '@/lib/whatsapp/config';
@@ -396,5 +397,38 @@ describe('WAHA session reads for the connection test', () => {
   it('fetchWahaConnectionStatus returns the status, or unknown after an HTTP error', async () => {
     expect(await fetchWahaConnectionStatus(makeConfig(), fetchWithSession(workingSession()))).toBe('WORKING');
     expect(await fetchWahaConnectionStatus(makeConfig(), fetchWithSession(jsonResponse({}, 500)))).toBe('unknown');
+  });
+});
+
+describe('lookupWahaLidPhone (#1282)', () => {
+  const lid = '98765432109876@lid';
+
+  it('asks for the lid with @ escaped as %40 and returns its pn', async () => {
+    const config = makeConfig();
+    const fetchImpl = vi.fn(async () => jsonResponse({ lid, pn: '2348000000000@c.us' }));
+
+    expect(await lookupWahaLidPhone(config, lid, fetchImpl as unknown as typeof fetch)).toBe('2348000000000@c.us');
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe(`${config.baseUrl}/api/default/lids/98765432109876%40lid`);
+    expect(init.headers).toEqual({ 'X-Api-Key': 'waha-super-secret-key' });
+  });
+
+  it.each([
+    ['WAHA knows no number (pn null)', { lid, pn: null }],
+    ['the answer names another lid', { lid: '11111111111@lid', pn: '2348000000000@c.us' }],
+    ['the answer has no lid', { pn: '2348000000000@c.us' }],
+    ['the body is not JSON', 'not json'],
+  ])('returns null when %s', async (_label, body) => {
+    const fetchImpl = vi.fn(async () => (typeof body === 'string' ? new Response(body) : jsonResponse(body)));
+
+    expect(await lookupWahaLidPhone(makeConfig(), lid, fetchImpl as unknown as typeof fetch)).toBeNull();
+  });
+
+  it('throws on a non-2xx answer, naming only the status', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({ message: 'boom' }, 500));
+    const error = await lookupWahaLidPhone(makeConfig(), lid, fetchImpl as unknown as typeof fetch).catch((e: Error) => e);
+
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe('WAHA LID lookup failed (HTTP 500)');
   });
 });
