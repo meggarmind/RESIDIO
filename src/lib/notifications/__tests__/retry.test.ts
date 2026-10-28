@@ -132,6 +132,7 @@ beforeEach(() => {
   vi.mocked(getSettingValueAsService).mockImplementation(async (key: string) => settingValues[key] ?? null);
   vi.mocked(getSettingResultAsService).mockResolvedValue({ status: 'ok', value: true });
   mocks.isEmailConfigured.mockReturnValue(true);
+  useFake({}); // the email daily cap (#1265) counts notification_history
   mocks.resendSend.mockResolvedValue({ data: { id: 'email-1' }, error: null });
   vi.mocked(sendWhatsAppTemplate).mockResolvedValue({ success: true, messageId: 'wamid.1' });
 });

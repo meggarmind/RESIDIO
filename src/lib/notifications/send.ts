@@ -129,6 +129,7 @@ async function sendViaEmail(
         success: false,
         error: result.error,
         ...(result.retryable ? { retryable: true } : {}),
+        ...(result.retryAt ? { retryAt: result.retryAt } : {}),
         ...overrideMetadata,
       };
     }
