@@ -145,7 +145,7 @@ describe('WhatsApp operations console actions', () => {
 
     expect(result.data).toEqual([{ id: 'send-1', status: 'failed' }]);
     expect(String(problems.select.mock.calls[0][0])).toMatch(/inbound_message_id.*resident:residents\(/);
-    expect(problems.or).toHaveBeenCalledWith('status.eq.failed,and(status.eq.pending,provider.eq.chatmaid,created_at.lt.2026-10-20T11:45:00.000Z)');
+    expect(problems.or).toHaveBeenCalledWith('status.eq.failed,and(status.eq.pending,provider.in.(chatmaid,waha),created_at.lt.2026-10-20T11:45:00.000Z)');
     vi.useRealTimers();
   });
 
