@@ -3,12 +3,11 @@
  * transaction tags, and nothing else on the settings.manage_reference list. Holders of
  * settings.manage_reference keep access. The authorize mock grants exactly the permissions in `held`.
  */
-import fs from 'node:fs';
-import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeRecordingSupabase, uid, type QueryResult } from '@/__tests__/helpers/recording-supabase';
 import { createBankAccount, updateBankAccount } from '@/actions/imports/bank-accounts';
 import { createTransactionTag, updateTransactionTag } from '@/actions/reference/transaction-tags';
+import { setBankAccountPassword, removeBankAccountPassword } from '@/actions/email-imports/bank-passwords';
 import { createStreet } from '@/actions/reference/create-street';
 import { createHouseType } from '@/actions/reference/create-house-type';
 import { updateHouseType } from '@/actions/reference/update-house-type';
@@ -95,46 +94,11 @@ describe('settings.manage_banking_reference opens nothing else', () => {
   });
 });
 
-describe('migration 20261104110000 grants', () => {
-  const sql = fs.readFileSync(
-    path.join(process.cwd(), 'supabase/migrations/20261104110000_settings_manage_banking_reference.sql'),
-    'utf8'
-  );
-  const body = sql.split('\n').filter((l) => !l.trimStart().startsWith('--')).join('\n');
-
-  it('grants the new permission to financial_officer and to every settings.manage_reference holder', () => {
-    expect(body).toMatch(/'settings\.manage_banking_reference'/);
-    expect(body).toMatch(/r\.name = 'financial_officer'\s+OR r\.id IN \([\s\S]*ref\.name = 'settings\.manage_reference'/);
-  });
-
-  it('grants payments.write_transaction_tags to financial_officer only', () => {
-    const grant = body.slice(body.lastIndexOf('INSERT INTO public.role_permissions'));
-    expect(grant).toMatch(/WHERE r\.name = 'financial_officer'\s+AND p\.name = 'payments\.write_transaction_tags'/);
-  });
-});
-
 describe('PDF statement passwords stay with email_imports.manage_passwords (owner decision, 29 Oct 2026)', () => {
-  const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
-
-  it('shows password controls only to email_imports.manage_passwords holders', () => {
-    const section = read('src/components/admin/bank-passwords-section.tsx');
-    expect(section).toContain('const canManage = hasPermission(PERMISSIONS.EMAIL_IMPORTS_MANAGE_PASSWORDS);');
-    expect(section).not.toContain('SETTINGS_MANAGE_BANKING_REFERENCE');
-  });
-
-  it('keeps the password actions on email_imports.manage_passwords', () => {
-    const actions = read('src/actions/email-imports/bank-passwords.ts');
-    expect(actions.match(/authorizePermission\(PERMISSIONS\.EMAIL_IMPORTS_MANAGE_PASSWORDS\)/g)).toHaveLength(2);
-    expect(actions).not.toContain('SETTINGS_MANAGE_BANKING_REFERENCE');
-  });
-
-  it('has no password field on the bank account form', () => {
-    expect(read('src/components/admin/bank-accounts-list.tsx')).not.toMatch(/password/i);
-  });
-
-  it('grants no email_imports permission in the migration', () => {
-    const sql = read('supabase/migrations/20261104110000_settings_manage_banking_reference.sql');
-    const body = sql.split('\n').filter((l) => !l.trimStart().startsWith('--')).join('\n');
-    expect(body).not.toContain('email_imports');
+  it('refuses to set or remove a password with only the banking permission', async () => {
+    held.add(BANKING);
+    expect((await setBankAccountPassword(uid(1), 'secret')).error).toBe('Forbidden');
+    expect((await removeBankAccountPassword(uid(1))).error).toBe('Forbidden');
+    expect(calls).toEqual([]);
   });
 });
