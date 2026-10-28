@@ -9,3 +9,7 @@ An Integration is also exempt from the configuration-only boundary of ADR-0004. 
 The vocabulary matters here and is recorded in `CONTEXT.md`. An **Integration** is the external service; a **Provider** is the vendor implementing one, so Meta and Twilio are two Providers of the WhatsApp Integration. This preserves the existing meaning of "provider" established in ADR-0003 and in `src/lib/whatsapp/providers/`, rather than overloading it.
 
 The cost is that WhatsApp no longer appears under Communications, where someone reasoning purely by subject would look for it, and that the grouping rule now has an exception a maintainer must know about. This ADR exists precisely because a future reader who knows the rule but not the exception will otherwise "correct" WhatsApp back under Communications and reintroduce the scatter.
+
+## Amendment (2026-10-28, #1272)
+
+An Integration's page no longer carries its read-only monitoring. Live state and reports live in **Oversight**, and the WhatsApp monitoring windows (bot health, feedback, undelivered messages, statements waiting) leave Settings > WhatsApp for Oversight (slice 3 of #1270). The page keeps the connection: credentials, provider choice and rollout controls. Support actions on a monitoring row (for example issue a link code or reset a PIN) stay on the monitoring page, next to the row they act on. Owner decision, 28 October 2026 (#1270). Do not move the console back "to keep an Integration in one place".

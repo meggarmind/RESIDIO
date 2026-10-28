@@ -78,7 +78,7 @@ export default function CronStatusPage() {
       <div>
         <h3 className="text-lg font-medium flex items-center gap-2">
           <Activity className="h-5 w-5" />
-          Cron Job Status
+          Scheduled jobs
         </h3>
         <p className="text-sm text-muted-foreground">
           Monitor the health of scheduled background jobs

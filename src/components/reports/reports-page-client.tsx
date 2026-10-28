@@ -382,7 +382,7 @@ export function ReportsPageClient() {
     return (
         <div className="space-y-6">
             <EnhancedPageHeader
-                title="Financial Reports"
+                title="Generate reports"
                 description="Generate detailed financial reports and analytics for your estate"
                 icon={FileBarChart}
                 actions={<QuickStatsCard />}

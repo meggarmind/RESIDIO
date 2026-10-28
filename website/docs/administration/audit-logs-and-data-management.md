@@ -30,7 +30,7 @@ Audit log entries are kept until someone runs **Prune Data** under **Settings �
 
 ## Data management
 
-Use **System → Data Tools** for approved reconciliation or backfill tools. Read the preview and scope carefully before running any operation.
+Use **Oversight → Data tools** for approved reconciliation or backfill tools. Read the preview and scope carefully before running any operation.
 
 :::warning[Irreversible work]
 If a tool changes many records, stop at the preview stage when the count or warning is unexpected. Ask a super administrator to confirm the intended scope.

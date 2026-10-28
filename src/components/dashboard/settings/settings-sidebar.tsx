@@ -9,7 +9,7 @@ import { useSettingsNavigation } from '@/hooks/use-settings-navigation';
 import { useSettingsNavState } from '@/hooks/use-settings-nav-state';
 import { Button } from '@/components/ui/button';
 import { ChevronRight, ChevronDown } from 'lucide-react';
-import { OpensSystemMark, SettingsSearchField, SettingsSearchResults, useSettingsSearch } from './settings-search';
+import { SettingsSearchField, SettingsSearchResults, useSettingsSearch } from './settings-search';
 import {
     Collapsible,
     CollapsibleContent,
@@ -126,7 +126,6 @@ export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
                                                             )}
                                                         >
                                                             {item.title}
-                                                            {item.opensSystem && <span className="ml-2 text-xs font-normal">Opens System</span>}
                                                         </p>
                                                         {item.children.map((child) => {
                                                             const active = child.href === activeHref;
@@ -137,14 +136,12 @@ export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
                                                                     size="sm"
                                                                     asChild
                                                                     className={cn(
-                                                                        // has-[>svg]: the Opens System arrow is an svg child, and the size's has-[>svg]:px-2.5 would win over a plain pl-12.
-                                                                        "h-auto min-h-8 py-1.5 w-full justify-start whitespace-normal text-left pl-12 has-[>svg]:pl-12",
+                                                                        "h-auto min-h-8 py-1.5 w-full justify-start whitespace-normal text-left pl-12",
                                                                         active && "bg-secondary/50 font-medium text-primary shadow-sm"
                                                                     )}
                                                                 >
                                                                     <Link href={child.href} aria-current={active ? 'page' : undefined}>
                                                                         {child.title}
-                                                                        {child.opensSystem && <OpensSystemMark />}
                                                                     </Link>
                                                                 </Button>
                                                             );

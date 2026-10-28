@@ -45,15 +45,6 @@ describe('Settings sidebar scrolling (#1012)', () => {
     expect(screen.getByTestId('settings-nav-scroll')).toHaveClass('min-h-0', 'flex-1', 'overflow-y-auto');
   });
 
-  it('indents System links that carry the Opens System arrow like their siblings', () => {
-    render(<SettingsLayout>page</SettingsLayout>);
-    fireEvent.click(screen.getByRole('button', { name: /System/i }));
-    // The arrow is an svg child, and Button size sm's has-[>svg]:px-2.5 beat a plain pl-12.
-    expect(screen.getByRole('link', { name: /Audit Logs/ })).toHaveClass('pl-12', 'has-[>svg]:pl-12');
-    // A title too long for the column wraps rather than being clipped.
-    expect(screen.getByRole('link', { name: /Audit Logs/ })).toHaveClass('whitespace-normal', 'h-auto');
-  });
-
   it('fits the aside to the visible part of <main> and refits on scroll, capped at the row foot', () => {
     const rect = (top: number, bottom: number) => ({ top, bottom }) as DOMRect;
     const tops = { aside: 300 };

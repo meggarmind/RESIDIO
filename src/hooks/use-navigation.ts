@@ -12,6 +12,7 @@
  * - Consistent behavior across all navigation components
  */
 
+import { flattenSettingsNav } from '@/config/settings-nav';
 import { useMemo } from 'react';
 import { useAuth } from '@/lib/auth/auth-provider';
 import {
@@ -161,6 +162,13 @@ export function useSectionedNavigation(): UseSectionedNavigationResult {
           ...item,
           children: filteredChildren.length > 0 ? filteredChildren : undefined,
         };
+      }
+
+      if (item.area && !isLoading) {
+        const landing = flattenSettingsNav(item.area).find(
+          (entry) => !entry.permissions || hasAnyPermission(entry.permissions)
+        );
+        return landing ? { ...item, href: landing.href } : item;
       }
 
       return item;

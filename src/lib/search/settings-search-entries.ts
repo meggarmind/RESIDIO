@@ -1,11 +1,11 @@
 import { ROUTE_PERMISSIONS, type Permission } from '@/lib/auth/action-roles';
 import { flattenSettingsNav, settingsConfig, type SettingsGroup, type SettingsItem } from '@/config/settings-nav';
-import { ADMIN_NAV_SECTIONS, type NavItem } from '@/config/navigation';
+import { oversightConfig } from '@/config/oversight-nav';
 
 /**
- * Settings/System entries for the global search command palette
- * (`global-search-command.tsx`). Generated from `settingsConfig` and the
- * `system` section of `ADMIN_NAV_SECTIONS` so the palette cannot drift from
+ * Settings/Oversight entries for the global search command palette
+ * (`global-search-command.tsx`). Generated from `settingsConfig` and
+ * `oversightConfig` so the palette cannot drift from
  * the sidebars the way it drifted from `/api/search` (#179): typing "email
  * import" previously returned nothing because Settings/System were not
  * indexed at all.
@@ -15,10 +15,9 @@ export interface SettingsSearchEntry {
   title: string;
   subtitle?: string;
   href: string;
+  /** 'system' is an Oversight page (#1272); the key is kept, the palette labels it "Oversight". */
   type: 'settings' | 'system';
   permissions: Permission[];
-  /** Opens a live-state page under /system, not a settings page. Shown as "Opens System". */
-  opensSystem?: boolean;
   /**
    * Hand-picked search aliases for a vocabulary gap no title/description/
    * group closes -- see `SETTINGS_SEARCH_KEYWORDS` below. Folded into
@@ -50,23 +49,6 @@ function idFromHref(href: string): string {
 }
 
 /**
- * System pages carry no `description` field (unlike `SettingsItem`), so their
- * subtitles are hand-written here. Kept short and in the same voice as the
- * settings descriptions they sit alongside in the palette, and worded so the
- * subtitle itself is useful search text (e.g. "audit" finds Audit Logs via
- * its title alone, but "activity trail" also finds it via subtitle).
- */
-const SYSTEM_SUBTITLES: Record<string, string> = {
-  '/system': 'System dashboard overview',
-  '/system/audit-logs': 'System activity trail',
-  '/system/notification-queue': 'Outgoing notification queue',
-  '/system/notification-history': 'Sent notification records',
-  '/system/whatsapp-monitoring': 'WhatsApp sends, opt-ins, sessions and disclosures',
-  '/system/data-tools': 'Export and bulk data utilities',
-  '/system/cron-status': 'Scheduled job health',
-};
-
-/**
  * Hand-picked aliases for entries whose group + parent + title + subtitle
  * still miss the word a user would actually type. Kept deliberately small --
  * only where the gap is real, not bulk-annotated across all 37 entries.
@@ -80,6 +62,8 @@ const SYSTEM_SUBTITLES: Record<string, string> = {
  */
 const SETTINGS_SEARCH_KEYWORDS: Record<string, string[]> = {
   '/settings/email-integration': ['email', 'imap', 'inbox', 'mailbox'],
+  '/system/cron-status': ['cron', 'jobs', 'status'],
+  '/system/whatsapp-monitoring': ['monitoring'],
 };
 
 /**
@@ -129,10 +113,8 @@ export function flattenSettingsItems(
       title: item.title,
       subtitle: item.description,
       href: item.href,
-      // The Monitoring links keep the palette's System badge (#933).
-      type: item.opensSystem ? 'system' : 'settings',
+      type: 'settings',
       permissions: resolvePermissions(item.href, item.permissions),
-      opensSystem: item.opensSystem,
       keywords,
       searchText: buildSearchText([groupTitle, parentTitle, item.title, item.description, keywords]),
     });
@@ -157,24 +139,19 @@ export function flattenSettingsItems(
   return out;
 }
 
-function buildSystemEntries(): SettingsSearchEntry[] {
-  const systemSection = ADMIN_NAV_SECTIONS.find((section) => section.id === 'system');
-  const items: NavItem[] = systemSection?.items ?? [];
-  const groupTitle = systemSection?.label ?? 'System';
-  return items.map((item) => {
-    const subtitle = SYSTEM_SUBTITLES[item.href];
-    const keywords = SETTINGS_SEARCH_KEYWORDS[item.href];
-    return {
+function buildOversightEntries(): SettingsSearchEntry[] {
+  return oversightConfig.flatMap((group) =>
+    group.items.map((item) => ({
       id: idFromHref(item.href),
       title: item.title,
-      subtitle,
+      subtitle: item.description,
       href: item.href,
       type: 'system' as const,
       permissions: resolvePermissions(item.href, item.permissions),
-      keywords,
-      searchText: buildSearchText([groupTitle, item.title, subtitle, keywords]),
-    };
-  });
+      keywords: SETTINGS_SEARCH_KEYWORDS[item.href],
+      searchText: buildSearchText(['Oversight', group.title, item.title, item.description, SETTINGS_SEARCH_KEYWORDS[item.href]]),
+    }))
+  );
 }
 
 /**
@@ -227,7 +204,7 @@ function dedupeByHref(entries: SettingsSearchEntry[]): SettingsSearchEntry[] {
  */
 export const SETTINGS_SEARCH_ENTRIES: SettingsSearchEntry[] = dedupeByHref([
   ...settingsConfig.flatMap((group) => flattenSettingsItems(group.items, group.title)),
-  ...buildSystemEntries(),
+  ...buildOversightEntries(),
 ]);
 
 /**
