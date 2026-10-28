@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   insertError: null as { message: string } | null,
   tryAllowed: true,
   claims: 0,
+  clears: 0,
   sendEmail: vi.fn(),
   sendWhatsAppMessage: vi.fn(),
   logAudit: vi.fn(),
@@ -43,7 +44,9 @@ vi.mock('@/lib/auth/two-factor-guard', () => ({
     mocks.claims++;
     return { allowed: mocks.tryAllowed };
   },
-  clearTwoFactorTries: async () => {},
+  clearTwoFactorTries: async () => {
+    mocks.clears++;
+  },
   checkAccountCode: async () => false,
   tooManyTriesMessage: () => 'Too many wrong codes. Please try again in 15 minutes.',
 }));
@@ -132,6 +135,7 @@ beforeEach(() => {
   mocks.insertError = null;
   mocks.tryAllowed = true;
   mocks.claims = 0;
+  mocks.clears = 0;
   mocks.sendEmail.mockReset().mockResolvedValue({ success: true, resendId: 'r1' });
   mocks.sendWhatsAppMessage.mockReset().mockResolvedValue({ success: true, messageId: 'm1' });
   mocks.logAudit.mockReset();
@@ -167,6 +171,12 @@ describe('sendBackupCodes refusals', () => {
     const result = await sendBackupCodes('email', ['AAAA1111', 'DDDD4444']);
     expect(result).toEqual({ success: false, message: 'These codes can no longer be sent. Make new backup codes.' });
     nothingSent();
+    expect(mocks.clears).toBe(0);
+  });
+
+  it('clears the try once every code is a real code of this user', async () => {
+    await sendBackupCodes('email', CODES);
+    expect(mocks.clears).toBe(1);
   });
 
   it('looks codes up only among the unused codes of the signed-in user', async () => {

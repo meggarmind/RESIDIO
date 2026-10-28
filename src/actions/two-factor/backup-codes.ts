@@ -198,6 +198,8 @@ export async function sendBackupCodes(
     }
     unmatched.splice(index, 1);
   }
+  // Real codes of this user: the try is cleared, as after a right code elsewhere on the page.
+  await clearTwoFactorTries(user.id, 'manage');
 
   let destination: string;
   if (channel === 'email') {
