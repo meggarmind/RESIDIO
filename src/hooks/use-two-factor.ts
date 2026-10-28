@@ -8,6 +8,7 @@ import {
   disableTwoFactor,
   getBackupCodesCount,
   generateBackupCodes,
+  sendBackupCodes,
   requestDisableCode,
   getAllTwoFactorPolicies,
   updateTwoFactorPolicy,
@@ -176,6 +177,19 @@ export function useGenerateBackupCodes() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.status });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.backupCodes });
+    },
+  });
+}
+
+/**
+ * Hook to send the backup codes just shown to the user's own email or WhatsApp
+ */
+export function useSendBackupCodes() {
+  return useMutation({
+    mutationFn: async ({ channel, codes }: { channel: 'email' | 'whatsapp'; codes: string[] }) => {
+      const result = await sendBackupCodes(channel, codes);
+      if (!result.success) throw new Error(result.message);
+      return result;
     },
   });
 }
