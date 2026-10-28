@@ -19,6 +19,11 @@ const mocks = vi.hoisted(() => ({
   phone: '08012345678' as string | null,
   inserts: [] as { table: string; row: Record<string, unknown> }[],
   countFilters: [] as [string, unknown][],
+  codeFilters: [] as [string, unknown][],
+  countError: null as { message: string } | null,
+  insertError: null as { message: string } | null,
+  tryAllowed: true,
+  claims: 0,
   sendEmail: vi.fn(),
   sendWhatsAppMessage: vi.fn(),
   logAudit: vi.fn(),
@@ -33,6 +38,15 @@ vi.mock('@/lib/email/send-email', () => ({
   getEstateEmailSettings: async () => ({ estateName: 'Test Estate' }),
 }));
 vi.mock('@/lib/whatsapp/provider', () => ({ sendWhatsAppMessage: mocks.sendWhatsAppMessage }));
+vi.mock('@/lib/auth/two-factor-guard', () => ({
+  claimTwoFactorTry: async () => {
+    mocks.claims++;
+    return { allowed: mocks.tryAllowed };
+  },
+  clearTwoFactorTries: async () => {},
+  checkAccountCode: async () => false,
+  tooManyTriesMessage: () => 'Too many wrong codes. Please try again in 15 minutes.',
+}));
 
 function builder(table: string) {
   let head = false;
@@ -43,24 +57,34 @@ function builder(table: string) {
     },
     eq: (col: string, val: unknown) => {
       if (table === 'two_factor_audit_log') mocks.countFilters.push([col, val]);
+      if (table === 'two_factor_backup_codes') mocks.codeFilters.push([col, val]);
       return b;
     },
     gte: (col: string, val: unknown) => {
       if (table === 'two_factor_audit_log') mocks.countFilters.push([col, val]);
       return b;
     },
-    is: () => b,
+    is: (col: string, val: unknown) => {
+      if (table === 'two_factor_backup_codes') mocks.codeFilters.push([col, val]);
+      return b;
+    },
+    limit: () => b,
     single: async () => {
       if (table === 'profiles') return { data: mocks.profile, error: null };
+      return { data: null, error: null };
+    },
+    maybeSingle: async () => {
       if (table === 'residents') return { data: mocks.phone ? { phone_primary: mocks.phone } : null, error: null };
       return { data: null, error: null };
     },
     insert: async (row: Row) => {
       mocks.inserts.push({ table, row });
-      return { error: null };
+      return { error: mocks.insertError };
     },
     then: (resolve: (v: unknown) => unknown) => {
-      if (table === 'two_factor_audit_log' && head) return Promise.resolve(resolve({ count: mocks.recentSends, error: null }));
+      if (table === 'two_factor_audit_log' && head) {
+        return Promise.resolve(resolve(mocks.countError ? { count: null, error: mocks.countError } : { count: mocks.recentSends, error: null }));
+      }
       if (table === 'two_factor_backup_codes') return Promise.resolve(resolve({ data: mocks.backupRows, error: null }));
       return Promise.resolve(resolve({ data: null, error: null }));
     },
@@ -103,6 +127,11 @@ beforeEach(() => {
   mocks.phone = '08012345678';
   mocks.inserts = [];
   mocks.countFilters = [];
+  mocks.codeFilters = [];
+  mocks.countError = null;
+  mocks.insertError = null;
+  mocks.tryAllowed = true;
+  mocks.claims = 0;
   mocks.sendEmail.mockReset().mockResolvedValue({ success: true, resendId: 'r1' });
   mocks.sendWhatsAppMessage.mockReset().mockResolvedValue({ success: true, messageId: 'm1' });
   mocks.logAudit.mockReset();
@@ -137,6 +166,33 @@ describe('sendBackupCodes refusals', () => {
   it('refuses when one code is not an unused code of this user, and sends nothing', async () => {
     const result = await sendBackupCodes('email', ['AAAA1111', 'DDDD4444']);
     expect(result).toEqual({ success: false, message: 'These codes can no longer be sent. Make new backup codes.' });
+    nothingSent();
+  });
+
+  it('looks codes up only among the unused codes of the signed-in user', async () => {
+    await sendBackupCodes('email', CODES);
+    expect(mocks.codeFilters).toEqual(expect.arrayContaining([['profile_id', 'user-1'], ['used_at', null]]));
+  });
+
+  it('takes a try before checking codes, and sends nothing when tries are used up', async () => {
+    mocks.tryAllowed = false;
+    const result = await sendBackupCodes('email', CODES);
+    expect(result).toEqual({ success: false, message: 'Too many wrong codes. Please try again in 15 minutes.' });
+    expect(mocks.claims).toBe(1);
+    nothingSent();
+  });
+
+  it('refuses more codes than there are fresh unused rows', async () => {
+    mocks.backupRows = rowsFor(['AAAA1111']);
+    const result = await sendBackupCodes('email', ['AAAA1111', 'BBBB2222']);
+    expect(result).toEqual({ success: false, message: 'These codes can no longer be sent. Make new backup codes.' });
+    nothingSent();
+  });
+
+  it('sends nothing when the send count cannot be read', async () => {
+    mocks.countError = { message: 'db down' };
+    const result = await sendBackupCodes('email', CODES);
+    expect(result).toEqual({ success: false, message: 'Could not send the codes. Please try again.' });
     nothingSent();
   });
 
@@ -205,6 +261,17 @@ describe('sendBackupCodes by email', () => {
     });
     expect(recorded()).not.toMatch(/AAAA1111|BBBB2222/);
     expect(mocks.sendWhatsAppMessage).not.toHaveBeenCalled();
+  });
+
+  it('reports a failed audit row without the codes, and still returns success', async () => {
+    mocks.insertError = { message: 'insert failed' };
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const result = await sendBackupCodes('email', CODES);
+    expect(result.success).toBe(true);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(spy.mock.calls)).toMatch(/backup codes sent by email/);
+    expect(JSON.stringify(spy.mock.calls)).not.toMatch(/AAAA1111|BBBB2222|CCCC3333/);
+    spy.mockRestore();
   });
 
   it('records nothing when the email fails', async () => {

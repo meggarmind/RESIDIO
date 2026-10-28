@@ -175,16 +175,28 @@ export async function sendBackupCodes(
     return { success: false, message: `You sent your codes ${MAX_SENDS_PER_WINDOW} times. Try again in ${SEND_WINDOW_MINUTES} minutes.` };
   }
 
+  // Each check costs a sync scrypt, so every attempt takes one try (#1029 limit), not only a success.
+  const attempt = await claimTwoFactorTry(user.id, 'manage');
+  if (!attempt.allowed) {
+    return { success: false, message: tooManyTriesMessage() };
+  }
+
   // Each code must be an unused code of this user, made in the last 15 minutes.
   const { data: rows } = await adminClient
     .from('two_factor_backup_codes')
     .select('id, code_hash, created_at')
     .eq('profile_id', user.id)
     .is('used_at', null);
-  const freshRows = (rows ?? []).filter((r) => new Date(r.created_at).getTime() >= windowStart.getTime());
-  const allMatch = normalised.every((code) => freshRows.some((r) => verifyBackupCodeHash(code, r.code_hash)));
-  if (!allMatch) {
+  const unmatched = (rows ?? []).filter((r) => new Date(r.created_at).getTime() >= windowStart.getTime());
+  if (normalised.length > unmatched.length) {
     return { success: false, message: CODES_NOT_SENDABLE };
+  }
+  for (const code of normalised) {
+    const index = unmatched.findIndex((r) => verifyBackupCodeHash(code, r.code_hash));
+    if (index === -1) {
+      return { success: false, message: CODES_NOT_SENDABLE };
+    }
+    unmatched.splice(index, 1);
   }
 
   let destination: string;
@@ -212,11 +224,12 @@ export async function sendBackupCodes(
     }
     destination = maskEmail(profile.email);
   } else {
-    const { data: resident } = await supabase
+    const { data: resident } = await adminClient
       .from('residents')
       .select('phone_primary')
       .eq('profile_id', user.id)
-      .single();
+      .limit(1)
+      .maybeSingle();
     if (!resident?.phone_primary) {
       return { success: false, message: 'No phone number on your profile.' };
     }
@@ -239,12 +252,16 @@ export async function sendBackupCodes(
     destination = resident.phone_primary.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2');
   }
 
-  await adminClient.from('two_factor_audit_log').insert({
+  const { error: auditError } = await adminClient.from('two_factor_audit_log').insert({
     profile_id: user.id,
     action: 'settings_updated',
     method: profile.two_factor_method,
     metadata: { event: 'backup_codes_sent', channel, codes_count: normalised.length },
   });
+  if (auditError) {
+    // The send counts toward the rate limit only through this row.
+    console.error(`[2FA] Could not record backup codes sent by ${channel} for profile ${user.id}:`, auditError.message);
+  }
 
   await logAudit({
     action: 'UPDATE',
