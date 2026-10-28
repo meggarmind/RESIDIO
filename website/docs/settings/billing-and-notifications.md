@@ -14,7 +14,7 @@ residio_sources:
   - src/app/(dashboard)/settings/sending/**
   - src/app/(dashboard)/settings/announcements/**
   - src/components/settings/messages/**
-residio_verified_commit: bed0b3fd
+residio_verified_commit: 7c80e672
 residio_verified_at: '2026-10-28'
 residio_app_version: '0.4.0'
 ---
