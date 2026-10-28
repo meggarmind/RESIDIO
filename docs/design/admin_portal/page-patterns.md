@@ -93,7 +93,6 @@ Columns: `Header` is the component that renders the `<h1>`. `Loading` and `Error
 | `system/action-log` | `settings` (registry-shaped) | none (`<h3 text-lg>`, `page.tsx:70`) | root | root |
 | `system/audit-logs` | `settings` (registry-shaped) | none (`<h3 text-lg>`, `page.tsx:55`) | root | root |
 | `system/cron-status` | `settings` (monitor) | none (`<h3 text-lg>`, `page.tsx:79`) | root | root |
-| `system/data-tools` | `settings` | none (`<h3 text-lg>`, `page.tsx:53`) | root | root |
 | `system/notification-history` | `settings` (registry-shaped) | none (`<h3 text-lg>`, `page.tsx:10`) | root | root |
 | `system/notification-queue` | `settings` (registry-shaped) | none (`<h3 text-lg>`, `page.tsx:11`) | root | root |
 
@@ -115,7 +114,7 @@ These pages hold no UI. They keep their `ROUTE_PERMISSIONS` entry because the re
 | `settings/branding` | `/settings/estate#logo` |
 | `settings/comms-override` | `/settings/sending#testing` |
 | `settings/cron-status` | `/system/cron-status` |
-| `settings/data-management` | `/system/data-tools` |
+| `settings/data-management` | `/settings/data-tools` |
 | `settings/data-retention` | `/settings/system#retention` |
 | `settings/document-categories` | `/settings/documents#categories` |
 | `settings/document-taxonomy` | `/settings/documents#tags-fields` |

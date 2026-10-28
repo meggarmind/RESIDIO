@@ -10,7 +10,7 @@
 
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Archive, History, ListTodo, UserCog } from 'lucide-react';
+import { History, ListTodo, UserCog } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS, type Permission } from '@/lib/auth/action-roles';
 import { getAuditStats } from '@/actions/audit';
@@ -24,7 +24,7 @@ import { StatusCard } from './status-card';
 import { filterVisibleCards, getPendingAccountsStatus, getQueueDepthStatus } from './system-status';
 
 interface CardDef {
-  id: 'cron' | 'queue' | 'audit' | 'accounts' | 'data-tools';
+  id: 'cron' | 'queue' | 'audit' | 'accounts';
   permissions: Permission[];
 }
 
@@ -38,7 +38,6 @@ const CARD_DEFS: CardDef[] = [
   { id: 'queue', permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
   { id: 'audit', permissions: [PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS] },
   { id: 'accounts', permissions: [PERMISSIONS.SYSTEM_ASSIGN_ROLES] },
-  { id: 'data-tools', permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL] },
 ];
 
 export function SystemDashboard() {
@@ -176,17 +175,6 @@ export function SystemDashboard() {
               }
             />
           </JumpSection>
-        )}
-
-        {visible.has('data-tools') && (
-          <StatusCard
-            title="Data Tools"
-            description="Administrative data utilities"
-            href="/system/data-tools"
-            icon={Archive}
-            status="neutral"
-            subtext="Ownership history backfill"
-          />
         )}
       </div>
     </div>

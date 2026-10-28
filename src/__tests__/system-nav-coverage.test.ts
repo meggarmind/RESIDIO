@@ -59,7 +59,7 @@ describe('system navigation coverage', () => {
     // Pages intentionally not a nav destination of their own (permanent
     // redirect stubs), following settings-nav-coverage.test.ts's REDIRECTS pattern.
     // Roles & Access moved to /settings/access (#939).
-    const REDIRECTS = new Set<string>(['/system/accounts']);
+    const REDIRECTS = new Set<string>(['/system/accounts', '/system/data-tools']);
 
     const unlisted = routesOnDisk()
       .filter((route) => !navHrefs.has(route) && !REDIRECTS.has(route))
