@@ -14,7 +14,6 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { nextUtcMidnight } from '@/lib/notifications/retry';
 import { applyEmailRedirect } from '@/lib/comms-override/apply';
 import { blockedError, toLogRecord } from '@/lib/comms-override/resolver';
-import { isExemptPurpose } from '@/lib/comms-override/types';
 import type { CommsSendContext, OverrideLogRecord } from '@/lib/comms-override/types';
 
 export const EMAIL_NOT_CONFIGURED_ERROR = 'Email service not configured (missing RESEND_API_KEY)';
@@ -87,6 +86,7 @@ async function checkEmailDailyCap(
     return { ok: true };
   }
 }
+
 const RETRYABLE_RESEND_ERROR_NAMES = new Set([
   'rate_limit_exceeded',
   'application_error',
@@ -133,8 +133,8 @@ export async function sendViaResend(
     };
   }
   // Daily cap (#1265): after the override so a blocked send is reported as blocked, before the
-  // Resend call so a capped send costs nothing. Login codes stay exempt, like the override.
-  if (!isExemptPurpose(options?.purpose)) {
+  // Resend call so a capped send costs nothing. Login codes stay exempt so the cap cannot lock admins out.
+  if (options?.purpose !== 'self_auth_2fa') {
     const cap = await checkEmailDailyCap(new Date());
     if (!cap.ok) return { ...cap, override };
   }
