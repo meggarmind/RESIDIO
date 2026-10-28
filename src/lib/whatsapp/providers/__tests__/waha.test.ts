@@ -323,6 +323,23 @@ describe('WAHA WhatsApp provider', () => {
     expect(result).toEqual({ success: false, error: 'WAHA provider request failed', retryable: true });
   });
 
+  it('reads the message id from the WEBJS and NOWEB send answers, in the form message.ack carries (#1285)', async () => {
+    const webjs = createWahaWhatsAppProvider(
+      makeConfig(),
+      fetchWithSession(workingSession(), jsonResponse({ id: { fromMe: true, id: '3EB0AA', _serialized: 'true_2348000000000@c.us_3EB0AA' } }, 201))
+    );
+    const noweb = createWahaWhatsAppProvider(
+      makeConfig(),
+      fetchWithSession(
+        workingSession(),
+        jsonResponse({ key: { remoteJid: '2348000000000@s.whatsapp.net', fromMe: true, id: 'BAE5CC' }, status: 'PENDING' }, 201)
+      )
+    );
+
+    expect(await webjs.sendText({ to: '+2348000000000', body: 'Hi' })).toEqual({ success: true, messageId: 'true_2348000000000@c.us_3EB0AA' });
+    expect(await noweb.sendText({ to: '+2348000000000', body: 'Hi' })).toEqual({ success: true, messageId: 'true_2348000000000@c.us_BAE5CC' });
+  });
+
   it('fails without retry when the response carries no message id', async () => {
     const config = makeConfig();
     const fetchImpl = fetchWithSession(workingSession(), jsonResponse({ ok: true }, 201));

@@ -9,6 +9,7 @@ import {
   verifyWhatsAppToken,
 } from '@/lib/whatsapp';
 import type { WhatsAppConfig } from '@/lib/whatsapp/config';
+import { ReplySendError } from '@/lib/whatsapp/identity';
 
 const config: WhatsAppConfig = {
   provider: 'meta',
@@ -88,6 +89,21 @@ describe('WhatsApp channel foundation', () => {
     expect(second.accepted).toBe(true);
     expect(store.release).toHaveBeenCalledWith('wamid.test-1');
     expect(onMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it('records the failed step and error class, never the error text (#1285)', async () => {
+    const release = vi.fn().mockResolvedValue(undefined);
+    const replyFailed = await handleInboundMessage(inboundPayload, {
+      store: { claim: vi.fn().mockResolvedValue('claimed'), release },
+      onMessage: vi.fn().mockRejectedValue(new ReplySendError('reply to +2348000000000 failed')),
+    });
+    const claimFailed = await handleInboundMessage(inboundPayload, {
+      store: { claim: vi.fn().mockRejectedValue({ code: '42P01', message: 'relation missing' }) },
+    });
+
+    expect(replyFailed.failureReason).toBe('handle: ReplySendError');
+    expect(claimFailed.failureReason).toBe('claim: object 42P01');
+    expect(JSON.stringify([replyFailed, claimFailed])).not.toMatch(/2348000000000|relation missing/);
   });
 
   it('passes 1:1 media on for the text-only reply, and ignores empty text and group messages (#804)', async () => {
