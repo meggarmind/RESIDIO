@@ -242,8 +242,11 @@ describe('resolveWahaInbound: ignore reasons and @lid senders (#1282)', () => {
     expect(inbound).toEqual({ message: { id: 'l1', from: '98765432109876@lid', timestamp: '1', type: 'text', text: null }, ignoredReason: 'lid_unresolved' });
   });
 
-  it('lets a lookup error propagate, so the webhook asks WAHA to retry', async () => {
-    await expect(resolveWahaInbound(lidMessage, vi.fn(async () => { throw new Error('WAHA LID lookup failed (HTTP 500)'); }))).rejects.toThrow('HTTP 500');
+  it('ignores an @lid sender as lid_unresolved when the lookup fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const inbound = await resolveWahaInbound(lidMessage, vi.fn(async () => { throw new Error('WAHA LID lookup failed (HTTP 500)'); }));
+
+    expect(inbound?.ignoredReason).toBe('lid_unresolved');
   });
 
   it.each([

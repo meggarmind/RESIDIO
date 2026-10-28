@@ -401,25 +401,18 @@ describe('WAHA WhatsApp webhook route', () => {
       expect(JSON.stringify(recordSystemAction.mock.calls)).not.toContain('98765432109876');
     });
 
-    it('returns 500 and claims nothing when the LID lookup fails, so the retry resolves it', async () => {
+    it('ignores the message, records lid_unresolved and answers 200 when the LID lookup fails', async () => {
       const h = await load();
-      vi.stubGlobal(
-        'fetch',
-        vi
-          .fn()
-          .mockResolvedValueOnce(new Response('{}', { status: 502 }))
-          .mockResolvedValue(new Response(JSON.stringify({ lid: '98765432109876@lid', pn: '2348000000000@c.us' })))
-      );
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 502 })));
       const body = webhook('message', { ...receivedPayload, id: 'l3', from: '98765432109876@lid' });
+      const response = await h.POST(post(body));
 
-      expect((await h.POST(post(body))).status).toBe(500);
-      expect(recordSystemAction).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'inbound_messages', outcome: 'failure', summary: { reason: 'lid_lookup_failed' } })
-      );
+      expect(response.status).toBe(200);
       expect(h.handleResidentMessage).not.toHaveBeenCalled();
-
-      expect((await h.POST(post(body))).status).toBe(200);
-      expect(h.handleResidentMessage).toHaveBeenCalledTimes(1);
+      expect(recordSystemAction).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'inbound_ignored', summary: { reason: 'lid_unresolved', count: 1 } })
+      );
     });
 
     it('does not answer the handset\'s own api send delivered as message.any', async () => {

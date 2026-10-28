@@ -163,8 +163,8 @@ export type WahaLidLookup = (lid: string) => Promise<string | null>;
  * engine can deliver a resident's id as `@lid`.
  *
  * A wrong mapping would answer the wrong resident, so only a `@c.us` answer is
- * used. Anything else leaves the message ignored as `lid_unresolved`. A lookup
- * error propagates, so the webhook can answer 500 and WAHA retries.
+ * used. Anything else, including a failed lookup, leaves the message ignored as
+ * `lid_unresolved`.
  */
 export async function resolveWahaInbound(
   message: Record<string, unknown>,
@@ -175,7 +175,10 @@ export async function resolveWahaInbound(
     return mapped;
   }
 
-  const phoneId = await lookupLid(message.from as string);
+  const phoneId = await lookupLid(message.from as string).catch((error: unknown) => {
+    console.error('[waha-inbound] LID lookup failed:', error instanceof Error ? error.message : 'unknown error');
+    return null;
+  });
   return phoneId?.endsWith('@c.us') ? mapWahaMessage({ ...message, from: phoneId }) : mapped;
 }
 

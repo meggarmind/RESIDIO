@@ -10,7 +10,6 @@ import {
   WAHA_HUMAN_TAKEOVER_PAUSE_MS,
   extractWahaInbound,
   extractWahaOutgoingRecipient,
-  type WahaInbound,
   isWahaManualOutgoing,
   verifyWahaSignature,
   wahaEventDedupeKey,
@@ -85,21 +84,7 @@ async function runOnce(key: string, effect: () => Promise<void>): Promise<'done'
 }
 
 async function handleMessageReceived(payload: unknown, config: WahaWhatsAppConfig) {
-  let inbound: WahaInbound | null;
-  try {
-    inbound = await extractWahaInbound(payload, (lid) => lookupWahaLidPhone(config, lid));
-  } catch (error) {
-    // Nothing is claimed yet, so WAHA's retry gets another lookup. The error names only the HTTP status.
-    console.error('[waha-webhook] LID lookup failed:', error instanceof Error ? error.message : 'unknown error');
-    await recordWebhookDelivery({
-      provider: 'whatsapp-waha',
-      action: 'inbound_messages',
-      outcome: 'failure',
-      summary: { reason: 'lid_lookup_failed' },
-      error: 'Sender LID could not be resolved',
-    });
-    return processingFailed('Sender LID could not be resolved');
-  }
+  const inbound = await extractWahaInbound(payload, (lid) => lookupWahaLidPhone(config, lid));
 
   const { result, pausedCount } = await processChatmaidMessages(inbound ? [inbound.message] : []);
 
