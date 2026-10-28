@@ -96,6 +96,8 @@ export const PERMISSIONS = {
   SETTINGS_MANAGE_DEBT_STATUS: 'settings.manage_debt_status',
   SETTINGS_MANAGE_SECURITY: 'settings.manage_security',
   SETTINGS_MANAGE_REFERENCE: 'settings.manage_reference',
+  // Bank accounts and transaction tags on /settings/banking only (#1286). Narrower than manage_reference.
+  SETTINGS_MANAGE_BANKING_REFERENCE: 'settings.manage_banking_reference',
   SETTINGS_VIEW_AUDIT_LOGS: 'settings.view_audit_logs',
 
   // Imports Module
@@ -329,8 +331,8 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   // Estate configuration
   '/settings/streets': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
   '/settings/house-types': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
-  '/settings/transaction-tags': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
-  '/settings/bank-accounts': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
+  '/settings/transaction-tags': [PERMISSIONS.SETTINGS_MANAGE_BANKING_REFERENCE, PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
+  '/settings/bank-accounts': [PERMISSIONS.SETTINGS_MANAGE_BANKING_REFERENCE, PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
   '/settings/document-categories': [PERMISSIONS.DOCUMENTS_MANAGE_CATEGORIES],
   '/settings/document-taxonomy': [PERMISSIONS.DOCUMENTS_MANAGE_TAGS, PERMISSIONS.DOCUMENTS_MANAGE_CUSTOM_FIELDS],
   // Merged Documents task page (#937, #791): the OR of its sections. The two old routes above stay (ADR-0004).
@@ -361,7 +363,8 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/settings/debt-status': [PERMISSIONS.SETTINGS_MANAGE_DEBT_STATUS],
   // Merged Banking page (#935): the OR of bank accounts and tags (manage_reference) and duplicate matching
   // (manage_maintenance). The old /settings/bank-accounts and /settings/transaction-tags keys stay (ADR-0004).
-  '/settings/banking': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE, PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE, PERMISSIONS.SETTINGS_MANAGE_BILLING],
+  // settings.manage_banking_reference (#1286) opens it for bank accounts and tags only.
+  '/settings/banking': [PERMISSIONS.SETTINGS_MANAGE_BANKING_REFERENCE, PERMISSIONS.SETTINGS_MANAGE_REFERENCE, PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE, PERMISSIONS.SETTINGS_MANAGE_BILLING],
   '/settings/email-integration': [PERMISSIONS.EMAIL_IMPORTS_VIEW],
   '/settings/email-integration/config': [PERMISSIONS.EMAIL_IMPORTS_CONFIGURE],
 

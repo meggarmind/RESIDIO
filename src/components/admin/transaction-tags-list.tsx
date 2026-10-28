@@ -61,8 +61,8 @@ const colorVariants: Record<TransactionTagColor, string> = {
 };
 
 export function TransactionTagsList() {
-  const { hasPermission } = useAuth();
-  const canManage = hasPermission(PERMISSIONS.SETTINGS_MANAGE_REFERENCE);
+  const { hasAnyPermission } = useAuth();
+  const canManage = hasAnyPermission([PERMISSIONS.SETTINGS_MANAGE_BANKING_REFERENCE, PERMISSIONS.SETTINGS_MANAGE_REFERENCE]);
   const [typeFilter, setTypeFilter] = useState<string>(ALL_VALUE);
   const { data: tagsData, isLoading } = useTransactionTags({
     transaction_type: typeFilter === ALL_VALUE ? undefined : (typeFilter as TransactionTagType),

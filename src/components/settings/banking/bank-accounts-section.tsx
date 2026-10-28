@@ -17,7 +17,7 @@ export function BankAccountsSection() {
       id="bank-accounts"
       title="Bank accounts"
       summary={isLoading ? 'Loading bank accounts' : `${count} active ${count === 1 ? 'account' : 'accounts'}`}
-      permissions={[PERMISSIONS.SETTINGS_MANAGE_REFERENCE]}
+      permissions={[PERMISSIONS.SETTINGS_MANAGE_BANKING_REFERENCE, PERMISSIONS.SETTINGS_MANAGE_REFERENCE]}
       instant
     >
       <SettingsRow rowId="estate-bank-accounts" stacked>

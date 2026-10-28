@@ -1,7 +1,7 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { authorizePermission } from '@/lib/auth/authorize';
+import { authorizeAnyPermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import type { EstateBankAccount } from '@/types/database';
@@ -103,7 +103,7 @@ export async function createBankAccount(
 ): Promise<MutateBankAccountResponse> {
   const supabase = await createServerSupabaseClient();
 
-  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_REFERENCE);
+  const auth = await authorizeAnyPermission([PERMISSIONS.SETTINGS_MANAGE_BANKING_REFERENCE, PERMISSIONS.SETTINGS_MANAGE_REFERENCE]);
   if (!auth.authorized) {
     return { data: null, error: auth.error || 'Unauthorized' };
   }
@@ -188,7 +188,7 @@ export async function updateBankAccount(
 ): Promise<MutateBankAccountResponse> {
   const supabase = await createServerSupabaseClient();
 
-  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_REFERENCE);
+  const auth = await authorizeAnyPermission([PERMISSIONS.SETTINGS_MANAGE_BANKING_REFERENCE, PERMISSIONS.SETTINGS_MANAGE_REFERENCE]);
   if (!auth.authorized) {
     return { data: null, error: auth.error || 'Unauthorized' };
   }
@@ -278,7 +278,7 @@ export async function updateBankAccount(
 export async function toggleBankAccountStatus(id: string): Promise<MutateBankAccountResponse> {
   const supabase = await createServerSupabaseClient();
 
-  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_REFERENCE);
+  const auth = await authorizeAnyPermission([PERMISSIONS.SETTINGS_MANAGE_BANKING_REFERENCE, PERMISSIONS.SETTINGS_MANAGE_REFERENCE]);
   if (!auth.authorized) {
     return { data: null, error: auth.error || 'Unauthorized' };
   }
@@ -347,7 +347,7 @@ export async function toggleBankAccountStatus(id: string): Promise<MutateBankAcc
 export async function deleteBankAccount(id: string): Promise<DeleteBankAccountResponse> {
   const supabase = await createServerSupabaseClient();
 
-  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_REFERENCE);
+  const auth = await authorizeAnyPermission([PERMISSIONS.SETTINGS_MANAGE_BANKING_REFERENCE, PERMISSIONS.SETTINGS_MANAGE_REFERENCE]);
   if (!auth.authorized) {
     return { error: auth.error || 'Unauthorized' };
   }
