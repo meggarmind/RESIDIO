@@ -51,6 +51,11 @@ const WEBHOOK_PATHS: Record<WhatsAppProviderName, string> = {
   waha: '/api/whatsapp/webhook/waha',
 };
 
+function formatConnectedOn(updatedAt: string | null): string {
+  if (!updatedAt) return '';
+  return `, connected ${new Date(updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+}
+
 function formatSavedAt(status: WhatsAppConnectionStatus): string {
   const when = status.updatedAt ? new Date(status.updatedAt).toLocaleString() : 'an unknown time';
   return status.updatedByName ? `Saved ${when} by ${status.updatedByName}` : `Saved ${when}`;
@@ -209,6 +214,22 @@ export function ConnectionSettings({
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+        <p>
+          <span className="text-muted-foreground">Current provider: </span>
+          <span className="font-medium">
+            {status.connected && status.provider
+              ? `${PROVIDER_LABELS[status.provider]}${formatConnectedOn(status.updatedAt)}`
+              : 'None connected'}
+          </span>
+        </p>
+        {canManage && status.connected && !showForm && (
+          <Button type="button" size="sm" disabled={isPending} onClick={() => setShowForm(true)}>
+            Change provider
+          </Button>
+        )}
+      </div>
+
       {status.connected ? (
         <div className="space-y-2 rounded-md border bg-muted/30 p-3 text-sm">
           <div className="flex items-center justify-between gap-2">
@@ -385,7 +406,16 @@ export function ConnectionSettings({
               Save credentials
             </Button>
             {status.connected && (
-              <Button type="button" size="sm" variant="ghost" disabled={isPending} onClick={() => setShowForm(false)}>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={isPending}
+                onClick={() => {
+                  setProvider(status.provider || 'meta');
+                  setShowForm(false);
+                }}
+              >
                 Cancel
               </Button>
             )}
