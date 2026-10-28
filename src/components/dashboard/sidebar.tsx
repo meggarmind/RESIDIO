@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { activeSettingsHref } from '@/config/settings-nav';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { roleWithTitle } from '@/lib/auth/role-label';
 import { User, UserSearch, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
@@ -141,7 +142,7 @@ export function Sidebar({ className }: SidebarProps) {
               )}
               <ul className="space-y-1">
                 {section.items.map((item) => {
-                  const isActive = pathname === item.href;
+                  const isActive = item.area ? activeSettingsHref(pathname, item.area) !== null : pathname === item.href;
                   const hasChildren = item.children && item.children.length > 0;
                   const isParentOfActive = hasActiveChild(item.children);
                   const isMenuExpanded = userToggled[item.id] ?? isParentOfActive;

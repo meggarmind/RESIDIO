@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, ArrowUpRight, CheckCircle2, Circle, Search } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Circle, Search } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -82,16 +82,8 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between">
-            {item.opensSystem ? (
-              <Badge variant="outline">Opens System</Badge>
-            ) : (
-              (statusChip(item.href) ?? <span />)
-            )}
-            {item.opensSystem ? (
-              <ArrowUpRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            ) : (
-              <ArrowRight className="h-4 w-4 text-muted-foreground" />
-            )}
+            {statusChip(item.href) ?? <span />}
+            <ArrowRight className="h-4 w-4 text-muted-foreground" />
           </div>
         </CardContent>
       </Card>
@@ -118,7 +110,7 @@ export default function SettingsPage() {
         matches.length > 0 ? (
           <div className="grid gap-4 md:grid-cols-2">
             {matches.map((entry) =>
-              renderCard({ id: entry.id, href: entry.href, title: entry.title, description: entry.subtitle, opensSystem: entry.opensSystem })
+              renderCard({ id: entry.id, href: entry.href, title: entry.title, description: entry.subtitle })
             )}
           </div>
         ) : (

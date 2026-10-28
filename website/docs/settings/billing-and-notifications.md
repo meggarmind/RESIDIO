@@ -61,7 +61,7 @@ Three controls affect payment reminders. **Send payment reminders** under **Remi
 
 The **Send payment reminders** switch saves the state you set it to. **Reset to Default** on the reminder schedule asks before it replaces your steps, and **Send Reminders** under **Send now** shows how many reminders would go to how many residents before it sends.
 
-Sent-notification history and the outgoing queue are system state rather than configuration, so they live under **System → Notification History** and **System → Notification Queue** instead; **Reminders → On or off** links to both and no longer shows live counts. From the queue you can cancel a pending item or retry one that failed.
+Sent-notification history and the outgoing queue are system state rather than configuration, so they live under **Oversight → Notification history** and **Oversight → Notification queue** instead; **Reminders → On or off** links to both and no longer shows live counts. From the queue you can cancel a pending item or retry one that failed.
 
 ## Email and WhatsApp
 

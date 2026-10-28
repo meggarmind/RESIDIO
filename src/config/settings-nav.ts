@@ -31,11 +31,6 @@ export type SettingsItem = {
      * row labels, so search and the page cannot name a row differently.
      */
     sections?: SettingsSectionDef[];
-    /**
-     * The link leaves Settings for a live-state page under /system (ADR-0004), so
-     * the nav and search mark it "Opens System".
-     */
-    opensSystem?: boolean;
 };
 
 export type SettingsRowDef = {
@@ -838,20 +833,6 @@ export const settingsConfig: SettingsGroup[] = [
                         ],
                     },
                 ],
-            },
-            {
-                // Live state stays in /system (ADR-0004); these entries only link to it (#933).
-                // No permissions on the parent: each child asks for exactly its /system route guard.
-                title: "Monitoring",
-                href: "/system/audit-logs",
-                opensSystem: true,
-                children: [
-                    { title: "Audit Logs", href: "/system/audit-logs", description: "Who changed what, and when", permissions: [PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS], opensSystem: true },
-                    { title: "Scheduled Jobs", href: "/system/cron-status", description: "Whether the scheduled jobs are running", permissions: [PERMISSIONS.SYSTEM_MONITOR], opensSystem: true },
-                    { title: "Notification Queue", href: "/system/notification-queue", description: "Messages waiting to be sent", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE], opensSystem: true },
-                    { title: "Notification History", href: "/system/notification-history", description: "Messages already sent", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE], opensSystem: true },
-                    { title: "WhatsApp Monitoring", href: "/system/whatsapp-monitoring", description: "WhatsApp sends, opt-ins, sessions and disclosures", permissions: [PERMISSIONS.WHATSAPP_VIEW], opensSystem: true },
-                ]
             },
         ]
     }

@@ -5,7 +5,7 @@
 // names the current page.
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { settingsConfig, settingsPageLabel } from '@/config/settings-nav';
@@ -61,53 +61,27 @@ afterEach(() => {
 const type = (value: string) =>
   fireEvent.change(screen.getByRole('searchbox', { name: 'Search settings' }), { target: { value } });
 
-describe('Monitoring entry in the System group', () => {
-  const system = settingsConfig.find((g) => g.title === 'System')!;
-  const monitoring = system.items.find((i) => i.title === 'Monitoring')!;
-
-  it('links to the five /system pages, each marked as opening System', () => {
-    expect(monitoring.children!.map((c) => c.href)).toEqual([
-      '/system/audit-logs',
-      '/system/cron-status',
-      '/system/notification-queue',
-      '/system/notification-history',
-      '/system/whatsapp-monitoring',
-    ]);
-    expect(monitoring.children!.every((c) => c.opensSystem)).toBe(true);
+describe('Settings holds no monitoring links (#1272)', () => {
+  it('has no Monitoring group and no link into /system', () => {
+    const system = settingsConfig.find((g) => g.title === 'System')!;
+    expect(system.items.find((i) => i.title === 'Monitoring')).toBeUndefined();
+    const hrefs = settingsConfig.flatMap((g) => g.items.flatMap((i) => [i.href, ...(i.children ?? []).map((c) => c.href)]));
+    expect(hrefs.filter((h) => h.startsWith('/system'))).toEqual([]);
   });
 
-  it('asks each child for exactly the permission its /system route needs', () => {
-    expect(monitoring.children!.map((c) => c.permissions)).toEqual([
-      [PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS],
-      [PERMISSIONS.SYSTEM_MONITOR],
-      [PERMISSIONS.NOTIFICATIONS_MANAGE],
-      [PERMISSIONS.NOTIFICATIONS_MANAGE],
-      [PERMISSIONS.WHATSAPP_VIEW],
-    ]);
-  });
-
-  it('renders the mark in the sidebar', () => {
+  it('renders no "Opens System" mark in the sidebar', () => {
     state.pathname = '/settings/system';
     render(<SettingsSidebar />);
-    const link = screen.getByRole('link', { name: /Audit Logs/ });
-    expect(link).toHaveAttribute('href', '/system/audit-logs');
-    expect(within(link).getByText('(opens System)')).toBeInTheDocument();
-    expect(screen.getByText('Opens System')).toBeInTheDocument();
+    expect(screen.queryByText('Opens System')).not.toBeInTheDocument();
+    expect(screen.queryByText('(opens System)')).not.toBeInTheDocument();
   });
 });
 
 describe('matchVisibleSettingsEntries', () => {
   const all = () => true;
 
-  it('finds a /system monitoring page and flags it', () => {
-    const hit = search.matchVisibleSettingsEntries(settingsConfig, 'audit', all).find((e) => e.href === '/system/audit-logs');
-    expect(hit?.opensSystem).toBe(true);
-    expect(hit?.type).toBe('system');
-  });
-
-  it('never returns a page the nav does not link to', () => {
-    const noMonitoring = settingsConfig.map((g) => ({ ...g, items: g.items.filter((i) => i.title !== 'Monitoring') }));
-    expect(search.matchVisibleSettingsEntries(noMonitoring, 'audit', all).map((e) => e.href)).not.toContain('/system/audit-logs');
+  it('never returns an Oversight page, which the Settings nav does not link to', () => {
+    expect(search.matchVisibleSettingsEntries(settingsConfig, 'audit', all).map((e) => e.href)).not.toContain('/system/audit-logs');
   });
 
   it('finds a row by its keyword and links to the row and section', () => {
@@ -147,7 +121,7 @@ describe('sidebar search', () => {
     expect(screen.getByRole('link', { name: 'Rate Cards' })).toBeInTheDocument();
 
     type('audit');
-    expect(screen.getByRole('link', { name: /Audit Logs/ })).toHaveAttribute('href', '/system/audit-logs');
+    expect(screen.getByRole('link', { name: /Audit log retention/ })).toHaveAttribute('href', '/settings/system?row=audit-log-retention#retention');
     expect(screen.queryByRole('link', { name: 'Rate Cards' })).not.toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent(/result/);
 
@@ -171,19 +145,18 @@ describe('sidebar search', () => {
     );
   });
 
-  it('does not offer a monitoring page the reader cannot open', () => {
+  it('does not offer a setting the reader cannot open', () => {
     state.permissions = [PERMISSIONS.SETTINGS_MANAGE_BILLING];
     render(<SettingsSidebar />);
     type('audit');
-    expect(screen.queryByRole('link', { name: /Audit Logs/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Audit log retention/ })).not.toBeInTheDocument();
   });
 
   it('opens the first result on Enter', () => {
     render(<SettingsSidebar />);
-    // "audit" also names the Audit log retention row on Maintenance & data (#938), which sorts first.
-    type('who changed');
+    type('how long to keep');
     fireEvent.keyDown(screen.getByRole('searchbox', { name: 'Search settings' }), { key: 'Enter' });
-    expect(push).toHaveBeenCalledWith('/system/audit-logs');
+    expect(push).toHaveBeenCalledWith('/settings/system?row=audit-log-retention#retention');
   });
 });
 
@@ -197,6 +170,6 @@ describe('mobile nav', () => {
     render(<SettingsMobileNav />);
     fireEvent.click(screen.getByRole('button', { name: /Billing Rules/ }));
     type('audit');
-    expect(screen.getByRole('link', { name: /Audit Logs/ })).toHaveAttribute('href', '/system/audit-logs');
+    expect(screen.getByRole('link', { name: /Audit log retention/ })).toHaveAttribute('href', '/settings/system?row=audit-log-retention#retention');
   });
 });

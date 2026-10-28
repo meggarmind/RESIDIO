@@ -26,7 +26,7 @@ residio_app_version: '0.4.0'
 
 ## System dashboard
 
-Open **System** in the sidebar — or the status indicator next to the menu button in the header — to land on the System dashboard at `/system`. It answers "is anything wrong?" at a glance: cards for cron health, notification queue depth, recent audit activity, accounts awaiting approval, and data tools, each showing enough to tell a healthy state from one that needs attention without opening it. A card only appears if your role can open the page it links to, so this page shows a different set of cards to different roles, same as the sections below. Use it as the entry point before working through the detail pages this guide covers next.
+Open **Oversight** in the sidebar — or the status indicator next to the menu button in the header — to land on the **Oversight overview** at `/system`. Oversight has its own left menu with every report and monitoring page. It answers "is anything wrong?" at a glance: cards for cron health, notification queue depth, recent audit activity, accounts awaiting approval, and data tools, each showing enough to tell a healthy state from one that needs attention without opening it. A card only appears if your role can open the page it links to, so this page shows a different set of cards to different roles, same as the sections below. Use it as the entry point before working through the detail pages this guide covers next.
 
 ## Roles and permissions
 
@@ -71,15 +71,15 @@ Work the **Pending sign-ups** queue, under Settings → Roles & Access, as part 
 
 ## Audit logs
 
-Open **System → Audit Logs** to trace creates, updates, approvals, and administrative changes. Filter by entity, actor, action, or date range. Audit logs are something you watch, not something you configure, so the page lives under System rather than Settings.
+Open **Oversight → Audit logs** to trace creates, updates, approvals, and administrative changes. Filter by entity, actor, action, or date range. Audit logs are something you watch, not something you configure, so the page lives under System rather than Settings.
 
 ## Action log
 
-Open **System → Action Log** to see what automated processes, such as scheduled jobs and incoming webhooks, did and whether it worked. Audit logs record what a signed-in person changed; the action log covers runs with nobody signed in. Each entry shows when it ran, its source, the action, an outcome (success, partial or failure), how long it took, any error message, and a collapsible summary of counts and ids. Filter by source, outcome, or date range; newest entries come first. Only super administrators see this page and its sidebar link. It is read-only. Entries older than 90 days are removed when someone runs **Prune Data** under **Settings → Maintenance & Data → Data retention**; nothing prunes them automatically.
+Open **Oversight → Action log** to see what automated processes, such as scheduled jobs and incoming webhooks, did and whether it worked. Audit logs record what a signed-in person changed; the action log covers runs with nobody signed in. Each entry shows when it ran, its source, the action, an outcome (success, partial or failure), how long it took, any error message, and a collapsible summary of counts and ids. Filter by source, outcome, or date range; newest entries come first. Only super administrators see this page and its sidebar link. It is read-only. Entries older than 90 days are removed when someone runs **Prune Data** under **Settings → Maintenance & Data → Data retention**; nothing prunes them automatically.
 
 ## System health
 
-Maintenance mode and data retention (the two sections of **Settings → Maintenance & Data**; the duplicate transaction threshold sits under **Settings → Money → Banking**) are configuration, so they stay under **Settings**. The things you only watch have moved to **System**: **System → Cron Status** for scheduled jobs, and **System → Notification Queue** for messages waiting to go out. A health warning is a prompt to investigate, not a reason to delete data.
+Maintenance mode and data retention (the two sections of **Settings → Maintenance & Data**; the duplicate transaction threshold sits under **Settings → Money → Banking**) are configuration, so they stay under **Settings**. The things you only watch have moved to **System**: **Oversight → Scheduled jobs** for scheduled jobs, and **Oversight → Notification queue** for messages waiting to go out. A health warning is a prompt to investigate, not a reason to delete data.
 
 Turning maintenance mode on asks first and lists how many active accounts, by role, would be sent to the maintenance page: everyone without the super admin role. It shows the saved maintenance message; unsaved edits to the message are not used until you save them. Turning it off takes effect at once. While it is on, admins who can manage maintenance see a banner on every dashboard page saying non-admin users are locked out, so it is hard to leave on by mistake. The maintenance message is saved with the **Save Maintenance mode** button at the foot of the section, which lights up when the message has changed, and the page warns before you leave with unsaved changes. The section is marked **Needs attention** while maintenance mode is on. The switch and the message both need the manage maintenance permission.
 

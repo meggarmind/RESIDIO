@@ -18,7 +18,7 @@ import {
     SheetTrigger,
 } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { OpensSystemMark, SettingsSearchField, SettingsSearchResults, useSettingsSearch } from './settings-search';
+import { SettingsSearchField, SettingsSearchResults, useSettingsSearch } from './settings-search';
 
 /** Does this group hold the page being viewed? See `activeSettingsHref`. */
 function isGroupActive(activeHref: string | null, group: SettingsGroup): boolean {
@@ -121,7 +121,6 @@ export function SettingsMobileNav() {
                                                                 parentActive ? "text-primary" : "text-muted-foreground"
                                                             )}>
                                                                 {item.title}
-                                                                {item.opensSystem && <span className="ml-2 text-xs font-normal">Opens System</span>}
                                                             </span>
                                                             <div className="space-y-1">
                                                                 {item.children.map((child) => {
@@ -140,7 +139,6 @@ export function SettingsMobileNav() {
                                                                             )}
                                                                         >
                                                                             {child.title}
-                                                                            {child.opensSystem && <OpensSystemMark />}
                                                                         </Link>
                                                                     );
                                                                 })}

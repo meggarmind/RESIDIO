@@ -12,7 +12,7 @@ Every page renders inside `DashboardShell`. The shell gives the header, the brea
 - The breadcrumb is part of the shell header (`src/components/dashboard/header.tsx:128`). A page cannot change its trail.
 - `src/app/(dashboard)/loading.tsx` and `src/app/(dashboard)/error.tsx` are the fallbacks for all pages.
 - Only 5 routes have their own `loading.tsx`: `dashboard`, `houses`, `houses/[id]`, `payments`, `residents`. Only `dashboard` has its own `error.tsx`.
-- `settings/layout.tsx` adds a label, a sidebar and a mobile nav (`src/app/(dashboard)/settings/layout.tsx:8-22`). `system/layout.tsx` adds padding only (`src/app/(dashboard)/system/layout.tsx:8`).
+- `settings/layout.tsx` adds a label, a sidebar and a mobile nav (`src/app/(dashboard)/settings/layout.tsx:8-22`). `system/layout.tsx`, `reports/layout.tsx` and `analytics/layout.tsx` wrap their pages in `OversightLayout`, which adds the Oversight left menu and mobile nav.
 
 Header components in use:
 
@@ -385,7 +385,7 @@ Mobile at 375 px: the sidebar hides below `lg`. `SettingsMobileNav` replaces it 
 
 Best example: `src/components/settings/settings-merged-page.tsx` (used by 12 pages). It gives the header, the chips and the leave guard in one frame.
 
-Worst divergence: `src/app/(dashboard)/system/*`. Six pages use `<h3 className="text-lg font-medium">` and no `<h1>` (for example `system/audit-logs/page.tsx:55`). `system/layout.tsx` has no sidebar or nav. `settings/billing/profiles/page.tsx` has no header at all.
+Worst divergence: `src/app/(dashboard)/system/*`. Six pages use `<h3 className="text-lg font-medium">` and no `<h1>` (for example `system/audit-logs/page.tsx:55`). `settings/billing/profiles/page.tsx` has no header at all.
 
 Rules:
 

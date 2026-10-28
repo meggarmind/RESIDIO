@@ -6,7 +6,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { ReportsPageClient } from '@/components/reports/reports-page-client';
 
 export const metadata: Metadata = {
-    title: 'Financial Reports',
+    title: 'Generate reports',
     description: 'Generate and view financial reports',
 };
 

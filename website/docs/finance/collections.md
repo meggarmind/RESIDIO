@@ -55,7 +55,7 @@ A notified party is someone told about a payment, such as the security superviso
 
 Each party has a name and the channels to use: email, WhatsApp or SMS. The message gives the payer's name, the item, quantity, amount, date, receipt number and reference. It never gives the payer's phone number or email. The party does not need a login.
 
-WhatsApp reaches a party only when that number has opted in to WhatsApp messages, the same rule as every other WhatsApp message. SMS is not available yet. When a channel cannot be used, the confirmation after recording says so. A message that fails later shows in **System → Notification History**.
+WhatsApp reaches a party only when that number has opted in to WhatsApp messages, the same rule as every other WhatsApp message. SMS is not available yet. When a channel cannot be used, the confirmation after recording says so. A message that fails later shows in **Oversight → Notification history**.
 
 ## Collections on a statement
 

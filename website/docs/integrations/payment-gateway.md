@@ -35,7 +35,7 @@ Residio acts on two outcomes: a successful charge and a failed charge. Anything 
 
 Every gateway notification is cryptographically signed, and Residio rejects any notification whose signature does not verify. A payment that never appears was therefore either never completed at the gateway, or was sent to the wrong destination — it was not silently dropped. If the webhook secret is not configured on the server, Residio refuses every notification rather than accepting unverified ones, so no gateway payment is recorded until an engineer sets it.
 
-Each notification that changes a payment, and each signed notification that fails to process, is recorded in **System → Action Log** with the source *webhook:paystack*. Ignored events and repeat deliveries of an already-processed payment are not recorded.
+Each notification that changes a payment, and each signed notification that fails to process, is recorded in **Oversight → Action log** with the source *webhook:paystack*. Ignored events and repeat deliveries of an already-processed payment are not recorded.
 
 To confirm a specific payment:
 
@@ -72,5 +72,5 @@ Administrators cannot see which key is in use from the dashboard. If real paymen
 | Payer says they paid, no transaction in Residio | Gateway dashboard for the reference — confirm the charge actually succeeded |
 | Transaction present but not applied | **Approvals** for a pending verification |
 | All card payments failing | Gateway credentials or account status — escalate to an engineer |
-| Charges succeed at the gateway but none reach Residio | **System → Action Log** for *webhook:paystack* entries; none at all can mean the webhook secret is not set — escalate to an engineer |
+| Charges succeed at the gateway but none reach Residio | **Oversight → Action log** for *webhook:paystack* entries; none at all can mean the webhook secret is not set — escalate to an engineer |
 | Payment recorded twice | One arrived from the gateway and one was entered manually — correct, do not delete |

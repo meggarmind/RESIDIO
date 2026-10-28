@@ -20,7 +20,7 @@ export default async function WhatsAppMonitoringPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h3 className="text-lg font-medium">WhatsApp Monitoring</h3>
+          <h3 className="text-lg font-medium">WhatsApp activity</h3>
           <p className="text-sm text-muted-foreground">
             Watch WhatsApp sends, opt-ins, contacts, sessions and disclosures. Set an auto-refresh interval, or refresh now.
           </p>
