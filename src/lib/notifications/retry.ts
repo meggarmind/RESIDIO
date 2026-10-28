@@ -30,6 +30,11 @@ export function nextLagosMidnight(now: Date): Date {
   return lagosMidnight(year, month, day + 1);
 }
 
+/** The next 00:00 UTC strictly after `now`, when the Resend daily quota resets (#1265). */
+export function nextUtcMidnight(now: Date): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+}
+
 /** Burst window in minutes, with the same validation and default (10) as the Send Policy. */
 export function resolveBurstWindowMinutes(configured: unknown): number {
   return typeof configured === 'number' && Number.isInteger(configured) && configured > 0
