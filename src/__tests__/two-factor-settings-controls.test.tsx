@@ -29,6 +29,7 @@ vi.mock('@/hooks/use-two-factor', () => ({
   useDisable2FA: () => mocks.hooks.disable,
   useRequestDisableCode: () => mocks.hooks.requestDisable,
   useGenerateBackupCodes: () => mocks.hooks.regenerate,
+  useSendBackupCodes: () => mocks.hooks.send,
 }));
 
 import { TwoFactorControls } from '@/app/(dashboard)/settings/two-factor/two-factor-controls';
@@ -44,6 +45,7 @@ beforeEach(() => {
     disable: mutation(),
     requestDisable: mutation(),
     regenerate: mutation(),
+    send: mutation(),
   };
 });
 afterEach(cleanup);
@@ -173,6 +175,33 @@ describe('two-factor settings controls', () => {
 
       await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Share' })); });
       expect(toast.error).toHaveBeenCalledWith('Could not share. Save the file instead.');
+    });
+
+    it.each([
+      ['Email me', 'email'],
+      ['WhatsApp me', 'whatsapp'],
+    ])('%s sends the shown codes by %s and toasts the result', async (label, channel) => {
+      const { toast } = await import('sonner');
+      vi.mocked(toast.success).mockClear();
+      vi.mocked(toast.error).mockClear();
+      showCodes(['HHHH8888', 'IIII9999']);
+
+      fireEvent.click(screen.getByRole('button', { name: label }));
+
+      const [input, opts] = mocks.hooks.send.mutate.mock.calls[0] as [unknown, MutateOptions];
+      expect(input).toEqual({ channel, codes: ['HHHH8888', 'IIII9999'] });
+      act(() => opts.onSuccess?.({ success: true, message: 'Backup codes sent to f***@example.com' }));
+      expect(toast.success).toHaveBeenCalledWith('Backup codes sent to f***@example.com');
+      act(() => opts.onError?.(new Error('These codes can no longer be sent. Make new backup codes.')));
+      expect(toast.error).toHaveBeenCalledWith('These codes can no longer be sent. Make new backup codes.');
+    });
+
+    it('disables Email me and WhatsApp me while a send is pending, and warns about inbox and chat access', () => {
+      mocks.hooks.send.isPending = true;
+      showCodes(['JJJJ0000']);
+      expect(screen.getByRole('button', { name: 'Email me' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'WhatsApp me' })).toBeDisabled();
+      expect(screen.getByText(/anyone who can open that inbox or chat can use the codes/i)).toBeInTheDocument();
     });
 
     it('hides Share when the device cannot share a file', () => {

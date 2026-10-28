@@ -8,13 +8,13 @@ import { describe, expect, it } from 'vitest';
  * may appear only at its sanctioned call sites, the override module itself, and
  * tests. Anything else that passes one would send unredirected messages from UAT
  * data.
- *   self_auth_2fa  the two 2FA actions (self-addressed code to the signed-in user)
+ *   self_auth_2fa  the 2FA actions (self-addressed code or backup codes to the signed-in user)
  *   inbound_reply  the two inbound WhatsApp Assistant reply sites (decision 8)
  */
 const srcDir = fileURLToPath(new URL('../../..', import.meta.url));
 
 const PURPOSES: Array<{ needle: string; allowed: string[] }> = [
-  { needle: 'self_auth_2fa', allowed: ['actions/two-factor/setup.ts', 'actions/two-factor/verify.ts'] },
+  { needle: 'self_auth_2fa', allowed: ['actions/two-factor/setup.ts', 'actions/two-factor/verify.ts', 'actions/two-factor/backup-codes.ts'] },
   { needle: 'inbound_reply', allowed: ['lib/whatsapp/identity.ts', 'lib/whatsapp/financial.ts'] },
 ];
 
