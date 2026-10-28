@@ -10,7 +10,7 @@ residio_sources:
   - src/app/(dashboard)/settings/whatsapp-admin/**
   - src/app/(dashboard)/system/whatsapp-monitoring/**
   - src/app/api/whatsapp/**
-residio_verified_commit: 86f51e25
+residio_verified_commit: c8f57c63
 residio_verified_at: '2026-10-28'
 residio_app_version: '0.4.0'
 ---
@@ -30,6 +30,8 @@ The Financial PIN policy, opt-in import and operations console sit in a **Reside
 Before any message can be sent, the estate needs a WhatsApp provider connected. This no longer needs a developer or a redeploy — an admin with access to **Settings → WhatsApp** can connect, replace, or disconnect the provider directly from the connection card at the top of the page.
 
 Choose one of four providers. Only one is active at a time — saving a different provider replaces the current one.
+
+The top of the connection card shows the **current provider** and the date it was saved. To switch, select **Change provider**, pick the new provider in the list, and enter its details. Select **Cancel** to leave the saved provider as it is. **Replace credentials** is for the same provider with new keys. The page has a row of jump tabs (Connection, Channel, Rollout and so on) that scroll to each section.
 
 | Provider | Why choose it |
 |---|---|

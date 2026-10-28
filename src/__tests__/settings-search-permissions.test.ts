@@ -123,6 +123,7 @@ describe('Settings row search entry permissions (#934, #935, #937)', () => {
   const NOTIFICATIONS = ['notifications.manage'];
   const BILLING = ['settings.manage_billing'];
   const REFERENCE = ['settings.manage_reference'];
+  const WHATSAPP = ['whatsapp.view'];
 
   it('pins each row of the merged task pages to the permission of its own section', () => {
     expect(
@@ -155,6 +156,16 @@ describe('Settings row search entry permissions (#934, #935, #937)', () => {
       'reset-security-defaults': ['settings.manage_security'],
       'contact-category-rules': ['security.manage_categories'],
       'session-timeout-minutes': ['system.manage_maintenance'],
+      // WhatsApp (#1271): the page opens for whatsapp.view and its sections declare none of their own.
+      'whatsapp-provider': WHATSAPP,
+      'whatsapp-enabled': WHATSAPP,
+      'whatsapp-rollout': WHATSAPP,
+      'whatsapp-force-pin': WHATSAPP,
+      'whatsapp-opt-in-import': WHATSAPP,
+      'whatsapp-roll-forward-balance': WHATSAPP,
+      'whatsapp-assistant-text': WHATSAPP,
+      'whatsapp-privacy-notice': WHATSAPP,
+      'whatsapp-monitoring': WHATSAPP,
       // Billing rules (#935): the page opens for manage_billing in the nav and its sections declare none of their own.
       'bill-vacant-houses': BILLING,
       'bill-under-renovation': BILLING,
