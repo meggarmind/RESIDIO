@@ -23,6 +23,8 @@ import type {
   WhatsAppFinancialSession,
 } from '@/lib/whatsapp/financial';
 import type { WhatsAppInboundMessage } from '@/lib/whatsapp/types';
+import { createWahaWhatsAppProvider } from '@/lib/whatsapp/providers/waha';
+import { resolveWahaInbound } from '@/lib/whatsapp/providers/waha-inbound';
 import type { WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
 import type { AccountStatementData } from '@/lib/billing/account-statement-data';
 import { getSettingResultAsService } from '@/lib/settings/service';
@@ -2325,5 +2327,54 @@ describe('WhatsApp Assistant several houses (#1073)', () => {
     const chain = { select: vi.fn().mockReturnThis(), eq, not: vi.fn().mockResolvedValue({ data: [], error: null }), in: vi.fn().mockResolvedValue({ data: [{ house_id: 'house-9', resident_role: 'developer', house: { house_number: '9', short_name: null, street: { name: 'Elm' } } }], error: null }) };
     vi.mocked(createAdminClient).mockReturnValue({ from: vi.fn().mockReturnValue(chain) } as unknown as ReturnType<typeof createAdminClient>);
     await expect(createSupabaseWhatsAppFinancialRepository().getBillableHouses('resident-1')).resolves.toEqual([{ id: 'house-9', label: '9, Elm', role: 'developer' }]);
+  });
+});
+
+describe('WAHA conversation from an @lid sender (#1285)', () => {
+  // NOWEB answers a send with a Baileys `key` and no `id`; that answer used to read as a failed send.
+  function wahaSend() {
+    const fetchImpl = vi.fn(async (url: string) =>
+      new Response(
+        JSON.stringify(
+          url.includes('/api/sessions/')
+            ? { status: 'WORKING', me: { id: '2348037000101@c.us' } }
+            : { key: { remoteJid: '2348000000000@s.whatsapp.net', fromMe: true, id: `BAE5${counter}` }, status: 'PENDING' }
+        ),
+        { status: 201 }
+      )
+    );
+    const provider = createWahaWhatsAppProvider(
+      { provider: 'waha', apiKey: 'k', webhookSecret: 's', baseUrl: 'https://waha.test/1285', session: 'default', fromNumber: '+2348037000101' },
+      fetchImpl as unknown as typeof fetch
+    );
+    return vi.fn((outbound: { to: string; body: string }) => provider.sendText(outbound));
+  }
+
+  async function lidMessage(text: string) {
+    counter += 1;
+    const inbound = await resolveWahaInbound(
+      { id: `false_123456789@lid_${counter}`, from: '123456789@lid', fromMe: false, body: text, timestamp: 1760000000 },
+      async () => '2348000000000@c.us'
+    );
+    return inbound!.message;
+  }
+
+  it('saves the session on the first message and continues it on the second', async () => {
+    const repo = repository();
+    const send = wahaSend();
+
+    const first = await lidMessage('Hi');
+    expect(first.from).toBe('+2348000000000');
+    await handleFinancialMessage(first, identity, { repository: repo, optedIn: true, send });
+
+    expect(repo.saveSession).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(repo.saveSession).mock.calls[0][0]).toMatchObject({ phoneNumber: '+2348000000000', currentNode: 'main' });
+
+    send.mockClear();
+    await handleFinancialMessage(await lidMessage('1'), identity, { repository: repo, optedIn: true, send });
+
+    expect(repo.getSession).toHaveBeenLastCalledWith('+2348000000000');
+    expect(send.mock.calls.map((call) => call[0].body).join('\n\n')).toBe(FINANCIAL_MENU);
+    expect(repo.saveSession).toHaveBeenCalledTimes(2);
   });
 });

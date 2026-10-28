@@ -116,6 +116,7 @@ WAHA works through a phone that stays paired to the session, so the same limits 
 - **Human takeover.** The pause works as for Chatmaid. If someone on the estate team replies from the phone, the Assistant stays silent in that conversation for 30 minutes. `STOP` is still honoured.
 - **Hidden sender numbers.** WhatsApp can hide the number of a contact behind an internal `@lid` identifier. Residio asks WAHA for the number behind it and answers the sender as usual. If WAHA does not know the number, Residio does not answer, because it cannot be sure who the sender is. The 15-minute catch-up does not look up these numbers, so a missed message from such a sender is not answered later.
 - **Ignored messages leave a reason.** Each message Residio does not answer leaves an `inbound_ignored` row in the System Action Log, with the reason only: `group`, `from_me`, `lid_unresolved`, `other_id`, `no_text` or `human_takeover`. The row holds no phone number and no message text.
+- **Failed batches leave a reason.** When Residio cannot process a batch of incoming messages, the `inbound_messages` failure row in the System Action Log names the step that failed (`claim`, `handle` or `release`) and the type of error, never the error text. WAHA then sends the batch again.
 
 ## Turning the channel on
 

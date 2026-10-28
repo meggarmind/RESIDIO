@@ -70,4 +70,6 @@ export interface InboundMessageResult {
   duplicateCount: number;
   ignoredCount: number;
   error?: string;
+  /** Failed step and error class, safe to log (#1285): `handle: ReplySendError`. */
+  failureReason?: string;
 }
