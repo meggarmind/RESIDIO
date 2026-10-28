@@ -107,7 +107,7 @@ export async function retryWhatsAppClearanceCopy(copyId: string): Promise<Result
 
 /**
  * Recent sends residents may not have received (#839): failed by the provider,
- * or Chatmaid sends still unconfirmed past the pending timeout.
+ * or bridge (Chatmaid, WAHA) sends still unconfirmed past the pending timeout.
  */
 export async function getWhatsAppDeliveryProblems(): Promise<Result<unknown[]>> {
   const authorization = await authorizePermission(PERMISSIONS.WHATSAPP_VIEW);
@@ -119,7 +119,7 @@ export async function getWhatsAppDeliveryProblems(): Promise<Result<unknown[]>> 
     .from('whatsapp_outbound_sends')
     .select('id, provider, purpose, phone_number, inbound_message_id, status, error_code, error_message, created_at, status_updated_at, resident:residents(first_name, last_name, resident_code)')
     .gte('created_at', since)
-    .or(`status.eq.failed,and(status.eq.pending,provider.eq.chatmaid,created_at.lt.${staleBefore})`)
+    .or(`status.eq.failed,and(status.eq.pending,provider.in.(chatmaid,waha),created_at.lt.${staleBefore})`)
     .order('created_at', { ascending: false })
     .limit(200);
 

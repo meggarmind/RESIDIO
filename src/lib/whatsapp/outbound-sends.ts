@@ -31,7 +31,10 @@ export type OutboundDeliveryStatus = 'sent' | 'delivered' | 'failed';
 /** Repeated failures that raise an admin notification: this many within the window. */
 export const OUTBOUND_FAILURE_ALERT_THRESHOLD = 3;
 export const OUTBOUND_FAILURE_ALERT_WINDOW_MINUTES = 10;
-/** A Chatmaid send still `pending` this long after acceptance is treated as failed. */
+/** Providers that report delivery status by webhook (Chatmaid, WAHA); see `bridge-provider.ts`. */
+const BRIDGE_PROVIDER_NAMES = ['chatmaid', 'waha'];
+
+/** A bridge send still `pending` this long after acceptance is treated as failed. */
 export const OUTBOUND_PENDING_TIMEOUT_MINUTES = 15;
 
 // Status events can arrive out of order; a status only moves forward, so a
@@ -125,8 +128,8 @@ export async function countRecentOutboundFailures(
 }
 
 /**
- * Claims Chatmaid sends still `pending` past the timeout that no earlier sweep
- * has alerted on, and returns how many were claimed. Only Chatmaid reports
+ * Claims bridge sends (Chatmaid, WAHA) still `pending` past the timeout that no earlier sweep
+ * has alerted on, and returns how many were claimed. Only the bridges report
  * delivery status, so other providers' sends are never treated as stale.
  */
 export async function claimStalePendingSends(
@@ -136,7 +139,7 @@ export async function claimStalePendingSends(
   const { data, error } = await createAdminClient()
     .from('whatsapp_outbound_sends')
     .update({ pending_alerted_at: new Date().toISOString() })
-    .eq('provider', 'chatmaid')
+    .in('provider', BRIDGE_PROVIDER_NAMES)
     .eq('status', 'pending')
     .is('pending_alerted_at', null)
     .lt('created_at', cutoff)

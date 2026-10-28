@@ -42,9 +42,15 @@ Hostinger KVM 2  (x86, 2 vCPU, 8 GB RAM, 100 GB NVMe)
 └── Coolify (Traefik terminates TLS)
     ├── residio-prod   -> app.<domain>    -> Supabase project Residio_Prod
     ├── residio-stage-image -> stage.<domain> -> Supabase project Residio_Stage (CI-built GHCR image)
-    └── Scheduled tasks: the 11 scheduled cron routes (see "Scheduled tasks" below), on prod and stage
+    ├── residio-waha-stage  -> WAHA WhatsApp gateway for Stage (#1260); no app hostname, reached by the Stage app over HTTPS
+    └── Scheduled tasks: the 12 scheduled cron routes (see "Scheduled tasks" below), on prod and stage
 ```
 
+- `residio-waha-stage` is the self-hosted WAHA container (`devlikeapro/waha`, NOWEB engine) that the
+  `waha` WhatsApp provider talks to (ADR-0008). The Coolify service, its volume and the QR pairing are
+  set up by #1261, not by the app code. The app reaches it at the server address saved in **Settings
+  → WhatsApp**, and WAHA calls back to `/api/whatsapp/webhook/waha` on the Stage app. Its cron task is
+  `whatsapp-waha-reconcile` (see "The tasks"). There is no Prod WAHA service yet.
 - Builds run on the VPS (8 GB covers Coolify ~1 GB, two app containers ~0.5-1 GB each, and a
   2-4 GB build spike). x86, so no ARM image concern.
 - One image per environment: `NEXT_PUBLIC_*_CLOUD` values are inlined at build time
@@ -57,7 +63,7 @@ Hostinger KVM 2  (x86, 2 vCPU, 8 GB RAM, 100 GB NVMe)
 ## Scheduled tasks (#399)
 
 `vercel.json` was the only definition of Residio's schedules and is inert off Vercel, so it has
-been removed. The eleven schedules now live as **Coolify scheduled tasks on both the `residio-prod`
+been removed. The twelve schedules now live as **Coolify scheduled tasks on both the `residio-prod`
 and the `residio-stage-image` application**, with the same container, frequency and command on each.
 Stage's 11 Coolify scheduled tasks are attached to `residio-stage-image` (moved from the
 stopped `residio-stage`, #1114). Coolify configuration is not in the repo, so this section is the record; if a task is changed in
@@ -107,6 +113,7 @@ read from the container's environment by the command, so it is never written int
 | `whatsapp-retention` | `15 0 * * *` | 60000 |
 | `purge-performance-events` | `30 0 * * *` | 60000 |
 | `whatsapp-chatmaid-reconcile` | `*/15 * * * *` | 120000 |
+| `whatsapp-waha-reconcile` | `*/15 * * * *` | 120000 |
 | `generate-invoices` | `0 6 * * *` | 300000 |
 | `process-report-schedules` | `0 7 * * *` | 300000 |
 | `payment-reminders` | `0 8 * * *` | 120000 |
@@ -149,6 +156,9 @@ node -e "fetch('http://127.0.0.1:3000/api/cron/whatsapp-retention',{headers:{Aut
 # whatsapp-chatmaid-reconcile  (*/15 * * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/whatsapp-chatmaid-reconcile',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(120000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
 
+# whatsapp-waha-reconcile  (*/15 * * * *)
+node -e "fetch('http://127.0.0.1:3000/api/cron/whatsapp-waha-reconcile',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(120000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
+
 # generate-invoices  (0 6 * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/generate-invoices',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(300000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
 
@@ -178,6 +188,7 @@ node -e "fetch('http://127.0.0.1:3000/api/cron/process-notifications',{headers:{
 | 60 s | `process-notifications` | Declared `maxDuration`. |
 | 60 s | `expire-approvals` | One read, one set-based UPDATE inside `process_expired_approvals()` and one in-app notification per expired request (#558). Hourly, so the backlog is small. New route: the owner must create this Coolify task; nothing runs it until then. |
 | 120 s | `whatsapp-chatmaid-reconcile` | New route (#511): at most 3 Chatmaid list calls (15 s timeout each) plus the Assistant reply for any message the webhook missed. Nothing runs it until the owner creates this Coolify task. |
+| 120 s | `whatsapp-waha-reconcile` | New route (#1262): at most 3 WAHA message-store reads (15 s timeout each) plus the Assistant reply for any message the webhook missed. It does nothing unless WAHA is the active provider. Nothing runs it until the owner creates this Coolify task. |
 | 60 s | `purge-performance-events` | New route (#957): one `DELETE ... WHERE occurred_at < now() - 30 days` on `performance_events`. Nothing runs it until the owner creates this Coolify task. |
 | 60 s | `whatsapp-retention` | **Previously undeclared.** Four bulk `DELETE ... WHERE <timestamp> < cutoff` statements run in parallel (`src/lib/whatsapp/retention.ts`) and nothing else; it runs daily so the backlog is small. Anything near 60 s means something is wrong. |
 
@@ -187,13 +198,13 @@ the app logs and the run history before re-triggering anything that creates reco
 
 ### Not scheduled: `apply-late-fees`
 
-There are twelve cron routes and **eleven** schedules. `src/app/api/cron/apply-late-fees` exists and
+There are thirteen cron routes and **twelve** schedules. `src/app/api/cron/apply-late-fees` exists and
 authenticates like the others, but it has **never had a `vercel.json` entry** (its handler comment
 says "7 AM UTC daily (configured in vercel.json)"; that was never true), so late fees have never
 run on a schedule in any environment. It was left unscheduled because #399 listed nine schedules.
 Whether to schedule it (the handler's comment suggests `0 7 * * *`) is an owner decision rather
-than an infrastructure one, because it starts charging residents. If the owner says yes, add an
-eleventh task with the same command (300000 ms) and update this table.
+than an infrastructure one, because it starts charging residents. If the owner says yes, add a
+thirteenth task with the same command (300000 ms) and update this table.
 
 ### Failure visibility (owner, in Coolify)
 

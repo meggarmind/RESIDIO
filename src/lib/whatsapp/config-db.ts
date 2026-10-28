@@ -4,6 +4,7 @@ import type {
   ChatmaidWhatsAppConfig,
   MetaWhatsAppConfig,
   TwilioWhatsAppConfig,
+  WahaWhatsAppConfig,
   WhatsAppConfig,
 } from '@/lib/whatsapp/config';
 
@@ -114,6 +115,40 @@ export async function loadWhatsAppConfigFromDb(): Promise<StoredWhatsAppConfig> 
         webhookSecret,
         fromNumber: data.whatsapp_from_number,
         baseUrl: CHATMAID_DEFAULT_BASE_URL,
+      };
+
+      return { status: 'ok', config };
+    }
+
+    if (data.provider === 'waha') {
+      // The WAHA columns are not in the generated types until the migration is applied and the types are
+      // regenerated, so they are read through a cast (same approach as statement-delivery.ts).
+      const waha = data as unknown as {
+        waha_api_key_encrypted: string | null;
+        waha_webhook_secret_encrypted: string | null;
+        waha_base_url: string | null;
+        waha_session: string | null;
+      };
+      const apiKey = waha.waha_api_key_encrypted ? decrypt(waha.waha_api_key_encrypted) : '';
+      const webhookSecret = waha.waha_webhook_secret_encrypted ? decrypt(waha.waha_webhook_secret_encrypted) : '';
+      const baseUrl = waha.waha_base_url?.trim() ?? '';
+      const session = waha.waha_session?.trim() ?? '';
+
+      // No defaults: the server and the session are the estate's own, and a guessed one would send to the wrong place.
+      if (!apiKey || !webhookSecret || !baseUrl || !session || !data.whatsapp_from_number) {
+        return {
+          status: 'unusable',
+          reason: 'stored WAHA credentials are missing required fields',
+        };
+      }
+
+      const config: WahaWhatsAppConfig = {
+        provider: 'waha',
+        apiKey,
+        webhookSecret,
+        baseUrl,
+        session,
+        fromNumber: data.whatsapp_from_number,
       };
 
       return { status: 'ok', config };

@@ -1,0 +1,254 @@
+import { createHash } from 'node:crypto';
+import type { WahaWhatsAppConfig } from '@/lib/whatsapp/config';
+import type { WhatsAppProvider } from '@/lib/whatsapp/provider';
+import { renderTemplateToText } from '@/lib/whatsapp/providers/chatmaid';
+import { isRetryableHttpStatus } from '@/lib/whatsapp/retry';
+import type {
+  WhatsAppSendResult,
+  WhatsAppTemplateMessage,
+  WhatsAppTextMessage,
+} from '@/lib/whatsapp/types';
+
+/**
+ * WAHA WhatsApp provider (#1262).
+ *
+ * WAHA is a self-hosted WhatsApp Web bridge. This file mirrors
+ * `providers/chatmaid.ts`. The endpoints, headers and fields below are read
+ * from the WAHA documentation (https://waha.devlike.pro, read 27 Oct 2026).
+ * They are NOT yet measured against a live WAHA container, which the sibling
+ * Coolify slice provides. Treat every response shape here as assumed until a
+ * Stage run confirms it.
+ *
+ * Decisions, each following from the Chatmaid file:
+ *
+ * 1. **Connection is checked before every send, with a 30s cache.**
+ *    `GET /api/sessions/{session}` must report `status: 'WORKING'`. Any other
+ *    status, or a transport error, returns the same `bridge is disconnected`
+ *    error shape that `src/lib/notifications/send.ts` already handles for
+ *    Chatmaid. A 404 or 422 from a send (WAHA's answer for a missing or
+ *    stopped session) is also treated as disconnected and clears the cache.
+ *
+ * 2. **`sendTemplate` renders to plain text locally.** WAHA has no template
+ *    concept. The renderer is the one Chatmaid uses (`renderTemplateToText`).
+ *
+ * 3. **`idempotencySeed` is accepted and unused.** WAHA has no idempotency key.
+ *    The Chatmaid identical-text drop (#842) does not exist here, so a repeated
+ *    text is never silently dropped and a retry can send twice.
+ *
+ * 4. **Files go one request each, after the text.** `mediaUrls` (#871) become
+ *    one `POST /api/sendFile` per URL, with the caption on the first file only.
+ *
+ * The API key is sent only in the `X-Api-Key` header and never appears in a
+ * returned error or a log line.
+ */
+
+const CONNECTION_CACHE_TTL_MS = 30_000;
+const API_KEY_FINGERPRINT_LENGTH = 12;
+const WORKING_STATUS = 'WORKING';
+
+interface CachedConnection {
+  status: string;
+  cachedAt: number;
+}
+
+// One entry per (baseUrl, session, api key fingerprint). Keyed by value, so a
+// re-resolved config still hits the same entry, and a rotated key does not
+// inherit a reading taken under the old key.
+const connectionCache = new Map<string, CachedConnection>();
+
+/** A short sha256 prefix of the API key, never the key itself. */
+function apiKeyFingerprint(apiKey: string): string {
+  return createHash('sha256').update(apiKey, 'utf8').digest('hex').slice(0, API_KEY_FINGERPRINT_LENGTH);
+}
+
+type WahaConnectionConfig = Pick<WahaWhatsAppConfig, 'baseUrl' | 'session' | 'apiKey'>;
+
+function connectionCacheKey(config: WahaConnectionConfig): string {
+  return `${config.baseUrl}|${config.session}|${apiKeyFingerprint(config.apiKey)}`;
+}
+
+function digitsOf(value: string): string {
+  return value.replace(/[^0-9]/g, '');
+}
+
+async function safeJson(response: Response): Promise<Record<string, unknown> | null> {
+  try {
+    return (await response.json()) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+export type WahaPhoneLookup =
+  | { ok: false; httpStatus: number }
+  | { ok: true; status: string; phone: string | null };
+
+/**
+ * `GET /api/sessions/{session}`, the one read behind the send-time check and
+ * the connection test. `phone` is the digits of `me.id` (`2348...@c.us`), or
+ * null while the session has no paired handset. Network errors propagate;
+ * callers own the "could not reach" message.
+ */
+export async function lookupWahaPhone(
+  config: WahaConnectionConfig,
+  fetchImpl: typeof fetch = fetch
+): Promise<WahaPhoneLookup> {
+  const response = await fetchImpl(`${config.baseUrl}/api/sessions/${encodeURIComponent(config.session)}`, {
+    headers: { 'X-Api-Key': config.apiKey },
+    cache: 'no-store',
+  });
+  if (!response.ok) {
+    return { ok: false, httpStatus: response.status };
+  }
+
+  const body = await safeJson(response);
+  const status = typeof body?.status === 'string' ? body.status : 'unknown';
+  const meId = (body?.me as Record<string, unknown> | null | undefined)?.id;
+  const phone = typeof meId === 'string' ? digitsOf(meId.split('@')[0]) : '';
+  return { ok: true, status, phone: phone || null };
+}
+
+/** `status` of the session, or 'unknown' when WAHA does not answer with one. */
+export async function fetchWahaConnectionStatus(
+  config: WahaConnectionConfig,
+  fetchImpl: typeof fetch = fetch
+): Promise<string> {
+  const lookup = await lookupWahaPhone(config, fetchImpl);
+  return lookup.ok ? lookup.status : 'unknown';
+}
+
+const DISCONNECTED_ERROR = 'WAHA bridge is disconnected';
+
+/** Whether the session is `WORKING`, cached for 30s. */
+async function isSessionWorking(config: WahaWhatsAppConfig, fetchImpl: typeof fetch): Promise<boolean> {
+  const cacheKey = connectionCacheKey(config);
+  const now = Date.now();
+  const cached = connectionCache.get(cacheKey);
+  if (cached && now - cached.cachedAt < CONNECTION_CACHE_TTL_MS) {
+    return cached.status === WORKING_STATUS;
+  }
+
+  let status: string;
+  try {
+    status = await fetchWahaConnectionStatus(config, fetchImpl);
+  } catch {
+    return false;
+  }
+
+  // A failed or unreadable check is not cached: the next send re-checks.
+  if (status === 'unknown') {
+    return false;
+  }
+  connectionCache.set(cacheKey, { status, cachedAt: now });
+  return status === WORKING_STATUS;
+}
+
+/** `2348...@c.us`: the digits of the E.164 number plus WAHA's person suffix. */
+function toChatId(to: string): string {
+  return `${digitsOf(to)}@c.us`;
+}
+
+/** The last path segment of the URL, without the query, for the file name WhatsApp shows. */
+function fileNameOf(url: string): string {
+  try {
+    const segment = new URL(url).pathname.split('/').filter(Boolean).pop();
+    return segment ? decodeURIComponent(segment) : 'document.pdf';
+  } catch {
+    return 'document.pdf';
+  }
+}
+
+type WahaPostResult =
+  | { ok: true; messageId: string }
+  | { ok: false; result: WhatsAppSendResult };
+
+export function createWahaWhatsAppProvider(
+  config: WahaWhatsAppConfig,
+  fetchImpl: typeof fetch = fetch
+): WhatsAppProvider {
+  async function post(path: string, payload: Record<string, unknown>): Promise<WahaPostResult> {
+    let response: Response;
+    try {
+      response = await fetchImpl(`${config.baseUrl}${path}`, {
+        method: 'POST',
+        headers: { 'X-Api-Key': config.apiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session: config.session, ...payload }),
+      });
+    } catch {
+      return { ok: false, result: { success: false, error: 'WAHA provider request failed', retryable: true } };
+    }
+
+    // A missing or stopped session (disconnected between the check and the send).
+    if (response.status === 404 || response.status === 422) {
+      connectionCache.delete(connectionCacheKey(config));
+      return { ok: false, result: { success: false, error: DISCONNECTED_ERROR } };
+    }
+
+    if (response.status === 429) {
+      return { ok: false, result: { success: false, error: 'WAHA rate limit exceeded', retryable: true } };
+    }
+
+    if (!response.ok) {
+      const body = await safeJson(response);
+      const error =
+        (typeof body?.message === 'string' && body.message) ||
+        (typeof body?.error === 'string' && body.error) ||
+        `WAHA request failed (HTTP ${response.status})`;
+      return { ok: false, result: { success: false, error, retryable: isRetryableHttpStatus(response.status) } };
+    }
+
+    const body = await safeJson(response);
+    const id = body?.id;
+    // WAHA's message `id` is a string (`true_2348...@c.us_3EB0...`); an object id is not usable.
+    if (typeof id !== 'string' || id.length === 0) {
+      return {
+        ok: false,
+        result: { success: false, error: 'WAHA provider returned no message ID', retryable: false },
+      };
+    }
+    return { ok: true, messageId: id };
+  }
+
+  async function sendContent(to: string, content: string, mediaUrls?: string[]): Promise<WhatsAppSendResult> {
+    if (!(await isSessionWorking(config, fetchImpl))) {
+      return { success: false, error: DISCONNECTED_ERROR };
+    }
+
+    const chatId = toChatId(to);
+    const files = mediaUrls ?? [];
+    let firstMessageId: string | undefined;
+
+    // Text first, then the files. A file-only send (empty text) skips the text request.
+    if (content.length > 0 || files.length === 0) {
+      const sent = await post('/api/sendText', { chatId, text: content });
+      if (!sent.ok) return sent.result;
+      firstMessageId = sent.messageId;
+    }
+
+    for (const [index, url] of files.entries()) {
+      const filename = fileNameOf(url);
+      const sent = await post('/api/sendFile', {
+        chatId,
+        file: { url, mimetype: 'application/pdf', filename },
+        ...(index === 0 ? { caption: filename } : {}),
+      });
+      if (!sent.ok) {
+        // An earlier part already went out; a retry would send it twice, so this failure is final.
+        return firstMessageId ? { ...sent.result, retryable: false } : sent.result;
+      }
+      firstMessageId ??= sent.messageId;
+    }
+
+    return { success: true, messageId: firstMessageId };
+  }
+
+  return {
+    async sendText(message: WhatsAppTextMessage) {
+      return sendContent(message.to, message.body, message.mediaUrls);
+    },
+    async sendTemplate(message: WhatsAppTemplateMessage) {
+      const content = await renderTemplateToText(message.templateName, message.parameters);
+      return sendContent(message.to, content);
+    },
+  };
+}

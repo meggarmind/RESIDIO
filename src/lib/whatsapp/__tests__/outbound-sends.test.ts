@@ -181,7 +181,7 @@ describe('outboundSendExists', () => {
 });
 
 describe('alertStalePendingSends (pending timeout)', () => {
-  it('claims Chatmaid sends pending over 15 minutes and alerts admins once', async () => {
+  it('claims bridge (Chatmaid and WAHA) sends pending over 15 minutes and alerts admins once', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(Date.parse('2026-10-20T12:00:00.000Z'));
     const claim = query({ data: [{ id: 'a' }, { id: 'b' }], error: null });
@@ -190,7 +190,7 @@ describe('alertStalePendingSends (pending timeout)', () => {
 
     expect(await alertStalePendingSends()).toBe(2);
     expect(claim.calls).toEqual(expect.arrayContaining([
-      ['eq', ['provider', 'chatmaid']],
+      ['in', ['provider', ['chatmaid', 'waha']]],
       ['eq', ['status', 'pending']],
       ['is', ['pending_alerted_at', null]],
       ['lt', ['created_at', '2026-10-20T11:45:00.000Z']],

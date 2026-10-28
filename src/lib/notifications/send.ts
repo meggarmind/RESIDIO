@@ -6,11 +6,11 @@
  * WhatsApp enforces approved template-only sends for proactive delivery,
  * against whichever provider (Meta, Twilio, Chatmaid) is currently active.
  *
- * The one exception: when the active provider is Chatmaid and a WhatsApp
+ * The one exception: when the active provider is a bridge (Chatmaid or WAHA) and a WhatsApp
  * send fails on a URGENT-priority item, `sendViaWhatsApp` falls back to
  * Termii SMS (#401 owner decision) rather than leaving the queue to retry a
  * bridge that may be down with no recovery path. This is scoped to URGENT
- * only and to Chatmaid only -- Meta/Twilio behaviour is unchanged.
+ * only and to bridge providers only -- Meta/Twilio behaviour is unchanged.
  *
  * Provider-specific senders stay behind this dispatcher so queue/history
  * behavior remains shared across channels.
@@ -28,7 +28,7 @@ import type {
 import { isChannelImplemented } from './types';
 import { truncateForPreview } from './templates';
 import { sendWhatsAppTemplate } from '@/lib/whatsapp';
-import { resolveWhatsAppConfig } from '@/lib/whatsapp/config';
+import { isBridgeProvider, resolveWhatsAppConfig } from '@/lib/whatsapp/config';
 import { evaluateSendPolicy, createSendPolicyFacts } from '@/lib/whatsapp/send-policy';
 import { sendSms } from '@/lib/sms/send-sms';
 import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
@@ -239,7 +239,7 @@ async function sendViaWhatsApp(
     // revisit this trigger before Termii is connected still applies.
     //
     // SMS fallback (owner decision, #401): covers URGENT-priority sends only
-    // (announcements today), and only when the active provider is Chatmaid --
+    // (announcements today), and only when the active provider is a bridge (Chatmaid or WAHA) --
     // a bridge with no delivery guarantee and no recovery path for a message
     // that never arrived (issue #401 §3). Invoice reminders and payment
     // receipts (NORMAL priority) are left to fail here so the queue retries
@@ -249,9 +249,9 @@ async function sendViaWhatsApp(
       item.priority === PRIORITY.URGENT && isChannelImplemented('sms');
     if (shouldConsiderSmsFallback) {
       const resolved = await resolveWhatsAppConfig();
-      const activeProviderIsChatmaid = resolved.status === 'ok' && resolved.config.provider === 'chatmaid';
+      const activeProviderIsBridge = resolved.status === 'ok' && isBridgeProvider(resolved.config);
 
-      if (activeProviderIsChatmaid) {
+      if (activeProviderIsBridge) {
         const smsResult = await sendSms({
           to: { phone: item.recipient_phone as string, residentId: item.recipient_id },
           message: item.body,
