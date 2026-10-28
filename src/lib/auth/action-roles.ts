@@ -19,7 +19,8 @@ export interface AuthorizationResult {
   error: string | null;
 }
 
-// ==============================================// Phase 10: New Permission-Based Authorization
+// =====================================================
+// Phase 10: New Permission-Based Authorization
 // =====================================================
 
 /**
@@ -293,7 +294,6 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/system/whatsapp-monitoring': [PERMISSIONS.WHATSAPP_VIEW],
   // Without this key the middleware skips authorization and the page is public (ADR-0004, #1273).
   '/system/whatsapp-bot-health': [PERMISSIONS.WHATSAPP_VIEW],
-=======
   // Now a redirect stub to /settings/data-tools (#1274); kept so the stub stays gated (ADR-0004).
   '/system/data-tools': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
   // Canonical home for cron job status, moved from /settings/cron-status and
