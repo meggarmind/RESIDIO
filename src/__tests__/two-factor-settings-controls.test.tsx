@@ -117,6 +117,72 @@ describe('two-factor settings controls', () => {
     expect(screen.getByRole('list', { name: 'Backup codes' })).toHaveTextContent('CCCC3333');
   });
 
+  /** Opens the backup codes dialog with these codes, through Make new backup codes. */
+  const showCodes = (codes: string[]) => {
+    mocks.status = on;
+    render(<TwoFactorControls />);
+    fireEvent.click(screen.getByRole('button', { name: 'Make new backup codes' }));
+    typeCode('111222');
+    fireEvent.click(screen.getByRole('button', { name: 'Make new codes' }));
+    const [, opts] = mocks.hooks.regenerate.mutate.mock.calls[0] as [string, MutateOptions];
+    act(() => opts.onSuccess?.({ success: true, codes }));
+  };
+
+  describe('saving the backup codes', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      vi.restoreAllMocks();
+      Object.assign(navigator, { canShare: undefined, share: undefined });
+    });
+
+    it('saves the codes as a text file', async () => {
+      let saved: Blob | null = null;
+      vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn((blob: Blob) => { saved = blob; return 'blob:codes'; }), revokeObjectURL: vi.fn() });
+      const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+      showCodes(['CCCC3333', 'DDDD4444']);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Save as file' }));
+
+      expect(click).toHaveBeenCalledTimes(1);
+      expect((click.mock.contexts[0] as HTMLAnchorElement).download).toBe('residio-backup-codes.txt');
+      const text = await (saved as unknown as Blob).text();
+      expect(text.split('\n')).toEqual(expect.arrayContaining(['CCCC3333', 'DDDD4444']));
+    });
+
+    it('offers Share only when the device can share a file, and shares the codes file', async () => {
+      const share = vi.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, { canShare: () => true, share });
+      showCodes(['EEEE5555']);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Share' }));
+
+      const [data] = share.mock.calls[0] as [{ files: File[] }];
+      expect(data.files[0].name).toBe('residio-backup-codes.txt');
+      expect(await data.files[0].text()).toContain('EEEE5555');
+    });
+
+    it('says nothing when the share sheet is closed, and shows an error when sharing fails', async () => {
+      const { toast } = await import('sonner');
+      vi.mocked(toast.error).mockClear();
+      const share = vi.fn().mockRejectedValueOnce(new DOMException('closed', 'AbortError')).mockRejectedValueOnce(new Error('denied'));
+      Object.assign(navigator, { canShare: () => true, share });
+      showCodes(['GGGG7777']);
+
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Share' })); });
+      expect(toast.error).not.toHaveBeenCalled();
+
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Share' })); });
+      expect(toast.error).toHaveBeenCalledWith('Could not share. Save the file instead.');
+    });
+
+    it('hides Share when the device cannot share a file', () => {
+      Object.assign(navigator, { canShare: () => false, share: vi.fn() });
+      showCodes(['FFFF6666']);
+      expect(screen.getByRole('button', { name: 'Save as file' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Share' })).not.toBeInTheDocument();
+    });
+  });
+
   it('hides Turn off without the disable permission', () => {
     mocks.status = on;
     mocks.canDisable = false;
