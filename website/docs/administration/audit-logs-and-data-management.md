@@ -5,12 +5,12 @@ sidebar_label: Audit logs and data management
 residio_sources:
   - src/lib/audit/**
   - src/actions/audit/**
-  - src/app/(dashboard)/system/data-tools/**
+  - src/app/(dashboard)/settings/data-tools/**
   - src/app/(dashboard)/settings/data-retention/**
   - src/app/(dashboard)/settings/system/**
   - src/components/settings/system/**
-residio_verified_commit: b59d58f5
-residio_verified_at: '2026-10-20'
+residio_verified_commit: c8f57c63
+residio_verified_at: '2026-10-28'
 residio_app_version: '0.4.0'
 ---
 
@@ -30,7 +30,7 @@ Audit log entries are kept until someone runs **Prune Data** under **Settings �
 
 ## Data management
 
-Use **Oversight → Data tools** for approved reconciliation or backfill tools. Read the preview and scope carefully before running any operation.
+Use **Settings → System → Data Tools** (the old **System → Data Tools** address still works) for approved reconciliation or backfill tools. Read the preview and scope carefully before running any operation.
 
 :::warning[Irreversible work]
 If a tool changes many records, stop at the preview stage when the count or warning is unexpected. Ask a super administrator to confirm the intended scope.

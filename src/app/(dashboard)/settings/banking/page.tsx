@@ -1,5 +1,6 @@
 'use client';
 
+import { ApprovalLimitSection } from '@/components/settings/banking/approval-limit-section';
 import { BankAccountsSection } from '@/components/settings/banking/bank-accounts-section';
 import { DuplicateMatchingSection } from '@/components/settings/banking/duplicate-matching-section';
 import { TransactionTagsSection } from '@/components/settings/banking/transaction-tags-section';
@@ -11,6 +12,7 @@ export default function BankingPage() {
       <BankAccountsSection />
       <TransactionTagsSection />
       <DuplicateMatchingSection />
+      <ApprovalLimitSection />
     </SettingsMergedPage>
   );
 }

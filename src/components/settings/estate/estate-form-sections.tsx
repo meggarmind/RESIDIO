@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { Facebook, Globe, Instagram, Twitter } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -117,6 +118,11 @@ export function EstateAssistantSection({ estate }: { estate: EstateFormState }) 
         <Loading />
       ) : (
         <>
+          <p className="px-4 pt-4 text-sm text-muted-foreground md:px-5">
+            <Link href="/settings/whatsapp#assistant-replies" className="text-primary underline">
+              WhatsApp replies are in Settings &gt; WhatsApp
+            </Link>
+          </p>
           <SettingsRow rowId="assistant-visible">
             {({ controlId }) => (
               <Switch id={controlId} checked={!form.disable_ai_assistant} onCheckedChange={(checked) => set('disable_ai_assistant', !checked)} />

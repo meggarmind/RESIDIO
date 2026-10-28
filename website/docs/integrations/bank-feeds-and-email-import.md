@@ -8,8 +8,8 @@ residio_sources:
   - src/lib/parsers/**
   - src/actions/email-imports/**
   - src/app/(dashboard)/settings/email-integration/**
-residio_verified_commit: 19e895c5
-residio_verified_at: '2026-10-22'
+residio_verified_commit: c8f57c63
+residio_verified_at: '2026-10-28'
 residio_app_version: '0.4.0'
 ---
 
@@ -64,7 +64,7 @@ A credit above the limit is always queued, however confident the match, and is m
 
 ### The auto-process limit
 
-The limit is set on **Settings → Connections → Gmail Import** under **Approval Limit**, in the **Auto-process limit (NGN)** field. It defaults to ₦60,000. Anyone with the settings view permission can see it; only a super admin can change it, because a very large value would switch the approval control off. Every change is recorded in the audit log. The value must be a whole naira amount from 1 to 100,000,000.
+The limit is set on **Settings → Money → Banking** in the **Approval limit** section, in the **Auto-process limit (NGN)** field. **Settings → Connections → Gmail Import** links to it. It defaults to ₦60,000. Anyone who can open the Banking page can see it; only a super admin can change it, because a very large value would switch the approval control off. Every change is recorded in the audit log. The value must be a whole naira amount from 1 to 100,000,000.
 
 If Residio cannot read the limit, or the stored value is invalid, it fails safe: that fetch posts no credit automatically and queues every credit for review, marked **Needs approval: approval limit unavailable**. Only an approver can release them until the limit is readable again.
 

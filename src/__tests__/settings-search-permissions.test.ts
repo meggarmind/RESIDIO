@@ -107,6 +107,8 @@ describe('Settings/System search entry permissions', () => {
       // Merged System page (#938): the OR of its sections' permissions.
       '/settings/system': ['system.manage_data_retention', 'system.manage_maintenance'],
       // Oversight pages (#1272), from oversightConfig.
+      // Moved from /system/data-tools (#1274), same guard.
+      '/settings/data-tools': ['settings.manage_general'],
       '/system': ['system.view_all_settings'],
       '/analytics': ['reports.view_financial', 'reports.view_occupancy', 'reports.view_security'],
       '/reports/financial-overview': ['reports.view_financial'],
@@ -117,7 +119,6 @@ describe('Settings/System search entry permissions', () => {
       '/system/notification-history': ['notifications.manage'],
       '/system/whatsapp-monitoring': ['whatsapp.view'],
       '/system/whatsapp-bot-health': ['whatsapp.view'],
-      '/system/data-tools': ['settings.manage_general'],
       '/system/cron-status': ['system.monitor'],
       '/system/action-log': ['system.view_system_log'],
     });
@@ -171,6 +172,10 @@ describe('Settings row search entry permissions (#934, #935, #937)', () => {
       'whatsapp-roll-forward-balance': WHATSAPP,
       'whatsapp-assistant-text': WHATSAPP,
       'whatsapp-privacy-notice': WHATSAPP,
+      // #1274: the approval limit sits on Banking, gated like the page; Gmail Import sections take the page's permission.
+      'email-auto-process-limit': ['settings.manage_reference', 'system.manage_maintenance'],
+      'gmail-connection': ['email_imports.view'],
+      'gmail-sync': ['email_imports.view'],
       // Billing rules (#935): the page opens for manage_billing in the nav and its sections declare none of their own.
       'bill-vacant-houses': BILLING,
       'bill-under-renovation': BILLING,

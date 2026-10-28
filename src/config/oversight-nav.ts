@@ -120,13 +120,6 @@ export const oversightConfig: SettingsGroup[] = [
                 description: 'What scheduled jobs and webhooks did',
                 permissions: [PERMISSIONS.SYSTEM_VIEW_SYSTEM_LOG],
             },
-            {
-                // Temporary: #1274 moves Data Tools to Settings.
-                title: 'Data tools',
-                href: '/system/data-tools',
-                description: 'Export and bulk data utilities',
-                permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
-            },
         ],
     },
 ];
