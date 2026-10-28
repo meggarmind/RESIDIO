@@ -4,10 +4,13 @@ import { recordInboundBatch, recordWebhookDelivery } from '@/lib/system-log/webh
 import { createSupabaseProcessedMessageStore, resolveWhatsAppConfig } from '@/lib/whatsapp';
 import { createSupabaseChatmaidSessionPauseStore } from '@/lib/whatsapp/providers/chatmaid-inbound';
 import { processChatmaidMessages } from '@/lib/whatsapp/providers/chatmaid-message-handler';
+import type { WahaWhatsAppConfig } from '@/lib/whatsapp/config';
+import { lookupWahaLidPhone } from '@/lib/whatsapp/providers/waha';
 import {
   WAHA_HUMAN_TAKEOVER_PAUSE_MS,
-  extractWahaMessages,
+  extractWahaInbound,
   extractWahaOutgoingRecipient,
+  type WahaInbound,
   isWahaManualOutgoing,
   verifyWahaSignature,
   wahaEventDedupeKey,
@@ -81,8 +84,24 @@ async function runOnce(key: string, effect: () => Promise<void>): Promise<'done'
   return 'done';
 }
 
-async function handleMessageReceived(payload: unknown) {
-  const { result, pausedCount } = await processChatmaidMessages(extractWahaMessages(payload));
+async function handleMessageReceived(payload: unknown, config: WahaWhatsAppConfig) {
+  let inbound: WahaInbound | null;
+  try {
+    inbound = await extractWahaInbound(payload, (lid) => lookupWahaLidPhone(config, lid));
+  } catch (error) {
+    // Nothing is claimed yet, so WAHA's retry gets another lookup. The error names only the HTTP status.
+    console.error('[waha-webhook] LID lookup failed:', error instanceof Error ? error.message : 'unknown error');
+    await recordWebhookDelivery({
+      provider: 'whatsapp-waha',
+      action: 'inbound_messages',
+      outcome: 'failure',
+      summary: { reason: 'lid_lookup_failed' },
+      error: 'Sender LID could not be resolved',
+    });
+    return processingFailed('Sender LID could not be resolved');
+  }
+
+  const { result, pausedCount } = await processChatmaidMessages(inbound ? [inbound.message] : []);
 
   await recordInboundBatch(
     'whatsapp-waha',
@@ -94,6 +113,17 @@ async function handleMessageReceived(payload: unknown) {
     return processingFailed(result.error || 'Inbound WhatsApp message could not be processed');
   }
 
+  const ignoredReason = inbound?.ignoredReason ?? (pausedCount > 0 ? 'human_takeover' : null);
+  // One row per ignored message (#1282), not again for a retry or the message/message.any twin. Reason only: no number, no text.
+  if (ignoredReason && result.duplicateCount === 0) {
+    await recordWebhookDelivery({
+      provider: 'whatsapp-waha',
+      action: 'inbound_ignored',
+      outcome: 'success',
+      summary: { reason: ignoredReason, count: 1 },
+    });
+  }
+
   return NextResponse.json({
     received: true,
     processed: true,
@@ -101,6 +131,7 @@ async function handleMessageReceived(payload: unknown) {
     duplicate_count: result.duplicateCount,
     ignored_count: result.ignoredCount + pausedCount,
     paused_count: pausedCount,
+    ...(ignoredReason ? { ignored_reason: ignoredReason } : {}),
   });
 }
 
@@ -374,11 +405,11 @@ export async function POST(request: NextRequest) {
 
   switch (event) {
     case 'message':
-      return handleMessageReceived(payload);
+      return handleMessageReceived(payload, resolved.config);
     case 'message.any':
       // `message.any` also carries the handset's own sends; only its inbound ones are answered.
       if (inner?.fromMe === false) {
-        return handleMessageReceived(payload);
+        return handleMessageReceived(payload, resolved.config);
       }
       if (isWahaManualOutgoing(payload)) {
         return handleManualOutgoing(payload);

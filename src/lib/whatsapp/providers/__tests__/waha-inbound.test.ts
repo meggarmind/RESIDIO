@@ -1,9 +1,10 @@
 import { createHmac } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { CHATMAID_HUMAN_TAKEOVER_PAUSE_MS } from '@/lib/whatsapp/providers/chatmaid-inbound';
 import {
   WAHA_HUMAN_TAKEOVER_PAUSE_MS,
-  extractWahaMessages,
+  extractWahaInbound,
+  resolveWahaInbound,
   extractWahaOutgoingRecipient,
   isWahaManualOutgoing,
   verifyWahaSignature,
@@ -69,9 +70,18 @@ describe('verifyWahaSignature', () => {
   });
 });
 
-describe('wahaMessageToInbound / extractWahaMessages', () => {
-  it('extracts a 1:1 text message: id, +digits sender, unix-seconds timestamp, text', () => {
-    const messages = extractWahaMessages(
+
+const noLookup = vi.fn(async () => null);
+
+/** The webhook's extraction, without the reason, for the mapping tests. */
+async function extractWahaMessages(webhookBody: unknown) {
+  const inbound = await extractWahaInbound(webhookBody, noLookup);
+  return inbound ? [inbound.message] : [];
+}
+
+describe('wahaMessageToInbound / extractWahaInbound', () => {
+  it('extracts a 1:1 text message: id, +digits sender, unix-seconds timestamp, text', async () => {
+    const messages = await extractWahaMessages(
       body({ id: 'true_2348000000000@c.us_ABC', from: '2348000000000@c.us', fromMe: false, body: 'balance', hasMedia: false, timestamp: 1790000000 })
     );
 
@@ -80,22 +90,22 @@ describe('wahaMessageToInbound / extractWahaMessages', () => {
     ]);
   });
 
-  it('types a 1:1 media message as media with no text, so it gets the text-only reply (#804)', () => {
-    const [message] = extractWahaMessages(
+  it('types a 1:1 media message as media with no text, so it gets the text-only reply (#804)', async () => {
+    const [message] = await extractWahaMessages(
       body({ id: 'm1', from: '2348000000000@c.us', fromMe: false, body: 'caption', hasMedia: true, timestamp: 1790000000 })
     );
 
     expect(message).toMatchObject({ id: 'm1', from: '+2348000000000', type: 'media', text: null });
   });
 
-  it('returns text null for a message with an empty body', () => {
-    const [message] = extractWahaMessages(body({ id: 'm1', from: '2348000000000@c.us', fromMe: false, body: '', hasMedia: false, timestamp: 1 }));
+  it('returns text null for a message with an empty body', async () => {
+    const [message] = await extractWahaMessages(body({ id: 'm1', from: '2348000000000@c.us', fromMe: false, body: '', hasMedia: false, timestamp: 1 }));
 
     expect(message).toMatchObject({ type: 'text', text: null });
   });
 
-  it('returns a fromMe message with text null, so it is counted as ignored', () => {
-    const [message] = extractWahaMessages(
+  it('returns a fromMe message with text null, so it is counted as ignored', async () => {
+    const [message] = await extractWahaMessages(
       body({ id: 'm1', from: '2348000000000@c.us', fromMe: true, body: 'my own reply', hasMedia: false, timestamp: 1 }, 'message.any')
     );
 
@@ -103,24 +113,24 @@ describe('wahaMessageToInbound / extractWahaMessages', () => {
     expect(JSON.stringify(message)).not.toContain('my own reply');
   });
 
-  it('returns a group message typed group with no text', () => {
-    const [message] = extractWahaMessages(
+  it('returns a group message typed group with no text', async () => {
+    const [message] = await extractWahaMessages(
       body({ id: 'g1', from: '120363000000000000@g.us', fromMe: false, body: 'balance', hasMedia: false, timestamp: 1 })
     );
 
     expect(message).toMatchObject({ id: 'g1', type: 'group', text: null });
   });
 
-  it('returns status@broadcast typed group with no text', () => {
-    const [message] = extractWahaMessages(
+  it('returns status@broadcast typed group with no text', async () => {
+    const [message] = await extractWahaMessages(
       body({ id: 's1', from: 'status@broadcast', fromMe: false, body: 'status text', hasMedia: false, timestamp: 1 })
     );
 
     expect(message).toMatchObject({ id: 's1', type: 'group', text: null });
   });
 
-  it('returns an @lid sender with no text: a hidden id carries no phone number', () => {
-    const [message] = extractWahaMessages(
+  it('returns an @lid sender with no text: a hidden id WAHA cannot resolve carries no phone number', async () => {
+    const [message] = await extractWahaMessages(
       body({ id: 'l1', from: '98765432109876@lid', fromMe: false, body: 'balance', hasMedia: false, timestamp: 1 })
     );
 
@@ -128,11 +138,11 @@ describe('wahaMessageToInbound / extractWahaMessages', () => {
     expect(message.from).toBe('98765432109876@lid');
   });
 
-  it('returns nothing for a payload without an id, or a body without a payload', () => {
-    expect(extractWahaMessages(body({ from: '2348000000000@c.us', body: 'balance' }))).toEqual([]);
-    expect(extractWahaMessages({ event: 'message' })).toEqual([]);
-    expect(extractWahaMessages(null)).toEqual([]);
-    expect(extractWahaMessages('nope')).toEqual([]);
+  it('returns nothing for a payload without an id, or a body without a payload', async () => {
+    expect(await extractWahaMessages(body({ from: '2348000000000@c.us', body: 'balance' }))).toEqual([]);
+    expect(await extractWahaMessages({ event: 'message' })).toEqual([]);
+    expect(await extractWahaMessages(null)).toEqual([]);
+    expect(await extractWahaMessages('nope')).toEqual([]);
   });
 
   it('falls back to the current time when the timestamp is missing', () => {
@@ -197,5 +207,63 @@ describe('wahaEventDedupeKey', () => {
     expect(first).not.toBe(wahaEventDedupeKey('message.ack', body, 'body-2'));
     expect(first).not.toBe(wahaEventDedupeKey('session.status', body, 'body-1'));
     expect(first.startsWith('waha-event:message.ack:body-')).toBe(true);
+  });
+});
+
+describe('resolveWahaInbound: ignore reasons and @lid senders (#1282)', () => {
+  const lidMessage = { id: 'l1', from: '98765432109876@lid', fromMe: false, body: 'balance', hasMedia: false, timestamp: 1 };
+
+  it('answers a @c.us sender as before, with no lookup and no ignore reason', async () => {
+    const lookup = vi.fn();
+    const inbound = await resolveWahaInbound({ id: 'm1', from: '2348000000000@c.us', fromMe: false, body: 'hi', timestamp: 1 }, lookup);
+
+    expect(inbound).toEqual({ message: expect.objectContaining({ from: '+2348000000000', text: 'hi' }), ignoredReason: null });
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it('resolves an @lid sender to its phone number and answers it', async () => {
+    const lookup = vi.fn(async () => '2348000000000@c.us');
+    const inbound = await resolveWahaInbound(lidMessage, lookup);
+
+    expect(lookup).toHaveBeenCalledWith('98765432109876@lid');
+    expect(inbound).toEqual({
+      message: { id: 'l1', from: '+2348000000000', timestamp: '1', type: 'text', text: 'balance' },
+      ignoredReason: null,
+    });
+  });
+
+  it.each([
+    ['WAHA knows no number', null],
+    ['WAHA answers with another @lid', '11111111111@lid'],
+    ['WAHA answers with a group id', '120363000000000000@g.us'],
+  ])('ignores an @lid sender as lid_unresolved when %s', async (_label, answer) => {
+    const inbound = await resolveWahaInbound(lidMessage, vi.fn(async () => answer));
+
+    expect(inbound).toEqual({ message: { id: 'l1', from: '98765432109876@lid', timestamp: '1', type: 'text', text: null }, ignoredReason: 'lid_unresolved' });
+  });
+
+  it('lets a lookup error propagate, so the webhook asks WAHA to retry', async () => {
+    await expect(resolveWahaInbound(lidMessage, vi.fn(async () => { throw new Error('WAHA LID lookup failed (HTTP 500)'); }))).rejects.toThrow('HTTP 500');
+  });
+
+  it.each([
+    ['group', { from: '120363000000000000@g.us' }, 'group'],
+    ['status broadcast', { from: 'status@broadcast' }, 'group'],
+    ['fromMe, even from an @lid', { fromMe: true, from: '98765432109876@lid' }, 'from_me'],
+    ['another id type', { from: '2348000000000@s.whatsapp.net' }, 'other_id'],
+    ['an empty body', { from: '2348000000000@c.us', body: '' }, 'no_text'],
+  ])('ignores a %s message with its reason and no lookup', async (_label, overrides, reason) => {
+    const lookup = vi.fn();
+    const inbound = await resolveWahaInbound({ ...lidMessage, ...overrides }, lookup);
+
+    expect(inbound?.ignoredReason).toBe(reason);
+    expect(inbound?.message.text).toBeNull();
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it('answers 1:1 media (text-only reply), so it has no ignore reason', async () => {
+    const inbound = await resolveWahaInbound({ ...lidMessage, from: '2348000000000@c.us', hasMedia: true }, vi.fn());
+
+    expect(inbound).toMatchObject({ message: { type: 'media', text: null }, ignoredReason: null });
   });
 });
