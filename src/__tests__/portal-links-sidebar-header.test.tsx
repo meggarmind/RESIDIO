@@ -15,6 +15,7 @@ type AuthValue = {
   canSeeSelfPortalLinks: boolean;
   canSeeImpersonationLink: boolean;
   residentId: string | null;
+  hasPermission: (permission: string) => boolean;
 };
 
 let authValue: AuthValue;
@@ -103,6 +104,7 @@ function makeAuth(overrides: Partial<AuthValue> = {}): AuthValue {
     canSeeSelfPortalLinks: false,
     canSeeImpersonationLink: false,
     residentId: null,
+    hasPermission: () => false,
     ...overrides,
   };
 }
@@ -176,5 +178,21 @@ describe('Header portal link (#423)', () => {
     authValue = makeAuth({ canSeeSelfPortalLinks: true });
     render(<Header />);
     expect(screen.queryByText('Resident Portal')).not.toBeNull();
+  });
+});
+
+describe('Header two-factor link', () => {
+  it('shows Two-factor login when the user has two_factor.enable', () => {
+    authValue = makeAuth({ hasPermission: (p) => p === 'two_factor.enable' });
+    render(<Header />);
+    expect(screen.queryByText('Two-factor login')).not.toBeNull();
+    expect(document.querySelector('a[href="/settings/two-factor"]')).not.toBeNull();
+  });
+
+  it('hides Two-factor login when the user lacks two_factor.enable', () => {
+    authValue = makeAuth({ hasPermission: () => false });
+    render(<Header />);
+    expect(screen.queryByText('Two-factor login')).toBeNull();
+    expect(document.querySelector('a[href="/settings/two-factor"]')).toBeNull();
   });
 });
