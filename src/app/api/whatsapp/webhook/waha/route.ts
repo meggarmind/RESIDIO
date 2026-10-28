@@ -139,7 +139,14 @@ async function notifyOrThrow(params: Parameters<typeof notifyAdmins>[0]) {
   }
 }
 
-const SESSION_DOWN_STATUSES = new Set(['FAILED', 'STOPPED', 'SCAN_QR_CODE']);
+// Every status the WAHA docs list as needing a human: the session is stopped, unpaired or waiting for a passkey.
+const SESSION_DOWN_STATUSES = new Set([
+  'FAILED',
+  'STOPPED',
+  'SCAN_QR_CODE',
+  'PASSKEY_REQUIRED',
+  'PASSKEY_CONFIRMATION_REQUIRED',
+]);
 
 async function handleSessionStatus(payload: unknown, dedupeKey: string) {
   const status = (payload as { payload?: { status?: unknown } } | null)?.payload?.status;
@@ -364,7 +371,6 @@ export async function POST(request: NextRequest) {
   }
 
   const inner = (payload as { payload?: { fromMe?: unknown } | null }).payload;
-  const requestId = request.headers.get('x-webhook-request-id');
 
   switch (event) {
     case 'message':
@@ -379,9 +385,9 @@ export async function POST(request: NextRequest) {
       }
       return NextResponse.json({ received: true, processed: false, ignored: 'not_manual' });
     case 'message.ack':
-      return handleAck(payload, wahaEventDedupeKey(event, requestId, rawBody), request.headers.get('x-webhook-timestamp'));
+      return handleAck(payload, wahaEventDedupeKey(event, payload, rawBody), request.headers.get('x-webhook-timestamp'));
     case 'session.status':
-      return handleSessionStatus(payload, wahaEventDedupeKey(event, requestId, rawBody));
+      return handleSessionStatus(payload, wahaEventDedupeKey(event, payload, rawBody));
     default:
       return NextResponse.json({ received: true, processed: false, ignored: event });
   }

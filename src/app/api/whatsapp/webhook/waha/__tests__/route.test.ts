@@ -49,8 +49,9 @@ const receivedPayload = {
   ackName: 'SERVER',
 };
 
-function webhook(event: string, payload: Record<string, unknown>): string {
-  return JSON.stringify({ event, session: 'default', engine: 'NOWEB', metadata: {}, payload });
+/** `id` is WAHA's envelope id (an `evt_` ULID): inside the signed body, so the HMAC covers it. */
+function webhook(event: string, payload: Record<string, unknown>, id?: string): string {
+  return JSON.stringify({ ...(id ? { id } : {}), event, session: 'default', engine: 'NOWEB', metadata: {}, payload });
 }
 
 const receivedBody = webhook('message', receivedPayload);
@@ -205,6 +206,13 @@ describe('WAHA WhatsApp webhook route', () => {
 
       expect((await h.POST(post(pretty, { signature: sign(pretty) }))).status).toBe(200);
       expect((await h.POST(post(pretty, { signature: sign(receivedBody) }))).status).toBe(401);
+    });
+
+    it('rejects an unparseable body with a bad signature with 401, not 400: the signature is checked before the body is parsed', async () => {
+      const h = await load();
+      const response = await h.POST(post('not json', { signature: sign('not json', 'not-the-secret') }));
+
+      expect(response.status).toBe(401);
     });
 
     it('rejects a signed but unparseable body with 400', async () => {
@@ -425,8 +433,8 @@ describe('WAHA WhatsApp webhook route', () => {
   });
 
   describe('delivery acks', () => {
-    const ack = (value: number, extra: Record<string, unknown> = {}) =>
-      webhook('message.ack', { id: 'true_2348000000000@c.us_OUT1', from: '15550001111@c.us', fromMe: true, ack: value, ackName: 'X', ...extra });
+    const ack = (value: number, extra: Record<string, unknown> = {}, envelopeId?: string) =>
+      webhook('message.ack', { id: 'true_2348000000000@c.us_OUT1', from: '15550001111@c.us', fromMe: true, ack: value, ackName: 'X', ...extra }, envelopeId);
 
     it.each([
       [1, 'sent'],
@@ -459,10 +467,10 @@ describe('WAHA WhatsApp webhook route', () => {
 
     it('marks an ERROR ack failed, records one outbound_failed row, and nothing for the retried delivery', async () => {
       const h = await load();
-      const body = ack(-1, { ackName: 'ERROR' });
+      const body = ack(-1, { ackName: 'ERROR' }, 'evt_fail');
 
-      expect((await h.POST(post(body, { requestId: 'req-fail' }))).status).toBe(200);
-      expect((await h.POST(post(body, { requestId: 'req-fail' }))).status).toBe(200);
+      expect((await h.POST(post(body))).status).toBe(200);
+      expect((await h.POST(post(body))).status).toBe(200);
 
       expect(h.updateOutboundSendStatus).toHaveBeenCalledTimes(1);
       expect(h.updateOutboundSendStatus).toHaveBeenCalledWith('waha', 'true_2348000000000@c.us_OUT1', 'failed', {
@@ -537,34 +545,34 @@ describe('WAHA WhatsApp webhook route', () => {
     it('returns 500 and releases the claim when the status cannot be stored, so the retry applies it', async () => {
       const h = await load();
       h.updateOutboundSendStatus.mockRejectedValueOnce(new Error('db down'));
-      const body = ack(2);
+      const body = ack(2, {}, 'evt_db');
 
-      expect((await h.POST(post(body, { requestId: 'req-db' }))).status).toBe(500);
+      expect((await h.POST(post(body))).status).toBe(500);
       expect(recordSystemAction).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'outbound_status', outcome: 'failure' })
       );
-      expect((await h.POST(post(body, { requestId: 'req-db' }))).status).toBe(200);
+      expect((await h.POST(post(body))).status).toBe(200);
       expect(h.updateOutboundSendStatus).toHaveBeenCalledTimes(2);
     });
 
-    it('applies two different acks for one message, since each delivery has its own request id', async () => {
+    it('applies two different acks for one message, since each delivery has its own envelope id', async () => {
       const h = await load();
 
-      await h.POST(post(ack(1), { requestId: 'req-a' }));
-      await h.POST(post(ack(3), { requestId: 'req-b' }));
+      await h.POST(post(ack(1, {}, 'evt_a')));
+      await h.POST(post(ack(3, {}, 'evt_b')));
 
       expect(h.updateOutboundSendStatus.mock.calls.map((call) => call[2])).toEqual(['sent', 'delivered']);
     });
   });
 
   describe('session status', () => {
-    const status = (value: string) => webhook('session.status', { name: 'default', status: value });
+    const status = (value: string, envelopeId?: string) => webhook('session.status', { name: 'default', status: value }, envelopeId);
 
-    it.each(['FAILED', 'STOPPED', 'SCAN_QR_CODE'])('raises one urgent DISCONNECTED notice on %s, none for a retried delivery', async (value) => {
+    it.each(['FAILED', 'STOPPED', 'SCAN_QR_CODE', 'PASSKEY_REQUIRED', 'PASSKEY_CONFIRMATION_REQUIRED'])('raises one urgent DISCONNECTED notice on %s, none for a retried delivery', async (value) => {
       const h = await load();
 
-      expect((await h.POST(post(status(value), { requestId: 'req-down' }))).status).toBe(200);
-      expect((await h.POST(post(status(value), { requestId: 'req-down' }))).status).toBe(200);
+      expect((await h.POST(post(status(value, 'evt_down')))).status).toBe(200);
+      expect((await h.POST(post(status(value, 'evt_down')))).status).toBe(200);
 
       expect(h.notifyAdmins).toHaveBeenCalledTimes(1);
       const alert = h.notifyAdmins.mock.calls[0][0];
@@ -583,13 +591,36 @@ describe('WAHA WhatsApp webhook route', () => {
       expect(h.notifyAdmins.mock.calls[0][0]).toMatchObject({ priority: 'normal', title: 'WhatsApp reconnected' });
     });
 
-    it('raises a second notice for a new request id (a fresh disconnect), not a retry', async () => {
+    it('raises a second notice for a new envelope id (a fresh disconnect), not a retry', async () => {
       const h = await load();
 
-      await h.POST(post(status('FAILED'), { requestId: 'req-1' }));
-      await h.POST(post(status('FAILED'), { requestId: 'req-2' }));
+      await h.POST(post(status('FAILED', 'evt_1')));
+      await h.POST(post(status('FAILED', 'evt_2')));
 
       expect(h.notifyAdmins).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not raise a second notice for a replayed signed body under a fresh request-id header', async () => {
+      const h = await load();
+      const body = status('STOPPED', 'evt_replayed');
+
+      const first = await h.POST(post(body, { requestId: 'req-original' }));
+      const replay = await h.POST(post(body, { requestId: 'req-forged' }));
+
+      expect(first.status).toBe(200);
+      await expect(replay.json()).resolves.toMatchObject({ processed: true, duplicate: true });
+      expect(h.notifyAdmins).toHaveBeenCalledTimes(1);
+    });
+
+    it('falls back to the body hash when the envelope has no id, so a replay still dedupes', async () => {
+      const h = await load();
+      const body = status('STOPPED');
+
+      await h.POST(post(body, { requestId: 'req-1' }));
+      const replay = await h.POST(post(body, { requestId: 'req-2' }));
+
+      await expect(replay.json()).resolves.toMatchObject({ duplicate: true });
+      expect(h.notifyAdmins).toHaveBeenCalledTimes(1);
     });
 
     it('ignores STARTING without a notice', async () => {
@@ -603,8 +634,8 @@ describe('WAHA WhatsApp webhook route', () => {
     it('records one phone_disconnected success, and nothing for the retried delivery', async () => {
       const h = await load();
 
-      await h.POST(post(status('FAILED'), { requestId: 'req-x' }));
-      await h.POST(post(status('FAILED'), { requestId: 'req-x' }));
+      await h.POST(post(status('FAILED', 'evt_x')));
+      await h.POST(post(status('FAILED', 'evt_x')));
 
       expect(recordSystemAction).toHaveBeenCalledTimes(1);
       expect(recordSystemAction).toHaveBeenCalledWith(
@@ -615,13 +646,13 @@ describe('WAHA WhatsApp webhook route', () => {
     it('returns 500 and releases the claim when the notice cannot be sent, so the retry alerts', async () => {
       const h = await load({ notifyResult: { success: false, count: 0, error: 'insert failed' } });
 
-      expect((await h.POST(post(status('FAILED'), { requestId: 'req-retry' }))).status).toBe(500);
+      expect((await h.POST(post(status('FAILED', 'evt_retry')))).status).toBe(500);
       expect(recordSystemAction).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'phone_disconnected', outcome: 'failure' })
       );
 
       h.notifyAdmins.mockResolvedValue({ success: true, count: 1 });
-      expect((await h.POST(post(status('FAILED'), { requestId: 'req-retry' }))).status).toBe(200);
+      expect((await h.POST(post(status('FAILED', 'evt_retry')))).status).toBe(200);
       expect(h.notifyAdmins).toHaveBeenCalledTimes(2);
     });
   });

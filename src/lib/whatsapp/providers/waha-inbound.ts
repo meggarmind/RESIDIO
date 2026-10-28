@@ -157,16 +157,24 @@ export function extractWahaOutgoingRecipient(body: unknown): string | null {
 }
 
 /**
- * Dedupe key for events that carry no message id (session status). It is the
- * event name plus the `X-Webhook-Request-Id` header, which WAHA repeats on a
- * retry of the same delivery. A request without that header falls back to a
- * SHA-256 of the raw body, so a retry still dedupes. The `waha-event:` prefix
- * keeps it clear of real message ids in `whatsapp_processed_messages`.
+ * Dedupe key for events that carry no message id (`message.ack`, `session.status`).
+ * It is the event name plus the `id` of WAHA's event envelope (an `evt_` ULID,
+ * https://waha.devlike.pro/docs/how-to/events/), which WAHA repeats on a retry of
+ * the same delivery. An envelope without a string `id` falls back to a SHA-256 of
+ * the raw body, so a retry still dedupes. The `waha-event:` prefix keeps it clear
+ * of real message ids in `whatsapp_processed_messages`.
  *
- * `event` must be the event named in the signed body. The request id header is
- * not covered by the signature.
+ * `body` is the parsed body and `event` the event named in it. Both come from the
+ * signed body, so the HMAC covers them. The request-id and timestamp HEADERS are
+ * deliberately not used: the signature does not cover headers, so a captured body
+ * replayed under a fresh header would otherwise get a fresh key and raise its
+ * notice again.
  */
-export function wahaEventDedupeKey(event: string, requestId: string | null, rawBody: string): string {
-  const id = requestId?.trim() || `body-${createHash('sha256').update(rawBody, 'utf8').digest('hex')}`;
+export function wahaEventDedupeKey(event: string, body: unknown, rawBody: string): string {
+  const envelopeId = asRecord(body)?.id;
+  const id =
+    typeof envelopeId === 'string' && envelopeId.trim()
+      ? envelopeId.trim()
+      : `body-${createHash('sha256').update(rawBody, 'utf8').digest('hex')}`;
   return `waha-event:${event}:${id}`;
 }

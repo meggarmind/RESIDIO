@@ -175,17 +175,27 @@ describe('human takeover helpers', () => {
 });
 
 describe('wahaEventDedupeKey', () => {
-  it('keys on the event and the request id', () => {
-    expect(wahaEventDedupeKey('session.status', 'req-1', 'a')).toBe('waha-event:session.status:req-1');
-    expect(wahaEventDedupeKey('session.status', 'req-1', 'b')).toBe(wahaEventDedupeKey('session.status', 'req-1', 'a'));
-    expect(wahaEventDedupeKey('session.status', 'req-2', 'a')).not.toBe(wahaEventDedupeKey('session.status', 'req-1', 'a'));
+  it('keys on the event and the envelope id from the signed body', () => {
+    expect(wahaEventDedupeKey('session.status', { id: 'evt_01ABC' }, 'a')).toBe('waha-event:session.status:evt_01ABC');
+    // The raw body does not matter once an id is present.
+    expect(wahaEventDedupeKey('session.status', { id: 'evt_01ABC' }, 'b')).toBe(
+      wahaEventDedupeKey('session.status', { id: 'evt_01ABC' }, 'a')
+    );
+    expect(wahaEventDedupeKey('session.status', { id: 'evt_02DEF' }, 'a')).not.toBe(
+      wahaEventDedupeKey('session.status', { id: 'evt_01ABC' }, 'a')
+    );
   });
 
-  it('falls back to a hash of the body when the header is absent, and separates events', () => {
-    const first = wahaEventDedupeKey('message.ack', null, 'body-1');
-    expect(first).toBe(wahaEventDedupeKey('message.ack', '  ', 'body-1'));
-    expect(first).not.toBe(wahaEventDedupeKey('message.ack', null, 'body-2'));
-    expect(first).not.toBe(wahaEventDedupeKey('session.status', null, 'body-1'));
-    expect(first.startsWith('waha-event:message.ack:')).toBe(true);
+  it.each([
+    ['no id', { event: 'x' }],
+    ['a blank id', { id: '  ' }],
+    ['a non-string id', { id: 42 }],
+    ['a body that is not an object', null],
+  ])('falls back to a hash of the raw body for %s, and separates events', (_label, body) => {
+    const first = wahaEventDedupeKey('message.ack', body, 'body-1');
+    expect(first).toBe(wahaEventDedupeKey('message.ack', body, 'body-1'));
+    expect(first).not.toBe(wahaEventDedupeKey('message.ack', body, 'body-2'));
+    expect(first).not.toBe(wahaEventDedupeKey('session.status', body, 'body-1'));
+    expect(first.startsWith('waha-event:message.ack:body-')).toBe(true);
   });
 });
