@@ -54,6 +54,30 @@ export function useSettingsSections() {
   return ctx;
 }
 
+/**
+ * A plain block with a jump tab, for pages outside Settings whose content is already cards
+ * (#1273). Registers like a SettingsSection, but has no header, fold or save footer.
+ */
+export function JumpSection({ id, title, className, children }: { id: string; title: string; className?: string; children: React.ReactNode }) {
+  const page = useOptionalSettingsSections();
+  const register = page?.register;
+  const unregister = page?.unregister;
+  const setHandles = page?.setHandles;
+  React.useEffect(() => {
+    register?.({ id, title, dirty: false, visible: true, canSave: true });
+  }, [register, id, title]);
+  React.useEffect(() => {
+    // Nothing to save or fold; the handle lets a #hash link open the section.
+    setHandles?.(id, { save: async () => true, setOpen: () => {} });
+  }, [setHandles, id]);
+  React.useEffect(() => () => unregister?.(id), [unregister, id]);
+  return (
+    <section id={id} aria-label={title} className={className ? `scroll-mt-20 ${className}` : 'scroll-mt-20'}>
+      {children}
+    </section>
+  );
+}
+
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 

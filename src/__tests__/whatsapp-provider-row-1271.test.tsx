@@ -69,6 +69,6 @@ describe('settings registry for /settings/whatsapp (#1271)', () => {
 
   it('lists a section for every jump tab', () => {
     const item = flattenSettingsNav(settingsConfig).find((i) => i.href === '/settings/whatsapp')!;
-    expect(item.sections!.map((s) => s.id)).toEqual(['connection', 'channel', 'rollout', 'pin-policy', 'opt-ins', 'balance', 'assistant', 'privacy', 'monitoring']);
+    expect(item.sections!.map((s) => s.id)).toEqual(['connection', 'channel', 'rollout', 'pin-policy', 'opt-ins', 'balance', 'assistant', 'privacy']);
   });
 });

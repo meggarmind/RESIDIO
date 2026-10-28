@@ -759,18 +759,6 @@ export const settingsConfig: SettingsGroup[] = [
                             },
                         ],
                     },
-                    {
-                        id: "monitoring",
-                        title: "Monitoring (moving)",
-                        rows: [
-                            {
-                                id: "whatsapp-monitoring",
-                                label: "Bot health and follow-up",
-                                help: "Delivery problems, statement flags, survey results and bot health. These cards are moving to their own area.",
-                                keywords: ["health", "delivery problems", "undelivered", "survey", "statement flags"],
-                            },
-                        ],
-                    },
                 ],
             },
             { title: "WhatsApp admin access", href: "/settings/whatsapp-admin", description: "Link your own WhatsApp number for admin mode, approved with your authenticator app", permissions: [PERMISSIONS.WHATSAPP_ADMIN_QUERY] },

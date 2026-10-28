@@ -116,6 +116,7 @@ describe('Settings/System search entry permissions', () => {
       '/system/notification-queue': ['notifications.manage'],
       '/system/notification-history': ['notifications.manage'],
       '/system/whatsapp-monitoring': ['whatsapp.view'],
+      '/system/whatsapp-bot-health': ['whatsapp.view'],
       '/system/data-tools': ['settings.manage_general'],
       '/system/cron-status': ['system.monitor'],
       '/system/action-log': ['system.view_system_log'],
@@ -170,7 +171,6 @@ describe('Settings row search entry permissions (#934, #935, #937)', () => {
       'whatsapp-roll-forward-balance': WHATSAPP,
       'whatsapp-assistant-text': WHATSAPP,
       'whatsapp-privacy-notice': WHATSAPP,
-      'whatsapp-monitoring': WHATSAPP,
       // Billing rules (#935): the page opens for manage_billing in the nav and its sections declare none of their own.
       'bill-vacant-houses': BILLING,
       'bill-under-renovation': BILLING,
