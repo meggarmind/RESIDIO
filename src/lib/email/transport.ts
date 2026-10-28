@@ -13,6 +13,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { decideSend } from '@/lib/comms-override/gate';
 import { applyEmailRedirect } from '@/lib/comms-override/apply';
 import { blockedError, toLogRecord } from '@/lib/comms-override/resolver';
+import { isExemptPurpose } from '@/lib/comms-override/types';
 import type { CommsSendContext, OverrideLogRecord } from '@/lib/comms-override/types';
 
 export const EMAIL_NOT_CONFIGURED_ERROR = 'Email service not configured (missing RESEND_API_KEY)';
@@ -64,7 +65,7 @@ export const DAILY_LIMIT_ERROR = 'Daily email limit reached';
  * An unreadable count refuses, so a database fault cannot lift the cap.
  */
 async function checkDailyCap(purpose: ResendTransportOptions['purpose']): Promise<ResendTransportResult | null> {
-  if (purpose === 'self_auth_2fa') return null;
+  if (isExemptPurpose(purpose)) return null;
 
   const configured = await getSettingValueAsService('email_outbound_daily_cap');
   const cap = typeof configured === 'number' && Number.isInteger(configured) ? configured : DEFAULT_DAILY_CAP;
