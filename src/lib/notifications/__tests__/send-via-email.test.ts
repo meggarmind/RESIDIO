@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   send: vi.fn(),
@@ -283,5 +283,63 @@ describe('statement email that ends failed (#1252)', () => {
     await sendAndRecordNotification(statementItem(0));
     expect(markStatementEmailFailed).not.toHaveBeenCalled();
     expect(sendStatementEmailFailedNotice).not.toHaveBeenCalled();
+  });
+});
+
+describe('daily email cap (#1265)', () => {
+  const sentAt = (iso: string, status = 'sent') => ({ channel: 'email', status, created_at: iso });
+
+  function fakeWithHistory(rows: Record<string, unknown>[]) {
+    const fake = createFakeSupabase({
+      notification_queue: [{ id: 'queue-email', status: 'processing', attempts: 0 }],
+      notification_history: rows,
+      residents: [{ id: 'resident-1', use_override_comms: null }],
+    });
+    vi.mocked(createAdminClient).mockReturnValue(fake.client as unknown as ReturnType<typeof createAdminClient>);
+    return fake;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-28T10:00:00Z'));
+    mocks.isEmailConfigured.mockReturnValue(true);
+    mocks.send.mockResolvedValue({ data: { id: 'rid-9' }, error: null });
+    settings({});
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('defers the send at 90 emails since UTC midnight and reschedules the queue row to the next midnight', async () => {
+    const fake = fakeWithHistory(Array.from({ length: 90 }, () => sentAt('2026-10-28T00:00:00.000Z')));
+
+    expect(await sendNotification(buildEmailItem())).toEqual({
+      success: false,
+      error: 'Daily email limit reached',
+      retryable: true,
+      retryAt: '2026-10-29T00:00:00.000Z',
+    });
+    expect(mocks.send).not.toHaveBeenCalled();
+
+    await sendAndRecordNotification(buildEmailItem());
+    expect(fake.state.tables.notification_queue[0]).toMatchObject({
+      status: 'pending',
+      attempts: 1,
+      error_message: 'Daily email limit reached',
+      scheduled_for: '2026-10-29T00:00:00.000Z',
+    });
+  });
+
+  it('counts only email rows sent today: yesterday and failed rows do not count', async () => {
+    fakeWithHistory([
+      ...Array.from({ length: 89 }, () => sentAt('2026-10-28T09:59:59.000Z')),
+      sentAt('2026-10-27T23:59:59.999Z'),
+      sentAt('2026-10-28T09:00:00.000Z', 'failed'),
+      { channel: 'whatsapp', status: 'sent', created_at: '2026-10-28T09:00:00.000Z' },
+    ]);
+
+    expect(await sendNotification(buildEmailItem())).toEqual({ success: true, externalId: 'rid-9' });
   });
 });
