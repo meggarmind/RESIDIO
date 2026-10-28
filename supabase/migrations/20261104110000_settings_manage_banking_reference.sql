@@ -13,7 +13,8 @@
 --      financial officer only.
 -- Bank account writes need no grant: their policies check payments.manage_reference_records, and
 -- creating one needs approvals.approve_reject; financial_officer already holds both.
--- Out of scope: PDF statement passwords (email_imports.manage_passwords) are unchanged.
+-- Out of scope (owner decision, 29 Oct 2026): PDF statement passwords stay with chairman and
+-- super_admin; email_imports.manage_passwords is unchanged.
 --
 -- ROLLBACK:
 -- BEGIN;
