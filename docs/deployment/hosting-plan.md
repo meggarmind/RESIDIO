@@ -213,6 +213,14 @@ scheduled-task failure event on a channel that is actually read). Without this a
 silent from the user side. Each task also records its executions in the application's Scheduled
 Tasks tab; check that after the first run.
 
+Do not send scheduled-task failures by email when Coolify's email uses the app's Resend team. Each
+failed run is one email, so a task that fails every 5 minutes sends about 288 a day and uses the
+100/day quota (28 Oct 2026, #1268). Use Telegram or Discord for that event.
+
+`whatsapp-chatmaid-reconcile` exits 0 when Chatmaid refuses the key (HTTP 401/403), so it does not
+alert every run. The refusal and Chatmaid's reason still go to the System log as a failure
+(source `cron:whatsapp-chatmaid-reconcile`).
+
 ### Triggering a job by hand against stage
 
 To run a job outside its schedule (for example to check a change before the next run), trigger it
