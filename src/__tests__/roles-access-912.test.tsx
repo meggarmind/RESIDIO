@@ -272,10 +272,9 @@ describe('Unlinked logins (#912)', () => {
 });
 
 describe('navigation, search and route guards (#912)', () => {
-  it('takes Roles & Access out of the System sidebar (#939)', async () => {
-    const { ADMIN_NAV_SECTIONS } = await import('@/config/navigation');
-    const system = ADMIN_NAV_SECTIONS.find((s) => s.id === 'system')!;
-    expect(system.items.map((i) => i.href)).not.toContain('/system/accounts');
+  it('takes Roles & Access out of the Oversight menu (#939)', async () => {
+    const { oversightConfig } = await import('@/config/oversight-nav');
+    expect(oversightConfig.flatMap((g) => g.items).map((i) => i.href)).not.toContain('/system/accounts');
   });
 
   it('lists Roles & Access in Settings at /settings/access, indexed for search (#939)', async () => {

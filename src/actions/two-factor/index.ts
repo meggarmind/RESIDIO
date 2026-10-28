@@ -4,6 +4,6 @@ export { getTwoFactorStatus, getTwoFactorPolicy, getAllTwoFactorPolicies } from 
 export { initiateTwoFactorSetup, confirmTwoFactorSetup } from './setup';
 export { verifyTwoFactorCode, verifyBackupCode } from './verify';
 export { disableTwoFactor, resetUserTwoFactor, requestDisableCode } from './disable';
-export { generateBackupCodes, getBackupCodesCount } from './backup-codes';
+export { generateBackupCodes, getBackupCodesCount, sendBackupCodes } from './backup-codes';
 export { updateTwoFactorPolicy } from './policies';
 export { getTwoFactorAuditLog, getRecentTwoFactorActivity } from './audit-log';

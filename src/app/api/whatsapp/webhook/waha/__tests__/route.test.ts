@@ -148,6 +148,7 @@ describe('WAHA WhatsApp webhook route', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllGlobals();
     vi.doUnmock('@/lib/whatsapp');
     vi.doUnmock('@/lib/whatsapp/providers/chatmaid-inbound');
     vi.doUnmock('@/lib/notifications/admin-notifier');
@@ -326,8 +327,11 @@ describe('WAHA WhatsApp webhook route', () => {
       const h = await load({ pausedUntil: new Date(NOW + 60_000) });
       const response = await h.POST(post(receivedBody));
 
-      await expect(response.json()).resolves.toMatchObject({ processed_count: 1, ignored_count: 1, paused_count: 1 });
+      await expect(response.json()).resolves.toMatchObject({ processed_count: 1, ignored_count: 1, paused_count: 1, ignored_reason: 'human_takeover' });
       expect(h.handleResidentMessage).not.toHaveBeenCalled();
+      expect(recordSystemAction).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'inbound_ignored', summary: { reason: 'human_takeover', count: 1 } })
+      );
     });
 
     it('returns 500 when processing fails, and lets the retry process the message', async () => {
@@ -349,13 +353,66 @@ describe('WAHA WhatsApp webhook route', () => {
       expect(h.handleResidentMessage).not.toHaveBeenCalled();
     });
 
-    it('does not hand an @lid message to the Assistant', async () => {
+    it('records the reason for an ignored group message, once, with no number or text', async () => {
       const h = await load();
+      const body = webhook('message', { ...receivedPayload, id: 'g2', from: '120363000000000000@g.us' });
+      const response = await h.POST(post(body));
+      await h.POST(post(body));
+
+      await expect(response.json()).resolves.toMatchObject({ ignored_count: 1, ignored_reason: 'group' });
+      expect(recordSystemAction).toHaveBeenCalledTimes(1);
+      const entry = recordSystemAction.mock.calls[0][0];
+      expect(entry).toEqual({
+        source: 'webhook:whatsapp-waha',
+        action: 'inbound_ignored',
+        outcome: 'success',
+        summary: { reason: 'group', count: 1 },
+        error: undefined,
+      });
+      expect(JSON.stringify(entry)).not.toContain('120363000000000000');
+      expect(JSON.stringify(entry)).not.toContain('balance');
+    });
+
+    it('resolves an @lid sender through the WAHA LID API and answers it', async () => {
+      const h = await load();
+      const fetchMock = vi.fn<(url: string) => Promise<Response>>(async () => new Response(JSON.stringify({ lid: '98765432109876@lid', pn: '2348000000000@c.us' })));
+      vi.stubGlobal('fetch', fetchMock);
       const body = webhook('message', { ...receivedPayload, id: 'l1', from: '98765432109876@lid' });
       const response = await h.POST(post(body));
 
-      await expect(response.json()).resolves.toMatchObject({ ignored_count: 1 });
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({ processed_count: 1, ignored_count: 0 });
+      expect(fetchMock.mock.calls[0][0]).toBe('https://waha.test/api/default/lids/98765432109876%40lid');
+      expect(h.handleResidentMessage).toHaveBeenCalledTimes(1);
+      expect(h.handleResidentMessage.mock.calls[0][0]).toMatchObject({ id: 'l1', from: '+2348000000000', text: 'balance' });
+    });
+
+    it('does not hand an unresolved @lid message to the Assistant, and records lid_unresolved', async () => {
+      const h = await load();
+      vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ lid: '98765432109876@lid', pn: null }))));
+      const body = webhook('message', { ...receivedPayload, id: 'l2', from: '98765432109876@lid' });
+      const response = await h.POST(post(body));
+
+      await expect(response.json()).resolves.toMatchObject({ ignored_count: 1, ignored_reason: 'lid_unresolved' });
       expect(h.handleResidentMessage).not.toHaveBeenCalled();
+      expect(recordSystemAction).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'inbound_ignored', summary: { reason: 'lid_unresolved', count: 1 } })
+      );
+      expect(JSON.stringify(recordSystemAction.mock.calls)).not.toContain('98765432109876');
+    });
+
+    it('ignores the message, records lid_unresolved and answers 200 when the LID lookup fails', async () => {
+      const h = await load();
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 502 })));
+      const body = webhook('message', { ...receivedPayload, id: 'l3', from: '98765432109876@lid' });
+      const response = await h.POST(post(body));
+
+      expect(response.status).toBe(200);
+      expect(h.handleResidentMessage).not.toHaveBeenCalled();
+      expect(recordSystemAction).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'inbound_ignored', summary: { reason: 'lid_unresolved', count: 1 } })
+      );
     });
 
     it('does not answer the handset\'s own api send delivered as message.any', async () => {

@@ -2,6 +2,7 @@
 
 import { Suspense, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { JumpSection } from '@/components/settings/settings-sections-provider';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   useDashboardFinancialHealth,
@@ -71,7 +72,7 @@ function FinancialDashboardContent() {
   return (
     <div className="space-y-6">
       {/* Collection Health Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <JumpSection id="totals" title="Totals" className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Collection Rate</CardTitle>
@@ -112,32 +113,36 @@ function FinancialDashboardContent() {
             <div className="text-2xl font-bold tabular-nums">{fhLoading ? <Skeleton className="h-8 w-28" /> : financialHealth ? formatCurrency(financialHealth.portfolioValue) : '-'}</div>
           </CardContent>
         </Card>
-      </div>
+      </JumpSection>
 
       {/* Revenue vs Expenses Monthly Trend */}
-      <Suspense fallback={<Skeleton className="h-80 w-full" />}>
-        <RevenueTrendChart data={trendData?.revenueTrend ?? null} isLoading={trendLoading} />
-      </Suspense>
+      <JumpSection id="trends" title="Trends">
+        <Suspense fallback={<Skeleton className="h-80 w-full" />}>
+          <RevenueTrendChart data={trendData?.revenueTrend ?? null} isLoading={trendLoading} />
+        </Suspense>
+      </JumpSection>
 
-      <Card>
-        <CardHeader><CardTitle className="flex items-center gap-2"><Clock className="h-5 w-5" />Invoice Aging</CardTitle></CardHeader>
-        <CardContent>
-          {agingLoading ? (
-            <Skeleton className="h-36 w-full" />
-          ) : agingError ? (
-            <p className="text-sm text-muted-foreground">Invoice aging unavailable</p>
-          ) : invoiceAging?.length ? (
-            <div className="flex h-36 items-end gap-1" aria-label="Exact days overdue histogram">
-              {invoiceAging.map(({ daysOverdue, count }) => (
-                <div key={daysOverdue} className="flex min-w-6 flex-1 flex-col items-center gap-1">
-                  <div className="w-full rounded-t bg-amber-500" style={{ height: `${Math.max(8, (count / Math.max(...invoiceAging.map((item) => item.count))) * 100)}%` }} title={`${daysOverdue} days overdue: ${count} invoice(s)`} />
-                  <span className="text-xs text-muted-foreground">{daysOverdue}d</span>
-                </div>
-              ))}
-            </div>
-          ) : <p className="text-sm text-muted-foreground">No overdue invoices.</p>}
-        </CardContent>
-      </Card>
+      <JumpSection id="invoice-aging" title="Invoice aging">
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2"><Clock className="h-5 w-5" />Invoice Aging</CardTitle></CardHeader>
+          <CardContent>
+            {agingLoading ? (
+              <Skeleton className="h-36 w-full" />
+            ) : agingError ? (
+              <p className="text-sm text-muted-foreground">Invoice aging unavailable</p>
+            ) : invoiceAging?.length ? (
+              <div className="flex h-36 items-end gap-1" aria-label="Exact days overdue histogram">
+                {invoiceAging.map(({ daysOverdue, count }) => (
+                  <div key={daysOverdue} className="flex min-w-6 flex-1 flex-col items-center gap-1">
+                    <div className="w-full rounded-t bg-amber-500" style={{ height: `${Math.max(8, (count / Math.max(...invoiceAging.map((item) => item.count))) * 100)}%` }} title={`${daysOverdue} days overdue: ${count} invoice(s)`} />
+                    <span className="text-xs text-muted-foreground">{daysOverdue}d</span>
+                  </div>
+                ))}
+              </div>
+            ) : <p className="text-sm text-muted-foreground">No overdue invoices.</p>}
+          </CardContent>
+        </Card>
+      </JumpSection>
 
       {/* Bottom Row: Invoice Distribution + Quick Stats */}
       <div className="grid gap-6 lg:grid-cols-2">

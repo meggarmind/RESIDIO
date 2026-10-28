@@ -22,6 +22,7 @@ import {
   useGenerateBackupCodes,
   useInitiate2FASetup,
   useRequestDisableCode,
+  useSendBackupCodes,
   useTwoFactorStatus,
 } from '@/hooks/use-two-factor';
 
@@ -51,8 +52,45 @@ function CodeField({ id, value, onChange }: { id: string; value: string; onChang
   );
 }
 
+const BACKUP_CODES_FILE = 'residio-backup-codes.txt';
+
+/** The codes as a text file to keep: one code per line, under a short heading. */
+function backupCodesFile(codes: string[]): File {
+  const text = ['Residio two-factor backup codes', 'Each code signs you in once.', '', ...codes, ''].join('\n');
+  return new File([text], BACKUP_CODES_FILE, { type: 'text/plain' });
+}
+
+/** True when the device can hand a file to another app (the phone share sheet: WhatsApp, email, Files). */
+function canShareFile(file: File): boolean {
+  return typeof navigator !== 'undefined' && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] });
+}
+
+/** Saves the file through the browser's download, on a computer or a phone. */
+function downloadFile(file: File) {
+  const url = URL.createObjectURL(file);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = file.name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  // Safari can cancel a download whose URL is revoked at once.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 /** Backup codes, shown once, right after they are made. */
 function BackupCodesDialog({ codes, onClose }: { codes: string[] | null; onClose: () => void }) {
+  const file = codes ? backupCodesFile(codes) : null;
+  const shareable = file !== null && canShareFile(file);
+  const send = useSendBackupCodes();
+  const sendTo = (channel: 'email' | 'whatsapp') => {
+    if (!codes) return;
+    send.mutate({ channel, codes }, {
+      onSuccess: (result) => toast.success(result.message),
+      onError: (error) => toast.error(error.message),
+    });
+  };
+
   return (
     <Dialog open={codes !== null} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent>
@@ -65,7 +103,12 @@ function BackupCodesDialog({ codes, onClose }: { codes: string[] | null; onClose
         <ul className="grid grid-cols-2 gap-2 rounded-md border bg-muted p-4 font-mono text-sm" aria-label="Backup codes">
           {codes?.map((code) => <li key={code}>{code}</li>)}
         </ul>
-        <DialogFooter>
+        <p className="text-sm text-muted-foreground">
+          Email me and WhatsApp me send the codes to your own email address or WhatsApp number.
+          {shareable && ' Share sends the file to an app you choose, such as WhatsApp, email or Files.'}
+          {' '}Anyone who can open that inbox or chat can use the codes.
+        </p>
+        <DialogFooter className="flex-wrap gap-2">
           <Button
             type="button"
             variant="outline"
@@ -78,6 +121,38 @@ function BackupCodesDialog({ codes, onClose }: { codes: string[] | null; onClose
           >
             Copy codes
           </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              if (!file) return;
+              downloadFile(file);
+              toast.success(`Saved as ${file.name}`);
+            }}
+          >
+            Save as file
+          </Button>
+          <Button type="button" variant="outline" disabled={send.isPending} onClick={() => sendTo('email')}>
+            Email me
+          </Button>
+          <Button type="button" variant="outline" disabled={send.isPending} onClick={() => sendTo('whatsapp')}>
+            WhatsApp me
+          </Button>
+          {shareable && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                navigator.share({ files: [file], title: 'Residio backup codes' }).catch((error: unknown) => {
+                  // Closing the share sheet is not a failure.
+                  if (error instanceof DOMException && error.name === 'AbortError') return;
+                  toast.error('Could not share. Save the file instead.');
+                });
+              }}
+            >
+              Share
+            </Button>
+          )}
           <Button type="button" onClick={onClose}>I have saved them</Button>
         </DialogFooter>
       </DialogContent>

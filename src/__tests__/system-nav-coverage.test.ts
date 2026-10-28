@@ -4,16 +4,15 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { ROUTE_PERMISSIONS } from '@/lib/auth/action-roles';
-import { ADMIN_NAV_SECTIONS, type NavItem } from '@/config/navigation';
+import { ADMIN_NAV_SECTIONS } from '@/config/navigation';
+import { oversightConfig } from '@/config/oversight-nav';
+import { flattenSettingsNav } from '@/config/settings-nav';
 
 /**
  * The /system sibling of settings-nav-coverage.test.ts.
  *
  * Keeps three descriptions of "what System contains" in step: the pages on
- * disk, the `system` nav section in navigation.ts, and ROUTE_PERMISSIONS.
- *
- * Unlike Settings, System has no dedicated sidebar config file — its pages
- * are nav items directly inside the `system` NavSection in navigation.ts.
+ * disk, the Oversight menu in oversight-nav.ts (#1272), and ROUTE_PERMISSIONS.
  *
  * This is the assertion that matters most: middleware skips the entire
  * authorization block when no ROUTE_PERMISSIONS key matches a path, so a
@@ -34,16 +33,9 @@ function routesOnDisk(dir = systemDir, prefix = '/system'): string[] {
   return found.sort();
 }
 
-function navItems(): NavItem[] {
-  const flatten = (items: NavItem[]): NavItem[] =>
-    items.flatMap((item) => (item.children ? [item, ...flatten(item.children)] : [item]));
-
-  const systemSection = ADMIN_NAV_SECTIONS.find((section) => section.id === 'system');
-  if (!systemSection) return [];
-
-  // Only items actually under /system — NAV_SETTINGS also lives in this
-  // section (href /settings) and is covered by the Settings test instead.
-  return flatten(systemSection.items).filter((item) => item.href.startsWith('/system'));
+function navItems() {
+  // The /system pages; /analytics and /reports pages are covered by the Oversight block below.
+  return flattenSettingsNav(oversightConfig).filter((item) => item.href.startsWith('/system'));
 }
 
 const navHrefs = new Set(navItems().map((i) => i.href));
@@ -67,7 +59,7 @@ describe('system navigation coverage', () => {
     // Pages intentionally not a nav destination of their own (permanent
     // redirect stubs), following settings-nav-coverage.test.ts's REDIRECTS pattern.
     // Roles & Access moved to /settings/access (#939).
-    const REDIRECTS = new Set<string>(['/system/accounts']);
+    const REDIRECTS = new Set<string>(['/system/accounts', '/system/data-tools']);
 
     const unlisted = routesOnDisk()
       .filter((route) => !navHrefs.has(route) && !REDIRECTS.has(route))
@@ -106,5 +98,48 @@ describe('system navigation coverage', () => {
       .sort();
 
     expect(contradictions).toEqual([]);
+  });
+});
+
+describe('Oversight navigation (#1272)', () => {
+  const entries = flattenSettingsNav(oversightConfig);
+  const sidebar = ADMIN_NAV_SECTIONS.flatMap((section) => section.items);
+
+  it('gives every entry a ROUTE_PERMISSIONS guard that its permissions match', () => {
+    for (const entry of entries) {
+      const guard = guardFor(entry.href);
+      expect(guard, `${entry.href} has no ROUTE_PERMISSIONS guard`).toBeDefined();
+      const required = ROUTE_PERMISSIONS[guard!];
+      if (guard === entry.href) {
+        expect(entry.permissions, entry.href).toEqual(required);
+      } else {
+        // Guarded by a parent prefix (e.g. /reports/financial-overview under /reports).
+        expect(required, entry.href).toEqual(expect.arrayContaining(entry.permissions!));
+      }
+    }
+  });
+
+  it('links only pages that exist and no title twice', () => {
+    const titles = entries.map((e) => e.title);
+    expect(new Set(titles).size).toBe(titles.length);
+    const appDir = fileURLToPath(new URL('../app/(dashboard)', import.meta.url));
+    for (const { href } of entries) {
+      expect(() => statSync(path.join(appDir, href, 'page.tsx')), href).not.toThrow();
+    }
+  });
+
+  it('shows one sidebar entry, visible to a holder of any single Oversight permission', () => {
+    const oversight = sidebar.find((item) => item.href === '/system')!;
+    expect(oversight.title).toBe('Oversight');
+    const union = new Set(entries.flatMap((e) => e.permissions ?? []));
+    expect(new Set(oversight.permissions)).toEqual(union);
+  });
+
+  it('leaves no Analytics, Reports or System item in the sidebar', () => {
+    for (const title of ['Analytics', 'Reports', 'System']) {
+      expect(sidebar.find((item) => item.title === title), title).toBeUndefined();
+    }
+    expect(ADMIN_NAV_SECTIONS.at(-1)).toMatchObject({ id: 'admin', label: 'Admin' });
+    expect(ADMIN_NAV_SECTIONS.at(-1)!.items.map((i) => i.title)).toEqual(['Oversight', 'Settings']);
   });
 });

@@ -245,7 +245,7 @@ function AnnouncementAnalyticsHeader({
             <Megaphone className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Announcement Analytics</h1>
+            <h1 className="text-2xl font-bold tracking-tight">Announcement engagement</h1>
             <p className="text-sm text-muted-foreground">
               Engagement metrics and communication insights
             </p>

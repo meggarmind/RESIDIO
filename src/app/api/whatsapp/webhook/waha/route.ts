@@ -4,9 +4,11 @@ import { recordInboundBatch, recordWebhookDelivery } from '@/lib/system-log/webh
 import { createSupabaseProcessedMessageStore, resolveWhatsAppConfig } from '@/lib/whatsapp';
 import { createSupabaseChatmaidSessionPauseStore } from '@/lib/whatsapp/providers/chatmaid-inbound';
 import { processChatmaidMessages } from '@/lib/whatsapp/providers/chatmaid-message-handler';
+import type { WahaWhatsAppConfig } from '@/lib/whatsapp/config';
+import { lookupWahaLidPhone } from '@/lib/whatsapp/providers/waha';
 import {
   WAHA_HUMAN_TAKEOVER_PAUSE_MS,
-  extractWahaMessages,
+  extractWahaInbound,
   extractWahaOutgoingRecipient,
   isWahaManualOutgoing,
   verifyWahaSignature,
@@ -81,8 +83,10 @@ async function runOnce(key: string, effect: () => Promise<void>): Promise<'done'
   return 'done';
 }
 
-async function handleMessageReceived(payload: unknown) {
-  const { result, pausedCount } = await processChatmaidMessages(extractWahaMessages(payload));
+async function handleMessageReceived(payload: unknown, config: WahaWhatsAppConfig) {
+  const inbound = await extractWahaInbound(payload, (lid) => lookupWahaLidPhone(config, lid));
+
+  const { result, pausedCount } = await processChatmaidMessages(inbound ? [inbound.message] : []);
 
   await recordInboundBatch(
     'whatsapp-waha',
@@ -94,6 +98,17 @@ async function handleMessageReceived(payload: unknown) {
     return processingFailed(result.error || 'Inbound WhatsApp message could not be processed');
   }
 
+  const ignoredReason = inbound?.ignoredReason ?? (pausedCount > 0 ? 'human_takeover' : null);
+  // One row per ignored message (#1282), not again for a retry or the message/message.any twin. Reason only: no number, no text.
+  if (ignoredReason && result.duplicateCount === 0) {
+    await recordWebhookDelivery({
+      provider: 'whatsapp-waha',
+      action: 'inbound_ignored',
+      outcome: 'success',
+      summary: { reason: ignoredReason, count: 1 },
+    });
+  }
+
   return NextResponse.json({
     received: true,
     processed: true,
@@ -101,6 +116,7 @@ async function handleMessageReceived(payload: unknown) {
     duplicate_count: result.duplicateCount,
     ignored_count: result.ignoredCount + pausedCount,
     paused_count: pausedCount,
+    ...(ignoredReason ? { ignored_reason: ignoredReason } : {}),
   });
 }
 
@@ -374,11 +390,11 @@ export async function POST(request: NextRequest) {
 
   switch (event) {
     case 'message':
-      return handleMessageReceived(payload);
+      return handleMessageReceived(payload, resolved.config);
     case 'message.any':
       // `message.any` also carries the handset's own sends; only its inbound ones are answered.
       if (inner?.fromMe === false) {
-        return handleMessageReceived(payload);
+        return handleMessageReceived(payload, resolved.config);
       }
       if (isWahaManualOutgoing(payload)) {
         return handleManualOutgoing(payload);

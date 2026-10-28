@@ -6,7 +6,7 @@ import { SETTINGS_SEARCH_ENTRIES, matchSettingsEntries } from '@/lib/search/sett
 
 /**
  * #179 adds Settings/System entries to the command palette, generated from
- * `settingsConfig` and the `system` section of `ADMIN_NAV_SECTIONS`. That
+ * `settingsConfig` and `oversightConfig`. That
  * generation step is a hand-maintained dedupe (see `settings-search-entries.ts`
  * -- `/settings` alone is a candidate from three different sources), and
  * nothing else in the build would notice the mapping going stale.
@@ -106,12 +106,19 @@ describe('Settings/System search entry permissions', () => {
       '/settings/email-integration': ['email_imports.view'],
       // Merged System page (#938): the OR of its sections' permissions.
       '/settings/system': ['system.manage_data_retention', 'system.manage_maintenance'],
+      // Oversight pages (#1272), from oversightConfig.
+      // Moved from /system/data-tools (#1274), same guard.
+      '/settings/data-tools': ['settings.manage_general'],
       '/system': ['system.view_all_settings'],
+      '/analytics': ['reports.view_financial', 'reports.view_occupancy', 'reports.view_security'],
+      '/reports/financial-overview': ['reports.view_financial'],
+      '/reports': ['reports.view_financial', 'reports.view_occupancy', 'reports.view_security'],
+      '/analytics/announcements': ['reports.view_financial', 'reports.view_occupancy', 'reports.view_security'],
       '/system/audit-logs': ['settings.view_audit_logs'],
       '/system/notification-queue': ['notifications.manage'],
       '/system/notification-history': ['notifications.manage'],
       '/system/whatsapp-monitoring': ['whatsapp.view'],
-      '/system/data-tools': ['settings.manage_general'],
+      '/system/whatsapp-bot-health': ['whatsapp.view'],
       '/system/cron-status': ['system.monitor'],
       '/system/action-log': ['system.view_system_log'],
     });
@@ -165,7 +172,10 @@ describe('Settings row search entry permissions (#934, #935, #937)', () => {
       'whatsapp-roll-forward-balance': WHATSAPP,
       'whatsapp-assistant-text': WHATSAPP,
       'whatsapp-privacy-notice': WHATSAPP,
-      'whatsapp-monitoring': WHATSAPP,
+      // #1274: the approval limit sits on Banking, gated like the page; Gmail Import sections take the page's permission.
+      'email-auto-process-limit': ['settings.manage_reference', 'system.manage_maintenance'],
+      'gmail-connection': ['email_imports.view'],
+      'gmail-sync': ['email_imports.view'],
       // Billing rules (#935): the page opens for manage_billing in the nav and its sections declare none of their own.
       'bill-vacant-houses': BILLING,
       'bill-under-renovation': BILLING,
@@ -333,17 +343,16 @@ describe('settingsConfig parent/child permission invariant (palette/sidebar agre
 
   const parentsWithChildren = allItemsWithPath().filter(({ item }) => !!item.children?.length);
 
-  it('found at least one parent-with-children to check (guards the test itself against a vacuous pass)', () => {
-    expect(parentsWithChildren.length).toBeGreaterThan(0);
-  });
-
-  it.each(parentsWithChildren)('"$path" gates at least as much as its descendants require', ({ path, item }) => {
+  // A loop, not it.each: no parent has children since the Monitoring group left Settings (#1272),
+  // and an empty it.each is a failing suite. The check applies again the day one returns.
+  it('every parent gates at least as much as its descendants require', () => {
+    for (const { path, item } of parentsWithChildren) {
     // No `permissions` on the parent itself means the sidebar never gates
     // at this level at all -- `filterItem` only filters when
     // `item.permissions` is truthy (see `use-settings-navigation.ts`). An
     // ungated parent can never hide a subtree, so it trivially satisfies
     // this invariant regardless of what its children require.
-    if (!item.permissions) return;
+    if (!item.permissions) continue;
 
     const required = descendantPermissions(item);
     const missing = [...required].filter((p) => !item.permissions!.includes(p));
@@ -354,5 +363,6 @@ describe('settingsConfig parent/child permission invariant (palette/sidebar agre
         `a role holding only that permission would be shown the child in the palette but have the whole ` +
         `subtree hidden by the sidebar (useSettingsNavigation cascades on the parent's own check first).`
     ).toEqual([]);
+    }
   });
 });

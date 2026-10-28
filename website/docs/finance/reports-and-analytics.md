@@ -14,13 +14,13 @@ residio_app_version: '0.4.0'
 
 # Reports and analytics
 
-Use **Analytics** for trends and **Reports** for generated operational or financial outputs.
+Both live under **Oversight** in the sidebar, in the **Reports** group of its left menu. Use **Collections dashboard** for trends, **Income & expenses** for the income and expense breakdown, **Generate reports** for generated operational or financial outputs, and **Announcement engagement** for announcement reach.
 
 ![Residio analytics dashboard](../assets/admin/analytics-dashboard.png)
 
-## Analytics workflow
+## Collections dashboard workflow
 
-**Analytics** opens the **Financial Overview**: collection rate, outstanding balance, overdue invoices and portfolio value at the top, a revenue against expenses trend for the last 12 months, **Invoice Aging** (how many overdue invoices are overdue by each number of days), **Invoice Status** (paid, unpaid, partially paid, overdue and void), and **Quick Stats** for houses, occupancy and residents. The page has no period filter.
+**Oversight → Collections dashboard** shows: collection rate, outstanding balance, overdue invoices and portfolio value at the top, a revenue against expenses trend for the last 12 months, **Invoice Aging** (how many overdue invoices are overdue by each number of days), **Invoice Status** (paid, unpaid, partially paid, overdue and void), and **Quick Stats** for houses, occupancy and residents. The page has no period filter. Jump tabs at the top (**Totals**, **Trends**, **Invoice aging**) scroll to each part.
 
 1. Read the summary cards first.
 2. Use the trend and aging charts to locate the problem.
@@ -28,11 +28,15 @@ Use **Analytics** for trends and **Reports** for generated operational or financ
 
 If the aging figures cannot be loaded, the card says *Invoice aging unavailable* rather than showing no overdue invoices, so an empty card is never mistaken for a clean ledger.
 
+## Income and expenses
+
+**Oversight → Income & expenses** shows the financial summary and the transaction breakdown by category, from imported bank statements. It needs the view financial reports permission.
+
 ## Report workflow
 
-**Reports** needs the view financial reports permission; without it you are returned to the dashboard. The page has five tabs: **New Report**, **History**, **Schedules**, **Archive** and **Wallet Check**.
+**Oversight → Generate reports** needs the view financial reports permission; without it you are returned to the dashboard. The page has five tabs: **New Report**, **History**, **Schedules**, **Archive** and **Wallet Check**.
 
-1. Open **Reports → New Report**.
+1. Open **Oversight → Generate reports → New Report**.
 2. Select the report type and period.
 3. Review the preview or parameters.
 4. Generate and download the report only after confirming the scope.

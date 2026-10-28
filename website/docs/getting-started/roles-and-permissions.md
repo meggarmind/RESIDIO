@@ -17,8 +17,8 @@ residio_sources:
   - src/components/admin/role-title-picker.tsx
   - src/components/admin/role-titles-manager.tsx
   - src/components/admin/pending-accounts-list.tsx
-residio_verified_commit: 438c01df
-residio_verified_at: '2026-10-22'
+residio_verified_commit: c8f57c63
+residio_verified_at: '2026-10-28'
 residio_app_version: '0.4.0'
 ---
 
@@ -43,7 +43,7 @@ Approval is the gate. Everyone in this queue is asking for access to resident na
 
 Two-factor authentication is optional: it applies only to accounts that have turned it on. For those accounts, entering the right password is not enough. After signing in, the person is taken to a verification page and sees nothing else until they enter a code from their chosen method (authenticator app, SMS or email). A backup code can be used instead if the device is unavailable; each backup code works once.
 
-- **Turning it on.** Open **Settings → Two-factor login**, or choose **Two-factor login** in the profile menu (the round icon at the top right). Choose **Set up authenticator app**, scan the QR code shown with an authenticator app (or type the key shown under it, or use the link on a phone), and enter the 6-digit code the app shows. Ten backup codes are then shown once: save them before closing the dialog.
+- **Turning it on.** Open **Settings → Two-factor login**, or choose **Two-factor login** in the profile menu (the round icon at the top right). Choose **Set up authenticator app**, scan the QR code shown with an authenticator app (or type the key shown under it, or use the link on a phone), and enter the 6-digit code the app shows. Ten backup codes are then shown once: save them before closing the dialog. **Copy codes** copies them, **Save as file** downloads them as a text file, and on a phone **Share** sends the file to an app you choose, such as WhatsApp, email or Files. **Email me** and **WhatsApp me** send the codes to your own email address or the WhatsApp number on your profile, for up to 15 minutes after they are made.
 - **Backup codes and turning it off.** On the same page, **Make new backup codes** replaces the old ones and **Turn off** removes two-factor and its backup codes. Both ask for a new code from the app.
 - Each authenticator code works once. A code already used, for signing in or on this page, is refused; wait for the next one.
 - The verification lasts for that sign-in. Signing in again, or waiting 24 hours, asks for a code again.

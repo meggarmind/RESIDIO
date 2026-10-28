@@ -72,7 +72,7 @@ const typeLabels = {
   document: 'Documents',
   action: 'Quick Actions',
   settings: 'Settings',
-  system: 'System',
+  system: 'Oversight',
 };
 
 // Custom order for groups. Module-level (not recreated per render) so it has

@@ -4,7 +4,6 @@ import { SettingsMergedPage } from '@/components/settings/settings-merged-page';
 import { SettingsRow } from '@/components/settings/settings-row';
 import { SettingsSection } from '@/components/settings/settings-section';
 import { getWhatsAppEnabled, getWhatsAppPilotRoster, getWhatsAppPilotSettings } from '@/actions/whatsapp/pilot';
-import { getWhatsAppDeliveryProblems, getWhatsAppHealth, getWhatsAppStatementFlags, getWhatsAppSurveySummary } from '@/actions/whatsapp/admin-console';
 import { getWhatsAppConnectionStatus, getWhatsAppOverrideNumbers, type WhatsAppConnectionStatus } from '@/actions/whatsapp/connection';
 import { ForcePinToggle } from '@/app/(dashboard)/settings/whatsapp/force-pin-toggle';
 import { AssistantText } from '@/app/(dashboard)/settings/whatsapp/assistant-text';
@@ -16,7 +15,6 @@ import { PrivacyNoticeSettings } from '@/app/(dashboard)/settings/whatsapp/priva
 import { PilotControls } from '@/app/(dashboard)/settings/whatsapp/pilot-controls';
 import { ConnectionSettings } from '@/app/(dashboard)/settings/whatsapp/connection-settings';
 import { WhatsAppEnabledToggle } from '@/app/(dashboard)/settings/whatsapp/whatsapp-enabled-toggle';
-import { OperationsConsole, type DeliveryProblem, type Health, type StatementFlag, type SurveySummary } from '@/app/(dashboard)/settings/whatsapp/operations-console';
 
 const DISCONNECTED_STATUS: WhatsAppConnectionStatus = {
   connected: false,
@@ -40,19 +38,15 @@ const DISCONNECTED_STATUS: WhatsAppConnectionStatus = {
 };
 
 export default async function WhatsAppOperationsPage() {
-  const [forcePinResult, healthResult, pilotResult, connectionResult, overrideNumbersResult, whatsappEnabledResult, pilotRosterResult, deliveryProblemsResult, assistantTextResult, statementFlagsResult, privacyNoticeResult, surveyResult, rollForwardResult] = await Promise.all([
+  const [forcePinResult, pilotResult, connectionResult, overrideNumbersResult, whatsappEnabledResult, pilotRosterResult, assistantTextResult, privacyNoticeResult, rollForwardResult] = await Promise.all([
     getWhatsAppForcePin(),
-    getWhatsAppHealth(),
     getWhatsAppPilotSettings(),
     getWhatsAppConnectionStatus(),
     getWhatsAppOverrideNumbers(),
     getWhatsAppEnabled(),
     getWhatsAppPilotRoster(),
-    getWhatsAppDeliveryProblems(),
     getWhatsAppAssistantText(),
-    getWhatsAppStatementFlags(),
     getWhatsAppPrivacyNotice(),
-    getWhatsAppSurveySummary(),
     getResidentRollForwardBalance(),
   ]);
 
@@ -67,7 +61,14 @@ export default async function WhatsAppOperationsPage() {
   const pilot = pilotResult.data || { mode: 'disabled', residentIds: [], streetId: '', outboundDailyCap: 100, outboundBurstCap: 20, outboundBurstWindowMinutes: 10, financialLookupDailyCap: 500, sessionRetentionDays: 1, processedMessageRetentionDays: 2, surveyResponseRetentionDays: 90, outboundSendRetentionDays: 90 };
 
   return (
-    <SettingsMergedPage description="Admin-only consent, identity, session, disclosure, and bot health controls.">
+    <SettingsMergedPage
+      description={
+        <>
+          Admin-only consent, identity, session and disclosure controls.{' '}
+          <Link href="/system/whatsapp-bot-health" className="underline">Bot health and follow-ups are in Oversight</Link>.
+        </>
+      }
+    >
       <SettingsSection
         id="connection"
         title="Connection"
@@ -134,27 +135,6 @@ export default async function WhatsAppOperationsPage() {
         <SettingsRow rowId="whatsapp-privacy-notice" stacked>
           <div className="w-full">
             <PrivacyNoticeSettings initial={privacyNoticeResult.data || { version: '', text: '' }} />
-          </div>
-        </SettingsRow>
-      </SettingsSection>
-      <SettingsSection
-        id="monitoring"
-        title="Monitoring (moving)"
-        summary="Delivery problems, statement flags, survey and bot health. These cards are moving to their own area."
-        instant
-      >
-        <SettingsRow rowId="whatsapp-monitoring" stacked>
-          <div className="w-full space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Sent messages, the opt-in registry, pending contacts, active sessions, the disclosure log and clearance copies not sent are on{' '}
-              <Link href="/system/whatsapp-monitoring" className="underline">System &gt; WhatsApp Monitoring</Link>.
-            </p>
-            <OperationsConsole
-              deliveryProblems={(deliveryProblemsResult.data || []) as DeliveryProblem[]}
-              statementFlags={(statementFlagsResult.data || []) as StatementFlag[]}
-              survey={(surveyResult.data || undefined) as SurveySummary | undefined}
-              health={(healthResult.data || { inboundToday: 0, outboundToday: 0, deliveryFailuresToday: 0, templateErrorsToday: 0, capLimitEventsToday: 0 }) as Health}
-            />
           </div>
         </SettingsRow>
       </SettingsSection>

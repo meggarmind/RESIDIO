@@ -14,8 +14,8 @@ residio_sources:
   - src/app/(dashboard)/settings/sending/**
   - src/app/(dashboard)/settings/announcements/**
   - src/components/settings/messages/**
-residio_verified_commit: 7dcc1133
-residio_verified_at: '2026-10-26'
+residio_verified_commit: c8f57c63
+residio_verified_at: '2026-10-28'
 residio_app_version: '0.4.0'
 ---
 
@@ -49,7 +49,7 @@ Each billing setting carries an **Affects** line saying whether a change reaches
 
 ## Banking
 
-**Settings → Money → Banking** holds three sections. **Bank accounts** lists the estate's accounts used for statement imports, with the **PDF statement passwords** for protected statements beneath it. **Transaction tags** classify imported credits and debits for reporting, and start collapsed. **Duplicate matching** sets the confidence threshold, a percentage: a transaction that scores above it is flagged as a likely duplicate. Bank accounts and tags need the manage reference data permission; duplicate matching needs the manage maintenance permission, as it did when it sat on the Maintenance page. An admin who holds only one of them sees only that section. The old Bank Accounts and Transaction Tags addresses open the matching section. The tables become stacked cards on a phone.
+**Settings → Money → Banking** holds four sections. **Bank accounts** lists the estate's accounts used for statement imports, with the **PDF statement passwords** for protected statements beneath it. **Transaction tags** classify imported credits and debits for reporting, and start collapsed. **Duplicate matching** sets the confidence threshold, a percentage: a transaction that scores above it is flagged as a likely duplicate. Bank accounts and tags need the manage reference data permission; duplicate matching needs the manage maintenance permission, as it did when it sat on the Maintenance page. **Approval limit** sets the amount above which an auto-matched emailed payment waits for approval; it moved here from Gmail Import, and only a super admin can change it. An admin who holds only one of them sees only that section. The old Bank Accounts and Transaction Tags addresses open the matching section. The tables become stacked cards on a phone.
 
 Bank accounts and tags save through their own dialogs. The duplicate threshold is a draft until you press **Save Duplicate matching** at the foot of its section; **Discard** puts the saved value back, and the page warns before you leave with it unsaved.
 
@@ -61,7 +61,7 @@ Three controls affect payment reminders. **Send payment reminders** under **Remi
 
 The **Send payment reminders** switch saves the state you set it to. **Reset to Default** on the reminder schedule asks before it replaces your steps, and **Send Reminders** under **Send now** shows how many reminders would go to how many residents before it sends.
 
-Sent-notification history and the outgoing queue are system state rather than configuration, so they live under **System → Notification History** and **System → Notification Queue** instead; **Reminders → On or off** links to both and no longer shows live counts. From the queue you can cancel a pending item or retry one that failed.
+Sent-notification history and the outgoing queue are system state rather than configuration, so they live under **Oversight → Notification history** and **Oversight → Notification queue** instead; **Reminders → On or off** links to both and no longer shows live counts. From the queue you can cancel a pending item or retry one that failed.
 
 ## Email and WhatsApp
 

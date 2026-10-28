@@ -26,6 +26,6 @@ Inbound is still one route per provider (`/api/whatsapp/webhook/waha`), for the 
 
 ## Known limits
 
-- WAHA reports a hidden `@lid` id for some linked-device contacts, with no phone number. The adapter counts these as ignored. Resolving them is a later slice, only if Stage shows them.
+- WAHA reports a hidden `@lid` id for some linked-device contacts, with no phone number. The adapter resolves it to a phone number through the WAHA lids API; if that fails, the message is ignored with the reason `lid_unresolved` (#1282).
 - The shapes of WAHA's responses are read from its documentation, not measured against a live container. The first Stage run confirms them.
 - WAHA has no idempotency key. The Chatmaid identical-text drop (#842) does not exist, so a retried send can reach the resident twice.

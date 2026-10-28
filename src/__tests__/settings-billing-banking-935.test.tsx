@@ -62,6 +62,7 @@ describe('registry and page components agree', () => {
     'src/components/settings/banking/bank-accounts-section.tsx',
     'src/components/settings/banking/transaction-tags-section.tsx',
     'src/components/settings/banking/duplicate-matching-section.tsx',
+    'src/components/settings/banking/approval-limit-section.tsx',
   ];
   const source = components.map(read).join('\n');
 
@@ -85,9 +86,9 @@ describe('registry and page components agree', () => {
       'LateFeesSection',
       'LeviesSection',
     ]);
-    expect(order(`${PAGE_DIR}/banking/page.tsx`)).toEqual(['BankAccountsSection', 'TransactionTagsSection', 'DuplicateMatchingSection']);
+    expect(order(`${PAGE_DIR}/banking/page.tsx`)).toEqual(['BankAccountsSection', 'TransactionTagsSection', 'DuplicateMatchingSection', 'ApprovalLimitSection']);
     expect(item('/settings/billing').sections!.map((s) => s.id)).toEqual(['general', 'invoices', 'late-fees', 'levies']);
-    expect(item('/settings/banking').sections!.map((s) => s.id)).toEqual(['bank-accounts', 'tags', 'duplicate-matching']);
+    expect(item('/settings/banking').sections!.map((s) => s.id)).toEqual(['bank-accounts', 'tags', 'duplicate-matching', 'approval-limit']);
   });
 });
 

@@ -117,6 +117,40 @@ export async function fetchWahaConnectionStatus(
   return lookup.ok ? lookup.status : 'unknown';
 }
 
+const LID_LOOKUP_TIMEOUT_MS = 10_000;
+
+/**
+ * `GET /api/{session}/lids/{lid}` (#1282): the phone-number id WAHA holds for
+ * a hidden `@lid` id. Read from the WAHA docs (https://waha.devlike.pro/docs/how-to/contacts/,
+ * 28 Oct 2026): the answer is `{ lid, pn }`, with `pn` null when WAHA knows no
+ * number. NOWEB needs its store enabled for this.
+ *
+ * Returns `pn` only when the answer names the lid that was asked for, else
+ * null. A transport error or a non-2xx throws an error that names only the
+ * HTTP status (never the lid, the number or the API key).
+ */
+export async function lookupWahaLidPhone(
+  config: WahaConnectionConfig,
+  lid: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<string | null> {
+  // encodeURIComponent turns `@` into `%40`, as the docs ask.
+  const response = await fetchImpl(
+    `${config.baseUrl}/api/${encodeURIComponent(config.session)}/lids/${encodeURIComponent(lid)}`,
+    {
+      headers: { 'X-Api-Key': config.apiKey },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(LID_LOOKUP_TIMEOUT_MS),
+    }
+  );
+  if (!response.ok) {
+    throw new Error(`WAHA LID lookup failed (HTTP ${response.status})`);
+  }
+
+  const body = await safeJson(response);
+  return body?.lid === lid && typeof body.pn === 'string' && body.pn.length > 0 ? body.pn : null;
+}
+
 const DISCONNECTED_ERROR = 'WAHA bridge is disconnected';
 
 /** Whether the session is `WORKING`, cached for 30s. */

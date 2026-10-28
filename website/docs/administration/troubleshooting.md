@@ -37,4 +37,4 @@ Trace it from dashboard to module to source records. For finance, verify period,
 
 ## A page is stuck loading
 
-Refresh once, confirm network access, and check **System → Cron Status** if you have permission. Do not repeatedly submit a write action while the first request may still be running.
+Refresh once, confirm network access, and check **Oversight → Scheduled jobs** if you have permission. Do not repeatedly submit a write action while the first request may still be running.
