@@ -161,6 +161,20 @@ describe('two-factor settings controls', () => {
       expect(await data.files[0].text()).toContain('EEEE5555');
     });
 
+    it('says nothing when the share sheet is closed, and shows an error when sharing fails', async () => {
+      const { toast } = await import('sonner');
+      vi.mocked(toast.error).mockClear();
+      const share = vi.fn().mockRejectedValueOnce(new DOMException('closed', 'AbortError')).mockRejectedValueOnce(new Error('denied'));
+      Object.assign(navigator, { canShare: () => true, share });
+      showCodes(['GGGG7777']);
+
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Share' })); });
+      expect(toast.error).not.toHaveBeenCalled();
+
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Share' })); });
+      expect(toast.error).toHaveBeenCalledWith('Could not share. Save the file instead.');
+    });
+
     it('hides Share when the device cannot share a file', () => {
       Object.assign(navigator, { canShare: () => false, share: vi.fn() });
       showCodes(['FFFF6666']);

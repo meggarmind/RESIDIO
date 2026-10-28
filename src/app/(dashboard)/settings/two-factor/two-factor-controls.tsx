@@ -73,7 +73,8 @@ function downloadFile(file: File) {
   document.body.appendChild(link);
   link.click();
   link.remove();
-  URL.revokeObjectURL(url);
+  // Safari can cancel a download whose URL is revoked at once.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /** Backup codes, shown once, right after they are made. */
