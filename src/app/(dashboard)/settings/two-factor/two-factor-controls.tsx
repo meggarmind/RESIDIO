@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { QRCodeSVG } from 'qrcode.react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -176,7 +177,12 @@ export function TwoFactorControls() {
           <div className="space-y-4 rounded-md border p-4">
             <ol className="list-decimal space-y-2 pl-5 text-sm">
               <li>
-                In your authenticator app (for example Google Authenticator, Microsoft Authenticator or 1Password), add an account and enter this key:
+                In your authenticator app (for example Google Authenticator, Microsoft Authenticator or 1Password), add an account and scan this QR code:
+                {/* Drawn in the browser, so the key never goes to a QR service. White behind it so dark mode still scans. */}
+                <div className="mt-2 w-fit rounded-md bg-white p-3">
+                  <QRCodeSVG value={setup.uri} size={176} marginSize={0} title="QR code for your authenticator app" />
+                </div>
+                <p className="mt-3">If you cannot scan the code, enter this key:</p>
                 <p className="mt-2 select-all rounded-md bg-muted px-3 py-2 font-mono text-sm tracking-wider" aria-label="Setup key">{groupKey(setup.secret)}</p>
                 <a href={setup.uri} className="mt-1 inline-block text-sm text-primary underline">Open in an authenticator app on this device</a>
               </li>

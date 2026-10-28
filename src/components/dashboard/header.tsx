@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { roleWithTitle } from '@/lib/auth/role-label';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -40,6 +41,7 @@ import {
   Sparkles,
   ShieldCheck,
   Upload,
+  KeyRound,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -47,7 +49,7 @@ interface HeaderProps {
 }
 
 export function Header({ onMenuClick }: HeaderProps) {
-  const { profile, signOut, canSeeSelfPortalLinks, isSigningOut, isLoading } = useAuth();
+  const { profile, signOut, canSeeSelfPortalLinks, isSigningOut, isLoading, hasPermission } = useAuth();
   const { isDismissed, restoreAssistant } = useAiAssistant();
   const mounted = useSyncExternalStore(
     () => () => {},
@@ -262,6 +264,15 @@ export function Header({ onMenuClick }: HeaderProps) {
                     <DropdownMenuItem className="capitalize font-medium opacity-70">
                       <User className="mr-2 h-4 w-4" />
                       {roleWithTitle(profile?.role_display_name, profile?.title_name)}
+                    </DropdownMenuItem>
+                  )}
+                  {/* Two-factor is per admin, so each admin reaches their own setup from here (#1029). */}
+                  {hasPermission(PERMISSIONS.TWO_FACTOR_ENABLE) && (
+                    <DropdownMenuItem asChild>
+                      <Link href="/settings/two-factor" className="cursor-pointer flex items-center w-full">
+                        <KeyRound className="mr-2 h-4 w-4" />
+                        <span>Two-factor login</span>
+                      </Link>
                     </DropdownMenuItem>
                   )}
                   {isDismissed && (
