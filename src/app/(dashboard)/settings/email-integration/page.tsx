@@ -18,9 +18,7 @@ import {
   CheckCircle2,
   Clock,
   Link as LinkIcon,
-  Mail,
   RefreshCw,
-  Settings,
   Unlink,
 } from 'lucide-react';
 import { toast } from 'sonner';
