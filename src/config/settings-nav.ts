@@ -662,7 +662,122 @@ export const settingsConfig: SettingsGroup[] = [
         title: "Connections",
         icon: Plug,
         items: [
-            { title: "WhatsApp", href: "/settings/whatsapp", description: "Provider credentials, rollout, consent, and pending contacts", permissions: [PERMISSIONS.WHATSAPP_VIEW] },
+            {
+                title: "WhatsApp",
+                href: "/settings/whatsapp",
+                description: "Provider credentials, rollout, consent, and pending contacts",
+                permissions: [PERMISSIONS.WHATSAPP_VIEW],
+                sections: [
+                    {
+                        id: "connection",
+                        title: "Connection",
+                        rows: [
+                            {
+                                id: "whatsapp-provider",
+                                label: "Provider",
+                                help: "The service that sends and receives WhatsApp messages: Meta, Twilio, Chatmaid or WAHA. Use Change provider to switch.",
+                                keywords: ["provider", "WAHA", "Chatmaid", "Twilio", "Meta", "switch", "change provider", "credentials", "webhook", "connect"],
+                            },
+                        ],
+                    },
+                    {
+                        id: "channel",
+                        title: "Channel",
+                        rows: [
+                            {
+                                id: "whatsapp-enabled",
+                                label: "WhatsApp channel",
+                                help: "Master on/off switch. When off, no WhatsApp message can be sent regardless of rollout mode.",
+                                keywords: ["master switch", "enable", "disable", "on", "off"],
+                            },
+                        ],
+                    },
+                    {
+                        id: "rollout",
+                        title: "Rollout",
+                        rows: [
+                            {
+                                id: "whatsapp-rollout",
+                                label: "Rollout and pilot controls",
+                                help: "Choose who receives messages once the channel is on. Keep it disabled until a pilot is verified. Promotion is audited.",
+                                keywords: ["pilot", "mode", "caps", "limits", "retention"],
+                            },
+                        ],
+                    },
+                    {
+                        id: "pin-policy",
+                        title: "PIN policy",
+                        rows: [
+                            {
+                                id: "whatsapp-force-pin",
+                                label: "Financial PIN policy",
+                                help: "Require a PIN before any financial answer. Residents can still set a personal PIN when this is off.",
+                                keywords: ["pin", "security", "financial answers"],
+                            },
+                        ],
+                    },
+                    {
+                        id: "opt-ins",
+                        title: "Opt-ins",
+                        rows: [
+                            {
+                                id: "whatsapp-opt-in-import",
+                                label: "Import opt-ins",
+                                help: "Load approved resident consent records from CSV.",
+                                keywords: ["consent", "csv", "upload"],
+                            },
+                        ],
+                    },
+                    {
+                        id: "balance",
+                        title: "Resident balance",
+                        rows: [
+                            {
+                                id: "whatsapp-roll-forward-balance",
+                                label: "Show roll-forward balance",
+                                help: "Show residents the roll-forward balance: What I owe, statement PDFs and the portal, signed as owed or in credit. Leave off until legacy charges are invoiced, or residents with uninvoiced legacy payments see false credit. Admin statements always use it.",
+                                keywords: ["what i owe", "credit", "statement", "legacy"],
+                            },
+                        ],
+                    },
+                    {
+                        id: "assistant",
+                        title: "Assistant replies",
+                        rows: [
+                            {
+                                id: "whatsapp-assistant-text",
+                                label: "Assistant reply text",
+                                help: "Text the resident bot sends.",
+                                keywords: ["payment instructions", "keywords", "synonyms", "bot"],
+                            },
+                        ],
+                    },
+                    {
+                        id: "privacy",
+                        title: "Privacy notice",
+                        rows: [
+                            {
+                                id: "whatsapp-privacy-notice",
+                                label: "Privacy notice",
+                                help: "Residents confirm their identity and accept this notice before the assistant uses their records. Each decision is logged with the version.",
+                                keywords: ["disclosure", "consent", "identity"],
+                            },
+                        ],
+                    },
+                    {
+                        id: "monitoring",
+                        title: "Monitoring (moving)",
+                        rows: [
+                            {
+                                id: "whatsapp-monitoring",
+                                label: "Bot health and follow-up",
+                                help: "Delivery problems, statement flags, survey results and bot health. These cards are moving to their own area.",
+                                keywords: ["health", "delivery problems", "undelivered", "survey", "statement flags"],
+                            },
+                        ],
+                    },
+                ],
+            },
             { title: "WhatsApp admin access", href: "/settings/whatsapp-admin", description: "Link your own WhatsApp number for admin mode, approved with your authenticator app", permissions: [PERMISSIONS.WHATSAPP_ADMIN_QUERY] },
             { title: "Gmail Import", href: "/settings/email-integration", description: "Connect Gmail, manage the connection, and trigger a manual sync", permissions: [PERMISSIONS.EMAIL_IMPORTS_VIEW] },
             // Paystack and SMS integrations are planned but not yet built.

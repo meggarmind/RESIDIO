@@ -1,10 +1,11 @@
 import Link from 'next/link';
 import { getWhatsAppForcePin, getWhatsAppPrivacyNotice } from '@/actions/whatsapp/identity';
-import { SettingsPageHeader } from '@/components/settings/settings-page-header';
+import { SettingsMergedPage } from '@/components/settings/settings-merged-page';
+import { SettingsRow } from '@/components/settings/settings-row';
+import { SettingsSection } from '@/components/settings/settings-section';
 import { getWhatsAppEnabled, getWhatsAppPilotRoster, getWhatsAppPilotSettings } from '@/actions/whatsapp/pilot';
 import { getWhatsAppDeliveryProblems, getWhatsAppHealth, getWhatsAppStatementFlags, getWhatsAppSurveySummary } from '@/actions/whatsapp/admin-console';
 import { getWhatsAppConnectionStatus, getWhatsAppOverrideNumbers, type WhatsAppConnectionStatus } from '@/actions/whatsapp/connection';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ForcePinToggle } from '@/app/(dashboard)/settings/whatsapp/force-pin-toggle';
 import { AssistantText } from '@/app/(dashboard)/settings/whatsapp/assistant-text';
 import { getWhatsAppAssistantText } from '@/actions/whatsapp/assistant-settings';
@@ -61,61 +62,102 @@ export default async function WhatsAppOperationsPage() {
   // The resident bot answers residents only when the channel is on and rollout is not disabled.
   const residentBotActive = whatsappEnabledResult.data === true && !!pilotResult.data && pilotResult.data.mode !== 'disabled';
 
+  const botNote = residentBotActive ? '' : 'Resident bot inactive. ';
+  const connection = connectionResult.data || DISCONNECTED_STATUS;
+  const pilot = pilotResult.data || { mode: 'disabled', residentIds: [], streetId: '', outboundDailyCap: 100, outboundBurstCap: 20, outboundBurstWindowMinutes: 10, financialLookupDailyCap: 500, sessionRetentionDays: 1, processedMessageRetentionDays: 2, surveyResponseRetentionDays: 90, outboundSendRetentionDays: 90 };
+
   return (
-    <div className="space-y-6">
-      <SettingsPageHeader description="Admin-only consent, identity, session, disclosure, and bot health controls." />
-      <Card>
-        <CardHeader>
-          <CardTitle>WhatsApp connection</CardTitle>
-          <CardDescription>Connect the Meta WhatsApp Cloud API or Twilio without a redeploy.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ConnectionSettings initial={connectionResult.data || DISCONNECTED_STATUS} siteUrl={siteUrl} overrideNumbers={overrideNumbersResult.data} />
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader><CardTitle>WhatsApp channel</CardTitle><CardDescription>Master on/off switch. Distinct from rollout mode below, which chooses who receives messages once this is on.</CardDescription></CardHeader>
-        <CardContent className="flex items-center justify-between gap-4"><p className="text-sm text-muted-foreground">When off, no WhatsApp message can be sent regardless of rollout mode.</p><WhatsAppEnabledToggle initialValue={whatsappEnabledResult.data === true} /></CardContent>
-      </Card>
-      <Card><CardHeader><CardTitle>Rollout and pilot controls</CardTitle><CardDescription>Keep WhatsApp disabled until a defined pilot is verified. Promotion is audited.</CardDescription></CardHeader><CardContent><PilotControls initial={pilotResult.data || { mode: 'disabled', residentIds: [], streetId: '', outboundDailyCap: 100, outboundBurstCap: 20, outboundBurstWindowMinutes: 10, financialLookupDailyCap: 500, sessionRetentionDays: 1, processedMessageRetentionDays: 2, surveyResponseRetentionDays: 90, outboundSendRetentionDays: 90 }} roster={pilotRosterResult.data} rosterError={pilotRosterResult.error} /></CardContent></Card>
-      <p className="text-sm text-muted-foreground">
-        Sent messages, the opt-in registry, pending contacts, active sessions, the disclosure log and clearance copies not sent are on{' '}
-        <Link href="/system/whatsapp-monitoring" className="underline">System &gt; WhatsApp Monitoring</Link>.
-      </p>
-      <details open={residentBotActive} className="space-y-4 rounded-lg border p-4">
-        <summary className="cursor-pointer text-lg font-semibold">
-          Resident bot ({residentBotActive ? 'active' : 'inactive'})
-          <span className="block text-sm font-normal text-muted-foreground">PIN policy, opt-ins, sessions and disclosures for the resident WhatsApp bot.</span>
-        </summary>
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card>
-            <CardHeader><CardTitle>Financial PIN policy</CardTitle><CardDescription>Require a PIN before any financial answer.</CardDescription></CardHeader>
-            <CardContent className="flex items-center justify-between gap-4"><p className="text-sm text-muted-foreground">Residents can still set a personal PIN when this is off.</p><ForcePinToggle initialValue={forcePinResult.data === true} /></CardContent>
-          </Card>
-          <Card>
-            <CardHeader><CardTitle>Import opt-ins</CardTitle><CardDescription>Load approved resident consent records from CSV.</CardDescription></CardHeader>
-            <CardContent><OptInImport /></CardContent>
-          </Card>
-        </div>
-        <Card>
-          <CardHeader><CardTitle>Resident balance</CardTitle><CardDescription>Show residents the roll-forward balance: What I owe, statement PDFs and the portal, signed as owed or in credit.</CardDescription></CardHeader>
-          <CardContent className="flex items-center justify-between gap-4"><p className="text-sm text-muted-foreground">Leave off until legacy charges are invoiced, or residents with uninvoiced legacy payments see false credit. Admin statements always use it.</p><RollForwardBalanceToggle initialValue={rollForwardResult.data === true} /></CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle>Assistant replies</CardTitle><CardDescription>Text the resident bot sends. Estate phone, email and office hours come from Settings &gt; Estate info.</CardDescription></CardHeader>
-          <CardContent><AssistantText initial={assistantTextResult.data || { paymentInstructions: '', keywordSynonyms: '' }} /></CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle>Privacy notice</CardTitle><CardDescription>Residents confirm their identity and accept this notice before the assistant uses their records. Each decision is logged with the version.</CardDescription></CardHeader>
-          <CardContent><PrivacyNoticeSettings initial={privacyNoticeResult.data || { version: '', text: '' }} /></CardContent>
-        </Card>
-        <OperationsConsole
-          deliveryProblems={(deliveryProblemsResult.data || []) as DeliveryProblem[]}
-          statementFlags={(statementFlagsResult.data || []) as StatementFlag[]}
-          survey={(surveyResult.data || undefined) as SurveySummary | undefined}
-          health={(healthResult.data || { inboundToday: 0, outboundToday: 0, deliveryFailuresToday: 0, templateErrorsToday: 0, capLimitEventsToday: 0 }) as Health}
-        />
-      </details>
-    </div>
+    <SettingsMergedPage description="Admin-only consent, identity, session, disclosure, and bot health controls.">
+      <SettingsSection
+        id="connection"
+        title="Connection"
+        summary="Connect Meta, Twilio, Chatmaid or WAHA without a redeploy."
+        instant
+      >
+        <SettingsRow rowId="whatsapp-provider" stacked>
+          <div className="w-full">
+            <ConnectionSettings initial={connection} siteUrl={siteUrl} overrideNumbers={overrideNumbersResult.data} />
+          </div>
+        </SettingsRow>
+      </SettingsSection>
+      <SettingsSection
+        id="channel"
+        title="Channel"
+        summary="Master on/off switch. Distinct from rollout mode below, which chooses who receives messages once this is on."
+        instant
+      >
+        <SettingsRow rowId="whatsapp-enabled">
+          <WhatsAppEnabledToggle initialValue={whatsappEnabledResult.data === true} />
+        </SettingsRow>
+      </SettingsSection>
+      <SettingsSection
+        id="rollout"
+        title="Rollout"
+        summary="Keep WhatsApp disabled until a defined pilot is verified. Promotion is audited."
+        instant
+      >
+        <SettingsRow rowId="whatsapp-rollout" stacked>
+          <div className="w-full">
+            <PilotControls initial={pilot} roster={pilotRosterResult.data} rosterError={pilotRosterResult.error} />
+          </div>
+        </SettingsRow>
+      </SettingsSection>
+      <SettingsSection id="pin-policy" title="PIN policy" summary={`${botNote}Require a PIN before any financial answer.`} instant>
+        <SettingsRow rowId="whatsapp-force-pin">
+          <ForcePinToggle initialValue={forcePinResult.data === true} />
+        </SettingsRow>
+      </SettingsSection>
+      <SettingsSection id="opt-ins" title="Opt-ins" summary={`${botNote}Load approved resident consent records from CSV.`} instant>
+        <SettingsRow rowId="whatsapp-opt-in-import" stacked>
+          <div className="w-full">
+            <OptInImport />
+          </div>
+        </SettingsRow>
+      </SettingsSection>
+      <SettingsSection id="balance" title="Resident balance" summary={`${botNote}Show residents the roll-forward balance.`} instant>
+        <SettingsRow rowId="whatsapp-roll-forward-balance">
+          <RollForwardBalanceToggle initialValue={rollForwardResult.data === true} />
+        </SettingsRow>
+      </SettingsSection>
+      <SettingsSection id="assistant" title="Assistant replies" summary={`${botNote}Text the resident bot sends.`} instant>
+        <SettingsRow rowId="whatsapp-assistant-text" stacked>
+          <div className="w-full space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Estate phone, email and office hours come from{' '}
+              <Link href="/settings/estate#assistant" className="underline">Estate Profile &gt; Assistant</Link>.
+            </p>
+            <AssistantText initial={assistantTextResult.data || { paymentInstructions: '', keywordSynonyms: '' }} />
+          </div>
+        </SettingsRow>
+      </SettingsSection>
+      <SettingsSection id="privacy" title="Privacy notice" summary={`${botNote}The notice residents accept before the assistant uses their records.`} instant>
+        <SettingsRow rowId="whatsapp-privacy-notice" stacked>
+          <div className="w-full">
+            <PrivacyNoticeSettings initial={privacyNoticeResult.data || { version: '', text: '' }} />
+          </div>
+        </SettingsRow>
+      </SettingsSection>
+      <SettingsSection
+        id="monitoring"
+        title="Monitoring (moving)"
+        summary="Delivery problems, statement flags, survey and bot health. These cards are moving to their own area."
+        instant
+      >
+        <SettingsRow rowId="whatsapp-monitoring" stacked>
+          <div className="w-full space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Sent messages, the opt-in registry, pending contacts, active sessions, the disclosure log and clearance copies not sent are on{' '}
+              <Link href="/system/whatsapp-monitoring" className="underline">System &gt; WhatsApp Monitoring</Link>.
+            </p>
+            <OperationsConsole
+              deliveryProblems={(deliveryProblemsResult.data || []) as DeliveryProblem[]}
+              statementFlags={(statementFlagsResult.data || []) as StatementFlag[]}
+              survey={(surveyResult.data || undefined) as SurveySummary | undefined}
+              health={(healthResult.data || { inboundToday: 0, outboundToday: 0, deliveryFailuresToday: 0, templateErrorsToday: 0, capLimitEventsToday: 0 }) as Health}
+            />
+          </div>
+        </SettingsRow>
+      </SettingsSection>
+    </SettingsMergedPage>
   );
 }
