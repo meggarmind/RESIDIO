@@ -1,5 +1,6 @@
 'use client';
 
+import { SettingsMergedPage } from '@/components/settings/settings-merged-page';
 import { SystemDashboard } from '@/components/system/system-dashboard';
 
 /**
@@ -20,16 +21,11 @@ import { SystemDashboard } from '@/components/system/system-dashboard';
  */
 export default function SystemPage() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-medium">Oversight overview</h3>
-        <p className="text-sm text-muted-foreground">
-          Live and historical system state — cron jobs, the notification queue, audit activity,
-          account approvals, and administrative data tools.
-        </p>
-      </div>
-
+    <SettingsMergedPage
+      title="Oversight overview"
+      description="Live and historical system state — cron jobs, the notification queue, audit activity, account approvals, and administrative data tools."
+    >
       <SystemDashboard />
-    </div>
+    </SettingsMergedPage>
   );
 }

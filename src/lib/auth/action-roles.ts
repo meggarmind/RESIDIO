@@ -292,6 +292,8 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/system/notification-queue': [PERMISSIONS.NOTIFICATIONS_MANAGE],
   '/system/notification-history': [PERMISSIONS.NOTIFICATIONS_MANAGE],
   '/system/whatsapp-monitoring': [PERMISSIONS.WHATSAPP_VIEW],
+  // Without this key the middleware skips authorization and the page is public (ADR-0004, #1273).
+  '/system/whatsapp-bot-health': [PERMISSIONS.WHATSAPP_VIEW],
   '/system/data-tools': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
   // Canonical home for cron job status, moved from /settings/cron-status and
   // /settings/system/health (#174, ADR-0004: live system state is not

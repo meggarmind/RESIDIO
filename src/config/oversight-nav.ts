@@ -90,6 +90,12 @@ export const oversightConfig: SettingsGroup[] = [
                 description: 'WhatsApp sends, opt-ins, sessions and disclosures',
                 permissions: [PERMISSIONS.WHATSAPP_VIEW],
             },
+            {
+                title: 'WhatsApp bot health',
+                href: '/system/whatsapp-bot-health',
+                description: 'Bot counts today, resident feedback, undelivered messages and statements waiting for an email',
+                permissions: [PERMISSIONS.WHATSAPP_VIEW],
+            },
         ],
     },
     {

@@ -20,7 +20,7 @@ Both live under **Oversight** in the sidebar, in the **Reports** group of its le
 
 ## Collections dashboard workflow
 
-**Oversight → Collections dashboard** shows: collection rate, outstanding balance, overdue invoices and portfolio value at the top, a revenue against expenses trend for the last 12 months, **Invoice Aging** (how many overdue invoices are overdue by each number of days), **Invoice Status** (paid, unpaid, partially paid, overdue and void), and **Quick Stats** for houses, occupancy and residents. The page has no period filter.
+**Oversight → Collections dashboard** shows: collection rate, outstanding balance, overdue invoices and portfolio value at the top, a revenue against expenses trend for the last 12 months, **Invoice Aging** (how many overdue invoices are overdue by each number of days), **Invoice Status** (paid, unpaid, partially paid, overdue and void), and **Quick Stats** for houses, occupancy and residents. The page has no period filter. Jump tabs at the top (**Totals**, **Trends**, **Invoice aging**) scroll to each part.
 
 1. Read the summary cards first.
 2. Use the trend and aging charts to locate the problem.

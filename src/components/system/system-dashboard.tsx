@@ -19,6 +19,7 @@ import { getQueueStatistics } from '@/actions/notifications/queue';
 import { notificationKeys } from '@/hooks/use-notifications';
 import { POLLING_INTERVALS } from '@/lib/config/polling';
 import { CronHealthCard } from '@/components/dashboard/cron-health-card';
+import { JumpSection } from '@/components/settings/settings-sections-provider';
 import { StatusCard } from './status-card';
 import { filterVisibleCards, getPendingAccountsStatus, getQueueDepthStatus } from './system-status';
 
@@ -105,66 +106,76 @@ export function SystemDashboard() {
 
   return (
     <div className="space-y-6">
-      {visible.has('cron') && <CronHealthCard />}
+      {visible.has('cron') && (
+        <JumpSection id="scheduled-jobs" title="Scheduled jobs">
+          <CronHealthCard />
+        </JumpSection>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {showQueue && (
-          <StatusCard
-            title="Notification Queue"
-            description="Messages waiting to send"
-            href="/system/notification-queue"
-            icon={ListTodo}
-            isLoading={queueQuery.isLoading}
-            errorMessage={queueQuery.error ? queueQuery.error.message : null}
-            onRetry={() => queueQuery.refetch()}
-            status={queueQuery.data ? getQueueDepthStatus(queueQuery.data) : 'neutral'}
-            value={queueQuery.data?.pending ?? 0}
-            subtext={
-              queueQuery.data
-                ? `${queueQuery.data.failed} failed · ${queueQuery.data.processing} processing`
-                : undefined
-            }
-          />
+          <JumpSection id="notification-queue" title="Notification queue" className="[&>*]:h-full">
+            <StatusCard
+              title="Notification Queue"
+              description="Messages waiting to send"
+              href="/system/notification-queue"
+              icon={ListTodo}
+              isLoading={queueQuery.isLoading}
+              errorMessage={queueQuery.error ? queueQuery.error.message : null}
+              onRetry={() => queueQuery.refetch()}
+              status={queueQuery.data ? getQueueDepthStatus(queueQuery.data) : 'neutral'}
+              value={queueQuery.data?.pending ?? 0}
+              subtext={
+                queueQuery.data
+                  ? `${queueQuery.data.failed} failed · ${queueQuery.data.processing} processing`
+                  : undefined
+              }
+            />
+          </JumpSection>
         )}
 
         {showAudit && (
-          <StatusCard
-            title="Recent Audit Activity"
-            description="Actions logged today"
-            href="/system/audit-logs"
-            icon={History}
-            status="neutral"
-            isLoading={auditQuery.isLoading}
-            errorMessage={auditQuery.error ? auditQuery.error.message : null}
-            onRetry={() => auditQuery.refetch()}
-            value={auditQuery.data?.today ?? 0}
-            subtext={
-              auditQuery.data
-                ? `${auditQuery.data.thisWeek} this week · ${auditQuery.data.thisMonth} this month`
-                : undefined
-            }
-          />
+          <JumpSection id="audit-activity" title="Audit activity" className="[&>*]:h-full">
+            <StatusCard
+              title="Recent Audit Activity"
+              description="Actions logged today"
+              href="/system/audit-logs"
+              icon={History}
+              status="neutral"
+              isLoading={auditQuery.isLoading}
+              errorMessage={auditQuery.error ? auditQuery.error.message : null}
+              onRetry={() => auditQuery.refetch()}
+              value={auditQuery.data?.today ?? 0}
+              subtext={
+                auditQuery.data
+                  ? `${auditQuery.data.thisWeek} this week · ${auditQuery.data.thisMonth} this month`
+                  : undefined
+              }
+            />
+          </JumpSection>
         )}
 
         {showAccounts && (
-          <StatusCard
-            title="Accounts Awaiting Approval"
-            description="New sign-ups needing review"
-            href="/settings/access?tab=pending"
-            icon={UserCog}
-            isLoading={accountsQuery.isLoading}
-            errorMessage={accountsQuery.error ? accountsQuery.error.message : null}
-            onRetry={() => accountsQuery.refetch()}
-            status={
-              accountsQuery.data ? getPendingAccountsStatus(accountsQuery.data.length) : 'neutral'
-            }
-            value={accountsQuery.data?.length ?? 0}
-            subtext={
-              accountsQuery.data && accountsQuery.data.length > 0
-                ? 'Waiting for a role decision'
-                : undefined
-            }
-          />
+          <JumpSection id="accounts-awaiting-approval" title="Accounts awaiting approval" className="[&>*]:h-full">
+            <StatusCard
+              title="Accounts Awaiting Approval"
+              description="New sign-ups needing review"
+              href="/settings/access?tab=pending"
+              icon={UserCog}
+              isLoading={accountsQuery.isLoading}
+              errorMessage={accountsQuery.error ? accountsQuery.error.message : null}
+              onRetry={() => accountsQuery.refetch()}
+              status={
+                accountsQuery.data ? getPendingAccountsStatus(accountsQuery.data.length) : 'neutral'
+              }
+              value={accountsQuery.data?.length ?? 0}
+              subtext={
+                accountsQuery.data && accountsQuery.data.length > 0
+                  ? 'Waiting for a role decision'
+                  : undefined
+              }
+            />
+          </JumpSection>
         )}
 
         {visible.has('data-tools') && (

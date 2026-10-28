@@ -64,6 +64,7 @@ const SETTINGS_SEARCH_KEYWORDS: Record<string, string[]> = {
   '/settings/email-integration': ['email', 'imap', 'inbox', 'mailbox'],
   '/system/cron-status': ['cron', 'jobs', 'status'],
   '/system/whatsapp-monitoring': ['monitoring'],
+  '/system/whatsapp-bot-health': ['health', 'delivery problems', 'undelivered', 'survey', 'statement flags'],
 };
 
 /**
