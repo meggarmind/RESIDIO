@@ -88,7 +88,7 @@ describe('Settings/System search entry permissions', () => {
       // Debt status labels, threshold and report (#980).
       '/settings/debt-status': ['settings.manage_debt_status'],
       // Merged Banking page (#935): the OR of bank accounts and tags (manage_reference), the Approval limit (manage_billing) and duplicate matching.
-      '/settings/banking': ['settings.manage_billing', 'settings.manage_reference', 'system.manage_maintenance'],
+      '/settings/banking': ['settings.manage_banking_reference', 'settings.manage_billing', 'settings.manage_reference', 'system.manage_maintenance'],
       // Merged Messages task pages (#934): each is the OR of its sections' permissions.
       '/settings/reminders': ['notifications.manage', 'settings.manage_general'],
       '/settings/wording': ['notifications.manage'],
@@ -130,6 +130,8 @@ describe('Settings row search entry permissions (#934, #935, #937)', () => {
   const NOTIFICATIONS = ['notifications.manage'];
   const BILLING = ['settings.manage_billing'];
   const REFERENCE = ['settings.manage_reference'];
+  // Bank accounts and tags also open for settings.manage_banking_reference (#1286).
+  const BANKING_REFERENCE = ['settings.manage_banking_reference', 'settings.manage_reference'];
   const WHATSAPP = ['whatsapp.view'];
 
   it('pins each row of the merged task pages to the permission of its own section', () => {
@@ -206,9 +208,9 @@ describe('Settings row search entry permissions (#934, #935, #937)', () => {
       'debt-report-footnote': ['settings.manage_debt_status'],
       'debt-chat-pdf-house-limit': ['settings.manage_debt_status'],
       // Banking (#935): each section keeps its own permission.
-      'estate-bank-accounts': REFERENCE,
-      'statement-passwords': REFERENCE,
-      'transaction-tags': REFERENCE,
+      'estate-bank-accounts': BANKING_REFERENCE,
+      'statement-passwords': BANKING_REFERENCE,
+      'transaction-tags': BANKING_REFERENCE,
       'duplicate-threshold': ['system.manage_maintenance'],
       'maintenance-mode': ['system.manage_maintenance'],
       'maintenance-message': ['system.manage_maintenance'],

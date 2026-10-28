@@ -54,8 +54,8 @@ type StatusFilter = 'all' | 'active' | 'inactive';
 
 export function BankAccountsList() {
   // Filter state
-  const { hasPermission } = useAuth();
-  const canManage = hasPermission(PERMISSIONS.SETTINGS_MANAGE_REFERENCE);
+  const { hasAnyPermission } = useAuth();
+  const canManage = hasAnyPermission([PERMISSIONS.SETTINGS_MANAGE_BANKING_REFERENCE, PERMISSIONS.SETTINGS_MANAGE_REFERENCE]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   const { data: canAutoApprove, isLoading: isLoadingPermission } = useCanAutoApprove();

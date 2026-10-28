@@ -1,7 +1,7 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { authorizePermission } from '@/lib/auth/authorize';
+import { authorizeAnyPermission, authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { findMatchingTag } from '@/lib/imports/auto-tag';
@@ -95,7 +95,7 @@ export async function getTransactionTag(id: string): Promise<TransactionTagRespo
 export async function createTransactionTag(
   formData: TransactionTagInsert
 ): Promise<TransactionTagResponse> {
-  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_REFERENCE);
+  const auth = await authorizeAnyPermission([PERMISSIONS.SETTINGS_MANAGE_BANKING_REFERENCE, PERMISSIONS.SETTINGS_MANAGE_REFERENCE]);
   if (!auth.authorized) {
     return { data: null, error: auth.error || 'Unauthorized' };
   }
@@ -144,7 +144,7 @@ export async function updateTransactionTag(
   id: string,
   formData: TransactionTagUpdate
 ): Promise<TransactionTagResponse> {
-  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_REFERENCE);
+  const auth = await authorizeAnyPermission([PERMISSIONS.SETTINGS_MANAGE_BANKING_REFERENCE, PERMISSIONS.SETTINGS_MANAGE_REFERENCE]);
   if (!auth.authorized) {
     return { data: null, error: auth.error || 'Unauthorized' };
   }
@@ -207,7 +207,7 @@ export async function updateTransactionTag(
 // ============================================================
 
 export async function deleteTransactionTag(id: string): Promise<DeleteTransactionTagResponse> {
-  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_REFERENCE);
+  const auth = await authorizeAnyPermission([PERMISSIONS.SETTINGS_MANAGE_BANKING_REFERENCE, PERMISSIONS.SETTINGS_MANAGE_REFERENCE]);
   if (!auth.authorized) {
     return { error: auth.error || 'Unauthorized' };
   }
@@ -261,7 +261,7 @@ export async function deleteTransactionTag(id: string): Promise<DeleteTransactio
 // ============================================================
 
 export async function deleteTransactionTags(ids: string[]): Promise<DeleteTransactionTagResponse> {
-  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_REFERENCE);
+  const auth = await authorizeAnyPermission([PERMISSIONS.SETTINGS_MANAGE_BANKING_REFERENCE, PERMISSIONS.SETTINGS_MANAGE_REFERENCE]);
   if (!auth.authorized) {
     return { error: auth.error || 'Unauthorized' };
   }

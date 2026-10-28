@@ -290,12 +290,12 @@ export const settingsConfig: SettingsGroup[] = [
                 href: "/settings/banking",
                 description: "Estate bank accounts, transaction tags, duplicate matching and the payment approval limit",
                 // The OR of the sections: the page opens for any one of them and each section keeps its own.
-                permissions: [PERMISSIONS.SETTINGS_MANAGE_REFERENCE, PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE, PERMISSIONS.SETTINGS_MANAGE_BILLING],
+                permissions: [PERMISSIONS.SETTINGS_MANAGE_BANKING_REFERENCE, PERMISSIONS.SETTINGS_MANAGE_REFERENCE, PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE, PERMISSIONS.SETTINGS_MANAGE_BILLING],
                 sections: [
                     {
                         id: "bank-accounts",
                         title: "Bank accounts",
-                        permissions: [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
+                        permissions: [PERMISSIONS.SETTINGS_MANAGE_BANKING_REFERENCE, PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
                         rows: [
                             { id: "estate-bank-accounts", label: "Estate bank accounts", help: "Add, edit or remove the accounts used for statement imports. Changes by non-admin users require approval.", keywords: ["account number", "statement import", "bank"] },
                             { id: "statement-passwords", label: "PDF statement passwords", help: "Passwords for password-protected bank statement PDFs. They are encrypted at rest.", keywords: ["pdf password", "encrypted statement", "unlock"] },
@@ -304,7 +304,7 @@ export const settingsConfig: SettingsGroup[] = [
                     {
                         id: "tags",
                         title: "Transaction tags",
-                        permissions: [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
+                        permissions: [PERMISSIONS.SETTINGS_MANAGE_BANKING_REFERENCE, PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
                         rows: [
                             { id: "transaction-tags", label: "Transaction tags", help: "Category tags that classify incoming (credit) and outgoing (debit) bank statement transactions for financial reporting.", keywords: ["category", "classify", "credit", "debit", "keywords"] },
                         ],

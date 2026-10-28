@@ -17,7 +17,7 @@ export function TransactionTagsSection() {
       id="tags"
       title="Transaction tags"
       summary={isLoading ? 'Loading tags' : `${count} ${count === 1 ? 'tag' : 'tags'}`}
-      permissions={[PERMISSIONS.SETTINGS_MANAGE_REFERENCE]}
+      permissions={[PERMISSIONS.SETTINGS_MANAGE_BANKING_REFERENCE, PERMISSIONS.SETTINGS_MANAGE_REFERENCE]}
       defaultCollapsed
       instant
     >
