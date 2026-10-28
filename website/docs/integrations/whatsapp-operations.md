@@ -10,8 +10,8 @@ residio_sources:
   - src/app/(dashboard)/settings/whatsapp-admin/**
   - src/app/(dashboard)/system/whatsapp-monitoring/**
   - src/app/api/whatsapp/**
-residio_verified_commit: c62ad1f
-residio_verified_at: '2026-10-27'
+residio_verified_commit: 86f51e25
+residio_verified_at: '2026-10-28'
 residio_app_version: '0.4.0'
 ---
 
@@ -29,13 +29,14 @@ The Financial PIN policy, opt-in import and operations console sit in a **Reside
 
 Before any message can be sent, the estate needs a WhatsApp provider connected. This no longer needs a developer or a redeploy — an admin with access to **Settings → WhatsApp** can connect, replace, or disconnect the provider directly from the connection card at the top of the page.
 
-Choose one of three providers. Only one is active at a time — saving a different provider replaces the current one.
+Choose one of four providers. Only one is active at a time — saving a different provider replaces the current one.
 
 | Provider | Why choose it |
 |---|---|
 | **Meta** (recommended) | Connects directly to the WhatsApp Cloud API, with no per-message middleman. |
 | **Twilio** | Adds a per-message cost on top of WhatsApp's own fees. Worth it mainly if the estate already runs other messaging through Twilio. |
 | **Chatmaid** | A WhatsApp Web bridge: it pairs with an ordinary WhatsApp number on a phone you keep connected, rather than using the WhatsApp Cloud API. Worth it when the estate wants to use an existing WhatsApp number. It has no delivery guarantee when the phone is offline — read [Chatmaid: what to know before choosing it](#chatmaid-what-to-know-before-choosing-it). |
+| **Self-hosted gateway (WAHA)** | A WhatsApp Web bridge that the estate runs on its own server. It pairs with an ordinary WhatsApp number, like Chatmaid, and has no per-message cost. It has the same limits as Chatmaid when the phone or the session is offline — read [WAHA: what to know before choosing it](#waha-what-to-know-before-choosing-it). |
 
 Whichever provider is chosen, have these details ready before you start:
 
@@ -44,6 +45,7 @@ Whichever provider is chosen, have these details ready before you start:
 | Meta | Access token, phone number ID, verify token, app secret |
 | Twilio | Account SID, auth token, a WhatsApp-enabled from-number |
 | Chatmaid | API key, webhook signing secret, and the from-number of the paired phone in international format (for example `+2348031234567`) |
+| WAHA | API key, webhook secret, server address (`https://` and no trailing slash), session name (`default` unless you chose another), and the from-number of the paired phone in international format |
 
 These all come from the provider's own console, not from Residio. For Chatmaid, enter the paired phone's own number, not the phone ID shown in the Chatmaid dashboard — that ID differs between Chatmaid's test and live environments.
 
@@ -54,6 +56,8 @@ The from-number must not be the number that **Settings → Communications overri
 The connection card shows a **webhook callback URL** with a copy button. Paste this into the provider's console so it knows where to deliver incoming messages and status updates.
 
 For Chatmaid, point the webhook at the callback URL shown on the card (it ends in `/api/whatsapp/webhook/chatmaid`). Residio rejects any call that is not signed with the webhook signing secret you saved, so the secret in Chatmaid and the one in Residio must match.
+
+For WAHA, set the webhook in the WAHA session to the callback URL shown on the card (it ends in `/api/whatsapp/webhook/waha`). Subscribe the session to the events `message`, `message.ack` and `session.status`. Set the WAHA webhook HMAC key to the webhook secret you saved in Residio. Residio rejects any call that is not signed with that secret. The WAHA container and the pairing of the phone are set up on the server, not in Residio. The steps are in the runbook of issue #1261.
 
 If you're connecting Meta, the console also asks for a **verify token**. Residio shows this to you once, immediately after you save the connection — copy it into Meta's console at that moment. It cannot be retrieved again afterwards; if you lose it, save the connection again to generate a new one.
 
@@ -67,9 +71,11 @@ Use the **Test connection** button to confirm the saved credentials actually wor
 
 For Chatmaid, the test also checks that the saved from-number is one of the phones paired to the Chatmaid account, and reports that phone's bridge status. It fails if the number is not paired, naming the phones that are, or if the paired phone is not connected to the bridge. Saving Chatmaid credentials runs the same paired-phone check and refuses a from-number that is not paired, or that belongs to a resident who has opted in to WhatsApp — the from-number must be the bridge phone itself.
 
+For WAHA, the test reads the WAHA session. It fails if WAHA rejects the API key, if the session is not `WORKING` (for example `SCAN_QR_CODE`, so the phone is not paired), or if the saved from-number is not the number paired to the session. Saving WAHA credentials does not contact the server, because the phone can be paired after the credentials are saved. Run **Test connection** after you pair the phone.
+
 ### How credentials are kept
 
-Secrets — access token, verify token, app secret, auth token, Chatmaid API key and webhook signing secret — are encrypted before they are stored, and Residio never displays them again after saving. The connection card only ever shows whether a credential is set, plus the non-secret details such as the phone number ID or from-number and who last saved the connection.
+Secrets — access token, verify token, app secret, auth token, Chatmaid and WAHA API keys, and the Chatmaid and WAHA webhook secrets — are encrypted before they are stored, and Residio never displays them again after saving. The connection card only ever shows whether a credential is set, plus the non-secret details such as the phone number ID or from-number, the WAHA server address and session name, and who last saved the connection.
 
 To change a secret, use **Replace credentials** and enter it again in full; there is no way to view or partially edit a stored secret.
 
@@ -93,6 +99,19 @@ Chatmaid works through a phone that stays paired to the bridge, so the estate's 
 - **A sent message is not a delivered message.** Chatmaid accepts a message first and reports later whether it was sent or failed. Residio records each send and its outcome. When three messages fail within 10 minutes, admins receive a notification linking to **Settings → WhatsApp**. A message still unconfirmed 15 minutes after Chatmaid accepted it is treated as undelivered too: admins are notified by the next notification run, which happens every 15 minutes.
 - **Urgent messages fall back to SMS (currently off until the SMS provider is connected).** See the SMS fallback section on the Email and SMS page.
 - **Human takeover.** If someone on the estate team replies to a resident directly from the phone, the Assistant stays silent in that conversation for 30 minutes so the two do not talk over each other. The resident's messages during that time are still recorded and are not answered later. The one exception is `STOP`, which is honoured even during a takeover: the opt-out is saved and no reply is sent. When a phone number is shared by two or more residents, `STOP` opts out every resident that number matches.
+
+## WAHA: what to know before choosing it
+
+WAHA works through a phone that stays paired to the session, so the same limits as Chatmaid apply. WAHA reports the state of the session as `WORKING`, `STARTING`, `SCAN_QR_CODE`, `STOPPED` or `FAILED`.
+
+- **Messages are lost while the session is down.** Anything a resident sends while the session is not `WORKING` never reaches Residio. Residio reads the WAHA message store every 15 minutes and answers the messages it missed from the last 24 hours, but this works only for messages that WAHA recorded.
+- **Sending needs a `WORKING` session.** Before each send, Residio checks the session. If it is not `WORKING`, the send fails with a "bridge is disconnected" error. (Residio re-checks at most every 30 seconds.)
+- **Admins are alerted.** When the session changes to `FAILED`, `STOPPED` or `SCAN_QR_CODE`, admins receive an urgent notification linking to **Settings → WhatsApp**. A normal-priority notification follows when the session is `WORKING` again. Re-pair the phone in the WAHA dashboard to restore service.
+- **A sent message is not a delivered message.** WAHA reports an acknowledgement for each message. Residio marks a send as sent, delivered or failed from it. When three messages fail within 10 minutes, admins receive a notification. A message still unconfirmed 15 minutes after WAHA accepted it is treated as undelivered too.
+- **PDF files.** Residio sends the message text first, then each PDF as a file.
+- **No duplicate guard.** WAHA has no idempotency key. If a send is retried after a timeout, the resident can receive the same text twice.
+- **Human takeover.** The pause works as for Chatmaid. If someone on the estate team replies from the phone, the Assistant stays silent in that conversation for 30 minutes. `STOP` is still honoured.
+- **Some senders are not answered.** WhatsApp can hide the number of a contact behind an internal `@lid` identifier. Residio cannot match such a sender to a resident, so it does not answer.
 
 ## Turning the channel on
 
@@ -248,7 +267,7 @@ The main menu opens with `Hi <first name>, what would you like to do?` and lists
 
 The statement periods depend on the property's move-in date. *All time* is listed only when the resident has an invoice or a payment that the statement would show (paid, and verified when roll-forward is on) for that property dated before the move-in; otherwise there are 5 periods with *Since move-in* as 5, and typing `all time` gives the since move-in statement. Without a move-in date, *All time* is listed and *Since move-in* is not.
 
-What I owe names each overdue and next-due charge by its billing profile, else its invoice type, with the month for monthly dues (for example `Security dues, OCT 2026` or `Development levy`); up to 5 overdue charges are listed, then `and N more`. A resident with more than one property is asked which property every time they open What I owe, and the list ends with **All my properties**: one line per property with what is outstanding there, then the total owed. A property in credit is shown as in credit but does not reduce the total, so a debt on another property is never hidden. Statement and Receipt stay one property at a time; statement PDF invoice lines carry the same charge label. The wallet belongs to the person, not a property, so a resident with more than one property sees it as *Wallet (all your properties)*.
+What I owe names each overdue and next-due charge by the item names on the invoice as it was billed, else its billing profile, else its invoice type, with the month for monthly dues (for example `Security Levy, OCT 2026` or `Development levy`). A billing profile renamed for a later rate does not change the name of older invoices; up to 5 overdue charges are listed, then `and N more`. A resident with more than one property is asked which property every time they open What I owe, and the list ends with **All my properties**: one line per property with what is outstanding there, then the total owed. A property in credit is shown as in credit but does not reduce the total, so a debt on another property is never hidden. Statement and Receipt stay one property at a time; statement PDF invoice lines and the wallet history carry the same charge label. The wallet belongs to the person, not a property, so a resident with more than one property sees it as *Wallet (all your properties)*.
 
 A co-resident whose sponsor (the resident landlord or tenant of the same house) still lives there sees that sponsor's figures for the house: What I owe, Recent payments, Statement, Receipt and Report a payment, plus `PAY`. Wallet and Clearance certificate are hidden, and their keywords are refused. The co-resident uses their own PIN and their own daily cap. A reported payment is recorded against the sponsor's account, with the co-resident stored as the requester on the approval. Each disclosure log row names the co-resident as the asker and carries the sponsor in `metadata.account_resident_id` (for **All my properties** across more than one sponsor, `metadata.account_resident_ids` lists them). When the sponsor moves out, the co-resident loses the Financial standing item on their next message.
 
@@ -256,9 +275,9 @@ A co-resident whose sponsor (the resident landlord or tenant of the same house) 
 
 Every statement is a PDF, never chat text. Choosing a period sends one of these, and the reply names only the period, the property and where the PDF is going; it carries no statement rows. A statement that cannot be made gets the failure reply and the estate office line, not a text fallback.
 
-- **What the PDF shows:** one section per wallet category (Dues, Development Levy, Transformer Fee) with its own running balance, then a Collections section listing the resident's collection payments in the period. Monthly invoices in a row with no payment between them, for the same charge and amount, show as one line with the month range (for example `Nov 2025 – Feb 2026 · 4 invoices`); an invoice that credit pays fully or partly stays on its own line. Collection lines count as rows below.
+- **What the PDF shows:** one section per wallet category (Dues, Development Levy, Transformer Fee) with its own running balance, then a Collections section listing the resident's collection payments in the period. Monthly invoices in a row with no payment between them, for the same charge and amount, show as one line with the month range (for example `Nov 2025 – Feb 2026 · 4 invoices`) and the balance at the end of the run. This applies also when a credit balance pays the invoices; a payment or wallet entry stops the run. The admin statement download, the chat PDF and the emailed PDF use the same PDF. Collection lines count as rows below.
 - **Up to 40 rows:** the account statement PDF is attached in chat. It is stored privately, Chatmaid is given a link that works for 1 hour, and the file is deleted 12 hours later. If Chatmaid reports the send failed, it is sent once more with a fresh link.
-- **Over 40 rows:** the resident is offered email to their address on file, shown masked (`a***@gmail.com`). On `1` the email is queued and arrives with the PDF attached within 15 minutes, through the notification queue, so the communications override applies to it. The request moves from queued to sent once the email has gone.
+- **Over 40 rows:** the resident is offered email to their address on file, shown masked (`a***@gmail.com`). On `1` the email is queued and arrives with the PDF attached within 15 minutes, through the notification queue, so the communications override applies to it. The request moves from queued to sent once the email has gone, and the resident gets one WhatsApp message: `Your PDF was emailed to a***@gmail.com.` If every send attempt fails, the request moves to failed and the resident gets `Sorry, we could not email your statement.` with the estate office phone, when one is set. Both messages follow the communications override. A cancelled request gets no message.
 - **No email on file:** the resident is told so, and the request appears under **Statement requested, no email** in the operations console until an email is added and the statement is sent.
 
 ### Account actions
@@ -382,7 +401,7 @@ The cleanup runs automatically shortly after midnight, documented on the Schedul
 | A resident's payment report never shows up | Check **Approvals** for a *Payment Reported on WhatsApp* request. Approving it needs both the approvals and the verify payments permissions |
 | A clearance certificate copy did not reach an estate official | See **Clearance certificate copies not sent** on System → WhatsApp Monitoring; usually the official has not opted in |
 | A link or setup code is not accepted | It expired, was already used, or a newer setup code replaced it. Issue a new one |
-| Test connection fails | The provider rejected the saved credentials — recheck the access token or auth token against the provider's console. For Chatmaid, the from-number may not be a paired phone, or the paired phone is not connected to the bridge |
+| Test connection fails | The provider rejected the saved credentials — recheck the access token or auth token against the provider's console. For Chatmaid, the from-number may not be a paired phone, or the paired phone is not connected to the bridge. For WAHA, the API key or server address may be wrong, the session may not be `WORKING`, or the from-number is not the paired phone |
 | A WhatsApp send is blocked with "is the WhatsApp from-number" | The communications override points WhatsApp at the bridge phone itself. Change the override WhatsApp number (or the override phone, if the WhatsApp number is blank) under **Settings → Communications override** |
 | Chatmaid sends fail with "bridge is disconnected", or you received a WhatsApp disconnected alert | The paired phone has lost its connection — re-pair it in the Chatmaid dashboard |
 | Assistant stops replying in one conversation (Chatmaid) | A team member replied from the phone within the last 30 minutes; the Assistant resumes afterwards |

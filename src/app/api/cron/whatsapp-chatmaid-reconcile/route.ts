@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyCronAuth } from '@/lib/auth/cron-auth';
 import { withSystemLog, type SystemLogRun } from '@/lib/system-log/with-system-log';
 import { resolveWhatsAppConfig } from '@/lib/whatsapp';
-import { reconcileChatmaidInbound } from '@/lib/whatsapp/providers/chatmaid-reconcile';
+import { ChatmaidAccessDeniedError, reconcileChatmaidInbound } from '@/lib/whatsapp/providers/chatmaid-reconcile';
 
 export const runtime = 'nodejs';
 
@@ -40,6 +40,13 @@ async function runReconcile(run: SystemLogRun) {
     }
     return NextResponse.json({ success: true, ...result.summary });
   } catch (error) {
+    // A refused key is logged as a failure for admins, but answered 200 so the
+    // scheduler does not raise an alert on every run until someone fixes it (#1268).
+    if (error instanceof ChatmaidAccessDeniedError) {
+      run.outcome = 'failure';
+      run.error = error;
+      return NextResponse.json({ success: false, skipped: 'chatmaid_access_denied', error: error.message });
+    }
     // The message names an HTTP status or a database error, never the API key.
     run.error = error;
     return NextResponse.json(

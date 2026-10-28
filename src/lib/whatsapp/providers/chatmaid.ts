@@ -321,7 +321,8 @@ const EVENT_BY_TEMPLATE = new Map(
   ])
 );
 
-async function renderTemplateToText(templateName: string, parameters: string[]): Promise<string> {
+/** Shared with the WAHA adapter, which renders templates to text the same way. */
+export async function renderTemplateToText(templateName: string, parameters: string[]): Promise<string> {
   const event = EVENT_BY_TEMPLATE.get(templateName);
   const order = event && EVENT_REGISTRY[event].whatsapp?.parameterOrder;
   if (event && order) {

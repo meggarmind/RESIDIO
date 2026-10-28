@@ -14,8 +14,8 @@ residio_sources:
   - src/app/(dashboard)/settings/reminders/**
   - src/app/(dashboard)/settings/wording/**
   - src/components/settings/messages/**
-residio_verified_commit: b54f2fb1
-residio_verified_at: '2026-10-22'
+residio_verified_commit: 62cf6490
+residio_verified_at: '2026-10-28'
 residio_app_version: '0.4.0'
 ---
 
@@ -47,7 +47,7 @@ Until then, SMS has no settings of its own: **Settings → Messages → Reminder
 While SMS is switched off, this fallback does not run. A failed urgent WhatsApp send is reported as failed, with the WhatsApp error only.
 :::
 
-If the estate's active WhatsApp provider is Chatmaid and a WhatsApp send fails for an **urgent** notification, Residio sends that notification by SMS instead. Chatmaid depends on a phone staying connected, and a message that does not arrive has no other way of being recovered.
+If the estate's active WhatsApp provider is Chatmaid or WAHA and a WhatsApp send fails for an **urgent** notification, Residio sends that notification by SMS instead. Both depend on a phone staying connected, and a message that does not arrive has no other way of being recovered.
 
 - History records one entry for the message, on the **SMS** channel and marked as a fallback from WhatsApp. It will not also appear as a failed or successful WhatsApp send.
 - If the SMS also fails, the message is reported as failed with both errors.
@@ -92,7 +92,7 @@ Before saving a wording change:
 
 The **WhatsApp** tab on the same page edits the text of two WhatsApp messages: the payment reminder and the payment receipt. It works the same way as the email wording (empty means the built-in text, **Reset to default**, a variable list, a Preview), with one message per event and a limit of 4096 characters. Announcements are written each time they are sent, so they are not listed.
 
-Editing is available only while Chatmaid is the connected WhatsApp provider. With Meta or Twilio, WhatsApp sends an approved template that is set in code, so the tab shows each template's name and the order its values are filled in, and nothing can be changed. A change takes effect on the next send.
+Editing is available only while Chatmaid or WAHA is the connected WhatsApp provider. With Meta or Twilio, WhatsApp sends an approved template that is set in code, so the tab shows each template's name and the order its values are filled in, and nothing can be changed. A change takes effect on the next send.
 
 ## Reminders and schedules
 
@@ -112,7 +112,7 @@ Invoice reminders go out by email and WhatsApp only. SMS is switched off for rem
 | Growing steadily | The processing job is not running — check **System → Cron Status** |
 | Stuck with failures | The provider is rejecting sends — check **System → Notification History** for the error |
 
-The processing job runs every 15 minutes. A send that fails for a temporary reason, such as a provider timeout or rate limit, goes back into the queue and is tried again after 15 minutes, then 1 hour, 6 hours and 24 hours, up to 5 attempts in all. Each failed attempt is still written to history as failed. A failure that is not known to be temporary is not retried. Each message is claimed before it is sent, so two runs that overlap, for example a manual run during the scheduled one, never send the same message twice. A message left marked processing for more than 30 minutes, because a run stopped part-way through, goes back into the queue and is sent on the next run. If the first run had already handed it to the provider, the resident may receive it once more: email is de-duplicated, WhatsApp is not. A message that keeps getting stuck is marked failed after as many tries as its attempt limit. Any failed message can be retried by hand, which starts its attempt count again from zero.
+The processing job runs every 15 minutes. A send that fails for a temporary reason, such as a provider timeout or rate limit, goes back into the queue and is tried again after 15 minutes, then 1 hour, 6 hours and 24 hours, up to 5 attempts in all. Each failed attempt is still written to history as failed. A failure that is not known to be temporary is not retried. Email has a daily limit of 90 messages, counted from midnight UTC (setting `email_outbound_daily_cap`; 0 turns email off). When the limit is reached, further email waits in the queue until after midnight UTC and then sends. Login codes are not counted and are never held back. Each message is claimed before it is sent, so two runs that overlap, for example a manual run during the scheduled one, never send the same message twice. A message left marked processing for more than 30 minutes, because a run stopped part-way through, goes back into the queue and is sent on the next run. If the first run had already handed it to the provider, the resident may receive it once more: email is de-duplicated, WhatsApp is not. A message that keeps getting stuck is marked failed after as many tries as its attempt limit. Any failed message can be retried by hand, which starts its attempt count again from zero.
 
 Do not clear the queue to make a warning disappear. Clearing it discards messages residents were owed and destroys the evidence needed to diagnose the failure.
 

@@ -21,9 +21,13 @@ vi.mock('@/lib/whatsapp', () => ({
   ),
 }));
 
-vi.mock('@/lib/whatsapp/config', () => ({
-  resolveWhatsAppConfig: vi.fn(),
-}));
+vi.mock('@/lib/whatsapp/config', async () => {
+  const { isBridgeProviderName } = await vi.importActual<typeof import('@/lib/whatsapp/bridge-provider')>('@/lib/whatsapp/bridge-provider');
+  return {
+    resolveWhatsAppConfig: vi.fn(),
+    isBridgeProvider: (config: { provider: string } | null | undefined) => isBridgeProviderName(config?.provider),
+  };
+});
 
 // SMS is off by default (IMPLEMENTED_CHANNELS has no 'sms'). Wrap the real
 // predicate so the dormant fallback tests can switch SMS on explicitly.
@@ -372,6 +376,34 @@ describe('WhatsApp notification dispatch', () => {
           deliveredVia: 'sms_fallback',
           whatsappError: 'Chatmaid bridge is disconnected',
         },
+      });
+    });
+
+    it('falls back to SMS the same way when the active provider is WAHA (#1262)', async () => {
+      vi.mocked(sendWhatsAppTemplate).mockResolvedValue({
+        success: false,
+        error: 'WAHA bridge is disconnected',
+      });
+      vi.mocked(resolveWhatsAppConfig).mockResolvedValue({
+        status: 'ok' as const,
+        config: {
+          provider: 'waha' as const,
+          apiKey: 'waha-key',
+          webhookSecret: 'whsec',
+          baseUrl: 'https://waha.test',
+          session: 'default',
+          fromNumber: '+2348037000101',
+        },
+      });
+      vi.mocked(sendSms).mockResolvedValue({ success: true, messageId: 'termii-waha' });
+
+      const result = await sendNotification(buildQueueItem());
+
+      expect(sendSms).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({
+        success: true,
+        externalId: 'termii-waha',
+        metadata: { deliveredVia: 'sms_fallback', whatsappError: 'WAHA bridge is disconnected' },
       });
     });
 

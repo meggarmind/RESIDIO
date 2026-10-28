@@ -15,7 +15,15 @@ vi.mock('@/lib/email/resend', () => ({
 }));
 vi.mock('@/lib/settings/service', () => ({ getSettingValueAsService: mocks.getSettingValueAsService }));
 vi.mock('@/lib/supabase/server', () => ({
-  createAdminClient: () => ({ from: () => ({ insert: mocks.insert }) }),
+  createAdminClient: () => ({
+    from: () => ({
+      insert: mocks.insert,
+      select: () => {
+        const q: Record<string, unknown> = { eq: () => q, gte: () => q, then: (r: (v: unknown) => unknown) => r({ count: 0, error: null }) };
+        return q;
+      },
+    }),
+  }),
 }));
 vi.mock('@/actions/settings/get-settings', () => ({ getSettings: vi.fn() }));
 vi.mock('@/lib/sms/termii', async (importOriginal) => {

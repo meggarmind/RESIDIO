@@ -652,6 +652,242 @@ describe('WhatsApp connection actions', () => {
     });
   });
 
+  describe('WAHA credentials, status and connection test (#1262)', () => {
+    const waha = {
+      provider: 'waha' as const,
+      apiKey: 'waha_fake_key',
+      webhookSecret: 'waha_fake_secret',
+      baseUrl: 'https://waha.example.com',
+      session: 'default',
+      fromNumber: '+2348031234567',
+    };
+
+    const wahaAdmin = (rpc: ReturnType<typeof vi.fn>) => ({ rpc }) as never;
+
+    it('saves WAHA credentials encrypted through the WAHA RPC params, with the plain address and session', async () => {
+      vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+      const rpc = vi.fn().mockResolvedValue({ data: { id: 'row-3' }, error: null });
+      vi.mocked(createAdminClient).mockReturnValue(wahaAdmin(rpc));
+
+      const result = await saveWhatsAppCredentials(waha);
+
+      expect(result).toEqual({ success: true, data: { provider: 'waha' }, error: null });
+      expect(rpc).toHaveBeenCalledWith('replace_whatsapp_credentials', {
+        p_provider: 'waha',
+        p_waha_api_key_encrypted: 'enc(waha_fake_key)',
+        p_waha_webhook_secret_encrypted: 'enc(waha_fake_secret)',
+        p_waha_base_url: 'https://waha.example.com',
+        p_waha_session: 'default',
+        p_whatsapp_from_number: '+2348031234567',
+        p_actor_id: 'admin-1',
+      });
+    });
+
+    it('defaults the session name to "default" when none is given', async () => {
+      vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+      const rpc = vi.fn().mockResolvedValue({ data: { id: 'row-3' }, error: null });
+      vi.mocked(createAdminClient).mockReturnValue(wahaAdmin(rpc));
+      const withoutSession: Partial<typeof waha> = { ...waha };
+      delete withoutSession.session;
+
+      await saveWhatsAppCredentials(withoutSession as never);
+
+      expect(rpc.mock.calls[0][1]).toMatchObject({ p_waha_session: 'default' });
+    });
+
+    it('never writes a WAHA API key or webhook secret into the audit log', async () => {
+      vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+      vi.mocked(createAdminClient).mockReturnValue(wahaAdmin(vi.fn().mockResolvedValue({ data: { id: 'row-3' }, error: null })));
+
+      await saveWhatsAppCredentials(waha);
+
+      expect(logAudit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          newValues: { provider: 'waha', baseUrl: 'https://waha.example.com', session: 'default', fromNumber: '+2348031234567' },
+        })
+      );
+      const serialized = JSON.stringify(vi.mocked(logAudit).mock.calls);
+      expect(serialized).not.toContain('waha_fake_key');
+      expect(serialized).not.toContain('waha_fake_secret');
+    });
+
+    it('refuses to save without WHATSAPP_MANAGE', async () => {
+      vi.mocked(authorizePermission).mockResolvedValue(unauthorized as never);
+
+      expect(await saveWhatsAppCredentials(waha)).toEqual({ success: false, data: null, error: 'Forbidden' });
+      expect(createAdminClient).not.toHaveBeenCalled();
+      expect(encrypt).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['an address that is not https', { baseUrl: 'http://waha.example.com' }, 'Server address must start with https://'],
+      ['an address with a trailing slash', { baseUrl: 'https://waha.example.com/' }, 'Server address must not end with a slash'],
+      ['an address that is not a URL', { baseUrl: 'waha.example.com' }, 'Server address must be a valid URL'],
+      ['a from number that is not E.164', { fromNumber: '08031234567' }, 'From number must be in E.164 format'],
+      ['an empty API key', { apiKey: '  ' }, 'API key is required'],
+      ['an empty webhook secret', { webhookSecret: '' }, 'Webhook secret is required'],
+      ['a blank session name', { session: '   ' }, 'Session name is required'],
+    ])('rejects %s, before touching the database or encrypting', async (_label, override, message) => {
+      vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+
+      const result = await saveWhatsAppCredentials({ ...waha, ...override });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain(message);
+      expect(createAdminClient).not.toHaveBeenCalled();
+      expect(encrypt).not.toHaveBeenCalled();
+    });
+
+    it('rejects a from number equal to the override WhatsApp number', async () => {
+      vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+      const rpc = vi.fn();
+      vi.mocked(createAdminClient).mockReturnValue(wahaAdmin(rpc));
+      overrideSettings({ comms_override_whatsapp_phone: '+2348031234567', comms_override_phone: '+15550100100' });
+
+      const result = await saveWhatsAppCredentials(waha);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('same as the WhatsApp number in Communications override');
+      expect(rpc).not.toHaveBeenCalled();
+    });
+
+    it('reports WAHA secret presence as booleans and returns the address and session, never a ciphertext', async () => {
+      vi.mocked(authorizePermission).mockResolvedValue(viewer as never);
+      const row = query({
+        data: {
+          provider: 'waha',
+          phone_number_id: null,
+          whatsapp_from_number: '+2348031234567',
+          api_version: null,
+          updated_at: '2026-10-27T00:00:00Z',
+          waha_api_key_encrypted: 'ciphertext-waha-key',
+          waha_webhook_secret_encrypted: 'ciphertext-waha-secret',
+          waha_base_url: 'https://waha.example.com',
+          waha_session: 'estate',
+          updated_by_profile: null,
+        },
+        error: null,
+      });
+      vi.mocked(createAdminClient).mockReturnValue({ from: vi.fn().mockReturnValue(row) } as never);
+
+      const result = await getWhatsAppConnectionStatus();
+
+      expect(result.data).toEqual(
+        expect.objectContaining({
+          connected: true,
+          provider: 'waha',
+          fromNumber: '+2348031234567',
+          hasWahaApiKey: true,
+          hasWahaWebhookSecret: true,
+          wahaBaseUrl: 'https://waha.example.com',
+          wahaSession: 'estate',
+          hasChatmaidApiKey: false,
+        })
+      );
+      expect(row.select.mock.calls[0][0]).toContain('waha_base_url');
+      const serialized = JSON.stringify(result.data);
+      expect(serialized).not.toContain('ciphertext-waha-key');
+      expect(serialized).not.toContain('ciphertext-waha-secret');
+    });
+
+    const wahaConfig = { status: 'ok' as const, config: waha };
+    const session = (body: Record<string, unknown>) => jsonResponse({ name: 'default', ...body });
+
+    it('tests a WAHA connection with one authenticated read, not a send', async () => {
+      vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+      vi.mocked(resolveWhatsAppConfig).mockResolvedValue(wahaConfig);
+      const fetchMock = vi.fn().mockResolvedValue(session({ status: 'WORKING', me: { id: '2348031234567@c.us', pushName: 'Estate' } }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      const result = await testWhatsAppConnection();
+
+      expect(result.data).toEqual({
+        ok: true,
+        message: 'Connected to WAHA. +2348031234567 is paired; session status: WORKING.',
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toBe('https://waha.example.com/api/sessions/default');
+      expect(init.method ?? 'GET').toBe('GET');
+      expect(init.headers).toEqual({ 'X-Api-Key': 'waha_fake_key' });
+    });
+
+    it('fails the WAHA test when the session is not WORKING', async () => {
+      vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+      vi.mocked(resolveWhatsAppConfig).mockResolvedValue(wahaConfig);
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(session({ status: 'SCAN_QR_CODE', me: null })));
+
+      const result = await testWhatsAppConnection();
+
+      expect(result.data).toEqual({
+        ok: false,
+        message: 'WAHA session default is SCAN_QR_CODE. Pair the handset in the WAHA dashboard.',
+      });
+    });
+
+    it('fails the WAHA test when the stored from number is not the paired number (#843)', async () => {
+      vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+      vi.mocked(resolveWhatsAppConfig).mockResolvedValue({ ...wahaConfig, config: { ...waha, fromNumber: '+2358031234567' } });
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(session({ status: 'WORKING', me: { id: '2348031234567@c.us' } })));
+
+      const result = await testWhatsAppConnection();
+
+      expect(result.data).toEqual({
+        ok: false,
+        message: 'From number +2358031234567 is not paired to this WAHA session. Paired phone on this session: +2348031234567.',
+      });
+    });
+
+    it('says so when a WORKING session reports no paired phone', async () => {
+      vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+      vi.mocked(resolveWhatsAppConfig).mockResolvedValue(wahaConfig);
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(session({ status: 'WORKING' })));
+
+      const result = await testWhatsAppConnection();
+
+      expect(result.data?.ok).toBe(false);
+      expect(result.data?.message).toContain('This WAHA session has no paired phone.');
+    });
+
+    it('reports a rejected WAHA key without returning the upstream body', async () => {
+      vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+      vi.mocked(resolveWhatsAppConfig).mockResolvedValue(wahaConfig);
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('upstream-detail waha_fake_key', { status: 401 })));
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      try {
+        const result = await testWhatsAppConnection();
+
+        expect(result.data?.ok).toBe(false);
+        expect(result.data?.message).toContain('WAHA rejected the request (HTTP 401)');
+        expect(JSON.stringify(result)).not.toContain('upstream-detail');
+        expect(JSON.stringify(result)).not.toContain('waha_fake_key');
+      } finally {
+        vi.unstubAllGlobals();
+        consoleError.mockRestore();
+      }
+    });
+
+    it('reports an unreachable WAHA server generically', async () => {
+      vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+      vi.mocked(resolveWhatsAppConfig).mockResolvedValue(wahaConfig);
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('connect ECONNREFUSED waha_fake_key')));
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      try {
+        const result = await testWhatsAppConnection();
+
+        expect(result.data).toEqual({
+          ok: false,
+          message: 'Could not reach the WhatsApp provider. Check server network access and try again.',
+        });
+      } finally {
+        vi.unstubAllGlobals();
+        consoleError.mockRestore();
+      }
+    });
+  });
+
   describe('disconnectWhatsApp', () => {
     it('deactivates the active row and records a DEACTIVATE audit entry', async () => {
       vi.mocked(authorizePermission).mockResolvedValue(manager as never);

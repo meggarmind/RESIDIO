@@ -1,5 +1,5 @@
 import type { StatementTransaction } from '@/actions/billing/get-account-statement';
-import { chargeLabel } from '@/lib/whatsapp/assistant-format';
+import { invoiceLabel } from '@/lib/billing/invoice-label';
 
 export interface LedgerInvoice {
   id: string;
@@ -11,6 +11,8 @@ export interface LedgerInvoice {
   period_end: string | null;
   created_at: string;
   billing_profile_name: string | null;
+  /** The rates as billed; its item names label the invoice (#1253). */
+  rate_snapshot?: unknown;
   charge_category?: string | null;
 }
 
@@ -64,10 +66,10 @@ function monthIndex(dateStr: string): number {
 
 /**
  * Folds each run of unpaid monthly invoices into one line (#1234). A run is two or more invoices in
- * sequence with the same billing item and amount, for months in sequence, each added in full to the
- * debt. Any other row stops the run, and so does an invoice the credit pays fully or partly: it
- * stays on its own line. The line sits at the first invoice's date and shows the balance at the end
- * of the run, so opening, closing and the totals match the detailed statement.
+ * sequence with the same billing item and amount, for months in sequence. A credit balance that
+ * pays the invoices does not stop the run (#1253); a payment, wallet or any other row does. The line
+ * sits at the first invoice's date and shows the balance at the end of the run, so opening, closing
+ * and the totals match the detailed statement.
  */
 function summariseInvoices(transactions: StatementTransaction[], names: Map<string, string>, periodStarts: Map<string, string>) {
   const runs: StatementTransaction[][] = [];
@@ -79,9 +81,7 @@ function summariseInvoices(transactions: StatementTransaction[], names: Map<stri
 
   for (const tx of transactions) {
     const start = periodStarts.get(tx.id);
-    // A balance in credit before the invoice means the credit pays some or all of it.
-    const unpaid = tx.type === 'invoice' && start !== undefined && tx.balance - tx.debit > -0.005;
-    if (!unpaid) {
+    if (tx.type !== 'invoice' || start === undefined) {
       close();
       runs.push([tx]);
       continue;
@@ -135,12 +135,12 @@ export function buildStatementLedger(input: {
   for (const invoice of input.invoices) {
     const amount = invoice.amount_due || 0;
     if (invoice.period_start) periodStarts.set(`inv-${invoice.id}`, invoice.period_start);
-    itemNames.set(`inv-${invoice.id}`, chargeLabel({ invoice_type: invoice.invoice_type, profileName: invoice.billing_profile_name, periodStart: null }));
+    itemNames.set(`inv-${invoice.id}`, invoiceLabel({ invoice_type: invoice.invoice_type, rate_snapshot: invoice.rate_snapshot, profileName: invoice.billing_profile_name, periodStart: null }));
     transactions.push({
       id: `inv-${invoice.id}`,
       date: invoiceStatementDate(invoice),
       type: 'invoice',
-      description: `Invoice #${invoice.invoice_number} - ${chargeLabel({ invoice_type: invoice.invoice_type, profileName: invoice.billing_profile_name, periodStart: invoice.period_start })}`,
+      description: `Invoice #${invoice.invoice_number} - ${invoiceLabel({ invoice_type: invoice.invoice_type, rate_snapshot: invoice.rate_snapshot, profileName: invoice.billing_profile_name, periodStart: invoice.period_start })}`,
       reference: invoice.invoice_number,
       debit: amount,
       credit: 0,

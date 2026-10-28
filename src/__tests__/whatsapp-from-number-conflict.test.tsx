@@ -32,7 +32,8 @@ describe('WhatsApp connection form from-number conflict (#904)', () => {
   const disconnected = {
     connected: false, provider: null, phoneNumberId: null, fromNumber: null, apiVersion: null, updatedAt: null,
     updatedByName: null, hasAccessToken: false, hasVerifyToken: false, hasAppSecret: false, hasAuthToken: false,
-    hasChatmaidApiKey: false, hasChatmaidWebhookSecret: false, templateContentSids: null,
+    hasChatmaidApiKey: false, hasChatmaidWebhookSecret: false,
+    hasWahaApiKey: false, hasWahaWebhookSecret: false, wahaBaseUrl: null, wahaSession: null, templateContentSids: null,
   };
 
   afterEach(cleanup);

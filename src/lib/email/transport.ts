@@ -9,9 +9,11 @@
 import type { ReactNode } from 'react';
 import { resend, emailConfig, isEmailConfigured } from './resend';
 import { getSettingValueAsService } from '@/lib/settings/service';
+import { createAdminClient } from '@/lib/supabase/server';
 import { decideSend } from '@/lib/comms-override/gate';
 import { applyEmailRedirect } from '@/lib/comms-override/apply';
 import { blockedError, toLogRecord } from '@/lib/comms-override/resolver';
+import { isExemptPurpose } from '@/lib/comms-override/types';
 import type { CommsSendContext, OverrideLogRecord } from '@/lib/comms-override/types';
 
 export const EMAIL_NOT_CONFIGURED_ERROR = 'Email service not configured (missing RESEND_API_KEY)';
@@ -34,7 +36,7 @@ export type ResendTransportResult =
   /** `override` is set when the communications override altered or blocked the send (#715). */
   | { ok: true; id: string | undefined; override?: OverrideLogRecord }
   /** `retryable` is present (true) only for a transient failure (#546). */
-  | { ok: false; error: string; retryable?: true; override?: OverrideLogRecord };
+  | { ok: false; error: string; retryable?: true; retryAt?: string; override?: OverrideLogRecord };
 
 export interface ResendTransportOptions extends CommsSendContext {
   /** Sent to Resend as the Idempotency-Key so a retried attempt cannot double-send (#546). */
@@ -52,6 +54,38 @@ export function isRetryableResendError(error: { statusCode?: number | null; name
   const status = error.statusCode;
   if (typeof status === 'number' && (status >= 500 || status === 429 || status === 408)) return true;
   return typeof error.name === 'string' && RETRYABLE_RESEND_ERROR_NAMES.has(error.name);
+}
+
+const DEFAULT_DAILY_CAP = 90;
+export const DAILY_LIMIT_ERROR = 'Daily email limit reached';
+
+/**
+ * Daily cap (#1265): keeps the app under the Resend plan's 100 sends a day. Login codes
+ * are exempt and use the headroom. Returns a refusal, or null when the send may go ahead.
+ * An unreadable count refuses, so a database fault cannot lift the cap.
+ */
+async function checkDailyCap(purpose: ResendTransportOptions['purpose']): Promise<ResendTransportResult | null> {
+  if (isExemptPurpose(purpose)) return null;
+
+  const configured = await getSettingValueAsService('email_outbound_daily_cap');
+  const cap = typeof configured === 'number' && Number.isInteger(configured) ? configured : DEFAULT_DAILY_CAP;
+  if (cap <= 0) return { ok: false, error: 'Email is capped at zero in system settings' };
+
+  const now = new Date();
+  const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const { count, error } = await createAdminClient()
+    .from('notification_history')
+    .select('id', { count: 'exact', head: true })
+    .eq('channel', 'email')
+    .eq('status', 'sent')
+    .gte('sent_at', startOfDay.toISOString());
+  if (error || count === null) return { ok: false, error: 'Unable to verify email daily limit' };
+
+  if (count >= cap) {
+    const nextMidnight = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+    return { ok: false, error: DAILY_LIMIT_ERROR, retryable: true, retryAt: nextMidnight.toISOString() };
+  }
+  return null;
 }
 
 /**
@@ -86,6 +120,10 @@ export async function sendViaResend(
       ...(decision.code === 'settings_unreadable' ? { retryable: true as const } : {}),
     };
   }
+
+  const capped = await checkDailyCap(options?.purpose);
+  if (capped) return { ...capped, override };
+
   const outbound = decision.redirect ? applyEmailRedirect(params, decision, envLabel) : params;
 
   const fromName = (await getSettingValueAsService('email_from_name')) || 'Residio Estate';
