@@ -14,8 +14,8 @@ residio_sources:
   - src/app/(dashboard)/settings/reminders/**
   - src/app/(dashboard)/settings/wording/**
   - src/components/settings/messages/**
-residio_verified_commit: b54f2fb1
-residio_verified_at: '2026-10-22'
+residio_verified_commit: e4f9d5ed
+residio_verified_at: '2026-10-28'
 residio_app_version: '0.4.0'
 ---
 
@@ -47,7 +47,7 @@ Until then, SMS has no settings of its own: **Settings → Messages → Reminder
 While SMS is switched off, this fallback does not run. A failed urgent WhatsApp send is reported as failed, with the WhatsApp error only.
 :::
 
-If the estate's active WhatsApp provider is Chatmaid and a WhatsApp send fails for an **urgent** notification, Residio sends that notification by SMS instead. Chatmaid depends on a phone staying connected, and a message that does not arrive has no other way of being recovered.
+If the estate's active WhatsApp provider is Chatmaid or WAHA and a WhatsApp send fails for an **urgent** notification, Residio sends that notification by SMS instead. Both depend on a phone staying connected, and a message that does not arrive has no other way of being recovered.
 
 - History records one entry for the message, on the **SMS** channel and marked as a fallback from WhatsApp. It will not also appear as a failed or successful WhatsApp send.
 - If the SMS also fails, the message is reported as failed with both errors.
@@ -92,7 +92,7 @@ Before saving a wording change:
 
 The **WhatsApp** tab on the same page edits the text of two WhatsApp messages: the payment reminder and the payment receipt. It works the same way as the email wording (empty means the built-in text, **Reset to default**, a variable list, a Preview), with one message per event and a limit of 4096 characters. Announcements are written each time they are sent, so they are not listed.
 
-Editing is available only while Chatmaid is the connected WhatsApp provider. With Meta or Twilio, WhatsApp sends an approved template that is set in code, so the tab shows each template's name and the order its values are filled in, and nothing can be changed. A change takes effect on the next send.
+Editing is available only while Chatmaid or WAHA is the connected WhatsApp provider. With Meta or Twilio, WhatsApp sends an approved template that is set in code, so the tab shows each template's name and the order its values are filled in, and nothing can be changed. A change takes effect on the next send.
 
 ## Reminders and schedules
 

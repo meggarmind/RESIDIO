@@ -42,9 +42,15 @@ Hostinger KVM 2  (x86, 2 vCPU, 8 GB RAM, 100 GB NVMe)
 └── Coolify (Traefik terminates TLS)
     ├── residio-prod   -> app.<domain>    -> Supabase project Residio_Prod
     ├── residio-stage-image -> stage.<domain> -> Supabase project Residio_Stage (CI-built GHCR image)
+    ├── residio-waha-stage  -> WAHA WhatsApp gateway for Stage (#1260); no app hostname, reached by the Stage app over HTTPS
     └── Scheduled tasks: the 12 scheduled cron routes (see "Scheduled tasks" below), on prod and stage
 ```
 
+- `residio-waha-stage` is the self-hosted WAHA container (`devlikeapro/waha`, NOWEB engine) that the
+  `waha` WhatsApp provider talks to (ADR-0008). The Coolify service, its volume and the QR pairing are
+  set up by #1261, not by the app code. The app reaches it at the server address saved in **Settings
+  → WhatsApp**, and WAHA calls back to `/api/whatsapp/webhook/waha` on the Stage app. Its cron task is
+  `whatsapp-waha-reconcile` (see "The tasks"). There is no Prod WAHA service yet.
 - Builds run on the VPS (8 GB covers Coolify ~1 GB, two app containers ~0.5-1 GB each, and a
   2-4 GB build spike). x86, so no ARM image concern.
 - One image per environment: `NEXT_PUBLIC_*_CLOUD` values are inlined at build time
