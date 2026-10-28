@@ -119,7 +119,7 @@ export function EstateAssistantSection({ estate }: { estate: EstateFormState }) 
       ) : (
         <>
           <p className="px-4 pt-4 text-sm text-muted-foreground md:px-5">
-            <Link href="/settings/whatsapp#assistant-replies" className="text-primary underline">
+            <Link href="/settings/whatsapp#assistant" className="text-primary underline">
               WhatsApp replies are in Settings &gt; WhatsApp
             </Link>
           </p>

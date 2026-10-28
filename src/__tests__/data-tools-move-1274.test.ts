@@ -1,7 +1,9 @@
-import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { describe, expect, it, vi } from 'vitest';
 import { ROUTE_PERMISSIONS } from '@/lib/auth/action-roles';
 import { findSettingsEntry, settingsConfig } from '@/config/settings-nav';
+
+const redirect = vi.hoisted(() => vi.fn());
+vi.mock('next/navigation', () => ({ redirect }));
 
 // Data Tools moved from /system to Settings > System (#1274); nobody gains or loses access.
 describe('Data Tools move (#1274)', () => {
@@ -14,10 +16,15 @@ describe('Data Tools move (#1274)', () => {
     expect(findSettingsEntry('/settings/data-tools', settingsConfig)?.group.title).toBe('System');
   });
 
-  it('keeps both old URLs as redirects to the new page', () => {
-    for (const old of ['system/data-tools', 'settings/data-management']) {
-      const src = readFileSync(`src/app/(dashboard)/${old}/page.tsx`, 'utf8');
-      expect(src).toContain("redirect('/settings/data-tools')");
+  it('keeps both old URLs as redirects to the new page', async () => {
+    const pages = [
+      await import('@/app/(dashboard)/system/data-tools/page'),
+      await import('@/app/(dashboard)/settings/data-management/page'),
+    ];
+    for (const page of pages) {
+      redirect.mockClear();
+      page.default();
+      expect(redirect).toHaveBeenCalledWith('/settings/data-tools');
     }
   });
 
