@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { GET } from '../route';
+import { GET } from '@/app/api/cron/whatsapp-waha-reconcile/route';
 import { resolveWhatsAppConfig } from '@/lib/whatsapp';
 import { reconcileWahaInbound } from '@/lib/whatsapp/providers/waha-reconcile';
 import { recordSystemAction } from '@/lib/system-log/recorder';

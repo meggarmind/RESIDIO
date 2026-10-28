@@ -193,6 +193,21 @@ describe('WAHA WhatsApp provider', () => {
     expect(fetchImpl.mock.calls[2][0]).toBe(`${config.baseUrl}/api/sendText`);
   });
 
+  it('keeps refusing from the cache while a non-WORKING reading is inside the 30s window, with one session fetch', async () => {
+    const config = makeConfig();
+    const fetchImpl = fetchWithSession(jsonResponse({ name: 'default', status: 'STOPPED' }));
+    const provider = createWahaWhatsAppProvider(config, fetchImpl);
+
+    const first = await provider.sendText({ to: '+2348000000000', body: 'First' });
+    const second = await provider.sendText({ to: '+2348000000000', body: 'Second' });
+
+    expect(first).toEqual({ success: false, error: 'WAHA bridge is disconnected' });
+    expect(second).toEqual({ success: false, error: 'WAHA bridge is disconnected' });
+    // The second refusal came from the cache, and no send was ever attempted.
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl.mock.calls[0][0]).toBe(`${config.baseUrl}/api/sessions/default`);
+  });
+
   it('checks the session again once the 30s cache has expired', async () => {
     vi.useFakeTimers();
     try {
