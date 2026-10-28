@@ -2,11 +2,14 @@ import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GET } from '../route';
 import { resolveWhatsAppConfig } from '@/lib/whatsapp';
-import { reconcileChatmaidInbound } from '@/lib/whatsapp/providers/chatmaid-reconcile';
+import { ChatmaidAccessDeniedError, reconcileChatmaidInbound } from '@/lib/whatsapp/providers/chatmaid-reconcile';
 import { recordSystemAction } from '@/lib/system-log/recorder';
 
 vi.mock('@/lib/whatsapp', () => ({ resolveWhatsAppConfig: vi.fn() }));
-vi.mock('@/lib/whatsapp/providers/chatmaid-reconcile', () => ({ reconcileChatmaidInbound: vi.fn() }));
+vi.mock('@/lib/whatsapp/providers/chatmaid-reconcile', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/whatsapp/providers/chatmaid-reconcile')>()),
+  reconcileChatmaidInbound: vi.fn(),
+}));
 vi.mock('@/lib/system-log/recorder', () => ({ recordSystemAction: vi.fn() }));
 
 const SECRET = 'cron-secret-for-tests';
@@ -90,5 +93,21 @@ describe('GET /api/cron/whatsapp-chatmaid-reconcile', () => {
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({ error: 'Chatmaid inbound list failed (HTTP 502)' });
     expect(recordSystemAction).toHaveBeenCalledWith(expect.objectContaining({ source: 'cron:whatsapp-chatmaid-reconcile', outcome: 'failure' }));
+  });
+
+  it('answers 200 but logs a failure when Chatmaid refuses the key, so the scheduler does not alert every run', async () => {
+    vi.mocked(reconcileChatmaidInbound).mockRejectedValue(new ChatmaidAccessDeniedError(403, 'Subscription inactive'));
+
+    const response = await GET(request(`Bearer ${SECRET}`));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      skipped: 'chatmaid_access_denied',
+      error: 'Chatmaid inbound list failed (HTTP 403): Subscription inactive',
+    });
+    expect(recordSystemAction).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'cron:whatsapp-chatmaid-reconcile', outcome: 'failure' })
+    );
   });
 });

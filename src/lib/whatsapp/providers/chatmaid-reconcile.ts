@@ -46,6 +46,30 @@ export interface ChatmaidReconcileSummary {
   truncated: boolean;
 }
 
+/**
+ * Chatmaid refused the key (401/403). Retrying in five minutes does not fix it,
+ * so the cron logs it and answers 200 rather than alerting every run (#1268).
+ */
+export class ChatmaidAccessDeniedError extends Error {
+  constructor(readonly status: number, reason: string | null) {
+    super(`Chatmaid inbound list failed (HTTP ${status})${reason ? `: ${reason}` : ''}`);
+    this.name = 'ChatmaidAccessDeniedError';
+  }
+}
+
+const MAX_REASON_LENGTH = 120;
+
+/** Chatmaid's own short `message`/`error` text, trimmed and with the key scrubbed. */
+async function readDeniedReason(response: Response, apiKey: string): Promise<string | null> {
+  const body = asRecord(await response.json().catch(() => null));
+  const raw = [body?.message, body?.error, asRecord(body?.error)?.message].find(
+    (value): value is string => typeof value === 'string' && value.trim() !== ''
+  );
+  if (!raw) return null;
+  const scrubbed = apiKey ? raw.split(apiKey).join('[redacted]') : raw;
+  return scrubbed.replace(/\s+/g, ' ').trim().slice(0, MAX_REASON_LENGTH);
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -68,6 +92,9 @@ export async function fetchChatmaidInboundPage(
     cache: 'no-store',
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
+  if (response.status === 401 || response.status === 403) {
+    throw new ChatmaidAccessDeniedError(response.status, await readDeniedReason(response, config.apiKey));
+  }
   if (!response.ok) {
     throw new Error(`Chatmaid inbound list failed (HTTP ${response.status})`);
   }

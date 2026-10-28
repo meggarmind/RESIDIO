@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createInMemoryProcessedMessageStore, processInboundMessages } from '@/lib/whatsapp/inbound';
 import {
+  ChatmaidAccessDeniedError,
   CHATMAID_RECONCILE_MAX_PAGES,
   CHATMAID_RECONCILE_PAGE_LIMIT,
   fetchChatmaidInboundPage,
@@ -208,6 +209,26 @@ describe('fetchChatmaidInboundPage', () => {
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).toBe('Chatmaid inbound list failed (HTTP 401)');
     expect((error as Error).message).not.toContain('sk_live');
+  });
+
+  it('throws an access-denied error with Chatmaid\'s reason on 403, key scrubbed', async () => {
+    const reason = { success: false, message: 'Subscription inactive for sk_live_secret_key' };
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify(reason), { status: 403 }));
+
+    const error = await fetchChatmaidInboundPage(config, 1, 50, fetchImpl).catch((e: Error) => e);
+
+    expect(error).toBeInstanceOf(ChatmaidAccessDeniedError);
+    expect((error as ChatmaidAccessDeniedError).status).toBe(403);
+    expect((error as Error).message).toBe('Chatmaid inbound list failed (HTTP 403): Subscription inactive for [redacted]');
+  });
+
+  it('keeps a 5xx as a plain error, not access denied', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({ message: 'down' }), { status: 502 }));
+
+    const error = await fetchChatmaidInboundPage(config, 1, 50, fetchImpl).catch((e: Error) => e);
+
+    expect(error).not.toBeInstanceOf(ChatmaidAccessDeniedError);
+    expect((error as Error).message).toBe('Chatmaid inbound list failed (HTTP 502)');
   });
 
   it('throws on an unexpected shape', async () => {
