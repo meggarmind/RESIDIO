@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import { PERMISSIONS, type Permission } from '@/lib/auth/action-roles';
 import { oversightConfig } from '@/config/oversight-nav';
-import { flattenSettingsNav } from '@/config/settings-nav';
+import { flattenSettingsNav, type SettingsGroup } from '@/config/settings-nav';
 
 /**
  * Navigation item definition
@@ -54,6 +54,8 @@ export interface NavItem {
   badgeType?: 'approvals' | 'notifications';
   /** Short label for mobile display (optional, defaults to title) */
   mobileLabel?: string;
+  /** An area with its own left menu: the entry opens the first page of it the user may open, and is active on any of its pages */
+  area?: SettingsGroup[];
 }
 
 /**
@@ -214,6 +216,7 @@ const NAV_OVERSIGHT: NavItem = {
   title: 'Oversight',
   href: '/system',
   icon: Eye,
+  area: oversightConfig,
   permissions: [
     ...new Set(flattenSettingsNav(oversightConfig).flatMap((item) => item.permissions ?? [])),
   ],
