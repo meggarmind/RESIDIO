@@ -82,6 +82,19 @@ describe('updateSetting for the auto-process limit', () => {
     expect(logAudit).not.toHaveBeenCalled();
   });
 
+  it('refuses the financial officer, who holds settings.manage_billing but not settings.manage_general (#1283)', async () => {
+    authorizePermission.mockImplementation(async (permission: string) =>
+      permission === 'settings.manage_billing'
+        ? { authorized: true, userId: uid(902), roleName: 'financial_officer' }
+        : { authorized: false, error: 'Forbidden' }
+    );
+
+    expect((await updateSetting(KEY, '80000')).error).toBe('Forbidden');
+    expect(authorizePermission).toHaveBeenCalledWith('settings.manage_general');
+    expect(calls).toEqual([]);
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+
   it('updateSettings refuses a batch carrying an invalid limit', async () => {
     const result = await updateSettings({ [KEY]: -1 });
 

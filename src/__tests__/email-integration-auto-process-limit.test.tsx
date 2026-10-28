@@ -100,6 +100,17 @@ describe('Auto-process limit setting (issue #710, moved to Banking in #1274)', (
     expect(screen.getByRole('button', { name: 'Save Approval limit' })).toBeDisabled();
   });
 
+  it('is read-only for the financial officer, admitted by settings.manage_billing (#1283)', async () => {
+    mocks.permissions = [PERMISSIONS.SETTINGS_VIEW, PERMISSIONS.SETTINGS_MANAGE_BILLING];
+    mocks.roleName = 'financial_officer';
+    renderPage();
+
+    const input = await field();
+    expect(input).toBeDisabled();
+    expect(input).toHaveValue('75,000');
+    expect(screen.getByRole('button', { name: 'Save Approval limit' })).toBeDisabled();
+  });
+
   it('saves a new value through updateSetting for a super_admin', async () => {
     mocks.permissions = [PERMISSIONS.SETTINGS_MANAGE_REFERENCE, PERMISSIONS.SETTINGS_MANAGE_GENERAL];
     renderPage();

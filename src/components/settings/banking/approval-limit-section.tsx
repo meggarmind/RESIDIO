@@ -18,7 +18,8 @@ import {
  * The email-import auto-process limit (#710), moved here from Gmail Import (#1274) because it decides
  * which matched payments wait for approval. Same key and same rule as before: saving goes through
  * updateSetting, which for this key needs settings.manage_general and the super_admin role (owner
- * decision), so the control is gated on both. The section shows for whoever the Banking page admits, so the page guard is unchanged (read-only viewers holding neither permission no longer see it).
+ * decision), so the control is gated on both. The section shows for whoever the Banking page admits. settings.manage_billing
+ * admits the financial officer, who sees the limit read-only and cannot save it (#1283).
  */
 export function ApprovalLimitSection() {
   const { hasPermission, profile } = useAuth();
@@ -49,7 +50,7 @@ export function ApprovalLimitSection() {
       id="approval-limit"
       title="Approval limit"
       summary={isLoading ? 'Loading' : `Auto-matched payments above ₦${current.toLocaleString()} wait for approval`}
-      permissions={[PERMISSIONS.SETTINGS_MANAGE_REFERENCE, PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE]}
+      permissions={[PERMISSIONS.SETTINGS_MANAGE_REFERENCE, PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE, PERMISSIONS.SETTINGS_MANAGE_BILLING]}
       isDirty={isDirty}
       isSaving={updateSetting.isPending}
       canSave={canEdit && valid}

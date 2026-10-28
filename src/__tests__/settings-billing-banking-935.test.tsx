@@ -114,6 +114,12 @@ describe('permissions: each section keeps its own, the route is their OR (#791 d
     expect(sections.find((s) => s.id === 'tags')?.permissions).toEqual([PERMISSIONS.SETTINGS_MANAGE_REFERENCE]);
   });
 
+  it('admits the financial officer to Banking only for the read-only Approval limit (#1283)', () => {
+    const sections = item('/settings/banking').sections!;
+    const withBilling = sections.filter((s) => s.permissions?.includes(PERMISSIONS.SETTINGS_MANAGE_BILLING)).map((s) => s.id);
+    expect(withBilling).toEqual(['approval-limit']);
+  });
+
   it('keeps every old route key with its old permission (ADR-0004)', () => {
     expect(ROUTE_PERMISSIONS['/settings/bank-accounts']).toEqual([PERMISSIONS.SETTINGS_MANAGE_REFERENCE]);
     expect(ROUTE_PERMISSIONS['/settings/transaction-tags']).toEqual([PERMISSIONS.SETTINGS_MANAGE_REFERENCE]);

@@ -87,8 +87,8 @@ describe('Settings/System search entry permissions', () => {
       '/settings/billing/profiles': ['billing.manage_profiles'],
       // Debt status labels, threshold and report (#980).
       '/settings/debt-status': ['settings.manage_debt_status'],
-      // Merged Banking page (#935): the OR of bank accounts and tags (manage_reference) and duplicate matching.
-      '/settings/banking': ['settings.manage_reference', 'system.manage_maintenance'],
+      // Merged Banking page (#935): the OR of bank accounts and tags (manage_reference), the Approval limit (manage_billing) and duplicate matching.
+      '/settings/banking': ['settings.manage_billing', 'settings.manage_reference', 'system.manage_maintenance'],
       // Merged Messages task pages (#934): each is the OR of its sections' permissions.
       '/settings/reminders': ['notifications.manage', 'settings.manage_general'],
       '/settings/wording': ['notifications.manage'],
@@ -173,7 +173,7 @@ describe('Settings row search entry permissions (#934, #935, #937)', () => {
       'whatsapp-assistant-text': WHATSAPP,
       'whatsapp-privacy-notice': WHATSAPP,
       // #1274: the approval limit sits on Banking, gated like the page; Gmail Import sections take the page's permission.
-      'email-auto-process-limit': ['settings.manage_reference', 'system.manage_maintenance'],
+      'email-auto-process-limit': ['settings.manage_billing', 'settings.manage_reference', 'system.manage_maintenance'],
       'gmail-connection': ['email_imports.view'],
       'gmail-sync': ['email_imports.view'],
       // Billing rules (#935): the page opens for manage_billing in the nav and its sections declare none of their own.

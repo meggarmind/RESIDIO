@@ -290,7 +290,7 @@ export const settingsConfig: SettingsGroup[] = [
                 href: "/settings/banking",
                 description: "Estate bank accounts, transaction tags, duplicate matching and the payment approval limit",
                 // The OR of the sections: the page opens for any one of them and each section keeps its own.
-                permissions: [PERMISSIONS.SETTINGS_MANAGE_REFERENCE, PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE],
+                permissions: [PERMISSIONS.SETTINGS_MANAGE_REFERENCE, PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE, PERMISSIONS.SETTINGS_MANAGE_BILLING],
                 sections: [
                     {
                         id: "bank-accounts",
@@ -319,9 +319,10 @@ export const settingsConfig: SettingsGroup[] = [
                     },
                     {
                         // Moved from Gmail Import (#1274). Same setting key; saving still needs settings.manage_general and super_admin.
+                        // settings.manage_billing lets the financial officer see it read-only (#1283).
                         id: "approval-limit",
                         title: "Approval limit",
-                        permissions: [PERMISSIONS.SETTINGS_MANAGE_REFERENCE, PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE],
+                        permissions: [PERMISSIONS.SETTINGS_MANAGE_REFERENCE, PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE, PERMISSIONS.SETTINGS_MANAGE_BILLING],
                         rows: [
                             { id: "email-auto-process-limit", label: "Auto-process limit (NGN)", help: "Auto-matched payments above this amount wait for approval.", keywords: ["approval limit", "auto process", "email import", "gmail", "payment approval", "threshold"] },
                         ],
