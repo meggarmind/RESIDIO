@@ -732,6 +732,12 @@ function privacyNoticePrompt(notice: WhatsAppPrivacyNotice): string {
   return [notice.text, ...(notice.versionInText ? [] : [`_Version ${notice.version}_`]), '1. Accept\n2. Decline'].join('\n\n');
 }
 
+/** A failed send must reach the webhook (it releases the claim so the provider retries), not the failure reply. */
+export class ReplySendError extends Error {
+  // Set by hand so the failure reason (#1285) still names it in a minified build.
+  name = 'ReplySendError';
+}
+
 async function sendReply(
   message: WhatsAppInboundMessage,
   body: string,
@@ -749,7 +755,7 @@ async function sendReply(
   );
 
   if (!result.success) {
-    throw new Error(result.error || 'WhatsApp reply failed');
+    throw new ReplySendError(result.error || 'WhatsApp reply failed');
   }
 }
 

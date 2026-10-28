@@ -192,6 +192,22 @@ function fileNameOf(url: string): string {
   }
 }
 
+/**
+ * The id of a sent message, in the `true_<chatId>_<id>` form `message.ack` carries.
+ * The answer's shape depends on the engine and is not in the WAHA docs (#1285):
+ * a string `id`, WEBJS's `id._serialized`, or NOWEB's Baileys `key`. Reading
+ * only a string `id` made every Stage send read as failed although it was delivered.
+ */
+function sentMessageId(body: Record<string, unknown> | null, chatId: string): string | null {
+  const id = body?.id;
+  if (typeof id === 'string' && id.length > 0) return id;
+  const serialized = (id as Record<string, unknown> | null | undefined)?._serialized;
+  if (typeof serialized === 'string' && serialized.length > 0) return serialized;
+  const key = body?.key as Record<string, unknown> | null | undefined;
+  if (typeof key?.id === 'string' && key.id.length > 0) return `${key.fromMe === false ? 'false' : 'true'}_${chatId}_${key.id}`;
+  return null;
+}
+
 type WahaPostResult =
   | { ok: true; messageId: string }
   | { ok: false; result: WhatsAppSendResult };
@@ -231,10 +247,8 @@ export function createWahaWhatsAppProvider(
       return { ok: false, result: { success: false, error, retryable: isRetryableHttpStatus(response.status) } };
     }
 
-    const body = await safeJson(response);
-    const id = body?.id;
-    // WAHA's message `id` is a string (`true_2348...@c.us_3EB0...`); an object id is not usable.
-    if (typeof id !== 'string' || id.length === 0) {
+    const id = sentMessageId(await safeJson(response), payload.chatId as string);
+    if (!id) {
       return {
         ok: false,
         result: { success: false, error: 'WAHA provider returned no message ID', retryable: false },

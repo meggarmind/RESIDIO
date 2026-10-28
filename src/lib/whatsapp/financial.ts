@@ -16,7 +16,7 @@ import { getSettingResultAsService } from '@/lib/settings/service';
 import { isWhatsAppMasterSwitchOn } from '@/lib/whatsapp/master-switch';
 import { isWhatsAppRecipientAllowed } from '@/lib/whatsapp/rollout';
 import type { WhatsAppInboundMessage, WhatsAppTextMessage } from '@/lib/whatsapp/types';
-import { hashWhatsAppLinkCode, type WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
+import { ReplySendError, hashWhatsAppLinkCode, type WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
 import { sendWhatsAppPinAlert } from '@/lib/whatsapp/pin-alert';
 import type { AccountStatementData } from '@/lib/billing/account-statement-data';
 import { fetchAccountBalance, isResidentRollForwardEnabled } from '@/lib/billing/account-balance';
@@ -937,9 +937,6 @@ export async function canPerformWhatsAppFinancialLookup(residentId: string): Pro
   if ((resident.count || 0) >= RESIDENT_DAILY_LOOKUP_CAP) return 'resident_cap';
   return 'ok';
 }
-
-/** A failed send must reach the webhook (it releases the claim so the provider retries), not the failure reply. */
-class ReplySendError extends Error {}
 
 async function sendFinancialReply(
   message: WhatsAppInboundMessage,

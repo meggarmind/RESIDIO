@@ -28,6 +28,7 @@ export interface InboundBatchResult {
   duplicateCount: number;
   ignoredCount: number;
   error?: string;
+  failureReason?: string;
 }
 
 /**
@@ -51,6 +52,7 @@ export async function recordInboundBatch(
       processed: effective,
       duplicates: result.duplicateCount,
       ignored: result.ignoredCount,
+      ...(result.failureReason ? { reason: result.failureReason } : {}),
       ...extra,
     },
     error: result.error,
