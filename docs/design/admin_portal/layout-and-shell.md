@@ -28,28 +28,26 @@ File: `components/dashboard/sidebar.tsx`. It shows from `md` upward (`hidden md:
 
 ### Navigation items
 
-The single source is `config/navigation.ts`. `ADMIN_NAV_SECTIONS` is at `navigation.ts:352-387`. Labels below are verbatim.
+The single source is `config/navigation.ts`. `ADMIN_NAV_SECTIONS` is in `navigation.ts`. Labels below are verbatim.
 
 | Section id | Header label | Items (title, href) |
 | --- | --- | --- |
-| `core` | none (`label: null`, `navigation.ts:355`) | `Dashboard` `/dashboard`; `Analytics` `/analytics` |
+| `core` | none (`label: null`) | `Dashboard` `/dashboard` |
 | `people-property` | `People & Property` | `Residents` `/residents`; `Houses` `/houses`; `Contractors & Staff` `/personnel` |
 | `financial` | `Financial` | `Transactions` `/payments`; `Invoices & Dues` `/billing`; `Expenditure` `/expenditure` |
-| `operations` | `Operations` | `Security` `/security`; `Reports` `/reports`; `Documents` `/documents`; `Announcements` `/announcements`; `Approvals` `/approvals`; `Capital Projects` `/projects` |
-| `system` | `System` | `System` `/system`; `Settings` `/settings`; `Audit Logs` `/system/audit-logs`; `Notification Queue` `/system/notification-queue`; `Notification History` `/system/notification-history`; `Data Tools` `/system/data-tools`; `Cron Status` `/system/cron-status`; `Action Log` `/system/action-log` |
+| `operations` | `Operations` | `Security` `/security`; `Documents` `/documents`; `Announcements` `/announcements`; `Approvals` `/approvals`; `Capital Projects` `/projects` |
+| `admin` | `Admin` | `Oversight` `/system`; `Settings` `/settings` |
 
 Children (`navigation.ts`):
 
 - `Transactions` (`:130-157`): `Import Statement` `/payments/import`; `Import History` `/payments/imports`; `Import Email` `/payments/email-imports`.
 - `Invoices & Dues` (`:166-174`): `Generate Invoices` `/billing/generate`.
-- `Reports` (`:195-210`): `Generate Reports` `/reports`; `Financial Overview` `/reports/financial-overview`.
 
 Other item fields:
 
 - `Announcements` has `mobileLabel: 'News'` (`navigation.ts:227`).
 - `Approvals` has `showBadge: true` and `badgeType: 'approvals'` (`navigation.ts:236-237`).
-- System pages are flat. They are not nested under `System`. The reason is in the comment at `navigation.ts:248-261`: a gated parent would hide children from roles that hold only the child permission.
-- `Reports > Generate Reports` has the same href as its parent. The mobile nav drops a child that shares its parent href (`mobile-nav.tsx:78-80`). The desktop sidebar does not (`sidebar.tsx:239`).
+- `Oversight` is one flat entry with no `children`. Its pages are listed in the Oversight left menu (`config/oversight-nav.ts`, rendered by `OversightLayout`), and its permissions are the union of that menu's, so a role that holds one page still sees the entry. `Analytics` and `Reports` are in that menu, not in the sidebar.
 
 ### Permission filtering
 
