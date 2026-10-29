@@ -264,7 +264,7 @@ The main menu opens with `Hi <first name>, what would you like to do?` and lists
 | 1. Financial standing | The resident is billed for a property. Marked *PIN protected*, or *unlocked* once the PIN is entered |
 | 2. Latest estate notices | A published estate-wide announcement exists. Shows the 3 latest; the resident replies with a number to read one in full |
 | 3. How to pay | **Payment instructions** is filled in (see below) |
-| 4. Alert settings | Always. Turning *All estate WhatsApp messages* off works like replying `STOP`. A resident billed for a property also sees *Payment reminders*, ON or OFF |
+| 4. Alert settings | Always. Turning *All estate WhatsApp messages* off asks `1 Yes, 2 No` first, then works like replying `STOP`. A resident billed for a property also sees *Payment reminders*, ON or OFF |
 | 5. Update email | Always |
 | 9. Contact the estate office | The estate phone or email is set on **Settings → Estate & Property → Estate Profile** |
 
