@@ -11,6 +11,7 @@ const { mocks, mutation } = vi.hoisted(() => ({
     roles: { data: undefined as unknown, isLoading: false, error: null as Error | null },
     permissions: { data: [] as unknown[], isLoading: false, error: null as Error | null },
     updatePermissions: { mutateAsync: vi.fn(), isPending: false },
+    titles: { data: [] as unknown[], isLoading: false, error: null as Error | null },
   },
   mutation: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
 }));
@@ -24,7 +25,9 @@ vi.mock('@/lib/auth/auth-provider', () => ({
 vi.mock('@/hooks/use-roles', () => ({
   useRolesWithPermissions: () => mocks.roles,
   usePermissions: () => mocks.permissions,
-  useAdminTitles: () => ({ data: [], isLoading: false, error: null }),
+  useAdminTitles: () => mocks.titles,
+  useRoleAssignmentRules: () => ({ data: {}, isLoading: false, error: null }),
+  useBatchUpdateRoleAssignmentRules: mutation,
   useCreateRoleWithPermissions: mutation,
   useUpdateRole: mutation,
   useDeleteRole: mutation,
@@ -34,11 +37,18 @@ vi.mock('@/hooks/use-roles', () => ({
   useDeleteAdminTitle: mutation,
 }));
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+// Radix measures the switch and checkbox in the role form; jsdom has no ResizeObserver.
+globalThis.ResizeObserver ??= class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+} as unknown as typeof ResizeObserver;
 
 import { RolesList } from '@/components/admin/roles-list';
 import { PermissionPicker } from '@/components/admin/permission-picker';
 import { RolePermissionsDialog } from '@/components/admin/role-permissions-dialog';
 import { RoleTitlesManager, parseSeats } from '@/components/admin/role-titles-manager';
+import { RoleAssignmentRulesEditor } from '@/components/admin/role-assignment-rules';
 import type { AppPermission, AppRoleWithPermissions } from '@/types/database';
 
 const perm = (id: string, name: string, display_name: string): AppPermission =>
@@ -67,6 +77,7 @@ beforeEach(() => {
   mocks.profile = { role_name: 'treasurer', role_id: 'r-treasurer' };
   mocks.roles = { data: undefined, isLoading: false, error: null };
   mocks.permissions = { data: PERMS, isLoading: false, error: null };
+  mocks.titles = { data: [], isLoading: false, error: null };
 });
 afterEach(() => cleanup());
 
@@ -101,6 +112,34 @@ describe('RolesList (#1318)', () => {
   });
 });
 
+describe('RolesList dialogs (#1318)', () => {
+  it('offers no Active switch on the super_admin role, and says why', async () => {
+    mocks.profile = { role_name: 'super_admin', role_id: 'r-sa' };
+    mocks.roles = { data: [role('r-sa', 'super_admin', { is_system_role: true })], isLoading: false, error: null };
+    render(<RolesList />);
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit role Super_admin' })[0]);
+
+    expect(await screen.findByRole('switch', { name: 'Active' })).toBeDisabled();
+    expect(screen.getByText('The Super Administrator role is always active.')).toBeInTheDocument();
+  });
+
+  it('keeps the Active switch on other roles', async () => {
+    mocks.roles = { data: [role('r-auditor', 'auditor')], isLoading: false, error: null };
+    render(<RolesList />);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit role Auditor' })[0]);
+    expect(await screen.findByRole('switch', { name: 'Active' })).toBeEnabled();
+  });
+
+  it("shows the titles load error in the delete dialog", async () => {
+    mocks.roles = { data: [role('r-auditor', 'auditor')], isLoading: false, error: null };
+    mocks.titles = { data: undefined as unknown as unknown[], isLoading: false, error: new Error('titles down') };
+    render(<RolesList />);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Delete role Auditor' })[0]);
+    expect(await screen.findByText("Could not load this role's titles: titles down")).toBeInTheDocument();
+  });
+});
+
 describe('PermissionPicker (#1318)', () => {
   function Harness({ initial }: { initial: string[] }) {
     const [value, setValue] = useState(new Set(initial));
@@ -128,7 +167,8 @@ describe('PermissionPicker (#1318)', () => {
       target: { value: 'invoices' },
     });
     fireEvent.click(screen.getByRole('checkbox', { name: 'Billing' }));
-    expect(screen.getByTestId('value')).toHaveTextContent('p-edit,p-view');
+    // Exact: p-void did not match the search, so it must not be granted.
+    expect(screen.getByTestId('value').textContent).toBe('p-edit,p-view');
   });
 });
 
@@ -157,7 +197,56 @@ describe('RolePermissionsDialog (#1318)', () => {
   });
 });
 
+describe('RolePermissionsDialog load error (#1318)', () => {
+  it('disables Save when the permissions fail to load, even with changes made', () => {
+    const props = { role: role('r-auditor', 'auditor', { permissions: [PERMS[0]] }), open: true, onOpenChange: vi.fn() };
+    const { rerender } = render(<RolePermissionsDialog {...props} />);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Void payments' }));
+    expect(screen.getByRole('button', { name: 'Save Changes' })).toBeEnabled();
+
+    // A refetch fails: react-query keeps the data and sets the error.
+    mocks.permissions = { data: PERMS, isLoading: false, error: new Error('down') };
+    rerender(<RolePermissionsDialog {...props} />);
+
+    expect(screen.getByRole('button', { name: 'Save Changes' })).toBeDisabled();
+  });
+});
+
+describe('RoleAssignmentRulesEditor (#1318)', () => {
+  it('gives inactive roles no column', () => {
+    mocks.roles = {
+      data: [role('r-auditor', 'auditor'), role('r-inspector', 'inspector', { is_active: false })],
+      isLoading: false,
+      error: null,
+    };
+    render(<RoleAssignmentRulesEditor />);
+    expect(screen.getByRole('columnheader', { name: 'Auditor' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Inspector' })).not.toBeInTheDocument();
+  });
+
+  it('shows the roles load error with its reason', () => {
+    mocks.roles = { data: undefined, isLoading: false, error: new Error('roles down') };
+    render(<RoleAssignmentRulesEditor />);
+    expect(screen.getByRole('alert')).toHaveTextContent('Error loading roles: roles down');
+  });
+});
+
 describe('RoleTitlesManager (#1318)', () => {
+  it('shows Delete only on a title nobody holds', () => {
+    mocks.roles = { data: [role('r-auditor', 'auditor')], isLoading: false, error: null };
+    mocks.titles = {
+      data: [
+        { id: 't1', role_id: 'r-auditor', name: 'Lead', is_principal: false, seats: 1, sort_order: 0, holders: [{ profile_id: 'p1', name: 'Ada' }] },
+        { id: 't2', role_id: 'r-auditor', name: 'Junior', is_principal: false, seats: null, sort_order: 1, holders: [] },
+      ],
+      isLoading: false,
+      error: null,
+    };
+    render(<RoleTitlesManager />);
+    expect(screen.queryByRole('button', { name: 'Delete title Lead' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete title Junior' })).toBeInTheDocument();
+  });
+
   it('lists inactive roles, marked inactive, so their titles can be edited', () => {
     mocks.roles = { data: [role('r-auditor', 'auditor', { is_active: false })], isLoading: false, error: null };
     render(<RoleTitlesManager />);

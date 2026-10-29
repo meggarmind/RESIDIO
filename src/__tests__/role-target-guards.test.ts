@@ -576,7 +576,8 @@ describe('updateRolePermissions', () => {
   it("lets a super_admin edit a system role and their own role's permissions", async () => {
     seed({ caller: 'super_admin' });
     expect((await updateRolePermissions(ROLES.chairman.id as string, ['p2'])).success).toBe(true);
-    expect((await updateRolePermissions(ROLES.super_admin.id as string, ['p3'])).success).toBe(true);
+    // #1318: super_admin keeps system.assign_roles and system.assign_board_roles.
+    expect((await updateRolePermissions(ROLES.super_admin.id as string, ['p-assign', 'p-board', 'p3'])).success).toBe(true);
   });
 });
 

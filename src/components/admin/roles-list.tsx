@@ -102,7 +102,7 @@ export function RolesList() {
       role
     );
   const { data: rolesData, isLoading, error: rolesError } = useRolesWithPermissions();
-  const { data: allTitles } = useAdminTitles();
+  const { data: allTitles, error: titlesError } = useAdminTitles();
   const titleNames = (role: AppRoleWithPermissions) =>
     (allTitles ?? []).filter((t) => t.role_id === role.id).map((t) => t.name);
   const {
@@ -143,6 +143,8 @@ export function RolesList() {
 
   const isEditing = editingId !== null;
   const isSystemRole = editingRole?.is_system_role ?? false;
+  // updateRole refuses to deactivate super_admin (#1318), so the switch is not offered.
+  const isSuperAdminRole = editingRole?.name === 'super_admin';
   // A new role's key comes from its display name, accents folded (#1318).
   const derivedKey = deriveRoleKey(formDisplayName);
 
@@ -463,9 +465,14 @@ export function RolesList() {
                       id="is_active"
                       checked={formIsActive}
                       onCheckedChange={setFormIsActive}
+                      disabled={isSuperAdminRole}
                     />
                     <span className="text-sm text-muted-foreground">
-                      {formIsActive ? 'Role is active' : 'Role is inactive'}
+                      {isSuperAdminRole
+                        ? 'The Super Administrator role is always active.'
+                        : formIsActive
+                          ? 'Role is active'
+                          : 'Role is inactive'}
                     </span>
                   </div>
                 </div>
@@ -643,9 +650,14 @@ export function RolesList() {
                 : holderCount === 0
                   ? `No users hold "${roleToDelete?.display_name}". Deleting it cannot be undone.`
                   : `Are you sure you want to delete "${roleToDelete?.display_name}"? This action cannot be undone. Any users assigned to this role will need to be reassigned.`}
-              {!holderCount && titlesToDelete.length > 0 &&
+              {!holderCount && !titlesError && titlesToDelete.length > 0 &&
                 ` Its titles are deleted with it: ${titlesToDelete.join(', ')}.`}
             </AlertDialogDescription>
+            {titlesError && (
+              <p role="alert" className="text-sm text-destructive">
+                Could not load this role&apos;s titles: {titlesError.message}
+              </p>
+            )}
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setRoleToDelete(null)}>

@@ -12,8 +12,17 @@ type Write = { table: string; op: string; values?: Row | Row[] };
 const state = vi.hoisted(() => ({
   tables: {} as Record<string, Row[]>,
   writes: [] as Write[],
-  /** "table:op" pairs that fail with a database error, e.g. "role_permissions:upsert". */
+  /**
+   * Reads and writes that fail with a database error: "table:op" (e.g.
+   * "role_permissions:upsert"), or "table:op:column" to fail only a query filtered on that column.
+   */
   fail: [] as string[],
+  /** Tables whose deletes remove only the first matching row, with no error (an RLS-filtered delete). */
+  shortDelete: [] as string[],
+  /** Tables whose deletes remove nothing, with no error. */
+  emptyDelete: [] as string[],
+  /** Which client read each table: "admin" (service role) or "user" (RLS). */
+  reads: [] as Array<{ table: string; client: string }>,
   /** Error code an app_roles insert or update fails with. */
   roleWriteErrorCode: null as string | null,
   /** Rows each role_permissions page read returned, to prove the read is paged. */
@@ -28,14 +37,16 @@ const state = vi.hoisted(() => ({
   },
 }));
 
-function fakeFrom(table: string) {
+function fakeFrom(table: string, client: string) {
   const tests: Array<(row: Row) => boolean> = [];
+  const columns: string[] = [];
   let op: 'select' | 'insert' | 'upsert' | 'update' | 'delete' = 'select';
   let values: Row | Row[] | undefined;
   let head = false;
   let range: [number, number] | null = null;
 
-  const failing = () => state.fail.includes(`${table}:${op}`);
+  const failing = () =>
+    state.fail.includes(`${table}:${op}`) || columns.some((c) => state.fail.includes(`${table}:${op}:${c}`));
   const matching = () => (state.tables[table] ?? []).filter((row) => tests.every((t) => t(row)));
 
   const run = (): { data: Row[] | null; error: { message: string; code?: string } | null; count?: number } => {
@@ -56,10 +67,16 @@ function fakeFrom(table: string) {
       return { data: rows, error: null };
     }
     if (op === 'delete') {
+      const removed = state.emptyDelete.includes(table)
+        ? []
+        : state.shortDelete.includes(table)
+          ? rows.slice(0, 1)
+          : rows;
       state.writes.push({ table, op });
-      state.tables[table] = (state.tables[table] ?? []).filter((r) => !rows.includes(r));
-      return { data: rows, error: null };
+      state.tables[table] = (state.tables[table] ?? []).filter((r) => !removed.includes(r));
+      return { data: removed, error: null };
     }
+    state.reads.push({ table, client });
     if (head) return { data: null, count: rows.length, error: null };
     const out = rows.map((r) =>
       table === 'admin_titles'
@@ -81,9 +98,9 @@ function fakeFrom(table: string) {
     upsert: (v: Row | Row[]) => ((op = 'upsert'), (values = v), builder),
     update: (v: Row) => ((op = 'update'), (values = v), builder),
     delete: () => ((op = 'delete'), builder),
-    eq: (c: string, v: unknown) => (tests.push((r) => r[c] === v), builder),
-    in: (c: string, vs: unknown[]) => (tests.push((r) => vs.includes(r[c])), builder),
-    not: (c: string) => (tests.push((r) => r[c] != null), builder),
+    eq: (c: string, v: unknown) => (columns.push(c), tests.push((r) => r[c] === v), builder),
+    in: (c: string, vs: unknown[]) => (columns.push(c), tests.push((r) => vs.includes(r[c])), builder),
+    not: (c: string) => (columns.push(c), tests.push((r) => r[c] != null), builder),
     order: () => builder,
     range: (from: number, to: number) => ((range = [from, to]), builder),
     single: async () => {
@@ -99,11 +116,9 @@ function fakeFrom(table: string) {
   return builder;
 }
 
-const fakeClient = { from: fakeFrom };
-
 vi.mock('@/lib/supabase/server', () => ({
-  createAdminClient: () => fakeClient,
-  createServerSupabaseClient: async () => fakeClient,
+  createAdminClient: () => ({ from: (table: string) => fakeFrom(table, 'admin') }),
+  createServerSupabaseClient: async () => ({ from: (table: string) => fakeFrom(table, 'user') }),
 }));
 vi.mock('@/lib/auth/authorize', () => ({
   authorizePermission: async () => state.auth,
@@ -115,6 +130,7 @@ vi.mock('@/lib/audit/logger', () => ({ logAudit }));
 import {
   createRole,
   deleteRole,
+  getCurrentAdmins,
   getRolesWithPermissions,
   updateRole,
   updateRolePermissions,
@@ -131,6 +147,9 @@ const INSPECTOR = '00000000-0000-4000-8000-000000000005';
 function seed() {
   state.writes = [];
   state.fail = [];
+  state.shortDelete = [];
+  state.emptyDelete = [];
+  state.reads = [];
   state.roleWriteErrorCode = null;
   state.pageSizes = [];
   state.auth = { authorized: true, userId: 'caller', roleName: 'super_admin', roleId: SA, permissions: [], error: null };
@@ -148,8 +167,15 @@ function seed() {
       { id: 'p-edit', name: 'x.edit', display_name: 'Edit', is_active: true, category: 'x' },
       { id: 'p-new', name: 'x.new', display_name: 'New', is_active: true, category: 'x' },
       { id: 'p-old', name: 'x.old', display_name: 'Old', is_active: false, category: 'x' },
+      { id: 'p-manage', name: 'system.manage_roles', display_name: 'Manage roles', is_active: true, category: 'system' },
+      { id: 'p-assign', name: 'system.assign_roles', display_name: 'Assign roles', is_active: true, category: 'system' },
+      { id: 'p-board', name: 'system.assign_board_roles', display_name: 'Assign board roles', is_active: true, category: 'system' },
     ],
     role_permissions: [
+      { id: 'rp-sa1', role_id: SA, permission_id: 'p-manage' },
+      { id: 'rp-sa2', role_id: SA, permission_id: 'p-assign' },
+      { id: 'rp-sa3', role_id: SA, permission_id: 'p-board' },
+      { id: 'rp-sa4', role_id: SA, permission_id: 'p-view' },
       { id: 'rp1', role_id: AUDITOR, permission_id: 'p-view' },
       { id: 'rp2', role_id: AUDITOR, permission_id: 'p-edit' },
       { id: 'rp3', role_id: AUDITOR, permission_id: 'p-old' },
@@ -225,16 +251,74 @@ describe('updateRolePermissions: add first, then remove', () => {
     const result = await updateRolePermissions(AUDITOR, ['p-view', 'p-new']);
 
     expect(result.success).toBe(false);
-    expect(result.error).toMatch(/added permissions were saved/);
+    expect(result.error).toBe('The changes were saved in part: 1 added, 0 of 1 removed. Reopen the role and try again.');
     expect(grantsOf(AUDITOR)).toEqual(['p-edit', 'p-new', 'p-old', 'p-view']);
     // The insert that did happen is audited.
     expect(logAudit).toHaveBeenCalledWith(expect.objectContaining({ entityType: 'role_permissions' }));
+  });
+
+  it('reports a removal that deleted only some rows, without an error, as partly saved', async () => {
+    state.shortDelete = ['role_permissions'];
+
+    const result = await updateRolePermissions(AUDITOR, []);
+
+    expect(result).toEqual({
+      success: false,
+      error: 'The changes were saved in part: 0 added, 1 of 2 removed. Reopen the role and try again.',
+    });
+    expect(logAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ newValues: { added: [], removed: ['p-view'] } })
+    );
   });
 
   it('writes and audits nothing when nothing changed', async () => {
     expect(await updateRolePermissions(AUDITOR, ['p-view', 'p-edit'])).toEqual({ success: true });
     expect(state.writes).toEqual([]);
     expect(logAudit).not.toHaveBeenCalled();
+  });
+});
+
+describe('super_admin safety', () => {
+  it('refuses to make the super_admin role inactive, and writes nothing', async () => {
+    const result = await updateRole(SA, { display_name: 'Super Admin', is_active: false });
+    expect(result).toEqual({ success: false, error: 'The Super Administrator role is always active' });
+    expect(writesTo('app_roles')).toEqual([]);
+  });
+
+  it('still lets a super admin rename the super_admin role while it stays active', async () => {
+    expect((await updateRole(SA, { display_name: 'Owner', is_active: true })).success).toBe(true);
+  });
+
+  it.each(['p-manage', 'p-assign', 'p-board'])(
+    'refuses to remove %s from super_admin, and writes nothing',
+    async (permissionId) => {
+      const kept = ['p-manage', 'p-assign', 'p-board', 'p-view'].filter((id) => id !== permissionId);
+      const result = await updateRolePermissions(SA, kept);
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/must keep/);
+      expect(writesTo('role_permissions')).toEqual([]);
+      expect(grantsOf(SA)).toHaveLength(4);
+    }
+  );
+
+  it('lets other permissions be removed from super_admin', async () => {
+    expect((await updateRolePermissions(SA, ['p-manage', 'p-assign', 'p-board'])).success).toBe(true);
+    expect(grantsOf(SA)).toEqual(['p-assign', 'p-board', 'p-manage']);
+  });
+});
+
+describe('profile reads use the service-role client (#1318)', () => {
+  it('getRolesWithPermissions counts holders through it', async () => {
+    await getRolesWithPermissions();
+    const profileReads = state.reads.filter((r) => r.table === 'profiles');
+    expect(profileReads.length).toBeGreaterThan(0);
+    expect(profileReads.every((r) => r.client === 'admin')).toBe(true);
+  });
+
+  it('getCurrentAdmins reads profiles through it', async () => {
+    expect((await getCurrentAdmins()).success).toBe(true);
+    const profileReads = state.reads.filter((r) => r.table === 'profiles');
+    expect(profileReads).toEqual([{ table: 'profiles', client: 'admin' }]);
   });
 });
 
@@ -272,6 +356,35 @@ describe('getRolesWithPermissions', () => {
 });
 
 describe('deleteRole and titles', () => {
+  it('refuses when the role cannot be read, and deletes nothing', async () => {
+    state.fail = ['app_roles:select'];
+    expect((await deleteRole(AUDITOR)).success).toBe(false);
+    expect(writesTo('app_roles')).toEqual([]);
+  });
+
+  it('refuses when the titles cannot be read, and deletes nothing', async () => {
+    state.fail = ['admin_titles:select'];
+    const result = await deleteRole(AUDITOR);
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/titles/);
+    expect(writesTo('app_roles')).toEqual([]);
+  });
+
+  it('refuses when the title holders cannot be counted, and deletes nothing', async () => {
+    state.fail = ['profiles:select:title_id'];
+    const result = await deleteRole(AUDITOR);
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/who holds the titles/);
+    expect(writesTo('app_roles')).toEqual([]);
+  });
+
+  it('reports a delete that RLS filtered out (no error, no row), and audits nothing', async () => {
+    state.emptyDelete = ['app_roles'];
+    const result = await deleteRole(AUDITOR);
+    expect(result).toEqual({ success: false, error: 'The role was not deleted' });
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+
   it('refuses while anyone holds a title under the role, whatever their status, and deletes nothing', async () => {
     state.tables.profiles.push({ id: 'p1', role_id: null, title_id: 't-lead', approval_status: 'pending' });
 

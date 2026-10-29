@@ -35,8 +35,15 @@ function fakeClient(kind: 'user' | 'admin') {
           return b;
         },
         single: async () => ({ data: { id: 'r1', is_system_role: false, display_name: 'Role' }, error: null }),
+        // deleteRole now selects the deleted row to prove the delete happened (#1318).
         then: (resolve: (v: unknown) => unknown) =>
-          Promise.resolve(table === 'profiles' ? state.countResult : { error: null }).then(resolve),
+          Promise.resolve(
+            table === 'profiles'
+              ? state.countResult
+              : table === 'app_roles' && state.deleted
+                ? { data: [{ id: 'r1' }], error: null }
+                : { error: null }
+          ).then(resolve),
       };
       return b;
     },

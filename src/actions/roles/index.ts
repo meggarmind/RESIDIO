@@ -229,6 +229,16 @@ async function assertCallerMayGrantPermissions(
     : null;
 }
 
+/**
+ * Permissions the super_admin role always keeps (#1318): without them nobody could
+ * manage roles or assign the top roles, and only a super admin can fix that.
+ */
+const SUPER_ADMIN_KEPT_PERMISSIONS = [
+  PERMISSIONS.SYSTEM_MANAGE_ROLES,
+  PERMISSIONS.SYSTEM_ASSIGN_ROLES,
+  PERMISSIONS.SYSTEM_ASSIGN_BOARD_ROLES,
+] as string[];
+
 /** Values the role form offers; anything else is refused rather than stored. */
 const ROLE_CATEGORIES = ['exco', 'bot', 'staff', 'resident'];
 
@@ -483,6 +493,11 @@ export async function updateRole(
     return { success: false, error: 'You cannot edit your own role' };
   }
 
+  // The super_admin role stays active (#1318): its holders are the last line of administration.
+  if (oldRole?.name === 'super_admin' && 'is_active' in roleData && roleData.is_active !== true) {
+    return { success: false, error: 'The Super Administrator role is always active' };
+  }
+
   if ('display_name' in roleData) {
     const displayName = checkDisplayName(roleData.display_name);
     if (!displayName.ok) {
@@ -572,14 +587,20 @@ export async function deleteRole(roleId: string): Promise<{
 
   const supabase = await createServerSupabaseClient();
 
-  // Check if it's a system role
-  const { data: role } = await supabase
+  // Check if it's a system role. Fail closed (#1318): a role that cannot be read
+  // is not deleted, rather than treated as a custom role.
+  const { data: role, error: roleError } = await supabase
     .from('app_roles')
     .select('*')
     .eq('id', roleId)
     .single();
 
-  if (role?.is_system_role) {
+  if (roleError || !role) {
+    if (roleError) console.error('[deleteRole] Could not read the role:', roleError);
+    return { success: false, error: 'Could not read the role; role not deleted' };
+  }
+
+  if (role.is_system_role || role.name === 'super_admin') {
     return { success: false, error: 'Cannot delete system roles' };
   }
 
@@ -640,13 +661,18 @@ export async function deleteRole(roleId: string): Promise<{
     }
   }
 
-  const { error } = await supabase
+  // .select() makes a delete that RLS filtered out show as zero rows (#1318).
+  const { data: deletedRoles, error } = await supabase
     .from('app_roles')
     .delete()
-    .eq('id', roleId);
+    .eq('id', roleId)
+    .select('id');
 
   if (error) {
     return { success: false, error: error.message };
+  }
+  if (!deletedRoles || deletedRoles.length === 0) {
+    return { success: false, error: 'The role was not deleted' };
   }
 
   // Audit log
@@ -654,7 +680,7 @@ export async function deleteRole(roleId: string): Promise<{
     action: 'DELETE',
     entityType: 'app_roles',
     entityId: roleId,
-    entityDisplay: role?.display_name || 'Unknown',
+    entityDisplay: role.display_name || 'Unknown',
     // The titles went with the role (ON DELETE CASCADE); recorded so they can be restored.
     oldValues: { ...role, admin_titles: titles ?? [] },
   });
@@ -740,6 +766,28 @@ export async function updateRolePermissions(
     removed = removed.filter((id) => !inactiveIds.has(id));
   }
 
+  // super_admin keeps the permissions that manage roles and assign them (#1318).
+  if (role?.name === 'super_admin' && removed.length > 0) {
+    const { data: removedPerms, error: removedPermsError } = await supabase
+      .from('app_permissions')
+      .select('id, name')
+      .in('id', removed);
+
+    if (removedPermsError) {
+      return { success: false, error: 'Could not check the permissions being removed. The changes were not saved.' };
+    }
+    const kept = (removedPerms ?? [])
+      .filter((p) => removed.includes(p.id as string))
+      .map((p) => p.name as string)
+      .filter((name) => SUPER_ADMIN_KEPT_PERMISSIONS.includes(name));
+    if (kept.length > 0) {
+      return {
+        success: false,
+        error: `The Super Administrator role must keep ${kept.join(', ')}. The changes were not saved.`,
+      };
+    }
+  }
+
   // Nothing to write, so nothing to audit.
   if (added.length === 0 && removed.length === 0) {
     return { success: true };
@@ -793,12 +841,14 @@ export async function updateRolePermissions(
           },
         });
       }
+      // Say exactly what was saved, as the audit entry above records it.
+      const partly = added.length > 0 || removedCount > 0;
       return {
         success: false,
-        error:
-          added.length > 0
-            ? 'The added permissions were saved, but some removals could not be. Reopen the role and try again.'
-            : 'Could not remove the role\'s permissions. The changes were not saved.',
+        error: partly
+          ? `The changes were saved in part: ${added.length} added, ${removedCount} of ${removed.length} removed. ` +
+            'Reopen the role and try again.'
+          : 'Could not remove the role\'s permissions. The changes were not saved.',
       };
     }
   }
