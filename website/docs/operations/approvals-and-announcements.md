@@ -21,6 +21,8 @@ residio_app_version: '0.4.0'
 
 Open **Approvals** from the dashboard or sidebar. Review the source record, evidence, submitter, amount, and history before approving or rejecting an item. On a phone, each request is shown as a card with the same status, details and **Approve** / **Reject** buttons as the table row.
 
+A payment a resident reported on WhatsApp can also be approved or rejected from WhatsApp Admin tools (item 5, *Approve payment report*), by the same rules as this page. See *WhatsApp operations*.
+
 Use the approval decision that matches the evidence. If the record is incomplete, reject it with a useful reason or leave it pending according to the estate process.
 
 Two kinds of request come from residents over WhatsApp, with *Resident (WhatsApp)* as the requester. **Payment Reported on WhatsApp** is a transfer the resident says they made: check it against the bank statement, then approve it, which verifies the payment, credits the resident's wallet and pays their invoices (you need the verify payments permission as well), or reject it. **Clearance Certificate Request** is a resident who owes nothing asking for a certificate: approving it issues the certificate and sends it to them, and approval is refused if they owe money by then. These residents are told the outcome by WhatsApp; if that message cannot be sent (WhatsApp switched off, a daily cap reached, no opt-in), you see a warning with the reason after deciding; a message held back by a cap is sent automatically the next day; an unanswered request is rejected after 72 hours like any other. A payment reported this way cannot be verified from the Payments page: it is settled here.
