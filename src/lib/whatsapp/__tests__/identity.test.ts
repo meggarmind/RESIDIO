@@ -334,7 +334,7 @@ describe('WhatsApp identity and consent', () => {
 
     expect(send).toHaveBeenCalledTimes(1);
     expect(send.mock.calls[0]?.[0].body).toBe(
-      'That link code is invalid or expired. Ask the estate office for a new code.\nContact the estate office on 0803 699 6725.'
+      'That link code is invalid or expired. Ask the estate office for a new code.\n\nContact the estate office on 0803 699 6725.'
     );
   });
 
@@ -346,7 +346,7 @@ describe('WhatsApp identity and consent', () => {
 
     expect(send).toHaveBeenCalledTimes(1);
     expect(send.mock.calls[0]?.[0].body).toBe(
-      'Welcome to Palm Estate Assistant. We could not safely match this number to one Resident. Ask the estate office for a link code, or reply STOP.\nContact the estate office on 0803 699 6725.'
+      'Welcome to Palm Estate Assistant. We could not safely match this number to one Resident. Ask the estate office for a link code, or reply STOP.\n\nContact the estate office on 0803 699 6725.'
     );
   });
 
