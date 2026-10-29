@@ -29,7 +29,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, Save, ArrowLeft, CalendarIcon, Clock, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { AudienceReach } from '@/components/announcements/audience-reach';
-import { useAnnouncementAudienceGroups, useAnnouncementCategories } from '@/hooks/use-announcements';
+import {
+  useAnnouncementAudienceGroups,
+  useAnnouncementCategories,
+  useEstateGroupPostAvailability,
+} from '@/hooks/use-announcements';
+import { announcementGroupText, isEstateWideAudience } from '@/lib/announcements/group-post-rules';
 import type { Announcement, AnnouncementInput } from '@/types/database';
 import Link from 'next/link';
 import { format } from 'date-fns';
@@ -49,6 +54,7 @@ const formSchema = z.object({
   target_audience: z.enum(['all', 'residents', 'owners', 'tenants', 'staff']),
   target_group_slug: z.string().nullable(),
   is_pinned: z.boolean(),
+  post_to_whatsapp_group: z.boolean(),
   scheduled_for: z.date().optional().nullable(),
   expires_at: z.date().optional().nullable(),
 });
@@ -71,6 +77,7 @@ export function AnnouncementForm({
   const router = useRouter();
   const { data: categories, isLoading: categoriesLoading } = useAnnouncementCategories();
   const { data: audienceGroups } = useAnnouncementAudienceGroups();
+  const { data: groupPostAvailable } = useEstateGroupPostAvailability();
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -83,12 +90,21 @@ export function AnnouncementForm({
       target_audience: (announcement?.target_audience as FormData['target_audience']) || 'all',
       target_group_slug: announcement?.target_group_slug || null,
       is_pinned: announcement?.is_pinned || false,
+      post_to_whatsapp_group: announcement?.post_to_whatsapp_group || false,
       scheduled_for: announcement?.scheduled_for ? new Date(announcement.scheduled_for) : null,
       expires_at: announcement?.expires_at ? new Date(announcement.expires_at) : null,
     },
   });
 
   const groupSlug = useWatch({ control: form.control, name: 'target_group_slug' });
+  const [targetAudience, title, summary, content] = useWatch({
+    control: form.control,
+    name: ['target_audience', 'title', 'summary', 'content'],
+  });
+  // The tick is offered only for the whole estate, with WAHA active and a group set (#1328).
+  const showGroupPost =
+    groupPostAvailable === true &&
+    isEstateWideAudience({ target_audience: targetAudience, target_group_slug: groupSlug, target_houses: null });
 
   const handleSubmit = async (data: FormData) => {
     try {
@@ -101,6 +117,7 @@ export function AnnouncementForm({
         target_audience: data.target_audience,
         target_group_slug: data.target_group_slug,
         is_pinned: data.is_pinned,
+        post_to_whatsapp_group: showGroupPost && data.post_to_whatsapp_group,
         scheduled_for: data.scheduled_for?.toISOString() || null,
         expires_at: data.expires_at?.toISOString() || null,
       };
@@ -315,6 +332,36 @@ export function AnnouncementForm({
                     </FormItem>
                   )}
                 />
+
+                {showGroupPost && (
+                  <FormField
+                    control={form.control}
+                    name="post_to_whatsapp_group"
+                    render={({ field }) => (
+                      <FormItem className="space-y-3 rounded-lg border p-3">
+                        <div className="flex flex-row items-center justify-between gap-3">
+                          <div className="space-y-0.5">
+                            <FormLabel>Post to estate group</FormLabel>
+                            <FormDescription>
+                              Also post this as one message to the estate WhatsApp group when it is published
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                        </div>
+                        {field.value && (
+                          <pre
+                            aria-label="Estate group message preview"
+                            className="whitespace-pre-wrap break-words rounded-md bg-muted p-3 font-sans text-sm"
+                          >
+                            {announcementGroupText({ title, summary: summary || null, content })}
+                          </pre>
+                        )}
+                      </FormItem>
+                    )}
+                  />
+                )}
               </CardContent>
             </Card>
 
