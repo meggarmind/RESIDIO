@@ -416,6 +416,13 @@ are covered by `src/__tests__/integration/backup-retention.test.ts`.
 
 Weekly: a small query against `Residio_Stage` so it does not pause.
 
+### WAHA session volume (KVM)
+
+The WhatsApp link lives in a Docker volume on the KVM, which GitHub runners cannot reach, so it
+is not part of `backup-database.yml`. It is backed up by `scripts/backup/waha-sessions-backup.sh`
+from the `claude` user's crontab (#1337). Setup, cron line and restore are in
+"WAHA session volume: backup and restore" in the next section.
+
 ### Known traps
 
 
@@ -531,6 +538,67 @@ For the files mirror, `rclone ls` through a crypt remote built with the same two
 - [ ] **Owner has run the test restore above once and the data came back. #415 is not done until this is ticked.**
 - [ ] A second test restore is scheduled for three months out
 - [ ] R2 lifecycle rule "abort incomplete multipart uploads after 1 day" set on the backup bucket (see "Retention and size guards")
+
+### WAHA session volume: backup and restore
+
+**What and why.** The Stage WAHA session volume `kcaayyjlk7mxojspks56ziwe-waha-stage-sessions`
+(mounted at `/app/.sessions`, about 40 MB) holds the WhatsApp link for the estate number: NOWEB
+credentials, pre-keys and LID mappings. If the volume or the KVM is lost, the Assistant stops
+until the handset is re-paired by QR code. `scripts/backup/waha-sessions-backup.sh stage` runs
+`docker exec <container> tar -C /app -czf - .sessions`, pipes the stream straight into `age`
+(no plaintext archive touches disk) and uploads it to
+`R2:<bucket>/waha/stage/daily/YYYY-MM-DD.tar.gz.age`. It checks the uploaded size, copies the first
+backup of each month to `monthly/YYYY-MM.tar.gz.age`, then keeps the newest 30 daily and 12
+monthly (`KEEP_DAILY` / `KEEP_MONTHLY`). Any failure posts one message to the Coolify Discord
+channel, using the webhook URL in `~/.config/waha-watch/discord-webhook`. Prod has no WAHA
+container yet: `prod` is refused until `WAHA_APP_UUID` is set.
+
+**Setup on the KVM (owner, once).**
+
+1. Create a NEW R2 API token with **Object Read & Write**, scoped to the backup bucket only
+   (owner decision, 29 Oct 2026). Do not reuse the GitHub Actions token.
+2. Create `~/.config/residio-backup/waha-stage.env` with mode **600** (the script refuses a wider
+   mode) holding `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` and
+   `BACKUP_AGE_PUBLIC_KEY` (the same `age1...` public key the database dumps use). Never commit it.
+3. Run `scripts/backup/install-tools-user.sh` once. It installs pinned `rclone` and `age` into
+   `~/.local/bin` with no sudo, verifying rclone against its SHA256SUMS and age against the sha256
+   pinned in the script.
+4. The cron job runs from a dedicated checkout of `stage`, not from the shared working checkout
+   (whose branch changes between sessions). Create it once:
+   `git clone --branch stage --single-branch https://github.com/meggarmind/RESIDIO.git /home/claude/residio-ops`.
+   After every change to `scripts/backup`, update it with
+   `git -C /home/claude/residio-ops pull --ff-only`.
+5. After the PR merges into `stage`, the coordinator installs this crontab line:
+
+```cron
+53 1 * * * /home/claude/residio-ops/scripts/backup/waha-sessions-backup.sh stage >> /home/claude/.config/residio-backup/waha-stage.log 2>&1
+```
+
+**Restore.** A snapshot can be up to a day old. If WhatsApp rejects it, re-pair by QR instead.
+
+```bash
+# 1. In Coolify, stop residio-waha-stage.
+
+# 2. Fetch the chosen archive and decrypt it with the private key from the password manager
+#    The remote is `R2` (case-sensitive); it exists only after r2-env.sh defines it from the env file.
+export PATH="$HOME/.local/bin:$PATH"
+set -a; . ~/.config/residio-backup/waha-stage.env; set +a
+. /home/claude/residio-ops/scripts/backup/r2-env.sh
+rclone copy "R2:${R2_BUCKET}/waha/stage/daily/<YYYY-MM-DD>.tar.gz.age" .
+age -d -i residio-backup.agekey -o sessions.tar.gz <YYYY-MM-DD>.tar.gz.age
+
+# 3. Clear the volume, then extract into it
+docker run --rm -v kcaayyjlk7mxojspks56ziwe-waha-stage-sessions:/app/.sessions alpine \
+  sh -c 'rm -rf /app/.sessions/* /app/.sessions/.[!.]*'
+docker run --rm -v kcaayyjlk7mxojspks56ziwe-waha-stage-sessions:/app/.sessions \
+  -v "$PWD":/restore:ro alpine tar -xzf /restore/sessions.tar.gz -C /app
+
+# 4. Start residio-waha-stage in Coolify, then confirm GET /api/sessions shows `default` WORKING
+#    (the volume should contain .sessions/noweb/default/).
+
+# 5. Delete sessions.tar.gz and the private key copy.
+```
+
 
 ## KVM setup runbook (Coolify)
 
