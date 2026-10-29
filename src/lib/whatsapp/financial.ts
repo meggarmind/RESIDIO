@@ -2175,7 +2175,16 @@ export async function handleFinancialMessage(
   }
 
   if (!(await isWhatsAppRecipientAllowed(identity.id))) {
-    await sendFinancialReply(message, 'WhatsApp access is not currently enabled for your pilot audience.', options.send, identity.id);
+    const modeSetting = await getSettingResultAsService('whatsapp_rollout_mode');
+    const groupMode = modeSetting.status === 'ok' && modeSetting.value === 'group';
+    await sendFinancialReply(
+      message,
+      groupMode
+        ? 'WhatsApp access is for members of the estate group. Please contact the estate office.'
+        : 'WhatsApp access is not currently enabled for your pilot audience.',
+      options.send,
+      identity.id
+    );
     return;
   }
 

@@ -4,6 +4,7 @@ import { use } from 'react';
 import { AudienceReach } from '@/components/announcements/audience-reach';
 import { useCan } from '@/components/auth/can';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { GROUP_POST_PERMISSION_REASON, wantsEstateGroupPost } from '@/lib/announcements/group-post-rules';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -68,6 +69,8 @@ export default function AnnouncementDetailPage({
   const mayUpdate = useCan(PERMISSIONS.ANNOUNCEMENTS_UPDATE);
   const mayPublish = useCan(PERMISSIONS.ANNOUNCEMENTS_PUBLISH);
   const mayDelete = useCan(PERMISSIONS.ANNOUNCEMENTS_DELETE);
+  // A draft ticked "Post to estate group" also needs announcements.post_to_group to publish (#1328).
+  const mayPostToGroup = useCan(PERMISSIONS.ANNOUNCEMENTS_POST_TO_GROUP);
 
   const handlePublish = async () => {
     try {
@@ -144,7 +147,8 @@ export default function AnnouncementDetailPage({
 
   const status = announcement.status || 'draft';
   const canEdit = mayUpdate && status === 'draft';
-  const canPublish = mayPublish && status === 'draft';
+  const groupPostBlocked = wantsEstateGroupPost(announcement) && !mayPostToGroup;
+  const canPublish = mayPublish && status === 'draft' && !groupPostBlocked;
   const canUnpublish = mayPublish && status === 'published';
   const canArchive = mayUpdate && (status === 'draft' || status === 'published');
   const canDelete = mayDelete && status === 'draft';
@@ -174,6 +178,9 @@ export default function AnnouncementDetailPage({
                 Edit
               </Link>
             </Button>
+          )}
+          {mayPublish && status === 'draft' && groupPostBlocked && (
+            <p className="text-sm text-muted-foreground">{GROUP_POST_PERMISSION_REASON}</p>
           )}
           {canPublish && (
             <Button onClick={handlePublish} disabled={publishMutation.isPending}>

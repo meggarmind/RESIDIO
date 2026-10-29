@@ -2,6 +2,18 @@ import type { createServerSupabaseClient } from '@/lib/supabase/server';
 import { addToQueue } from '@/lib/notifications/queue';
 import { buildAnnouncementWhatsApp } from '@/lib/whatsapp/outbound';
 import { resolveGroupReach, type GroupDb } from '@/lib/announcements/audience-groups';
+import {
+  checkEstateGroupPost,
+  createGroupPostFacts,
+  sendEstateGroupPost,
+  type EstateGroupTarget,
+  type GroupPostFacts,
+} from '@/lib/announcements/group-post';
+import {
+  announcementGroupText,
+  GROUP_POST_PERMISSION_REASON,
+  wantsEstateGroupPost,
+} from '@/lib/announcements/group-post-rules';
 import type { Announcement } from '@/types/database';
 
 /**
@@ -12,16 +24,26 @@ import type { Announcement } from '@/types/database';
  */
 export type AnnouncementSupabase = Awaited<ReturnType<typeof createServerSupabaseClient>>;
 
+/** The estate group post made on publish (#1328): null when the announcement has no tick. */
+export type GroupPostOutcome = { messageId: string; error: null } | { messageId: null; error: string } | null;
+
 export type PublishAnnouncementCoreResult =
-  | { data: Announcement; previousStatus: string; whatsappQueued: number; error: null }
+  | { data: Announcement; previousStatus: string; whatsappQueued: number; groupPost: GroupPostOutcome; error: null }
   | { data: null; error: string };
+
+export interface GroupPostOptions {
+  /** Whether the publisher holds `announcements.post_to_group`. Omitted means no (fail closed). */
+  mayPostToGroup?: () => Promise<boolean>;
+  facts?: GroupPostFacts;
+}
 
 export async function publishAnnouncementCore(
   supabase: AnnouncementSupabase,
   id: string,
   updatedBy: string | null,
   // whatsapp_optins is closed to logged-in users, so the manual action passes the admin client here.
-  deliverySupabase: AnnouncementSupabase = supabase
+  deliverySupabase: AnnouncementSupabase = supabase,
+  groupPostOptions: GroupPostOptions = {}
 ): Promise<PublishAnnouncementCoreResult> {
   const { data: existing } = await supabase
     .from('announcements')
@@ -39,6 +61,18 @@ export async function publishAnnouncementCore(
 
   if (existing.status === 'archived') {
     return { data: null, error: 'Cannot publish an archived announcement' };
+  }
+
+  // Every group check runs before the status changes, so a refusal leaves the announcement unpublished.
+  const groupFacts = groupPostOptions.facts ?? createGroupPostFacts();
+  let groupTarget: EstateGroupTarget | null = null;
+  if (wantsEstateGroupPost(existing)) {
+    if (!(await (groupPostOptions.mayPostToGroup?.() ?? false))) {
+      return { data: null, error: GROUP_POST_PERMISSION_REASON };
+    }
+    const check = await checkEstateGroupPost(groupFacts);
+    if (!check.ok) return { data: null, error: check.error };
+    groupTarget = check.target;
   }
 
   const now = new Date().toISOString();
@@ -66,7 +100,15 @@ export async function publishAnnouncementCore(
   // Deliver WhatsApp to the intended opted-in audience
   const whatsappQueued = await deliverAnnouncementWhatsApp(deliverySupabase, data);
 
-  return { data: data as Announcement, previousStatus: existing.status, whatsappQueued, error: null };
+  let groupPost: GroupPostOutcome = null;
+  if (groupTarget) {
+    groupPost = await sendEstateGroupPost(groupTarget, announcementGroupText(data), groupFacts);
+    if (groupPost.error !== null) {
+      console.error('publishAnnouncementCore: estate group post failed', { id, error: groupPost.error });
+    }
+  }
+
+  return { data: data as Announcement, previousStatus: existing.status, whatsappQueued, groupPost, error: null };
 }
 
 type AnnouncementForDelivery = Pick<

@@ -14,6 +14,10 @@ import { OptInImport } from '@/app/(dashboard)/settings/whatsapp/opt-in-import';
 import { PrivacyNoticeSettings } from '@/app/(dashboard)/settings/whatsapp/privacy-notice-settings';
 import { PilotControls } from '@/app/(dashboard)/settings/whatsapp/pilot-controls';
 import { ConnectionSettings } from '@/app/(dashboard)/settings/whatsapp/connection-settings';
+import { EstateGroupPicker } from '@/app/(dashboard)/settings/whatsapp/estate-group-picker';
+import { getEstateGroupSelection } from '@/actions/whatsapp/estate-group';
+import { getUnmatchedGroupMembers } from '@/actions/whatsapp/group-members-report';
+import { UnmatchedGroupMembers } from '@/app/(dashboard)/settings/whatsapp/unmatched-group-members';
 import { WhatsAppEnabledToggle } from '@/app/(dashboard)/settings/whatsapp/whatsapp-enabled-toggle';
 
 const DISCONNECTED_STATUS: WhatsAppConnectionStatus = {
@@ -38,7 +42,7 @@ const DISCONNECTED_STATUS: WhatsAppConnectionStatus = {
 };
 
 export default async function WhatsAppOperationsPage() {
-  const [forcePinResult, pilotResult, connectionResult, overrideNumbersResult, whatsappEnabledResult, pilotRosterResult, assistantTextResult, privacyNoticeResult, rollForwardResult] = await Promise.all([
+  const [forcePinResult, pilotResult, connectionResult, overrideNumbersResult, whatsappEnabledResult, pilotRosterResult, assistantTextResult, privacyNoticeResult, rollForwardResult, estateGroupResult, groupMembersResult] = await Promise.all([
     getWhatsAppForcePin(),
     getWhatsAppPilotSettings(),
     getWhatsAppConnectionStatus(),
@@ -48,6 +52,8 @@ export default async function WhatsAppOperationsPage() {
     getWhatsAppAssistantText(),
     getWhatsAppPrivacyNotice(),
     getResidentRollForwardBalance(),
+    getEstateGroupSelection(),
+    getUnmatchedGroupMembers(),
   ]);
 
   // Fallback idiom matches src/actions/system/cron-status.ts.
@@ -99,7 +105,21 @@ export default async function WhatsAppOperationsPage() {
       >
         <SettingsRow rowId="whatsapp-rollout" stacked>
           <div className="w-full">
-            <PilotControls initial={pilot} roster={pilotRosterResult.data} rosterError={pilotRosterResult.error} />
+            <PilotControls initial={pilot} roster={pilotRosterResult.data} rosterError={pilotRosterResult.error} groupAvailable={!!estateGroupResult.data?.wahaActive && !!estateGroupResult.data.groupId} />
+          </div>
+        </SettingsRow>
+      </SettingsSection>
+      <SettingsSection id="estate-group" title="Estate group" summary="The WhatsApp group kept in sync with the resident records." instant>
+        <SettingsRow rowId="whatsapp-estate-group" stacked>
+          <div className="w-full">
+            <EstateGroupPicker initial={estateGroupResult.data} error={estateGroupResult.error} />
+          </div>
+        </SettingsRow>
+      </SettingsSection>
+      <SettingsSection id="group-members" title="Group members not on record" summary="Estate group members whose number matches no resident record." instant>
+        <SettingsRow rowId="whatsapp-group-members" stacked>
+          <div className="w-full">
+            <UnmatchedGroupMembers report={groupMembersResult.data} error={groupMembersResult.error} />
           </div>
         </SettingsRow>
       </SettingsSection>

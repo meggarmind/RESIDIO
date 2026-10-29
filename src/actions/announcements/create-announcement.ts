@@ -37,6 +37,7 @@ export async function createAnnouncement(
     target_group_slug: input.target_group_slug || null,
     target_houses: input.target_houses || null,
     is_pinned: input.is_pinned || false,
+    post_to_whatsapp_group: input.post_to_whatsapp_group || false,
     scheduled_for: input.scheduled_for || null,
     expires_at: input.expires_at || null,
     attachment_urls: input.attachment_urls || null,

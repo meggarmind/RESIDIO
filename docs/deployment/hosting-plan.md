@@ -114,6 +114,7 @@ read from the container's environment by the command, so it is never written int
 | `purge-performance-events` | `30 0 * * *` | 60000 |
 | `whatsapp-chatmaid-reconcile` | `*/15 * * * *` | 120000 |
 | `whatsapp-waha-reconcile` | `*/15 * * * *` | 120000 |
+| `whatsapp-waha-group-sync` | `30 1 * * *` | 120000 |
 | `generate-invoices` | `0 6 * * *` | 300000 |
 | `process-report-schedules` | `0 7 * * *` | 300000 |
 | `payment-reminders` | `0 8 * * *` | 120000 |
@@ -160,6 +161,9 @@ node -e "fetch('http://127.0.0.1:3000/api/cron/whatsapp-chatmaid-reconcile',{hea
 # whatsapp-waha-reconcile  (*/15 * * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/whatsapp-waha-reconcile',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(120000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
 
+# whatsapp-waha-group-sync  (30 1 * * *)
+node -e "fetch('http://127.0.0.1:3000/api/cron/whatsapp-waha-group-sync',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(120000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
+
 # generate-invoices  (0 6 * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/generate-invoices',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(300000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
 
@@ -193,6 +197,7 @@ node -e "fetch('http://127.0.0.1:3000/api/cron/process-notifications',{headers:{
 | 60 s | `expire-approvals` | One read, one set-based UPDATE inside `process_expired_approvals()` and one in-app notification per expired request (#558). Hourly, so the backlog is small. New route: the owner must create this Coolify task; nothing runs it until then. |
 | 120 s | `whatsapp-chatmaid-reconcile` | New route (#511): at most 3 Chatmaid list calls (15 s timeout each) plus the Assistant reply for any message the webhook missed. Nothing runs it until the owner creates this Coolify task. |
 | 120 s | `whatsapp-waha-reconcile` | New route (#1262): at most 3 WAHA message-store reads (15 s timeout each) plus the Assistant reply for any message the webhook missed. It does nothing unless WAHA is the active provider. Nothing runs it until the owner creates this Coolify task. |
+| 120 s | `whatsapp-waha-group-sync` | New route (#1325): one participant read of the estate group (15 s timeout), at most one `groups/refresh` a day, and one LID lookup (10 s timeout, 10 at a time) for each member whose number is not yet stored. It does nothing unless WAHA is the active provider and an estate group is chosen. Nothing runs it until the owner creates this Coolify task. |
 | 120 s | `whatsapp-admin-weekly` | New route (#1298): two reads over the past 7 days and one email per active Chairman. It runs Monday 07:00 Lagos time and covers the 7 whole Lagos days before it (Monday to Sunday). It answers HTTP 500 (logged as a failure, so the Coolify task fails) when no active Chairman has an email address. Nothing runs it until the owner creates this Coolify task. |
 | 60 s | `purge-performance-events` | New route (#957): one `DELETE ... WHERE occurred_at < now() - 30 days` on `performance_events`. Nothing runs it until the owner creates this Coolify task. |
 | 60 s | `whatsapp-retention` | **Previously undeclared.** Four bulk `DELETE ... WHERE <timestamp> < cutoff` statements run in parallel (`src/lib/whatsapp/retention.ts`) and nothing else; it runs daily so the backlog is small. Anything near 60 s means something is wrong. |

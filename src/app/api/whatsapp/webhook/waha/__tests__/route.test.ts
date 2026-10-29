@@ -155,6 +155,7 @@ describe('WAHA WhatsApp webhook route', () => {
     vi.doUnmock('@/lib/system-log/recorder');
     vi.doUnmock('@/lib/whatsapp/outbound-sends');
     vi.doUnmock('@/lib/whatsapp/statement-delivery');
+    vi.doUnmock('@/lib/whatsapp/group-sync');
   });
 
   describe('guards', () => {
@@ -711,6 +712,60 @@ describe('WAHA WhatsApp webhook route', () => {
       h.notifyAdmins.mockResolvedValue({ success: true, count: 1 });
       expect((await h.POST(post(status('FAILED', 'evt_retry')))).status).toBe(200);
       expect(h.notifyAdmins).toHaveBeenCalledTimes(2);
+    });
+  });
+  describe('group.v2.participants (#1325)', () => {
+    const groupEvent = (envelopeId?: string) =>
+      webhook('group.v2.participants', { group: { id: '1203@g.us' }, type: 'join', participants: [{ id: '2348011111111@c.us', role: 'participant' }] }, envelopeId);
+
+    function mockGroupSync(handle: ReturnType<typeof vi.fn>) {
+      vi.doMock('@/lib/whatsapp/group-sync', () => ({ handleGroupParticipantsEvent: handle }));
+    }
+
+    it('passes the signed event body to the group handler and reports the outcome', async () => {
+      const handle = vi.fn().mockResolvedValue({ handled: true, joined: 1, left: 0 });
+      mockGroupSync(handle);
+      const h = await load();
+
+      const response = await h.POST(post(groupEvent('evt_g1')));
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({ processed: true, joined: 1, left: 0 });
+      expect(handle).toHaveBeenCalledTimes(1);
+      expect(handle.mock.calls[0][0]).toMatchObject({ event: 'group.v2.participants', payload: { type: 'join' } });
+      expect(h.handleResidentMessage).not.toHaveBeenCalled();
+    });
+
+    it('handles a retried delivery of the same envelope once', async () => {
+      const handle = vi.fn().mockResolvedValue({ handled: true, joined: 1, left: 0 });
+      mockGroupSync(handle);
+      const h = await load();
+
+      await h.POST(post(groupEvent('evt_g2')));
+      const retry = await h.POST(post(groupEvent('evt_g2')));
+
+      expect(handle).toHaveBeenCalledTimes(1);
+      await expect(retry.json()).resolves.toMatchObject({ duplicate: true });
+    });
+
+    it('returns 500 and releases the claim when the handler throws, so the retry runs it again', async () => {
+      const handle = vi.fn().mockRejectedValueOnce(new Error('db down')).mockResolvedValue({ handled: true, joined: 1, left: 0 });
+      mockGroupSync(handle);
+      const h = await load();
+
+      expect((await h.POST(post(groupEvent('evt_g3')))).status).toBe(500);
+      expect((await h.POST(post(groupEvent('evt_g3')))).status).toBe(200);
+      expect(handle).toHaveBeenCalledTimes(2);
+    });
+
+    it('reports an ignored event (another group) without failing', async () => {
+      mockGroupSync(vi.fn().mockResolvedValue({ handled: false, ignored: 'other_group', joined: 0, left: 0 }));
+      const h = await load();
+
+      const response = await h.POST(post(groupEvent('evt_g4')));
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({ processed: false, ignored: 'other_group' });
     });
   });
 });

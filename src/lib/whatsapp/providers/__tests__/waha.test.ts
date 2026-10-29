@@ -3,7 +3,10 @@ import { isProviderSupported } from '@/lib/whatsapp/provider';
 import {
   createWahaWhatsAppProvider,
   fetchWahaConnectionStatus,
+  getWahaGroupParticipants,
+  listWahaGroups,
   lookupWahaLidPhone,
+  refreshWahaGroups,
   lookupWahaPhone,
 } from '@/lib/whatsapp/providers/waha';
 import type { WahaWhatsAppConfig } from '@/lib/whatsapp/config';
@@ -447,5 +450,66 @@ describe('lookupWahaLidPhone (#1282)', () => {
 
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).toBe('WAHA LID lookup failed (HTTP 500)');
+  });
+});
+
+describe('WAHA group reads (#1325)', () => {
+  it('lists groups with exclude=participants, accepting a list or an object keyed by id', async () => {
+    const config = makeConfig();
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse([
+        { id: '1203@g.us', subject: 'Estate' },
+        { id: { _serialized: '1204@g.us' }, name: 'Board' },
+        { id: '2348000000000@c.us', subject: 'not a group' },
+      ])
+    );
+
+    expect(await listWahaGroups(config, fetchImpl as unknown as typeof fetch)).toEqual([
+      { id: '1203@g.us', name: 'Estate' },
+      { id: '1204@g.us', name: 'Board' },
+    ]);
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe(`${config.baseUrl}/api/default/groups?exclude=participants`);
+    expect(init.method).toBe('GET');
+    expect(init.headers).toEqual({ 'X-Api-Key': 'waha-super-secret-key' });
+
+    const keyed = vi.fn(async () => jsonResponse({ '1205@g.us': { subject: 'Keyed' } }));
+    expect(await listWahaGroups(makeConfig(), keyed as unknown as typeof fetch)).toEqual([{ id: '1205@g.us', name: 'Keyed' }]);
+  });
+
+  it('reads participants/v2 for the escaped group id and keeps id and role', async () => {
+    const config = makeConfig();
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse([{ id: '2348000000000@c.us', role: 'admin' }, { id: '98765@lid' }, { role: 'participant' }])
+    );
+
+    expect(await getWahaGroupParticipants(config, '1203@g.us', fetchImpl as unknown as typeof fetch)).toEqual([
+      { id: '2348000000000@c.us', role: 'admin' },
+      { id: '98765@lid', role: 'participant' },
+    ]);
+    expect((fetchImpl.mock.calls[0] as unknown as [string])[0]).toBe(
+      `${config.baseUrl}/api/default/groups/1203%40g.us/participants/v2`
+    );
+  });
+
+  it('posts groups/refresh', async () => {
+    const config = makeConfig();
+    const fetchImpl = vi.fn(async () => jsonResponse({}));
+
+    await refreshWahaGroups(config, fetchImpl as unknown as typeof fetch);
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe(`${config.baseUrl}/api/default/groups/refresh`);
+    expect(init.method).toBe('POST');
+  });
+
+  it('throws on a non-2xx answer naming only the status, never the key or the group', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({ message: 'rate-overlimit 2348000000000' }, 429));
+    const error = await getWahaGroupParticipants(makeConfig(), '1203@g.us', fetchImpl as unknown as typeof fetch).catch(
+      (e: Error) => e
+    );
+
+    expect((error as Error).message).toBe('WAHA group request failed (HTTP 429)');
+    expect((error as Error).message).not.toContain('waha-super-secret-key');
+    expect((error as Error).message).not.toContain('1203');
   });
 });

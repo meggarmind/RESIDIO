@@ -5,11 +5,14 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { publishAnnouncementCore } from '@/lib/announcements/publish';
+import { GROUP_POST_PERMISSION_REASON, wantsEstateGroupPost } from '@/lib/announcements/group-post-rules';
 import type { Announcement } from '@/types/database';
 
 type PublishResponse = {
   data: Announcement | null;
   error: string | null;
+  /** Set when the announcement published but its estate group post failed (#1328). */
+  groupPostError?: string | null;
 };
 
 /**
@@ -23,7 +26,9 @@ export async function publishAnnouncement(id: string): Promise<PublishResponse> 
   }
 
   const supabase = await createServerSupabaseClient();
-  const result = await publishAnnouncementCore(supabase, id, auth.userId, createAdminClient());
+  const result = await publishAnnouncementCore(supabase, id, auth.userId, createAdminClient(), {
+    mayPostToGroup: async () => auth.permissions.includes(PERMISSIONS.ANNOUNCEMENTS_POST_TO_GROUP),
+  });
   if (result.error !== null) {
     return { data: null, error: result.error };
   }
@@ -51,7 +56,18 @@ export async function publishAnnouncement(id: string): Promise<PublishResponse> 
     });
   }
 
-  return { data, error: null };
+  if (result.groupPost?.messageId) {
+    await logAudit({
+      action: 'CREATE',
+      entityType: 'announcements',
+      entityId: data.id,
+      entityDisplay: data.title,
+      newValues: { whatsapp_group_post: result.groupPost.messageId },
+      description: `Posted announcement to the estate WhatsApp group: ${data.title}`,
+    });
+  }
+
+  return { data, error: null, groupPostError: result.groupPost?.error ?? null };
 }
 
 /**
@@ -92,6 +108,11 @@ export async function scheduleAnnouncement(
 
   if (existing.status === 'archived') {
     return { data: null, error: 'Cannot schedule an archived announcement' };
+  }
+
+  // The cron publishes as the person who scheduled it, so they must be able to post to the group.
+  if (wantsEstateGroupPost(existing) && !auth.permissions.includes(PERMISSIONS.ANNOUNCEMENTS_POST_TO_GROUP)) {
+    return { data: null, error: GROUP_POST_PERMISSION_REASON };
   }
 
   const now = new Date().toISOString();

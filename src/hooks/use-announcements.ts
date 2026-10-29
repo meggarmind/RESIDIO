@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import {
   getAnnouncements,
   getPublishedAnnouncements,
@@ -11,6 +12,7 @@ import { createAnnouncement, createAnnouncementFromTemplate } from '@/actions/an
 import { updateAnnouncement, archiveAnnouncement } from '@/actions/announcements/update-announcement';
 import { getAnnouncementAudienceGroups, getAnnouncementReach } from '@/actions/announcements/audience-reach';
 import { deleteAnnouncement } from '@/actions/announcements/delete-announcement';
+import { getEstateGroupPostAvailability } from '@/actions/announcements/group-post';
 import {
   publishAnnouncement,
   scheduleAnnouncement,
@@ -227,6 +229,8 @@ export function usePublishAnnouncement() {
     mutationFn: async (id: string) => {
       const result = await publishAnnouncement(id);
       if (result.error) throw new Error(result.error);
+      // Published, but the estate group post did not go out (#1328).
+      if (result.groupPostError) toast.warning(`Not posted to the estate group: ${result.groupPostError}`);
       return result.data;
     },
     onSuccess: (_, id) => {
@@ -634,6 +638,19 @@ export function useAnnouncementAudienceGroups() {
       const result = await getAnnouncementAudienceGroups();
       if (result.error) throw new Error(result.error);
       return result.data ?? [];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/** Whether "Post to estate group" can be offered: WAHA active and an estate group set (#1328). */
+export function useEstateGroupPostAvailability() {
+  return useQuery({
+    queryKey: ['estateGroupPostAvailability'],
+    queryFn: async () => {
+      const result = await getEstateGroupPostAvailability();
+      if (result.error) throw new Error(result.error);
+      return result.data ?? false;
     },
     staleTime: 5 * 60 * 1000,
   });

@@ -11,7 +11,7 @@ residio_sources:
   - src/app/(dashboard)/system/whatsapp-monitoring/**
   - src/app/(dashboard)/system/whatsapp-bot-health/**
   - src/app/api/whatsapp/**
-residio_verified_commit: 38c0b8b5
+residio_verified_commit: ab8a13f4
 residio_verified_at: '2026-10-29'
 residio_app_version: '0.4.0'
 ---
@@ -133,6 +133,7 @@ While the switch is off, a resident who writes in gets one reply, "The estate As
 | `Disabled` | Nobody. Outbound is blocked entirely. This is the default. |
 | `Pilot` | Only named residents, plus every resident on one nominated street. |
 | `Estate` | All residents. |
+| `Estate group members` | Residents whose number is a current member of the estate group, plus the pilot residents. Needs WAHA as the active provider and a chosen estate group. |
 
 Use **Rollout and pilot controls** to set the mode. In pilot mode you choose a **pilot street** by name, pilot residents by name, or both. A resident who matches either rule is included.
 
@@ -154,6 +155,27 @@ The **Pilot residents** table shows everyone in the pilot: each person chosen by
 :::warning[Do not skip the pilot]
 Moving straight from `Disabled` to `Estate` sends the first real message to every resident at once. A template error at that point is not recoverable.
 :::
+
+## Estate group
+
+When WAHA is the active provider, **Settings → WhatsApp → Estate group** lets you choose one of the WhatsApp groups the bot number is in. Select **Load groups**, pick the estate group, and select **Save estate group**. You need the manage WhatsApp permission. With another provider, the section says that the estate group needs WAHA. The bot number must be an **admin** of the group, or WAHA cannot show the phone numbers of members who hide them.
+
+Residio keeps a list of the group members. For each member it stores the phone number, the role and the resident record whose primary or secondary phone matches. A member who matches no resident record is kept with no resident.
+
+- When someone joins the group, Residio adds them at once. When someone leaves, Residio marks them as left.
+- Events for any other group are ignored.
+- Every night Residio reads the full member list from WAHA and makes its own list equal to it. It asks WAHA to refresh its groups at most once a day.
+- A member who matches no resident record is removed 30 days after Residio last saw them. A member who matches a resident is not removed.
+
+In the `Estate group members` rollout mode, a resident can use the bot when one of their numbers is a current member of the group. A pilot resident can also use it. The mode appears in the rollout list only when WAHA is active and a group is chosen. If WAHA stops being the active provider, or the group is cleared, nobody is allowed. WhatsApp messages to residents also go only to these residents. A group member whose number matches no resident record gets no menu. A resident who is in the group but not on the list gets: "WhatsApp access is for members of the estate group. Please contact the estate office."
+
+When a member who matches a resident record leaves the group, Residio closes that number's bot session and sends the office an in-app notification to check the record. It writes one audit entry. It does not move out or deactivate the resident.
+
+### Members not on record
+
+**Settings → WhatsApp → Group members not on record** shows the current group members whose number matches no resident record. For each one it shows the phone number, the role in the group, the date Residio first saw the member and the date it last saw the member. It also shows how many members match a resident record. You need the manage WhatsApp permission. Without it, the section shows one line that says so.
+
+To fix a row, select **Find resident**. The residents list opens, searched by the number. Add the number as the primary or secondary phone of the resident. After the next night sync, the row leaves the report. A member whose number WhatsApp hides shows as "Number hidden by WhatsApp" and has no **Find resident** button. The report only reads the list. It does not create residents and does not send messages.
 
 ## Consent and opt-ins
 
@@ -413,6 +435,7 @@ WhatsApp operational state is short-lived by design and purged on a daily schedu
 - Processed message records are removed after their expiry, by default two days.
 - Survey answers (the rating, the optional comment and the phone number) are removed after 90 days by default. Opt-out records are kept, because they record a resident's choice and hold no comment.
 - Outbound send records are removed after 90 days by default.
+- Estate group members who match no resident record are removed 30 days after they were last seen in the group. The setting `whatsapp_group_unmatched_retention_days` changes this period (1 to 365 days).
 
 The session, processed message, survey answer and outbound send periods are set under **Settings → WhatsApp** in the rollout controls. Survey answer and outbound send periods accept 1 to 365 days. The public privacy policy at `/privacy-policy` states the survey answer period currently set.
 
