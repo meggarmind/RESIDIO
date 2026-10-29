@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Table,
   TableBody,
@@ -43,11 +43,18 @@ import {
   Link2,
 } from 'lucide-react';
 import { usePendingAccounts, useApproveAccount, useRejectAccount } from '@/hooks/use-pending-accounts';
-import { useRolesWithPermissions } from '@/hooks/use-roles';
+import { useAdminTitles, useAssignableRoles } from '@/hooks/use-roles';
+import { useDebounce } from '@/hooks/use-debounce';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { permissionToGrant } from '@/lib/auth/board-roles';
 import Link from 'next/link';
 import type { PendingAccount } from '@/actions/auth/account-approval';
+import {
+  searchResidentsForRoleAssignment,
+  type ResidentSearchResult,
+} from '@/actions/roles/assign-role';
+import { RoleTitlePicker, grantableRoles, residentRoleBlock, roleListNotice } from './role-title-picker';
 
 /**
  * Review queue for accounts awaiting approval.
@@ -58,8 +65,9 @@ import type { PendingAccount } from '@/actions/auth/account-approval';
  */
 export function PendingAccountsList() {
   const { data: accounts, isLoading, error, refetch, isRefetching } = usePendingAccounts();
-  const { data: roles } = useRolesWithPermissions();
-  const { profile, hasPermission } = useAuth();
+  const { data: roles, isLoading: rolesLoading, error: rolesError } = useAssignableRoles();
+  const { data: titles, isLoading: titlesLoading, error: titlesError } = useAdminTitles();
+  const { hasPermission } = useAuth();
   const canManageRoles = hasPermission(PERMISSIONS.SYSTEM_MANAGE_ROLES);
   const approve = useApproveAccount();
   const reject = useRejectAccount();
@@ -68,23 +76,26 @@ export function PendingAccountsList() {
   const [approveTarget, setApproveTarget] = useState<PendingAccount | null>(null);
   const [rejectTarget, setRejectTarget] = useState<PendingAccount | null>(null);
   const [selectedRoleId, setSelectedRoleId] = useState<string>('');
+  const [selectedTitleId, setSelectedTitleId] = useState<string>('');
+  const [selectedResident, setSelectedResident] = useState<ResidentSearchResult | null>(null);
   const [rejectReason, setRejectReason] = useState('');
 
-  // Mirrors the server guards in assignRoleToProfile: super_admin and chairman
-  // may only be granted by an existing super admin. The server checks
-  // `auth.roleName !== 'super_admin'`, so this reads the RBAC role name too --
-  // it used to read the legacy `profiles.role` column, which #193 removed.
-  const isSuperAdmin = profile?.role_name === 'super_admin';
-  const assignableRoles =
-    roles?.filter((role) => {
-      if (!role.is_active) return false;
-      if ((role.name === 'super_admin' || role.name === 'chairman') && !isSuperAdmin) return false;
-      return true;
-    }) ?? [];
+  // Roles the caller may grant: the same permission check as the server's
+  // assertCanGrantRoles, which is the enforcement.
+  const assignableRoles = grantableRoles(roles, hasPermission);
+  const rolesNotice = roleListNotice({
+    isLoading: rolesLoading,
+    error: rolesError,
+    count: assignableRoles.length,
+  });
 
   const selectedRole = assignableRoles.find((role) => role.id === selectedRoleId);
-  const isHighPrivilegeRole =
-    selectedRole?.name === 'super_admin' || selectedRole?.name === 'chairman';
+  // Board roles (super_admin, chairman, trustee) carry the widest access.
+  const isHighPrivilegeRole = Boolean(
+    selectedRole && permissionToGrant(selectedRole.name) === PERMISSIONS.SYSTEM_ASSIGN_BOARD_ROLES
+  );
+  const hasResidentLink = Boolean(approveTarget?.resident_id || selectedResident);
+  const residentBlock = residentRoleBlock(selectedRole, hasResidentLink);
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Never';
@@ -114,6 +125,14 @@ export function PendingAccountsList() {
   const openApprove = (account: PendingAccount) => {
     setApproveTarget(account);
     setSelectedRoleId('');
+    setSelectedTitleId('');
+    setSelectedResident(null);
+  };
+
+  const handleRoleChange = (roleId: string) => {
+    setSelectedRoleId(roleId);
+    // A title belongs to one role.
+    setSelectedTitleId('');
   };
 
   const openReject = (account: PendingAccount) => {
@@ -124,7 +143,12 @@ export function PendingAccountsList() {
   const handleApprove = async () => {
     if (!approveTarget || !selectedRoleId) return;
     try {
-      await approve.mutateAsync({ profileId: approveTarget.id, roleId: selectedRoleId });
+      await approve.mutateAsync({
+        profileId: approveTarget.id,
+        roleId: selectedRoleId,
+        residentId: selectedResident?.id,
+        titleId: selectedTitleId || null,
+      });
       setApproveTarget(null);
     } catch {
       // useApproveAccount surfaces the error as a toast.
@@ -272,23 +296,46 @@ export function PendingAccountsList() {
           </DialogHeader>
 
           <div className="space-y-3 py-2">
+            {approveTarget && (
+              <ApproveResidentPicker
+                alreadyLinked={Boolean(approveTarget.resident_id)}
+                selected={selectedResident}
+                onSelect={setSelectedResident}
+                disabled={approve.isPending}
+              />
+            )}
+
             <Label htmlFor="approve-role">Role</Label>
-            <Select value={selectedRoleId} onValueChange={setSelectedRoleId}>
-              <SelectTrigger id="approve-role">
-                <SelectValue placeholder="Choose a role..." />
-              </SelectTrigger>
-              <SelectContent>
-                {assignableRoles.map((role) => (
-                  <SelectItem key={role.id} value={role.id}>
-                    {role.display_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {rolesNotice ?? (
+              <Select value={selectedRoleId} onValueChange={handleRoleChange}>
+                <SelectTrigger id="approve-role">
+                  <SelectValue placeholder="Choose a role..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {assignableRoles.map((role) => (
+                    <SelectItem key={role.id} value={role.id}>
+                      {role.display_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
 
             {selectedRole?.description && (
               <p className="text-sm text-muted-foreground">{selectedRole.description}</p>
             )}
+
+            <RoleTitlePicker
+              role={selectedRole}
+              titles={titles ?? []}
+              titleId={selectedTitleId}
+              onTitleChange={setSelectedTitleId}
+              profileId={approveTarget?.id ?? null}
+              hasResidentLink={hasResidentLink}
+              disabled={approve.isPending}
+              titlesLoading={titlesLoading}
+              titlesError={titlesError ? titlesError.message : null}
+            />
 
             {isHighPrivilegeRole && (
               <Alert variant="destructive">
@@ -305,7 +352,10 @@ export function PendingAccountsList() {
             <Button variant="outline" onClick={() => setApproveTarget(null)}>
               Cancel
             </Button>
-            <Button onClick={handleApprove} disabled={!selectedRoleId || approve.isPending}>
+            <Button
+              onClick={handleApprove}
+              disabled={!selectedRole || Boolean(residentBlock) || approve.isPending}
+            >
               {approve.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Approve account
             </Button>
@@ -319,8 +369,9 @@ export function PendingAccountsList() {
           <DialogHeader>
             <DialogTitle>Reject account</DialogTitle>
             <DialogDescription>
-              {rejectTarget?.full_name} ({rejectTarget?.email}) will be signed out and shown the
-              reason you give below.
+              {rejectTarget?.full_name} ({rejectTarget?.email}) will not get access. When they sign
+              in, they see that the request was declined and the reason you give below. A rejected
+              sign-up cannot be approved later.
             </DialogDescription>
           </DialogHeader>
 
@@ -350,6 +401,131 @@ export function PendingAccountsList() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+/**
+ * Optional resident record for the account being approved (#1316). Lists only
+ * residents with no account, because the server refuses a resident already
+ * linked to another one. An account that is already linked keeps its link.
+ */
+function ApproveResidentPicker({
+  alreadyLinked,
+  selected,
+  onSelect,
+  disabled,
+}: {
+  alreadyLinked: boolean;
+  selected: ResidentSearchResult | null;
+  onSelect: (resident: ResidentSearchResult | null) => void;
+  disabled?: boolean;
+}) {
+  const [query, setQuery] = useState('');
+  const debouncedQuery = useDebounce(query, 300);
+  // The reply to the latest search. A reply is kept with the query it answers,
+  // and an older, slower reply is ignored, so stale results never show.
+  const [reply, setReply] = useState<{
+    query: string;
+    results: ResidentSearchResult[];
+    error: string | null;
+  } | null>(null);
+  const latestQuery = useRef('');
+  const searchable = !alreadyLinked && debouncedQuery.trim().length >= 2;
+
+  useEffect(() => {
+    latestQuery.current = debouncedQuery;
+    if (!searchable) return;
+
+    const answer = (results: ResidentSearchResult[], error: string | null) => {
+      if (latestQuery.current === debouncedQuery) setReply({ query: debouncedQuery, results, error });
+    };
+    searchResidentsForRoleAssignment(debouncedQuery, { unlinkedOnly: true })
+      .then((result) =>
+        result.error
+          ? answer([], result.error)
+          : answer((result.data ?? []).filter((r) => !r.profile_id), null)
+      )
+      .catch(() => answer([], 'Failed to search residents'));
+  }, [debouncedQuery, searchable]);
+
+  const current = searchable && reply?.query === debouncedQuery ? reply : null;
+  const isSearching = searchable && !current;
+  const results = current?.results ?? [];
+  const searchError = current?.error ?? null;
+
+  if (alreadyLinked) {
+    return (
+      <p className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Link2 className="h-4 w-4" />
+        This account is already linked to a resident record.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <Label htmlFor="approve-resident">Resident record (optional)</Label>
+      {selected ? (
+        <div className="flex items-center justify-between gap-2 rounded-md border p-2 text-sm">
+          <span>
+            {selected.first_name} {selected.last_name}
+            {selected.house_address && (
+              <span className="text-muted-foreground"> · {selected.house_address}</span>
+            )}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onSelect(null)}
+            disabled={disabled}
+            aria-label="Clear resident record"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      ) : (
+        <>
+          <Input
+            id="approve-resident"
+            placeholder="Search residents with no account..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            disabled={disabled}
+          />
+          {searchError ? (
+            <p role="alert" className="text-sm text-destructive">
+              {searchError}
+            </p>
+          ) : isSearching ? (
+            <p className="text-sm text-muted-foreground">Searching...</p>
+          ) : debouncedQuery.trim().length >= 2 && results.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No residents without an account match.</p>
+          ) : (
+            results.length > 0 && (
+              <ul className="max-h-40 overflow-y-auto rounded-md border">
+                {results.map((resident) => (
+                  <li key={resident.id}>
+                    <button
+                      type="button"
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-muted"
+                      onClick={() => {
+                        onSelect(resident);
+                        setQuery('');
+                      }}
+                    >
+                      {resident.first_name} {resident.last_name}
+                      {resident.house_address && (
+                        <span className="text-muted-foreground"> · {resident.house_address}</span>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )
+          )}
+        </>
+      )}
     </div>
   );
 }

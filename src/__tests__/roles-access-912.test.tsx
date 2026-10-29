@@ -49,6 +49,7 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/hooks/use-roles', () => ({
   useCurrentAdmins: () => ({ data: ADMINS, isLoading: false, error: null }),
   useRolesWithPermissions: () => ({ data: ROLES, isLoading: false }),
+  useAssignableRoles: () => ({ data: ROLES, isLoading: false, error: null }),
   usePermissions: () => ({ data: [], isLoading: false }),
   useCreateRoleWithPermissions: mutation,
   useUpdateRole: mutation,

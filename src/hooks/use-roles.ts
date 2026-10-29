@@ -16,6 +16,7 @@ import {
   getCurrentAdmins,
 } from '@/actions/roles';
 import { getAdminTitles, createAdminTitle, updateAdminTitle, deleteAdminTitle } from '@/actions/roles/titles';
+import { getAssignableRoles } from '@/actions/roles/assignable-roles';
 import type { TitleInput } from '@/actions/roles/titles';
 import type { AppRoleInsert, AppRoleUpdate } from '@/types/database';
 
@@ -42,6 +43,24 @@ export function useRolesWithPermissions() {
       return result.data;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes - roles change infrequently
+  });
+}
+
+/**
+ * Active roles for the assignment dialogs (#1316). Readable with
+ * system.assign_roles, unlike useRolesWithPermissions (system.manage_roles).
+ */
+export function useAssignableRoles() {
+  return useQuery({
+    queryKey: ASSIGNABLE_ROLES_KEY,
+    queryFn: async () => {
+      const result = await getAssignableRoles();
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      return result.data ?? [];
+    },
+    staleTime: 5 * 60 * 1000,
   });
 }
 

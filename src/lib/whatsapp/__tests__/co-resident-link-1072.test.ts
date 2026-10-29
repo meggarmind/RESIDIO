@@ -86,7 +86,7 @@ describe('Link a co-resident in the Assistant (#1072)', () => {
       expect(replies[1]).toContain('8. 👥 Link a co-resident');
       expect(replies[1]).not.toContain('More');
       expect(replies[1]).not.toContain('10.');
-      expect(replies[2]).toBe(['Which co-resident?', '1. Bola Example', '2. Chidi Example', '', 'Reply with the number.'].join('\n'));
+      expect(replies[2]).toBe(['Which co-resident?', '', '1. Bola Example', '2. Chidi Example', '', 'Reply with the number.'].join('\n'));
       expect(repo.hasLinkedCoResident).toHaveBeenCalledWith(SPONSOR, 'house-1');
     }
   });

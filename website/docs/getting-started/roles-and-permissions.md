@@ -17,7 +17,7 @@ residio_sources:
   - src/components/admin/role-title-picker.tsx
   - src/components/admin/role-titles-manager.tsx
   - src/components/admin/pending-accounts-list.tsx
-residio_verified_commit: 311cb748
+residio_verified_commit: 8835bff8
 residio_verified_at: '2026-10-29'
 residio_app_version: '0.4.0'
 ---
@@ -32,8 +32,12 @@ Signing up does not grant access. Anyone can create an account — with Google, 
 
 Review sign-ups in **Settings → Roles & Access → Pending sign-ups**. The queue shows each person's name, email, whether that email is verified, how they signed up, and when they requested access. An account already linked to a resident record is tagged **Resident**.
 
-- **Approve** opens a dialog where you choose the role the account will hold. Approval and role assignment are a single step; there is no approve-without-a-role.
-- **Reject** requires a reason. The account is marked rejected, the person is signed out, and they are told the account was not approved and to contact the estate office. The reason you give is recorded in the audit log.
+- **Approve** opens a dialog. Approval and role assignment are one step. You cannot approve an account without a role. The dialog has these fields:
+  - **Resident record (optional).** Search for the resident record of the person. The list shows only residents that have no account. If the account already has a resident record, the dialog tells you and does not show the search.
+  - **Role.** The list shows only the roles that you can give. If you can give no role, the dialog shows "No roles you can give". If the roles do not load, the dialog shows the reason.
+  - **Title.** This field shows when you choose a role. If the role has no titles, the dialog shows "No titles for this role".
+- Residio checks all the data before it changes the account. It checks the resident record, the **Who can hold each role** rules and the title seats. If a check fails, the dialog shows the reason and the account does not change. A role that only a resident can hold needs a resident record. Choose the resident record in the same dialog.
+- **Reject** needs a reason. The account gets no access. When the person signs in, they see that the request was declined and the reason that you gave. The audit log records the reason. You cannot approve a rejected sign-up later. The person must sign up again.
 
 :::warning[Approve deliberately]
 Approval is the gate. Everyone in this queue is asking for access to resident names, addresses, contact details, and financial records. Confirm who someone is before approving. If you cannot, reject rather than leave them waiting.
@@ -123,10 +127,11 @@ The search has two modes, chosen with the **Residents / Accounts** switch above 
 - **Residents** searches people with a resident record on an estate property. A resident must already have a linked account before a role will attach — if they do not, the result is tagged **No Account** and you can link one from the selected record.
 - **Accounts** searches everyone who has a login, whether or not they live on the estate. This is how you reach staff such as a hired security officer or a treasurer after they have been approved.
 
-Select someone, choose a role, then choose a **title** under that role and confirm. If they already hold a role you are asked to confirm the replacement instead.
+Select someone, choose a role, then choose a **title** under that role and confirm. The role list shows only the roles that you can give. If you can give no role, the page shows "No roles you can give". If the roles do not load, the page shows the reason. An admin with the Assign Roles permission and without the Manage Roles permission, such as the Chairman, also sees the role list. If they already hold a role you are asked to confirm the replacement instead.
 
-- **Title.** The list shows only the titles that belong to the chosen role. A title whose seats are all taken is greyed out and names who holds it, for example "Vice Chairman — held by Jane Doe"; move that person to another title first. Choosing **No title** is allowed. Changing someone's role clears their old title, so pick the new one in the same step.
+- **Title.** The Title field shows when you choose a role. If the role has no titles, the page shows "No titles for this role". The list shows only the titles that belong to the chosen role. A title whose seats are all taken is greyed out and names who holds it, for example "Vice Chairman — held by Jane Doe"; move that person to another title first. Choosing **No title** is allowed. Changing someone's role clears their old title, so pick the new one in the same step.
 - **Residents only.** A role that can only be held by a resident, such as Chairman or Trustee, cannot be given to an account with no resident record. The page says so before you submit; link the account to a resident first.
+- **Search by full name.** You can type a first name and a last name together, for example "John Smith".
 - **Change role and Remove role.** Each row on the **Administrators** tab has both buttons, so you do not need to search for the person again. They appear only when you are allowed to change that account, and Remove role is never offered on a Super Administrator.
 - **Titles.** On the **Roles** tab, the **Titles** card lists every title with its seats and current holders. It also shows the titles of inactive roles, marked **Inactive**. A holder of Manage Roles can add a title, rename it, change its seats, move it to a different role, or delete it. The rules for the role itself apply: only a Super Administrator can change the titles of a system role, or of the role that they hold. Seats must be a whole number from 1 to 99. Leave seats empty for no limit. You cannot set seats below the number of people who hold the title. A person whose account is not active still counts as a holder, and shows with the account status, for example "Jane Doe (suspended)". You cannot move or delete a title while a person holds it. You cannot move or delete the principal title of a role; rename it instead.
 
@@ -136,7 +141,7 @@ Who can change whom follows two permissions. **Assign Board Roles**, which only 
 
 ### Accounts that are not yet approved
 
-An account only holds permissions once it is approved, so the Accounts search will show you a pending, rejected, or suspended account but will not let you assign a role to it. Approve it under **Settings → Roles & Access → Pending sign-ups** instead — that step chooses the role and grants access in one go.
+An account only holds permissions once it is approved. The search shows a pending, rejected or suspended account, but you cannot give it a role. This applies in both search modes. Approve a pending account under **Settings → Roles & Access → Pending sign-ups**. That step chooses the role and gives access in one step. You cannot give a role to a rejected or suspended account on this page.
 
 ### Removing a role
 
@@ -147,7 +152,7 @@ An account only holds permissions once it is approved, so the Accounts search wi
 
 Assigning roles happens on the same Settings page where roles are defined, **Settings → Roles & Access**. The **Super Administrator** always has access, and the permission can also be granted on its own to another role. The Super Administrator role cannot be removed through the app at all.
 
-**Settings → Roles & Access → Who can hold each role** controls which resident types are eligible for each executive role. The table shows only active roles. Set that before assigning, not after.
+**Settings → Roles & Access → Who can hold each role** controls which resident types can hold each executive role. The table shows only active roles. Residio applies these rules when you assign a role and when you approve a sign-up. If a rule does not allow the role, Residio does not save the change and shows the reason. Set the rules before you assign roles.
 
 ### The estate always keeps one Super Administrator
 

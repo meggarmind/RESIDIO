@@ -225,7 +225,7 @@ describe('WhatsApp statement by email (#804 decision 24)', () => {
       const [message, provider, context, tracking] = vi.mocked(sendWhatsAppMessage).mock.calls[0];
       expect(message.to).toBe('+2348000000000');
       expect(message.idempotencySeed).toBe('request-1:statement-emailed');
-      expect(message.body).toBe('*Statement, this month, 1 Oct 2026 to 20 Oct 2026, Block 18A*\nYour PDF was emailed to a***@gmail.com.\nReply 0 for menu');
+      expect(message.body).toBe('*Statement, this month, 1 Oct 2026 to 20 Oct 2026, Block 18A*\n\nYour PDF was emailed to a***@gmail.com.\n\nReply 0 for menu');
       expect(provider).toBeUndefined();
       expect(context).toEqual({ residentOverride: true });
       expect(tracking).toEqual({ residentId: 'resident-1' });
@@ -239,7 +239,7 @@ describe('WhatsApp statement by email (#804 decision 24)', () => {
 
       const message = vi.mocked(sendWhatsAppMessage).mock.calls[0][0];
       expect(message.idempotencySeed).toBe('request-1:statement-email-failed');
-      expect(message.body).toContain('Sorry, we could not email your statement.\nPlease contact the estate office on 08012345678.\nReply 0 for menu');
+      expect(message.body).toContain('Sorry, we could not email your statement.\nPlease contact the estate office on 08012345678.\n\nReply 0 for menu');
     });
 
     it('omits the contact line when no estate phone is set', async () => {
@@ -250,7 +250,7 @@ describe('WhatsApp statement by email (#804 decision 24)', () => {
 
       const body = vi.mocked(sendWhatsAppMessage).mock.calls[0][0].body;
       expect(body).not.toContain('estate office');
-      expect(body).toContain('Sorry, we could not email your statement.\nReply 0 for menu');
+      expect(body).toContain('Sorry, we could not email your statement.\n\nReply 0 for menu');
     });
 
     it('logs and returns false when the notice cannot be sent, never throwing', async () => {

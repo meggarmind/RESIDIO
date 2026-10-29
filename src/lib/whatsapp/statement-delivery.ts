@@ -13,7 +13,7 @@ import { matchProviderMessageId } from '@/lib/whatsapp/outbound-sends';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
 import { getSponsoredHouses } from '@/lib/whatsapp/co-resident';
-import { earliestMoveIn, formatDay, formatNaira, maskEmail, offeredPeriods, PERIOD_LABELS, statementDates, type StatementPeriod } from '@/lib/whatsapp/assistant-format';
+import { earliestMoveIn, formatDay, formatNaira, maskEmail, offeredPeriods, PERIOD_LABELS, spaceOut, statementDates, type StatementPeriod } from '@/lib/whatsapp/assistant-format';
 
 /**
  * Statement PDF delivery for the WhatsApp Assistant (#804 decision 24, #917): every statement is a
@@ -331,7 +331,7 @@ export async function retryFailedStatementSend(provider: string, providerMessage
   const override = await resolveResidentOverride([request.resident_id]);
   if (!override.ok) throw new Error(override.error);
   const result = await sendWhatsAppMessage(
-    { to: request.phone_number, body: request.reply_text, idempotencySeed: `${inboundMessageId}:statement-retry`, mediaUrls: [await signedUrl(request.storage_path)] },
+    { to: request.phone_number, body: spaceOut(request.reply_text), idempotencySeed: `${inboundMessageId}:statement-retry`, mediaUrls: [await signedUrl(request.storage_path)] },
     undefined,
     { residentOverride: override.residentOverride },
     { residentId: request.resident_id, inboundMessageId }
@@ -395,7 +395,7 @@ async function sendStatementEmailNotice(requestId: string, seedSuffix: string, l
     const override = await resolveResidentOverride([request.resident_id]);
     if (!override.ok) throw new Error(override.error);
     const result = await sendWhatsAppMessage(
-      { to: request.phone_number, body: [`*Statement, ${periodLabel}, ${property}*`, ...lines(estatePhone), 'Reply 0 for menu'].join('\n'), idempotencySeed: `${requestId}:${seedSuffix}` },
+      { to: request.phone_number, body: spaceOut([`*Statement, ${periodLabel}, ${property}*`, ...lines(estatePhone), 'Reply 0 for menu'].join('\n')), idempotencySeed: `${requestId}:${seedSuffix}` },
       undefined,
       { residentOverride: override.residentOverride },
       { residentId: request.resident_id }
