@@ -315,50 +315,77 @@ type WahaPostResult =
   | { ok: true; messageId: string }
   | { ok: false; result: WhatsAppSendResult };
 
+async function wahaPost(
+  config: WahaWhatsAppConfig,
+  fetchImpl: typeof fetch,
+  path: string,
+  payload: Record<string, unknown>
+): Promise<WahaPostResult> {
+  let response: Response;
+  try {
+    response = await fetchImpl(`${config.baseUrl}${path}`, {
+      method: 'POST',
+      headers: { 'X-Api-Key': config.apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session: config.session, ...payload }),
+    });
+  } catch {
+    return { ok: false, result: { success: false, error: 'WAHA provider request failed', retryable: true } };
+  }
+
+  // A missing or stopped session (disconnected between the check and the send).
+  if (response.status === 404 || response.status === 422) {
+    connectionCache.delete(connectionCacheKey(config));
+    return { ok: false, result: { success: false, error: DISCONNECTED_ERROR } };
+  }
+
+  if (response.status === 429) {
+    return { ok: false, result: { success: false, error: 'WAHA rate limit exceeded', retryable: true } };
+  }
+
+  if (!response.ok) {
+    const body = await safeJson(response);
+    const error =
+      (typeof body?.message === 'string' && body.message) ||
+      (typeof body?.error === 'string' && body.error) ||
+      `WAHA request failed (HTTP ${response.status})`;
+    return { ok: false, result: { success: false, error, retryable: isRetryableHttpStatus(response.status) } };
+  }
+
+  const id = sentMessageId(await safeJson(response), payload.chatId as string);
+  if (!id) {
+    return {
+      ok: false,
+      result: { success: false, error: 'WAHA provider returned no message ID', retryable: false },
+    };
+  }
+  return { ok: true, messageId: id };
+}
+
+/**
+ * `POST /api/sendText` to a group chat (`...@g.us`), for an estate-wide announcement (#1328).
+ * Text only. Same connection check and error shapes as a one-to-one send.
+ */
+export async function sendWahaGroupText(
+  config: WahaWhatsAppConfig,
+  groupId: string,
+  text: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<WhatsAppSendResult> {
+  if (!groupId.endsWith('@g.us')) {
+    return { success: false, error: 'Not a WhatsApp group id', retryable: false };
+  }
+  if (!(await isSessionWorking(config, fetchImpl))) {
+    return { success: false, error: DISCONNECTED_ERROR };
+  }
+  const sent = await wahaPost(config, fetchImpl, '/api/sendText', { chatId: groupId, text });
+  return sent.ok ? { success: true, messageId: sent.messageId } : sent.result;
+}
+
 export function createWahaWhatsAppProvider(
   config: WahaWhatsAppConfig,
   fetchImpl: typeof fetch = fetch
 ): WhatsAppProvider {
-  async function post(path: string, payload: Record<string, unknown>): Promise<WahaPostResult> {
-    let response: Response;
-    try {
-      response = await fetchImpl(`${config.baseUrl}${path}`, {
-        method: 'POST',
-        headers: { 'X-Api-Key': config.apiKey, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session: config.session, ...payload }),
-      });
-    } catch {
-      return { ok: false, result: { success: false, error: 'WAHA provider request failed', retryable: true } };
-    }
-
-    // A missing or stopped session (disconnected between the check and the send).
-    if (response.status === 404 || response.status === 422) {
-      connectionCache.delete(connectionCacheKey(config));
-      return { ok: false, result: { success: false, error: DISCONNECTED_ERROR } };
-    }
-
-    if (response.status === 429) {
-      return { ok: false, result: { success: false, error: 'WAHA rate limit exceeded', retryable: true } };
-    }
-
-    if (!response.ok) {
-      const body = await safeJson(response);
-      const error =
-        (typeof body?.message === 'string' && body.message) ||
-        (typeof body?.error === 'string' && body.error) ||
-        `WAHA request failed (HTTP ${response.status})`;
-      return { ok: false, result: { success: false, error, retryable: isRetryableHttpStatus(response.status) } };
-    }
-
-    const id = sentMessageId(await safeJson(response), payload.chatId as string);
-    if (!id) {
-      return {
-        ok: false,
-        result: { success: false, error: 'WAHA provider returned no message ID', retryable: false },
-      };
-    }
-    return { ok: true, messageId: id };
-  }
+  const post = (path: string, payload: Record<string, unknown>) => wahaPost(config, fetchImpl, path, payload);
 
   async function sendContent(to: string, content: string, mediaUrls?: string[]): Promise<WhatsAppSendResult> {
     if (!(await isSessionWorking(config, fetchImpl))) {
