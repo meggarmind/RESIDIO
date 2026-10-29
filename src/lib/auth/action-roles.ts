@@ -151,6 +151,7 @@ export const PERMISSIONS = {
   ANNOUNCEMENTS_MANAGE_CATEGORIES: 'announcements.manage_categories',
   ANNOUNCEMENTS_MANAGE_TEMPLATES: 'announcements.manage_templates',
   ANNOUNCEMENTS_EMERGENCY_BROADCAST: 'announcements.emergency_broadcast',
+  ANNOUNCEMENTS_POST_TO_GROUP: 'announcements.post_to_group',
 
   // In-App Notifications Module (Phase 16)
   NOTIFICATIONS_VIEW: 'notifications.view',

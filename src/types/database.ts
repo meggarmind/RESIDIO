@@ -2450,6 +2450,8 @@ export interface Announcement {
   target_group_slug: string | null;
   target_houses: string[] | null;
   is_pinned: boolean | null;
+  /** Post to the estate WhatsApp group on publish (#1328); estate-wide audiences only. */
+  post_to_whatsapp_group?: boolean | null;
   published_at: string | null;
   scheduled_for: string | null;
   expires_at: string | null;
@@ -2552,6 +2554,7 @@ export interface AnnouncementInput {
   target_group_slug?: string | null;
   target_houses?: string[];
   is_pinned?: boolean;
+  post_to_whatsapp_group?: boolean;
   scheduled_for?: string | null;
   expires_at?: string | null;
   attachment_urls?: string[];
