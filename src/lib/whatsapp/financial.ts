@@ -74,6 +74,7 @@ import { answerSurvey, askSurvey } from '@/lib/whatsapp/survey-db';
 import {
   DEFAULT_KEYWORDS,
   answerFooter,
+  spaceOut,
   contactLine,
   formatDay,
   formatMonth,
@@ -980,7 +981,7 @@ async function sendFinancialReply(
     sendWhatsAppMessage(outbound, undefined, { purpose: 'inbound_reply' }, {
       residentId,
       inboundMessageId: message.id,
-    })))({ to: message.from, body, idempotencySeed: message.id, ...(mediaUrls ? { mediaUrls } : {}) });
+    })))({ to: message.from, body: spaceOut(body), idempotencySeed: message.id, ...(mediaUrls ? { mediaUrls } : {}) });
   if (!result.success) throw new ReplySendError(result.error || 'WhatsApp financial reply failed');
 }
 
