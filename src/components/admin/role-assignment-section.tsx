@@ -599,6 +599,7 @@ export function RoleAssignmentSection() {
                 profileId={selectedTarget.profileId}
                 override={portalOverrides?.[selectedTarget.profileId] ?? null}
                 generalEnabled={residentPortalEnabled}
+                targetRoleName={selectedTarget.currentRoleName}
               />
             </div>
           )}

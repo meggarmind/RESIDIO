@@ -6,15 +6,17 @@ const mocks = vi.hoisted(() => ({
   renderToBuffer: vi.fn(),
   addToQueue: vi.fn(),
   rowsError: null as { message: string } | null,
+  residents: [] as unknown[],
+  residentsError: null as { message: string } | null,
   pdfComponent: vi.fn(() => 'pdf-element'),
   sendWhatsAppMessage: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/server', () => ({
   createAdminClient: () => ({
-    from: () => ({
-      select: () => ({ eq: () => ({ range: async () => ({ data: mocks.houses, error: mocks.rowsError }) }) }),
-    }),
+    from: (table: string) => table === 'residents'
+      ? { select: () => ({ in: async () => ({ data: mocks.residents, error: mocks.residentsError }) }) }
+      : { select: () => ({ eq: () => ({ range: async () => ({ data: mocks.houses, error: mocks.rowsError }) }) }) },
   }),
 }));
 vi.mock('@/lib/settings/service', () => ({
@@ -22,7 +24,11 @@ vi.mock('@/lib/settings/service', () => ({
 }));
 vi.mock('@/lib/billing/debt-status', () => ({
   getDebtStatuses: mocks.getDebtStatuses,
-  readDebtStatusSettings: async () => ({ reportFootnote: 'Contact the Financial Secretary.' }),
+  readDebtStatusSettings: async () => ({
+    reportFootnote: 'Contact the Financial Secretary.',
+    arrearsThresholdMonths: 3,
+    labels: { arrears: 'Arrears', outstanding: 'Outstanding', paid_in_full: 'Paid in Full', credit: 'Credit' },
+  }),
 }));
 vi.mock('@/lib/notifications/queue', () => ({ addToQueue: mocks.addToQueue, PRIORITY: { NORMAL: 5 } }));
 vi.mock('@/lib/whatsapp/provider', () => ({ sendWhatsAppMessage: mocks.sendWhatsAppMessage }));
@@ -38,6 +44,7 @@ import {
   deliveryFor,
   isReportableHouse,
   loadReportableHouses,
+  MASKED_NAMES_NOTE,
   parseStreetChoice,
   queueDebtReportEmail,
   renderDebtStatusReport,
@@ -64,6 +71,8 @@ function house(id: string, street: string, number: string, overrides: Record<str
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.rowsError = null;
+  mocks.residentsError = null;
+  mocks.residents = [{ id: 'r1', first_name: 'CONSTANCE', last_name: 'OKA' }];
   mocks.houses = [
     house('h1', 'Bravo Street', '2'),
     house('h2', 'Alpha Street', '10'),
@@ -77,7 +86,7 @@ beforeEach(() => {
     house('h10', 'Alpha Street', '17', { resident_houses: [{ is_active: true, resident_role: 'domestic_staff' }] }),
   ];
   mocks.getDebtStatuses.mockImplementation(async (_c: unknown, p: { houseIds: string[] }) =>
-    p.houseIds.map((houseId) => ({ houseId, label: 'Arrears', status: 'arrears' })));
+    p.houseIds.map((houseId) => ({ houseId, label: 'Arrears', status: 'arrears', residentId: houseId === 'h3' ? 'r1' : null })));
   mocks.renderToBuffer.mockResolvedValue(Buffer.from('%PDF'));
 });
 
@@ -155,11 +164,19 @@ describe('renderDebtStatusReport', () => {
     expect(report).toMatchObject({ houseCount: 3, scopeLabel: 'Alpha Street, Bravo Street' });
   });
 
-  it('draws only street, house and status, with the footnote from Settings', async () => {
+  it('draws street, house number, masked name and status, with the legend and footnote from Settings (#1294)', async () => {
     await renderDebtStatusReport({ all: true, streetIds: [] });
-    const data = (mocks.pdfComponent.mock.calls[0] as unknown as [{ data: { footnote: string; rows: unknown[] } }])[0].data;
-    expect(data.footnote).toBe('Contact the Financial Secretary.');
-    expect(data.rows[0]).toEqual({ street: 'Alpha Street', house: '9', status: 'Arrears' });
+    const data = (mocks.pdfComponent.mock.calls[0] as unknown as [{ data: { footnote: string; legend: string; rows: unknown[] } }])[0].data;
+    expect(data.footnote).toBe(`Contact the Financial Secretary. ${MASKED_NAMES_NOTE}`);
+    expect(data.legend).toBe('Outstanding = owes up to 3 months · Arrears = owes more than 3 months · Paid in Full = owes nothing · Credit = owes nothing and has credit');
+    expect(data.rows[0]).toEqual({ street: 'Alpha Street', house: '9', resident: 'CO*** OK***', status: 'arrears', label: 'Arrears' });
+    expect(data.rows[1]).toMatchObject({ house: '10', resident: '' });
+    expect(JSON.stringify(data.rows)).not.toContain('CONSTANCE');
+  });
+
+  it('refuses when the resident names cannot be read', async () => {
+    mocks.residentsError = { message: 'down' };
+    await expect(renderDebtStatusReport({ all: true, streetIds: [] })).rejects.toThrow('residents could not be read');
   });
 
   it('lets a PDF failure through so the caller can refuse', async () => {
