@@ -3,6 +3,7 @@ import { verifyCronAuth } from '@/lib/auth/cron-auth';
 import { withSystemLog, type SystemLogRun } from '@/lib/system-log/with-system-log';
 import { resolveWhatsAppConfig } from '@/lib/whatsapp';
 import { syncEstateGroupMembers } from '@/lib/whatsapp/group-sync';
+import { handleGroupMembersLeft } from '@/lib/whatsapp/group-leave';
 
 export const runtime = 'nodejs';
 
@@ -32,7 +33,7 @@ async function runSync(run: SystemLogRun) {
       return NextResponse.json({ success: true, skipped: 'waha_not_configured' });
     }
 
-    const result = await syncEstateGroupMembers(resolved.config);
+    const result = await syncEstateGroupMembers(resolved.config, { onLeave: handleGroupMembersLeft });
     run.summary = { ...result.summary };
     if (!result.ok) {
       run.error = result.error;

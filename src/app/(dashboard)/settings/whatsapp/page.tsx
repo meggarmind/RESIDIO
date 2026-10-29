@@ -102,7 +102,7 @@ export default async function WhatsAppOperationsPage() {
       >
         <SettingsRow rowId="whatsapp-rollout" stacked>
           <div className="w-full">
-            <PilotControls initial={pilot} roster={pilotRosterResult.data} rosterError={pilotRosterResult.error} />
+            <PilotControls initial={pilot} roster={pilotRosterResult.data} rosterError={pilotRosterResult.error} groupAvailable={!!estateGroupResult.data?.wahaActive && !!estateGroupResult.data.groupId} />
           </div>
         </SettingsRow>
       </SettingsSection>

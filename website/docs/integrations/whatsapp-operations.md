@@ -11,7 +11,7 @@ residio_sources:
   - src/app/(dashboard)/system/whatsapp-monitoring/**
   - src/app/(dashboard)/system/whatsapp-bot-health/**
   - src/app/api/whatsapp/**
-residio_verified_commit: 38c0b8b5
+residio_verified_commit: ab8a13f4
 residio_verified_at: '2026-10-29'
 residio_app_version: '0.4.0'
 ---
@@ -133,6 +133,7 @@ While the switch is off, a resident who writes in gets one reply, "The estate As
 | `Disabled` | Nobody. Outbound is blocked entirely. This is the default. |
 | `Pilot` | Only named residents, plus every resident on one nominated street. |
 | `Estate` | All residents. |
+| `Estate group members` | Residents whose number is a current member of the estate group, plus the pilot residents. Needs WAHA as the active provider and a chosen estate group. |
 
 Use **Rollout and pilot controls** to set the mode. In pilot mode you choose a **pilot street** by name, pilot residents by name, or both. A resident who matches either rule is included.
 
@@ -166,7 +167,9 @@ Residio keeps a list of the group members. For each member it stores the phone n
 - Every night Residio reads the full member list from WAHA and makes its own list equal to it. It asks WAHA to refresh its groups at most once a day.
 - A member who matches no resident record is removed 30 days after Residio last saw them. A member who matches a resident is not removed.
 
-This list does not yet change who can use the bot. The sync does not close sessions and does not move out any resident.
+In the `Estate group members` rollout mode, a resident can use the bot when one of their numbers is a current member of the group. A pilot resident can also use it. The mode appears in the rollout list only when WAHA is active and a group is chosen. If WAHA stops being the active provider, or the group is cleared, nobody is allowed. WhatsApp messages to residents also go only to these residents. A group member whose number matches no resident record gets no menu. A resident who is in the group but not on the list gets: "WhatsApp access is for members of the estate group. Please contact the estate office."
+
+When a member who matches a resident record leaves the group, Residio closes that number's bot session and sends the office an in-app notification to check the record. It writes one audit entry. It does not move out or deactivate the resident.
 
 ## Consent and opt-ins
 

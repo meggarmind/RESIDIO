@@ -509,13 +509,29 @@ describe('WhatsApp Assistant guards', () => {
 
   it('blocks access when the resident is outside the active pilot', async () => {
     const { isWhatsAppRecipientAllowed } = await import('@/lib/whatsapp/rollout');
+    const { getSettingResultAsService } = await import('@/lib/settings/service');
     vi.mocked(isWhatsAppRecipientAllowed).mockResolvedValueOnce(false);
+    vi.mocked(getSettingResultAsService).mockResolvedValueOnce({ status: 'ok', value: 'pilot' });
     const repo = repository();
 
     const replies = await chat(repo, ['owe']);
 
     expect(repo.getOwed).not.toHaveBeenCalled();
     expect(replies[0]).toContain('not currently enabled');
+  });
+
+  it('uses the estate-group refusal line when rollout mode is group (#1326)', async () => {
+    const { isWhatsAppRecipientAllowed } = await import('@/lib/whatsapp/rollout');
+    const { getSettingResultAsService } = await import('@/lib/settings/service');
+    vi.mocked(isWhatsAppRecipientAllowed).mockResolvedValueOnce(false);
+    vi.mocked(getSettingResultAsService).mockResolvedValueOnce({ status: 'ok', value: 'group' });
+    const repo = repository();
+
+    const replies = await chat(repo, ['owe']);
+
+    expect(repo.getOwed).not.toHaveBeenCalled();
+    expect(replies[0]).toContain('members of the estate group');
+    expect(replies[0]).not.toContain('pilot audience');
   });
 
   it('requires the estate-wide PIN before Financial standing only', async () => {
