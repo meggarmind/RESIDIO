@@ -19,7 +19,7 @@ import {
 } from '@/lib/whatsapp/privacy-notice';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { getSponsoredHouses, isOnRoster } from '@/lib/whatsapp/co-resident';
-import { contactLine } from '@/lib/whatsapp/assistant-format';
+import { contactLine, spaceOut } from '@/lib/whatsapp/assistant-format';
 import { createSupabaseWhatsAppFinancialRepository, houseLabel, setAdminMenuStep, type WhatsAppFinancialRepository } from '@/lib/whatsapp/financial';
 import type { WhatsAppInboundMessage, WhatsAppTextMessage } from '@/lib/whatsapp/types';
 import { loadAssistantName } from '@/lib/whatsapp/assistant-name';
@@ -754,7 +754,7 @@ async function sendReply(
       residentId,
       inboundMessageId: message.id,
     })))(
-    { to: message.from, body, idempotencySeed: message.id, ...(mediaUrls ? { mediaUrls } : {}) }
+    { to: message.from, body: spaceOut(body), idempotencySeed: message.id, ...(mediaUrls ? { mediaUrls } : {}) }
   );
 
   if (!result.success) {

@@ -273,6 +273,34 @@ export function chargeLabel(invoice: { invoice_type: string | null; profileName:
   return month ? `${name}, ${MONTHS[Number(month[2]) - 1].toUpperCase()} ${month[1]}` : name;
 }
 
+const LIST_ITEM = /^\d+\.\s/;
+const BOLD_HEADING = /^\*[^*]+\*$/;
+const OWN_PARAGRAPH = /^(Reply |Contact the estate office )/;
+
+/**
+ * Blank lines that make a WhatsApp reply easy to read (owner request 29 Oct 2026), applied to every
+ * bot reply as it is sent: after a bold heading, before a numbered list and between list items that
+ * carry a detail line, and before each `Reply ...` instruction and the estate office contact line.
+ * It only adds blank lines (never more than one in a row), so running it twice changes nothing.
+ */
+export function spaceOut(text: string): string {
+  const out: string[] = [];
+  const lines = text.split('\n');
+  lines.forEach((line, index) => {
+    const previous = out[out.length - 1];
+    const wanted = previous !== undefined && previous.trim() !== '' && line.trim() !== '' && (
+      BOLD_HEADING.test(lines[index - 1].trim())
+      || (LIST_ITEM.test(line) && !LIST_ITEM.test(previous))
+      || OWN_PARAGRAPH.test(line)
+    );
+    if (wanted) out.push('');
+    if (line.trim() === '' && (previous === undefined || previous.trim() === '')) return;
+    out.push(line);
+  });
+  while (out.length && out[out.length - 1].trim() === '') out.pop();
+  return out.join('\n');
+}
+
 /** Last line of every answer. */
 export function answerFooter(hasContact: boolean): string {
   return hasContact ? 'Reply 0 for menu or 9 to contact the estate office.' : 'Reply 0 for menu.';
