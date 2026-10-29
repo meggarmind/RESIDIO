@@ -9,20 +9,32 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { permissionToGrant } from '@/lib/auth/board-roles';
-import type { AdminTitleWithHolders, AppRoleWithPermissions } from '@/types/database';
+import type { AdminTitleWithHolders } from '@/types/database';
 
 /** Value for "no title" in a Select, which cannot hold an empty string item. */
 const NO_TITLE = '__none__';
+
+/**
+ * The fields of a role these helpers read. Both AppRoleWithPermissions (Roles
+ * tab) and AssignableRole (the assignment dialogs, #1316) satisfy it.
+ */
+export type PickerRole = {
+  id: string;
+  name: string;
+  display_name: string;
+  is_active: boolean;
+  requires_resident?: boolean;
+};
 
 /**
  * Roles the signed-in administrator may grant. Mirrors assertCanGrantRoles in
  * the assign actions, which is the enforcement; this only avoids offering a
  * choice the server would refuse.
  */
-export function grantableRoles(
-  roles: AppRoleWithPermissions[] | undefined,
+export function grantableRoles<R extends PickerRole>(
+  roles: R[] | undefined,
   hasPermission: (permission: string) => boolean
-): AppRoleWithPermissions[] {
+): R[] {
   return (roles ?? []).filter(
     (role) => role.is_active && hasPermission(permissionToGrant(role.name))
   );
@@ -39,11 +51,38 @@ export function isTitleFull(title: AdminTitleWithHolders, profileId: string | nu
 
 /** Why a resident-only role cannot go to this account, or null when it can. */
 export function residentRoleBlock(
-  role: AppRoleWithPermissions | undefined,
+  role: PickerRole | undefined,
   hasResidentLink: boolean
 ): string | null {
   if (!role?.requires_resident || hasResidentLink) return null;
   return `The ${role.display_name} role can only be held by a resident. This account is not linked to a resident record, so link it first.`;
+}
+
+/**
+ * What to show instead of a role list that cannot offer anything: the load
+ * error with the server's reason, a loading line, or "No roles you can give".
+ * Null when there are roles to choose from. Never an empty select (CORE.md §6).
+ */
+export function roleListNotice({
+  isLoading,
+  error,
+  count,
+}: {
+  isLoading: boolean;
+  error: unknown;
+  count: number;
+}) {
+  if (error) {
+    const reason = error instanceof Error && error.message ? error.message : 'Unknown error';
+    return (
+      <p role="alert" className="text-sm text-destructive">
+        Could not load the roles: {reason}
+      </p>
+    );
+  }
+  if (isLoading) return <p className="text-sm text-muted-foreground">Loading roles...</p>;
+  if (count === 0) return <p className="text-sm text-muted-foreground">No roles you can give</p>;
+  return null;
 }
 
 export function RoleTitlePicker({
@@ -54,8 +93,10 @@ export function RoleTitlePicker({
   profileId,
   hasResidentLink,
   disabled,
+  titlesLoading,
+  titlesError,
 }: {
-  role: AppRoleWithPermissions | undefined;
+  role: PickerRole | undefined;
   titles: AdminTitleWithHolders[];
   titleId: string;
   onTitleChange: (titleId: string) => void;
@@ -63,6 +104,9 @@ export function RoleTitlePicker({
   profileId: string | null;
   hasResidentLink: boolean;
   disabled?: boolean;
+  titlesLoading?: boolean;
+  /** Why the titles could not be loaded; shown instead of an empty list. */
+  titlesError?: string | null;
 }) {
   const roleTitles = role ? titles.filter((t) => t.role_id === role.id) : [];
   const block = residentRoleBlock(role, hasResidentLink);
@@ -78,33 +122,43 @@ export function RoleTitlePicker({
           <p>{block}</p>
         </div>
       )}
-      {role && roleTitles.length > 0 && (
+      {role && (
         <div className="space-y-2">
           <label className="text-sm font-medium" htmlFor="role-title-select">
             Title
           </label>
-          <Select
-            value={titleId || NO_TITLE}
-            onValueChange={(value) => onTitleChange(value === NO_TITLE ? '' : value)}
-            disabled={disabled || Boolean(block)}
-          >
-            <SelectTrigger id="role-title-select" aria-label="Title">
-              <SelectValue placeholder="Select a title" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NO_TITLE}>No title</SelectItem>
-              {roleTitles.map((title) => {
-                const full = isTitleFull(title, profileId);
-                const holders = otherHolders(title, profileId).map((h) => h.name).join(', ');
-                return (
-                  <SelectItem key={title.id} value={title.id} disabled={full}>
-                    {title.name}
-                    {full && ` — held by ${holders}`}
-                  </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
+          {titlesError ? (
+            <p role="alert" className="text-sm text-destructive">
+              Could not load the titles: {titlesError}
+            </p>
+          ) : titlesLoading ? (
+            <p className="text-sm text-muted-foreground">Loading titles...</p>
+          ) : roleTitles.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No titles for this role</p>
+          ) : (
+            <Select
+              value={titleId || NO_TITLE}
+              onValueChange={(value) => onTitleChange(value === NO_TITLE ? '' : value)}
+              disabled={disabled || Boolean(block)}
+            >
+              <SelectTrigger id="role-title-select" aria-label="Title">
+                <SelectValue placeholder="Select a title" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_TITLE}>No title</SelectItem>
+                {roleTitles.map((title) => {
+                  const full = isTitleFull(title, profileId);
+                  const holders = otherHolders(title, profileId).map((h) => h.name).join(', ');
+                  return (
+                    <SelectItem key={title.id} value={title.id} disabled={full}>
+                      {title.name}
+                      {full && ` — held by ${holders}`}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          )}
         </div>
       )}
     </div>

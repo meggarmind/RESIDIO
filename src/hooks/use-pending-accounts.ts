@@ -35,12 +35,14 @@ export function useApproveAccount() {
       profileId,
       roleId,
       residentId,
+      titleId,
     }: {
       profileId: string;
       roleId: string;
       residentId?: string;
+      titleId?: string | null;
     }) => {
-      const result = await approveAccount(profileId, roleId, residentId);
+      const result = await approveAccount(profileId, roleId, residentId, titleId);
       if (!result.success) {
         throw new Error(result.error);
       }
@@ -51,6 +53,8 @@ export function useApproveAccount() {
       queryClient.invalidateQueries({ queryKey: PENDING_ACCOUNTS_KEY });
       queryClient.invalidateQueries({ queryKey: ['current-admins'] });
       queryClient.invalidateQueries({ queryKey: ['users-with-roles'] });
+      // A title seat may now be taken.
+      queryClient.invalidateQueries({ queryKey: ['admin-titles'] });
       toast.success('Account approved');
     },
     onError: (error: Error) => {

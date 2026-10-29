@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -36,13 +36,13 @@ import {
 } from '@/components/ui/alert-dialog';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useDebounce } from '@/hooks/use-debounce';
-import { useRolesWithPermissions, useAdminTitles } from '@/hooks/use-roles';
+import { useAssignableRoles, useAdminTitles } from '@/hooks/use-roles';
 import { usePortalAccessOverrides } from '@/hooks/use-portal-access';
 import { PortalAccessControl } from './portal-access-control';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { permissionToManage } from '@/lib/auth/board-roles';
 import { roleWithTitle } from '@/lib/auth/role-label';
-import { RoleTitlePicker, grantableRoles, residentRoleBlock } from './role-title-picker';
+import { RoleTitlePicker, grantableRoles, residentRoleBlock, roleListNotice } from './role-title-picker';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   searchResidentsForRoleAssignment,
@@ -119,7 +119,7 @@ function residentToTarget(resident: ResidentSearchResult): RoleTarget {
     phone: resident.phone_primary,
     houseAddress: resident.house_address,
     profileId: resident.profile_id,
-    approvalStatus: null,
+    approvalStatus: resident.approval_status,
     hasResidentLink: true,
     currentRoleId: resident.current_role_id,
     currentRoleName: resident.current_role_name,
@@ -150,8 +150,8 @@ function profileToTarget(profile: ProfileSearchResult): RoleTarget {
 
 export function RoleAssignmentSection() {
   const { hasPermission, residentPortalEnabled } = useAuth();
-  const { data: roles, isLoading: rolesLoading } = useRolesWithPermissions();
-  const { data: titles } = useAdminTitles();
+  const { data: roles, isLoading: rolesLoading, error: rolesError } = useAssignableRoles();
+  const { data: titles, isLoading: titlesLoading, error: titlesError } = useAdminTitles();
   const queryClient = useQueryClient();
 
   // Search state
@@ -178,18 +178,31 @@ export function RoleAssignmentSection() {
 
   // Permission checks
   const { data: portalOverrides } = usePortalAccessOverrides(selectedTarget?.profileId ? [selectedTarget.profileId] : []);
-  const canManageRoles = hasPermission('system.manage_roles');
   const canAssignRoles = hasPermission('system.assign_roles');
 
   // Filter roles to what the current user may grant. Same rule as the server's
   // assertCanGrantRoles (board roles need system.assign_board_roles); the server
   // is the enforcement boundary, this just avoids offering choices it would refuse.
   const assignableRoles = grantableRoles(roles, hasPermission);
+  const rolesNotice = roleListNotice({
+    isLoading: rolesLoading,
+    error: rolesError,
+    count: assignableRoles.length,
+  });
+
+  // The latest search asked for. A reply to any other (an older, slower one,
+  // or one from the other mode) is dropped so it cannot overwrite newer results.
+  const latestSearch = useRef('');
 
   // Search for residents or accounts, depending on the active mode
   const performSearch = useCallback(async (query: string, mode: SearchMode) => {
+    const key = `${mode}:${query}`;
+    latestSearch.current = key;
+    const isLatest = () => latestSearch.current === key;
+
     if (query.length < 2) {
       setSearchResults([]);
+      setIsSearching(false);
       return;
     }
 
@@ -197,6 +210,7 @@ export function RoleAssignmentSection() {
     try {
       if (mode === 'accounts') {
         const result = await searchProfilesForRoleAssignment(query);
+        if (!isLatest()) return;
         if (result.error) {
           toast.error(result.error);
           setSearchResults([]);
@@ -205,6 +219,7 @@ export function RoleAssignmentSection() {
         }
       } else {
         const result = await searchResidentsForRoleAssignment(query);
+        if (!isLatest()) return;
         if (result.error) {
           toast.error(result.error);
           setSearchResults([]);
@@ -213,17 +228,47 @@ export function RoleAssignmentSection() {
         }
       }
     } catch {
+      if (!isLatest()) return;
       toast.error(mode === 'accounts' ? 'Failed to search accounts' : 'Failed to search residents');
       setSearchResults([]);
     } finally {
-      setIsSearching(false);
+      if (isLatest()) setIsSearching(false);
     }
   }, []);
 
-  // Debounced search effect
+  // Debounced search. It depends on the mode too, so switching between
+  // Residents and Accounts re-runs the current query against the other list.
   useEffect(() => {
     performSearch(debouncedSearch, searchMode);
   }, [debouncedSearch, searchMode, performSearch]);
+
+  // Every list an assignment or removal changes.
+  const refreshAfterChange = () => {
+    queryClient.invalidateQueries({ queryKey: ['current-admins'] });
+    queryClient.invalidateQueries({ queryKey: ['admin-titles'] });
+    queryClient.invalidateQueries({ queryKey: ['roles'] });
+    queryClient.invalidateQueries({ queryKey: ['assignable-roles'] });
+    queryClient.invalidateQueries({ queryKey: ['pending-accounts'] });
+    queryClient.invalidateQueries({ queryKey: ['users-with-roles'] });
+  };
+
+  // After an account is linked to the selected resident, read the resident
+  // again so the card shows the new account and its status.
+  const refreshSelectedResident = async (target: RoleTarget) => {
+    try {
+      const result = await searchResidentsForRoleAssignment(target.name);
+      const fresh = result.data?.find((r) => r.id === target.targetId);
+      if (fresh) {
+        setSelectedTarget((current) =>
+          current?.kind === 'residents' && current.targetId === target.targetId
+            ? residentToTarget(fresh)
+            : current
+        );
+      }
+    } catch {
+      toast.error('The account was linked, but the resident could not be reloaded. Search for them again.');
+    }
+  };
 
   const handleModeChange = (mode: string) => {
     // Radix clears the value when the active item is pressed again; ignore that
@@ -284,10 +329,7 @@ export function RoleAssignmentSection() {
         toast.error(result.error);
       } else {
         toast.success(`Role removed from ${selectedTarget.name}`);
-        // Refresh current admins list
-        queryClient.invalidateQueries({ queryKey: ['current-admins'] });
-        queryClient.invalidateQueries({ queryKey: ['pending-accounts'] });
-        queryClient.invalidateQueries({ queryKey: ['users-with-roles'] });
+        refreshAfterChange();
         // Update local state. An account with no resident link is sent back to
         // pending by the server, so reflect that here too.
         const returnsToPending =
@@ -303,7 +345,6 @@ export function RoleAssignmentSection() {
         });
         setSelectedRoleId('');
         setSelectedTitleId('');
-        queryClient.invalidateQueries({ queryKey: ['admin-titles'] });
       }
     } catch {
       toast.error('Failed to remove role');
@@ -331,9 +372,7 @@ export function RoleAssignmentSection() {
         toast.success(
           `${roleWithTitle(assigned?.role_display_name ?? assignedRole?.display_name, assigned?.title_name)} assigned to ${selectedTarget.name}`
         );
-        // Refresh current admins list and seat counts
-        queryClient.invalidateQueries({ queryKey: ['current-admins'] });
-        queryClient.invalidateQueries({ queryKey: ['admin-titles'] });
+        refreshAfterChange();
         setSelectedTarget({
           ...selectedTarget,
           currentRoleId: selectedRoleId,
@@ -366,8 +405,13 @@ export function RoleAssignmentSection() {
   // pending or suspended profile resolves no permissions in the database at
   // all, so granting one here would look like it worked and change nothing.
   // Approval is the gate, and it lives on the Pending Accounts tab.
-  const unapprovedAccount =
-    selectedTarget?.kind === 'accounts' && selectedTarget.approvalStatus !== 'active';
+  // The server refuses it too (assignRoleToProfile), for an account found
+  // either way: by account or through the resident it is linked to.
+  const unapprovedAccount = Boolean(
+    selectedTarget?.profileId &&
+      selectedTarget.approvalStatus &&
+      selectedTarget.approvalStatus !== 'active'
+  );
 
   // Residents only hold a role through a linked account.
   const missingAccountLink = selectedTarget?.kind === 'residents' && !selectedTarget.profileId;
@@ -386,7 +430,8 @@ export function RoleAssignmentSection() {
     canManageCurrentRole && selectedTarget?.currentRoleName !== 'super_admin'
   );
 
-  if (!canAssignRoles && !canManageRoles) {
+  // Every action in this section needs system.assign_roles.
+  if (!canAssignRoles) {
     return (
       <div className="text-center py-8 text-muted-foreground">
         <Shield className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -587,8 +632,8 @@ export function RoleAssignmentSection() {
                   <p className="font-medium">Account Not Approved</p>
                   <p>
                     {selectedTarget.approvalStatus === 'pending'
-                      ? 'This account is still waiting for approval. Approve it under Pending Accounts — that step chooses the role and grants access in one go.'
-                      : `This account is ${PROFILE_APPROVAL_STATUS_LABELS[selectedTarget.approvalStatus!].toLowerCase()} and holds no permissions. Restore it before assigning a role.`}
+                      ? 'This account is still waiting for approval. Approve it under Pending sign-ups — that step chooses the role and grants access in one go.'
+                      : `This account is ${PROFILE_APPROVAL_STATUS_LABELS[selectedTarget.approvalStatus!].toLowerCase()} and holds no permissions, so a role cannot be given to it here.`}
                   </p>
                 </div>
               </div>
@@ -597,22 +642,24 @@ export function RoleAssignmentSection() {
             <div className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Assign Role</label>
-                <Select
-                  value={selectedRoleId}
-                  onValueChange={handleRoleChange}
-                  disabled={rolesLoading || isAssigning || assignmentBlocked}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a role to assign" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {assignableRoles.map((role) => (
-                      <SelectItem key={role.id} value={role.id}>
-                        <span>{role.display_name}</span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {rolesNotice ?? (
+                  <Select
+                    value={selectedRoleId}
+                    onValueChange={handleRoleChange}
+                    disabled={isAssigning || assignmentBlocked}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a role to assign" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {assignableRoles.map((role) => (
+                        <SelectItem key={role.id} value={role.id}>
+                          <span>{role.display_name}</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               <RoleTitlePicker
                 role={selectedRole}
@@ -622,10 +669,14 @@ export function RoleAssignmentSection() {
                 profileId={selectedTarget.profileId}
                 hasResidentLink={selectedTarget.hasResidentLink}
                 disabled={isAssigning || assignmentBlocked}
+                titlesLoading={titlesLoading}
+                titlesError={titlesError ? titlesError.message : null}
               />
               <Button
                 onClick={handleAssignClick}
-                disabled={!hasChanges || isAssigning || assignmentBlocked || Boolean(residentBlock)}
+                disabled={
+                  !hasChanges || !selectedRole || isAssigning || assignmentBlocked || Boolean(residentBlock)
+                }
               >
                 {isAssigning ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -760,10 +811,7 @@ export function RoleAssignmentSection() {
           residentName={selectedTarget.name}
           residentEmail={selectedTarget.email}
           onSuccess={() => {
-            // Re-search to get updated data. The resident search matches
-            // first_name/last_name separately, so feed it a single name part
-            // rather than the joined display name.
-            performSearch(selectedTarget.name.split(' ')[0], 'residents');
+            void refreshSelectedResident(selectedTarget);
           }}
         />
       )}

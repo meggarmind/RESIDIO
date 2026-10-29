@@ -325,14 +325,13 @@ function LinkToResidentDialog({
 
   const linkAccount = useLinkAuthAccount();
 
-  // One search per settled query. The search action caps its result at 20 rows and
-  // lives in the roles actions, so residents that already have an account are
-  // dropped here, from that page of results.
+  // One search per settled query. unlinkedOnly drops residents linked from either side
+  // in the query, before the 20-row cap (#1316).
   useEffect(() => {
     if (debouncedQuery.length < 2) return;
 
     let cancelled = false;
-    searchResidentsForRoleAssignment(debouncedQuery)
+    searchResidentsForRoleAssignment(debouncedQuery, { unlinkedOnly: true })
       .then((result) => {
         if (cancelled) return;
         setOutcome({

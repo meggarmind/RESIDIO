@@ -30,13 +30,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useAdminTitles, useCurrentAdmins, useRolesWithPermissions } from '@/hooks/use-roles';
+import { useAdminTitles, useAssignableRoles, useCurrentAdmins } from '@/hooks/use-roles';
 import { assignRoleToProfile, removeRoleFromProfile } from '@/actions/roles/assign-role';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { permissionToManage } from '@/lib/auth/board-roles';
 import { roleWithTitle } from '@/lib/auth/role-label';
-import { RoleTitlePicker, grantableRoles, residentRoleBlock } from './role-title-picker';
+import { RoleTitlePicker, grantableRoles, residentRoleBlock, roleListNotice } from './role-title-picker';
 
 type CurrentAdmin = NonNullable<ReturnType<typeof useCurrentAdmins>['data']>[number];
 
@@ -48,8 +48,8 @@ type CurrentAdmin = NonNullable<ReturnType<typeof useCurrentAdmins>['data']>[num
 export function AdminRoleActions({ admin }: { admin: CurrentAdmin }) {
   const { hasPermission } = useAuth();
   const queryClient = useQueryClient();
-  const { data: roles } = useRolesWithPermissions();
-  const { data: titles } = useAdminTitles();
+  const { data: roles, isLoading: rolesLoading, error: rolesError } = useAssignableRoles();
+  const { data: titles, isLoading: titlesLoading, error: titlesError } = useAdminTitles();
 
   const [changeOpen, setChangeOpen] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
@@ -68,11 +68,14 @@ export function AdminRoleActions({ admin }: { admin: CurrentAdmin }) {
   const hasResidentLink = Boolean(admin.resident_id);
   const blocked = residentRoleBlock(role, hasResidentLink);
   const unchanged = roleId === admin.role_id && titleId === (admin.title_id ?? '');
+  const choices = grantableRoles(roles, hasPermission);
+  const rolesNotice = roleListNotice({ isLoading: rolesLoading, error: rolesError, count: choices.length });
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ['current-admins'] });
     queryClient.invalidateQueries({ queryKey: ['admin-titles'] });
     queryClient.invalidateQueries({ queryKey: ['roles'] });
+    queryClient.invalidateQueries({ queryKey: ['assignable-roles'] });
     queryClient.invalidateQueries({ queryKey: ['pending-accounts'] });
     queryClient.invalidateQueries({ queryKey: ['users-with-roles'] });
   };
@@ -168,18 +171,20 @@ export function AdminRoleActions({ admin }: { admin: CurrentAdmin }) {
               <label className="text-sm font-medium" htmlFor="change-role-select">
                 Role
               </label>
-              <Select value={roleId} onValueChange={handleRoleChange} disabled={busy}>
-                <SelectTrigger id="change-role-select" aria-label="Role">
-                  <SelectValue placeholder="Select a role" />
-                </SelectTrigger>
-                <SelectContent>
-                  {grantableRoles(roles, hasPermission).map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {r.display_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {rolesNotice ?? (
+                <Select value={roleId} onValueChange={handleRoleChange} disabled={busy}>
+                  <SelectTrigger id="change-role-select" aria-label="Role">
+                    <SelectValue placeholder="Select a role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {choices.map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.display_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
             <RoleTitlePicker
               role={role}
@@ -189,13 +194,18 @@ export function AdminRoleActions({ admin }: { admin: CurrentAdmin }) {
               profileId={admin.profile_id}
               hasResidentLink={hasResidentLink}
               disabled={busy}
+              titlesLoading={titlesLoading}
+              titlesError={titlesError ? titlesError.message : null}
             />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setChangeOpen(false)} disabled={busy}>
               Cancel
             </Button>
-            <Button onClick={confirmChange} disabled={busy || unchanged || Boolean(blocked)}>
+            <Button
+              onClick={confirmChange}
+              disabled={busy || unchanged || Boolean(blocked) || Boolean(rolesNotice) || !role}
+            >
               {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Save
             </Button>
