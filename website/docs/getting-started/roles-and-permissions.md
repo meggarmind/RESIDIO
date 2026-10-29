@@ -17,7 +17,7 @@ residio_sources:
   - src/components/admin/role-title-picker.tsx
   - src/components/admin/role-titles-manager.tsx
   - src/components/admin/pending-accounts-list.tsx
-residio_verified_commit: 95131b9a
+residio_verified_commit: ac5816c9
 residio_verified_at: '2026-10-29'
 residio_app_version: '0.4.0'
 ---
@@ -81,7 +81,7 @@ Whether an admin sees *My Portal*, *Resident Portal* and *View as Resident* depe
 :::
 
 :::info[What the Chairman cannot do]
-The Chairman has every operational module, the **Settings** section, projects and role assignment. It does not have the rest of **System** — defining roles, maintenance mode, data retention, system health — and it cannot view the portal as a resident (impersonation). Approving impersonation requests and changing impersonation settings belong to the Super Administrator alone, so no officer can approve their own request. Assigning the Super Administrator, Chairman or Trustee role needs the **Assign Board Roles** permission, which only the Super Administrator holds.
+The Chairman has every operational module, the **Settings** section, projects and role assignment. It also defines roles, titles and the role rules. It does not have the rest of **System** — maintenance mode, data retention, system health — and it cannot view the portal as a resident (impersonation). Approving impersonation requests and changing impersonation settings belong to the Super Administrator alone, so no officer can approve their own request. Assigning the Super Administrator, Chairman or Trustee role needs the **Assign Board Roles** permission, which the Super Administrator and the Chairman hold.
 :::
 
 Your deployment may contain additional custom roles, created under **Roles**. A custom role behaves exactly like a built-in one: its holder signs in to the admin dashboard and sees the modules it was granted. Ask a super administrator to confirm the exact permission set before assigning responsibility.
@@ -137,7 +137,7 @@ Select someone, choose a role, then choose a **title** under that role and confi
 
 The signed-in person's title shows next to their role in the header and sidebar, in the Administrators list and in the Roles tab.
 
-Who can change whom follows two permissions. **Assign Board Roles**, which only the Super Administrator holds, is needed to assign the Super Administrator, Chairman or Trustee role, and to change an account that holds the Super Administrator or Chairman role. **Assign Roles** covers every other role and every other account, a Trustee's included, so a Chairman can manage Trustee accounts but cannot appoint a Trustee. The same rules apply to approving, rejecting and removing roles, linking or unlinking an account and a resident, and resetting someone's two-factor authentication, and an Assignment Rule cannot allow a role you could not assign yourself.
+Who can change whom follows two permissions. **Assign Board Roles**, which the Super Administrator and the Chairman hold, is needed to assign the Super Administrator, Chairman or Trustee role, and to change an account that holds the Super Administrator or Chairman role. **Assign Roles** covers every other role and every other account, a Trustee's included. The same rules apply to approving, rejecting and removing roles, linking or unlinking an account and a resident, and resetting someone's two-factor authentication, and an Assignment Rule cannot allow a role you could not assign yourself.
 
 ### Accounts that are not yet approved
 
