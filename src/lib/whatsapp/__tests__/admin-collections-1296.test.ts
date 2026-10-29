@@ -147,7 +147,7 @@ describe('menu wiring (#1296)', () => {
     expect(without).not.toContain("Today's collections");
     expect(without).not.toContain('Clearance requests waiting');
     const withBoth = adminMenuText(account([PERMISSIONS.WHATSAPP_ADMIN_COLLECTIONS, PERMISSIONS.WHATSAPP_ADMIN_CLEARANCE_QUEUE]), null);
-    expect(withBoth).toContain("3. Today's collections");
-    expect(withBoth).toContain('4. Clearance requests waiting');
+    expect(withBoth).toContain("3. 📊 Today's collections");
+    expect(withBoth).toContain('4. 📋 Clearance requests waiting');
   });
 });

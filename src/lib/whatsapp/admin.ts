@@ -150,6 +150,8 @@ export interface WhatsAppAdminActionContext {
 export interface WhatsAppAdminAction {
   /** The Admin tools menu line (#1292). */
   label: string;
+  /** An emoji shown before the label on the Admin tools menu. */
+  icon?: string;
   /** The action's own permission (any one of them when a list), checked on top of whatsapp_admin.query. */
   permission: string | string[];
   /** True when every run needs a new authenticator code, even inside a session (a PDF, #972 D2). */
@@ -181,6 +183,7 @@ function lagosTime(iso: string): string {
 export const WHATSAPP_ADMIN_ACTIONS: Record<string, WhatsAppAdminAction> = {
   owes: {
     label: 'Resident status',
+    icon: '🏠',
     permission: PERMISSIONS.WHATSAPP_ADMIN_RESIDENT_STATUS,
     freshCode: false,
     async begin() {
@@ -709,9 +712,12 @@ function sessionLive(binding: WhatsAppAdminBinding | null, now: Date): boolean {
 export function adminMenuText(account: WhatsAppAdminAccount, binding: WhatsAppAdminBinding | null): string {
   const items = Object.entries(WHATSAPP_ADMIN_MENU)
     .filter(([, name]) => mayRun(account, WHATSAPP_ADMIN_ACTIONS[name]))
-    .map(([number, name]) => `${number}. ${WHATSAPP_ADMIN_ACTIONS[name].label}`);
+    .map(([number, name]) => {
+      const { icon, label } = WHATSAPP_ADMIN_ACTIONS[name];
+      return `${number}. ${icon ? `${icon} ` : ''}${label}`;
+    });
   return [
-    `Admin tools: ${account.fullName}, ${account.roleDisplayName || account.roleName}`,
+    `🛠️ Admin tools: ${account.fullName}, ${account.roleDisplayName || account.roleName}`,
     ...(binding?.sessionExpiresAt ? [`Session ends ${lagosClock(binding.sessionExpiresAt)}`] : []),
     '',
     ...(items.length > 0 ? items : ['Your role has no admin tools yet.']),

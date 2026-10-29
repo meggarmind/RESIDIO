@@ -11,7 +11,7 @@ residio_sources:
   - src/app/(dashboard)/system/whatsapp-monitoring/**
   - src/app/(dashboard)/system/whatsapp-bot-health/**
   - src/app/api/whatsapp/**
-residio_verified_commit: 538b9d06
+residio_verified_commit: 81d4147e
 residio_verified_at: '2026-10-29'
 residio_app_version: '0.4.0'
 ---
@@ -269,6 +269,8 @@ The main menu opens with `Hi <first name>, what would you like to do?` and lists
 | 6. Admin tools | The number is linked to an active admin account, or is the phone of the resident record tied to one (see *Admin mode*). Marked *code needed*, or *unlocked* during an admin session |
 | 9. Contact the estate office | The estate phone or email is set on **Settings → Estate & Property → Estate Profile** |
 
+Each menu item starts with an icon after its number, for example `1. 💰 Financial standing`. The icons are: main menu 💰 Financial standing, 📢 Latest estate notices, 🏦 How to pay, 🔔 Alert settings, ✉️ Update email, 🛠️ Admin tools, 📞 Contact the estate office. Financial standing (its heading has 💰): 💳 What I owe, 💵 Recent payments, 📄 Statement, 👛 Wallet, 🧾 Receipt, 📤 Report a payment, ✅ Clearance certificate, 👥 Link a co-resident, 🔄 Switch property. Alert settings (its heading has 🔔): 📣 All estate WhatsApp messages, ⏰ Payment reminders. Admin tools (its heading has 🛠️): 🏠 Resident status, 📉 Security debt status, 📊 Today's collections, 📋 Clearance requests waiting. Yes/No questions, the privacy notice and the survey have no icons. The resident still replies with the number only.
+
 **Financial standing** lists What I owe, Recent payments (the last 5, numbered 1 to 5 for reading only), Statement (this month, this year, last 6 months, last 12 months, all time or since move-in), Wallet, Receipt, Report a payment and Clearance certificate. Only this item, and Update email, ask for the PIN. A resident billed for more than one property is asked which one once per session (What I owe asks every time, see below), sees it in every heading, and can change it with **10. Switch property**, which is shown only to a resident billed for more than one property. **8. Link a co-resident** is shown to the resident landlord or tenant of the selected property until one of their co-residents there has linked their number (see below). The keyword `link co-resident` still works after that.
 
 The statement periods depend on the property's move-in date. *All time* is listed only when the resident has an invoice or a payment that the statement would show (paid, and verified when roll-forward is on) for that property dated before the move-in; otherwise there are 5 periods with *Since move-in* as 5, and typing `all time` gives the since move-in statement. Without a move-in date, *All time* is listed and *Since move-in* is not.
@@ -332,7 +334,7 @@ Each saves on its own and is written to the audit log.
 
 Admin mode lets an admin use **Admin tools** in the WhatsApp Assistant from their own phone. Every staff role (Executive Committee, Board of Trustees and staff roles, not resident roles) can hold **Use WhatsApp Admin Mode** (`whatsapp_admin.query`). On a number linked to an active admin account, the main menu shows **6. Admin tools**: *(code needed)* before the code is entered, *(unlocked)* during a session, or no note when no code is needed. Other numbers never see item 6. `ADMIN` alone opens Admin tools as well; from a number that is not an admin number it gets the normal "I didn't catch that" reply. Every message checks the live account, role and permission again.
 
-**The Admin tools menu.** It starts with `Admin tools: <name>, <role>` and `Session ends HH:MM`, lists only the items the admin's role may use, and ends with `Reply 0 for menu or LOCK to lock now.` `0` goes back to the main menu, and `LOCK` ends the admin session. Admin and resident steps share one conversation, so a reply always goes to the step on screen. Each item has its own permission, under **WhatsApp Admin Tools** in the role permissions:
+**The Admin tools menu.** It starts with `🛠️ Admin tools: <name>, <role>` and `Session ends HH:MM`, lists only the items the admin's role may use, and ends with `Reply 0 for menu or LOCK to lock now.` `0` goes back to the main menu, and `LOCK` ends the admin session. Admin and resident steps share one conversation, so a reply always goes to the step on screen. Each item has its own permission, under **WhatsApp Admin Tools** in the role permissions:
 
 | Item | Permission | Default roles |
 | --- | --- | --- |
