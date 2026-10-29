@@ -439,17 +439,18 @@ export function createSupabaseWhatsAppAdminRepository(): WhatsAppAdminRepository
 
     async findAutoLinkProfile(phoneNumber) {
       const supabase = db();
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, resident:residents!profiles_resident_id_fkey (phone_primary, phone_secondary)')
-        .not('resident_id', 'is', null);
+      const tail = phoneNumber.replace(/\D/g, '').slice(-4);
+      const { data: residents, error: residentError } = await supabase
+        .from('residents')
+        .select('id, phone_primary, phone_secondary')
+        .or(`phone_primary.ilike.%${tail}%,phone_secondary.ilike.%${tail}%`);
+      if (residentError) throw residentError;
+      const residentIds = (residents || []).filter((resident) => isOnRoster(resident, phoneNumber)).map((resident) => resident.id);
+      if (residentIds.length === 0) return null;
+      const { data: matches, error } = await supabase.from('profiles').select('id').in('resident_id', residentIds);
       if (error) throw error;
-      const matches = (data || []).filter((row) => {
-        const resident = (Array.isArray(row.resident) ? row.resident[0] : row.resident) as { phone_primary: string | null; phone_secondary: string | null } | null;
-        return resident !== null && isOnRoster(resident, phoneNumber);
-      });
-      if (matches.length !== 1) return null;
-      const profileId = matches[0].id as string;
+      if ((matches || []).length !== 1) return null;
+      const profileId = matches![0].id as string;
       const { count, error: bindingError } = await supabase
         .from('whatsapp_admin_bindings')
         .select('id', { count: 'exact', head: true })
