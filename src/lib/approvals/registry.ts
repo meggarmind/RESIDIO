@@ -8,7 +8,7 @@
  * trusted by type alone).
  *
  * Deliberately NOT a server-action module (no directive): these are server-only helpers
- * reached through approveRequest, which has already passed its own authorizePermission().
+ * reached through the decision core (decision.ts), whose caller has already checked approvals.approve_reject.
  *
  * `late_fee_waiver` is in the DB enum but has NO entry on purpose: it is handled by its own
  * flow (src/actions/billing/late-fee-waivers.ts, its own table). Looking it up here returns
@@ -18,10 +18,9 @@
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ApprovalRequest, ApprovalRequestType, AuditEntityType } from '@/types/database';
-import { logAudit } from '@/lib/audit/logger';
 import { getChangedValues } from '@/lib/audit/helpers';
-import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { SESSION_REVIEWER, type ApprovalReviewer } from '@/lib/approvals/reviewer';
 import { formatNaira } from '@/lib/whatsapp/assistant-format';
 import { settleReportedPayment } from '@/lib/whatsapp/payment-report-settlement';
 import { issueApprovedClearance } from '@/lib/whatsapp/clearance-approval';
@@ -38,12 +37,17 @@ export interface ApprovalHandler<TChanges> {
   schema: z.ZodType<TChanges>;
   /** Entity type written to the audit log when the change is applied. */
   auditEntityType: AuditEntityType;
-  /** Reads the entity, applies the change with the session client, and writes the entity audit. */
+  /**
+   * Reads the entity, applies the change with the caller's client, and writes the entity audit. The
+   * reviewer checks permissions and writes audits; it is the web session's user unless a service
+   * caller passes its own (#1297).
+   */
   apply: (
     request: ApprovalRequest,
     changes: TChanges,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    supabase: SupabaseClient<any, any, any>
+    supabase: SupabaseClient<any, any, any>,
+    reviewer?: ApprovalReviewer
   ) => Promise<ApprovalApplyResult>;
 }
 
@@ -61,7 +65,7 @@ const housePlotsChanges = z.object({
 const billingProfileEffectiveDate: ApprovalHandler<z.infer<typeof billingProfileEffectiveDateChanges>> = {
   schema: billingProfileEffectiveDateChanges,
   auditEntityType: 'billing_profiles',
-  apply: async (request, { effective_date }, supabase) => {
+  apply: async (request, { effective_date }, supabase, reviewer = SESSION_REVIEWER) => {
     const { data: before, error: readError } = await supabase
       .from('billing_profiles')
       .select('name, effective_date')
@@ -88,7 +92,7 @@ const billingProfileEffectiveDate: ApprovalHandler<z.infer<typeof billingProfile
       { effective_date: before.effective_date },
       { effective_date }
     );
-    await logAudit({
+    await reviewer.audit({
       action: 'UPDATE',
       entityType: 'billing_profiles',
       entityId: request.entity_id,
@@ -106,7 +110,7 @@ const billingProfileEffectiveDate: ApprovalHandler<z.infer<typeof billingProfile
 const housePlotsChange: ApprovalHandler<z.infer<typeof housePlotsChanges>> = {
   schema: housePlotsChanges,
   auditEntityType: 'houses',
-  apply: async (request, { number_of_plots }, supabase) => {
+  apply: async (request, { number_of_plots }, supabase, reviewer = SESSION_REVIEWER) => {
     const { data: before, error: readError } = await supabase
       .from('houses')
       .select('house_number, number_of_plots')
@@ -133,7 +137,7 @@ const housePlotsChange: ApprovalHandler<z.infer<typeof housePlotsChanges>> = {
       { number_of_plots: before.number_of_plots },
       { number_of_plots }
     );
-    await logAudit({
+    await reviewer.audit({
       action: 'UPDATE',
       entityType: 'houses',
       entityId: request.entity_id,
@@ -162,8 +166,8 @@ const whatsappPaymentReportChanges = z.object({
 const whatsappPaymentReport: ApprovalHandler<z.infer<typeof whatsappPaymentReportChanges>> = {
   schema: whatsappPaymentReportChanges,
   auditEntityType: 'payment_records',
-  apply: async (request, changes) => {
-    const auth = await authorizePermission(PERMISSIONS.PAYMENTS_VERIFY);
+  apply: async (request, changes, _supabase, reviewer = SESSION_REVIEWER) => {
+    const auth = await reviewer.authorize(PERMISSIONS.PAYMENTS_VERIFY);
     if (!auth.authorized || !auth.userId) {
       return { success: false, error: 'Confirming a reported payment needs the payments.verify permission' };
     }
@@ -171,7 +175,7 @@ const whatsappPaymentReport: ApprovalHandler<z.infer<typeof whatsappPaymentRepor
     const settled = await settleReportedPayment(request.entity_id, auth.userId);
     if (!settled.success) return { success: false, error: settled.error };
 
-    await logAudit({
+    await reviewer.audit({
       action: 'VERIFY',
       entityType: 'payment_records',
       entityId: request.entity_id,
@@ -197,8 +201,8 @@ const clearanceRequestChanges = z.object({
 const clearanceCertificateRequest: ApprovalHandler<z.infer<typeof clearanceRequestChanges>> = {
   schema: clearanceRequestChanges,
   auditEntityType: 'clearance_certificate',
-  apply: async (request) => {
-    const auth = await authorizePermission(PERMISSIONS.APPROVALS_APPROVE_REJECT);
+  apply: async (request, _changes, _supabase, reviewer = SESSION_REVIEWER) => {
+    const auth = await reviewer.authorize(PERMISSIONS.APPROVALS_APPROVE_REJECT);
     if (!auth.authorized || !auth.userId) {
       return { success: false, error: auth.error || 'Unauthorized' };
     }
