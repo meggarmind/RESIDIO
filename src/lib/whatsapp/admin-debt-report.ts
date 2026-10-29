@@ -24,6 +24,7 @@ export const DEBT_REPORT_QUEUE_FAILED_REPLY = 'The debt status report could not 
  */
 export const debtReportAction: WhatsAppAdminAction = {
   label: 'Security debt status',
+  icon: '📄',
   permission: PERMISSIONS.WHATSAPP_ADMIN_DEBT_REPORT,
   freshCode: true,
 

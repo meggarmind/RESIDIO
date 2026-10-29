@@ -242,10 +242,10 @@ describe('opening Admin tools with the code on (#1292 item 3)', () => {
     expect(repo.acceptCode).toHaveBeenCalledWith('binding-1', totpStepAt(NOW.getTime()), '2026-10-22T10:15:00.000Z', NOW);
     expect(repo.audit).toHaveBeenCalledWith(expect.objectContaining({ action: 'APPROVE' }), account.profileId);
     const menu = reply.mock.calls[0][0] as string;
-    expect(menu).toContain('Admin tools: Ada Admin, Chairman');
+    expect(menu).toContain('🛠️ Admin tools: Ada Admin, Chairman');
     expect(menu).toContain('Session ends 11:15');
-    expect(menu).toContain('1. Resident status');
-    expect(menu).toContain('2. Security debt status');
+    expect(menu).toContain('1. 🏠 Resident status');
+    expect(menu).toContain('2. 📄 Security debt status');
     expect(menu).toContain('Reply 0 for menu or LOCK to lock now.');
     expect(setStep).toHaveBeenCalledWith(ADMIN_MENU_NODE);
   });
@@ -339,7 +339,7 @@ describe('the Admin tools menu (#1292 item 4)', () => {
   it('lists only the items the role may use, and a hidden number reads as unrecognised', async () => {
     const repo = liveSession({ loadAccount: vi.fn().mockResolvedValue({ ...account, permissions: ['whatsapp_admin.query', 'whatsapp_admin.resident_status'] }) });
     const { reply } = await send('ADMIN', repo);
-    expect(reply.mock.calls[0][0]).toContain('1. Resident status');
+    expect(reply.mock.calls[0][0]).toContain('1. 🏠 Resident status');
     expect(reply.mock.calls[0][0]).not.toContain('Security debt status');
 
     const hidden = await step(ADMIN_MENU_NODE, '2', repo);

@@ -90,6 +90,7 @@ export function composeCollectionsAnswer(payments: CollectionPayment[], now: Dat
 
 export const collectionsAction: WhatsAppAdminAction = {
   label: "Today's collections",
+  icon: '📊',
   permission: PERMISSIONS.WHATSAPP_ADMIN_COLLECTIONS,
   freshCode: false,
   async run({ now }) {
@@ -137,6 +138,7 @@ export function composeClearanceQueueAnswer(rows: ClearanceRequest[], total: num
 
 export const clearanceQueueAction: WhatsAppAdminAction = {
   label: 'Clearance requests waiting',
+  icon: '📋',
   permission: PERMISSIONS.WHATSAPP_ADMIN_CLEARANCE_QUEUE,
   freshCode: false,
   async run() {
