@@ -354,7 +354,9 @@ Admin mode lets an admin use **Admin tools** in the WhatsApp Assistant from thei
 
 **When a link ends.** A link ends when the admin's role, account status or authenticator app changes, 90 days after linking, or after 30 days without use. The admin then links the number again.
 
-**Limits.** At most 50 admin requests per admin per day (reset at midnight, Lagos time). Five wrong codes lock admin mode on that number for 30 minutes, and the admin gets an email.
+**Limits.** At most 50 admin requests per admin per day (reset at midnight, Lagos time). The `whatsapp_admin_daily_cap` setting can change the limit for a role: a JSON map of role name to limit, for example `{"chairman": 100}`. A role that is not in the map, or an entry that is not a whole number of 0 or more, keeps 50.
+
+**Weekly email.** Every Monday at 07:00 Lagos time, each active Chairman with an email address gets a list of the admin actions done on WhatsApp in the 7 whole days before (Monday to Sunday): who, which item, which house or resident, and when. The email is sent even when the week had no actions. A week with more than 200 rows is cut with a note. Five wrong codes lock admin mode on that number for 30 minutes, and the admin gets an email.
 
 **Resident numbers.** A number that is also a resident's keeps the resident assistant. Only `ADMIN`, `ADMIN LINK <code>` and `ADMIN <code>` are admin commands; `ADMIN STATUS`, `ADMIN OWES`, `ADMIN DEBT` and `ADMIN HELP` were removed, and any other text starting with "admin" gets the resident reply.
 
