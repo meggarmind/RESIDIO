@@ -171,6 +171,12 @@ In the `Estate group members` rollout mode, a resident can use the bot when one 
 
 When a member who matches a resident record leaves the group, Residio closes that number's bot session and sends the office an in-app notification to check the record. It writes one audit entry. It does not move out or deactivate the resident.
 
+### Members not on record
+
+**Settings → WhatsApp → Group members not on record** shows the current group members whose number matches no resident record. For each one it shows the phone number, the role in the group, the date Residio first saw the member and the date it last saw the member. It also shows how many members match a resident record. You need the manage WhatsApp permission. Without it, the section shows one line that says so.
+
+To fix a row, select **Find resident**. The residents list opens, searched by the number. Add the number as the primary or secondary phone of the resident. After the next night sync, the row leaves the report. A member whose number WhatsApp hides shows as "Number hidden by WhatsApp" and has no **Find resident** button. The report only reads the list. It does not create residents and does not send messages.
+
 ## Consent and opt-ins
 
 A resident only receives WhatsApp messages after an approved consent record exists. Invoice reminders and payment confirmations check this when the message is created, so a resident without consent gets no queued message at all (an invoice reminder run reports it as "recipient has not opted in"). The check is repeated at send time.

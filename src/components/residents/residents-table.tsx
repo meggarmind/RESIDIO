@@ -224,7 +224,7 @@ const columns: DataTableColumn<ResidentWithHouses>[] = [
   },
 ];
 
-export function ResidentsTable() {
+export function ResidentsTable({ initialSearch }: { initialSearch?: string } = {}) {
   const router = useRouter();
   const [search, setSearch] = usePersistedState('residents-registry:search', '');
   const [status, setStatus] = usePersistedState<AccountStatus | typeof ALL_VALUE>('residents-registry:status', ALL_VALUE);
@@ -236,6 +236,14 @@ export function ResidentsTable() {
   const [sortBy, setSortBy] = usePersistedState<ResidentSortKey | undefined>('residents-registry:sortBy', undefined);
   const [sortOrder, setSortOrder] = usePersistedState<'asc' | 'desc'>('residents-registry:sortOrder', 'asc');
   const [previewResidentId, setPreviewResidentId] = useState<string | null>(null);
+
+  // A link such as the WhatsApp group report's "Find resident" opens the registry already searched.
+  useEffect(() => {
+    if (initialSearch) {
+      setSearch(initialSearch);
+      setPage(1);
+    }
+  }, [initialSearch, setSearch, setPage]);
 
   const handleSortChange = useCallback((next: DataTableSort) => {
     setSortBy(next.key as ResidentSortKey);
