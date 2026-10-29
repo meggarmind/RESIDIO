@@ -42,7 +42,7 @@ const FOOTER = 'Reply 0 for menu or 9 to contact the estate office.';
 const CODE = '614205';
 const NEW_PIN = '5307';
 const CURRENT_PIN = '829104';
-const FINANCIAL_MENU = /\n\nFinancial standing\n1\. What I owe\n2\. Recent payments\n3\. Statement\n4\. Wallet\n/;
+const FINANCIAL_MENU = /\n\n💰 Financial standing\n1\. 💳 What I owe\n2\. 💵 Recent payments\n3\. 📄 Statement\n4\. 👛 Wallet\n/;
 const PIN_SET = 'Your PIN is set ✅ Your financial standing is unlocked for 15 minutes. For privacy, you can delete the messages with your PIN from this chat.';
 const PIN_VERIFIED = 'PIN verified. Your financial standing is unlocked for 15 minutes.';
 const VERIFY_PROMPT = 'Enter your 4–6 digit PIN to view your financial standing (e.g. 4821).';
@@ -152,7 +152,7 @@ describe('first PIN with a setup code (#892)', () => {
     expect(state.pinHash).toBeNull();
 
     const done = await say(NEW_PIN);
-    expect(done.startsWith(`${PIN_SET}\n\nFinancial standing`)).toBe(true);
+    expect(done.startsWith(`${PIN_SET}\n\n💰 Financial standing`)).toBe(true);
     expect(done).toMatch(FINANCIAL_MENU);
     expect(repo.setPinHash).toHaveBeenCalledWith('resident-1', expect.stringMatching(/^scrypt:/), null);
     expect(verifyPin(NEW_PIN, state.pinHash!)).toBe(true);
@@ -396,7 +396,7 @@ describe('verifying a PIN (#892)', () => {
   it('treats a one-digit reply in the PIN step as a menu choice', async () => {
     const { say, node, repo } = statefulRepository(hashPin(CURRENT_PIN));
     await say('owe');
-    expect(await say('4')).toMatch(/^Alert settings/);
+    expect(await say('4')).toMatch(/^🔔 Alert settings/);
     expect(node()).toBe('alerts');
     expect(repo.claimPinAttempt).not.toHaveBeenCalled();
   });

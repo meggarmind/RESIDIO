@@ -104,19 +104,19 @@ beforeEach(() => {
 describe('co-resident financial menu (#1071)', () => {
   it('shows What I owe, Recent payments, Statement, Receipt and Report a payment, and hides Wallet and Clearance', async () => {
     const [, menu] = await chat(repository([PALM_VIA_SPONSOR]), ['hi', '1']);
-    expect(menu).toContain('1. What I owe');
-    expect(menu).toContain('2. Recent payments');
-    expect(menu).toContain('3. Statement');
-    expect(menu).toContain('5. Receipt');
-    expect(menu).toContain('6. Report a payment');
+    expect(menu).toContain('1. 💳 What I owe');
+    expect(menu).toContain('2. 💵 Recent payments');
+    expect(menu).toContain('3. 📄 Statement');
+    expect(menu).toContain('5. 🧾 Receipt');
+    expect(menu).toContain('6. 📤 Report a payment');
     expect(menu).not.toContain('Wallet');
     expect(menu).not.toContain('Clearance');
   });
 
   it('keeps Wallet and Clearance on the menu of a house the asker is billed for', async () => {
     const [, menu] = await chat(repository([CEDAR_OWN]), ['hi', '1']);
-    expect(menu).toContain('4. Wallet');
-    expect(menu).toContain('7. Clearance certificate');
+    expect(menu).toContain('4. 👛 Wallet');
+    expect(menu).toContain('7. ✅ Clearance certificate');
   });
 
   it("reads the sponsor's figures for the house, never the co-resident's own", async () => {

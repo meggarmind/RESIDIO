@@ -1072,15 +1072,15 @@ async function mainMenu(turn: Turn): Promise<string> {
   const lines = [`Hi ${turn.identity.firstName}, what would you like to do?`];
   if (turn.identity.financialEligible) {
     const label = !(await loadPinGate(turn)) ? 'Financial standing' : turn.session.pinAuthenticated ? 'Financial standing (unlocked)' : 'Financial standing (PIN protected)';
-    lines.push(`1. ${label}`);
+    lines.push(`1. 💰 ${label}`);
   }
-  if ((await loadNotices(turn)).length > 0) lines.push('2. Latest estate notices');
-  if (turn.settings?.paymentInstructions) lines.push('3. How to pay');
-  lines.push('4. Alert settings');
-  lines.push('5. Update email');
+  if ((await loadNotices(turn)).length > 0) lines.push('2. 📢 Latest estate notices');
+  if (turn.settings?.paymentInstructions) lines.push('3. 🏦 How to pay');
+  lines.push('4. 🔔 Alert settings');
+  lines.push('5. ✉️ Update email');
   const adminLabel = await loadAdminLabel(turn);
-  if (adminLabel) lines.push(`6. ${adminLabel}`);
-  if (turn.contact) lines.push('9. Contact the estate office');
+  if (adminLabel) lines.push(`6. 🛠️ ${adminLabel}`);
+  if (turn.contact) lines.push('9. 📞 Contact the estate office');
   lines.push('', 'Reply with a number.');
   return lines.join('\n');
 }
@@ -1167,16 +1167,16 @@ function financialMenu(turn: Turn): string {
       ? `Reply 0 for menu or ${choices[0]}.`
       : `Reply 0 for menu, ${choices[0]}, or ${choices[1]}.`;
   return [
-    multiple && house ? `Financial standing: ${house.label}` : 'Financial standing',
-    '1. What I owe',
-    '2. Recent payments',
-    '3. Statement',
-    ...(house?.onBehalf ? [] : ['4. Wallet']),
-    '5. Receipt',
-    '6. Report a payment',
-    ...(house && !OCCUPANT_ROLES.has(house.role) ? [] : ['7. Clearance certificate']),
-    ...(showsLinkItem(turn) ? ['8. Link a co-resident'] : []),
-    ...(showsSwitchItem(turn) && house ? [`10. Switch property (now: ${house.label})`] : []),
+    multiple && house ? `💰 Financial standing: ${house.label}` : '💰 Financial standing',
+    '1. 💳 What I owe',
+    '2. 💵 Recent payments',
+    '3. 📄 Statement',
+    ...(house?.onBehalf ? [] : ['4. 👛 Wallet']),
+    '5. 🧾 Receipt',
+    '6. 📤 Report a payment',
+    ...(house && !OCCUPANT_ROLES.has(house.role) ? [] : ['7. ✅ Clearance certificate']),
+    ...(showsLinkItem(turn) ? ['8. 👥 Link a co-resident'] : []),
+    ...(showsSwitchItem(turn) && house ? [`10. 🔄 Switch property (now: ${house.label})`] : []),
     '',
     lastLine,
   ].join('\n');
@@ -1704,10 +1704,10 @@ async function acknowledgeScreenshot(turn: Turn, node: string): Promise<void> {
 // Account actions (#816): reminders and verified email
 
 async function showAlertSettings(turn: Turn): Promise<void> {
-  const lines = ['Alert settings', '1. All estate WhatsApp messages: ON'];
+  const lines = ['🔔 Alert settings', '1. 📣 All estate WhatsApp messages: ON'];
   if (turn.identity.financialEligible) {
     const on = await turn.options.repository.getRemindersOn(turn.identity.id);
-    lines.push(`2. Payment reminders: ${on ? 'ON' : 'OFF'}`, 'Reply 1 or 2 to change one.');
+    lines.push(`2. ⏰ Payment reminders: ${on ? 'ON' : 'OFF'}`, 'Reply 1 or 2 to change one.');
   } else {
     lines.push('Reply 1 to turn them off.');
   }

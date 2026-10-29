@@ -245,7 +245,7 @@ describe('opening Admin tools with the code on (#1292 item 3)', () => {
     expect(menu).toContain('🛠️ Admin tools: Ada Admin, Chairman');
     expect(menu).toContain('Session ends 11:15');
     expect(menu).toContain('1. 🏠 Resident status');
-    expect(menu).toContain('2. 📄 Security debt status');
+    expect(menu).toContain('2. 📉 Security debt status');
     expect(menu).toContain('Reply 0 for menu or LOCK to lock now.');
     expect(setStep).toHaveBeenCalledWith(ADMIN_MENU_NODE);
   });

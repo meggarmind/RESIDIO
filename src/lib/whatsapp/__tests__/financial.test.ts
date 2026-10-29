@@ -193,33 +193,33 @@ async function chat(
 
 const MAIN_MENU = [
   'Hi Ada, what would you like to do?',
-  '1. Financial standing',
-  '3. How to pay',
-  '4. Alert settings',
-  '5. Update email',
-  '9. Contact the estate office',
+  '1. 💰 Financial standing',
+  '3. 🏦 How to pay',
+  '4. 🔔 Alert settings',
+  '5. ✉️ Update email',
+  '9. 📞 Contact the estate office',
   '',
   'Reply with a number.',
 ].join('\n');
 
 const FINANCIAL_MENU = [
-  'Financial standing',
-  '1. What I owe',
-  '2. Recent payments',
-  '3. Statement',
-  '4. Wallet',
-  '5. Receipt',
-  '6. Report a payment',
-  '7. Clearance certificate',
+  '💰 Financial standing',
+  '1. 💳 What I owe',
+  '2. 💵 Recent payments',
+  '3. 📄 Statement',
+  '4. 👛 Wallet',
+  '5. 🧾 Receipt',
+  '6. 📤 Report a payment',
+  '7. ✅ Clearance certificate',
   // A tenant with no linked co-resident is offered Link a co-resident (#1117).
-  '8. Link a co-resident',
+  '8. 👥 Link a co-resident',
   '',
   FOOTER,
 ].join('\n');
 
 /** A final answer ends with a blank line and the Financial menu (#1164). */
 // No property is selected after an all-properties summary, so the menu has no property-specific lines.
-const ALL_PROPERTIES_MENU = FINANCIAL_MENU.replace('8. Link a co-resident\n', '');
+const ALL_PROPERTIES_MENU = FINANCIAL_MENU.replace('8. 👥 Link a co-resident\n', '');
 const thenMenu = (...lines: string[]) => `${lines.join('\n')}\n\n${FINANCIAL_MENU}`;
 
 describe('WhatsApp Assistant menus (#804 harmonised)', () => {
@@ -293,7 +293,7 @@ describe('WhatsApp Assistant menus (#804 harmonised)', () => {
     });
     const replies = await chat(repo, ['hi', '3', 'banana', '1', '1']);
 
-    expect(replies[0]).toBe(['Hi Ada, what would you like to do?', '1. Financial standing', '4. Alert settings', '5. Update email', '', 'Reply with a number.'].join('\n'));
+    expect(replies[0]).toBe(['Hi Ada, what would you like to do?', '1. 💰 Financial standing', '4. 🔔 Alert settings', '5. ✉️ Update email', '', 'Reply with a number.'].join('\n'));
     expect(replies[1]).toBe(UNRECOGNISED);
     // No contact line to add on the 2nd miss.
     expect(replies[2]).toBe(UNRECOGNISED);
@@ -314,9 +314,9 @@ describe('WhatsApp Assistant menus (#804 harmonised)', () => {
 
     expect(replies[1]).toContain('PIN verified. Your financial standing is unlocked for 15 minutes.\n\nWhich period?');
     expect(replies[2]).toMatch(/^Cancelled\. Nothing was changed\.\n\nHi Ada/);
-    expect(replies[2]).toContain('1. Financial standing (unlocked)');
+    expect(replies[2]).toContain('1. 💰 Financial standing (unlocked)');
     expect(replies[3]).toMatch(/^Locked\. Your PIN is needed again for financial standing\.\n\nHi Ada/);
-    expect(replies[3]).toContain('1. Financial standing (PIN protected)');
+    expect(replies[3]).toContain('1. 💰 Financial standing (PIN protected)');
     expect(replies[4]).toContain('Enter your 4–6 digit PIN to view your financial standing (e.g. 4821).');
   });
 
@@ -331,7 +331,7 @@ describe('WhatsApp Assistant menus (#804 harmonised)', () => {
     const repo = repository();
     const replies = await chat(repo, ['4', '1', '1']);
 
-    expect(replies[0]).toBe(['Alert settings', '1. All estate WhatsApp messages: ON', '2. Payment reminders: ON', 'Reply 1 or 2 to change one.', FOOTER].join('\n'));
+    expect(replies[0]).toBe(['🔔 Alert settings', '1. 📣 All estate WhatsApp messages: ON', '2. ⏰ Payment reminders: ON', 'Reply 1 or 2 to change one.', FOOTER].join('\n'));
     expect(replies[1]).toContain('Turn off all estate WhatsApp messages?');
     expect(repo.setAlertsOn).toHaveBeenCalledTimes(1);
     expect(repo.setAlertsOn).toHaveBeenCalledWith('resident-1', '+2348000000000', false);
@@ -361,11 +361,11 @@ describe('WhatsApp Assistant properties (#804 decision 12)', () => {
 
     expect(replies[0]).toBe(['Which property?', '1. 12 Palm Close', '2. 4 Cedar Way', '3. All my properties', '', 'Reply with the property number.'].join('\n'));
     expect(replies[1]).toContain('*What you owe, 4 Cedar Way*');
-    expect(replies[2]).toContain('Financial standing: 4 Cedar Way');
-    expect(replies[2]).toContain('10. Switch property (now: 4 Cedar Way)');
+    expect(replies[2]).toContain('💰 Financial standing: 4 Cedar Way');
+    expect(replies[2]).toContain('10. 🔄 Switch property (now: 4 Cedar Way)');
     expect(replies[2]).not.toContain('More');
     expect(replies[3]).toContain('Which property?');
-    expect(replies[4]).toContain('Financial standing: 12 Palm Close');
+    expect(replies[4]).toContain('💰 Financial standing: 12 Palm Close');
     // The choice is remembered: no second property prompt.
     expect(replies[5]).toContain('*Recent payments, 12 Palm Close*');
   });
@@ -390,11 +390,11 @@ describe('WhatsApp Assistant community tier (#804 decision 15)', () => {
 
     expect(replies[0]).toBe([
       'Hi Tunde, what would you like to do?',
-      '2. Latest estate notices',
-      '3. How to pay',
-      '4. Alert settings',
-      '5. Update email',
-      '9. Contact the estate office',
+      '2. 📢 Latest estate notices',
+      '3. 🏦 How to pay',
+      '4. 🔔 Alert settings',
+      '5. ✉️ Update email',
+      '9. 📞 Contact the estate office',
       '',
       'Reply with a number.',
     ].join('\n'));
@@ -512,7 +512,7 @@ describe('WhatsApp Assistant guards', () => {
     vi.mocked(repo.getForcePin).mockResolvedValue(true);
     const replies = await chat(repo, ['hi', '9', '1', 'PIN 482915']);
 
-    expect(replies[0]).toContain('1. Financial standing (PIN protected)');
+    expect(replies[0]).toContain('1. 💰 Financial standing (PIN protected)');
     expect(replies[1]).toContain(CONTACT);
     expect(replies[2]).toContain('A security PIN is required');
     expect(replies[2]).not.toContain('1234');
@@ -917,7 +917,7 @@ describe('WhatsApp PIN lockout and hashing (#850, #891)', () => {
     expect(repo.clearPinAttempts).toHaveBeenCalledWith('resident-1', CLAIMED_AT);
     expect(repo.setPinHash).not.toHaveBeenCalled();
     expect(repo.saveSession).toHaveBeenCalledWith(expect.objectContaining({ pinAuthenticated: true }));
-    expect(replies[0]).toMatch(/^PIN verified\. Your financial standing is unlocked for 15 minutes\.\n\nFinancial standing\n1\. What I owe/);
+    expect(replies[0]).toMatch(/^PIN verified\. Your financial standing is unlocked for 15 minutes\.\n\n💰 Financial standing\n1\. 💳 What I owe/);
   });
 
   it('rehashes a legacy unsalted PIN with a salt on its next correct use', async () => {
@@ -1161,20 +1161,20 @@ describe('WhatsApp What I owe figures (#811, #804 decision 20)', () => {
 describe('WhatsApp Assistant ends a final answer with the menu as its own message (#1164, #1179)', () => {
   it('lets the next item number follow an answer with no 0 in between', async () => {
     const replies = await chat(repository(), ['hi', '1', '1', '2', '3']);
-    expect(replies[2]).toMatch(/^\*What you owe, 12 Palm Close\*[\s\S]*\n\nFinancial standing\n1\. What I owe/);
+    expect(replies[2]).toMatch(/^\*What you owe, 12 Palm Close\*[\s\S]*\n\n💰 Financial standing\n1\. 💳 What I owe/);
     expect(replies[3]).toMatch(/^\*Recent payments, 12 Palm Close\*/);
     expect(replies[4]).toContain('1. This month');
   });
 
   it('keeps the selected property heading and the switch line in the menu a multi-house resident sees', async () => {
     const replies = await chat(repository([PALM, CEDAR]), ['payments', '2']);
-    expect(replies[1]).toContain('\n\nFinancial standing: 4 Cedar Way\n');
-    expect(replies[1]).toContain('10. Switch property (now: 4 Cedar Way)');
+    expect(replies[1]).toContain('\n\n💰 Financial standing: 4 Cedar Way\n');
+    expect(replies[1]).toContain('10. 🔄 Switch property (now: 4 Cedar Way)');
   });
 
   it('adds no menu to a reply that asks for input', async () => {
     const replies = await chat(repository(), ['statement', 'report']);
-    for (const reply of replies) expect(reply).not.toContain('Financial standing');
+    for (const reply of replies) expect(reply).not.toContain('💰 Financial standing');
   });
 
   it('opens the main menu on 0 after an answer, not the Financial menu sent with it', async () => {
@@ -1192,7 +1192,7 @@ describe('WhatsApp Assistant ends a final answer with the menu as its own messag
   it('goes back to Financial standing on 0 at Switch property, once a property is chosen', async () => {
     const replies = await chat(repository([PALM, CEDAR]), ['1', '1', '10', '0']);
     expect(replies[2]).toContain('Which property?');
-    expect(replies[3]).toContain('Financial standing: 12 Palm Close');
+    expect(replies[3]).toContain('💰 Financial standing: 12 Palm Close');
   });
 
   it('sends the answer and the menu as two messages, in order, saving the session at answer (#1179)', async () => {
@@ -1205,7 +1205,7 @@ describe('WhatsApp Assistant ends a final answer with the menu as its own messag
     expect(send).toHaveBeenCalledTimes(2);
     const [answer, menu] = send.mock.calls.map((call) => call[0]);
     expect(answer.body).toMatch(/^\*What you owe, 12 Palm Close\*/);
-    expect(answer.body).not.toContain('Financial standing\n');
+    expect(answer.body).not.toContain('💰 Financial standing\n');
     expect(menu.body).toBe(FINANCIAL_MENU);
     expect(vi.mocked(repo.saveSession).mock.calls.at(-1)![0].currentNode).toBe('answer');
   });
@@ -1343,7 +1343,7 @@ describe('WhatsApp Assistant payment reminders (#816 decisions 2-4)', () => {
     const repo = repository();
     const replies = await chat(repo, ['4', '2', '1']);
 
-    expect(replies[0]).toContain('2. Payment reminders: ON');
+    expect(replies[0]).toContain('2. ⏰ Payment reminders: ON');
     expect(replies[1]).toBe('Turn off payment reminders on WhatsApp? Reply 1 Yes, 2 No.');
     expect(repo.setRemindersOn).toHaveBeenCalledWith('resident-1', false);
     expect(replies[2]).toBe(`Reminders off. Your bills still apply. Reply 4 then 2 to turn them back on.\n${FOOTER}`);
@@ -1362,7 +1362,7 @@ describe('WhatsApp Assistant payment reminders (#816 decisions 2-4)', () => {
     const repo = repository([PALM], { getRemindersOn: vi.fn().mockResolvedValue(false) });
     const replies = await chat(repo, ['4', '2']);
 
-    expect(replies[0]).toContain('2. Payment reminders: OFF');
+    expect(replies[0]).toContain('2. ⏰ Payment reminders: OFF');
     expect(repo.setRemindersOn).toHaveBeenCalledWith('resident-1', true);
     expect(replies[1]).toBe(`Reminders on. You will get payment reminders on WhatsApp again.\n${FOOTER}`);
   });
@@ -1371,7 +1371,7 @@ describe('WhatsApp Assistant payment reminders (#816 decisions 2-4)', () => {
     const repo = repository([]);
     const replies = await chat(repo, ['4', '2', 'reminders'], community);
 
-    expect(replies[0]).toBe(['Alert settings', '1. All estate WhatsApp messages: ON', 'Reply 1 to turn them off.', FOOTER].join('\n'));
+    expect(replies[0]).toBe(['🔔 Alert settings', '1. 📣 All estate WhatsApp messages: ON', 'Reply 1 to turn them off.', FOOTER].join('\n'));
     expect(replies[1]).toBe(UNRECOGNISED);
     expect(replies[2]).toBe(replies[0]);
     expect(repo.getRemindersOn).not.toHaveBeenCalled();
@@ -1770,7 +1770,7 @@ describe('WhatsApp Assistant receipts (#816 decision 14)', () => {
   it('is item 5 of Financial standing, and 0 goes back to the menu', async () => {
     const repo = receiptRepo();
     const replies = await chat(repo, ['1', '5', '0']);
-    expect(replies[0]).toContain('5. Receipt');
+    expect(replies[0]).toContain('5. 🧾 Receipt');
     expect(replies[1]).toContain('*Receipts, 12 Palm Close*');
     expect(replies[2]).toBe(FINANCIAL_MENU);
   });
@@ -1858,7 +1858,7 @@ describe('WhatsApp Assistant clearance certificate (#816 decision 15)', () => {
   it('is item 7 of Financial standing', async () => {
     const repo = repository([PALM], { getOwed: vi.fn().mockResolvedValue(PAID_UP) });
     const replies = await chat(repo, ['1', '7']);
-    expect(replies[0]).toContain('7. Clearance certificate');
+    expect(replies[0]).toContain('7. ✅ Clearance certificate');
     expect(repo.requestClearance).toHaveBeenCalledTimes(1);
   });
 });
@@ -2325,7 +2325,7 @@ describe('WhatsApp Assistant several houses (#1073)', () => {
     for (const role of ['non_resident_landlord', 'developer']) {
       const repo = repository([{ ...PALM, role }]);
       const replies = await chat(repo, ['clearance']);
-      expect(replies[0]).toBe(`A clearance certificate can only be requested for the property you live in.\n\n${FINANCIAL_MENU.replace('8. Link a co-resident\n', '').replace('7. Clearance certificate\n', '')}`);
+      expect(replies[0]).toBe(`A clearance certificate can only be requested for the property you live in.\n\n${FINANCIAL_MENU.replace('8. 👥 Link a co-resident\n', '').replace('7. ✅ Clearance certificate\n', '')}`);
       expect(repo.requestClearance).not.toHaveBeenCalled();
       expect(repo.logDisclosure).not.toHaveBeenCalled();
     }
@@ -2334,10 +2334,10 @@ describe('WhatsApp Assistant several houses (#1073)', () => {
   it('hides the clearance item from the menu of a house the person does not live in', async () => {
     const repo = repository([PALM, LANDLORD_CEDAR]);
     const replies = await chat(repo, ['payments', '2', '2', '10', '1']);
-    expect(replies[2]).not.toContain('7. Clearance certificate');
-    expect(replies[2]).toContain('Financial standing: 4 Cedar Way');
-    expect(replies[4]).toContain('Financial standing: 12 Palm Close');
-    expect(replies[4]).toContain('7. Clearance certificate');
+    expect(replies[2]).not.toContain('7. ✅ Clearance certificate');
+    expect(replies[2]).toContain('💰 Financial standing: 4 Cedar Way');
+    expect(replies[4]).toContain('💰 Financial standing: 12 Palm Close');
+    expect(replies[4]).toContain('7. ✅ Clearance certificate');
   });
 
   it('keeps the billable role on each house from the roster', async () => {
@@ -2398,7 +2398,7 @@ describe('WAHA conversation from an @lid sender (#1285)', () => {
 });
 
 describe('item 6, Admin tools, on the main menu (#1292)', () => {
-  const withAdmin = MAIN_MENU.replace('9. Contact the estate office', '6. Admin tools (code needed)\n9. Contact the estate office');
+  const withAdmin = MAIN_MENU.replace('9. 📞 Contact the estate office', '6. 🛠️ Admin tools (code needed)\n9. 📞 Contact the estate office');
   const tools = (label: string | null) => ({
     menuLabel: vi.fn().mockResolvedValue(label),
     open: vi.fn(async (_message: WhatsAppInboundMessage, io: { reply(body: string): Promise<void>; setStep(node: string): Promise<void> }) => {
@@ -2449,7 +2449,7 @@ describe('item 6, Admin tools, on the main menu (#1292)', () => {
     const repo = repository();
     await repo.saveSession({ phoneNumber: '+2348000000000', residentId: 'resident-1', currentNode: 'admin_menu', selectedHouseId: null, pinAuthenticated: false, expiresAt: '2099-01-01T00:00:00Z' });
     const replies = await chat(repo, ['4']);
-    expect(replies[0]).toContain('Alert settings');
+    expect(replies[0]).toContain('🔔 Alert settings');
   });
 });
 
