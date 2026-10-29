@@ -6,6 +6,8 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { saveWhatsAppAdminRoleGrid, type WhatsAppAdminGrantChange } from '@/actions/whatsapp/admin-settings';
 import { WHATSAPP_ADMIN_ITEMS, type WhatsAppAdminRoleGridRole } from '@/lib/whatsapp/admin-settings';
 
@@ -14,6 +16,8 @@ const key = (roleId: string, permission: string) => `${roleId}|${permission}`;
 /** Roles down the side, Admin tools items across the top (#1295). Saving asks first and lists what changes. */
 export function RoleGrid({ roles }: { roles: WhatsAppAdminRoleGridRole[] }) {
   const router = useRouter();
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(PERMISSIONS.SYSTEM_MANAGE_ROLES);
   const saved = new Set(roles.flatMap((role) => role.granted.map((permission) => key(role.roleId, permission))));
   const [checked, setChecked] = useState(saved);
   const [confirming, setConfirming] = useState(false);
@@ -46,6 +50,7 @@ export function RoleGrid({ roles }: { roles: WhatsAppAdminRoleGridRole[] }) {
                   <td key={item.permission} className="px-3 py-2 text-center">
                     <Checkbox
                       checked={checked.has(key(role.roleId, item.permission))}
+                      disabled={!canManage}
                       aria-label={`${role.name}: ${item.label}`}
                       onCheckedChange={(value) => setChecked((current) => {
                         const next = new Set(current);
@@ -62,7 +67,7 @@ export function RoleGrid({ roles }: { roles: WhatsAppAdminRoleGridRole[] }) {
         </table>
       </div>
       <div className="flex items-center gap-2">
-        <Button type="button" size="sm" disabled={changes.length === 0} onClick={() => setConfirming(true)}>Save role access</Button>
+        <Button type="button" size="sm" disabled={!canManage || changes.length === 0} onClick={() => setConfirming(true)}>Save role access</Button>
         <Button type="button" size="sm" variant="outline" disabled={changes.length === 0} onClick={() => setChecked(new Set(saved))}>Reset</Button>
       </div>
 
