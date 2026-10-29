@@ -118,7 +118,7 @@ function setup(opts: { envMode?: number; envLines?: string[]; webhook?: boolean 
 }
 
 const run = (env: Record<string, string>, args: string[] = ['stage']) =>
-  spawnSync('bash', [SCRIPT, ...args], { env, encoding: 'utf8' });
+  spawnSync('bash', [SCRIPT, ...args], { env: env as unknown as NodeJS.ProcessEnv, encoding: 'utf8' });
 
 const read = (ctx: Ctx, f: string) => readFileSync(join(ctx.root, f), 'utf8');
 const curlCalls = (ctx: Ctx) => read(ctx, 'curl-calls.log').split('\n').filter(Boolean).length;
