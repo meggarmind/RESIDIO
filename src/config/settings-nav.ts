@@ -771,7 +771,7 @@ export const settingsConfig: SettingsGroup[] = [
                     },
                 ],
             },
-            { title: "WhatsApp admin access", href: "/settings/whatsapp-admin", description: "Link your own WhatsApp number for admin mode, approved with your authenticator app", permissions: [PERMISSIONS.WHATSAPP_ADMIN_QUERY] },
+            { title: "WhatsApp admin access", href: "/settings/whatsapp-admin", description: "See linked admins, choose which Admin tools items each role sees, and set when a code is asked for", permissions: [PERMISSIONS.WHATSAPP_ADMIN_QUERY] },
             {
                 title: "Gmail Import",
                 href: "/settings/email-integration",

@@ -11,7 +11,7 @@ residio_sources:
   - src/app/(dashboard)/system/whatsapp-monitoring/**
   - src/app/(dashboard)/system/whatsapp-bot-health/**
   - src/app/api/whatsapp/**
-residio_verified_commit: 2a09adb2
+residio_verified_commit: 26bda92c
 residio_verified_at: '2026-10-29'
 residio_app_version: '0.4.0'
 ---
@@ -345,7 +345,13 @@ Admin mode lets an admin use **Admin tools** in the WhatsApp Assistant from thei
 
 **Linking a number.** A number is linked automatically the first time Admin tools is opened when it is the phone of the resident record tied to the admin's profile, and the admin has no other linked number. With a code needed it is linked only after a correct code. An admin can also link a number under **Settings → WhatsApp admin access**, signed in with their authenticator code. **Create link code** shows a 6-digit code once; it works one time, for 10 minutes. From the phone, send `ADMIN LINK <code>` to the estate WhatsApp number. Linking a new number ends the old link, and **Unlink** ends it at any time. The admin gets an email each time a number is linked.
 
-**The code.** The `whatsapp_admin_code_required` setting is the global "Code required" switch, and each linked number has its own switch (both on by default). A code is needed when both are on. Then opening Admin tools asks for the 6-digit code from the authenticator app, typed alone (`ADMIN <code>` also works). A correct code opens a 15-minute session. A code works only once. A request marked as needing a fresh code (Security debt status) asks for one every time. With no code needed, the linked number alone opens Admin tools, authenticator 2FA is not required, and the session still ends after 15 minutes.
+**The WhatsApp admin access page.** **Settings → WhatsApp admin access** has three parts. Roles-management access (`system.manage_roles`, held by Super Admin by default) is needed for everything marked *managers* below; any other admin sees only their own row.
+
+- **Linked admins.** A table of every admin with a linked number: name, role, masked number, linked since, link ends, last used, a **Code required** switch, status and **Unlink**. Search by name, role or number, and filter by *Code off* or *Link needs attention*. Managers see all admins; others see their own row only. **Link a number for an admin** (managers) picks an admin account and a number. The link is active at once, the admin gets the "number linked" email, and the choice is written to the audit log. An admin with no authenticator app can be linked only with **Code required for this admin** turned off.
+- **Role access.** Roles down the side, the Admin tools items across the top, a checkbox for each. **Save role access** lists every change in a confirm window first. A change takes effect on the admin's next WhatsApp message. Only the five Admin tools item permissions can be changed here.
+- **Link your own number.** The link code flow described under *Linking a number*.
+
+**The code.** The `whatsapp_admin_code_required` setting is the global "Code required" switch, and each linked number has its own switch (both on by default). Managers set both on the **WhatsApp admin access** page, and each change is written to the audit log. A code is needed when both are on. Then opening Admin tools asks for the 6-digit code from the authenticator app, typed alone (`ADMIN <code>` also works). A correct code opens a 15-minute session. A code works only once. A request marked as needing a fresh code (Security debt status) asks for one every time. With no code needed, the linked number alone opens Admin tools, authenticator 2FA is not required, and the session still ends after 15 minutes.
 
 **Security debt status.** Choose 2. The assistant lists the streets that have reportable houses, each with a number, and `ALL`. Reply `ALL` or street numbers such as `2,3`, then send a new authenticator code when a code is needed; a session never skips this code. The PDF lists each house with its debt status, with no amounts and no resident names, and ends with the footnote from **Settings → Debt Status**. Houses with an unverified identifier, a vacant, under renovation or under construction property status, or no active tenant, resident landlord or non-resident landlord are left out. Document sending over WhatsApp does not exist yet, so every report is emailed to the admin's account email address. The reply gives the number of houses in the report; the PDF is drawn when the email is sent, and if it cannot be drawn or emailed the admin gets a WhatsApp message saying nothing was sent. Each request is recorded in the audit log with the admin, the scope and the time.
 
