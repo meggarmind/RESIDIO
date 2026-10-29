@@ -20,7 +20,7 @@ export const DEBT_REPORT_QUEUE_FAILED_REPLY = 'The debt status report could not 
 
 /**
  * Security debt status (#982, Admin tools item 2 since #1292): the admin picks ALL or streets, approves with a fresh authenticator code, and the
- * debt status PDF (house and status, no amounts or names) is emailed to their account address.
+ * debt status PDF (street, house, masked resident name and status, no amounts) is emailed to their account address.
  */
 export const debtReportAction: WhatsAppAdminAction = {
   label: 'Security debt status',
