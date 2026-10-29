@@ -440,7 +440,7 @@ function ApproveResidentPicker({
     const answer = (results: ResidentSearchResult[], error: string | null) => {
       if (latestQuery.current === debouncedQuery) setReply({ query: debouncedQuery, results, error });
     };
-    searchResidentsForRoleAssignment(debouncedQuery)
+    searchResidentsForRoleAssignment(debouncedQuery, { unlinkedOnly: true })
       .then((result) =>
         result.error
           ? answer([], result.error)

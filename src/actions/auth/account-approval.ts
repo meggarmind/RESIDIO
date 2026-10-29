@@ -206,6 +206,9 @@ export async function approveAccount(
     };
   }
   const linking = Boolean(newResidentId && newResidentId !== profile.resident_id);
+  // Set when residents.profile_id already points at this account, so the
+  // approval neither writes it nor undoes it.
+  let residentAlreadyLinked = false;
 
   if (linking) {
     const { data: resident, error: residentError } = await admin
@@ -239,6 +242,7 @@ export async function approveAccount(
         error: 'That resident is already linked to a different account.',
       };
     }
+    residentAlreadyLinked = resident.profile_id === profileId;
   }
 
   const effectiveResidentId = newResidentId ?? profile.resident_id;
@@ -272,15 +276,17 @@ export async function approveAccount(
       return { success: false, error: 'Failed to link the resident record' };
     }
 
-    const { error: residentWriteError } = await admin
-      .from('residents')
-      .update({ profile_id: profileId })
-      .eq('id', newResidentId!);
+    if (!residentAlreadyLinked) {
+      const { error: residentWriteError } = await admin
+        .from('residents')
+        .update({ profile_id: profileId })
+        .eq('id', newResidentId!);
 
-    if (residentWriteError) {
-      console.error('Error linking resident during approval:', residentWriteError);
-      await undoResidentLink(admin, profileId, profile.resident_id, null);
-      return { success: false, error: 'Failed to link the resident record' };
+      if (residentWriteError) {
+        console.error('Error linking resident during approval:', residentWriteError);
+        await undoResidentLink(admin, profileId, profile.resident_id, null);
+        return { success: false, error: 'Failed to link the resident record' };
+      }
     }
   }
 
@@ -302,7 +308,13 @@ export async function approveAccount(
   if (updateError || !updated || updated.length === 0) {
     console.error('Error approving account:', updateError ?? `no rows matched for profile ${profileId}`);
     if (linking) {
-      await undoResidentLink(admin, profileId, profile.resident_id, newResidentId);
+      // Only what this call wrote: a residents.profile_id link that was already there stays.
+      await undoResidentLink(
+        admin,
+        profileId,
+        profile.resident_id,
+        residentAlreadyLinked ? null : newResidentId
+      );
     }
     // The trigger (#823) is the last line of defence: a seat taken between the
     // check above and this write comes back as a check violation.
@@ -343,7 +355,11 @@ export async function approveAccount(
   return { success: true };
 }
 
-/** Put a failed approval's resident link back as it was. Failures are logged, not thrown. */
+/**
+ * Put a failed approval's resident link back as it was. `linkedResidentId` is
+ * the resident whose profile_id this approval wrote, or null when it wrote none.
+ * Failures are logged, not thrown.
+ */
 async function undoResidentLink(
   admin: ReturnType<typeof createAdminClient>,
   profileId: string,

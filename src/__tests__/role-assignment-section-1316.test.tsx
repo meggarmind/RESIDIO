@@ -96,4 +96,19 @@ describe('RoleAssignmentSection (#1316)', () => {
     expect(screen.queryByText('Stale Resident')).not.toBeInTheDocument();
     expect(screen.getByText('Ada Account')).toBeInTheDocument();
   });
+
+  it('blocks a role for a resident whose account is still pending', async () => {
+    search.residents.mockResolvedValue({
+      data: [{ ...resident('res-2', 'Penny'), profile_id: 'p-2', approval_status: 'pending' }],
+    });
+
+    render(<RoleAssignmentSection />);
+    fireEvent.click(screen.getByRole('combobox'));
+    fireEvent.change(screen.getByPlaceholderText('Search residents...'), { target: { value: 'Penny' } });
+    fireEvent.click(await screen.findByText('Penny Resident'));
+
+    expect(screen.getByText('Account Not Approved')).toBeInTheDocument();
+    expect(screen.getByText(/Approve it under Pending sign-ups/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Assign Role/ })).toBeDisabled();
+  });
 });

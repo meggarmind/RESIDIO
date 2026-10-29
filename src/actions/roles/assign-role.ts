@@ -6,7 +6,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { isLastActiveSuperAdmin, LAST_SUPER_ADMIN_ERROR } from '@/lib/auth/super-admin-invariant';
 import { assertCanGrantRoles, assertCanManageTarget } from '@/lib/auth/account-guards';
-import { ilikeAny } from '@/lib/postgrest-filter';
+import { ilikeAny, uuidInList } from '@/lib/postgrest-filter';
 import {
   checkTitleForRole,
   evaluateRoleAssignmentRules,
@@ -55,9 +55,14 @@ function nameSearchFilter(columns: string[], nameColumns: string[], query: strin
 /**
  * Search residents by name or email for role assignment
  * Returns residents with their current role information
+ *
+ * `unlinkedOnly` returns only residents with no account from either side:
+ * residents.profile_id is empty and no profile's resident_id points at them.
+ * It filters in the query, before the result limit.
  */
 export async function searchResidentsForRoleAssignment(
-  query: string
+  query: string,
+  options?: { unlinkedOnly?: boolean }
 ): Promise<{
   data?: ResidentSearchResult[];
   error?: string;
@@ -75,7 +80,7 @@ export async function searchResidentsForRoleAssignment(
 
   // Search residents by name or email
   // Join with resident_houses to get house information (many-to-many relationship)
-  const { data: residents, error } = await supabase
+  let residentQuery = supabase
     .from('residents')
     .select(`
       id,
@@ -95,8 +100,27 @@ export async function searchResidentsForRoleAssignment(
         )
       )
     `)
-    .or(nameSearchFilter(['first_name', 'last_name', 'email'], ['first_name', 'last_name'], query))
-    .limit(20);
+    .or(nameSearchFilter(['first_name', 'last_name', 'email'], ['first_name', 'last_name'], query));
+
+  if (options?.unlinkedOnly) {
+    // Residents an account points at through profiles.resident_id. Service role
+    // after the permission check: RLS hides other people's profiles.
+    const { data: linked, error: linkedError } = await createAdminClient()
+      .from('profiles')
+      .select('resident_id')
+      .not('resident_id', 'is', null);
+
+    if (linkedError) {
+      console.error('Error reading linked residents:', linkedError);
+      return { error: 'Failed to search residents' };
+    }
+
+    residentQuery = residentQuery.is('profile_id', null);
+    const linkedIds = uuidInList((linked ?? []).map((p) => p.resident_id));
+    if (linkedIds) residentQuery = residentQuery.not('id', 'in', linkedIds);
+  }
+
+  const { data: residents, error } = await residentQuery.limit(20);
 
   if (error) {
     console.error('Error searching residents:', error);
