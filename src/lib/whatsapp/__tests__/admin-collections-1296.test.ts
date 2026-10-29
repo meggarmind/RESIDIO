@@ -36,7 +36,7 @@ describe('composeCollectionsAnswer (#1296)', () => {
 
   it('totals today and the month, with a line per street', () => {
     const text = composeCollectionsAnswer(payments, BEFORE_LAGOS_MIDNIGHT);
-    expect(text).toContain('*Collections, 31 Oct 2026*');
+    expect(text).toContain('*Collections, 31 Oct 2026*\n\nToday:');
     expect(text).toContain('Today: ₦17,500.50 (3 payments)');
     expect(text).toContain('This month so far: ₦24,500.50 (4 payments)');
     expect(text).toContain('Acacia Close: ₦10,000.00 (1 payment)');
