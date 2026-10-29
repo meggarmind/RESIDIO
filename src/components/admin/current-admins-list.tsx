@@ -151,6 +151,7 @@ export function CurrentAdminsList({
                   profileId={admin.profile_id}
                   override={overrides?.[admin.profile_id] ?? null}
                   generalEnabled={generalEnabled}
+                  targetRoleName={admin.role_name}
                   labelClassName="@4xl:hidden"
                   effectiveClassName="@4xl:hidden"
                 />

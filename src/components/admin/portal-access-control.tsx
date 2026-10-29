@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useIsFetching, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { setPortalAccessOverride } from '@/actions/settings/resident-portal';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { cn } from '@/lib/utils';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { permissionToManage } from '@/lib/auth/board-roles';
 import {
   describeEffectiveAccess,
   type PortalAccessOverride,
@@ -34,6 +35,11 @@ interface PortalAccessControlProps {
   labelClassName?: string;
   /** Extra classes for the effective-state text. */
   effectiveClassName?: string;
+  /**
+   * The account's current role name (`app_roles.name`). A super_admin or chairman
+   * account can only be changed by a caller holding system.assign_board_roles (#826).
+   */
+  targetRoleName?: string | null;
 }
 
 /**
@@ -47,10 +53,16 @@ export function PortalAccessControl({
   generalEnabled,
   labelClassName,
   effectiveClassName,
+  targetRoleName = null,
 }: PortalAccessControlProps) {
   const { hasPermission, profile, refreshPortalVisibility } = useAuth();
-  const canEdit = hasPermission(PERMISSIONS.SYSTEM_ASSIGN_ROLES);
+  const canAssign = hasPermission(PERMISSIONS.SYSTEM_ASSIGN_ROLES);
+  const canManageTarget = hasPermission(permissionToManage(targetRoleName));
+  const canEdit = canAssign && canManageTarget;
   const queryClient = useQueryClient();
+  // The override arrives from the caller's query; until it settles `override` is a
+  // placeholder null, which must not read as a real "Inherit".
+  const isLoadingOverrides = useIsFetching({ queryKey: PORTAL_ACCESS_OVERRIDES_QUERY_KEY }) > 0;
   const [isSaving, setIsSaving] = useState(false);
 
   const effective = describeEffectiveAccess(generalEnabled, override);
@@ -59,7 +71,12 @@ export function PortalAccessControl({
     return (
       <span className="text-sm text-muted-foreground" data-testid="portal-access-readonly">
         <span className={labelClassName}>Resident portal: </span>
-        {effective}
+        {isLoadingOverrides ? 'Loading...' : effective}
+        {canAssign && !canManageTarget && (
+          <span className="block text-xs" data-testid="portal-access-board-only">
+            Only holders of Assign Board Roles can change this account.
+          </span>
+        )}
       </span>
     );
   }
@@ -74,8 +91,13 @@ export function PortalAccessControl({
         return;
       }
       toast.success('Resident portal access updated');
-      if (profile?.id === profileId) refreshPortalVisibility();
-      await queryClient.invalidateQueries({ queryKey: PORTAL_ACCESS_OVERRIDES_QUERY_KEY });
+      try {
+        if (profile?.id === profileId) refreshPortalVisibility();
+        await queryClient.invalidateQueries({ queryKey: PORTAL_ACCESS_OVERRIDES_QUERY_KEY });
+      } catch (refreshError) {
+        console.error('[PortalAccessControl] Saved, but refreshing the overrides failed:', refreshError);
+        toast.error('Saved, but the list could not refresh. Reload the page to see the current value.');
+      }
     } catch (error) {
       console.error('[PortalAccessControl] Failed to update portal access override:', error);
       toast.error('Failed to update resident portal access');
@@ -87,7 +109,7 @@ export function PortalAccessControl({
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className={cn('text-xs text-muted-foreground whitespace-nowrap', labelClassName)}>Resident portal</span>
-      <Select value={toKey(override)} onValueChange={handleChange} disabled={isSaving}>
+      <Select value={toKey(override)} onValueChange={handleChange} disabled={isSaving || isLoadingOverrides}>
         <SelectTrigger className="h-8 w-[130px]" aria-label="Resident portal access">
           <SelectValue />
         </SelectTrigger>
@@ -101,7 +123,7 @@ export function PortalAccessControl({
         className={cn('text-xs text-muted-foreground whitespace-nowrap', effectiveClassName)}
         data-testid="portal-access-effective"
       >
-        {effective}
+        {isLoadingOverrides ? 'Loading...' : effective}
       </span>
     </div>
   );

@@ -1,10 +1,11 @@
 'use server';
 
-import { createAdminClient, createServerSupabaseClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { ACCOUNT_NOT_FOUND_ERROR, assertCanManageTarget } from '@/lib/auth/account-guards';
+import { listAllAuthUsers } from '@/lib/supabase/list-all-auth-users';
 import { z } from 'zod';
 
 // Types for auth account search results
@@ -23,6 +24,8 @@ export interface OrphanedAuthAccount {
   created_at: string;
   last_sign_in_at: string | null;
   email_confirmed_at: string | null;
+  /** The account's approval status; null when it has no profile row. */
+  approval_status: string | null;
 }
 
 const emailSearchSchema = z.string().email().or(z.string().min(3));
@@ -48,27 +51,30 @@ export async function searchAuthAccountsByEmail(
   }
 
   const searchTerm = email.toLowerCase().trim();
+  // Other users' profiles and residents are read with the service role: RLS shows
+  // the caller only their own row unless they hold system.view_all_profiles, which
+  // would make an "already linked" account read as available. Permission is
+  // enforced by the authorizePermission() check above.
   const adminClient = createAdminClient();
-  const supabase = await createServerSupabaseClient();
 
   try {
     // Get all auth users
-    const { data: authUsers, error: authError } = await adminClient.auth.admin.listUsers();
+    const { users: authUsers, error: authError } = await listAllAuthUsers(adminClient);
 
-    if (authError) {
+    if (authError || !authUsers) {
       console.error('Error listing auth users:', authError);
       return { accounts: [], error: 'Failed to search accounts' };
     }
 
     // Filter by email (case-insensitive partial match)
-    const matchingUsers = authUsers.users.filter(
+    const matchingUsers = authUsers.filter(
       (u) => u.email?.toLowerCase().includes(searchTerm)
     );
 
     // Get profile information for these users (to find linked residents)
     const userIds = matchingUsers.map((u) => u.id);
 
-    const { data: profiles } = await supabase
+    const { data: profiles } = await adminClient
       .from('profiles')
       .select(`
         id,
@@ -88,9 +94,8 @@ export async function searchAuthAccountsByEmail(
     }>();
 
     for (const profile of profiles || []) {
-      // The join returns an array, but there's only one resident per profile
-      const residentsArray = profile.residents as Array<{ first_name: string; last_name: string }> | null;
-      const resident = residentsArray?.[0] ?? null;
+      // resident_id is a many-to-one FK, so the join is a single object (not an array)
+      const resident = profile.residents as unknown as { first_name: string; last_name: string } | null;
       profileMap.set(profile.id, {
         resident_id: profile.resident_id,
         resident_name: resident ? `${resident.first_name} ${resident.last_name}` : null,
@@ -133,32 +138,38 @@ export async function getOrphanedAuthAccounts(): Promise<{
     return { accounts: [], error: 'Unauthorized' };
   }
 
+  // Service role: a caller without system.view_all_profiles sees only their own
+  // profile row through RLS, which would list every other account as orphaned.
   const adminClient = createAdminClient();
-  const supabase = await createServerSupabaseClient();
 
   try {
     // Get all auth users
-    const { data: authUsers, error: authError } = await adminClient.auth.admin.listUsers();
+    const { users: authUsers, error: authError } = await listAllAuthUsers(adminClient);
 
-    if (authError) {
+    if (authError || !authUsers) {
       console.error('Error listing auth users:', authError);
       return { accounts: [], error: 'Failed to fetch accounts' };
     }
 
-    // Get all profiles with resident links
-    const { data: profiles } = await supabase
+    const { data: allProfiles, error: profilesError } = await adminClient
       .from('profiles')
-      .select('id, resident_id')
-      .not('resident_id', 'is', null);
+      .select('id, resident_id, approval_status');
+
+    if (profilesError) {
+      console.error('Error fetching profiles for orphaned accounts:', profilesError);
+      return { accounts: [], error: 'Failed to fetch accounts' };
+    }
 
     // Build set of linked user IDs
-    const linkedUserIds = new Set((profiles || []).map((p) => p.id));
-
-    // Filter to orphaned accounts (have profile but no resident_id, or no profile at all)
-    const { data: allProfiles } = await supabase.from('profiles').select('id');
+    const linkedUserIds = new Set(
+      (allProfiles || []).filter((p) => p.resident_id).map((p) => p.id)
+    );
     const profileUserIds = new Set((allProfiles || []).map((p) => p.id));
+    const approvalByUserId = new Map(
+      (allProfiles || []).map((p) => [p.id, p.approval_status as string | null])
+    );
 
-    const orphanedAccounts: OrphanedAuthAccount[] = authUsers.users
+    const orphanedAccounts: OrphanedAuthAccount[] = authUsers
       .filter((user) => {
         // Include if:
         // 1. Has a profile but no resident link, OR
@@ -173,6 +184,7 @@ export async function getOrphanedAuthAccounts(): Promise<{
         created_at: user.created_at,
         last_sign_in_at: user.last_sign_in_at || null,
         email_confirmed_at: user.email_confirmed_at || null,
+        approval_status: approvalByUserId.get(user.id) ?? null,
       }))
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
@@ -221,8 +233,10 @@ export async function linkAuthAccountToResident(
     return { success: false, error: parsed.error.issues[0]?.message || 'Invalid input' };
   }
 
+  // Every read and write below runs with the service role, after the permission
+  // check above: RLS hides other users' profiles and residents from the caller, so
+  // the "already linked" guards would otherwise read nothing and pass.
   const adminClient = createAdminClient();
-  const supabase = await createServerSupabaseClient();
 
   try {
     // 1. Verify auth user exists
@@ -234,7 +248,7 @@ export async function linkAuthAccountToResident(
     const authUser = authUserData.user;
 
     // 2. Verify resident exists
-    const { data: resident, error: residentError } = await supabase
+    const { data: resident, error: residentError } = await adminClient
       .from('residents')
       .select('id, first_name, last_name, email')
       .eq('id', residentId)
@@ -245,7 +259,7 @@ export async function linkAuthAccountToResident(
     }
 
     // 3. Check if there's already a profile for this auth user
-    const { data: existingProfile } = await supabase
+    const { data: existingProfile } = await adminClient
       .from('profiles')
       .select(`
         id,
@@ -294,9 +308,8 @@ export async function linkAuthAccountToResident(
         return { success: false, error: 'This account is already linked to this resident' };
       }
 
-      // The join returns an array, but there's only one resident per profile
-      const prevResidentsArray = existingProfile.residents as Array<{ first_name: string; last_name: string }> | null;
-      const prevResident = prevResidentsArray?.[0] ?? null;
+      // resident_id is a many-to-one FK, so the join is a single object (not an array)
+      const prevResident = existingProfile.residents as unknown as { first_name: string; last_name: string } | null;
       previousResidentId = existingProfile.resident_id;
       previousResidentName = prevResident ? `${prevResident.first_name} ${prevResident.last_name}` : 'Unknown';
 
@@ -311,13 +324,12 @@ export async function linkAuthAccountToResident(
     }
 
     // 4. Check if the target resident is already linked to another account
-    const { data: existingResidentLink } = await supabase
+    const { data: existingResidentLinks } = await adminClient
       .from('profiles')
       .select('id')
-      .eq('resident_id', residentId)
-      .single();
+      .eq('resident_id', residentId);
 
-    if (existingResidentLink && existingResidentLink.id !== authUserId) {
+    if ((existingResidentLinks ?? []).some((p) => p.id !== authUserId)) {
       return {
         success: false,
         error: 'This resident is already linked to a different account. Please unlink that account first.',
@@ -384,7 +396,21 @@ export async function linkAuthAccountToResident(
     }
 
     // 6. Update resident's profile_id for bidirectional link
-    const { error: residentUpdateError } = await supabase
+    // On a relink, free the previous resident first so it does not keep pointing at
+    // an account that now belongs to someone else.
+    if (previousResidentId) {
+      const { error: previousClearError } = await adminClient
+        .from('residents')
+        .update({ profile_id: null, updated_at: new Date().toISOString() })
+        .eq('id', previousResidentId)
+        .eq('profile_id', authUserId);
+
+      if (previousClearError) {
+        console.error('Error clearing previous resident profile_id:', previousClearError);
+      }
+    }
+
+    const { error: residentUpdateError } = await adminClient
       .from('residents')
       .update({
         profile_id: authUserId,
@@ -404,8 +430,10 @@ export async function linkAuthAccountToResident(
       entityType: 'profiles',
       entityId: authUserId,
       entityDisplay: authUser.email || authUserId,
-      oldValues: previousResidentId ? { resident_id: previousResidentId } : undefined,
-      newValues: { resident_id: residentId },
+      oldValues: previousResidentId
+        ? { resident_id: previousResidentId, resident_name: previousResidentName }
+        : undefined,
+      newValues: { resident_id: residentId, resident_name: fullName },
       description: previousResidentId
         ? `Relinked auth account from ${previousResidentName} to ${fullName}`
         : `Linked auth account to ${fullName}`,
@@ -437,11 +465,11 @@ export async function unlinkAuthAccount(
     return { success: false, error: 'Unauthorized' };
   }
 
-  const supabase = await createServerSupabaseClient();
+  const adminClient = createAdminClient();
 
   try {
-    // Get current profile info for audit
-    const { data: profile } = await supabase
+    // Get current profile info for audit (service role: RLS hides other users' rows)
+    const { data: profile } = await adminClient
       .from('profiles')
       .select(`
         id,
@@ -470,13 +498,12 @@ export async function unlinkAuthAccount(
       return { success: false, error: targetGuard.error };
     }
 
-    // The join returns an array, but there's only one resident per profile
-    const residentsArray = profile.residents as Array<{ first_name: string; last_name: string }> | null;
-    const resident = residentsArray?.[0] ?? null;
+    // resident_id is a many-to-one FK, so the join is a single object (not an array)
+    const resident = profile.residents as unknown as { first_name: string; last_name: string } | null;
     const residentName = resident ? `${resident.first_name} ${resident.last_name}` : 'Unknown';
 
     // Remove resident link
-    const { error: updateError } = await createAdminClient()
+    const { error: updateError } = await adminClient
       .from('profiles')
       .update({
         resident_id: null,
@@ -490,7 +517,7 @@ export async function unlinkAuthAccount(
     }
 
     // Also clear resident's profile_id for bidirectional unlink
-    const { error: residentUpdateError } = await supabase
+    const { error: residentUpdateError } = await adminClient
       .from('residents')
       .update({
         profile_id: null,
