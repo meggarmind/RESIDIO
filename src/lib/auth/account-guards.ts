@@ -108,6 +108,16 @@ async function lookupCallerPermissions(callerProfileId: string): Promise<Permiss
 }
 
 /**
+ * Whether an account holds a permission, read as get_my_access() would for it. For work with no
+ * session, such as a scheduled publish acting for the person who scheduled it (#1328). A lookup
+ * failure is false.
+ */
+export async function profileHasPermission(profileId: string, permission: string): Promise<boolean> {
+  const caller = await lookupCallerPermissions(profileId);
+  return caller.ok && caller.permissions.has(permission);
+}
+
+/**
  * Refuses unless the caller holds the permission that the target account's
  * CURRENT role requires (see permissionToManage).
  */

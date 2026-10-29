@@ -5,11 +5,15 @@ import { publishAnnouncementCore } from '@/lib/announcements/publish';
 import { insertBulkNotifications } from '@/lib/notifications/in-app';
 import { createAdminClient } from '@/lib/supabase/server';
 import { recordSystemAction } from '@/lib/system-log/recorder';
+import { profileHasPermission } from '@/lib/auth/account-guards';
+import { recordAudit } from '@/lib/audit/recorder';
 
 vi.mock('@/lib/announcements/publish', () => ({ publishAnnouncementCore: vi.fn() }));
 vi.mock('@/lib/notifications/in-app', () => ({ insertBulkNotifications: vi.fn() }));
 vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
 vi.mock('@/lib/system-log/recorder', () => ({ recordSystemAction: vi.fn() }));
+vi.mock('@/lib/auth/account-guards', () => ({ profileHasPermission: vi.fn() }));
+vi.mock('@/lib/audit/recorder', () => ({ recordAudit: vi.fn() }));
 
 const SECRET = 'cron-secret-for-tests';
 
@@ -113,5 +117,36 @@ describe('GET /api/cron/publish-announcements system log', () => {
     expect(recordSystemAction).toHaveBeenCalledWith(
       expect.objectContaining({ source: 'cron:publish-announcements', outcome: 'failure' })
     );
+  });
+});
+
+describe('GET /api/cron/publish-announcements estate group post (#1328)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv('CRON_SECRET', SECRET);
+    supabaseWith([{ ...announcement('a-1'), created_by: 'author-1', updated_by: 'scheduler-1' }]);
+    vi.mocked(insertBulkNotifications).mockResolvedValue({ data: [], error: null } as never);
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('checks announcements.post_to_group for the person who scheduled it', async () => {
+    vi.mocked(profileHasPermission).mockResolvedValue(false);
+    let allowed: boolean | undefined;
+    vi.mocked(publishAnnouncementCore).mockImplementation(async (...args) => {
+      allowed = await args[4]?.mayPostToGroup?.();
+      return { error: 'refused' } as never;
+    });
+    await GET(request(`Bearer ${SECRET}`));
+    expect(profileHasPermission).toHaveBeenCalledWith('scheduler-1', 'announcements.post_to_group');
+    expect(allowed).toBe(false);
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+
+  it('audits a group post as the scheduler', async () => {
+    vi.mocked(publishAnnouncementCore).mockResolvedValue({ error: null, groupPost: { messageId: 'm-1', error: null } } as never);
+    await GET(request(`Bearer ${SECRET}`));
+    expect(recordAudit).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(recordAudit).mock.calls[0][0].newValues).toEqual({ whatsapp_group_post: 'm-1' });
+    expect(vi.mocked(recordAudit).mock.calls[0][1]).toEqual({ userId: 'scheduler-1' });
   });
 });
