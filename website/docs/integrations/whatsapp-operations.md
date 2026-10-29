@@ -11,7 +11,7 @@ residio_sources:
   - src/app/(dashboard)/system/whatsapp-monitoring/**
   - src/app/(dashboard)/system/whatsapp-bot-health/**
   - src/app/api/whatsapp/**
-residio_verified_commit: 38c0b8b5
+residio_verified_commit: ab8a13f4
 residio_verified_at: '2026-10-29'
 residio_app_version: '0.4.0'
 ---
@@ -167,6 +167,12 @@ Residio keeps a list of the group members. For each member it stores the phone n
 - A member who matches no resident record is removed 30 days after Residio last saw them. A member who matches a resident is not removed.
 
 This list does not yet change who can use the bot. The sync does not close sessions and does not move out any resident.
+
+### Members not on record
+
+**Settings → WhatsApp → Group members not on record** shows the current group members whose number matches no resident record. For each one it shows the phone number, the role in the group, the date Residio first saw the member and the date it last saw the member. It also shows how many members match a resident record. You need the manage WhatsApp permission. Without it, the section shows one line that says so.
+
+To fix a row, select **Find resident**. The residents list opens, searched by the number. Add the number as the primary or secondary phone of the resident. After the next night sync, the row leaves the report. A member whose number WhatsApp hides shows as "Number hidden by WhatsApp" and has no **Find resident** button. The report only reads the list. It does not create residents and does not send messages.
 
 ## Consent and opt-ins
 
