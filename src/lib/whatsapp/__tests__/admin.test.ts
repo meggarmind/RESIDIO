@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { generateTOTPCode, matchTotpStep, totpStepAt, validateTOTP } from '@/lib/auth/totp';
 import {
   ADMIN_BAD_LINK_REPLY,
-  ADMIN_CAP_REPLY,
+  adminCapReply,
+  resolveAdminDailyCap,
   ADMIN_CODE_NODE,
   ADMIN_CODE_PROMPT,
   ADMIN_DAILY_ACTION_CAP,
@@ -71,6 +72,7 @@ function repository(overrides: Partial<WhatsAppAdminRepository> = {}): WhatsAppA
     activateBinding: vi.fn().mockResolvedValue(true),
     findActiveBinding: vi.fn().mockResolvedValue(binding()),
     getCodeRequired: vi.fn().mockResolvedValue(true),
+    getDailyCap: vi.fn().mockResolvedValue(ADMIN_DAILY_ACTION_CAP),
     findAutoLinkProfile: vi.fn().mockResolvedValue(null),
     createBinding: vi.fn().mockImplementation(async (input) => binding({ id: 'binding-auto', lastTotpStep: input.totpStep, sessionExpiresAt: input.sessionExpiresAt })),
     setSessionExpiry: vi.fn().mockResolvedValue(undefined),
@@ -381,7 +383,48 @@ describe('the Admin tools menu (#1292 item 4)', () => {
     // Midnight in Lagos (UTC+1) is 23:00 UTC the day before.
     expect(repo.countDoneSince).toHaveBeenCalledWith(account.profileId, '2026-10-21T23:00:00.000Z');
     expect(repo.createRequest).not.toHaveBeenCalled();
-    expect(reply.mock.calls[0][0]).toMatch(new RegExp(`^${ADMIN_CAP_REPLY}`));
+    expect(reply.mock.calls[0][0]).toMatch(new RegExp(`^${adminCapReply(ADMIN_DAILY_ACTION_CAP)}`));
+  });
+
+  describe('daily limit per role (#1298)', () => {
+    const setting = { chairman: 2, financial_officer: 100 };
+    const perRole = (done: number) =>
+      liveSession({
+        countDoneSince: vi.fn().mockResolvedValue(done),
+        getDailyCap: vi.fn((roleName: string | null) => Promise.resolve(resolveAdminDailyCap(setting, roleName))),
+      });
+
+    it('stops an admin at their own role limit and says what it is', async () => {
+      const repo = perRole(2);
+      const { reply } = await step(ADMIN_MENU_NODE, '1', repo);
+      expect(repo.getDailyCap).toHaveBeenCalledWith('chairman');
+      expect(repo.createRequest).not.toHaveBeenCalled();
+      expect(reply.mock.calls[0][0]).toMatch(new RegExp(`^${adminCapReply(2)}`));
+    });
+
+    it('lets the same count through when the role limit is higher', async () => {
+      const repo = perRole(1);
+      const { reply } = await step(ADMIN_MENU_NODE, '1', repo);
+      expect(reply.mock.calls[0][0]).not.toContain("today's limit");
+    });
+
+    it('reads the limit of the admin role, not another role', () => {
+      expect(resolveAdminDailyCap(setting, 'chairman')).toBe(2);
+      expect(resolveAdminDailyCap(setting, 'financial_officer')).toBe(100);
+      expect(resolveAdminDailyCap(setting, 'trustee')).toBe(ADMIN_DAILY_ACTION_CAP);
+    });
+
+    it.each([
+      ['no setting', null],
+      ['a JSON string', '{"chairman":3}'],
+      ['a bad value', { chairman: 'lots' }],
+      ['a negative value', { chairman: -1 }],
+      ['an array', [1, 2]],
+      ['broken JSON', '{nope'],
+    ])('falls back safely for %s', (_label, value) => {
+      const expected = _label === 'a JSON string' ? 3 : ADMIN_DAILY_ACTION_CAP;
+      expect(resolveAdminDailyCap(value, 'chairman')).toBe(expected);
+    });
   });
 
   it('runs the pending request once a correct code opens a session', async () => {

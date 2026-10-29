@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  ADMIN_CAP_REPLY,
+  adminCapReply,
   ADMIN_DAILY_ACTION_CAP,
   ADMIN_ITEM_NODE,
   ADMIN_NOT_ALLOWED_REPLY,
@@ -89,6 +89,7 @@ function adminRepo(overrides: Partial<WhatsAppAdminRepository> = {}): WhatsAppAd
     activateBinding: vi.fn().mockResolvedValue(true),
     findActiveBinding: vi.fn().mockResolvedValue(liveBinding()),
     getCodeRequired: vi.fn().mockResolvedValue(true),
+    getDailyCap: vi.fn().mockResolvedValue(ADMIN_DAILY_ACTION_CAP),
     findAutoLinkProfile: vi.fn().mockResolvedValue(null),
     createBinding: vi.fn().mockResolvedValue(null),
     setSessionExpiry: vi.fn().mockResolvedValue(undefined),
@@ -210,7 +211,7 @@ describe('Resident status (owes lookup)', () => {
     const owes = owesRepo();
     const repo = adminRepo({ countDoneSince: vi.fn().mockResolvedValue(ADMIN_DAILY_ACTION_CAP) });
     const reply = await send('KOA-18A', repo, owes);
-    expect(reply.mock.calls[0][0]).toMatch(new RegExp(`^${ADMIN_CAP_REPLY}`));
+    expect(reply.mock.calls[0][0]).toMatch(new RegExp(`^${adminCapReply(ADMIN_DAILY_ACTION_CAP)}`));
     expect(owes.searchHouseCodes).not.toHaveBeenCalled();
   });
 

@@ -43,7 +43,7 @@ Hostinger KVM 2  (x86, 2 vCPU, 8 GB RAM, 100 GB NVMe)
     ├── residio-prod   -> app.<domain>    -> Supabase project Residio_Prod
     ├── residio-stage-image -> stage.<domain> -> Supabase project Residio_Stage (CI-built GHCR image)
     ├── residio-waha-stage  -> WAHA WhatsApp gateway for Stage (#1260); no app hostname, reached by the Stage app over HTTPS
-    └── Scheduled tasks: the 12 scheduled cron routes (see "Scheduled tasks" below), on prod and stage
+    └── Scheduled tasks: the 13 scheduled cron routes (see "Scheduled tasks" below), on prod and stage
 ```
 
 - `residio-waha-stage` is the self-hosted WAHA container (`devlikeapro/waha`, NOWEB engine) that the
@@ -63,7 +63,7 @@ Hostinger KVM 2  (x86, 2 vCPU, 8 GB RAM, 100 GB NVMe)
 ## Scheduled tasks (#399)
 
 `vercel.json` was the only definition of Residio's schedules and is inert off Vercel, so it has
-been removed. The twelve schedules now live as **Coolify scheduled tasks on both the `residio-prod`
+been removed. The thirteen schedules now live as **Coolify scheduled tasks on both the `residio-prod`
 and the `residio-stage-image` application**, with the same container, frequency and command on each.
 Stage's 11 Coolify scheduled tasks are attached to `residio-stage-image` (moved from the
 stopped `residio-stage`, #1114). Coolify configuration is not in the repo, so this section is the record; if a task is changed in
@@ -119,6 +119,7 @@ read from the container's environment by the command, so it is never written int
 | `payment-reminders` | `0 8 * * *` | 120000 |
 | `process-notifications` | `*/15 * * * *` | 60000 |
 | `expire-approvals` | `0 * * * *` | 60000 |
+| `whatsapp-admin-weekly` | `0 6 * * 1` | 120000 |
 
 `process-notifications` runs every 15 minutes (#546), not daily: a transient send failure is put
 back on the queue with a backoff of 15 minutes, 1 hour, 6 hours, then 24 hours (or until the
@@ -171,6 +172,9 @@ node -e "fetch('http://127.0.0.1:3000/api/cron/payment-reminders',{headers:{Auth
 # expire-approvals  (0 * * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/expire-approvals',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(60000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
 
+# whatsapp-admin-weekly  (0 6 * * 1)
+node -e "fetch('http://127.0.0.1:3000/api/cron/whatsapp-admin-weekly',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(120000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
+
 # purge-performance-events  (30 0 * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/purge-performance-events',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(60000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
 
@@ -189,6 +193,7 @@ node -e "fetch('http://127.0.0.1:3000/api/cron/process-notifications',{headers:{
 | 60 s | `expire-approvals` | One read, one set-based UPDATE inside `process_expired_approvals()` and one in-app notification per expired request (#558). Hourly, so the backlog is small. New route: the owner must create this Coolify task; nothing runs it until then. |
 | 120 s | `whatsapp-chatmaid-reconcile` | New route (#511): at most 3 Chatmaid list calls (15 s timeout each) plus the Assistant reply for any message the webhook missed. Nothing runs it until the owner creates this Coolify task. |
 | 120 s | `whatsapp-waha-reconcile` | New route (#1262): at most 3 WAHA message-store reads (15 s timeout each) plus the Assistant reply for any message the webhook missed. It does nothing unless WAHA is the active provider. Nothing runs it until the owner creates this Coolify task. |
+| 120 s | `whatsapp-admin-weekly` | New route (#1298): two reads over the past 7 days and one email per active Chairman. It runs Monday 07:00 Lagos time and covers the 7 whole Lagos days before it (Monday to Sunday). It answers HTTP 500 (logged as a failure, so the Coolify task fails) when no active Chairman has an email address. Nothing runs it until the owner creates this Coolify task. |
 | 60 s | `purge-performance-events` | New route (#957): one `DELETE ... WHERE occurred_at < now() - 30 days` on `performance_events`. Nothing runs it until the owner creates this Coolify task. |
 | 60 s | `whatsapp-retention` | **Previously undeclared.** Four bulk `DELETE ... WHERE <timestamp> < cutoff` statements run in parallel (`src/lib/whatsapp/retention.ts`) and nothing else; it runs daily so the backlog is small. Anything near 60 s means something is wrong. |
 
@@ -198,13 +203,13 @@ the app logs and the run history before re-triggering anything that creates reco
 
 ### Not scheduled: `apply-late-fees`
 
-There are thirteen cron routes and **twelve** schedules. `src/app/api/cron/apply-late-fees` exists and
+There are fourteen cron routes and **thirteen** schedules. `src/app/api/cron/apply-late-fees` exists and
 authenticates like the others, but it has **never had a `vercel.json` entry** (its handler comment
 says "7 AM UTC daily (configured in vercel.json)"; that was never true), so late fees have never
 run on a schedule in any environment. It was left unscheduled because #399 listed nine schedules.
 Whether to schedule it (the handler's comment suggests `0 7 * * *`) is an owner decision rather
 than an infrastructure one, because it starts charging residents. If the owner says yes, add a
-thirteenth task with the same command (300000 ms) and update this table.
+fourteenth task with the same command (300000 ms) and update this table.
 
 ### Failure visibility (owner, in Coolify)
 

@@ -54,6 +54,7 @@ const NO_RESIDENT_CONTEXT: Allowed[] = [
   { file: 'actions/email/test-email.ts', fn: 'testEmail', sites: 1, reason: 'admin-typed test address, not a resident' },
   { file: 'lib/reports/process-schedules.ts', fn: 'processDueSchedules', sites: 1, reason: 'report_schedules.recipients are raw addresses' },
   { file: 'lib/whatsapp/admin.ts', fn: 'createSupabaseWhatsAppAdminRepository', sites: 1, reason: 'recipient is the admin account itself (profiles.email): follow the global switch' },
+  { file: 'lib/whatsapp/admin-weekly-report.ts', fn: 'runWeeklyAdminReport', sites: 1, reason: 'weekly report to active Chairman accounts (profiles.email, #1298): follow the global switch' },
   { file: 'lib/notifications/send.ts', fn: 'sendAdminAddressedEmail', sites: 1, reason: 'queued email to an admin account (profiles.email, #982): follow the global switch' },
   { file: 'lib/notifications/send.ts', fn: 'sendNonResidentCollectionEmail', sites: 1, reason: 'queued collection email to a non-resident payer or notified party (#1194): no resident flag, follow the global switch' },
   { file: 'lib/whatsapp/debt-report.ts', fn: 'replyDebtReportFailed', sites: 1, reason: "failure reply to the admin's linked WhatsApp number (#982): follow the global switch" },
