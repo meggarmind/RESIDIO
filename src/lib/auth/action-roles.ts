@@ -162,6 +162,12 @@ export const PERMISSIONS = {
   WHATSAPP_MANAGE: 'whatsapp.manage',
   // WhatsApp admin mode (#972): link a number and run approved admin lookups with an authenticator code.
   WHATSAPP_ADMIN_QUERY: 'whatsapp_admin.query',
+  // One permission per Admin tools menu item (#1292), each on top of whatsapp_admin.query.
+  WHATSAPP_ADMIN_RESIDENT_STATUS: 'whatsapp_admin.resident_status',
+  WHATSAPP_ADMIN_DEBT_REPORT: 'whatsapp_admin.debt_report',
+  WHATSAPP_ADMIN_COLLECTIONS: 'whatsapp_admin.collections',
+  WHATSAPP_ADMIN_CLEARANCE_QUEUE: 'whatsapp_admin.clearance_queue',
+  WHATSAPP_ADMIN_APPROVE_PAYMENT: 'whatsapp_admin.approve_payment',
 
   // Recipient groups: named lists of residents to send to (#819)
   GROUPS_VIEW: 'groups.view',
@@ -222,9 +228,6 @@ export const PERMISSIONS = {
   SYSTEM_VIEW_ALL_PROFILES: 'system.view_all_profiles',
   DOCUMENTS_VIEW_ALL: 'documents.view_all',
 } as const;
-
-/** Either one lets a WhatsApp admin read finance information (ADMIN OWES, ADMIN DEBT). */
-export const FINANCE_VIEW_PERMISSIONS: string[] = [PERMISSIONS.BILLING_VIEW, PERMISSIONS.REPORTS_VIEW_FINANCIAL];
 
 export type Permission = typeof PERMISSIONS[keyof typeof PERMISSIONS];
 

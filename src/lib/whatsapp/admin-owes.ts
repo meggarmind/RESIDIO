@@ -16,7 +16,9 @@ import { createSupabaseWhatsAppFinancialRepository, type OwedFigures } from '@/l
 
 export const OWES_LIST_MAX = 5;
 export const OWES_PICK_MINUTES = 5;
-export const OWES_USAGE = 'Send ADMIN OWES followed by a house code or a name, for example ADMIN OWES KOA-18A.';
+export const OWES_USAGE = 'Send a house code or a name, for example KOA-18A.';
+/** Asked when Resident status is chosen from Admin tools (#1292). */
+export const OWES_PROMPT = `Resident status. ${OWES_USAGE}`;
 const MAX_QUERY_LENGTH = 60;
 const BILLABLE_ROLES = ['resident_landlord', 'non_resident_landlord', 'tenant', 'developer'];
 
@@ -179,7 +181,7 @@ export async function runAdminOwesLookup(input: OwesRunInput): Promise<string> {
     metadata: { channel: 'whatsapp_admin', query: term, listed: matches.map(({ houseId, name }) => ({ house_id: houseId, name })) },
   });
   return [
-    `${matches.length} matches for "${term}". Send ADMIN and the number within ${OWES_PICK_MINUTES} minutes, for example ADMIN 1:`,
+    `${matches.length} matches for "${term}". Reply with the number within ${OWES_PICK_MINUTES} minutes, for example 1:`,
     ...matches.map(candidateLine),
   ].join('\n');
 }

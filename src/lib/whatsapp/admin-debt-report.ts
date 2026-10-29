@@ -1,4 +1,4 @@
-import { FINANCE_VIEW_PERMISSIONS } from '@/lib/auth/action-roles';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import type { WhatsAppAdminAction } from '@/lib/whatsapp/admin';
 import {
   countDebtReportHouses,
@@ -19,11 +19,12 @@ export const DEBT_REPORT_NO_EMAIL_REPLY = 'Your account has no email address, so
 export const DEBT_REPORT_QUEUE_FAILED_REPLY = 'The debt status report could not be sent by email. Try again later.';
 
 /**
- * ADMIN DEBT (#982): the admin picks ALL or streets, approves with a fresh authenticator code, and the
+ * Security debt status (#982, Admin tools item 2 since #1292): the admin picks ALL or streets, approves with a fresh authenticator code, and the
  * debt status PDF (house and status, no amounts or names) is emailed to their account address.
  */
 export const debtReportAction: WhatsAppAdminAction = {
-  permission: FINANCE_VIEW_PERMISSIONS,
+  label: 'Security debt status',
+  permission: PERMISSIONS.WHATSAPP_ADMIN_DEBT_REPORT,
   freshCode: true,
 
   async begin() {

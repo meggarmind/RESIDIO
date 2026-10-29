@@ -56,7 +56,8 @@ export type PermissionCategory =
   | 'finance'       // Expenditure and Petty Cash
   | 'projects'      // Capital Projects
   | 'groups'        // Recipient groups (#819)
-  | 'collections';  // Collections ledger (#1194)
+  | 'collections'   // Collections ledger (#1194)
+  | 'whatsapp_admin'; // WhatsApp Admin tools menu items (#1292)
 
 // Account approval lifecycle (profiles.account_status).
 // Only 'active' resolves a role, resident link or permissions — the auth helpers

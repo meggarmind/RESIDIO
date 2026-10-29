@@ -19,9 +19,12 @@ vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
 
 import {
   accountFingerprint,
-  handleWhatsAppAdminChoice,
   handleWhatsAppAdminMessage,
+  handleWhatsAppAdminStep,
   parseWhatsAppAdminCommand,
+  ADMIN_CODE_NODE,
+  ADMIN_ITEM_NODE,
+  ADMIN_MENU_NODE,
   ADMIN_NOT_ALLOWED_REPLY,
   type WhatsAppAdminAccount,
   type WhatsAppAdminActionContext,
@@ -45,7 +48,8 @@ const account: WhatsAppAdminAccount = {
   roleId: 'role-fin',
   roleName: 'financial_officer',
   roleDisplayName: 'Financial Officer',
-  permissions: ['whatsapp_admin.query', 'reports.view_financial'],
+  roleCategory: 'exco',
+  permissions: ['whatsapp_admin.query', 'whatsapp_admin.debt_report'],
   totpSecret: SECRET,
 };
 const binding: WhatsAppAdminBinding = {
@@ -57,7 +61,10 @@ const binding: WhatsAppAdminBinding = {
   lastTotpStep: null,
   sessionExpiresAt: null,
   accountFingerprint: accountFingerprint(account),
+  codeRequired: true,
 };
+/** The same binding inside a live admin session. */
+const live: WhatsAppAdminBinding = { ...binding, sessionExpiresAt: '2026-10-22T10:10:00Z' };
 
 const message = (text: string): WhatsAppInboundMessage => ({ id: `wamid-${text}`, from: PHONE.slice(1), timestamp: '1', type: 'text', text });
 
@@ -69,6 +76,10 @@ function repository(overrides: Partial<WhatsAppAdminRepository> = {}): WhatsAppA
     findLinkCode: vi.fn().mockResolvedValue(null),
     activateBinding: vi.fn().mockResolvedValue(true),
     findActiveBinding: vi.fn().mockResolvedValue(binding),
+    getCodeRequired: vi.fn().mockResolvedValue(true),
+    findAutoLinkProfile: vi.fn().mockResolvedValue(null),
+    createBinding: vi.fn().mockResolvedValue(null),
+    setSessionExpiry: vi.fn().mockResolvedValue(undefined),
     revokeBinding: vi.fn().mockResolvedValue(undefined),
     loadAccount: vi.fn().mockResolvedValue(account),
     acceptCode: vi.fn().mockResolvedValue(true),
@@ -86,9 +97,21 @@ function repository(overrides: Partial<WhatsAppAdminRepository> = {}): WhatsAppA
 async function send(text: string, repo: WhatsAppAdminRepository) {
   const reply = vi.fn().mockResolvedValue(undefined);
   const command = parseWhatsAppAdminCommand(text)!;
-  await handleWhatsAppAdminMessage(message(text), command, { repository: repo, reply, now: () => NOW });
+  await handleWhatsAppAdminMessage(message(text), command, { repository: repo, reply, setStep: vi.fn(), now: () => NOW });
   return reply;
 }
+
+/** A reply to the admin step on screen (#1292). */
+async function step(node: string, text: string, repo: WhatsAppAdminRepository) {
+  const reply = vi.fn().mockResolvedValue(undefined);
+  const setStep = vi.fn().mockResolvedValue(undefined);
+  const handled = await handleWhatsAppAdminStep(message(text), node, { repository: repo, reply, setStep, now: () => NOW });
+  return { reply, setStep, handled };
+}
+
+/** Item 2 of the Admin tools menu, inside a live session. */
+const ask = (repo: WhatsAppAdminRepository) => step(ADMIN_MENU_NODE, '2', repo).then(({ reply }) => reply);
+const inSession = (overrides: Partial<WhatsAppAdminRepository> = {}) => repository({ findActiveBinding: vi.fn().mockResolvedValue(live), ...overrides });
 
 const streets = [
   { number: 1, id: 's-a', name: 'Alpha Street' },
@@ -107,10 +130,10 @@ beforeEach(() => {
   mocks.queueDebtReportEmail.mockResolvedValue(undefined);
 });
 
-describe('ADMIN DEBT: asking', () => {
+describe('Security debt status: asking', () => {
   it('lists the streets with numbers and ALL, and waits for the choice, not a code', async () => {
-    const repo = repository();
-    const reply = await send('ADMIN DEBT', repo);
+    const repo = inSession();
+    const reply = await ask(repo);
 
     const text = reply.mock.calls[0][0] as string;
     expect(text).toContain('1. Alpha Street (2 houses)');
@@ -122,41 +145,44 @@ describe('ADMIN DEBT: asking', () => {
 
   it('with no reportable houses says so and leaves no question waiting', async () => {
     mocks.loadReportableHouses.mockResolvedValue([]);
-    const repo = repository();
-    const reply = await send('ADMIN DEBT', repo);
+    const repo = inSession();
+    const reply = await ask(repo);
 
-    expect(reply).toHaveBeenCalledWith(DEBT_REPORT_NO_HOUSES_REPLY);
+    expect(reply.mock.calls[0][0]).toMatch(new RegExp(`^${DEBT_REPORT_NO_HOUSES_REPLY}`));
     expect(repo.createRequest).not.toHaveBeenCalled();
   });
 
-  it.each([['billing.view'], ['reports.view_financial']])('allows a role with %s only', async (permission) => {
-    const repo = repository({ loadAccount: vi.fn().mockResolvedValue({ ...account, permissions: ['whatsapp_admin.query', permission] }) });
-    await send('ADMIN DEBT', repo);
-    expect(repo.createRequest).toHaveBeenCalledWith(expect.objectContaining({ action: 'debt:choose' }));
-  });
+  it('refuses a role without whatsapp_admin.debt_report, even with finance view permissions (#1292)', async () => {
+    const repo = inSession({ loadAccount: vi.fn().mockResolvedValue({ ...account, permissions: ['whatsapp_admin.query', 'billing.view', 'reports.view_financial'] }) });
+    const reply = await ask(repo);
 
-  it('refuses a role without the finance view permission, even with whatsapp_admin.query', async () => {
-    const repo = repository({ loadAccount: vi.fn().mockResolvedValue({ ...account, permissions: ['whatsapp_admin.query'] }) });
-    const reply = await send('ADMIN DEBT', repo);
-
-    expect(reply).toHaveBeenCalledWith(ADMIN_NOT_ALLOWED_REPLY);
+    expect(reply.mock.calls[0][0]).toMatch(/^I didn't catch that/);
+    expect(reply.mock.calls[0][0]).not.toContain('Security debt status');
     expect(repo.createRequest).not.toHaveBeenCalled();
   });
 });
 
-describe('ADMIN DEBT: choosing', () => {
+describe('Security debt status: choosing', () => {
   const waiting = { action: 'debt', state: { streets } };
-  const choose = async (text: string, repo = repository({ findPendingChoice: vi.fn().mockResolvedValue(waiting) })) => {
-    const reply = vi.fn().mockResolvedValue(undefined);
-    const handled = await handleWhatsAppAdminChoice(message(text), { repository: repo, reply, now: () => NOW });
-    return { repo, reply, handled };
+  const choose = async (text: string, repo = inSession({ findPendingChoice: vi.fn().mockResolvedValue(waiting) })) => {
+    const { reply, setStep, handled } = await step(ADMIN_ITEM_NODE, text, repo);
+    return { repo, reply, setStep, handled };
   };
 
   it('ALL becomes a pending request for the whole estate and asks for a fresh code', async () => {
-    const { repo, reply, handled } = await choose('ALL');
+    const { repo, reply, setStep, handled } = await choose('ALL');
     expect(handled).toBe(true);
     expect(repo.createRequest).toHaveBeenCalledWith(expect.objectContaining({ action: 'debt', status: 'pending', params: { all: true, streetIds: [] } }));
-    expect(reply.mock.calls[0][0]).toMatch(/send ADMIN followed by the 6-digit code/);
+    expect(reply.mock.calls[0][0]).toMatch(/send the 6-digit code/);
+    expect(setStep).toHaveBeenCalledWith(ADMIN_CODE_NODE);
+  });
+
+  it('runs at once without a code when no code is needed (#1292)', async () => {
+    const repo = inSession({ findPendingChoice: vi.fn().mockResolvedValue(waiting), getCodeRequired: vi.fn().mockResolvedValue(false) });
+    const { reply } = await choose('ALL', repo);
+    expect(repo.createRequest).toHaveBeenCalledWith(expect.objectContaining({ action: 'debt', status: 'done' }));
+    expect(mocks.queueDebtReportEmail).toHaveBeenCalled();
+    expect(reply.mock.calls[0][0]).toMatch(/on its way/);
   });
 
   it('numbers such as 2,3 become those streets', async () => {
@@ -176,33 +202,28 @@ describe('ADMIN DEBT: choosing', () => {
     expect(repo.createRequest).not.toHaveBeenCalled();
   });
 
-  it('leaves the message to the resident assistant when no question is waiting', async () => {
-    const { reply, handled } = await choose('2', repository());
-    expect(handled).toBe(false);
-    expect(reply).not.toHaveBeenCalled();
-  });
-
-  it('leaves the message to the resident assistant when the lookup fails', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    const { reply, handled } = await choose('2', repository({ findPendingChoice: vi.fn().mockRejectedValue(new Error('db down')) }));
-    expect(handled).toBe(false);
-    expect(reply).not.toHaveBeenCalled();
+  it('shows the menu again when the question ran out', async () => {
+    const { reply, setStep, handled } = await choose('2', inSession());
+    expect(handled).toBe(true);
+    expect(reply.mock.calls[0][0]).toMatch(/ran out after 5 minutes/);
+    expect(setStep).toHaveBeenCalledWith(ADMIN_MENU_NODE);
   });
 
   it('a failure after the choice was taken is not hidden as a resident message', async () => {
     const reply = vi.fn().mockRejectedValue(new Error('send failed'));
-    const repo = repository({ findPendingChoice: vi.fn().mockResolvedValue(waiting) });
-    await expect(handleWhatsAppAdminChoice(message('2'), { repository: repo, reply, now: () => NOW })).rejects.toThrow('send failed');
+    const repo = inSession({ findPendingChoice: vi.fn().mockResolvedValue(waiting) });
+    await expect(handleWhatsAppAdminStep(message('2'), ADMIN_ITEM_NODE, { repository: repo, reply, setStep: vi.fn(), now: () => NOW })).rejects.toThrow('send failed');
     expect(repo.createRequest).toHaveBeenCalled();
   });
 
   it('leaves the message alone from a number that is not a linked admin', async () => {
-    const { handled } = await choose('2', repository({ findActiveBinding: vi.fn().mockResolvedValue(null) }));
+    const { handled, reply } = await choose('2', repository({ findActiveBinding: vi.fn().mockResolvedValue(null) }));
     expect(handled).toBe(false);
+    expect(reply).not.toHaveBeenCalled();
   });
 });
 
-describe('ADMIN DEBT: running with a fresh code', () => {
+describe('Security debt status: running with a fresh code', () => {
   const code = () => generateTOTPCode(SECRET, totpStepAt(NOW.getTime()));
   const params = { all: false, streetIds: ['s-a'] };
   const context = (overrides: Partial<WhatsAppAdminActionContext> = {}): WhatsAppAdminActionContext => ({
@@ -217,7 +238,7 @@ describe('ADMIN DEBT: running with a fresh code', () => {
     expect(mocks.countDebtReportHouses).toHaveBeenCalledWith(params);
     expect(mocks.renderDebtStatusReport).not.toHaveBeenCalled();
     expect(mocks.queueDebtReportEmail).toHaveBeenCalledWith(expect.objectContaining({ profileId: 'admin-1', email: 'ada@example.test', phoneNumber: PHONE, scope: params }));
-    expect(reply).toHaveBeenCalledWith('The debt status report for Alpha Street (2 houses) is on its way to ada@example.test.');
+    expect(reply.mock.calls[0][0]).toBe('The debt status report for Alpha Street (2 houses) is on its way to ada@example.test.');
     expect(repo.audit).toHaveBeenCalledWith(
       expect.objectContaining({ entityId: 'request-7', metadata: expect.objectContaining({ action: 'debt', scope: ['s-a'], outcome: 'queued', house_count: 2 }) }),
       'admin-1'
@@ -242,8 +263,9 @@ describe('ADMIN DEBT: running with a fresh code', () => {
     const repo = repository({ takePendingRequest: vi.fn().mockResolvedValue({ id: 'r', action: 'debt', params }) });
     const reply = await send(`ADMIN ${code()}`, repo);
 
-    expect(reply).toHaveBeenCalledTimes(1);
-    expect(reply).toHaveBeenCalledWith(DEBT_REPORT_FAILED_REPLY);
+    // The answer, then the Admin tools menu as its own message.
+    expect(reply).toHaveBeenCalledTimes(2);
+    expect(reply.mock.calls[0][0]).toBe(DEBT_REPORT_FAILED_REPLY);
     expect(mocks.queueDebtReportEmail).not.toHaveBeenCalled();
     expect(repo.audit).toHaveBeenCalledWith(expect.objectContaining({ metadata: expect.objectContaining({ outcome: 'read_failed' }) }), 'admin-1');
   });
@@ -261,30 +283,27 @@ describe('ADMIN DEBT: running with a fresh code', () => {
     expect(result).toMatchObject({ audit: expect.objectContaining({ outcome: 'queue_failed' }) });
   });
 
-  it.each([['billing.view'], ['reports.view_financial']])('runs at code time for a role with %s only', async (permission) => {
-    const repo = repository({
-      loadAccount: vi.fn().mockResolvedValue({ ...account, permissions: ['whatsapp_admin.query', permission] }),
-      takePendingRequest: vi.fn().mockResolvedValue({ id: 'r', action: 'debt', params }),
-    });
-    await send(`ADMIN ${code()}`, repo);
+  it('the code typed alone on the code step runs it too (#1292)', async () => {
+    const repo = repository({ takePendingRequest: vi.fn().mockResolvedValue({ id: 'r', action: 'debt', params }) });
+    await step(ADMIN_CODE_NODE, code(), repo);
     expect(mocks.queueDebtReportEmail).toHaveBeenCalled();
   });
 
-  it('refuses at code time when the role lost the finance permission since the request', async () => {
+  it('refuses at code time when the role lost whatsapp_admin.debt_report since the request', async () => {
     const repo = repository({
-      loadAccount: vi.fn().mockResolvedValue({ ...account, permissions: ['whatsapp_admin.query'] }),
+      loadAccount: vi.fn().mockResolvedValue({ ...account, permissions: ['whatsapp_admin.query', 'reports.view_financial'] }),
       takePendingRequest: vi.fn().mockResolvedValue({ id: 'r', action: 'debt', params }),
     });
     const reply = await send(`ADMIN ${code()}`, repo);
-    expect(reply).toHaveBeenCalledWith(ADMIN_NOT_ALLOWED_REPLY);
+    expect(reply.mock.calls[0][0]).toMatch(new RegExp(`^${ADMIN_NOT_ALLOWED_REPLY}`));
     expect(mocks.queueDebtReportEmail).not.toHaveBeenCalled();
   });
 });
 
 describe('a live session does not skip the code', () => {
-  it('ADMIN DEBT still begins with the street question inside a session', async () => {
-    const repo = repository({ findActiveBinding: vi.fn().mockResolvedValue({ ...binding, sessionExpiresAt: '2026-10-22T10:10:00Z' }) });
-    await send('ADMIN DEBT', repo);
+  it('item 2 still begins with the street question inside a session', async () => {
+    const repo = inSession();
+    await ask(repo);
     expect(repo.createRequest).toHaveBeenCalledWith(expect.objectContaining({ status: 'pending' }));
     expect(mocks.renderDebtStatusReport).not.toHaveBeenCalled();
   });

@@ -6,6 +6,7 @@
  */
 
 import { canPerformWhatsAppFinancialLookup, createSupabaseWhatsAppFinancialRepository, handleFinancialMessage } from '@/lib/whatsapp/financial';
+import { createWhatsAppAdminTools } from '@/lib/whatsapp/admin';
 import {
   createSupabaseWhatsAppHeldMessageStore,
   heldMessageCutoff,
@@ -23,6 +24,7 @@ async function answer(message: WhatsAppInboundMessage): Promise<void> {
         repository: createSupabaseWhatsAppFinancialRepository(),
         optedIn: true,
         canLookup: canPerformWhatsAppFinancialLookup,
+        adminTools: createWhatsAppAdminTools(),
       });
     },
   });
