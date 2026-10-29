@@ -9,6 +9,7 @@ import { isResidentRollForwardEnabled } from '@/lib/billing/account-balance';
 import { renderStatementPdf, statementEstateName as estateName } from '@/lib/billing/statement-pdf';
 import { WhatsAppStatementEmail } from '@/emails/whatsapp-statement';
 import { addToQueue, PRIORITY } from '@/lib/notifications/queue';
+import { matchProviderMessageId } from '@/lib/whatsapp/outbound-sends';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
 import { getSponsoredHouses } from '@/lib/whatsapp/co-resident';
@@ -304,12 +305,11 @@ export async function buildStatementEmail(requestId: string) {
  */
 export async function retryFailedStatementSend(provider: string, providerMessageId: string): Promise<boolean> {
   const client = db();
-  const { data: send, error: sendError } = await client
-    .from('whatsapp_outbound_sends')
-    .select('inbound_message_id')
-    .eq('provider', provider)
-    .eq('provider_message_id', providerMessageId)
-    .maybeSingle();
+  const { data: send, error: sendError } = await matchProviderMessageId(
+    client.from('whatsapp_outbound_sends').select('inbound_message_id'),
+    provider,
+    providerMessageId
+  ).maybeSingle();
   if (sendError) throw sendError;
   const inboundMessageId = (send as { inbound_message_id: string | null } | null)?.inbound_message_id;
   if (!inboundMessageId) return false;
