@@ -130,11 +130,12 @@ function seed(profiles: Row[] = []) {
       { id: VICE, role_id: CHAIRMAN, name: 'Vice Chairman', is_principal: false, seats: 1, sort_order: 1 },
       { id: SECRETARY_TITLE, role_id: SECRETARY, name: 'Secretary', is_principal: true, seats: 1, sort_order: 0 },
     ],
+    // Approved accounts unless a test says otherwise: assignRoleToProfile refuses the rest (#1316).
     profiles: [
       { id: 'jane', email: 'jane@example.test', full_name: 'Jane Doe', role_id: null, title_id: null, resident_id: 'res-jane' },
       { id: 'noresident', email: 'nr@example.test', full_name: 'No Resident', role_id: null, title_id: null, resident_id: null },
       ...profiles,
-    ],
+    ].map((p) => ({ approval_status: 'active', ...p })),
   };
 }
 

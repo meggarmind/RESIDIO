@@ -20,7 +20,7 @@ const ROLES = [
   { id: 'r-tr', name: 'trustee', display_name: 'Trustee', is_active: true, requires_resident: true, permissions: [] },
 ];
 vi.mock('@/hooks/use-roles', () => ({
-  useRolesWithPermissions: () => ({ data: ROLES }),
+  useAssignableRoles: () => ({ data: ROLES, isLoading: false, error: null }),
   useAdminTitles: () => ({ data: [] }),
 }));
 

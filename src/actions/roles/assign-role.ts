@@ -7,6 +7,11 @@ import { logAudit } from '@/lib/audit/logger';
 import { isLastActiveSuperAdmin, LAST_SUPER_ADMIN_ERROR } from '@/lib/auth/super-admin-invariant';
 import { assertCanGrantRoles, assertCanManageTarget } from '@/lib/auth/account-guards';
 import { ilikeAny } from '@/lib/postgrest-filter';
+import {
+  checkTitleForRole,
+  evaluateRoleAssignmentRules,
+  noResidentError,
+} from '@/lib/auth/role-assignment-checks';
 import type { ProfileApprovalStatus } from '@/types/database';
 
 // =====================================================
@@ -21,12 +26,27 @@ export type ResidentSearchResult = {
   phone_primary: string | null;
   house_address: string | null;
   profile_id: string | null;
+  /** The linked account's approval status; null when the resident has no account. */
+  approval_status: ProfileApprovalStatus | null;
   current_role_id: string | null;
   current_role_name: string | null;
   current_role_display_name: string | null;
   current_title_id: string | null;
   current_title_name: string | null;
 };
+
+/**
+ * The `.or()` filter for a name search. A single word matches any of `columns`;
+ * several words ("John Smith") also match a row where every word is found in
+ * one of `nameColumns`, so a first and last name typed together find the person.
+ */
+function nameSearchFilter(columns: string[], nameColumns: string[], query: string): string {
+  const words = query.trim().split(/\s+/).filter(Boolean).slice(0, 5);
+  const whole = ilikeAny(columns, query.trim());
+  if (words.length < 2) return whole;
+  const everyWord = words.map((word) => `or(${ilikeAny(nameColumns, word)})`).join(',');
+  return `${whole},and(${everyWord})`;
+}
 
 // =====================================================
 // Search Residents for Role Assignment
@@ -75,7 +95,7 @@ export async function searchResidentsForRoleAssignment(
         )
       )
     `)
-    .or(ilikeAny(['first_name', 'last_name', 'email'], query))
+    .or(nameSearchFilter(['first_name', 'last_name', 'email'], ['first_name', 'last_name'], query))
     .limit(20);
 
   if (error) {
@@ -83,52 +103,46 @@ export async function searchResidentsForRoleAssignment(
     return { error: 'Failed to search residents' };
   }
 
-  // Get profile IDs to fetch role information
-  const profileIds = residents
-    ?.filter(r => r.profile_id)
-    .map(r => r.profile_id) || [];
+  // Accounts linked to these residents, from either direction:
+  // residents.profile_id and profiles.resident_id are two independent links.
+  // Read with the service role after the permission check above: RLS on
+  // profiles shows other people's rows only to system.view_all_profiles.
+  const residentIds = (residents ?? []).map((r) => r.id);
+  const linkedProfileIds = (residents ?? [])
+    .map((r) => r.profile_id)
+    .filter((id): id is string => Boolean(id));
 
-  // Fetch profiles with roles if any have linked profiles
-  const profileRoles: Map<string, {
+  type LinkedProfile = {
+    id: string;
+    resident_id: string | null;
+    approval_status: ProfileApprovalStatus;
     role_id: string | null;
-    role_name: string | null;
-    role_display_name: string | null;
     title_id: string | null;
-    title_name: string | null;
-  }> = new Map();
+    app_roles: { name: string; display_name: string } | { name: string; display_name: string }[] | null;
+    admin_titles: { name: string } | { name: string }[] | null;
+  };
+  const profilesById = new Map<string, LinkedProfile>();
+  const profileIdByResident = new Map<string, string>();
 
-  if (profileIds.length > 0) {
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, role_id, title_id, admin_titles:title_id (name)')
-      .in('id', profileIds);
+  if (residentIds.length > 0) {
+    const admin = createAdminClient();
+    const columns =
+      'id, resident_id, approval_status, role_id, title_id, app_roles!profiles_role_id_fkey (name, display_name), admin_titles:title_id (name)';
+    const [byId, byResident] = await Promise.all([
+      linkedProfileIds.length > 0
+        ? admin.from('profiles').select(columns).in('id', linkedProfileIds)
+        : Promise.resolve({ data: [], error: null }),
+      admin.from('profiles').select(columns).in('resident_id', residentIds),
+    ]);
 
-    // Get role information
-    if (profiles && profiles.length > 0) {
-      const roleIds = profiles
-        .filter(p => p.role_id)
-        .map(p => p.role_id) as string[];
+    if (byId.error || byResident.error) {
+      console.error('Error reading linked accounts:', byId.error ?? byResident.error);
+      return { error: 'Failed to search residents' };
+    }
 
-      if (roleIds.length > 0) {
-        const { data: roles } = await supabase
-          .from('app_roles')
-          .select('id, name, display_name')
-          .in('id', roleIds);
-
-        const roleMap = new Map(roles?.map(r => [r.id, r]) || []);
-
-        profiles.forEach(profile => {
-          const role = profile.role_id ? roleMap.get(profile.role_id) : null;
-          const title = Array.isArray(profile.admin_titles) ? profile.admin_titles[0] : profile.admin_titles;
-          profileRoles.set(profile.id, {
-            role_id: profile.role_id,
-            role_name: role?.name || null,
-            role_display_name: role?.display_name || null,
-            title_id: profile.title_id ?? null,
-            title_name: title?.name ?? null,
-          });
-        });
-      }
+    for (const profile of [...(byId.data ?? []), ...(byResident.data ?? [])] as LinkedProfile[]) {
+      profilesById.set(profile.id, profile);
+      if (profile.resident_id) profileIdByResident.set(profile.resident_id, profile.id);
     }
   }
 
@@ -152,9 +166,10 @@ export async function searchResidentsForRoleAssignment(
       ? `${house.house_number}${house.streets?.name ? `, ${house.streets.name}` : ''}`
       : null;
 
-    const profileRole = resident.profile_id
-      ? profileRoles.get(resident.profile_id)
-      : null;
+    const profileId = resident.profile_id ?? profileIdByResident.get(resident.id) ?? null;
+    const profile = profileId ? profilesById.get(profileId) : undefined;
+    const role = Array.isArray(profile?.app_roles) ? profile.app_roles[0] : profile?.app_roles;
+    const title = Array.isArray(profile?.admin_titles) ? profile.admin_titles[0] : profile?.admin_titles;
 
     return {
       id: resident.id,
@@ -163,12 +178,13 @@ export async function searchResidentsForRoleAssignment(
       email: resident.email,
       phone_primary: resident.phone_primary,
       house_address: houseAddress,
-      profile_id: resident.profile_id,
-      current_role_id: profileRole?.role_id || null,
-      current_role_name: profileRole?.role_name || null,
-      current_role_display_name: profileRole?.role_display_name || null,
-      current_title_id: profileRole?.title_id ?? null,
-      current_title_name: profileRole?.title_name ?? null,
+      profile_id: profileId,
+      approval_status: profile?.approval_status ?? null,
+      current_role_id: profile?.role_id ?? null,
+      current_role_name: role?.name ?? null,
+      current_role_display_name: role?.display_name ?? null,
+      current_title_id: profile?.title_id ?? null,
+      current_title_name: title?.name ?? null,
     };
   });
 
@@ -217,9 +233,9 @@ export async function searchProfilesForRoleAssignment(
     return { data: [] };
   }
 
-  const supabase = await createServerSupabaseClient();
-
-  const { data: profiles, error } = await supabase
+  // Service role after the permission check: RLS on profiles shows other
+  // people's rows only to system.view_all_profiles.
+  const { data: profiles, error } = await createAdminClient()
     .from('profiles')
     .select(`
       id,
@@ -232,7 +248,7 @@ export async function searchProfilesForRoleAssignment(
       app_roles!profiles_role_id_fkey (name, display_name),
       admin_titles:title_id (name)
     `)
-    .or(ilikeAny(['email', 'full_name'], query))
+    .or(nameSearchFilter(['email', 'full_name'], ['full_name'], query))
     .limit(20);
 
   if (error) {
@@ -270,65 +286,6 @@ export type AssignedRole = {
   title_id: string | null;
   title_name: string | null;
 };
-
-function noResidentError(roleDisplayName: string): string {
-  return `The ${roleDisplayName} role can only be held by a resident. Link this account to a resident record first.`;
-}
-
-type TitleCheck =
-  | { ok: true; title: { id: string; name: string } | null }
-  | { ok: false; error: string };
-
-/**
- * A title must belong to the role it is assigned under and must have a free
- * seat. The profiles trigger (#823) enforces both; this runs first so the
- * administrator is told who holds the seat rather than shown a database error.
- * Other holders only: re-saving someone's own title does not count against them.
- */
-async function checkTitleForRole(
-  roleId: string,
-  titleId: string | null,
-  profileId: string
-): Promise<TitleCheck> {
-  if (!titleId) return { ok: true, title: null };
-
-  const supabase = await createServerSupabaseClient();
-  const { data: title, error } = await supabase
-    .from('admin_titles')
-    .select('id, name, role_id, seats')
-    .eq('id', titleId)
-    .maybeSingle();
-
-  if (error) {
-    console.error('Error reading title:', error);
-    return { ok: false, error: 'Could not check the title' };
-  }
-  if (!title || title.role_id !== roleId) {
-    return { ok: false, error: 'That title does not belong to this role' };
-  }
-
-  if (title.seats !== null) {
-    const { data: holders, error: holdersError } = await createAdminClient()
-      .from('profiles')
-      .select('id, full_name, email')
-      .eq('title_id', titleId)
-      .neq('id', profileId);
-
-    if (holdersError) {
-      console.error('Error counting title holders:', holdersError);
-      return { ok: false, error: 'Could not check whether the title is free' };
-    }
-    if ((holders?.length ?? 0) >= title.seats) {
-      const names = (holders ?? []).map((h) => h.full_name || h.email).join(', ');
-      return {
-        ok: false,
-        error: `${title.name} is already held by ${names}. Move them to another title first.`,
-      };
-    }
-  }
-
-  return { ok: true, title: { id: title.id, name: title.name } };
-}
 
 // =====================================================
 // Assign Role to a Profile (primitive)
@@ -368,11 +325,13 @@ export async function assignRoleToProfile(
     return { success: false, error: auth.error || 'Unauthorized' };
   }
 
-  const supabase = await createServerSupabaseClient();
+  // Service role after the permission check: RLS on profiles shows other
+  // people's rows only to system.view_all_profiles.
+  const admin = createAdminClient();
 
-  const { data: profile, error: profileError } = await supabase
+  const { data: profile, error: profileError } = await admin
     .from('profiles')
-    .select('id, email, full_name, role_id, title_id, resident_id')
+    .select('id, email, full_name, role_id, title_id, resident_id, approval_status')
     .eq('id', profileId)
     .single();
 
@@ -380,7 +339,20 @@ export async function assignRoleToProfile(
     return { success: false, error: 'Account not found' };
   }
 
-  const { data: role, error: roleError } = await supabase
+  // A pending, suspended or rejected account resolves no permissions, so a role
+  // given to it would look saved and change nothing. Approval is the way in:
+  // approveAccount validates and activates in one step and does not call this.
+  if (profile.approval_status !== 'active') {
+    return {
+      success: false,
+      error:
+        profile.approval_status === 'pending'
+          ? 'This account is waiting for approval. Approve the sign-up under Pending sign-ups first; that step gives it its role.'
+          : `This account is ${profile.approval_status}, so it cannot be given a role.`,
+    };
+  }
+
+  const { data: role, error: roleError } = await admin
     .from('app_roles')
     .select('id, name, display_name, is_active, requires_resident')
     .eq('id', roleId)
@@ -425,6 +397,12 @@ export async function assignRoleToProfile(
     return { success: false, error: noResidentError(role.display_name) };
   }
 
+  // "Who can hold each role" (role_assignment_rules) and contact verification.
+  const ruleCheck = await evaluateRoleAssignmentRules(profile.resident_id, role.id);
+  if (!ruleCheck.allowed) {
+    return { success: false, error: ruleCheck.reason };
+  }
+
   const titleCheck = await checkTitleForRole(role.id, titleId ?? null, profileId);
   if (!titleCheck.ok) {
     return { success: false, error: titleCheck.error };
@@ -443,7 +421,7 @@ export async function assignRoleToProfile(
   // straight through PostgREST, bypassing them.
   //
   // .select() makes a zero-row write impossible to mistake for success again.
-  const { data: updated, error: updateError } = await createAdminClient()
+  const { data: updated, error: updateError } = await admin
     .from('profiles')
     .update({
       role_id: roleId,
@@ -516,9 +494,10 @@ export async function removeRoleFromProfile(
     return { success: false, error: auth.error || 'Unauthorized' };
   }
 
-  const supabase = await createServerSupabaseClient();
+  // Service role after the permission check, as in assignRoleToProfile.
+  const admin = createAdminClient();
 
-  const { data: profile, error: profileError } = await supabase
+  const { data: profile, error: profileError } = await admin
     .from('profiles')
     .select('id, email, full_name, role_id, title_id, resident_id, approval_status')
     .eq('id', profileId)
@@ -545,7 +524,7 @@ export async function removeRoleFromProfile(
   const newStatus = profile.resident_id ? profile.approval_status : 'pending';
 
   // Service role for the same reason as assignRoleToProfile above.
-  const { data: updated, error: updateError } = await createAdminClient()
+  const { data: updated, error: updateError } = await admin
     .from('profiles')
     .update({
       role_id: newRoleId,
@@ -600,6 +579,12 @@ export async function assignRoleToResident(
   data?: AssignedRole;
   error?: string;
 }> {
+  // Checked before the resident's account is looked up with the service role.
+  const auth = await authorizePermission(PERMISSIONS.SYSTEM_ASSIGN_ROLES);
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || 'Unauthorized' };
+  }
+
   const profileId = await resolveResidentProfileId(residentId);
   if ('error' in profileId) {
     return { success: false, error: profileId.error };
@@ -617,6 +602,11 @@ export async function removeRoleFromResident(
   success: boolean;
   error?: string;
 }> {
+  const auth = await authorizePermission(PERMISSIONS.SYSTEM_ASSIGN_ROLES);
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || 'Unauthorized' };
+  }
+
   const profileId = await resolveResidentProfileId(residentId);
   if ('error' in profileId) {
     return { success: false, error: profileId.error };
@@ -626,7 +616,8 @@ export async function removeRoleFromResident(
 }
 
 /**
- * Resolve a resident to the profile its role actually lives on.
+ * Resolve a resident to the profile its role actually lives on. Call only after
+ * authorizePermission(SYSTEM_ASSIGN_ROLES).
  *
  * Note that residents.profile_id and profiles.resident_id are two independent
  * links; this checks both so a resident linked from either direction resolves.
@@ -650,7 +641,9 @@ async function resolveResidentProfileId(
     return { profileId: resident.profile_id };
   }
 
-  const { data: linkedProfile } = await supabase
+  // Service role: the callers have already checked system.assign_roles, and RLS
+  // on profiles hides other people's rows from anyone without view_all_profiles.
+  const { data: linkedProfile } = await createAdminClient()
     .from('profiles')
     .select('id')
     .eq('resident_id', residentId)
