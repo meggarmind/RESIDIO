@@ -1,11 +1,15 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { Button } from '@/components/ui/button';
 import { listEstateGroups, saveEstateGroup, type EstateGroupSelection } from '@/actions/whatsapp/estate-group';
 import type { WahaGroup } from '@/lib/whatsapp/providers/waha';
 
 export function EstateGroupPicker({ initial, error }: { initial: EstateGroupSelection | null; error?: string | null }) {
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(PERMISSIONS.WHATSAPP_MANAGE);
   const [groups, setGroups] = useState<WahaGroup[] | null>(null);
   const [saved, setSaved] = useState(initial?.groupId ?? '');
   const [selected, setSelected] = useState(initial?.groupId ?? '');
@@ -13,7 +17,7 @@ export function EstateGroupPicker({ initial, error }: { initial: EstateGroupSele
   const [isPending, startTransition] = useTransition();
 
   // Visibility follows access: the page loads this with `whatsapp.manage`, so a refusal is the reason to show.
-  if (!initial) return <p className="text-sm text-muted-foreground">{error || 'Managing the estate group needs the manage WhatsApp permission.'}</p>;
+  if (!initial || !canManage) return <p className="text-sm text-muted-foreground">{error || 'Managing the estate group needs the manage WhatsApp permission.'}</p>;
   if (!initial.wahaActive) return <p className="text-sm text-muted-foreground">The estate group needs WAHA as the active WhatsApp provider.</p>;
 
   function load() {
