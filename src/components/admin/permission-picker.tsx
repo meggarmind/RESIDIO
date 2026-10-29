@@ -24,6 +24,8 @@ interface PermissionPickerProps {
   /** Every assignable permission, from `usePermissions()`. */
   permissions: AppPermission[] | undefined;
   isLoading?: boolean;
+  /** Why the permissions could not be loaded; shown instead of an empty picker. */
+  error?: Error | null;
   /** Currently granted permission ids. */
   value: Set<string>;
   onChange: (next: Set<string>) => void;
@@ -46,6 +48,7 @@ interface PermissionPickerProps {
 export function PermissionPicker({
   permissions,
   isLoading = false,
+  error = null,
   value,
   onChange,
   className,
@@ -89,15 +92,18 @@ export function PermissionPicker({
     return filtered;
   }, [byCategory, searchQuery]);
 
-  /** Tri-state per module, computed over ALL its permissions, not the filtered view. */
+  /**
+   * Tri-state per module over the permissions it shows: all of them normally,
+   * only the matches while searching, so the checkbox says what a click will do.
+   */
   const categoryState = useMemo(() => {
     const states = new Map<string, 'all' | 'some' | 'none'>();
-    for (const [category, perms] of byCategory) {
+    for (const [category, perms] of filteredByCategory) {
       const selected = perms.filter((p) => value.has(p.id)).length;
       states.set(category, selected === 0 ? 'none' : selected === perms.length ? 'all' : 'some');
     }
     return states;
-  }, [byCategory, value]);
+  }, [filteredByCategory, value]);
 
   const togglePermission = (id: string) => {
     const next = new Set(value);
@@ -106,9 +112,12 @@ export function PermissionPicker({
     onChange(next);
   };
 
-  /** Grant or revoke a whole module in one gesture. */
+  /**
+   * Grant or revoke a whole module in one gesture. While searching, only the
+   * matching permissions change: a hidden permission is never granted unseen.
+   */
   const toggleCategory = (category: string) => {
-    const perms = byCategory.get(category) ?? [];
+    const perms = filteredByCategory.get(category) ?? [];
     const next = new Set(value);
     if (categoryState.get(category) === 'all') {
       for (const p of perms) next.delete(p.id);
@@ -130,6 +139,14 @@ export function PermissionPicker({
       <div className="flex items-center justify-center py-8">
         <Loader2 className="h-6 w-6 animate-spin" />
       </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <p role="alert" className="py-4 text-sm text-destructive">
+        Could not load permissions: {error.message}
+      </p>
     );
   }
 
@@ -202,11 +219,8 @@ export function PermissionPicker({
                     <div className="flex items-center gap-2">
                       <Checkbox
                         id={`module-${category}`}
-                        checked={state === 'all'}
-                        data-state={state === 'some' ? 'indeterminate' : undefined}
-                        className={
-                          state === 'some' ? 'data-[state=indeterminate]:bg-primary/50' : ''
-                        }
+                        checked={state === 'all' ? true : state === 'some' ? 'indeterminate' : false}
+                        className="data-[state=indeterminate]:bg-primary/50"
                         onCheckedChange={() => toggleCategory(category)}
                       />
                       <Label

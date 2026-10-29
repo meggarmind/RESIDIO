@@ -6,6 +6,8 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { isLastActiveSuperAdmin, LAST_SUPER_ADMIN_ERROR } from '@/lib/auth/super-admin-invariant';
 import { assertCanGrantRoles, assertCanManageTarget } from '@/lib/auth/account-guards';
+import { roleWriteBlock } from '@/lib/auth/role-write-access';
+import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
 import type {
   AppRole,
   AppPermission,
@@ -43,23 +45,41 @@ export async function getRolesWithPermissions(): Promise<{
     return { success: false, error: rolesError.message };
   }
 
-  // Get all permissions
-  const { data: permissions } = await supabase
+  // Active permissions only, so a role's privilege count matches what the picker
+  // (getAllPermissions) shows and can change (#1318). Inactive grants stay stored.
+  const { data: permissions, error: permissionsError } = await supabase
     .from('app_permissions')
     .select('*')
+    .eq('is_active', true)
     .order('category', { ascending: true });
 
-  // Get role-permission mappings
-  const { data: rolePerms } = await supabase
-    .from('role_permissions')
-    .select('role_id, permission_id');
+  if (permissionsError) {
+    return { success: false, error: permissionsError.message };
+  }
+
+  // Role-permission mappings, paged: one read is capped at max_rows (#1318).
+  const rolePermsResult = await fetchAllRows<{ role_id: string; permission_id: string }>((from, to) =>
+    supabase
+      .from('role_permissions')
+      .select('role_id, permission_id')
+      .order('id', { ascending: true })
+      .range(from, to)
+  );
+
+  if (rolePermsResult.error !== null) {
+    return { success: false, error: rolePermsResult.error };
+  }
+  const rolePerms = rolePermsResult.data;
 
   // Holders per role, so the delete dialog can say who would be affected (#788).
   // A head count per role, the same query deleteRole uses: loading the rows would be capped by max_rows.
+  // Service role (#1318): profiles is under RLS, and a caller without
+  // system.view_all_profiles would count only their own row. The caller is authorised above.
+  const admin = createAdminClient();
   const holderCounts = new Map<string, number | null>(
     await Promise.all(
       (roles || []).map(async (role) => {
-        const { count, error } = await supabase
+        const { count, error } = await admin
           .from('profiles')
           .select('id', { count: 'exact', head: true })
           .eq('role_id', role.id);
@@ -71,13 +91,11 @@ export async function getRolesWithPermissions(): Promise<{
 
   // Build the result with permissions
   const rolesWithPermissions: AppRoleWithPermissions[] = (roles || []).map((role) => {
-    const rolePermIds = rolePerms
-      ?.filter((rp) => rp.role_id === role.id)
-      .map((rp) => rp.permission_id) || [];
+    const rolePermIds = new Set(
+      rolePerms.filter((rp) => rp.role_id === role.id).map((rp) => rp.permission_id)
+    );
 
-    const rolePermissions = permissions?.filter((p) =>
-      rolePermIds.includes(p.id)
-    ) || [];
+    const rolePermissions = (permissions ?? []).filter((p) => rolePermIds.has(p.id));
 
     return {
       ...role,
@@ -211,6 +229,16 @@ async function assertCallerMayGrantPermissions(
     : null;
 }
 
+/**
+ * Permissions the super_admin role always keeps (#1318): without them nobody could
+ * manage roles or assign the top roles, and only a super admin can fix that.
+ */
+const SUPER_ADMIN_KEPT_PERMISSIONS = [
+  PERMISSIONS.SYSTEM_MANAGE_ROLES,
+  PERMISSIONS.SYSTEM_ASSIGN_ROLES,
+  PERMISSIONS.SYSTEM_ASSIGN_BOARD_ROLES,
+] as string[];
+
 /** Values the role form offers; anything else is refused rather than stored. */
 const ROLE_CATEGORIES = ['exco', 'bot', 'staff', 'resident'];
 
@@ -278,18 +306,41 @@ async function checkRoleName(
   return { ok: true, name };
 }
 
-/** Validates the category a role form can send against what the form offers. */
-function checkRoleFields(data: { category?: unknown }): string | null {
+/** Validates the category and flags a role form can send against what the form offers. */
+function checkRoleFields(data: { category?: unknown; requires_resident?: unknown }): string | null {
   if (data.category !== undefined && !ROLE_CATEGORIES.includes(data.category as string)) {
     return 'Unknown role category';
+  }
+  if (data.requires_resident !== undefined && typeof data.requires_resident !== 'boolean') {
+    return 'Resident only must be true or false';
   }
   return null;
 }
 
+const DISPLAY_NAME_MAX = 100;
+
+/** The display name to store, trimmed, or an error (#1318): the form's check is not enough. */
+function checkDisplayName(raw: unknown): { ok: true; value: string } | { ok: false; error: string } {
+  const value = cleanRoleName(raw);
+  if (!value) return { ok: false, error: 'Display name is required' };
+  if (value.length > DISPLAY_NAME_MAX) {
+    return { ok: false, error: `Display name must be ${DISPLAY_NAME_MAX} characters or fewer` };
+  }
+  return { ok: true, value };
+}
+
+/** A unique-key violation on app_roles reads as a clash, not a database error (#1318). */
+function roleWriteErrorMessage(error: { code?: string; message: string }): string {
+  return error.code === '23505' ? 'A role with that name already exists' : error.message;
+}
+
+/** requires_resident is not in the generated types yet; the form sends it with the rest. */
+type RoleFormFields = { requires_resident?: boolean };
+
 /**
  * Create a new role
  */
-export async function createRole(roleData: AppRoleInsert): Promise<{
+export async function createRole(roleData: AppRoleInsert & RoleFormFields): Promise<{
   success: boolean;
   data?: AppRole;
   error?: string;
@@ -311,6 +362,11 @@ export async function createRole(roleData: AppRoleInsert): Promise<{
     return { success: false, error: fieldError };
   }
 
+  const displayName = checkDisplayName(roleData.display_name);
+  if (!displayName.ok) {
+    return { success: false, error: displayName.error };
+  }
+
   const supabase = await createServerSupabaseClient();
 
   // Fields are copied explicitly rather than spread from the client payload, and
@@ -320,11 +376,12 @@ export async function createRole(roleData: AppRoleInsert): Promise<{
     .from('app_roles')
     .insert({
       name,
-      display_name: roleData.display_name,
+      display_name: displayName.value,
       description: roleData.description,
       category: roleData.category,
       is_active: roleData.is_active,
       can_be_assigned_to_resident: roleData.can_be_assigned_to_resident,
+      requires_resident: roleData.requires_resident,
       is_system_role: false,
       created_by: auth.userId,
     })
@@ -332,7 +389,7 @@ export async function createRole(roleData: AppRoleInsert): Promise<{
     .single();
 
   if (error) {
-    return { success: false, error: error.message };
+    return { success: false, error: roleWriteErrorMessage(error) };
   }
 
   // Audit log
@@ -359,7 +416,7 @@ export async function createRole(roleData: AppRoleInsert): Promise<{
  * as an unpermissioned shell that the admin has to notice and clean up.
  */
 export async function createRoleWithPermissions(
-  roleData: AppRoleInsert,
+  roleData: AppRoleInsert & RoleFormFields,
   permissionIds: string[]
 ): Promise<{
   success: boolean;
@@ -403,7 +460,7 @@ export async function createRoleWithPermissions(
  */
 export async function updateRole(
   roleId: string,
-  roleData: AppRoleUpdate
+  roleData: AppRoleUpdate & RoleFormFields
 ): Promise<{
   success: boolean;
   data?: AppRole;
@@ -425,18 +482,28 @@ export async function updateRole(
 
   // Rank guard (#475): super_admin and system roles are editable by a super
   // admin only. Without this a manage_roles holder could rewrite the roles that
-  // sit above them.
-  if (
-    auth.roleName !== 'super_admin' &&
-    (!oldRole || oldRole.name === 'super_admin' || oldRole.is_system_role)
-  ) {
+  // sit above them. Own-role guard (#503), mirroring updateRolePermissions: only
+  // a super admin may edit the role they themselves hold. The rule is shared with
+  // the Roles tab buttons (roleWriteBlock, #1318).
+  const block = roleWriteBlock(auth, oldRole);
+  if (block === 'rank') {
     return { success: false, error: 'Only Super Administrator can edit system roles' };
   }
-
-  // Own-role guard (#503), mirroring updateRolePermissions: only a super admin may
-  // edit the role they themselves hold.
-  if (auth.roleName !== 'super_admin' && auth.roleId === roleId) {
+  if (block === 'own') {
     return { success: false, error: 'You cannot edit your own role' };
+  }
+
+  // The super_admin role stays active (#1318): its holders are the last line of administration.
+  if (oldRole?.name === 'super_admin' && 'is_active' in roleData && roleData.is_active !== true) {
+    return { success: false, error: 'The Super Administrator role is always active' };
+  }
+
+  if ('display_name' in roleData) {
+    const displayName = checkDisplayName(roleData.display_name);
+    if (!displayName.ok) {
+      return { success: false, error: displayName.error };
+    }
+    roleData = { ...roleData, display_name: displayName.value };
   }
 
   // Check if it's a system role
@@ -468,6 +535,7 @@ export async function updateRole(
       'category',
       'is_active',
       'can_be_assigned_to_resident',
+      'requires_resident',
     ]) {
       if (key in incoming) clean[key] = incoming[key];
     }
@@ -489,7 +557,7 @@ export async function updateRole(
     .single();
 
   if (error) {
-    return { success: false, error: error.message };
+    return { success: false, error: roleWriteErrorMessage(error) };
   }
 
   // Audit log
@@ -519,21 +587,30 @@ export async function deleteRole(roleId: string): Promise<{
 
   const supabase = await createServerSupabaseClient();
 
-  // Check if it's a system role
-  const { data: role } = await supabase
+  // Check if it's a system role. Fail closed (#1318): a role that cannot be read
+  // is not deleted, rather than treated as a custom role.
+  const { data: role, error: roleError } = await supabase
     .from('app_roles')
     .select('*')
     .eq('id', roleId)
     .single();
 
-  if (role?.is_system_role) {
+  if (roleError || !role) {
+    if (roleError) console.error('[deleteRole] Could not read the role:', roleError);
+    return { success: false, error: 'Could not read the role; role not deleted' };
+  }
+
+  if (role.is_system_role || role.name === 'super_admin') {
     return { success: false, error: 'Cannot delete system roles' };
   }
 
   // Check if any users have this role
   // Explicit column: `*` would include profiles.two_factor_secret_encrypted, which API
   // roles cannot read (#455). Fail closed: if the count cannot be established, do not delete.
-  const { count, error: countError } = await supabase
+  // Service role (#1318): through RLS a caller without system.view_all_profiles sees
+  // only their own row, so a held role could count as empty and be deleted, which
+  // clears every holder's role_id. The caller is authorised above.
+  const { count, error: countError } = await createAdminClient()
     .from('profiles')
     .select('id', { count: 'exact', head: true })
     .eq('role_id', roleId);
@@ -550,13 +627,52 @@ export async function deleteRole(roleId: string): Promise<{
     };
   }
 
-  const { error } = await supabase
+  // Titles under the role (#1318). admin_titles and role_assignment_rules both
+  // reference app_roles ON DELETE CASCADE, so the delete below removes them; a
+  // title someone still holds is refused first rather than cleared silently.
+  const { data: titles, error: titlesError } = await supabase
+    .from('admin_titles')
+    .select('id, name')
+    .eq('role_id', roleId);
+
+  if (titlesError) {
+    console.error('[deleteRole] Could not read the role titles:', titlesError);
+    return { success: false, error: 'Could not check the titles under this role; role not deleted' };
+  }
+
+  const titleIds = (titles ?? []).map((t) => t.id as string);
+  if (titleIds.length > 0) {
+    // Service role: profiles is under RLS, so the caller may not see every holder.
+    // Every status counts, as in the seat rule in the database.
+    const { count: titleHolders, error: titleHoldersError } = await createAdminClient()
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .in('title_id', titleIds);
+
+    if (titleHoldersError || titleHolders === null) {
+      console.error('[deleteRole] Could not count title holders:', titleHoldersError);
+      return { success: false, error: 'Could not check who holds the titles under this role; role not deleted' };
+    }
+    if (titleHolders > 0) {
+      return {
+        success: false,
+        error: `Cannot delete role: ${titleHolders} user(s) hold a title under this role. Move them first.`,
+      };
+    }
+  }
+
+  // .select() makes a delete that RLS filtered out show as zero rows (#1318).
+  const { data: deletedRoles, error } = await supabase
     .from('app_roles')
     .delete()
-    .eq('id', roleId);
+    .eq('id', roleId)
+    .select('id');
 
   if (error) {
     return { success: false, error: error.message };
+  }
+  if (!deletedRoles || deletedRoles.length === 0) {
+    return { success: false, error: 'The role was not deleted' };
   }
 
   // Audit log
@@ -564,8 +680,9 @@ export async function deleteRole(roleId: string): Promise<{
     action: 'DELETE',
     entityType: 'app_roles',
     entityId: roleId,
-    entityDisplay: role?.display_name || 'Unknown',
-    oldValues: role,
+    entityDisplay: role.display_name || 'Unknown',
+    // The titles went with the role (ON DELETE CASCADE); recorded so they can be restored.
+    oldValues: { ...role, admin_titles: titles ?? [] },
   });
 
   return { success: true };
@@ -602,71 +719,137 @@ export async function updateRolePermissions(
   // Rank guard (#475): only a super admin may change the permissions of
   // super_admin or any system role, or of the role they themselves hold --
   // otherwise a manage_roles holder can grant their own role anything.
-  if (auth.roleName !== 'super_admin') {
-    if (!role || role.name === 'super_admin' || role.is_system_role) {
-      return { success: false, error: 'Only Super Administrator can edit permissions of system roles' };
-    }
-    if (auth.roleId === roleId) {
-      return { success: false, error: 'You cannot edit the permissions of your own role' };
-    }
+  const block = roleWriteBlock(auth, role ? { id: roleId, ...role } : null);
+  if (block === 'rank') {
+    return { success: false, error: 'Only Super Administrator can edit permissions of system roles' };
+  }
+  if (block === 'own') {
+    return { success: false, error: 'You cannot edit the permissions of your own role' };
   }
 
-  // Get old permissions
-  const { data: oldPerms } = await supabase
+  // Get old permissions. A failed read refuses: the diff below depends on it.
+  const { data: oldPerms, error: oldPermsError } = await supabase
     .from('role_permissions')
     .select('permission_id')
     .eq('role_id', roleId);
 
-  const oldPermIds = oldPerms?.map((p) => p.permission_id) || [];
+  if (oldPermsError) {
+    return { success: false, error: oldPermsError.message };
+  }
+
+  const oldPermIds = (oldPerms ?? []).map((p) => p.permission_id as string);
+  const oldSet = new Set(oldPermIds);
+  const wanted = new Set(permissionIds);
+  const added = Array.from(wanted).filter((id) => !oldSet.has(id));
+  let removed = oldPermIds.filter((id) => !wanted.has(id));
 
   // Escalation guard (#503): only permissions being ADDED are checked; keeping or
   // removing a permission the caller does not hold stays allowed.
-  const grantRefusal = await assertCallerMayGrantPermissions(
-    auth,
-    permissionIds.filter((id) => !oldPermIds.includes(id))
-  );
+  const grantRefusal = await assertCallerMayGrantPermissions(auth, added);
   if (grantRefusal) {
     return { success: false, error: grantRefusal };
   }
 
-  // Delete all existing permissions for this role.
-  //
-  // .select() is not decoration: without it an RLS policy that filters the rows
-  // out returns success with zero rows deleted, and the revocation half of this
-  // update vanishes silently while the insert half appears to work. Comparing
-  // the deleted count against what we just read is the only way to notice.
-  const { data: deleted, error: deleteError } = await supabase
-    .from('role_permissions')
-    .delete()
-    .eq('role_id', roleId)
-    .select('permission_id');
+  // Grants to inactive permissions are kept (#1318): the picker only lists active
+  // permissions, so their absence from permissionIds is not a request to revoke.
+  if (removed.length > 0) {
+    const { data: inactive, error: inactiveError } = await supabase
+      .from('app_permissions')
+      .select('id')
+      .in('id', removed)
+      .eq('is_active', false);
 
-  if (deleteError) {
-    return { success: false, error: deleteError.message };
+    if (inactiveError) {
+      return { success: false, error: 'Could not check which permissions are inactive. The changes were not saved.' };
+    }
+    const inactiveIds = new Set((inactive ?? []).map((p) => p.id as string));
+    removed = removed.filter((id) => !inactiveIds.has(id));
   }
 
-  if ((deleted?.length ?? 0) !== oldPermIds.length) {
-    return {
-      success: false,
-      error:
-        'Could not clear the role\'s existing permissions. The changes were not saved.',
-    };
+  // super_admin keeps the permissions that manage roles and assign them (#1318).
+  if (role?.name === 'super_admin' && removed.length > 0) {
+    const { data: removedPerms, error: removedPermsError } = await supabase
+      .from('app_permissions')
+      .select('id, name')
+      .in('id', removed);
+
+    if (removedPermsError) {
+      return { success: false, error: 'Could not check the permissions being removed. The changes were not saved.' };
+    }
+    const kept = (removedPerms ?? [])
+      .filter((p) => removed.includes(p.id as string))
+      .map((p) => p.name as string)
+      .filter((name) => SUPER_ADMIN_KEPT_PERMISSIONS.includes(name));
+    if (kept.length > 0) {
+      return {
+        success: false,
+        error: `The Super Administrator role must keep ${kept.join(', ')}. The changes were not saved.`,
+      };
+    }
   }
 
-  // Insert new permissions
-  if (permissionIds.length > 0) {
+  // Nothing to write, so nothing to audit.
+  if (added.length === 0 && removed.length === 0) {
+    return { success: true };
+  }
+
+  // Add first, then remove (#1318). The old order (delete everything, then insert)
+  // left the role with no permissions at all when the insert failed. An insert
+  // failure now changes nothing; a removal failure leaves extra grants, never
+  // fewer. ignoreDuplicates makes a concurrent grant of the same row harmless.
+  if (added.length > 0) {
     const { error: insertError } = await supabase
       .from('role_permissions')
-      .insert(
-        permissionIds.map((permId) => ({
+      .upsert(
+        added.map((permId) => ({
           role_id: roleId,
           permission_id: permId,
           created_by: auth.userId,
-        }))
+        })),
+        { onConflict: 'role_id,permission_id', ignoreDuplicates: true }
       );
 
     if (insertError) {
-      return { success: false, error: insertError.message };
+      return { success: false, error: `${insertError.message}. The changes were not saved.` };
+    }
+  }
+
+  if (removed.length > 0) {
+    // .select() is not decoration: without it an RLS policy that filters the rows
+    // out returns success with zero rows deleted, and the revocation vanishes
+    // silently. Comparing the deleted count against what we asked for is the only
+    // way to notice.
+    const { data: deleted, error: deleteError } = await supabase
+      .from('role_permissions')
+      .delete()
+      .eq('role_id', roleId)
+      .in('permission_id', removed)
+      .select('permission_id');
+
+    const removedCount = deleted?.length ?? 0;
+    if (deleteError || removedCount !== removed.length) {
+      if (added.length > 0 || removedCount > 0) {
+        await logAudit({
+          action: 'UPDATE',
+          entityType: 'role_permissions',
+          entityId: roleId,
+          entityDisplay: `Permissions for ${role?.display_name || 'role'} (partly saved)`,
+          oldValues: { permissionIds: oldPermIds },
+          newValues: {
+            added,
+            removed: (deleted ?? []).map((d) => d.permission_id),
+          },
+        });
+      }
+      // Say exactly what was saved, as the audit entry above records it.
+      const partly = added.length > 0 || removedCount > 0;
+      return {
+        success: false,
+        error: partly
+          ? `The changes were saved in part: ${added.length} added, ${removedCount} of ${removed.length} removed. ` +
+            'Reopen the role and try again.'
+          : 'Could not remove the role\'s permissions. The changes were not saved.',
+      };
     }
   }
 
@@ -677,7 +860,7 @@ export async function updateRolePermissions(
     entityId: roleId,
     entityDisplay: `Permissions for ${role?.display_name || 'role'}`,
     oldValues: { permissionIds: oldPermIds },
-    newValues: { permissionIds },
+    newValues: { permissionIds: [...oldPermIds.filter((id) => !removed.includes(id)), ...added] },
   });
 
   return { success: true };
@@ -820,10 +1003,12 @@ export async function getCurrentAdmins(): Promise<{
     return { success: false, error: auth.error || 'Unauthorized' };
   }
 
-  const supabase = await createServerSupabaseClient();
+  // Service role (#1318): profiles is under RLS, and an assign_roles holder without
+  // system.view_all_profiles sees only their own row. The caller is authorised above.
+  const admin = createAdminClient();
 
   // Get profiles holding a role, joined with residents and roles
-  const { data, error } = await supabase
+  const { data, error } = await admin
     .from('profiles')
     .select(`
       id,
@@ -952,15 +1137,28 @@ export async function getUsersWithRoles(): Promise<{
 
   const supabase = await createServerSupabaseClient();
 
-  // First get all profiles
-  const { data: profiles, error: profilesError } = await supabase
-    .from('profiles')
-    .select('id, email, full_name, role_id')
-    .order('full_name', { ascending: true });
+  // First get all profiles. Service role (#1318): profiles is under RLS and the
+  // caller may see only their own row; the caller is authorised above. Paged, so
+  // the list is not cut at max_rows; id breaks name ties so pages do not overlap.
+  const admin = createAdminClient();
+  const profilesResult = await fetchAllRows<{
+    id: string;
+    email: string;
+    full_name: string;
+    role_id: string | null;
+  }>((from, to) =>
+    admin
+      .from('profiles')
+      .select('id, email, full_name, role_id')
+      .order('full_name', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to)
+  );
 
-  if (profilesError) {
-    return { success: false, error: profilesError.message };
+  if (profilesResult.error !== null) {
+    return { success: false, error: profilesResult.error };
   }
+  const profiles = profilesResult.data;
 
   // Get all roles for lookup
   const { data: roles } = await supabase
@@ -971,7 +1169,7 @@ export async function getUsersWithRoles(): Promise<{
     roles?.map((r) => [r.id, { name: r.name, display_name: r.display_name }]) || []
   );
 
-  const users = profiles?.map((user) => {
+  const users = profiles.map((user) => {
     const appRole = user.role_id ? roleMap.get(user.role_id) : null;
     return {
       id: user.id,

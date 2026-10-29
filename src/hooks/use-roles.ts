@@ -15,7 +15,7 @@ import {
   getUsersWithRoles,
   getCurrentAdmins,
 } from '@/actions/roles';
-import { getAdminTitles, createAdminTitle, updateAdminTitle } from '@/actions/roles/titles';
+import { getAdminTitles, createAdminTitle, updateAdminTitle, deleteAdminTitle } from '@/actions/roles/titles';
 import { getAssignableRoles } from '@/actions/roles/assignable-roles';
 import type { TitleInput } from '@/actions/roles/titles';
 import type { AppRoleInsert, AppRoleUpdate } from '@/types/database';
@@ -26,6 +26,7 @@ const PERMISSIONS_KEY = ['permissions'];
 const USERS_WITH_ROLES_KEY = ['users-with-roles'];
 const CURRENT_ADMINS_KEY = ['current-admins'];
 const ADMIN_TITLES_KEY = ['admin-titles'];
+// Read by the role assignment forms; a role change must refresh it too (#1318).
 const ASSIGNABLE_ROLES_KEY = ['assignable-roles'];
 
 /**
@@ -126,6 +127,7 @@ export function useCreateRoleWithPermissions() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ROLES_KEY });
+      queryClient.invalidateQueries({ queryKey: ASSIGNABLE_ROLES_KEY });
       const count = variables.permissionIds.length;
       toast.success(
         count > 0
@@ -152,6 +154,7 @@ export function useCreateRole() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ROLES_KEY });
+      queryClient.invalidateQueries({ queryKey: ASSIGNABLE_ROLES_KEY });
       toast.success('Role created successfully');
     },
     onError: (error: Error) => {
@@ -176,6 +179,7 @@ export function useUpdateRole() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ROLES_KEY });
+      queryClient.invalidateQueries({ queryKey: ASSIGNABLE_ROLES_KEY });
       queryClient.invalidateQueries({ queryKey: [...ROLES_KEY, variables.id] });
       toast.success('Role updated successfully');
     },
@@ -201,6 +205,10 @@ export function useDeleteRole() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ROLES_KEY });
+      queryClient.invalidateQueries({ queryKey: ASSIGNABLE_ROLES_KEY });
+      // The role's titles and assignment rules are deleted with it (ON DELETE CASCADE).
+      queryClient.invalidateQueries({ queryKey: ADMIN_TITLES_KEY });
+      queryClient.invalidateQueries({ queryKey: ASSIGNMENT_RULES_KEY });
       toast.success('Role deleted successfully');
     },
     onError: (error: Error) => {
@@ -231,6 +239,7 @@ export function useUpdateRolePermissions() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ROLES_KEY });
+      queryClient.invalidateQueries({ queryKey: ASSIGNABLE_ROLES_KEY });
       queryClient.invalidateQueries({ queryKey: [...ROLES_KEY, variables.roleId] });
       toast.success('Role permissions updated successfully');
     },
@@ -354,6 +363,27 @@ export function useUpdateAdminTitle() {
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Failed to update title');
+    },
+  });
+}
+
+export function useDeleteAdminTitle() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const result = await deleteAdminTitle(id);
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ADMIN_TITLES_KEY });
+      toast.success('Title deleted');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to delete title');
     },
   });
 }

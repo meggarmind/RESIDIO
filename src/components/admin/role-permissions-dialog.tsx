@@ -32,7 +32,7 @@ export function RolePermissionsDialog({
   open,
   onOpenChange,
 }: RolePermissionsDialogProps) {
-  const { data: allPermissions, isLoading } = usePermissions();
+  const { data: allPermissions, isLoading, error } = usePermissions();
   const updatePermissionsMutation = useUpdateRolePermissions();
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -48,19 +48,30 @@ export function RolePermissionsDialog({
     if (openKey) setSelectedIds(new Set(role.permissions.map((p) => p.id)));
   }
 
-  const hasChanges = useMemo(() => {
+  // What Save will change, by name, so it can be checked before it is applied (#1318).
+  const { added, removed } = useMemo(() => {
     const original = new Set(role.permissions.map((p) => p.id));
-    if (original.size !== selectedIds.size) return true;
-    for (const id of selectedIds) if (!original.has(id)) return true;
-    return false;
-  }, [role.permissions, selectedIds]);
+    const nameOf = (id: string) =>
+      allPermissions?.find((p) => p.id === id)?.display_name ??
+      role.permissions.find((p) => p.id === id)?.display_name ??
+      id;
+    return {
+      added: Array.from(selectedIds).filter((id) => !original.has(id)).map(nameOf),
+      removed: Array.from(original).filter((id) => !selectedIds.has(id)).map(nameOf),
+    };
+  }, [allPermissions, role.permissions, selectedIds]);
+  const hasChanges = added.length > 0 || removed.length > 0;
 
   const handleSave = async () => {
-    await updatePermissionsMutation.mutateAsync({
-      roleId: role.id,
-      permissionIds: Array.from(selectedIds),
-    });
-    onOpenChange(false);
+    try {
+      await updatePermissionsMutation.mutateAsync({
+        roleId: role.id,
+        permissionIds: Array.from(selectedIds),
+      });
+      onOpenChange(false);
+    } catch {
+      // The hook's onError already showed the reason; keep the dialog open.
+    }
   };
 
   return (
@@ -81,9 +92,25 @@ export function RolePermissionsDialog({
         <PermissionPicker
           permissions={allPermissions}
           isLoading={isLoading}
+          error={error}
           value={selectedIds}
           onChange={setSelectedIds}
         />
+
+        {hasChanges && (
+          <div className="max-h-32 space-y-1 overflow-y-auto rounded-md border bg-muted/30 p-3 text-sm" aria-live="polite">
+            {added.length > 0 && (
+              <p>
+                <span className="font-medium">Adding {added.length}:</span> {added.join(', ')}
+              </p>
+            )}
+            {removed.length > 0 && (
+              <p>
+                <span className="font-medium">Removing {removed.length}:</span> {removed.join(', ')}
+              </p>
+            )}
+          </div>
+        )}
 
         <DialogFooter className="flex items-center justify-between border-t pt-4">
           <div className="text-sm text-muted-foreground">
@@ -95,7 +122,7 @@ export function RolePermissionsDialog({
             </Button>
             <Button
               onClick={handleSave}
-              disabled={!hasChanges || updatePermissionsMutation.isPending}
+              disabled={!hasChanges || !!error || updatePermissionsMutation.isPending}
             >
               {updatePermissionsMutation.isPending && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

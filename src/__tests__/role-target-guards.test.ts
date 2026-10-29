@@ -35,11 +35,16 @@ const state = vi.hoisted(() => ({
 
 function fakeFrom(table: string) {
   const filters: Array<[string, unknown]> = [];
+  const inFilters: Array<[string, unknown[]]> = [];
   let op: 'select' | 'update' | 'insert' | 'delete' = 'select';
   let values: Row | Row[] | undefined;
 
   const matching = () =>
-    (state.tables[table] ?? []).filter((row) => filters.every(([col, val]) => row[col] === val));
+    (state.tables[table] ?? []).filter(
+      (row) =>
+        filters.every(([col, val]) => row[col] === val) &&
+        inFilters.every(([col, vals]) => vals.includes(row[col]))
+    );
 
   const withEmbeds = (rows: Row[]): Row[] =>
     rows.map((row) => {
@@ -80,11 +85,14 @@ function fakeFrom(table: string) {
     select: () => builder,
     update: (v: Row) => ((op = 'update'), (values = v), builder),
     insert: (v: Row | Row[]) => ((op = 'insert'), (values = v), builder),
+    // updateRolePermissions adds grants with upsert ... ignoreDuplicates (#1318); none conflict here.
+    upsert: (v: Row | Row[]) => ((op = 'insert'), (values = v), builder),
     delete: () => ((op = 'delete'), builder),
     eq: (col: string, val: unknown) => (filters.push([col, val]), builder),
+    // .in() is applied to deletes only, where updateRolePermissions names the grants it removes (#1318).
+    in: (col: string, vals: unknown[]) => (op === 'delete' && inFilters.push([col, vals]), builder),
     // Filters this suite never depends on are accepted and ignored.
     neq: () => builder,
-    in: () => builder,
     is: () => builder,
     gt: () => builder,
     order: () => builder,
@@ -568,7 +576,8 @@ describe('updateRolePermissions', () => {
   it("lets a super_admin edit a system role and their own role's permissions", async () => {
     seed({ caller: 'super_admin' });
     expect((await updateRolePermissions(ROLES.chairman.id as string, ['p2'])).success).toBe(true);
-    expect((await updateRolePermissions(ROLES.super_admin.id as string, ['p3'])).success).toBe(true);
+    // #1318: super_admin keeps system.assign_roles and system.assign_board_roles.
+    expect((await updateRolePermissions(ROLES.super_admin.id as string, ['p-assign', 'p-board', 'p3'])).success).toBe(true);
   });
 });
 

@@ -9,18 +9,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({
   countResult: { count: 0 as number | null, error: null as { message: string } | null },
   selectArgs: [] as unknown[][],
+  profileClients: [] as string[],
   deleted: false,
 }));
 
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: async () => ({ authorized: true, userId: 'u1' }) }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit: vi.fn() }));
-vi.mock('@/lib/supabase/server', () => ({
-  createAdminClient: () => ({}),
-  createServerSupabaseClient: async () => ({
+// #1318: the holder count reads profiles with the service-role client, because RLS
+// shows a caller without system.view_all_profiles only their own row. Each fake
+// client records which one read profiles.
+function fakeClient(kind: 'user' | 'admin') {
+  return {
     from: (table: string) => {
       const b: Record<string, unknown> = {
         select: (...args: unknown[]) => {
-          if (table === 'profiles') state.selectArgs.push(args);
+          if (table === 'profiles') {
+            state.selectArgs.push(args);
+            state.profileClients.push(kind);
+          }
           return b;
         },
         eq: () => b,
@@ -29,12 +35,24 @@ vi.mock('@/lib/supabase/server', () => ({
           return b;
         },
         single: async () => ({ data: { id: 'r1', is_system_role: false, display_name: 'Role' }, error: null }),
+        // deleteRole now selects the deleted row to prove the delete happened (#1318).
         then: (resolve: (v: unknown) => unknown) =>
-          Promise.resolve(table === 'profiles' ? state.countResult : { error: null }).then(resolve),
+          Promise.resolve(
+            table === 'profiles'
+              ? state.countResult
+              : table === 'app_roles' && state.deleted
+                ? { data: [{ id: 'r1' }], error: null }
+                : { error: null }
+          ).then(resolve),
       };
       return b;
     },
-  }),
+  };
+}
+
+vi.mock('@/lib/supabase/server', () => ({
+  createAdminClient: () => fakeClient('admin'),
+  createServerSupabaseClient: async () => fakeClient('user'),
 }));
 
 const { deleteRole } = await import('@/actions/roles');
@@ -42,6 +60,7 @@ const { deleteRole } = await import('@/actions/roles');
 beforeEach(() => {
   state.countResult = { count: 0, error: null };
   state.selectArgs = [];
+  state.profileClients = [];
   state.deleted = false;
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
@@ -51,6 +70,11 @@ describe('deleteRole assigned-users guard', () => {
     await deleteRole('r1');
     expect(state.selectArgs).toHaveLength(1);
     expect(state.selectArgs[0][0]).toBe('id');
+  });
+
+  it('counts holders with the service-role client, not the caller\'s RLS-limited one (#1318)', async () => {
+    await deleteRole('r1');
+    expect(state.profileClients).toEqual(['admin']);
   });
 
   it('refuses when users are assigned', async () => {

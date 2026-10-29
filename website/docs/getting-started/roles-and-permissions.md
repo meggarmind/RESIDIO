@@ -17,7 +17,7 @@ residio_sources:
   - src/components/admin/role-title-picker.tsx
   - src/components/admin/role-titles-manager.tsx
   - src/components/admin/pending-accounts-list.tsx
-residio_verified_commit: 8835bff8
+residio_verified_commit: 95131b9a
 residio_verified_at: '2026-10-29'
 residio_app_version: '0.4.0'
 ---
@@ -90,7 +90,9 @@ Your deployment may contain additional custom roles, created under **Roles**. A 
 
 **Settings → Roles & Access → Roles → Add Role**. The Roles tab needs the Manage roles permission; an admin who can only assign roles does not see it.
 
-Name the role, give it a display name, pick its category, then choose its access in the same dialog. Names reserved for the built-in roles, or that only look like them, are refused.
+Type a display name, pick a category, then choose the access of the role in the same dialog. Residio makes the stored name of the role from the display name: it removes accents, changes spaces to underscores, and keeps only the letters a to z, the digits 0 to 9 and underscores. The dialog shows the stored name. If no letter or digit stays, the dialog tells you, and you cannot save. Names reserved for the built-in roles, or names that look like them, are refused. If a role with the same name exists, a message tells you.
+
+Select **Resident only** if only an account linked to a resident can hold the role. You cannot change this setting on a built-in system role.
 
 - **Start from** copies another role's access as a starting point. This is usually the quickest route — "the same as the Secretary, plus finance" is one selection and a few ticks.
 - Tick a **module** to grant everything in it.
@@ -104,7 +106,13 @@ If the privileges cannot be saved, the role is not created either — you will n
 
 Only a Super Administrator can give a role a permission they do not hold themselves, or change a built-in system role. Nobody can change their own role or its permissions; ask another administrator.
 
-To change a role later, use the **Access** column in the roles table. It shows how many modules and privileges the role holds and opens the same picker.
+To change a role later, use the **Access** column in the roles table. It shows how many modules and privileges the role holds and opens the same picker. Before you save, the dialog lists the privileges that you add and the privileges that you remove. Residio adds the new privileges first, then removes the old ones. If a step fails, the role does not lose more privileges than you removed, and the message tells you what was saved. A privilege that is no longer in use (inactive) stays on the role. The picker does not show it, and the count does not include it.
+
+The **Edit** and **Delete** buttons, and the **Access** button, show only on a role that you can change. On other roles, the Access column shows the count as text.
+
+The Super Administrator role is always active, and it always keeps **Manage Roles**, **Assign Roles** and **Assign Board Roles**. The **Active** switch is not available on that role.
+
+You cannot delete a role while a person holds it, or holds a title under it. When you delete a role, its titles and its **Who can hold each role** rules are deleted with it.
 
 :::warning[Changes apply at next sign-in]
 Permission changes take effect when the affected user next signs in. Ask them to sign out and back in rather than waiting.
@@ -125,7 +133,7 @@ Select someone, choose a role, then choose a **title** under that role and confi
 - **Residents only.** A role that can only be held by a resident, such as Chairman or Trustee, cannot be given to an account with no resident record. The page says so before you submit; link the account to a resident first.
 - **Search by full name.** You can type a first name and a last name together, for example "John Smith".
 - **Change role and Remove role.** Each row on the **Administrators** tab has both buttons, so you do not need to search for the person again. They appear only when you are allowed to change that account, and Remove role is never offered on a Super Administrator.
-- **Titles.** On the **Roles** tab, the **Titles** card lists every title with its seats and current holders. A holder of Manage Roles can add a title, rename one, or change its seats; seats cannot be set below the number of people who hold the title. Leave seats empty for no limit.
+- **Titles.** On the **Roles** tab, the **Titles** card lists every title with its seats and current holders. It also shows the titles of inactive roles, marked **Inactive**. A holder of Manage Roles can add a title, rename it, change its seats, move it to a different role, or delete it. The rules for the role itself apply: only a Super Administrator can change the titles of a system role, or of the role that they hold. Seats must be a whole number from 1 to 99. Leave seats empty for no limit. You cannot set seats below the number of people who hold the title. A person whose account is not active still counts as a holder, and shows with the account status, for example "Jane Doe (suspended)". You cannot move or delete a title while a person holds it. You cannot move or delete the principal title of a role; rename it instead.
 
 The signed-in person's title shows next to their role in the header and sidebar, in the Administrators list and in the Roles tab.
 
@@ -144,7 +152,7 @@ An account only holds permissions once it is approved. The search shows a pendin
 
 Assigning roles happens on the same Settings page where roles are defined, **Settings → Roles & Access**. The **Super Administrator** always has access, and the permission can also be granted on its own to another role. The Super Administrator role cannot be removed through the app at all.
 
-**Settings → Roles & Access → Who can hold each role** controls which resident types can hold each executive role. Residio applies these rules when you assign a role and when you approve a sign-up. If a rule does not allow the role, Residio does not save the change and shows the reason. Set the rules before you assign roles.
+**Settings → Roles & Access → Who can hold each role** controls which resident types can hold each executive role. The table shows only active roles. Residio applies these rules when you assign a role and when you approve a sign-up. If a rule does not allow the role, Residio does not save the change and shows the reason. Set the rules before you assign roles.
 
 ### The estate always keeps one Super Administrator
 
