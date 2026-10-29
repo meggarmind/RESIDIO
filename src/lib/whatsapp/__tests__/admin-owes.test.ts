@@ -128,7 +128,7 @@ describe('Resident status (owes lookup)', () => {
     expect(text).toContain('Outstanding: ₦45,000.00');
     expect(text).toContain('Status: Arrears');
     expect(text).toContain('Oldest unpaid: 1 Aug 2026 to 31 Aug 2026');
-    expect(text).toContain('Wallet: ₦2,500.00');
+    expect(text).toContain('Credit: ₦2,500.00 (not for these bills)');
     expect(owes.logDisclosure).toHaveBeenCalledWith({ residentId: 'res-1', phoneNumber: PHONE, houseId: 'id-KOA-18A', adminProfileId: 'admin-1' });
     expect(repo.audit).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'VERIFY', entityType: 'houses', entityId: 'id-KOA-18A' }),
@@ -249,11 +249,20 @@ describe('Resident status (owes lookup)', () => {
 });
 
 describe('composeAdminOwesAnswer', () => {
-  it('shows the signed roll-forward figure and keeps the wallet separate', () => {
+  it('shows the signed roll-forward figure and the wallet credit', () => {
     const text = composeAdminOwesAnswer(house({ owed: { invoiceCount: 1, outstanding: -1000, rollForward: true, overdue: null, next: null, awaitingVerification: 0 }, oldestUnpaid: null }));
     expect(text).toContain('Outstanding: ₦1,000.00 in credit');
     expect(text).toContain('Oldest unpaid: none');
-    expect(text).toContain('Wallet: ₦2,500.00 (not netted');
+    expect(text).toContain('Credit: ₦2,500.00');
+    expect(text).not.toContain('not for these bills');
+    expect(text).not.toContain('netted');
+  });
+
+  it('says which months the credit pays when nothing is owed (owner decision 29 Oct 2026)', () => {
+    const owed = { invoiceCount: 4, outstanding: 0, overdue: null, next: null, nextPaymentDue: '2027-01-01', awaitingVerification: 0, credit: { amount: 20000, months: ['2026-11-01', '2026-12-01'] } };
+    const text = composeAdminOwesAnswer(house({ owed, oldestUnpaid: null, walletBalance: 20000 }));
+    expect(text).toContain('Credit: ₦20,000.00. This pays Nov and Dec 2026.');
+    expect(text).not.toContain('Wallet');
   });
 
   it('says so when no resident is billed', () => {

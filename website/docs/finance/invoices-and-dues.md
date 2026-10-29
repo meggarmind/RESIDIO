@@ -35,6 +35,8 @@ The cards above the list count the whole estate, not just the page on screen. **
 5. For a backfill, enter the displayed security code exactly.
 6. Prepare the durable run and monitor its progress.
 
+The automatic monthly run (on the generation day set in billing settings) also uses wallet credit: each new invoice is paid from the payer's wallet of the same charge category, as far as the credit goes. So a wallet holds credit only when the payer owes nothing in that category, or when the credit is less than the next bill. Resident emails and late fees stay off for the automatic run.
+
 :::warning[Preview before prepare]
 The preview is the control point. Do not prepare a run until the candidate count and warnings match the intended period and scope.
 :::

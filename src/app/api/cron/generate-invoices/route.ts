@@ -28,8 +28,9 @@ export const maxDuration = 300;
  * 2. On or after the configured generation day (so a missed day is caught up
  *    later in the month), and only when no cron run (cancelled ones included, so a
  *    cancel holds for the month) exists for the current month, it prepares a
- *    current-month estate-wide run with wallet allocation, resident emails, and
- *    late fees disabled.
+ *    current-month estate-wide run. Wallet credit pays each new invoice at once
+ *    (owner decision 29 Oct 2026); resident emails and
+ *    late fees stay disabled.
  *
  * Authentication: Bearer token matching CRON_SECRET env var (timing-safe)
  */
@@ -92,7 +93,7 @@ async function runInvoiceGeneration(run: SystemLogRun) {
         }
 
         const prepared = await prepareInvoiceGenerationRunCore(
-            parseInvoiceGenerationRequest({ mode: 'selected_month', targetMonth: period, trigger: 'cron', walletAllocation: false, sendEmails: false, assessLateFees: false }),
+            parseInvoiceGenerationRequest({ mode: 'selected_month', targetMonth: period, trigger: 'cron', walletAllocation: true, sendEmails: false, assessLateFees: false }),
             null
         );
         if (!prepared.data) {
@@ -105,7 +106,7 @@ async function runInvoiceGeneration(run: SystemLogRun) {
             status: chunk.run ? (chunk.run as { status: string }).status : 'queued',
             candidates: prepared.data.candidateCount,
             processed: chunk.processed,
-            walletAllocation: false,
+            walletAllocation: true,
             sendEmails: false,
             assessLateFees: false,
         };
