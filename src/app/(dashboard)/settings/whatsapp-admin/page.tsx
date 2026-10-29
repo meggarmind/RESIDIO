@@ -35,7 +35,7 @@ export default async function WhatsAppAdminAccessPage() {
         <CardContent>
           <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
             <li>On WhatsApp, send ADMIN LINK followed by the link code from this page. The code works once, for 10 minutes.</li>
-            <li>Send ADMIN STATUS, then ADMIN followed by your authenticator code to approve it.</li>
+            <li>Open Admin tools with 6 on the main menu, or send ADMIN, then enter your authenticator code when it is asked for.</li>
             <li>The link ends when your role, account or authenticator app changes, {ADMIN_REVERIFY_DAYS} days after linking, or after {ADMIN_IDLE_DAYS} days without use.</li>
             <li>{ADMIN_MAX_WRONG_CODES} wrong codes lock admin mode on the number for {ADMIN_LOCK_MINUTES} minutes. You get an email after each lock and each new link.</li>
             <li>At most {ADMIN_DAILY_ACTION_CAP} admin requests a day.</li>
