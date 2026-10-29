@@ -328,11 +328,28 @@ describe('WhatsApp Assistant menus (#804 harmonised)', () => {
 
   it('turns all estate WhatsApp messages off from Alert settings', async () => {
     const repo = repository();
-    const replies = await chat(repo, ['4', '1']);
+    const replies = await chat(repo, ['4', '1', '1']);
 
     expect(replies[0]).toBe(['Alert settings', '1. All estate WhatsApp messages: ON', '2. Payment reminders: ON', 'Reply 1 or 2 to change one.', FOOTER].join('\n'));
+    expect(replies[1]).toContain('Turn off all estate WhatsApp messages?');
+    expect(repo.setAlertsOn).toHaveBeenCalledTimes(1);
     expect(repo.setAlertsOn).toHaveBeenCalledWith('resident-1', '+2348000000000', false);
-    expect(replies[1]).toContain('unsubscribed');
+    expect(replies[2]).toContain('unsubscribed');
+  });
+
+  it('asks before turning alerts off and changes nothing until the confirm step gets 1 (#1291)', async () => {
+    const repo = repository();
+    const replies = await chat(repo, ['4', '1']);
+
+    expect(replies[1]).toBe('Turn off all estate WhatsApp messages? You will not get notices or reminders.\n1 Yes, turn off.\n2 No, keep on.');
+    expect(repo.setAlertsOn).not.toHaveBeenCalled();
+  });
+
+  it.each(['2', 'maybe'])('leaves alerts on when the confirm step gets "%s" (#1291)', async (answer) => {
+    const repo = repository();
+    await chat(repo, ['4', '1', answer]);
+
+    expect(repo.setAlertsOn).not.toHaveBeenCalled();
   });
 });
 

@@ -1685,6 +1685,13 @@ async function showAlertSettings(turn: Turn): Promise<void> {
   await respond(turn, lines.join('\n'), 'alerts');
 }
 
+async function confirmAlertsOff(turn: Turn, input: string): Promise<void> {
+  if (input === '2') return respond(turn, `Nothing was changed. Estate WhatsApp messages stay on.\n${footer(turn)}`, 'main');
+  if (input !== '1') return miss(turn, 'alerts_confirm');
+  await turn.options.repository.setAlertsOn(turn.identity.id, turn.phoneNumber, false);
+  await respond(turn, UNSUBSCRIBED_REPLY, 'main');
+}
+
 /** Payment reminders on WhatsApp: off asks first (decision 4), on is immediate. */
 async function toggleReminders(turn: Turn): Promise<void> {
   if (!turn.identity.financialEligible) return showAlertSettings(turn);
@@ -2061,9 +2068,10 @@ async function converse(turn: Turn, expiredMidStep: { wasUnlocked: boolean } | n
   if (node === 'alerts') {
     if (input === '2' && turn.identity.financialEligible) return toggleReminders(turn);
     if (input !== '1') return miss(turn, node);
-    await turn.options.repository.setAlertsOn(turn.identity.id, turn.phoneNumber, false);
-    return respond(turn, UNSUBSCRIBED_REPLY, 'main');
+    return respond(turn, 'Turn off all estate WhatsApp messages? You will not get notices or reminders.\n1 Yes, turn off.\n2 No, keep on.', 'alerts_confirm');
   }
+
+  if (node === 'alerts_confirm') return confirmAlertsOff(turn, input);
 
   // A session stored as 'more' before #1117 reads its reply as the Financial menu.
   if (node === 'financial' || node === 'more' || node === 'answer' || node.startsWith('statement:')) {
@@ -2145,6 +2153,18 @@ export async function handleFinancialMessage(
     console.error('WhatsApp Assistant lookup failed:', error);
     await sendFinancialReply(message, turn.contact ? `${LOOKUP_FAILED}\n${turn.contact}` : LOOKUP_FAILED, options.send, identity.id);
   }
+}
+
+/**
+ * Ends any open resident menu step for a number (#1291), so a bare number typed after an admin
+ * message starts from the main menu. PIN unlock state is kept; a draft in progress is dropped.
+ */
+export async function endOpenMenuStep(repository: WhatsAppFinancialRepository, phoneNumber: string): Promise<void> {
+  const stored = await repository.getSession(phoneNumber);
+  if (!stored) return;
+  const { node } = readNode(stored.currentNode);
+  if (node === 'main' || node === ENDED_NODE) return;
+  await repository.saveSession({ ...stored, currentNode: 'main', draft: null, pendingPinHash: null });
 }
 
 export function createSupabaseWhatsAppFinancialRepository(): WhatsAppFinancialRepository {
