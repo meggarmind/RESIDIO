@@ -7,7 +7,8 @@ import {
   setResidentPortalEnabled,
 } from '@/actions/settings/resident-portal';
 
-const { createAdminClient, authorizePermission, logAudit, revalidatePath } = vi.hoisted(() => ({
+const { createAdminClient, authorizePermission, logAudit, revalidatePath, assertCanManageTarget } = vi.hoisted(() => ({
+  assertCanManageTarget: vi.fn(),
   createAdminClient: vi.fn(),
   authorizePermission: vi.fn(),
   logAudit: vi.fn(),
@@ -17,6 +18,7 @@ const { createAdminClient, authorizePermission, logAudit, revalidatePath } = vi.
 vi.mock('@/lib/supabase/server', () => ({ createAdminClient }));
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit }));
+vi.mock('@/lib/auth/account-guards', () => ({ assertCanManageTarget }));
 vi.mock('next/cache', () => ({ revalidatePath }));
 
 const SETTING_ROW_ID = '00000000-0000-4000-8000-000000000001';
@@ -86,6 +88,8 @@ beforeEach(() => {
   logAudit.mockReset();
   revalidatePath.mockReset();
   authorizePermission.mockResolvedValue({ authorized: true, userId: 'admin-1', error: null });
+  assertCanManageTarget.mockReset();
+  assertCanManageTarget.mockResolvedValue({ ok: true, targetRoleName: null, targetApprovalStatus: 'active' });
 });
 
 describe('getResidentPortalEnabled', () => {
@@ -365,6 +369,20 @@ describe('setPortalAccessOverride', () => {
     expect(result).toEqual({ success: false, error: 'Profile not found' });
     expect(calls.update).toEqual([]);
     expect(logAudit).not.toHaveBeenCalled();
+  });
+
+  it('refuses, writing and auditing nothing, when the caller may not manage the target (#1317)', async () => {
+    assertCanManageTarget.mockResolvedValue({ ok: false, error: 'You do not have permission to change this account' });
+    const { client, calls } = createClient({ data: existing, error: null });
+    createAdminClient.mockReturnValue(client);
+
+    const result = await setPortalAccessOverride(PROFILE_ID, 'enabled');
+
+    expect(assertCanManageTarget).toHaveBeenCalledWith('admin-1', PROFILE_ID);
+    expect(result).toEqual({ success: false, error: 'You do not have permission to change this account' });
+    expect(calls.update).toEqual([]);
+    expect(logAudit).not.toHaveBeenCalled();
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 
   it('does not audit when the update fails', async () => {
