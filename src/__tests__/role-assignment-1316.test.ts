@@ -319,18 +319,13 @@ describe('assignRoleToProfile (#1316)', () => {
     expect(profileRow('active-amy').role_id).toBe(TRUSTEE);
   });
 
-  it('counts only active holders against a title\'s seats', async () => {
+  it('counts holders of every approval status against a title\'s seats, as the trigger does', async () => {
     state.tables.role_assignment_rules = [];
     state.tables.profiles.push({ id: 'sus', email: 's@x.test', full_name: 'Sue Suspended', approval_status: 'suspended', resident_id: 'r', role_id: TRUSTEE, title_id: TRUSTEE_TITLE });
 
-    expect((await assignRoleToProfile('active-amy', TRUSTEE, TRUSTEE_TITLE)).success).toBe(true);
-
-    seed();
-    state.tables.role_assignment_rules = [];
-    state.tables.profiles.push({ id: 'act', email: 'a@x.test', full_name: 'Ade Active', approval_status: 'active', resident_id: 'r', role_id: TRUSTEE, title_id: TRUSTEE_TITLE });
-
     const full = await assignRoleToProfile('active-amy', TRUSTEE, TRUSTEE_TITLE);
-    expect(full.error).toBe('Lead Trustee is already held by Ade Active. Move them to another title first.');
+    expect(full.error).toBe('Lead Trustee is already held by Sue Suspended. Move them to another title first.');
+    expect(state.writes).toEqual([]);
   });
 });
 

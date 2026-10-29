@@ -117,8 +117,10 @@ export async function evaluateRoleAssignmentRules(
  * A title must belong to the role it is assigned under and must have a free
  * seat. The profiles trigger (#823) enforces both; this runs first so the
  * administrator is told who holds the seat rather than shown a database error.
- * Other active holders only: re-saving someone's own title does not count
- * against them, and an account that is not active holds no seat.
+ * Other holders only: re-saving someone's own title does not count against
+ * them. Holders of every approval status count, as they do in the trigger
+ * (20261023110000_profile_role_grant_rules.sql); rejectAccount clears the
+ * title, so a rejected account holds no seat.
  */
 export async function checkTitleForRole(
   roleId: string,
@@ -147,7 +149,6 @@ export async function checkTitleForRole(
       .from('profiles')
       .select('id, full_name, email')
       .eq('title_id', titleId)
-      .eq('approval_status', 'active')
       .neq('id', profileId);
 
     if (holdersError) {
