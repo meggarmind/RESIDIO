@@ -16,6 +16,7 @@ import { WhatsAppAdminAlertEmail, whatsAppAdminAlertSubject, type WhatsAppAdminA
 import type { WhatsAppInboundMessage } from '@/lib/whatsapp/types';
 import { debtReportAction } from '@/lib/whatsapp/admin-debt-report';
 import { clearanceQueueAction, collectionsAction } from '@/lib/whatsapp/admin-collections';
+import { approvePaymentAction } from '@/lib/whatsapp/admin-approve-payment';
 
 /**
  * WhatsApp admin mode (#972): the security layer every admin action on WhatsApp goes through.
@@ -140,6 +141,8 @@ export interface WhatsAppAdminActionContext {
   account: WhatsAppAdminAccount;
   binding: WhatsAppAdminBinding;
   now: Date;
+  /** False when this admin's session opened without a code (#1290 decision 8). */
+  codeNeeded: boolean;
   requestId: string;
   /** What the admin sent with the command, e.g. the house code or name. */
   params: Record<string, unknown>;
@@ -154,6 +157,8 @@ export interface WhatsAppAdminAction {
   icon?: string;
   /** The action's own permission (any one of them when a list), checked on top of whatsapp_admin.query. */
   permission: string | string[];
+  /** Permissions the item needs as well, every one of them (#1297). */
+  alsoRequires?: string[];
   /** True when every run needs a new authenticator code, even inside a session (a PDF, #972 D2). */
   freshCode: boolean;
   /**
@@ -161,13 +166,21 @@ export interface WhatsAppAdminAction {
    * request, and the admin's next plain reply goes to `choose`. No state means there is nothing to choose.
    */
   begin?(context: { account: WhatsAppAdminAccount; binding: WhatsAppAdminBinding; now: Date }): Promise<{ reply: string; state?: Record<string, unknown> }>;
-  /** Turns the admin's reply into the request params, or says why it was not understood. */
-  choose?(text: string, state: Record<string, unknown>): { params: Record<string, unknown> } | { retry: string };
+  /**
+   * Turns the admin's reply into the request params, says why it was not understood, or asks a
+   * further question (`ask`) whose answer comes back here with the new `state` (#1297).
+   */
+  choose?(
+    text: string,
+    state: Record<string, unknown>
+  ): ChooseResult | Promise<ChooseResult>;
   /** A string is the reply; the object form also adds `audit` to the request's audit entry (scope, outcome). */
   run(context: WhatsAppAdminActionContext): Promise<string | { reply: string; audit: Record<string, unknown> }>;
   /** Set when the item stays open after an answer for another entry: the line added under the answer. */
   again?: string;
 }
+
+export type ChooseResult = { params: Record<string, unknown> } | { retry: string } | { ask: string; state: Record<string, unknown> };
 
 /** Lagos `HH:MM`. */
 function lagosClock(iso: string): string {
@@ -209,10 +222,11 @@ export const WHATSAPP_ADMIN_ACTIONS: Record<string, WhatsAppAdminAction> = {
   debt: debtReportAction,
   collections: collectionsAction,
   clearance: clearanceQueueAction,
+  approve_payment: approvePaymentAction,
 };
 
 /** Admin tools menu numbers (#1292). A number whose item the role may not use reads as unrecognised. */
-export const WHATSAPP_ADMIN_MENU: Record<string, string> = { '1': 'owes', '2': 'debt', '3': 'collections', '4': 'clearance' };
+export const WHATSAPP_ADMIN_MENU: Record<string, string> = { '1': 'owes', '2': 'debt', '3': 'collections', '4': 'clearance', '5': 'approve_payment' };
 
 /** A request waiting for the admin's answer to an item's question is stored under this suffix (#982). */
 export const ADMIN_CHOICE_SUFFIX = ':choose';
@@ -701,7 +715,10 @@ function lockedReply(lockedUntil: string): string {
 }
 
 function mayRun(account: WhatsAppAdminAccount, action: WhatsAppAdminAction): boolean {
-  return [action.permission].flat().some((permission) => account.permissions.includes(permission));
+  return (
+    [action.permission].flat().some((permission) => account.permissions.includes(permission)) &&
+    (action.alsoRequires ?? []).every((permission) => account.permissions.includes(permission))
+  );
 }
 
 function sessionLive(binding: WhatsAppAdminBinding | null, now: Date): boolean {
@@ -855,6 +872,7 @@ async function adminTurn(message: WhatsAppInboundMessage, input: AdminInput, opt
       account: admin,
       binding: live,
       now,
+      codeNeeded,
       requestId,
       params,
       audit: (entry) => repository.audit(entry, admin.profileId),
@@ -1076,9 +1094,14 @@ async function adminTurn(message: WhatsAppInboundMessage, input: AdminInput, opt
       await showMenu(live, `That question ran out after ${ADMIN_REQUEST_TTL_MINUTES} minutes.`);
       return true;
     }
-    const chosen = action.choose(text, waiting.state);
+    const chosen = await action.choose(text, waiting.state);
     if ('retry' in chosen) {
       await reply(chosen.retry);
+      return true;
+    }
+    if ('ask' in chosen) {
+      await createChoice(waiting.action, live, chosen.state);
+      await reply(chosen.ask);
       return true;
     }
     await request(waiting.action, live, chosen.params);
