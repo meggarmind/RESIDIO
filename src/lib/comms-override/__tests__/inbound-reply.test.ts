@@ -12,6 +12,7 @@ vi.mock('@/lib/whatsapp/rollout', () => ({ isWhatsAppRecipientAllowed: vi.fn() }
 
 import { handleResidentMessage } from '@/lib/whatsapp/identity';
 import { handleFinancialMessage } from '@/lib/whatsapp/financial';
+import { getSettingResultAsService } from '@/lib/settings/service';
 import type { WhatsAppInboundMessage } from '@/lib/whatsapp/types';
 
 const inbound: WhatsAppInboundMessage = {
@@ -36,6 +37,7 @@ const resident = {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.sendWhatsAppMessage.mockResolvedValue({ success: true });
+  vi.mocked(getSettingResultAsService).mockResolvedValue({ status: 'ok', value: 'pilot' } as never);
 });
 
 describe('inbound WhatsApp Assistant replies are exempt from the redirect (decision 8)', () => {
