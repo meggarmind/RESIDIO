@@ -20,7 +20,7 @@ import {
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { getSponsoredHouses, isOnRoster } from '@/lib/whatsapp/co-resident';
 import { contactLine } from '@/lib/whatsapp/assistant-format';
-import { createSupabaseWhatsAppFinancialRepository, houseLabel } from '@/lib/whatsapp/financial';
+import { createSupabaseWhatsAppFinancialRepository, endOpenMenuStep, houseLabel, type WhatsAppFinancialRepository } from '@/lib/whatsapp/financial';
 import type { WhatsAppInboundMessage, WhatsAppTextMessage } from '@/lib/whatsapp/types';
 import { loadAssistantName } from '@/lib/whatsapp/assistant-name';
 import { SURVEY_OPT_OUT_REPLY, isSurveyStopCommand } from '@/lib/whatsapp/survey';
@@ -641,6 +641,8 @@ export interface WhatsAppIdentityHandlerOptions {
   repository: WhatsAppIdentityRepository;
   /** WhatsApp admin mode (#972); defaults to the Supabase repository. */
   adminRepository?: WhatsAppAdminRepository;
+  /** Where the open resident menu step is ended after an admin turn (#1291). */
+  financialRepository?: WhatsAppFinancialRepository;
   send?: (message: WhatsAppTextMessage) => Promise<{ success: boolean; error?: string }>;
   estateContactLine?: () => Promise<string | null>;
   /** Messages held while the master switch is off (#1075); defaults to the Supabase store. */
@@ -759,6 +761,15 @@ async function sendReply(
   }
 }
 
+/** An admin turn ends any open resident menu step, so the next bare number cannot land in it (#1291). */
+async function endResidentMenuStep(phoneNumber: string, options: WhatsAppIdentityHandlerOptions): Promise<void> {
+  try {
+    await endOpenMenuStep(options.financialRepository ?? createSupabaseWhatsAppFinancialRepository(), phoneNumber);
+  } catch (error) {
+    console.error('WhatsApp Assistant could not end the open menu step after an admin turn:', error);
+  }
+}
+
 export async function handleResidentMessage(
   message: WhatsAppInboundMessage,
   options: WhatsAppIdentityHandlerOptions
@@ -787,6 +798,7 @@ export async function handleResidentMessage(
   // number too, keeps the resident behaviour below. No resident record is read for it.
   const adminCommand = parseWhatsAppAdminCommand(text);
   if (adminCommand) {
+    await endResidentMenuStep(phoneNumber, options);
     await handleWhatsAppAdminMessage(message, adminCommand, {
       repository: options.adminRepository ?? createSupabaseWhatsAppAdminRepository(),
       reply: (body) => sendReply(message, body, options.send),
@@ -801,7 +813,10 @@ export async function handleResidentMessage(
       repository: options.adminRepository ?? createSupabaseWhatsAppAdminRepository(),
       reply: (body) => sendReply(message, body, options.send),
     });
-    if (handled) return { status: 'admin', residentId: null, optedIn: false, financialEligible: false, accessTier: 'community' };
+    if (handled) {
+      await endResidentMenuStep(phoneNumber, options);
+      return { status: 'admin', residentId: null, optedIn: false, financialEligible: false, accessTier: 'community' };
+    }
   }
 
   const linked = await options.repository.findLinkedResidents(phoneNumber);
