@@ -282,7 +282,8 @@ describe('createRoleWithPermissions', () => {
     seed('chairman', 'secretary', ['x.view', 'x.edit']);
     const result = await createRoleWithPermissions(input, ['p-view', 'p-edit']);
     expect(result.success).toBe(true);
-    expect(writesTo('role_permissions')).toHaveLength(2);
+    // #1318: the grants go in one insert of two rows, with nothing deleted first.
+    expect(writesTo('role_permissions').flatMap((w) => w.values as Row[])).toHaveLength(2);
   });
 
   it('lets a super_admin attach any permission', async () => {

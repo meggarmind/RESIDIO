@@ -50,6 +50,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Tooltip,
   TooltipContent,
@@ -57,9 +58,10 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Plus, Loader2, Pencil, Trash2, Shield, Lock } from 'lucide-react';
-import type { AppRoleWithPermissions, RoleCategory } from '@/types/database';
+import type { AppRoleInsert, AppRoleWithPermissions, RoleCategory } from '@/types/database';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { deriveRoleKey, roleActionAccess } from '@/lib/auth/role-write-access';
 import { ActiveStatusBadge, SettingsEmptyState, SettingsSkeleton } from '@/components/settings/settings-states';
 import { RolePermissionsDialog } from './role-permissions-dialog';
 import { PermissionPicker } from './permission-picker';
@@ -91,13 +93,23 @@ function SystemBadge() {
 }
 
 export function RolesList() {
-  const { hasPermission } = useAuth();
+  const { hasPermission, profile } = useAuth();
   const canManage = hasPermission(PERMISSIONS.SYSTEM_MANAGE_ROLES);
-  const { data: rolesData, isLoading } = useRolesWithPermissions();
+  // The buttons follow the checks the role actions make (#1318).
+  const accessFor = (role: AppRoleWithPermissions) =>
+    roleActionAccess(
+      { roleName: profile?.role_name ?? null, roleId: profile?.role_id ?? null, canManageRoles: canManage },
+      role
+    );
+  const { data: rolesData, isLoading, error: rolesError } = useRolesWithPermissions();
   const { data: allTitles } = useAdminTitles();
   const titleNames = (role: AppRoleWithPermissions) =>
     (allTitles ?? []).filter((t) => t.role_id === role.id).map((t) => t.name);
-  const { data: allPermissions, isLoading: permissionsLoading } = usePermissions();
+  const {
+    data: allPermissions,
+    isLoading: permissionsLoading,
+    error: permissionsError,
+  } = usePermissions();
   const createMutation = useCreateRoleWithPermissions();
   const updateMutation = useUpdateRole();
   const deleteMutation = useDeleteRole();
@@ -110,33 +122,38 @@ export function RolesList() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [roleToDelete, setRoleToDelete] = useState<AppRoleWithPermissions | null>(null);
 
-  // Permissions dialog state
+  // Permissions dialog state. Ids, not role objects (#1318): the role is read from
+  // the current query data, so reopening after a save shows what was saved.
   const [permissionsDialogOpen, setPermissionsDialogOpen] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<AppRoleWithPermissions | null>(null);
+  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
+  const selectedRole = rolesData?.find((r) => r.id === selectedRoleId) ?? null;
 
   // Form state
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingRole, setEditingRole] = useState<AppRoleWithPermissions | null>(null);
+  const editingRole = rolesData?.find((r) => r.id === editingId) ?? null;
   const [formName, setFormName] = useState('');
   const [formDisplayName, setFormDisplayName] = useState('');
   const [formDescription, setFormDescription] = useState('');
   const [formCategory, setFormCategory] = useState<RoleCategory>('exco');
   const [formIsActive, setFormIsActive] = useState(true);
+  const [formRequiresResident, setFormRequiresResident] = useState(false);
   // Permissions chosen while creating, and the role they were seeded from.
   const [formPermissionIds, setFormPermissionIds] = useState<Set<string>>(new Set());
   const [cloneFromId, setCloneFromId] = useState<string>('none');
 
   const isEditing = editingId !== null;
   const isSystemRole = editingRole?.is_system_role ?? false;
+  // A new role's key comes from its display name, accents folded (#1318).
+  const derivedKey = deriveRoleKey(formDisplayName);
 
   const resetForm = () => {
     setEditingId(null);
-    setEditingRole(null);
     setFormName('');
     setFormDisplayName('');
     setFormDescription('');
     setFormCategory('exco');
     setFormIsActive(true);
+    setFormRequiresResident(false);
     setFormPermissionIds(new Set());
     setCloneFromId('none');
   };
@@ -155,17 +172,17 @@ export function RolesList() {
 
   const openEditDialog = (role: AppRoleWithPermissions) => {
     setEditingId(role.id);
-    setEditingRole(role);
     setFormName(role.name);
     setFormDisplayName(role.display_name);
     setFormDescription(role.description || '');
     setFormCategory(role.category);
     setFormIsActive(role.is_active);
+    setFormRequiresResident(role.requires_resident ?? false);
     setIsDialogOpen(true);
   };
 
   const openPermissionsDialog = (role: AppRoleWithPermissions) => {
-    setSelectedRole(role);
+    setSelectedRoleId(role.id);
     setPermissionsDialogOpen(true);
   };
 
@@ -179,7 +196,7 @@ export function RolesList() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formDisplayName.trim()) return;
-    if (!isEditing && !formName.trim()) return;
+    if (!isEditing && !derivedKey) return;
 
     setIsSubmitting(true);
     try {
@@ -193,21 +210,23 @@ export function RolesList() {
             // Only include these if not a system role
             ...(isSystemRole ? {} : {
               category: formCategory,
+              requires_resident: formRequiresResident,
             }),
             is_active: formIsActive,
           },
         });
       } else {
-        // Create new role - convert display name to snake_case for name
-        const roleName = formName.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+        // requires_resident is not in AppRoleInsert yet; createRole accepts it.
+        const role: AppRoleInsert & { requires_resident: boolean } = {
+          name: derivedKey!,
+          display_name: formDisplayName,
+          description: formDescription || undefined,
+          category: formCategory,
+          is_active: formIsActive,
+          requires_resident: formRequiresResident,
+        };
         await createMutation.mutateAsync({
-          role: {
-            name: roleName,
-            display_name: formDisplayName,
-            description: formDescription || undefined,
-            category: formCategory,
-            is_active: formIsActive,
-          },
+          role,
           permissionIds: Array.from(formPermissionIds),
         });
       }
@@ -227,26 +246,42 @@ export function RolesList() {
 
   const handleDelete = async () => {
     if (!roleToDelete) return;
-    await deleteMutation.mutateAsync(roleToDelete.id);
-    setDeleteDialogOpen(false);
-    setRoleToDelete(null);
+    try {
+      await deleteMutation.mutateAsync(roleToDelete.id);
+      setDeleteDialogOpen(false);
+      setRoleToDelete(null);
+    } catch {
+      // The hook's onError already showed the reason; keep the dialog open.
+    }
   };
 
-  const accessButton = (role: AppRoleWithPermissions) => (
-    <Button
-      variant="outline"
-      size="sm"
-      className="min-h-11 gap-1.5 hover:border-primary hover:bg-primary/10 md:min-h-8"
-      onClick={() => openPermissionsDialog(role)}
-    >
-      <Shield className="h-4 w-4" />
-      <span>
-        {moduleCount(role)} module{moduleCount(role) !== 1 ? 's' : ''} ·{' '}
-        {role.permissions.length} privilege
-        {role.permissions.length !== 1 ? 's' : ''}
-      </span>
-    </Button>
+  const accessSummary = (role: AppRoleWithPermissions) => (
+    <span>
+      {moduleCount(role)} module{moduleCount(role) !== 1 ? 's' : ''} ·{' '}
+      {role.permissions.length} privilege
+      {role.permissions.length !== 1 ? 's' : ''}
+    </span>
   );
+
+  // Opens Manage access only for a role the caller may change; otherwise the count is plain text.
+  const accessButton = (role: AppRoleWithPermissions) =>
+    accessFor(role).canManageAccess ? (
+      <Button
+        variant="outline"
+        size="sm"
+        className="min-h-11 gap-1.5 hover:border-primary hover:bg-primary/10 md:min-h-8"
+        onClick={() => openPermissionsDialog(role)}
+        aria-label={`Manage access for ${role.display_name}`}
+      >
+        <Shield className="h-4 w-4" />
+        {accessSummary(role)}
+      </Button>
+    ) : (
+      <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+        <Shield className="h-4 w-4" />
+        {accessSummary(role)}
+      </span>
+    );
 
   // Resident-category roles are not administrators, so the Administrators tab would list nobody.
   const holders = (role: AppRoleWithPermissions) =>
@@ -265,11 +300,13 @@ export function RolesList() {
     );
 
   const roleActions = (role: AppRoleWithPermissions) => {
-    if (!canManage || role.name === 'super_admin') {
+    const access = accessFor(role);
+    if (!access.canEdit && !access.canDelete) {
       return <span className="text-sm text-muted-foreground">—</span>;
     }
     return (
       <div className="flex justify-end gap-1">
+        {access.canEdit && (
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -286,7 +323,8 @@ export function RolesList() {
             <TooltipContent>Edit role</TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        {!role.is_system_role && (
+        )}
+        {access.canDelete && (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -310,6 +348,7 @@ export function RolesList() {
   };
 
   const holderCount = roleToDelete?.user_count;
+  const titlesToDelete = roleToDelete ? titleNames(roleToDelete) : [];
 
   return (
     <div className="space-y-4">
@@ -338,21 +377,6 @@ export function RolesList() {
             </DialogHeader>
             <form onSubmit={handleSubmit} className={isEditing ? undefined : 'flex min-h-0 flex-1 flex-col'}>
               <div className={isEditing ? 'grid gap-4 py-4' : 'grid min-h-0 flex-1 gap-4 overflow-y-auto py-4'}>
-                {!isEditing && (
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="name" className="text-right">
-                      Name*
-                    </Label>
-                    <Input
-                      id="name"
-                      value={formName}
-                      onChange={(e) => setFormName(e.target.value)}
-                      className="col-span-3"
-                      placeholder="e.g. treasurer"
-                      required
-                    />
-                  </div>
-                )}
                 {isEditing && (
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label className="text-right">Name</Label>
@@ -380,7 +404,22 @@ export function RolesList() {
                     className="col-span-3"
                     placeholder="e.g. Estate Treasurer"
                     required
+                    aria-describedby={isEditing ? undefined : 'role-key-hint'}
                   />
+                  {!isEditing && formDisplayName.trim() !== '' && (
+                    <p
+                      id="role-key-hint"
+                      className={`col-span-3 col-start-2 text-xs ${derivedKey ? 'text-muted-foreground' : 'text-destructive'}`}
+                    >
+                      {derivedKey ? (
+                        <>
+                          Stored as <code>{derivedKey}</code>
+                        </>
+                      ) : (
+                        'Use at least one letter or number (A to Z, 0 to 9) in the name.'
+                      )}
+                    </p>
+                  )}
                 </div>
                 <div className="grid grid-cols-4 items-start gap-4">
                   <Label htmlFor="description" className="text-right pt-2">
@@ -430,6 +469,22 @@ export function RolesList() {
                     </span>
                   </div>
                 </div>
+                <div className="grid grid-cols-4 items-start gap-4">
+                  <Label htmlFor="requires_resident" className="pt-0.5 text-right">
+                    Resident only
+                  </Label>
+                  <div className="col-span-3 flex items-start gap-2">
+                    <Checkbox
+                      id="requires_resident"
+                      checked={formRequiresResident}
+                      onCheckedChange={(checked) => setFormRequiresResident(checked === true)}
+                      disabled={isSystemRole}
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      Only an account linked to an active resident can hold this role.
+                    </span>
+                  </div>
+                </div>
 
                 {!isEditing && (
                   <div className="space-y-3 border-t pt-4">
@@ -463,6 +518,7 @@ export function RolesList() {
                     <PermissionPicker
                       permissions={allPermissions}
                       isLoading={permissionsLoading}
+                      error={permissionsError}
                       value={formPermissionIds}
                       onChange={setFormPermissionIds}
                     />
@@ -475,7 +531,10 @@ export function RolesList() {
                     {formPermissionIds.size} privilege{formPermissionIds.size !== 1 ? 's' : ''} selected
                   </span>
                 )}
-                <Button type="submit" disabled={isSubmitting || updateMutation.isPending}>
+                <Button
+                  type="submit"
+                  disabled={isSubmitting || updateMutation.isPending || (!isEditing && !derivedKey)}
+                >
                   {(isSubmitting || updateMutation.isPending) && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   )}
@@ -490,6 +549,10 @@ export function RolesList() {
 
       {isLoading ? (
         <SettingsSkeleton rows={4} />
+      ) : rolesError ? (
+        <p role="alert" className="text-sm text-destructive">
+          Could not load roles: {rolesError.message}
+        </p>
       ) : !rolesData || rolesData.length === 0 ? (
         <SettingsEmptyState icon={Shield} title="No roles yet" />
       ) : (
@@ -580,6 +643,8 @@ export function RolesList() {
                 : holderCount === 0
                   ? `No users hold "${roleToDelete?.display_name}". Deleting it cannot be undone.`
                   : `Are you sure you want to delete "${roleToDelete?.display_name}"? This action cannot be undone. Any users assigned to this role will need to be reassigned.`}
+              {!holderCount && titlesToDelete.length > 0 &&
+                ` Its titles are deleted with it: ${titlesToDelete.join(', ')}.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -587,7 +652,11 @@ export function RolesList() {
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleDelete}
+              onClick={(e) => {
+                // Stay open until the delete succeeds, so a refusal is read in context.
+                e.preventDefault();
+                void handleDelete();
+              }}
               disabled={deleteMutation.isPending || !!holderCount}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >

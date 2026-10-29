@@ -56,6 +56,7 @@ vi.mock('@/hooks/use-roles', () => ({
   useAdminTitles: () => ({ data: [], isLoading: false }),
   useCreateAdminTitle: mutation,
   useUpdateAdminTitle: mutation,
+  useDeleteAdminTitle: mutation,
 }));
 vi.mock('@tanstack/react-query', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tanstack/react-query')>()),
