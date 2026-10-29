@@ -1223,7 +1223,7 @@ async function enterFinancial(turn: Turn, target: Target, prefix?: string, prope
     const prompt = turn.pinHash
       ? VERIFY_PIN_PROMPT
       : `A security PIN is required before viewing financial standing. To set one, ${SET_PIN_HINT}.`;
-    await respond(turn, `${prompt}\n${footer(turn)}`, `pin:${target}`);
+    await respond(turn, `${prompt}\n\n${footer(turn)}`, `pin:${target}`);
     return;
   }
 
@@ -1744,7 +1744,7 @@ async function startEmail(turn: Turn, prefix?: string): Promise<void> {
   // Only a financial-tier resident can set a PIN, so the community tier is asked only if they already have one.
   const gated = (await loadPinGate(turn)) && (turn.identity.financialEligible || !!turn.pinHash);
   if (gated && !turn.session.pinAuthenticated) {
-    return respond(turn, `${emailPinPrompt(turn)}\n${footer(turn)}`, 'pin:email');
+    return respond(turn, `${emailPinPrompt(turn)}\n\n${footer(turn)}`, 'pin:email');
   }
   const lead = prefix ? `${prefix}\n\n` : '';
   await respond(turn, `${lead}What email address should we use? Reply with the address, or CANCEL.`, 'email_address');
@@ -1887,7 +1887,7 @@ async function handlePin(turn: Turn, pin: string, node: string): Promise<void> {
 async function handlePinCommand(turn: Turn, input: string): Promise<void> {
   const pinHash = await turn.options.repository.getPinHash(turn.identity.id);
   if (!pinHash) return startPinSetup(turn);
-  if (input === 'pin') return respond(turn, `${VERIFY_PIN_PROMPT}\n${footer(turn)}`, 'pin:menu');
+  if (input === 'pin') return respond(turn, `${VERIFY_PIN_PROMPT}\n\n${footer(turn)}`, 'pin:menu');
   return respond(turn, CURRENT_PIN_PROMPT, 'pin_change_current');
 }
 
