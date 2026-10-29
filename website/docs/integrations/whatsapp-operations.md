@@ -155,6 +155,19 @@ The **Pilot residents** table shows everyone in the pilot: each person chosen by
 Moving straight from `Disabled` to `Estate` sends the first real message to every resident at once. A template error at that point is not recoverable.
 :::
 
+## Estate group
+
+When WAHA is the active provider, **Settings → WhatsApp → Estate group** lets you choose one of the WhatsApp groups the bot number is in. Select **Load groups**, pick the estate group, and select **Save estate group**. You need the manage WhatsApp permission. With another provider, the section says that the estate group needs WAHA. The bot number must be an **admin** of the group, or WAHA cannot show the phone numbers of members who hide them.
+
+Residio keeps a list of the group members. For each member it stores the phone number, the role and the resident record whose primary or secondary phone matches. A member who matches no resident record is kept with no resident.
+
+- When someone joins the group, Residio adds them at once. When someone leaves, Residio marks them as left.
+- Events for any other group are ignored.
+- Every night Residio reads the full member list from WAHA and makes its own list equal to it. It asks WAHA to refresh its groups at most once a day.
+- A member who matches no resident record is removed 30 days after Residio last saw them. A member who matches a resident is not removed.
+
+This list does not yet change who can use the bot. The sync does not close sessions and does not move out any resident.
+
 ## Consent and opt-ins
 
 A resident only receives WhatsApp messages after an approved consent record exists. Invoice reminders and payment confirmations check this when the message is created, so a resident without consent gets no queued message at all (an invoice reminder run reports it as "recipient has not opted in"). The check is repeated at send time.
@@ -413,6 +426,7 @@ WhatsApp operational state is short-lived by design and purged on a daily schedu
 - Processed message records are removed after their expiry, by default two days.
 - Survey answers (the rating, the optional comment and the phone number) are removed after 90 days by default. Opt-out records are kept, because they record a resident's choice and hold no comment.
 - Outbound send records are removed after 90 days by default.
+- Estate group members who match no resident record are removed 30 days after they were last seen in the group. The setting `whatsapp_group_unmatched_retention_days` changes this period (1 to 365 days).
 
 The session, processed message, survey answer and outbound send periods are set under **Settings → WhatsApp** in the rollout controls. Survey answer and outbound send periods accept 1 to 365 days. The public privacy policy at `/privacy-policy` states the survey answer period currently set.
 

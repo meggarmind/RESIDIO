@@ -6,17 +6,18 @@ vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const NOW = new Date('2026-10-13T12:00:00.000Z');
-const PURGEABLE = ['whatsapp_sessions', 'whatsapp_processed_messages', 'whatsapp_survey_responses', 'whatsapp_outbound_sends'];
+const PURGEABLE = ['whatsapp_sessions', 'whatsapp_processed_messages', 'whatsapp_survey_responses', 'whatsapp_outbound_sends', 'whatsapp_group_members'];
 
 type Result = { count: number | null; error: unknown };
 
 function setup(results: Record<string, Result> = {}) {
-  const queries: Record<string, { delete: ReturnType<typeof vi.fn>; or: ReturnType<typeof vi.fn>; lt: ReturnType<typeof vi.fn> }> = {};
+  const queries: Record<string, { delete: ReturnType<typeof vi.fn>; or: ReturnType<typeof vi.fn>; is: ReturnType<typeof vi.fn>; lt: ReturnType<typeof vi.fn> }> = {};
   const from = vi.fn().mockImplementation((table: string) => {
     // Unknown tables throw, so touching a protected table fails the test
     // loudly rather than being silently answered.
     if (!PURGEABLE.includes(table)) throw new Error(`Unexpected table touched: ${table}`);
-    const query = { delete: vi.fn(), or: vi.fn(), lt: vi.fn() };
+    const query = { delete: vi.fn(), or: vi.fn(), is: vi.fn(), lt: vi.fn() };
+    query.is.mockReturnValue(query);
     query.delete.mockReturnValue(query);
     query.or.mockReturnValue(query);
     query.lt.mockResolvedValue(results[table] ?? { count: 0, error: null });
@@ -41,16 +42,18 @@ describe('WhatsApp operational retention', () => {
       whatsapp_processed_messages: { count: 3, error: null },
       whatsapp_survey_responses: { count: 4, error: null },
       whatsapp_outbound_sends: { count: 5, error: null },
+      whatsapp_group_members: { count: 6, error: null },
     });
     await expect(purgeWhatsAppOperationalState({ sessionDays: 1, processedMessageDays: 2 })).resolves.toEqual({
       sessions: 2,
       processedMessages: 3,
       surveyResponses: 4,
       outboundSends: 5,
+      unmatchedGroupMembers: 6,
     });
   });
 
-  it('deletes only from the four purgeable tables, never the survey opt-outs', async () => {
+  it('deletes only from the five purgeable tables, never the survey opt-outs', async () => {
     const { from } = setup();
     await purgeWhatsAppOperationalState();
     const tables = from.mock.calls.map((call) => call[0]).sort();

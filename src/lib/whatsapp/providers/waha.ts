@@ -151,6 +151,109 @@ export async function lookupWahaLidPhone(
   return body?.lid === lid && typeof body.pn === 'string' && body.pn.length > 0 ? body.pn : null;
 }
 
+const GROUP_READ_TIMEOUT_MS = 15_000;
+
+export interface WahaGroup {
+  id: string;
+  name: string;
+}
+
+export interface WahaGroupParticipant {
+  /** The raw WAHA id: `...@c.us` or a hidden `...@lid`. */
+  id: string;
+  /** `participant`, `admin`, `superadmin`, or `left`. */
+  role: string;
+}
+
+async function wahaGroupRequest(
+  config: WahaConnectionConfig,
+  path: string,
+  method: 'GET' | 'POST',
+  fetchImpl: typeof fetch
+): Promise<unknown> {
+  const response = await fetchImpl(`${config.baseUrl}/api/${encodeURIComponent(config.session)}${path}`, {
+    method,
+    headers: { 'X-Api-Key': config.apiKey },
+    cache: 'no-store',
+    signal: AbortSignal.timeout(GROUP_READ_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    // Status only: the path carries a group id and the body may carry numbers.
+    throw new Error(`WAHA group request failed (HTTP ${response.status})`);
+  }
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+function groupIdOf(value: unknown): string | null {
+  if (typeof value === 'string') return value;
+  const serialized = (value as { _serialized?: unknown } | null | undefined)?._serialized;
+  return typeof serialized === 'string' ? serialized : null;
+}
+
+/**
+ * `GET /api/{session}/groups?exclude=participants` (#1325): the groups the bot
+ * number is in. Read from the WAHA docs (https://waha.devlike.pro/docs/how-to/groups/,
+ * 29 Oct 2026), not yet measured on a live container, so the reader accepts a
+ * list or an object keyed by group id, and `subject` or `name` for the title.
+ * Entries without a `...@g.us` id are dropped.
+ */
+export async function listWahaGroups(
+  config: WahaConnectionConfig,
+  fetchImpl: typeof fetch = fetch
+): Promise<WahaGroup[]> {
+  const body = await wahaGroupRequest(config, '/groups?exclude=participants', 'GET', fetchImpl);
+  const entries: unknown[] = Array.isArray(body)
+    ? body
+    : body && typeof body === 'object'
+      ? Object.entries(body as Record<string, unknown>).map(([key, value]) => ({ id: key, ...(value as object) }))
+      : [];
+  const groups: WahaGroup[] = [];
+  for (const entry of entries) {
+    const record = (entry ?? {}) as Record<string, unknown>;
+    const id = groupIdOf(record.id) ?? groupIdOf(record.JID);
+    if (!id || !id.endsWith('@g.us')) continue;
+    const name = [record.subject, record.name, record.Name].find((v) => typeof v === 'string' && v.length > 0);
+    groups.push({ id, name: (name as string | undefined) ?? id });
+  }
+  return groups;
+}
+
+/**
+ * `GET /api/{session}/groups/{groupId}/participants/v2` (#1325): `[{ id, role }]`.
+ * There is no phone field; a hidden `@lid` id needs `lookupWahaLidPhone`.
+ */
+export async function getWahaGroupParticipants(
+  config: WahaConnectionConfig,
+  groupId: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<WahaGroupParticipant[]> {
+  const body = await wahaGroupRequest(config, `/groups/${encodeURIComponent(groupId)}/participants/v2`, 'GET', fetchImpl);
+  if (!Array.isArray(body)) return [];
+  const participants: WahaGroupParticipant[] = [];
+  for (const entry of body) {
+    const record = (entry ?? {}) as Record<string, unknown>;
+    const id = groupIdOf(record.id);
+    if (id) participants.push({ id, role: typeof record.role === 'string' ? record.role : 'participant' });
+  }
+  return participants;
+}
+
+/**
+ * `POST /api/{session}/groups/refresh` (#1325): WAHA re-reads its groups and
+ * fills the LID table. The docs warn that calling it often causes
+ * `rate-overlimit`, so callers must limit it (the nightly sync does once a day).
+ */
+export async function refreshWahaGroups(
+  config: WahaConnectionConfig,
+  fetchImpl: typeof fetch = fetch
+): Promise<void> {
+  await wahaGroupRequest(config, '/groups/refresh', 'POST', fetchImpl);
+}
+
 const DISCONNECTED_ERROR = 'WAHA bridge is disconnected';
 
 /** Whether the session is `WORKING`, cached for 30s. */
