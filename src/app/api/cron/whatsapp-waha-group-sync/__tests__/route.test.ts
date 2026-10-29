@@ -46,7 +46,7 @@ describe('GET /api/cron/whatsapp-waha-group-sync', () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ success: true, ...summary });
-    expect(syncEstateGroupMembers).toHaveBeenCalledWith(waha);
+    expect(syncEstateGroupMembers).toHaveBeenCalledWith(waha, { onLeave: expect.any(Function) });
     expect(recordSystemAction).toHaveBeenCalledWith(
       expect.objectContaining({ source: 'cron:whatsapp-waha-group-sync', action: 'sync', outcome: 'success', summary })
     );

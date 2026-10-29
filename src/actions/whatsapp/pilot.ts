@@ -69,7 +69,7 @@ export async function getWhatsAppPilotSettings(): Promise<{
   return {
     success: true,
     data: {
-      mode: values.whatsapp_rollout_mode === 'pilot' || values.whatsapp_rollout_mode === 'estate' ? values.whatsapp_rollout_mode : 'disabled',
+      mode: values.whatsapp_rollout_mode === 'pilot' || values.whatsapp_rollout_mode === 'estate' || values.whatsapp_rollout_mode === 'group' ? values.whatsapp_rollout_mode : 'disabled',
       residentIds,
       streetId: String(values.whatsapp_pilot_street_id || ''),
       outboundDailyCap: parseNumber(values.whatsapp_outbound_daily_cap, 100),
@@ -129,7 +129,7 @@ export async function getWhatsAppPilotRoster(): Promise<{ data: PilotRoster; err
 export async function updateWhatsAppPilotSettings(input: PilotSettings): Promise<{ success: boolean; error: string | null }> {
   const authorization = await authorizePermission(PERMISSIONS.WHATSAPP_MANAGE);
   if (!authorization.authorized) return { success: false, error: authorization.error || 'Unauthorized' };
-  if (!['disabled', 'pilot', 'estate'].includes(input.mode)) return { success: false, error: 'Invalid rollout mode' };
+  if (!['disabled', 'pilot', 'estate', 'group'].includes(input.mode)) return { success: false, error: 'Invalid rollout mode' };
   if (input.mode === 'pilot' && input.residentIds.length === 0 && !input.streetId) {
     return { success: false, error: 'Pilot mode requires resident IDs or a street ID' };
   }

@@ -9,7 +9,7 @@ import { promoteWhatsAppPilotToEstate, updateWhatsAppPilotSettings, type PilotRo
 import { PilotResidentsTable } from '@/app/(dashboard)/settings/whatsapp/pilot-residents-table';
 import type { WhatsAppRolloutMode } from '@/lib/whatsapp/rollout';
 
-export function PilotControls({ initial, roster, rosterError }: { initial: {
+export function PilotControls({ initial, roster, rosterError, groupAvailable = false }: { initial: {
   mode: WhatsAppRolloutMode;
   residentIds: string[];
   streetId: string;
@@ -21,7 +21,7 @@ export function PilotControls({ initial, roster, rosterError }: { initial: {
   processedMessageRetentionDays: number;
   surveyResponseRetentionDays: number;
   outboundSendRetentionDays: number;
-}; roster: PilotRoster; rosterError?: string | null }) {
+}; roster: PilotRoster; rosterError?: string | null; groupAvailable?: boolean }) {
   const { hasPermission } = useAuth();
   const canManage = hasPermission(PERMISSIONS.WHATSAPP_MANAGE);
   const [mode, setMode] = useState(initial.mode);
@@ -69,7 +69,7 @@ export function PilotControls({ initial, roster, rosterError }: { initial: {
   return (
     <div className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="space-y-1 text-sm"><span className="text-muted-foreground">Rollout mode</span><select value={mode} onChange={(event) => setMode(event.target.value as WhatsAppRolloutMode)} className="h-9 w-full rounded-md border bg-background px-3"><option value="disabled">Disabled</option><option value="pilot">Pilot</option><option value="estate">Estate-wide</option></select></label>
+        <label className="space-y-1 text-sm"><span className="text-muted-foreground">Rollout mode</span><select value={mode} onChange={(event) => setMode(event.target.value as WhatsAppRolloutMode)} className="h-9 w-full rounded-md border bg-background px-3"><option value="disabled">Disabled</option><option value="pilot">Pilot</option><option value="estate">Estate-wide</option>{groupAvailable || mode === 'group' ? <option value="group">Estate group members</option> : null}</select>{mode === 'group' ? <span className="block text-xs text-muted-foreground">Only members of the estate group and pilot-list residents can use the bot, and WhatsApp messages to residents go only to them.</span> : null}</label>
         <div className="sm:col-span-2"><PilotResidentsTable roster={roster.residents} streets={roster.streets} error={rosterError} residentIds={residentIds} onResidentIdsChange={setResidentIds} streetId={streetId} onStreetIdChange={setStreetId} disabled={!canManage} /></div>
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">Daily outbound cap</span><Input type="number" min="0" value={outboundCap} onChange={(event) => setOutboundCap(event.target.value)} /></label>
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">Burst cap</span><Input type="number" min="0" value={burstCap} onChange={(event) => setBurstCap(event.target.value)} /></label>

@@ -25,6 +25,7 @@ import {
 } from '@/lib/whatsapp/outbound-sends';
 import { retryFailedStatementSend } from '@/lib/whatsapp/statement-delivery';
 import { handleGroupParticipantsEvent } from '@/lib/whatsapp/group-sync';
+import { handleGroupMembersLeft } from '@/lib/whatsapp/group-leave';
 
 /**
  * WAHA inbound webhook (#1262).
@@ -336,7 +337,7 @@ async function handleGroupParticipants(payload: unknown, config: WahaWhatsAppCon
   try {
     const box: { outcome?: Awaited<ReturnType<typeof handleGroupParticipantsEvent>> } = {};
     const claim = await runOnce(dedupeKey, async () => {
-      box.outcome = await handleGroupParticipantsEvent(payload, config);
+      box.outcome = await handleGroupParticipantsEvent(payload, config, { onLeave: handleGroupMembersLeft });
     });
     if (claim === 'duplicate' || !box.outcome) {
       return NextResponse.json({ received: true, processed: true, duplicate: true });
