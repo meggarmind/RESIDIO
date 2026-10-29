@@ -16,6 +16,8 @@ import { PilotControls } from '@/app/(dashboard)/settings/whatsapp/pilot-control
 import { ConnectionSettings } from '@/app/(dashboard)/settings/whatsapp/connection-settings';
 import { EstateGroupPicker } from '@/app/(dashboard)/settings/whatsapp/estate-group-picker';
 import { getEstateGroupSelection } from '@/actions/whatsapp/estate-group';
+import { getUnmatchedGroupMembers } from '@/actions/whatsapp/group-members-report';
+import { UnmatchedGroupMembers } from '@/app/(dashboard)/settings/whatsapp/unmatched-group-members';
 import { WhatsAppEnabledToggle } from '@/app/(dashboard)/settings/whatsapp/whatsapp-enabled-toggle';
 
 const DISCONNECTED_STATUS: WhatsAppConnectionStatus = {
@@ -40,7 +42,7 @@ const DISCONNECTED_STATUS: WhatsAppConnectionStatus = {
 };
 
 export default async function WhatsAppOperationsPage() {
-  const [forcePinResult, pilotResult, connectionResult, overrideNumbersResult, whatsappEnabledResult, pilotRosterResult, assistantTextResult, privacyNoticeResult, rollForwardResult, estateGroupResult] = await Promise.all([
+  const [forcePinResult, pilotResult, connectionResult, overrideNumbersResult, whatsappEnabledResult, pilotRosterResult, assistantTextResult, privacyNoticeResult, rollForwardResult, estateGroupResult, groupMembersResult] = await Promise.all([
     getWhatsAppForcePin(),
     getWhatsAppPilotSettings(),
     getWhatsAppConnectionStatus(),
@@ -51,6 +53,7 @@ export default async function WhatsAppOperationsPage() {
     getWhatsAppPrivacyNotice(),
     getResidentRollForwardBalance(),
     getEstateGroupSelection(),
+    getUnmatchedGroupMembers(),
   ]);
 
   // Fallback idiom matches src/actions/system/cron-status.ts.
@@ -110,6 +113,13 @@ export default async function WhatsAppOperationsPage() {
         <SettingsRow rowId="whatsapp-estate-group" stacked>
           <div className="w-full">
             <EstateGroupPicker initial={estateGroupResult.data} error={estateGroupResult.error} />
+          </div>
+        </SettingsRow>
+      </SettingsSection>
+      <SettingsSection id="group-members" title="Group members not on record" summary="Estate group members whose number matches no resident record." instant>
+        <SettingsRow rowId="whatsapp-group-members" stacked>
+          <div className="w-full">
+            <UnmatchedGroupMembers report={groupMembersResult.data} error={groupMembersResult.error} />
           </div>
         </SettingsRow>
       </SettingsSection>
