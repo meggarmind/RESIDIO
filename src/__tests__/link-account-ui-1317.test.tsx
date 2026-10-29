@@ -18,6 +18,18 @@ const ADMINS = [{ profile_id: 'a2', email: 'staff@x.test', role_display_name: 'T
 const linkMutateAsync = vi.hoisted(() => vi.fn(async () => ({ success: true })));
 const searchState = vi.hoisted(() => ({ error: null as Error | null }));
 const searchResidents = vi.hoisted(() => vi.fn());
+const debounce = vi.hoisted(() => ({ pending: false }));
+
+// useDeferredValue settles at once in jsdom, so the pending flag is driven by hand.
+vi.mock('@/hooks/use-debounced-value', async () => {
+  const { useState } = await import('react');
+  return {
+    useDebouncedValue: <T,>(value: T): [T, boolean] => {
+      const [settled] = useState(value);
+      return debounce.pending ? [settled, true] : [value, false];
+    },
+  };
+});
 
 vi.mock('@/hooks/use-auth-accounts', () => ({
   useOrphanedAuthAccounts: () => ({ data: ORPHANS, isLoading: false, error: null, refetch: vi.fn(), isRefetching: false }),
@@ -40,6 +52,7 @@ import { LinkAccountDialog } from '@/components/admin/link-account-dialog';
 
 beforeEach(() => {
   searchState.error = null;
+  debounce.pending = false;
   linkMutateAsync.mockClear();
   searchResidents.mockReset();
   searchResidents.mockResolvedValue({ data: [] });
@@ -113,5 +126,13 @@ describe('LinkAccountDialog', () => {
     searchState.error = new Error('Unauthorized');
     render(<LinkAccountDialog {...props} residentId="r1" residentEmail="free@x.test" />);
     expect((await screen.findByRole('alert')).textContent).toContain('Unauthorized');
+  });
+
+  it('shows a spinner, not "enter at least 3 characters" or stale results, while the debounce is pending', async () => {
+    debounce.pending = true;
+    render(<LinkAccountDialog {...props} residentId="r1" residentEmail="free@x.test" />);
+    expect(screen.queryByText('free@x.test', { selector: 'p' })).toBeNull();
+    expect(screen.queryByText('Enter at least 3 characters to search')).toBeNull();
+    expect(document.querySelector('.animate-spin')).not.toBeNull();
   });
 });

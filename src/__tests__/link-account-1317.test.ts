@@ -16,6 +16,8 @@ const state = vi.hoisted(() => ({
   authUsers: [] as Array<Record<string, unknown>>,
   pageSize: 2,
   callerClientCalls: 0,
+  /** Tables whose reads (`read`) or updates (`write`) fail with a database error. */
+  fail: { read: [] as string[], write: [] as string[], residentLinkRead: false },
   auth: { authorized: true, userId: 'caller', error: null as string | null },
 }));
 
@@ -37,6 +39,9 @@ function fakeFrom(table: string) {
     }
     return r;
   };
+  const failing = () =>
+    (op === 'select' && state.fail.residentLinkRead && table === 'profiles' && filters.some(([c]) => c === 'resident_id')) ||
+    (op === 'select' ? state.fail.read : op === 'update' ? state.fail.write : []).includes(table);
   const run = (): Row[] => {
     const rows = rowsNow();
     if (op === 'update') {
@@ -59,11 +64,13 @@ function fakeFrom(table: string) {
     in: () => b,
     not: () => b,
     single: async () => {
+      if (failing()) return { data: null, error: { message: 'db down' } };
       const r = run();
       return r[0] ? { data: r[0], error: null } : { data: null, error: { message: 'no rows' } };
     },
-    maybeSingle: async () => ({ data: run()[0] ?? null, error: null }),
-    then: (resolve: (v: unknown) => unknown) => resolve({ data: run(), error: null }),
+    maybeSingle: async () => (failing() ? { data: null, error: { message: 'db down' } } : { data: run()[0] ?? null, error: null }),
+    then: (resolve: (v: unknown) => unknown) =>
+      resolve(failing() ? { data: null, error: { message: 'db down' } } : { data: run(), error: null }),
   };
   return b;
 }
@@ -129,6 +136,7 @@ const BOARD = 'system.assign_board_roles';
 
 function seed(callerGrants: string[] = [ASSIGN]) {
   state.writes = [];
+  state.fail = { read: [], write: [], residentLinkRead: false };
   state.callerClientCalls = 0;
   state.pageSize = 2;
   state.auth = { authorized: true, userId: 'caller', error: null };
@@ -182,6 +190,14 @@ describe('searchAuthAccountsByEmail', () => {
     });
   });
 
+  it('returns an error rather than an empty "nobody is linked" list when the profiles read fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    state.fail.read = ['profiles'];
+    const result = await searchAuthAccountsByEmail('acct@x');
+    expect(result.error).toBeTruthy();
+    expect(result.accounts).toEqual([]);
+  });
+
   it('reads other users profiles through the service role, not the caller client', async () => {
     await searchAuthAccountsByEmail('acct@x');
     expect(state.callerClientCalls).toBe(0);
@@ -230,6 +246,33 @@ describe('linkAuthAccountToResident', () => {
     expect(result.success).toBe(false);
     expect(result.error).toContain('already linked to a different account');
     expect(profile(ACCOUNT).resident_id).toBeNull();
+  });
+
+  it('stops with an error, writing nothing, when the guard reads of profiles fail', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    state.fail.read = ['profiles'];
+    const result = await linkAuthAccountToResident(ACCOUNT, ADA, true);
+    expect(result.success).toBe(false);
+    expect(state.writes).toEqual([]);
+    expect(profile(ACCOUNT).resident_id).toBe(BOB);
+  });
+
+  it('stops with an error, writing nothing, when the resident-already-linked read fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    state.fail.residentLinkRead = true;
+    const result = await linkAuthAccountToResident(ACCOUNT, ADA, true);
+    expect(result.success).toBe(false);
+    expect(state.writes).toEqual([]);
+  });
+
+  it('reports an error, not a link, when clearing the previous resident fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    state.fail.write = ['residents'];
+    const result = await linkAuthAccountToResident(ACCOUNT, ADA, true);
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('previous resident');
+    expect(profile(ACCOUNT).resident_id).toBe(BOB);
+    expect(logAudit).not.toHaveBeenCalled();
   });
 
   it('refuses a chairman target without system.assign_board_roles', async () => {

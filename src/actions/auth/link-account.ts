@@ -74,7 +74,7 @@ export async function searchAuthAccountsByEmail(
     // Get profile information for these users (to find linked residents)
     const userIds = matchingUsers.map((u) => u.id);
 
-    const { data: profiles } = await adminClient
+    const { data: profiles, error: profilesError } = await adminClient
       .from('profiles')
       .select(`
         id,
@@ -86,6 +86,12 @@ export async function searchAuthAccountsByEmail(
         )
       `)
       .in('id', userIds);
+
+    // A failed read must not look like "nobody is linked".
+    if (profilesError) {
+      console.error('Error reading profiles for account search:', profilesError);
+      return { accounts: [], error: 'Failed to search accounts' };
+    }
 
     // Build profile lookup map
     const profileMap = new Map<string, {
@@ -259,7 +265,7 @@ export async function linkAuthAccountToResident(
     }
 
     // 3. Check if there's already a profile for this auth user
-    const { data: existingProfile } = await adminClient
+    const { data: existingProfile, error: existingProfileError } = await adminClient
       .from('profiles')
       .select(`
         id,
@@ -273,7 +279,13 @@ export async function linkAuthAccountToResident(
         )
       `)
       .eq('id', authUserId)
-      .single();
+      .maybeSingle();
+
+    // A failed read must not look like "no profile yet": the guards below depend on it.
+    if (existingProfileError) {
+      console.error('Error reading profile for link:', existingProfileError);
+      return { success: false, error: 'Failed to check the account' };
+    }
 
     // Target guard (#475, #826): an account holding super_admin or chairman needs
     // system.assign_board_roles. Read through the service role so RLS hiding the row
@@ -324,16 +336,36 @@ export async function linkAuthAccountToResident(
     }
 
     // 4. Check if the target resident is already linked to another account
-    const { data: existingResidentLinks } = await adminClient
+    const { data: existingResidentLinks, error: residentLinksError } = await adminClient
       .from('profiles')
       .select('id')
       .eq('resident_id', residentId);
+
+    if (residentLinksError) {
+      console.error('Error checking existing resident link:', residentLinksError);
+      return { success: false, error: 'Failed to check the resident' };
+    }
 
     if ((existingResidentLinks ?? []).some((p) => p.id !== authUserId)) {
       return {
         success: false,
         error: 'This resident is already linked to a different account. Please unlink that account first.',
       };
+    }
+
+    // On a relink, free the previous resident before anything else is written, so a
+    // failure here leaves the new link untouched.
+    if (previousResidentId) {
+      const { error: previousClearError } = await adminClient
+        .from('residents')
+        .update({ profile_id: null, updated_at: new Date().toISOString() })
+        .eq('id', previousResidentId)
+        .eq('profile_id', authUserId);
+
+      if (previousClearError) {
+        console.error('Error clearing previous resident profile_id:', previousClearError);
+        return { success: false, error: 'Failed to release the previous resident. Nothing was linked.' };
+      }
     }
 
     // 5. Create or update profile
@@ -396,20 +428,6 @@ export async function linkAuthAccountToResident(
     }
 
     // 6. Update resident's profile_id for bidirectional link
-    // On a relink, free the previous resident first so it does not keep pointing at
-    // an account that now belongs to someone else.
-    if (previousResidentId) {
-      const { error: previousClearError } = await adminClient
-        .from('residents')
-        .update({ profile_id: null, updated_at: new Date().toISOString() })
-        .eq('id', previousResidentId)
-        .eq('profile_id', authUserId);
-
-      if (previousClearError) {
-        console.error('Error clearing previous resident profile_id:', previousClearError);
-      }
-    }
-
     const { error: residentUpdateError } = await adminClient
       .from('residents')
       .update({
