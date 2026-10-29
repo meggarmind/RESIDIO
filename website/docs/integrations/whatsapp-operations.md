@@ -338,10 +338,13 @@ Admin mode lets an admin use **Admin tools** in the WhatsApp Assistant from thei
 | --- | --- | --- |
 | 1. Resident status | `whatsapp_admin.resident_status` | every staff role |
 | 2. Security debt status | `whatsapp_admin.debt_report` | Chairman, Financial Officer, Super Admin |
-| (later) Collections, Clearance queue | `whatsapp_admin.collections`, `whatsapp_admin.clearance_queue` | Chairman, Financial Officer, Super Admin |
+| 3. Today's collections | `whatsapp_admin.collections` | Chairman, Financial Officer, Super Admin |
+| 4. Clearance requests waiting | `whatsapp_admin.clearance_queue` | Chairman, Financial Officer, Super Admin |
 | (later) Approve payment report | `whatsapp_admin.approve_payment` | Financial Officer, Super Admin |
 
 **Resident status.** Choose 1, then send a house code (`KOA-18A`) or a name (`Ada`). The reply gives the outstanding figure the resident sees under "What I owe", the debt status, the oldest unpaid period and the wallet balance on its own line, not netted. A house with a landlord and a tenant shows the billed resident. One match answers at once; two to five matches come back as a numbered list, and the admin replies `1` to `5` within 5 minutes to choose. More than five matches ask for a longer name. The step stays open for the next house; `0` goes back to Admin tools. The resident is not told. Each answer is written to the audit log and the WhatsApp disclosure log; a house with no billed resident shows no figure and has no disclosure entry.
+
+**Today's collections and Clearance requests waiting.** Both only read. Today's collections gives the total of verified payments dated today (Lagos time) and for the month so far, with a line per street. It counts a payment as verified by the same rule as the dashboard's verified total (verified by hand, or brought in by a bank or email import). Clearance requests waiting lists the 10 newest pending clearance certificate requests with the house, the resident and the date asked, then `and N more` if there are more, and a link to Approvals. Each run is written to the audit log.
 
 **Linking a number.** A number is linked automatically the first time Admin tools is opened when it is the phone of the resident record tied to the admin's profile, and the admin has no other linked number. With a code needed it is linked only after a correct code. An admin can also link a number under **Settings → WhatsApp admin access**, signed in with their authenticator code. **Create link code** shows a 6-digit code once; it works one time, for 10 minutes. From the phone, send `ADMIN LINK <code>` to the estate WhatsApp number. Linking a new number ends the old link, and **Unlink** ends it at any time. The admin gets an email each time a number is linked.
 
