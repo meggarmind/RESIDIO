@@ -46,6 +46,24 @@ const PRIOR_STATUSES: Record<OutboundDeliveryStatus, string[]> = {
   failed: ['pending', 'sent', 'failed'],
 };
 
+/**
+ * Ties a WAHA status event to its stored send by the message key (the part after the last `_`)
+ * rather than the whole id. The send id is built from the phone chat (`true_<phone>@c.us_<key>`)
+ * but an ack may name the chat as `@lid`, so the whole ids differ for one message (#1299).
+ * Chatmaid ids, and ids with no usable key, match exactly.
+ */
+export function matchProviderMessageId<T>(query: T, provider: string, providerMessageId: string): T {
+  // A PostgREST filter builder's own types recurse too deeply to constrain `T` here.
+  const builder = query as unknown as { eq: (column: string, value: string) => T & typeof builder; like: (column: string, pattern: string) => T };
+  const scoped = builder.eq('provider', provider) as unknown as typeof builder;
+  const key = providerMessageId.slice(providerMessageId.lastIndexOf('_') + 1);
+  // The key is interpolated into a LIKE pattern, so only a plain alphanumeric key is used.
+  if (provider !== 'waha' || key === providerMessageId || !/^[A-Za-z0-9]+$/.test(key)) {
+    return scoped.eq('provider_message_id', providerMessageId);
+  }
+  return scoped.like('provider_message_id', `%\\_${key}`);
+}
+
 /** Stores an accepted send. Never throws: the message already went out. */
 export async function recordOutboundSend(
   input: Omit<OutboundSendTracking, 'purpose'> & { purpose: OutboundSendPurpose; provider: string; providerMessageId: string; phoneNumber: string }
@@ -81,15 +99,17 @@ export async function updateOutboundSendStatus(
   status: OutboundDeliveryStatus,
   failure?: { code: string | null; message: string | null }
 ): Promise<boolean> {
-  const { data, error } = await createAdminClient()
-    .from('whatsapp_outbound_sends')
-    .update({
-      status,
-      status_updated_at: new Date().toISOString(),
-      ...(status === 'failed' ? { error_code: failure?.code ?? null, error_message: failure?.message ?? null } : {}),
-    })
-    .eq('provider', provider)
-    .eq('provider_message_id', providerMessageId)
+  const { data, error } = await matchProviderMessageId(
+    createAdminClient()
+      .from('whatsapp_outbound_sends')
+      .update({
+        status,
+        status_updated_at: new Date().toISOString(),
+        ...(status === 'failed' ? { error_code: failure?.code ?? null, error_message: failure?.message ?? null } : {}),
+      }),
+    provider,
+    providerMessageId
+  )
     .in('status', PRIOR_STATUSES[status])
     .select('id');
   if (error) throw error;
@@ -103,12 +123,11 @@ export async function updateOutboundSendStatus(
  * Throws on a database error.
  */
 export async function outboundSendExists(provider: string, providerMessageId: string): Promise<boolean> {
-  const { data, error } = await createAdminClient()
-    .from('whatsapp_outbound_sends')
-    .select('id')
-    .eq('provider', provider)
-    .eq('provider_message_id', providerMessageId)
-    .limit(1);
+  const { data, error } = await matchProviderMessageId(
+    createAdminClient().from('whatsapp_outbound_sends').select('id'),
+    provider,
+    providerMessageId
+  ).limit(1);
   if (error) throw error;
   return (data || []).length > 0;
 }

@@ -27,7 +27,7 @@ type Result = { data?: unknown; error: unknown };
 function query(result: Result) {
   const calls: [string, unknown[]][] = [];
   const builder: Record<string, unknown> = {};
-  for (const method of ['insert', 'update', 'select', 'eq', 'in', 'is', 'lt', 'gte', 'limit']) {
+  for (const method of ['insert', 'update', 'select', 'eq', 'in', 'is', 'lt', 'gte', 'limit', 'like']) {
     builder[method] = (...args: unknown[]) => {
       calls.push([method, args]);
       return builder;
@@ -165,6 +165,36 @@ describe('status event order (#941)', () => {
     const row = fakeSendRow('pending');
     await updateOutboundSendStatus('chatmaid', 'outmsg_1', 'delivered');
     expect(row.status).not.toBe('pending');
+  });
+});
+
+describe('WAHA ack ids (#1299)', () => {
+  it('matches an @lid ack to a send stored under the @c.us chat id by message key', async () => {
+    const update = query({ data: [{ id: 'row-1' }], error: null });
+    mocks.from.mockReturnValue(update.builder);
+
+    expect(await updateOutboundSendStatus('waha', 'true_227934065430751@lid_3EB0ABC123', 'delivered')).toBe(true);
+    expect(update.calls).toContainEqual(['eq', ['provider', 'waha']]);
+    expect(update.calls).toContainEqual(['like', ['provider_message_id', '%\\_3EB0ABC123']]);
+    expect(update.calls.some(([method, args]) => method === 'eq' && args[0] === 'provider_message_id')).toBe(false);
+  });
+
+  it('checks existence by message key too', async () => {
+    const exists = query({ data: [{ id: 'row-1' }], error: null });
+    mocks.from.mockReturnValue(exists.builder);
+
+    expect(await outboundSendExists('waha', 'false_1@lid_3EB0ABC123')).toBe(true);
+    expect(exists.calls).toContainEqual(['like', ['provider_message_id', '%\\_3EB0ABC123']]);
+  });
+
+  it('keeps an exact match for Chatmaid and for a key that is not alphanumeric', async () => {
+    for (const [provider, id] of [['chatmaid', 'out_msg_1'], ['waha', 'true_1@c.us_3EB0%']] as const) {
+      const update = query({ data: [], error: null });
+      mocks.from.mockReturnValue(update.builder);
+      await updateOutboundSendStatus(provider, id, 'sent');
+      expect(update.calls).toContainEqual(['eq', ['provider_message_id', id]]);
+      expect(update.calls.some(([method]) => method === 'like')).toBe(false);
+    }
   });
 });
 
