@@ -228,6 +228,8 @@ export interface OwedFigures {
   next: { amount: number; dueDate: string; invoiceNumber: string; label: string } | null;
   /** When nothing is unpaid: the due date of the next service charge not yet billed. */
   nextPaymentDue?: string | null;
+  /** When nothing is unpaid and the wallet holds credit: the amount and the months it pays (first days). */
+  credit?: { amount: number; months: string[] };
   awaitingVerification: number;
 }
 
@@ -393,6 +395,26 @@ export function nextPaymentDueDate(latestPeriodStart: string, today: string, mon
   }
 }
 
+/** The first days of the `count` months after the month of `periodStart`. */
+export function monthsAfter(periodStart: string, count: number): string[] {
+  const [year, month] = periodStart.split('-').map(Number);
+  return Array.from({ length: Math.max(count, 0) }, (_, index) => new Date(Date.UTC(year, month + index, 1)).toISOString().slice(0, 10));
+}
+
+/** Wallet credit by what it pays (owner decision 29 Oct 2026): `Credit: ₦20,000. This pays Nov and Dec 2026.` */
+export function creditLine(credit: NonNullable<OwedFigures['credit']>): string {
+  const { months } = credit;
+  const first = months[0];
+  const last = months[months.length - 1];
+  let pays: string;
+  if (!first) pays = 'This goes to your next bill.';
+  else if (months.length === 1) pays = `This pays ${formatMonth(first)}.`;
+  else if (months.length === 2 && first.slice(0, 4) === last.slice(0, 4)) pays = `This pays ${formatMonth(first).split(' ')[0]} and ${formatMonth(last)}.`;
+  else if (months.length === 2) pays = `This pays ${formatMonth(first)} and ${formatMonth(last)}.`;
+  else pays = `This pays ${formatMonth(first)} to ${formatMonth(last)}.`;
+  return `Credit: ${formatNaira(credit.amount)}. ${pays}`;
+}
+
 function overdueLines(overdue: NonNullable<OwedFigures['overdue']>): string[] {
   const shown = overdue.charges.slice(0, OVERDUE_CHARGES_SHOWN);
   const hidden = overdue.charges.length - shown.length;
@@ -417,6 +439,7 @@ export function composeOweAnswer(figures: OwedFigures, houseLabel: string, showP
     lines.push(`No bills on record for ${houseLabel}.`);
   } else if (figures.outstanding <= 0) {
     lines.push(`You are fully paid up for ${houseLabel}.`);
+    if (figures.credit) lines.push(creditLine(figures.credit));
     if (figures.nextPaymentDue) lines.push(`Next payment due ${formatMonth(figures.nextPaymentDue)}`);
   } else {
     lines.push(`Outstanding: ${formatNaira(figures.outstanding)}`);
@@ -764,6 +787,7 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
       const remaining = (invoice: { amount_due: number; amount_paid: number }) => Number(invoice.amount_due) - Number(invoice.amount_paid);
       const unpaid = (unpaidResult.data || []).filter((invoice) => remaining(invoice) > 0);
       let nextPaymentDue: string | null = null;
+      let creditFigures: OwedFigures['credit'];
       if (!unpaid.length) {
         const latestResult = await supabase
           .from('invoices')
@@ -790,6 +814,7 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
           const rate = Number(latest.amount_due);
           const monthsCovered = rate > 0 ? Math.floor(credit / rate) : 0;
           nextPaymentDue = nextPaymentDueDate(latest.period_start, today, monthsCovered);
+          if (credit > 0) creditFigures = { amount: credit, months: monthsAfter(latest.period_start, monthsCovered) };
         }
       }
       const overdue = unpaid.filter((invoice) => invoice.due_date.slice(0, 10) < today);
@@ -809,6 +834,7 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
           : null,
         next: next ? { amount: remaining(next), dueDate: next.due_date.slice(0, 10), invoiceNumber: next.invoice_number, label: label(next) } : null,
         ...(nextPaymentDue && { nextPaymentDue }),
+        ...(creditFigures && { credit: creditFigures }),
         awaitingVerification: balance
           ? balance.awaitingVerification
           : (unverifiedResult.data || []).reduce((sum, payment) => sum + Number(payment.amount || 0), 0),

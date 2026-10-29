@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   canPerformWhatsAppFinancialLookup,
   composeOweAnswer,
+  creditLine,
+  monthsAfter,
   nextPaymentDueDate,
   composeRecentPaymentsAnswer,
   composeWalletAnswer,
@@ -648,6 +650,20 @@ describe('WhatsApp Assistant answers (#804 decisions 20, 21, 28)', () => {
     ].join('\n'));
   });
 
+  it('says which months the wallet credit pays (owner decision 29 Oct 2026)', () => {
+    const paid: OwedFigures = { invoiceCount: 4, outstanding: 0, overdue: null, next: null, awaitingVerification: 0, nextPaymentDue: '2027-01-01' };
+    expect(composeOweAnswer({ ...paid, credit: { amount: 20000, months: ['2026-11-01', '2026-12-01'] } }, '12 Palm Close', true)).toBe([
+      '*What you owe, 12 Palm Close*',
+      'You are fully paid up for 12 Palm Close.',
+      'Credit: ₦20,000.00. This pays Nov and Dec 2026.',
+      'Next payment due Jan 2027',
+    ].join('\n'));
+    expect(creditLine({ amount: 5000, months: [] })).toBe('Credit: ₦5,000.00. This goes to your next bill.');
+    expect(creditLine({ amount: 10000, months: ['2026-11-01'] })).toBe('Credit: ₦10,000.00. This pays Nov 2026.');
+    expect(creditLine({ amount: 20000, months: ['2026-12-01', '2027-01-01'] })).toBe('Credit: ₦20,000.00. This pays Dec 2026 and Jan 2027.');
+    expect(creditLine({ amount: 40000, months: monthsAfter('2026-10-01', 4) })).toBe('Credit: ₦40,000.00. This pays Nov 2026 to Feb 2027.');
+  });
+
   it('dates the next payment to the first month that payments and wallet credit do not cover', () => {
     expect(nextPaymentDueDate('2026-10-01', '2026-10-27', 0)).toBe('2026-11-01');
     // KOA-18A: paid to Oct 2026, wallet covers Nov and Dec.
@@ -1154,7 +1170,17 @@ describe('WhatsApp What I owe figures (#811, #804 decision 20)', () => {
 
     const owed = await createSupabaseWhatsAppFinancialRepository().getOwed('resident-1', 'house-1');
 
-    expect(owed).toMatchObject({ outstanding: 0, nextPaymentDue: '2027-01-01' });
+    expect(owed).toMatchObject({ outstanding: 0, nextPaymentDue: '2027-01-01', credit: { amount: 25000, months: ['2026-11-01', '2026-12-01'] } });
+  });
+
+  it('gives no credit figure when the wallet is empty', async () => {
+    mockTables([
+      { invoice_number: 'INV-OCT', amount_due: 10000, amount_paid: 10000, due_date: '2026-10-31', invoice_type: 'SERVICE_CHARGE', period_start: '2026-10-01' },
+    ], [], 0);
+
+    const owed = await createSupabaseWhatsAppFinancialRepository().getOwed('resident-1', 'house-1');
+
+    expect(owed.credit).toBeUndefined();
   });
 });
 

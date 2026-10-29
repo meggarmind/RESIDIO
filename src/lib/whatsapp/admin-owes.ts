@@ -5,12 +5,12 @@ import { ilikeAny } from '@/lib/postgrest-filter';
 import { sanitizeSearchInput } from '@/lib/utils';
 import { createAdminClient } from '@/lib/supabase/server';
 import { formatBalance, formatDay, formatNaira } from '@/lib/whatsapp/assistant-format';
-import { createSupabaseWhatsAppFinancialRepository, type OwedFigures } from '@/lib/whatsapp/financial';
+import { createSupabaseWhatsAppFinancialRepository, creditLine, type OwedFigures } from '@/lib/whatsapp/financial';
 
 /**
  * WhatsApp admin lookup of what a house owes (#981). An admin sends a house code or a name; the
  * answer is the figure the resident sees under "What I owe", the shared debt status (#980), the
- * oldest unpaid period and the wallet on its own line. The resident is not told. The access gate
+ * oldest unpaid period and what the wallet credit pays for. The resident is not told. The access gate
  * (binding, authenticator session, permission, daily cap) is #972's and runs before this.
  */
 
@@ -94,7 +94,10 @@ export function composeAdminOwesAnswer(data: OwesHouseData): string {
   } else {
     lines.push(`Oldest unpaid: invoice ${oldest.invoiceNumber}, due ${formatDay(oldest.dueDate)}`);
   }
-  lines.push(`Wallet: ${formatNaira(data.walletBalance)} (not netted against the outstanding figure)`);
+  // The wallet pays bills as they are made, so credit next to an open bill is for another charge category.
+  if (owed?.credit) lines.push(creditLine(owed.credit));
+  else if (data.walletBalance > 0 && (owed?.outstanding ?? 0) > 0) lines.push(`Credit: ${formatNaira(data.walletBalance)} (not for these bills)`);
+  else if (data.walletBalance > 0) lines.push(`Credit: ${formatNaira(data.walletBalance)}`);
   return lines.join('\n');
 }
 
