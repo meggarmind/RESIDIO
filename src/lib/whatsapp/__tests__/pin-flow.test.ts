@@ -354,7 +354,7 @@ describe('verifying a PIN (#892)', () => {
   it('asks for the PIN when a financial item is chosen, with the example, then answers it in one message', async () => {
     const { say, state, repo, node } = statefulRepository(hashPin(CURRENT_PIN));
 
-    expect(await say('owe')).toBe(`${VERIFY_PROMPT}\n${FOOTER}`);
+    expect(await say('owe')).toBe(`${VERIFY_PROMPT}\n\n${FOOTER}`);
     expect(node()).toBe('pin:what_i_owe');
     expect(repo.getOwed).not.toHaveBeenCalled();
 
@@ -375,7 +375,7 @@ describe('verifying a PIN (#892)', () => {
 
   it('PIN alone asks for the PIN and a correct one shows the Financial standing menu', async () => {
     const { say } = statefulRepository(hashPin(CURRENT_PIN));
-    expect(await say('PIN')).toBe(`${VERIFY_PROMPT}\n${FOOTER}`);
+    expect(await say('PIN')).toBe(`${VERIFY_PROMPT}\n\n${FOOTER}`);
     const reply = await say(CURRENT_PIN);
     expect(reply.startsWith(PIN_VERIFIED)).toBe(true);
     expect(reply).toMatch(FINANCIAL_MENU);
@@ -425,7 +425,7 @@ describe('verifying a PIN (#892)', () => {
 
   it('a resident without a PIN under force-PIN is told to reply PIN, without an example', async () => {
     const { say } = statefulRepository();
-    expect(await say('owe')).toBe(`A security PIN is required before viewing financial standing. To set one, reply PIN.\n${FOOTER}`);
+    expect(await say('owe')).toBe(`A security PIN is required before viewing financial standing. To set one, reply PIN.\n\n${FOOTER}`);
   });
 });
 

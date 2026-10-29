@@ -1465,7 +1465,7 @@ describe('WhatsApp Assistant update email (#816 decisions 5-8)', () => {
     vi.mocked(repo.getPinHash).mockResolvedValue(hashPin('482915'));
     const replies = await chat(repo, ['5', 'PIN 482915']);
 
-    expect(replies[0]).toBe(`Enter your 4–6 digit PIN before changing your email (e.g. 4821).\n${FOOTER}`);
+    expect(replies[0]).toBe(`Enter your 4–6 digit PIN before changing your email (e.g. 4821).\n\n${FOOTER}`);
     expect(repo.startEmailChange).not.toHaveBeenCalled();
     expect(replies[1]).toBe('PIN verified.\n\nWhat email address should we use? Reply with the address, or CANCEL.');
   });
