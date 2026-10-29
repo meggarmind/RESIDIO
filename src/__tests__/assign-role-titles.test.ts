@@ -23,6 +23,7 @@ function fakeFrom(table: string) {
   let op: 'select' | 'update' | 'insert' = 'select';
   let values: Row = {};
   let head = false;
+  let range: [number, number] | null = null;
 
   const matching = () =>
     (state.tables[table] ?? []).filter(
@@ -56,7 +57,9 @@ function fakeFrom(table: string) {
         ? { ...r, app_roles: (state.tables.app_roles ?? []).find((x) => x.id === r.role_id) ?? null }
         : { ...r } // a copy, as PostgREST returns: later writes must not rewrite what was read
     );
-    return head ? { data: null, count: rows.length, error: null } : { data: rows, error: null };
+    if (head) return { data: null, count: rows.length, error: null };
+    // getAdminTitles pages its holder read (#1318).
+    return { data: range ? rows.slice(range[0], range[1] + 1) : rows, error: null };
   };
 
   const builder: Record<string, unknown> = {
@@ -70,6 +73,7 @@ function fakeFrom(table: string) {
     is: () => builder,
     order: () => builder,
     limit: () => builder,
+    range: (from: number, to: number) => ((range = [from, to]), builder),
     single: async () => {
       const r = run();
       return r.error ? r : r.data?.[0] ? { data: r.data[0], error: null } : { data: null, error: { message: 'no rows' } };

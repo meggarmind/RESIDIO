@@ -71,7 +71,8 @@ function fakeFrom(table: string) {
       if (table === 'role_permissions') state.pageSizes.push(page.length);
       return { data: page, error: null };
     }
-    return { data: out, error: null };
+    // An unpaged read is capped like PostgREST's max_rows, so a missing .range() loop shows.
+    return { data: out.slice(0, DEFAULT_PAGE_SIZE), error: null };
   };
 
   const builder: Record<string, unknown> = {
@@ -239,20 +240,25 @@ describe('updateRolePermissions: add first, then remove', () => {
 
 describe('getRolesWithPermissions', () => {
   it('pages role_permissions and counts only active permissions', async () => {
-    // One more grant than a page holds, on a role with no other grants.
+    // More grants than a page holds (two roles share 600 permissions), while the
+    // permission list itself stays under one page.
+    const BULK = 600;
     state.tables.app_permissions.push(
-      ...Array.from({ length: DEFAULT_PAGE_SIZE }, (_, i) => ({ id: `bulk-${i}`, name: `b.${i}`, is_active: true }))
+      ...Array.from({ length: BULK }, (_, i) => ({ id: `bulk-${i}`, name: `b.${i}`, is_active: true }))
     );
-    state.tables.role_permissions.push(
-      ...Array.from({ length: DEFAULT_PAGE_SIZE }, (_, i) => ({ id: `rp-b${i}`, role_id: TREASURER, permission_id: `bulk-${i}` }))
-    );
+    for (const roleId of [TREASURER, INSPECTOR]) {
+      state.tables.role_permissions.push(
+        ...Array.from({ length: BULK }, (_, i) => ({ id: `rp-${roleId}-${i}`, role_id: roleId, permission_id: `bulk-${i}` }))
+      );
+    }
 
     const result = await getRolesWithPermissions();
 
     expect(result.success).toBe(true);
     expect(state.pageSizes.length).toBeGreaterThan(1);
     const roles = new Map(result.data!.map((r) => [r.id, r]));
-    expect(roles.get(TREASURER)!.permissions).toHaveLength(DEFAULT_PAGE_SIZE);
+    expect(roles.get(TREASURER)!.permissions).toHaveLength(600);
+    expect(roles.get(INSPECTOR)!.permissions).toHaveLength(600);
     // p-old is inactive: not counted, and not offered by the picker either.
     expect(roles.get(AUDITOR)!.permissions.map((p) => p.id).sort()).toEqual(['p-edit', 'p-view']);
   });
@@ -318,6 +324,22 @@ describe('deleteAdminTitle', () => {
       { profile_id: 'p1', name: 'Ada' },
       { profile_id: 'p2', name: 'Bayo (suspended)' },
     ]);
+  });
+
+  it('pages the holder read, so holders past max_rows are not dropped', async () => {
+    state.tables.profiles.push(
+      ...Array.from({ length: DEFAULT_PAGE_SIZE + 1 }, (_, i) => ({
+        id: `h${i}`,
+        full_name: `H${i}`,
+        role_id: AUDITOR,
+        title_id: 't-junior',
+        approval_status: 'active',
+      }))
+    );
+
+    const result = await getAdminTitles();
+
+    expect(result.data?.find((t) => t.id === 't-junior')?.holders).toHaveLength(DEFAULT_PAGE_SIZE + 1);
   });
 
   it('refuses the principal title', async () => {

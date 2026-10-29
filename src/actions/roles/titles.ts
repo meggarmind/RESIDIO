@@ -7,6 +7,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { getChangedValues } from '@/lib/audit/helpers';
 import { roleWriteBlock } from '@/lib/auth/role-write-access';
+import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
 import type { AdminTitle, AdminTitleWithHolders } from '@/types/database';
 
 const TITLE_COLUMNS = 'id, role_id, name, is_principal, seats, sort_order';
@@ -98,16 +99,28 @@ export async function getAdminTitles(): Promise<{
   }
 
   const admin = createAdminClient();
+  type Holder = {
+    id: string;
+    full_name: string | null;
+    email: string | null;
+    title_id: string;
+    approval_status: string | null;
+  };
   const [titlesResult, holdersResult] = await Promise.all([
     admin.from('admin_titles').select(TITLE_COLUMNS).order('sort_order').order('name'),
     // Every status, as the seat rule counts them; a non-active holder is labelled (#1318).
-    admin
-      .from('profiles')
-      .select('id, full_name, email, title_id, approval_status')
-      .not('title_id', 'is', null),
+    // Paged by id, so holders past max_rows are not dropped.
+    fetchAllRows<Holder>((from, to) =>
+      admin
+        .from('profiles')
+        .select('id, full_name, email, title_id, approval_status')
+        .not('title_id', 'is', null)
+        .order('id', { ascending: true })
+        .range(from, to)
+    ),
   ]);
 
-  if (titlesResult.error || holdersResult.error) {
+  if (titlesResult.error || holdersResult.error !== null) {
     console.error('Error fetching admin titles:', titlesResult.error ?? holdersResult.error);
     return { success: false, error: 'Failed to load titles' };
   }

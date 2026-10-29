@@ -73,10 +73,13 @@ export async function getRolesWithPermissions(): Promise<{
 
   // Holders per role, so the delete dialog can say who would be affected (#788).
   // A head count per role, the same query deleteRole uses: loading the rows would be capped by max_rows.
+  // Service role (#1318): profiles is under RLS, and a caller without
+  // system.view_all_profiles would count only their own row. The caller is authorised above.
+  const admin = createAdminClient();
   const holderCounts = new Map<string, number | null>(
     await Promise.all(
       (roles || []).map(async (role) => {
-        const { count, error } = await supabase
+        const { count, error } = await admin
           .from('profiles')
           .select('id', { count: 'exact', head: true })
           .eq('role_id', role.id);
@@ -583,7 +586,10 @@ export async function deleteRole(roleId: string): Promise<{
   // Check if any users have this role
   // Explicit column: `*` would include profiles.two_factor_secret_encrypted, which API
   // roles cannot read (#455). Fail closed: if the count cannot be established, do not delete.
-  const { count, error: countError } = await supabase
+  // Service role (#1318): through RLS a caller without system.view_all_profiles sees
+  // only their own row, so a held role could count as empty and be deleted, which
+  // clears every holder's role_id. The caller is authorised above.
+  const { count, error: countError } = await createAdminClient()
     .from('profiles')
     .select('id', { count: 'exact', head: true })
     .eq('role_id', roleId);
@@ -1082,15 +1088,27 @@ export async function getUsersWithRoles(): Promise<{
   const supabase = await createServerSupabaseClient();
 
   // First get all profiles. Service role (#1318): profiles is under RLS and the
-  // caller may see only their own row; the caller is authorised above.
-  const { data: profiles, error: profilesError } = await createAdminClient()
-    .from('profiles')
-    .select('id, email, full_name, role_id')
-    .order('full_name', { ascending: true });
+  // caller may see only their own row; the caller is authorised above. Paged, so
+  // the list is not cut at max_rows; id breaks name ties so pages do not overlap.
+  const admin = createAdminClient();
+  const profilesResult = await fetchAllRows<{
+    id: string;
+    email: string;
+    full_name: string;
+    role_id: string | null;
+  }>((from, to) =>
+    admin
+      .from('profiles')
+      .select('id, email, full_name, role_id')
+      .order('full_name', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to)
+  );
 
-  if (profilesError) {
-    return { success: false, error: profilesError.message };
+  if (profilesResult.error !== null) {
+    return { success: false, error: profilesResult.error };
   }
+  const profiles = profilesResult.data;
 
   // Get all roles for lookup
   const { data: roles } = await supabase
@@ -1101,7 +1119,7 @@ export async function getUsersWithRoles(): Promise<{
     roles?.map((r) => [r.id, { name: r.name, display_name: r.display_name }]) || []
   );
 
-  const users = profiles?.map((user) => {
+  const users = profiles.map((user) => {
     const appRole = user.role_id ? roleMap.get(user.role_id) : null;
     return {
       id: user.id,
