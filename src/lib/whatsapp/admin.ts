@@ -15,6 +15,7 @@ import { formatDay, lagosMidnight, lagosParts } from '@/lib/whatsapp/assistant-f
 import { WhatsAppAdminAlertEmail, whatsAppAdminAlertSubject, type WhatsAppAdminAlertEvent } from '@/emails/whatsapp-admin-alert';
 import type { WhatsAppInboundMessage } from '@/lib/whatsapp/types';
 import { debtReportAction } from '@/lib/whatsapp/admin-debt-report';
+import { clearanceQueueAction, collectionsAction } from '@/lib/whatsapp/admin-collections';
 
 /**
  * WhatsApp admin mode (#972): the security layer every admin action on WhatsApp goes through.
@@ -182,10 +183,12 @@ export const WHATSAPP_ADMIN_ACTIONS: Record<string, WhatsAppAdminAction> = {
     },
   },
   debt: debtReportAction,
+  collections: collectionsAction,
+  clearance: clearanceQueueAction,
 };
 
 /** Admin tools menu numbers (#1292). A number whose item the role may not use reads as unrecognised. */
-export const WHATSAPP_ADMIN_MENU: Record<string, string> = { '1': 'owes', '2': 'debt' };
+export const WHATSAPP_ADMIN_MENU: Record<string, string> = { '1': 'owes', '2': 'debt', '3': 'collections', '4': 'clearance' };
 
 /** A request waiting for the admin's answer to an item's question is stored under this suffix (#982). */
 export const ADMIN_CHOICE_SUFFIX = ':choose';
