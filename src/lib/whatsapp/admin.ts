@@ -101,7 +101,8 @@ export function accountFingerprint(account: WhatsAppAdminAccount): string {
 export function resolveAdminDailyCap(setting: unknown, roleName: string | null): number {
   const map = typeof setting === 'string' ? safeJson(setting) : setting;
   if (!roleName || !map || typeof map !== 'object' || Array.isArray(map)) return ADMIN_DAILY_ACTION_CAP;
-  const value = Number((map as Record<string, unknown>)[roleName]);
+  const raw = (map as Record<string, unknown>)[roleName];
+  const value = typeof raw === 'number' || (typeof raw === 'string' && raw.trim() !== '') ? Number(raw) : NaN;
   return Number.isInteger(value) && value >= 0 ? value : ADMIN_DAILY_ACTION_CAP;
 }
 
