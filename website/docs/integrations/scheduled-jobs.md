@@ -30,7 +30,8 @@ Times are in UTC. Adjust for your estate's local time when reasoning about when 
 | Job | Runs | What it does |
 |---|---|---|
 | Payment cadence refresh | Daily, 00:00 | Recalculates resident payment cadence |
-| WhatsApp retention purge | Daily, 00:15 | Removes expired WhatsApp sessions, processed messages, survey answers and outbound send records |
+| WhatsApp retention purge | Daily, 00:15 | Removes expired WhatsApp sessions, processed messages, survey answers and outbound send records, and estate group members who match no resident record 30 days after they were last seen |
+| WhatsApp estate group sync | Daily, 01:30 | Makes the saved list of estate WhatsApp group members equal to the list in WAHA |
 | Invoice generation | Daily, 06:00 | Generates recurring invoices that are due |
 | Report generation | Daily, 06:00 | Builds scheduled reports |
 | Report schedule processing | Daily, 07:00 | Delivers reports to their subscribers |

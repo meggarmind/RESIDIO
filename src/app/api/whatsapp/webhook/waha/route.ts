@@ -24,6 +24,7 @@ import {
   type OutboundDeliveryStatus,
 } from '@/lib/whatsapp/outbound-sends';
 import { retryFailedStatementSend } from '@/lib/whatsapp/statement-delivery';
+import { handleGroupParticipantsEvent } from '@/lib/whatsapp/group-sync';
 
 /**
  * WAHA inbound webhook (#1262).
@@ -327,6 +328,28 @@ async function handleAck(payload: unknown, dedupeKey: string, timestampHeader: s
   }
 }
 
+/**
+ * `group.v2.participants` (#1325): keeps the estate group's member list current.
+ * Deduped by the envelope id; a failure releases the claim so WAHA's retry runs again.
+ */
+async function handleGroupParticipants(payload: unknown, config: WahaWhatsAppConfig, dedupeKey: string) {
+  try {
+    const box: { outcome?: Awaited<ReturnType<typeof handleGroupParticipantsEvent>> } = {};
+    const claim = await runOnce(dedupeKey, async () => {
+      box.outcome = await handleGroupParticipantsEvent(payload, config);
+    });
+    if (claim === 'duplicate' || !box.outcome) {
+      return NextResponse.json({ received: true, processed: true, duplicate: true });
+    }
+    const { handled, ignored, joined, left } = box.outcome;
+    return NextResponse.json({ received: true, processed: handled, ...(ignored ? { ignored } : {}), joined, left });
+  } catch (error) {
+    // The error names a database failure or an HTTP status, never a member number.
+    console.error('[waha-webhook] Failed to handle group.v2.participants:', error);
+    return processingFailed('group.v2.participants could not be processed');
+  }
+}
+
 export async function POST(request: NextRequest) {
   const resolved = await resolveWhatsAppConfig();
 
@@ -402,6 +425,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true, processed: false, ignored: 'not_manual' });
     case 'message.ack':
       return handleAck(payload, wahaEventDedupeKey(event, payload, rawBody), request.headers.get('x-webhook-timestamp'));
+    case 'group.v2.participants':
+      return handleGroupParticipants(payload, resolved.config, wahaEventDedupeKey(event, payload, rawBody));
     case 'session.status':
       return handleSessionStatus(payload, wahaEventDedupeKey(event, payload, rawBody));
     default:
