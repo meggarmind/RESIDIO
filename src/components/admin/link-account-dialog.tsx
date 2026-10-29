@@ -31,6 +31,7 @@ import {
   AlertTriangle,
   User,
   Calendar,
+  AlertCircle,
   CheckCircle2,
 } from 'lucide-react';
 import { useSearchAuthAccounts, useLinkAuthAccount } from '@/hooks/use-auth-accounts';
@@ -55,22 +56,28 @@ export function LinkAccountDialog({
   onSuccess,
 }: LinkAccountDialogProps) {
   const [searchQuery, setSearchQuery] = useState(residentEmail || '');
-  const [debouncedQuery] = useDebouncedValue(searchQuery, 300);
+  const [debouncedQuery, isDebouncing] = useDebouncedValue(searchQuery, 300);
   const [selectedAccount, setSelectedAccount] = useState<AuthAccountSearchResult | null>(null);
   const [showRelinkConfirm, setShowRelinkConfirm] = useState(false);
 
-  const { data: accounts, isLoading: isSearching } = useSearchAuthAccounts(debouncedQuery);
+  // The dialog stays mounted while the parent changes the resident, so the search
+  // and any half-made choice belong to the previous resident until reset.
+  const [lastResidentId, setLastResidentId] = useState(residentId);
+  if (lastResidentId !== residentId) {
+    setLastResidentId(residentId);
+    setSearchQuery(residentEmail || '');
+    setSelectedAccount(null);
+    setShowRelinkConfirm(false);
+  }
+
+  const { data: accounts, isLoading: isSearching, error: searchError } = useSearchAuthAccounts(debouncedQuery);
   const linkAccount = useLinkAuthAccount();
 
   const handleSelectAccount = (account: AuthAccountSearchResult) => {
+    // Linking approves the account and changes who it signs in as, so every link
+    // is confirmed first; an already-linked account gets the relink warning.
     setSelectedAccount(account);
-    if (account.linked_resident_id) {
-      // Account is already linked, show warning
-      setShowRelinkConfirm(true);
-    } else {
-      // Proceed with linking
-      handleLink(account, false);
-    }
+    setShowRelinkConfirm(true);
   };
 
   const handleLink = async (account: AuthAccountSearchResult, forceRelink: boolean) => {
@@ -91,7 +98,7 @@ export function LinkAccountDialog({
 
   const handleConfirmRelink = () => {
     if (selectedAccount) {
-      handleLink(selectedAccount, true);
+      handleLink(selectedAccount, !!selectedAccount.linked_resident_id);
     }
     setShowRelinkConfirm(false);
   };
@@ -140,9 +147,14 @@ export function LinkAccountDialog({
             <div className="space-y-2">
               <Label>Available Accounts</Label>
               <ScrollArea className="h-[250px] border rounded-md">
-                {isSearching ? (
+                {isSearching || (isDebouncing && searchQuery.length >= 3) ? (
                   <div className="flex items-center justify-center h-full py-8">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : searchError ? (
+                  <div className="flex flex-col items-center justify-center h-full py-8 text-center text-destructive" role="alert">
+                    <AlertCircle className="h-8 w-8 mb-2" />
+                    <p className="text-sm">{searchError.message}</p>
                   </div>
                 ) : !debouncedQuery || debouncedQuery.length < 3 ? (
                   <div className="flex flex-col items-center justify-center h-full py-8 text-center text-muted-foreground">
@@ -210,26 +222,37 @@ export function LinkAccountDialog({
         </DialogContent>
       </Dialog>
 
-      {/* Relink Confirmation Dialog */}
+      {/* Link / relink confirmation */}
       <AlertDialog open={showRelinkConfirm} onOpenChange={setShowRelinkConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-amber-600">
-              <AlertTriangle className="h-5 w-5" />
-              Account Already Linked
+            <AlertDialogTitle className={selectedAccount?.linked_resident_id ? 'flex items-center gap-2 text-amber-600' : undefined}>
+              {selectedAccount?.linked_resident_id && <AlertTriangle className="h-5 w-5" />}
+              {selectedAccount?.linked_resident_id ? 'Account Already Linked' : 'Link this account?'}
             </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              <p>
-                This account is currently linked to{' '}
-                <span className="font-medium">{selectedAccount?.linked_resident_name}</span>.
-              </p>
-              <p>
-                Proceeding will unlink it from that resident and link it to{' '}
-                <span className="font-medium">{residentName}</span> instead.
-              </p>
-              <p className="text-amber-600 font-medium">
-                The previous resident will no longer be able to access the portal with this account.
-              </p>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                {selectedAccount?.linked_resident_id ? (
+                  <>
+                    <p>
+                      This account is currently linked to{' '}
+                      <span className="font-medium">{selectedAccount.linked_resident_name}</span>.
+                    </p>
+                    <p>
+                      Proceeding will unlink it from that resident and link it to{' '}
+                      <span className="font-medium">{residentName}</span> instead.
+                    </p>
+                    <p className="text-amber-600 font-medium">
+                      The previous resident will no longer be able to access the portal with this account.
+                    </p>
+                  </>
+                ) : (
+                  <p>
+                    Link <span className="font-medium">{selectedAccount?.email}</span> to{' '}
+                    <span className="font-medium">{residentName}</span>? This also approves the account.
+                  </p>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -237,15 +260,17 @@ export function LinkAccountDialog({
             <AlertDialogAction
               onClick={handleConfirmRelink}
               disabled={linkAccount.isPending}
-              className="bg-amber-600 hover:bg-amber-700"
+              className={selectedAccount?.linked_resident_id ? 'bg-amber-600 hover:bg-amber-700' : undefined}
             >
               {linkAccount.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Relinking...
+                  {selectedAccount?.linked_resident_id ? 'Relinking...' : 'Linking...'}
                 </>
-              ) : (
+              ) : selectedAccount?.linked_resident_id ? (
                 'Proceed with Relink'
+              ) : (
+                'Link account'
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

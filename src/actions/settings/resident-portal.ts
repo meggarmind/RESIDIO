@@ -4,6 +4,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { createAdminClient } from '@/lib/supabase/server';
+import { assertCanManageTarget } from '@/lib/auth/account-guards';
 import { revalidatePath } from 'next/cache';
 import {
   PORTAL_ACCESS_OVERRIDES,
@@ -147,6 +148,11 @@ export async function setPortalAccessOverride(
   if (!isValidOverrideInput(override)) {
     return { success: false, error: 'Invalid portal access override' };
   }
+
+  // Target guard (#475, #826): an account holding super_admin or chairman needs
+  // system.assign_board_roles, as for every other change to that account.
+  const targetGuard = await assertCanManageTarget(authorization.userId!, profileId);
+  if (!targetGuard.ok) return { success: false, error: targetGuard.error };
 
   const adminClient = createAdminClient();
   const { data: previous, error: readError } = await adminClient
