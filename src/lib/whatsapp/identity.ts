@@ -20,7 +20,7 @@ import {
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { getSponsoredHouses, isOnRoster } from '@/lib/whatsapp/co-resident';
 import { contactLine } from '@/lib/whatsapp/assistant-format';
-import { createSupabaseWhatsAppFinancialRepository, endOpenMenuStep, houseLabel, type WhatsAppFinancialRepository } from '@/lib/whatsapp/financial';
+import { createSupabaseWhatsAppFinancialRepository, houseLabel, setAdminMenuStep, type WhatsAppFinancialRepository } from '@/lib/whatsapp/financial';
 import type { WhatsAppInboundMessage, WhatsAppTextMessage } from '@/lib/whatsapp/types';
 import { loadAssistantName } from '@/lib/whatsapp/assistant-name';
 import { SURVEY_OPT_OUT_REPLY, isSurveyStopCommand } from '@/lib/whatsapp/survey';
@@ -29,10 +29,11 @@ import { BLOCKED_REPLY_HOURS } from '@/lib/whatsapp/retention';
 import { sendWhatsAppToResident } from '@/lib/whatsapp/resident-send';
 import {
   createSupabaseWhatsAppAdminRepository,
-  handleWhatsAppAdminChoice,
   handleWhatsAppAdminMessage,
-  looksLikeAdminChoice,
+  handleWhatsAppAdminStep,
+  isAdminNode,
   parseWhatsAppAdminCommand,
+  type WhatsAppAdminHandlerOptions,
   type WhatsAppAdminRepository,
 } from '@/lib/whatsapp/admin';
 
@@ -761,12 +762,18 @@ async function sendReply(
   }
 }
 
-/** An admin turn ends any open resident menu step, so the next bare number cannot land in it (#1291). */
-async function endResidentMenuStep(phoneNumber: string, options: WhatsAppIdentityHandlerOptions): Promise<void> {
+/**
+ * Admin and resident steps share the number's one conversation node (#1291, #1292), so the next
+ * reply always goes to the step on screen. The admin step on screen, or null.
+ */
+async function openAdminStep(phoneNumber: string, financialRepository: WhatsAppFinancialRepository): Promise<string | null> {
   try {
-    await endOpenMenuStep(options.financialRepository ?? createSupabaseWhatsAppFinancialRepository(), phoneNumber);
+    const stored = await financialRepository.getSession(phoneNumber);
+    return stored && isAdminNode(stored.currentNode) && Date.parse(stored.expiresAt) > Date.now() ? stored.currentNode : null;
   } catch (error) {
-    console.error('WhatsApp Assistant could not end the open menu step after an admin turn:', error);
+    // A resident's message must not fail because the session cannot be read here; the resident path reads it again.
+    console.error('WhatsApp Assistant could not read the conversation step for admin tools:', error);
+    return null;
   }
 }
 
@@ -794,29 +801,28 @@ export async function handleResidentMessage(
 
   const text = message.text?.trim() || '';
 
-  // Admin mode (#972 D6) starts only on an exact ADMIN command; every other message, from the same
-  // number too, keeps the resident behaviour below. No resident record is read for it.
+  // Admin tools (#972, #1292) take an exact ADMIN command, or the reply to an admin step on screen.
+  // No resident record is read for them. A number that is not an admin number, and a reply that
+  // leaves the admin steps, carry on to the resident behaviour below, so nothing is revealed.
+  const financialRepository = options.financialRepository ?? createSupabaseWhatsAppFinancialRepository();
+  const adminOptions: WhatsAppAdminHandlerOptions = {
+    repository: options.adminRepository ?? createSupabaseWhatsAppAdminRepository(),
+    reply: (body) => sendReply(message, body, options.send),
+    setStep: async (node) => {
+      try {
+        await setAdminMenuStep(financialRepository, phoneNumber, node);
+      } catch (error) {
+        console.error('WhatsApp Assistant could not store the admin step:', error);
+      }
+    },
+  };
   const adminCommand = parseWhatsAppAdminCommand(text);
-  if (adminCommand) {
-    await endResidentMenuStep(phoneNumber, options);
-    await handleWhatsAppAdminMessage(message, adminCommand, {
-      repository: options.adminRepository ?? createSupabaseWhatsAppAdminRepository(),
-      reply: (body) => sendReply(message, body, options.send),
-    });
+  const adminStep = adminCommand ? null : await openAdminStep(phoneNumber, financialRepository);
+  if (
+    (adminCommand && (await handleWhatsAppAdminMessage(message, adminCommand, adminOptions))) ||
+    (adminStep && (await handleWhatsAppAdminStep(message, adminStep, adminOptions)))
+  ) {
     return { status: 'admin', residentId: null, optedIn: false, financialEligible: false, accessTier: 'community' };
-  }
-
-  // A plain reply to an admin question (street numbers, ALL) only belongs to admin mode when this
-  // number has one waiting; otherwise it carries on to the resident assistant (#982).
-  if (looksLikeAdminChoice(text)) {
-    const handled = await handleWhatsAppAdminChoice(message, {
-      repository: options.adminRepository ?? createSupabaseWhatsAppAdminRepository(),
-      reply: (body) => sendReply(message, body, options.send),
-    });
-    if (handled) {
-      await endResidentMenuStep(phoneNumber, options);
-      return { status: 'admin', residentId: null, optedIn: false, financialEligible: false, accessTier: 'community' };
-    }
   }
 
   const linked = await options.repository.findLinkedResidents(phoneNumber);

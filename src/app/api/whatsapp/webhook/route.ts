@@ -11,6 +11,7 @@ import {
   verifyWhatsAppSignature,
   verifyWhatsAppToken,
 } from '@/lib/whatsapp';
+import { createWhatsAppAdminTools } from '@/lib/whatsapp/admin';
 import { recordInboundBatch, recordWebhookDelivery } from '@/lib/system-log/webhook';
 
 export async function GET(request: NextRequest) {
@@ -96,6 +97,7 @@ export async function POST(request: NextRequest) {
               repository: createSupabaseWhatsAppFinancialRepository(),
               optedIn: true,
               canLookup: canPerformWhatsAppFinancialLookup,
+              adminTools: createWhatsAppAdminTools(),
             });
         },
       });

@@ -69,6 +69,7 @@ import {
   type SurveyTrigger,
 } from '@/lib/whatsapp/survey';
 import { loadAssistantName } from '@/lib/whatsapp/assistant-name';
+import { isAdminNode, type WhatsAppAdminTools } from '@/lib/whatsapp/admin';
 import { answerSurvey, askSurvey } from '@/lib/whatsapp/survey-db';
 import {
   DEFAULT_KEYWORDS,
@@ -168,7 +169,8 @@ const NOT_OCCUPANT_CLEARANCE_REPLY = 'A clearance certificate can only be reques
 
 export interface WhatsAppFinancialSession {
   phoneNumber: string;
-  residentId: string;
+  /** Null on a number with no resident session, which only holds an admin step (#1292). */
+  residentId: string | null;
   currentNode: string;
   selectedHouseId: string | null;
   pinAuthenticated: boolean;
@@ -900,6 +902,8 @@ export interface WhatsAppFinancialHandlerOptions {
   send?: (message: WhatsAppTextMessage) => Promise<{ success: boolean; error?: string }>;
   /** Throws when the caps cannot be read, so the handler fails closed with the lookup-failure reply. */
   canLookup?: (residentId: string) => Promise<LookupAllowance>;
+  /** Item 6, Admin tools (#1292); absent, the item is never shown. */
+  adminTools?: WhatsAppAdminTools;
 }
 
 export async function canPerformWhatsAppFinancialLookup(residentId: string): Promise<LookupAllowance> {
@@ -995,13 +999,16 @@ interface Turn {
   notices?: AssistantAnnouncement[];
   /** Set by a reply that delivered a financial answer, so a thank-you right after can open the survey (#872). */
   answered?: boolean;
+  /** The Admin tools label for this number, looked up once per turn; null hides item 6 (#1292). */
+  adminLabel?: string | null;
 }
 
 function readNode(raw: string): { node: string; misses: number } {
   const match = raw.match(/^(.*)~(\d+)$/);
   const node = match ? match[1] : raw;
-  // Sessions written before #804 used 'menu' and the old property/statement nodes.
-  return { node: node === 'menu' || node.startsWith('property_selection:') || node.startsWith('statement_period:') ? 'main' : node, misses: match ? Number(match[2]) : 0 };
+  // Sessions written before #804 used 'menu' and the old property/statement nodes. An admin step
+  // (#1292) is answered before the resident assistant, so one that reaches it reads as the main menu.
+  return { node: node === 'menu' || node.startsWith('property_selection:') || node.startsWith('statement_period:') || isAdminNode(node) ? 'main' : node, misses: match ? Number(match[2]) : 0 };
 }
 
 async function respond(turn: Turn, body: string, node: string, misses = 0, mediaUrls?: string[]): Promise<void> {
@@ -1071,9 +1078,32 @@ async function mainMenu(turn: Turn): Promise<string> {
   if (turn.settings?.paymentInstructions) lines.push('3. How to pay');
   lines.push('4. Alert settings');
   lines.push('5. Update email');
+  const adminLabel = await loadAdminLabel(turn);
+  if (adminLabel) lines.push(`6. ${adminLabel}`);
   if (turn.contact) lines.push('9. Contact the estate office');
   lines.push('', 'Reply with a number.');
   return lines.join('\n');
+}
+
+/** Item 6 shows only on a number linked to an active admin account (#1292 decision 1); a failed lookup hides it. */
+async function loadAdminLabel(turn: Turn): Promise<string | null> {
+  if (turn.adminLabel === undefined) {
+    try {
+      turn.adminLabel = (await turn.options.adminTools?.menuLabel(turn.phoneNumber)) ?? null;
+    } catch (error) {
+      console.error('WhatsApp Assistant could not check Admin tools for this number; item 6 is hidden:', error);
+      turn.adminLabel = null;
+    }
+  }
+  return turn.adminLabel;
+}
+
+async function openAdminTools(turn: Turn): Promise<void> {
+  const opened = await turn.options.adminTools!.open(turn.message, {
+    reply: (body) => sendFinancialReply(turn.message, body, turn.options.send, turn.identity.id),
+    setStep: (node) => saveSession(turn, node),
+  });
+  if (!opened) return miss(turn, 'main');
 }
 
 async function showMain(turn: Turn, prefix?: string): Promise<void> {
@@ -2090,6 +2120,7 @@ async function converse(turn: Turn, expiredMidStep: { wasUnlocked: boolean } | n
   if (input === '3' && turn.settings?.paymentInstructions) return showHowToPay(turn);
   if (input === '4') return showAlertSettings(turn);
   if (input === '5') return startEmail(turn);
+  if (input === '6' && (await loadAdminLabel(turn))) return openAdminTools(turn);
   return miss(turn, 'main');
 }
 
@@ -2163,8 +2194,30 @@ export async function endOpenMenuStep(repository: WhatsAppFinancialRepository, p
   const stored = await repository.getSession(phoneNumber);
   if (!stored) return;
   const { node } = readNode(stored.currentNode);
-  if (node === 'main' || node === ENDED_NODE) return;
+  // readNode shows an admin step as main, so it is checked on the stored value (#1292).
+  if (!isAdminNode(stored.currentNode) && (node === 'main' || node === ENDED_NODE)) return;
   await repository.saveSession({ ...stored, currentNode: 'main', draft: null, pendingPinHash: null });
+}
+
+/**
+ * Puts an admin step (#1292) on the number's one conversation node, so the next reply goes to it.
+ * A number with no resident session gets one with no resident. A stored session that has expired
+ * keeps nothing, so an old PIN unlock is not brought back.
+ */
+export async function setAdminMenuStep(repository: WhatsAppFinancialRepository, phoneNumber: string, node: string): Promise<void> {
+  if (!isAdminNode(node)) return endOpenMenuStep(repository, phoneNumber);
+  const stored = await repository.getSession(phoneNumber);
+  const live = stored && Date.parse(stored.expiresAt) > Date.now() ? stored : null;
+  await repository.saveSession({
+    phoneNumber,
+    residentId: live?.residentId ?? null,
+    selectedHouseId: live?.selectedHouseId ?? null,
+    pinAuthenticated: live?.pinAuthenticated ?? false,
+    currentNode: node,
+    draft: null,
+    pendingPinHash: null,
+    expiresAt: expiry(),
+  });
 }
 
 export function createSupabaseWhatsAppFinancialRepository(): WhatsAppFinancialRepository {

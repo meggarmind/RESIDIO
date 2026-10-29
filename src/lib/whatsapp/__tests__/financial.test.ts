@@ -9,6 +9,7 @@ import {
   createSupabaseWhatsAppFinancialRepository,
   handleFinancialMessage,
   hashPin,
+  setAdminMenuStep,
   statementRange,
   verifyPin,
 } from '@/lib/whatsapp/financial';
@@ -2393,5 +2394,94 @@ describe('WAHA conversation from an @lid sender (#1285)', () => {
     expect(repo.getSession).toHaveBeenLastCalledWith('+2348000000000');
     expect(send.mock.calls.map((call) => call[0].body).join('\n\n')).toBe(FINANCIAL_MENU);
     expect(repo.saveSession).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('item 6, Admin tools, on the main menu (#1292)', () => {
+  const withAdmin = MAIN_MENU.replace('9. Contact the estate office', '6. Admin tools (code needed)\n9. Contact the estate office');
+  const tools = (label: string | null) => ({
+    menuLabel: vi.fn().mockResolvedValue(label),
+    open: vi.fn(async (_message: WhatsAppInboundMessage, io: { reply(body: string): Promise<void>; setStep(node: string): Promise<void> }) => {
+      await io.reply('Admin tools: enter the 6-digit code');
+      await io.setStep('admin_code');
+      return true;
+    }),
+  });
+
+  it('shows the item and opens it for an admin number', async () => {
+    const repo = repository();
+    const adminTools = tools('Admin tools (code needed)');
+    const replies = await chat(repo, ['hi', '6'], identity, { adminTools });
+
+    expect(replies[0]).toBe(withAdmin);
+    expect(adminTools.menuLabel).toHaveBeenCalledWith('+2348000000000');
+    expect(adminTools.open).toHaveBeenCalledTimes(1);
+    expect(replies[1]).toBe('Admin tools: enter the 6-digit code');
+    expect(repo.saveSession).toHaveBeenLastCalledWith(expect.objectContaining({ currentNode: 'admin_code', residentId: 'resident-1' }));
+  });
+
+  it.each([
+    ['not an admin number', () => tools(null)],
+    ['no admin tools wired', () => undefined],
+  ])('never shows it, and 6 reads as unrecognised, when %s', async (_label, make) => {
+    const adminTools = make();
+    const replies = await chat(repository(), ['hi', '6'], identity, { adminTools });
+    expect(replies[0]).toBe(MAIN_MENU);
+    expect(replies[1]).toBe(UNRECOGNISED);
+    if (adminTools) expect(adminTools.open).not.toHaveBeenCalled();
+  });
+
+  it('hides it when the admin lookup fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const adminTools = { menuLabel: vi.fn().mockRejectedValue(new Error('db down')), open: vi.fn() };
+    const replies = await chat(repository(), ['hi'], identity, { adminTools });
+    expect(replies[0]).toBe(MAIN_MENU);
+  });
+
+  it('keeps 6 in the Financial menu as Report a payment', async () => {
+    const adminTools = tools('Admin tools');
+    const replies = await chat(repository(), ['1', '6'], identity, { adminTools });
+    expect(replies[1]).not.toContain('Admin tools');
+    expect(adminTools.open).not.toHaveBeenCalled();
+  });
+
+  it('reads an admin step that reaches the resident assistant as the main menu', async () => {
+    const repo = repository();
+    await repo.saveSession({ phoneNumber: '+2348000000000', residentId: 'resident-1', currentNode: 'admin_menu', selectedHouseId: null, pinAuthenticated: false, expiresAt: '2099-01-01T00:00:00Z' });
+    const replies = await chat(repo, ['4']);
+    expect(replies[0]).toContain('Alert settings');
+  });
+});
+
+describe('setAdminMenuStep (#1292)', () => {
+  const stored = (overrides: Partial<WhatsAppFinancialSession>): WhatsAppFinancialSession => ({
+    phoneNumber: '+2348000000000', residentId: 'resident-1', currentNode: 'alerts', selectedHouseId: 'house-1', pinAuthenticated: true,
+    expiresAt: '2099-01-01T00:00:00Z', ...overrides,
+  });
+  const repoWith = (session: WhatsAppFinancialSession | null) =>
+    ({ getSession: vi.fn().mockResolvedValue(session), saveSession: vi.fn().mockResolvedValue(undefined) }) as unknown as WhatsAppFinancialRepository;
+
+  it('puts the admin step on a live session and keeps its PIN unlock', async () => {
+    const repo = repoWith(stored({}));
+    await setAdminMenuStep(repo, '+2348000000000', 'admin_menu');
+    expect(repo.saveSession).toHaveBeenCalledWith(expect.objectContaining({ currentNode: 'admin_menu', residentId: 'resident-1', pinAuthenticated: true, selectedHouseId: 'house-1' }));
+  });
+
+  it('does not bring back the PIN unlock of an expired session', async () => {
+    const repo = repoWith(stored({ expiresAt: '2000-01-01T00:00:00Z' }));
+    await setAdminMenuStep(repo, '+2348000000000', 'admin_code');
+    expect(repo.saveSession).toHaveBeenCalledWith(expect.objectContaining({ currentNode: 'admin_code', residentId: null, pinAuthenticated: false, selectedHouseId: null }));
+  });
+
+  it('gives a number with no session one with no resident', async () => {
+    const repo = repoWith(null);
+    await setAdminMenuStep(repo, '+2348000000000', 'admin_code');
+    expect(repo.saveSession).toHaveBeenCalledWith(expect.objectContaining({ currentNode: 'admin_code', residentId: null }));
+  });
+
+  it('main ends an admin step', async () => {
+    const repo = repoWith(stored({ currentNode: 'admin_menu' }));
+    await setAdminMenuStep(repo, '+2348000000000', 'main');
+    expect(repo.saveSession).toHaveBeenCalledWith(expect.objectContaining({ currentNode: 'main', pinAuthenticated: true }));
   });
 });

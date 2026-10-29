@@ -4,6 +4,7 @@ import type { WhatsAppIdentityRepository, WhatsAppResidentIdentity } from '@/lib
 import type { WhatsAppFinancialRepository, WhatsAppFinancialSession } from '@/lib/whatsapp/financial';
 import type { WhatsAppInboundMessage } from '@/lib/whatsapp/types';
 import { isWhatsAppMasterSwitchOn } from '@/lib/whatsapp/master-switch';
+import { accountFingerprint, type WhatsAppAdminAccount } from '@/lib/whatsapp/admin';
 
 vi.mock('@/lib/whatsapp/master-switch', () => ({
   isWhatsAppMasterSwitchOn: vi.fn(),
@@ -71,44 +72,69 @@ function repository(overrides: Partial<WhatsAppIdentityRepository> = {}): WhatsA
 }
 
 describe('WhatsApp identity and consent', () => {
-  it('hands an exact ADMIN command to admin mode without reading resident records (#972)', async () => {
+  const linkAttempt = () => ({
+    getLockedUntil: vi.fn().mockResolvedValue(null),
+    findLinkCode: vi.fn().mockResolvedValue(null),
+    recordWrongCode: vi.fn().mockResolvedValue({ lockedUntil: null }),
+  });
+  const adminNumber = (fingerprint = '') => ({
+    getLockedUntil: vi.fn().mockResolvedValue(null),
+    getCodeRequired: vi.fn().mockResolvedValue(true),
+    findActiveBinding: vi.fn().mockResolvedValue({
+      id: 'b1', profileId: 'p1', phoneNumber: '+2348000000000', boundAt: '2026-10-20T10:00:00Z', lastUsedAt: null,
+      lastTotpStep: null, sessionExpiresAt: null, accountFingerprint: fingerprint, codeRequired: true,
+    }),
+    loadAccount: vi.fn().mockResolvedValue(null),
+    revokeBinding: vi.fn().mockResolvedValue(undefined),
+    audit: vi.fn().mockResolvedValue(undefined),
+  });
+  const sessionAt = (currentNode: string, overrides: Partial<WhatsAppFinancialSession> = {}): WhatsAppFinancialSession => ({
+    phoneNumber: '+2348000000000', residentId: 'resident-1', currentNode, selectedHouseId: null, pinAuthenticated: false,
+    expiresAt: '2099-01-01T00:00:00Z', ...overrides,
+  });
+  const financialWith = (stored: WhatsAppFinancialSession | null) => {
+    const saveSession = vi.fn().mockResolvedValue(undefined);
+    const getSession = vi.fn().mockResolvedValue(stored);
+    return { saveSession, getSession, financialRepository: { getSession, saveSession } as unknown as WhatsAppFinancialRepository };
+  };
+
+  it('hands ADMIN LINK to admin mode without reading resident records (#972)', async () => {
     const repo = repository();
-    const adminRepository = { getLockedUntil: vi.fn().mockResolvedValue(null), findActiveBinding: vi.fn().mockResolvedValue(null) };
     const send = vi.fn().mockResolvedValue({ success: true });
 
-    const result = await handleResidentMessage(message('ADMIN STATUS'), {
-      repository: repo,
-      adminRepository: adminRepository as never,
-      send,
+    const result = await handleResidentMessage(message('ADMIN LINK 123456'), {
+      repository: repo, adminRepository: linkAttempt() as never, financialRepository: financialWith(null).financialRepository, send,
     });
 
     expect(result.status).toBe('admin');
     expect(repo.findLinkedResidents).not.toHaveBeenCalled();
     expect(repo.findRosterMatches).not.toHaveBeenCalled();
-    expect(send.mock.calls[0]?.[0].body).toMatch(/not linked to an admin account/);
+    expect(send.mock.calls[0]?.[0].body).toMatch(/link code is invalid/);
+  });
+
+  it.each(['ADMIN', 'ADMIN 123456'])('answers %s from a number that is not an admin number as the resident assistant would (#1292)', async (text) => {
+    const repo = repository();
+    const send = vi.fn().mockResolvedValue({ success: true });
+    const adminRepository = { getCodeRequired: vi.fn().mockResolvedValue(true), findActiveBinding: vi.fn().mockResolvedValue(null), findAutoLinkProfile: vi.fn().mockResolvedValue(null), getLockedUntil: vi.fn() };
+
+    const result = await handleResidentMessage(message(text), {
+      repository: repo, adminRepository: adminRepository as never, financialRepository: financialWith(null).financialRepository, send,
+    });
+
+    expect(result.status).not.toBe('admin');
+    expect(repo.findRosterMatches).toHaveBeenCalled();
+    expect(adminRepository.getLockedUntil).not.toHaveBeenCalled();
+    expect(send.mock.calls.map(([outbound]) => outbound.body).join('\n')).not.toMatch(/admin/i);
   });
 
   describe('ends the open resident menu step on an admin turn (#1291)', () => {
-    const openSession = (): WhatsAppFinancialSession => ({
-      phoneNumber: '+2348000000000',
-      residentId: 'resident-1',
-      currentNode: 'alerts',
-      selectedHouseId: 'house-1',
-      pinAuthenticated: true,
-      expiresAt: '2099-01-01T00:00:00Z',
-      draft: { report: 'x' },
-    });
-    const financialWith = (stored: WhatsAppFinancialSession | null) => {
-      const saveSession = vi.fn().mockResolvedValue(undefined);
-      const getSession = vi.fn().mockResolvedValue(stored);
-      return { saveSession, getSession, financialRepository: { getSession, saveSession } as unknown as WhatsAppFinancialRepository };
-    };
-    it('puts the stored node back to main after an ADMIN command and keeps the PIN unlock', async () => {
-      const { saveSession, financialRepository } = financialWith(openSession());
-      const adminRepository = { getLockedUntil: vi.fn().mockResolvedValue(null), findActiveBinding: vi.fn().mockResolvedValue(null) };
+    const openSession = (): WhatsAppFinancialSession => ({ ...sessionAt('alerts'), selectedHouseId: 'house-1', pinAuthenticated: true, draft: { report: 'x' } });
 
-      const result = await handleResidentMessage(message('ADMIN STATUS'), {
-        repository: repository(), adminRepository: adminRepository as never, financialRepository, send: vi.fn().mockResolvedValue({ success: true }),
+    it('puts the stored node back to main after an admin command and keeps the PIN unlock', async () => {
+      const { saveSession, financialRepository } = financialWith(openSession());
+
+      const result = await handleResidentMessage(message('ADMIN LINK 123456'), {
+        repository: repository(), adminRepository: linkAttempt() as never, financialRepository, send: vi.fn().mockResolvedValue({ success: true }),
       });
 
       expect(result.status).toBe('admin');
@@ -118,9 +144,8 @@ describe('WhatsApp identity and consent', () => {
     it('leaves a session already on main alone, and a number with no session', async () => {
       for (const stored of [{ ...openSession(), currentNode: 'main' }, null]) {
         const { saveSession, financialRepository } = financialWith(stored);
-        const adminRepository = { getLockedUntil: vi.fn().mockResolvedValue(null), findActiveBinding: vi.fn().mockResolvedValue(null) };
-        await handleResidentMessage(message('ADMIN'), {
-          repository: repository(), adminRepository: adminRepository as never, financialRepository, send: vi.fn().mockResolvedValue({ success: true }),
+        await handleResidentMessage(message('ADMIN LINK 123456'), {
+          repository: repository(), adminRepository: linkAttempt() as never, financialRepository, send: vi.fn().mockResolvedValue({ success: true }),
         });
         expect(saveSession).not.toHaveBeenCalled();
       }
@@ -128,37 +153,79 @@ describe('WhatsApp identity and consent', () => {
 
     it('still answers the admin command when the session reset fails', async () => {
       const financialRepository = { getSession: vi.fn().mockRejectedValue(new Error('db down')) } as unknown as WhatsAppFinancialRepository;
-      const adminRepository = { getLockedUntil: vi.fn().mockResolvedValue(null), findActiveBinding: vi.fn().mockResolvedValue(null) };
       vi.spyOn(console, 'error').mockImplementation(() => {});
-      const result = await handleResidentMessage(message('ADMIN'), {
-        repository: repository(), adminRepository: adminRepository as never, financialRepository, send: vi.fn().mockResolvedValue({ success: true }),
+      const result = await handleResidentMessage(message('ADMIN LINK 123456'), {
+        repository: repository(), adminRepository: linkAttempt() as never, financialRepository, send: vi.fn().mockResolvedValue({ success: true }),
       });
       expect(result.status).toBe('admin');
     });
   });
 
-  it('hands a street choice to admin mode only when an admin question is waiting (#982)', async () => {
-    const binding = { id: 'b1', profileId: 'p1', phoneNumber: '+2348000000000', boundAt: '2026-10-20T10:00:00Z', lastUsedAt: null, lastTotpStep: null, sessionExpiresAt: null, accountFingerprint: 'x' };
-    const repo = repository();
-    const send = vi.fn().mockResolvedValue({ success: true });
-    const waiting = { findActiveBinding: vi.fn().mockResolvedValue(binding), findPendingChoice: vi.fn().mockResolvedValue(null) };
+  describe('one conversation node for admin and resident steps (#1292)', () => {
+    it('sends a reply to the admin step on screen, not to the resident assistant', async () => {
+      const repo = repository();
+      const adminRepository = adminNumber();
+      const { saveSession, financialRepository } = financialWith(sessionAt('admin_menu'));
 
-    // Linked number, nothing waiting: the reply stays with the resident assistant.
-    const idle = await handleResidentMessage(message('2'), { repository: repo, adminRepository: waiting as never, send });
-    expect(idle.status).not.toBe('admin');
-    expect(repo.findRosterMatches).toHaveBeenCalled();
-  });
+      const result = await handleResidentMessage(message('1'), { repository: repo, adminRepository: adminRepository as never, financialRepository, send: vi.fn().mockResolvedValue({ success: true }) });
 
-  it('carries a number on to the resident assistant when the admin lookup fails (#982)', async () => {
-    const repo = repository();
-    const send = vi.fn().mockResolvedValue({ success: true });
-    const broken = { findActiveBinding: vi.fn().mockRejectedValue(new Error('table missing')) };
-    vi.spyOn(console, 'error').mockImplementation(() => {});
+      expect(result.status).toBe('admin');
+      expect(adminRepository.findActiveBinding).toHaveBeenCalled();
+      expect(repo.findRosterMatches).not.toHaveBeenCalled();
+      // The account is gone, so the binding ends and the node goes back to main.
+      expect(saveSession).toHaveBeenCalledWith(expect.objectContaining({ currentNode: 'main' }));
+    });
 
-    const result = await handleResidentMessage(message('2'), { repository: repo, adminRepository: broken as never, send });
+    it('opens Admin tools from ADMIN and puts the code step on the node', async () => {
+      const admin: WhatsAppAdminAccount = {
+        profileId: 'p1', fullName: 'Ada Admin', email: null, approvalStatus: 'active', roleId: 'r1', roleName: 'chairman', roleDisplayName: 'Chairman',
+        // The RFC test secret used by the other admin tests. secret-scan:allow
+        roleCategory: 'exco', permissions: ['whatsapp_admin.query'], totpSecret: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP', // secret-scan:allow
+      };
+      const adminRepository = { ...adminNumber(accountFingerprint(admin)), loadAccount: vi.fn().mockResolvedValue(admin) };
+      const { saveSession, financialRepository } = financialWith(sessionAt('alerts', { pinAuthenticated: true }));
+      const send = vi.fn().mockResolvedValue({ success: true });
 
-    expect(result.status).not.toBe('admin');
-    expect(repo.findRosterMatches).toHaveBeenCalled();
+      const result = await handleResidentMessage(message('ADMIN'), { repository: repository(), adminRepository: adminRepository as never, financialRepository, send });
+
+      expect(result.status).toBe('admin');
+      expect(send.mock.calls[0][0].body).toMatch(/6-digit code/);
+      expect(saveSession).toHaveBeenCalledWith(expect.objectContaining({ currentNode: 'admin_code', pinAuthenticated: true, residentId: 'resident-1' }));
+    });
+
+    it('keeps a bare number on a resident step with the resident assistant', async () => {
+      const repo = repository();
+      const adminRepository = adminNumber();
+      const { financialRepository } = financialWith(sessionAt('alerts'));
+
+      const result = await handleResidentMessage(message('1'), { repository: repo, adminRepository: adminRepository as never, financialRepository, send: vi.fn().mockResolvedValue({ success: true }) });
+
+      expect(result.status).not.toBe('admin');
+      expect(adminRepository.findActiveBinding).not.toHaveBeenCalled();
+      expect(repo.findRosterMatches).toHaveBeenCalled();
+    });
+
+    it('ignores an admin step whose conversation has expired', async () => {
+      const repo = repository();
+      const adminRepository = adminNumber();
+      const { financialRepository } = financialWith(sessionAt('admin_menu', { expiresAt: '2000-01-01T00:00:00Z' }));
+
+      const result = await handleResidentMessage(message('1'), { repository: repo, adminRepository: adminRepository as never, financialRepository, send: vi.fn().mockResolvedValue({ success: true }) });
+
+      expect(result.status).not.toBe('admin');
+      expect(adminRepository.findActiveBinding).not.toHaveBeenCalled();
+    });
+
+    it('carries a message on to the resident assistant when the step cannot be read', async () => {
+      const repo = repository();
+      const financialRepository = { getSession: vi.fn().mockRejectedValue(new Error('db down')) } as unknown as WhatsAppFinancialRepository;
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const result = await handleResidentMessage(message('2'), { repository: repo, adminRepository: adminNumber() as never, financialRepository, send: vi.fn().mockResolvedValue({ success: true }) });
+
+      expect(result.status).not.toBe('admin');
+      expect(repo.findRosterMatches).toHaveBeenCalled();
+    });
   });
 
   it('keeps other text starting with "admin" on the resident path (#972)', async () => {
@@ -372,10 +439,11 @@ describe('WhatsApp identity and consent', () => {
 
     it('does not touch the admin flow for a blocked number', async () => {
       const repo = repository({ findRosterMatches: vi.fn().mockResolvedValue([blocked]) });
-      const adminRepository = { getLockedUntil: vi.fn().mockResolvedValue(null), findActiveBinding: vi.fn().mockResolvedValue(null) };
+      const adminRepository = { getLockedUntil: vi.fn().mockResolvedValue(null), findLinkCode: vi.fn().mockResolvedValue(null), recordWrongCode: vi.fn().mockResolvedValue({ lockedUntil: null }) };
       const send = vi.fn().mockResolvedValue({ success: true });
+      const financialRepository = { getSession: vi.fn().mockResolvedValue(null), saveSession: vi.fn() } as unknown as WhatsAppFinancialRepository;
 
-      const result = await handleResidentMessage(message('ADMIN STATUS'), { repository: repo, adminRepository: adminRepository as never, send });
+      const result = await handleResidentMessage(message('ADMIN LINK 123456'), { repository: repo, adminRepository: adminRepository as never, financialRepository, send });
 
       expect(result.status).toBe('admin');
       expect(repo.claimBlockedReply).not.toHaveBeenCalled();

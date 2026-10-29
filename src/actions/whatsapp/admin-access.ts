@@ -74,6 +74,7 @@ export async function getMyWhatsAppAdminAccess(): Promise<ActionResult<WhatsAppA
       lastTotpStep: data.last_totp_step === null ? null : Number(data.last_totp_step),
       sessionExpiresAt: data.session_expires_at,
       accountFingerprint: data.account_fingerprint,
+      codeRequired: true,
     }, account, new Date())
       ? {
           maskedNumber: maskPhone(data.phone_number),

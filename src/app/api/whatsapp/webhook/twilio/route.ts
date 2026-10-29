@@ -9,6 +9,7 @@ import {
   processInboundMessages,
   resolveWhatsAppConfig,
 } from '@/lib/whatsapp';
+import { createWhatsAppAdminTools } from '@/lib/whatsapp/admin';
 import { recordInboundBatch } from '@/lib/system-log/webhook';
 import { extractTwilioMessages, verifyTwilioSignature } from '@/lib/whatsapp/providers/twilio';
 
@@ -80,6 +81,7 @@ export async function POST(request: NextRequest) {
             repository: createSupabaseWhatsAppFinancialRepository(),
             optedIn: true,
             canLookup: canPerformWhatsAppFinancialLookup,
+            adminTools: createWhatsAppAdminTools(),
           });
         },
       });
