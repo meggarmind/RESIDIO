@@ -3,17 +3,19 @@ import { renderToBuffer } from '@react-pdf/renderer';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getRawSettingsAsService } from '@/lib/settings/service';
 import { getEstateEmailSettings } from '@/lib/email/send-email';
-import { getDebtStatuses, readDebtStatusSettings } from '@/lib/billing/debt-status';
+import { getDebtStatuses, readDebtStatusSettings, type DebtStatusSettings } from '@/lib/billing/debt-status';
 import { addToQueue, PRIORITY } from '@/lib/notifications/queue';
 import { DebtStatusPdf, type DebtStatusPdfRow } from '@/lib/pdf/reports/debt-status-pdf';
 import { formatPdfDate } from '@/lib/pdf/format-date';
+import { maskName } from '@/lib/whatsapp/mask-name';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import type { NotificationQueueItem } from '@/lib/notifications/types';
 import { WhatsAppDebtReportEmail } from '@/emails/whatsapp-debt-report';
 
 /**
- * WhatsApp admin debt status report (#982): a PDF of every reportable house with its debt status and
- * no amounts or resident names. The status comes from the shared function (getDebtStatuses, #980).
+ * WhatsApp admin debt status report (#982): a PDF of every reportable house with its debt status, the
+ * billed resident's masked name (#1294) and no amounts. The status comes from the shared function
+ * (getDebtStatuses, #980).
  */
 
 /** Houses in these states are left out, with unverified identifiers and houses without an active primary resident. */
@@ -27,6 +29,8 @@ export const DEBT_REPORT_FAILED_REPLY = 'The debt status report could not be mad
 export interface DebtReportHouse {
   id: string;
   houseCode: string;
+  /** The house number as the estate writes it, shown in the report's No column. */
+  houseNumber: string;
   streetId: string;
   streetName: string;
 }
@@ -66,7 +70,7 @@ export async function loadReportableHouses(): Promise<DebtReportHouse[]> {
     .filter(isReportableHouse)
     .flatMap((row) => {
       const street = Array.isArray(row.street) ? row.street[0] : row.street;
-      return street ? [{ id: row.id, houseCode: row.short_name?.trim() || row.house_number, streetId: street.id, streetName: street.name }] : [];
+      return street ? [{ id: row.id, houseCode: row.short_name?.trim() || row.house_number, houseNumber: row.house_number, streetId: street.id, streetName: street.name }] : [];
     })
     .sort((a, b) => byName(a.streetName, b.streetName) || byName(a.houseCode, b.houseCode));
 }
@@ -132,6 +136,20 @@ export async function countDebtReportHouses(scope: DebtReportScope): Promise<{ h
   return { houseCount: houses.length, scopeLabel: label };
 }
 
+export const MASKED_NAMES_NOTE = 'Names are masked. Use Resident status in Admin tools for full details.';
+
+/** `Outstanding = owes up to 3 months · Arrears = owes more than 3 months · ...`, from Settings → Debt Status. */
+export function debtStatusLegend(settings: Pick<DebtStatusSettings, 'labels' | 'arrearsThresholdMonths'>): string {
+  const months = settings.arrearsThresholdMonths;
+  const unit = months === 1 ? 'month' : 'months';
+  return [
+    `${settings.labels.outstanding} = owes up to ${months} ${unit}`,
+    `${settings.labels.arrears} = owes more than ${months} ${unit}`,
+    `${settings.labels.paid_in_full} = owes nothing`,
+    `${settings.labels.credit} = owes nothing and has credit`,
+  ].join(' · ');
+}
+
 /** The report PDF for a scope; throws when the data cannot be read or the PDF cannot be drawn. */
 export async function renderDebtStatusReport(scope: DebtReportScope): Promise<{ pdf: Buffer; houseCount: number; scopeLabel: string }> {
   const admin = createAdminClient();
@@ -141,10 +159,20 @@ export async function renderDebtStatusReport(scope: DebtReportScope): Promise<{ 
     readDebtStatusSettings(admin),
     getRawSettingsAsService(['estate_name']),
   ]);
-  const labelByHouse = new Map(statuses.map((s) => [s.houseId, s.label]));
+  const residentIds = [...new Set(statuses.map((s) => s.residentId).filter((id): id is string => Boolean(id)))];
+  const names = new Map<string, string>();
+  if (residentIds.length > 0) {
+    const { data, error } = await admin.from('residents').select('id, first_name, last_name').in('id', residentIds);
+    if (error) throw new Error(`Debt report residents could not be read: ${error.message}`);
+    for (const r of (data ?? []) as { id: string; first_name: string | null; last_name: string | null }[]) {
+      names.set(r.id, `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim());
+    }
+  }
+  const statusByHouse = new Map(statuses.map((s) => [s.houseId, s]));
   const rows: DebtStatusPdfRow[] = houses.flatMap((house) => {
-    const status = labelByHouse.get(house.id);
-    return status ? [{ street: house.streetName, house: house.houseCode, status }] : [];
+    const status = statusByHouse.get(house.id);
+    if (!status) return [];
+    return [{ street: house.streetName, house: house.houseNumber, resident: maskName(names.get(status.residentId ?? '')), status: status.status, label: status.label }];
   });
   const name = estate.status === 'ok' ? estate.values.get('estate_name') : null;
   const pdf = await renderToBuffer(
@@ -153,7 +181,8 @@ export async function renderDebtStatusReport(scope: DebtReportScope): Promise<{ 
         estateName: typeof name === 'string' && name.trim() ? name.trim() : 'Residio Estate',
         generatedOn: formatPdfDate(new Date()),
         scopeLabel: label,
-        footnote: settings.reportFootnote,
+        legend: debtStatusLegend(settings),
+        footnote: `${settings.reportFootnote} ${MASKED_NAMES_NOTE}`.trim(),
         rows,
       },
     }),
