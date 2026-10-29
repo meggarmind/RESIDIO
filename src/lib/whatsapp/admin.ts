@@ -36,6 +36,7 @@ export const ADMIN_SESSION_MINUTES = 15;
 export const ADMIN_REQUEST_TTL_MINUTES = 5;
 export const ADMIN_REVERIFY_DAYS = 90;
 export const ADMIN_IDLE_DAYS = 30;
+/** The default daily limit for every role; `whatsapp_admin_daily_cap` overrides it per role (#1298). */
 export const ADMIN_DAILY_ACTION_CAP = 50;
 export const ADMIN_MAX_WRONG_CODES = 5;
 export const ADMIN_LOCK_MINUTES = 30;
@@ -91,6 +92,25 @@ export function accountFingerprint(account: WhatsAppAdminAccount): string {
   return createHash('sha256')
     .update(['whatsapp-admin:v1', account.profileId, account.roleId ?? '', account.totpSecret ?? ''].join('|'))
     .digest('hex');
+}
+
+/**
+ * The daily limit for a role from the `whatsapp_admin_daily_cap` setting (a map of role name to limit).
+ * A missing role, a missing setting or a value that is not a whole number of 0 or more gives the default.
+ */
+export function resolveAdminDailyCap(setting: unknown, roleName: string | null): number {
+  const map = typeof setting === 'string' ? safeJson(setting) : setting;
+  if (!roleName || !map || typeof map !== 'object' || Array.isArray(map)) return ADMIN_DAILY_ACTION_CAP;
+  const value = Number((map as Record<string, unknown>)[roleName]);
+  return Number.isInteger(value) && value >= 0 ? value : ADMIN_DAILY_ACTION_CAP;
+}
+
+function safeJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
 }
 
 /** Why a binding must end now, or null while it is still good (#972 D5). */
@@ -250,6 +270,8 @@ export interface WhatsAppAdminRepository {
   findActiveBinding(phoneNumber: string): Promise<WhatsAppAdminBinding | null>;
   /** The global "Code required" switch; true when it cannot be read, so admin tools fail closed. */
   getCodeRequired(): Promise<boolean>;
+  /** The admin's daily limit: the `whatsapp_admin_daily_cap` entry for the role, else the default (#1298). */
+  getDailyCap(roleName: string | null): Promise<number>;
   /**
    * The one admin profile whose resident record has this phone and which has no active binding yet,
    * for the automatic link (#1292 item 6); null when there is none or more than one.
@@ -438,6 +460,11 @@ export function createSupabaseWhatsAppAdminRepository(): WhatsAppAdminRepository
     async getCodeRequired() {
       const result = await getSettingResultAsService('whatsapp_admin_code_required');
       return !(result.status === 'ok' && (result.value === false || result.value === 'false'));
+    },
+
+    async getDailyCap(roleName) {
+      const result = await getSettingResultAsService('whatsapp_admin_daily_cap');
+      return resolveAdminDailyCap(result.status === 'ok' ? result.value : null, roleName);
     },
 
     async findAutoLinkProfile(phoneNumber) {
@@ -644,7 +671,7 @@ export function createSupabaseWhatsAppAdminRepository(): WhatsAppAdminRepository
 
 export const ADMIN_BAD_LINK_REPLY = 'That admin link code is invalid or expired. Create a new one in the dashboard.';
 export const ADMIN_WRONG_CODE_REPLY = 'That code is wrong or already used. Wait for a new code in your authenticator app and try again.';
-export const ADMIN_CAP_REPLY = `You have reached today's limit of ${ADMIN_DAILY_ACTION_CAP} admin requests on WhatsApp. It resets at midnight.`;
+export const adminCapReply = (cap: number) => `You have reached today's limit of ${cap} admin requests on WhatsApp. It resets at midnight.`;
 export const ADMIN_NOT_ALLOWED_REPLY = 'Your role does not allow that request on WhatsApp.';
 export const ADMIN_CODE_PROMPT = 'Admin tools: enter the 6-digit code from your authenticator app, or reply 0 for menu.';
 export const ADMIN_LOCKED_REPLY = 'Admin tools are locked. Reply 0 for menu.';
@@ -776,8 +803,12 @@ async function adminTurn(message: WhatsAppInboundMessage, input: AdminInput, opt
     await setStep(ADMIN_CODE_NODE);
   };
   const { year, month, day } = lagosParts(now);
-  const overCap = async () =>
-    (await repository.countDoneSince(admin.profileId, lagosMidnight(year, month, day).toISOString())) >= ADMIN_DAILY_ACTION_CAP;
+  /** The reply to send when the admin is over their role's daily limit, else null. */
+  const capReply = async () => {
+    const cap = await repository.getDailyCap(admin.roleName);
+    const done = await repository.countDoneSince(admin.profileId, lagosMidnight(year, month, day).toISOString());
+    return done >= cap ? adminCapReply(cap) : null;
+  };
 
   /** The automatic link on first use (#1292 item 6): audited and emailed like a dashboard link. */
   const autoLink = async (totpStep: number | null, sessionExpiresAt: string | null) => {
@@ -860,7 +891,8 @@ async function adminTurn(message: WhatsAppInboundMessage, input: AdminInput, opt
   const request = async (actionName: string, live: WhatsAppAdminBinding, params: Record<string, unknown>) => {
     const action = WHATSAPP_ADMIN_ACTIONS[actionName];
     if (!mayRun(admin, action)) return showMenu(live, ADMIN_NOT_ALLOWED_REPLY);
-    if (await overCap()) return showMenu(live, ADMIN_CAP_REPLY);
+    const capped = await capReply();
+    if (capped) return showMenu(live, capped);
     if (codeNeeded && action.freshCode) {
       await repository.createRequest({
         bindingId: live.id,
@@ -972,7 +1004,8 @@ async function adminTurn(message: WhatsAppInboundMessage, input: AdminInput, opt
     }, admin.profileId);
 
     // The cap is checked before the pending request is used, so a capped request is not spent.
-    if (await overCap()) return showMenu(live, ADMIN_CAP_REPLY);
+    const capped = await capReply();
+    if (capped) return showMenu(live, capped);
     const pending = await repository.takePendingRequest(live.id, now);
     if (pending && Object.hasOwn(WHATSAPP_ADMIN_ACTIONS, pending.action)) return run(pending.action, live, pending.id, pending.params);
     await repository.touchBinding(live.id, now);
@@ -1056,8 +1089,9 @@ async function adminTurn(message: WhatsAppInboundMessage, input: AdminInput, opt
     await showMenu(live, NOT_CAUGHT);
     return true;
   }
-  if (await overCap()) {
-    await showMenu(live, ADMIN_CAP_REPLY);
+  const capped = await capReply();
+  if (capped) {
+    await showMenu(live, capped);
     return true;
   }
   if (!action.begin) {

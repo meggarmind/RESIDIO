@@ -77,6 +77,7 @@ function repository(overrides: Partial<WhatsAppAdminRepository> = {}): WhatsAppA
     activateBinding: vi.fn().mockResolvedValue(true),
     findActiveBinding: vi.fn().mockResolvedValue(binding),
     getCodeRequired: vi.fn().mockResolvedValue(true),
+    getDailyCap: vi.fn().mockResolvedValue(50),
     findAutoLinkProfile: vi.fn().mockResolvedValue(null),
     createBinding: vi.fn().mockResolvedValue(null),
     setSessionExpiry: vi.fn().mockResolvedValue(undefined),
