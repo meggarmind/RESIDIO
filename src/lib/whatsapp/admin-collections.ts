@@ -72,6 +72,7 @@ export function composeCollectionsAnswer(payments: CollectionPayment[], now: Dat
   const todays = payments.filter((p) => p.paymentDate === today);
   const lines = [
     `*Collections, ${formatDay(today)}*`,
+    '',
     `Today: ${formatNaira(total(todays))} (${plural(todays.length)})`,
     `This month so far: ${formatNaira(total(payments))} (${plural(payments.length)})`,
   ];
