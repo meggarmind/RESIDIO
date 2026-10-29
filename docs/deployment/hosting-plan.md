@@ -558,10 +558,15 @@ container yet: `prod` is refused until `WAHA_APP_UUID` is set.
 3. Run `scripts/backup/install-tools-user.sh` once. It installs pinned `rclone` and `age` into
    `~/.local/bin` with no sudo, verifying rclone against its SHA256SUMS and age against the sha256
    pinned in the script.
-4. After the PR merges, the coordinator installs this crontab line from a checkout of `stage`:
+4. The cron job runs from a dedicated checkout of `stage`, not from the shared working checkout
+   (whose branch changes between sessions). Create it once:
+   `git clone --branch stage --single-branch https://github.com/meggarmind/RESIDIO.git /home/claude/residio-ops`.
+   After every change to `scripts/backup`, update it with
+   `git -C /home/claude/residio-ops pull --ff-only`.
+5. After the PR merges into `stage`, the coordinator installs this crontab line:
 
 ```cron
-53 1 * * * /home/claude/RESIDIO/scripts/backup/waha-sessions-backup.sh stage >> /home/claude/.config/residio-backup/waha-stage.log 2>&1
+53 1 * * * /home/claude/residio-ops/scripts/backup/waha-sessions-backup.sh stage >> /home/claude/.config/residio-backup/waha-stage.log 2>&1
 ```
 
 **Restore.** A snapshot can be up to a day old. If WhatsApp rejects it, re-pair by QR instead.
@@ -570,7 +575,11 @@ container yet: `prod` is refused until `WAHA_APP_UUID` is set.
 # 1. In Coolify, stop residio-waha-stage.
 
 # 2. Fetch the chosen archive and decrypt it with the private key from the password manager
-rclone copy r2:<bucket>/waha/stage/daily/<YYYY-MM-DD>.tar.gz.age .
+#    The remote is `R2` (case-sensitive); it exists only after r2-env.sh defines it from the env file.
+export PATH="$HOME/.local/bin:$PATH"
+set -a; . ~/.config/residio-backup/waha-stage.env; set +a
+. /home/claude/residio-ops/scripts/backup/r2-env.sh
+rclone copy "R2:${R2_BUCKET}/waha/stage/daily/<YYYY-MM-DD>.tar.gz.age" .
 age -d -i residio-backup.agekey -o sessions.tar.gz <YYYY-MM-DD>.tar.gz.age
 
 # 3. Clear the volume, then extract into it

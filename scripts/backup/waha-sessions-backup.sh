@@ -113,9 +113,23 @@ enc="${work}/${day}.tar.gz.age"
 
 step="archiving and encrypting the session volume"
 echo "Archiving .sessions from ${container}"
-# pipefail makes a tar failure fail the run even though age exits 0 on a short stream.
-docker exec "$container" tar -C /app -czf - .sessions |
+# The volume is live: GNU tar exits 1 for "file changed as we read it", which is not a failure.
+# Status 1 warns and continues; tar >= 2 or any age failure fails the run.
+set +e
+docker exec "$container" tar --warning=no-file-changed -C /app -czf - .sessions |
   age --recipient "$BACKUP_AGE_PUBLIC_KEY" --output "$enc"
+pipe_status=("${PIPESTATUS[@]}")
+set -e
+if [ "${pipe_status[0]}" -eq 1 ]; then
+  echo "warning: tar reported files changing during the read (exit 1); archive kept"
+elif [ "${pipe_status[0]}" -ne 0 ]; then
+  echo "error: tar failed (exit ${pipe_status[0]})" >&2
+  exit 1
+fi
+if [ "${pipe_status[1]}" -ne 0 ]; then
+  echo "error: age failed (exit ${pipe_status[1]})" >&2
+  exit 1
+fi
 if [ ! -s "$enc" ]; then
   echo "error: encrypted archive is empty" >&2
   exit 1
@@ -135,7 +149,20 @@ if [ "$remote_size" != "$size" ]; then
 fi
 
 step="writing the monthly copy"
-existing_monthly="$(rclone lsf "${base}/monthly/" --files-only 2>/dev/null || true)"
+# List a prefix; a real rclone failure fails the run. Only exit 3 (directory not found) means empty.
+list_dir() {
+  local out rc=0
+  out="$(rclone lsf "$1" --files-only)" || rc=$?
+  if [ "$rc" -eq 3 ]; then
+    return 0
+  elif [ "$rc" -ne 0 ]; then
+    echo "error: rclone lsf failed (exit ${rc})" >&2
+    return "$rc"
+  fi
+  printf '%s\n' "$out"
+}
+
+existing_monthly="$(list_dir "${base}/monthly/")"
 if ! grep -qx "${month}.tar.gz.age" <<<"$existing_monthly"; then
   echo "Copying to monthly/${month}.tar.gz.age"
   rclone copyto "${base}/daily/${day}.tar.gz.age" "${base}/monthly/${month}.tar.gz.age"
@@ -146,7 +173,9 @@ fi
 step="pruning old backups"
 prune() {
   local prefix="$1" keep="$2" files=() f
-  mapfile -t files < <(rclone lsf "${base}/${prefix}/" --files-only | sort)
+  local listing
+  listing="$(list_dir "${base}/${prefix}/")"
+  mapfile -t files < <(grep -v '^$' <<<"$listing" | sort || true)
   local total="${#files[@]}"
   if [ "$total" -le "$keep" ]; then
     echo "${prefix}: ${total} kept, nothing to prune"

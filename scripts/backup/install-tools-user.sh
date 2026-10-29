@@ -23,7 +23,8 @@ else
   curl -fsSL -o "${tmp}/${zip}" "https://downloads.rclone.org/${RCLONE_VERSION}/${zip}"
   curl -fsSL -o "${tmp}/SHA256SUMS" "https://downloads.rclone.org/${RCLONE_VERSION}/SHA256SUMS"
   (cd "$tmp" && grep " ${zip}\$" SHA256SUMS | sha256sum -c -)
-  (cd "$tmp" && unzip -q "$zip")
+  # unzip is not installed on the KVM; python3 reads zip files (-I: isolated mode).
+  (cd "$tmp" && python3 -I -m zipfile -e "$zip" .)
   install -m 0755 "${tmp}/rclone-${RCLONE_VERSION}-linux-amd64/rclone" "${bin}/rclone"
 fi
 

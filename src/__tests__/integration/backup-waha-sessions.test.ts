@@ -24,9 +24,8 @@ if [ "$1" = ps ]; then
   exit 0
 fi
 if [ "$1" = exec ]; then
-  printf 'tar-bytes-of-the-session-volume'
-  [ -z "\${STUB_TAR_FAIL:-}" ] || exit 1
-  exit 0
+  printf '%s' 'tar-bytes-PLAINTEXT-MARKER-91f3'
+  exit "\${STUB_TAR_EXIT:-0}"
 fi
 exit 0
 `,
@@ -38,7 +37,11 @@ while [ $# -gt 0 ]; do
   shift
 done
 if [ -n "\${STUB_AGE_EMPTY:-}" ]; then cat > /dev/null; : > "$out"; exit 0; fi
-cat > "$out"
+[ -z "\${STUB_AGE_FAIL:-}" ] || { cat > /dev/null; exit 1; }
+# Stand-in for encryption: base64, so plaintext is distinguishable from the "encrypted" output.
+base64 -w0 > "$out"
+# By now any plaintext copy written upstream (tee, redirect) would exist: record where.
+grep -rl PLAINTEXT-MARKER-91f3 "$TMPDIR" 2>/dev/null >> "$STUB_LEAK_LOG" || true
 `,
   rclone: `#!/usr/bin/env bash
 echo "rclone $*" >> "$STUB_LOG"
@@ -48,7 +51,8 @@ case "$1" in
   size)
     if [ -n "\${STUB_REMOTE_SIZE:-}" ]; then echo "{\\"count\\":1,\\"bytes\\":$STUB_REMOTE_SIZE}"; exit 0; fi
     echo "{\\"count\\":1,\\"bytes\\":$(stat -c %s "$(path "$3")")}" ;;
-  lsf) d="$(path "$2")"; [ -d "$d" ] && ls -1 "$d" || true ;;
+  lsf) [ -z "\${STUB_LSF_FAIL:-}" ] || exit 4
+       d="$(path "$2")"; [ -d "$d" ] && ls -1 "$d" || true ;;
   deletefile) rm -f "$(path "$2")" ;;
 esac
 `,
@@ -75,6 +79,7 @@ function setup(opts: { envMode?: number; envLines?: string[]; webhook?: boolean 
   const remote = join(root, 'remote');
   mkdirSync(bin);
   mkdirSync(remote);
+  mkdirSync(join(root, 'tmp'));
   for (const [name, body] of Object.entries(STUBS)) {
     writeFileSync(join(bin, name), body);
     chmodSync(join(bin, name), 0o755);
@@ -97,9 +102,11 @@ function setup(opts: { envMode?: number; envLines?: string[]; webhook?: boolean 
   const base: Record<string, string> = {
     PATH: `${bin}:${process.env.PATH}`,
     HOME: root,
+    TMPDIR: join(root, 'tmp'),
     WAHA_BACKUP_ENV_FILE: envFile,
     WAHA_BACKUP_DISCORD_WEBHOOK_FILE: webhookFile,
     STUB_LOG: log,
+    STUB_LEAK_LOG: join(root, 'leaks.log'),
     STUB_REMOTE: remote,
     STUB_CONTAINER: `${UUID}-123456789`,
     STUB_CURL_CALLS: join(root, 'curl-calls.log'),
@@ -150,11 +157,11 @@ describe('waha-sessions-backup.sh', () => {
     expect(ls(ctx, 'monthly')).toEqual([`${month}.tar.gz.age`]);
     const log = read(ctx, 'calls.log');
     expect(log).toContain(`docker ps --filter name=^${UUID}- --format {{.Names}}`);
-    expect(log).toContain(`docker exec ${UUID}-123456789 tar -C /app -czf - .sessions`);
+    expect(log).toContain(`docker exec ${UUID}-123456789 tar --warning=no-file-changed -C /app -czf - .sessions`);
     expect(log).toContain(`age --recipient age1${SECRET} --output`);
     expect(log).toContain(`R2:bucket/waha/stage/daily/${day}.tar.gz.age`);
     expect(log).toContain(`rclone size --json R2:bucket/waha/stage/daily/${day}.tar.gz.age`);
-    expect(readFileSync(join(bucketDir(ctx, 'daily'), `${day}.tar.gz.age`), 'utf8')).toBe('tar-bytes-of-the-session-volume');
+    expect(readFileSync(join(bucketDir(ctx, 'daily'), `${day}.tar.gz.age`), 'utf8')).toBe(Buffer.from('tar-bytes-PLAINTEXT-MARKER-91f3').toString('base64'));
     expect(curlCalls(ctx)).toBe(0);
     expect(r.stdout + r.stderr).not.toContain(SECRET);
   });
@@ -236,7 +243,7 @@ describe('waha-sessions-backup.sh', () => {
 
   it('fails when tar fails, uploading nothing', () => {
     const { ctx, base } = setup();
-    const r = run({ ...base, STUB_TAR_FAIL: '1' });
+    const r = run({ ...base, STUB_TAR_EXIT: '2' });
     expectAlertedFailure(ctx, r, 'archiving and encrypting');
     expect(ls(ctx, 'daily')).toEqual([]);
   });
@@ -284,5 +291,65 @@ describe('waha-sessions-backup.sh', () => {
     expect(r.status).not.toBe(0);
     expect(curlCalls(ctx)).toBe(0);
     expect(r.stdout).toContain('no Discord webhook file');
+  });
+
+  it('continues with a warning when tar exits 1 (files changed while reading)', () => {
+    const { ctx, base } = setup();
+    const r = run({ ...base, STUB_TAR_EXIT: '1' });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout + r.stderr).toContain('warning: tar reported files changing');
+    expect(ls(ctx, 'daily')).toEqual([`${day}.tar.gz.age`]);
+    expect(curlCalls(ctx)).toBe(0);
+  });
+
+  it('fails when tar exits 2', () => {
+    const { ctx, base } = setup();
+    const r = run({ ...base, STUB_TAR_EXIT: '2' });
+    expectAlertedFailure(ctx, r, 'archiving and encrypting');
+    expect(r.stderr).toContain('tar failed (exit 2)');
+    expect(ls(ctx, 'daily')).toEqual([]);
+  });
+
+  it('fails when age fails', () => {
+    const { ctx, base } = setup();
+    const r = run({ ...base, STUB_AGE_FAIL: '1' });
+    expectAlertedFailure(ctx, r, 'archiving and encrypting');
+    expect(ls(ctx, 'daily')).toEqual([]);
+  });
+
+  it('fails, and does not overwrite the monthly copy, when listing the monthly folder fails', () => {
+    const { ctx, base } = setup();
+    seed(ctx, 'monthly', [`${month}.tar.gz.age`]);
+    const r = run({ ...base, STUB_LSF_FAIL: '1' });
+    expectAlertedFailure(ctx, r, 'writing the monthly copy');
+    expect(readFileSync(join(bucketDir(ctx, 'monthly'), `${month}.tar.gz.age`), 'utf8')).toBe('old');
+  });
+
+  it('leaves nothing in TMPDIR after a successful run or a failing one', () => {
+    const ok = setup();
+    expect(run(ok.base).status).toBe(0);
+    expect(readdirSync(join(ok.ctx.root, 'tmp'))).toEqual([]);
+    const bad = setup();
+    expect(run({ ...bad.base, STUB_TAR_EXIT: '2' }).status).not.toBe(0);
+    expect(readdirSync(join(bad.ctx.root, 'tmp'))).toEqual([]);
+  });
+
+  it('never writes the plaintext archive to disk', () => {
+    const { ctx, base } = setup();
+    const r = run(base);
+    // The age stub records any file under TMPDIR holding the marker while the stream is still open.
+    expect(existsSync(join(ctx.root, 'leaks.log')) ? read(ctx, 'leaks.log') : '').toBe('');
+    expect(r.status, r.stderr).toBe(0);
+    const hits: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const f = join(dir, e.name);
+        if (e.isDirectory()) walk(f);
+        else if (readFileSync(f).includes('PLAINTEXT-MARKER-91f3')) hits.push(f);
+      }
+    };
+    walk(ctx.root);
+    // The stub logs argv only; no file may hold the marker, so any hit is a leaked plaintext copy.
+    expect(hits.filter((f) => !f.startsWith(join(ctx.root, 'bin')))).toEqual([]);
   });
 });
