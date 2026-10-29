@@ -11,7 +11,7 @@ residio_sources:
   - src/app/(dashboard)/system/whatsapp-monitoring/**
   - src/app/(dashboard)/system/whatsapp-bot-health/**
   - src/app/api/whatsapp/**
-residio_verified_commit: 81d4147e
+residio_verified_commit: 5cebefd0
 residio_verified_at: '2026-10-29'
 residio_app_version: '0.4.0'
 ---
@@ -346,7 +346,7 @@ Admin mode lets an admin use **Admin tools** in the WhatsApp Assistant from thei
 | 4. Clearance requests waiting | `whatsapp_admin.clearance_queue` | Chairman, Financial Officer, Super Admin |
 | (later) Approve payment report | `whatsapp_admin.approve_payment` | Financial Officer, Super Admin |
 
-**Resident status.** Choose 1, then send a house code (`KOA-18A`) or a name (`Ada`). The reply gives the outstanding figure the resident sees under "What I owe", the debt status, the oldest unpaid period and a credit line. The wallet pays bills as they are made, so credit normally means nothing is owed: `Credit: ₦20,000.00. This pays Nov and Dec 2026.`, or `This goes to your next bill.` when the credit is less than one month. Credit next to an open bill is for another charge category and is marked `(not for these bills)`. A house with a landlord and a tenant shows the billed resident. One match answers at once; two to five matches come back as a numbered list, and the admin replies `1` to `5` within 5 minutes to choose. More than five matches ask for a longer name. The step stays open for the next house; `0` goes back to Admin tools. The resident is not told. Each answer is written to the audit log and the WhatsApp disclosure log; a house with no billed resident shows no figure and has no disclosure entry.
+**Resident status.** Choose 1, then send a house code (`KOA-18A`) or a name (`Ada`). The reply is short: the house, the billed resident and the debt status on the first line, then what is owed, for which months, and the last verified payment, for example `*OJO.K-4, CONSTANCE OKA*: Arrears` / `Owes ₦110,000.00 for Dec 2025 to Oct 2026. Last payment was ₦100,000.00 (Jun 2025).` A house that owes nothing reads `Fully paid up.`. The wallet pays bills as they are made, so credit normally means nothing is owed: `Credit: ₦20,000.00. This pays Nov and Dec 2026.`, or `This goes to your next bill.` when the credit is less than one month. Credit next to an open bill is for another charge category and is marked `(not for these bills)`. Payments not yet verified show as `Awaiting verification`. A house with a landlord and a tenant shows the billed resident. One match answers at once; two to five matches come back as a numbered list, and the admin replies `1` to `5` within 5 minutes to choose. More than five matches ask for a longer name. The step stays open for the next house; `0` goes back to Admin tools. The resident is not told. Each answer is written to the audit log and the WhatsApp disclosure log; a house with no billed resident shows no figure and has no disclosure entry.
 
 **Today's collections and Clearance requests waiting.** Both only read. Today's collections gives the total of verified payments dated today (Lagos time) and for the month so far, with a line per street. It counts a payment as verified by the same rule as the dashboard's verified total (verified by hand, or brought in by a bank or email import). Clearance requests waiting lists the 10 newest pending clearance certificate requests with the house, the resident and the date asked, then `and N more` if there are more, and a link to Approvals. Each run is written to the audit log.
 
