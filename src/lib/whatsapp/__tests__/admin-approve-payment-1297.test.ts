@@ -93,6 +93,7 @@ function repository(overrides: Partial<WhatsAppAdminRepository> = {}): WhatsAppA
     createRequest: vi.fn().mockResolvedValue('admin-request-1'),
     takePendingRequest: vi.fn().mockResolvedValue(null),
     findPendingChoice: vi.fn().mockResolvedValue(null),
+    getDailyCap: vi.fn().mockResolvedValue(50),
     countDoneSince: vi.fn().mockResolvedValue(0),
     audit: vi.fn(),
     emailAdmin: vi.fn(),
