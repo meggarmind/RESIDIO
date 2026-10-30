@@ -3,6 +3,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { createChatmaidWhatsAppProvider } from '@/lib/whatsapp/providers/chatmaid';
 import { isProviderSupported } from '@/lib/whatsapp/provider';
 import type { ChatmaidWhatsAppConfig } from '@/lib/whatsapp/config';
+import { formatNotice } from '@/lib/whatsapp/notice-format';
+
+vi.mock('@/lib/settings/service', () => ({
+  getRawSettingsAsService: async () => ({ status: 'ok', values: new Map([['estate_name', 'Opera Estate']]) }),
+}));
 
 // The provider caches connection-check results in module scope, keyed by
 // `baseUrl|fromNumber|<api-key fingerprint>` (see chatmaid.ts). Giving each test its own baseUrl
@@ -271,7 +276,11 @@ describe('Chatmaid WhatsApp provider', () => {
     expect(result).toEqual({ success: true, messageId: 'msg_template' });
     const sendBody = JSON.parse((fetchImpl.mock.calls[2][1] as RequestInit).body as string);
     expect(sendBody.content).toBe(
-      'Hi Ada, invoice INV-001 for NGN 10,000 is due 1 Sep. Please make payment at your earliest convenience.'
+      formatNotice(
+        'payment_reminder',
+        'Hi Ada, please pay this invoice.\n\nInvoice: INV-001\nAmount: *NGN 10,000*\nDue: 1 Sep',
+        'Opera Estate'
+      )
     );
   });
 
@@ -294,7 +303,11 @@ describe('Chatmaid WhatsApp provider', () => {
     expect(result).toEqual({ success: true, messageId: 'msg_template' });
     const sendBody = JSON.parse((fetchImpl.mock.calls[2][1] as RequestInit).body as string);
     expect(sendBody.content).toBe(
-      "Hi Ada, we've received your payment of NGN 5,000 on 01/09 (Ref: REF). Thank you."
+      formatNotice(
+        'payment_received',
+        'Hi Ada, we have received your payment. Thank you.\n\nAmount: *NGN 5,000*\nDate: 01/09\nReference: REF',
+        'Opera Estate'
+      )
     );
   });
 
@@ -316,7 +329,9 @@ describe('Chatmaid WhatsApp provider', () => {
 
     expect(result).toEqual({ success: true, messageId: 'msg_template' });
     const sendBody = JSON.parse((fetchImpl.mock.calls[2][1] as RequestInit).body as string);
-    expect(sendBody.content).toBe('Water outage\n\nEstate-wide water outage today.');
+    expect(sendBody.content).toBe(
+      formatNotice('announcement', '*Water outage*\n\nEstate-wide water outage today.', 'Opera Estate')
+    );
   });
 
   it('never includes the API key in a returned error', async () => {

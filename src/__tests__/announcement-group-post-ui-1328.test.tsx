@@ -13,6 +13,7 @@ const { state } = vi.hoisted(() => ({
 vi.mock('@/lib/auth/auth-provider', () => ({
   useAuth: () => ({ isLoading: false, profile: { role_name: 'x' }, hasPermission: (p: string) => state.held.includes(p) }),
 }));
+vi.mock('@/hooks/use-estate-details', () => ({ useEstateDetails: () => ({ estateName: 'Opera Estate' }) }));
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() } }));
 vi.mock('next/link', () => ({ default: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a> }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), notFound: vi.fn() }));
@@ -106,7 +107,9 @@ describe('the "Post to estate group" tick on the form', () => {
     state.available = true;
     render(<AnnouncementForm announcement={TICKED_DRAFT as never} onSubmit={vi.fn()} mode="edit" />);
     expect(screen.getByText('Post to estate group')).toBeInTheDocument();
-    expect(screen.getByLabelText('Estate group message preview').textContent).toBe('Water outage\n\nWater off Saturday');
+    expect(screen.getByLabelText('Estate group message preview').textContent).toBe(
+      '*📢 Announcement*\n\n*Water outage*\n\nWater off Saturday\n\n_Automatic notice from Opera Estate_'
+    );
   });
 
   it('is not offered without WAHA and a group', () => {

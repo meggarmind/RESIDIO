@@ -140,5 +140,7 @@ describe('collection payment notices (#1194)', () => {
     await queueCollectionPaymentNotices('pay-1');
     expect(isWhatsAppOptedIn).toHaveBeenCalledWith('res-1', '08031111111');
     expect(queued()).toEqual([expect.objectContaining({ channel: 'whatsapp', recipient_id: 'res-1', body: expect.stringContaining('Thank you, Ada Obi') })]);
+    // A push notice, so it opens with the receipt header (#1351).
+    expect(queued()[0].body).toMatch(/^\*✅ Payment received\*\n\n/);
   });
 });

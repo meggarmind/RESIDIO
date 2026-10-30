@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { addToQueue, PRIORITY } from '@/lib/notifications/queue';
 import { isChannelImplemented } from '@/lib/notifications/types';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
+import { buildNotice } from '@/lib/whatsapp/build-notice';
 import { isWhatsAppOptedIn } from '@/lib/whatsapp/opt-in';
 import { RESIDENT_SEND_METADATA_KEY, type ResidentSendPayload } from '@/lib/whatsapp/resident-send';
 import {
@@ -120,7 +121,8 @@ export async function queueCollectionPaymentNotices(paymentId: string): Promise<
         ? ((await isWhatsAppOptedIn(row.payer.resident_id, payerPhone)) ? row.payer.resident_id : null)
         : await optedInResidentFor(payerPhone);
       if (residentId) {
-        count(await queueWhatsApp(`collection-receipt:${row.id}:whatsapp`, residentId, payerPhone, receipt.body), 'Receipt (WhatsApp)');
+        const body = await buildNotice('payment_received', receipt.body);
+        count(await queueWhatsApp(`collection-receipt:${row.id}:whatsapp`, residentId, payerPhone, body), 'Receipt (WhatsApp)');
       }
     }
 
@@ -145,7 +147,7 @@ export async function queueCollectionPaymentNotices(paymentId: string): Promise<
       } else if (notice.channel === 'email') {
         count(await queueEmail(`collection-notice:${row.id}:${notice.partyId}:email`, notice.email, message, null), label);
       } else {
-        count(await queueWhatsApp(`collection-notice:${row.id}:${notice.partyId}:whatsapp`, notice.residentId, notice.phone, message.body), label);
+        count(await queueWhatsApp(`collection-notice:${row.id}:${notice.partyId}:whatsapp`, notice.residentId, notice.phone, await buildNotice('estate_notice', message.body)), label);
       }
     }
   } catch (error) {

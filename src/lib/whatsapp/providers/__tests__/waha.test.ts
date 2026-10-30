@@ -10,6 +10,11 @@ import {
   lookupWahaPhone,
 } from '@/lib/whatsapp/providers/waha';
 import type { WahaWhatsAppConfig } from '@/lib/whatsapp/config';
+import { formatNotice } from '@/lib/whatsapp/notice-format';
+
+vi.mock('@/lib/settings/service', () => ({
+  getRawSettingsAsService: async () => ({ status: 'ok', values: new Map([['estate_name', 'Opera Estate']]) }),
+}));
 
 // The provider caches the session check in module scope, keyed by
 // `baseUrl|session|<api key fingerprint>`. A distinct baseUrl per test keeps
@@ -161,7 +166,9 @@ describe('WAHA WhatsApp provider', () => {
 
     expect(result).toEqual({ success: true, messageId: 'msg_template' });
     expect(fetchImpl.mock.calls[1][0]).toBe(`${config.baseUrl}/api/sendText`);
-    expect(bodyOf(fetchImpl, 1).text).toBe('Water outage\n\nEstate-wide water outage today.');
+    expect(bodyOf(fetchImpl, 1).text).toBe(
+      formatNotice('announcement', '*Water outage*\n\nEstate-wide water outage today.', 'Opera Estate')
+    );
   });
 
   it('renders the payment_received template to the exact plain text Chatmaid renders', async () => {
@@ -177,7 +184,11 @@ describe('WAHA WhatsApp provider', () => {
     });
 
     expect(bodyOf(fetchImpl, 1).text).toBe(
-      "Hi Ada, we've received your payment of NGN 5,000 on 01/09 (Ref: REF). Thank you."
+      formatNotice(
+        'payment_received',
+        'Hi Ada, we have received your payment. Thank you.\n\nAmount: *NGN 5,000*\nDate: 01/09\nReference: REF',
+        'Opera Estate'
+      )
     );
   });
 

@@ -47,6 +47,7 @@ import {
 import { publishAnnouncementCore } from '@/lib/announcements/publish';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { renderTemplateToText } from '@/lib/whatsapp/providers/chatmaid';
+import { loadNoticeEstateName } from '@/lib/whatsapp/build-notice';
 import { sendWahaGroupText } from '@/lib/whatsapp/providers/waha';
 import { evaluateGroupSendPolicy } from '@/lib/whatsapp/send-policy';
 import { WHATSAPP_TEMPLATE_NAMES } from '@/lib/whatsapp/templates';
@@ -138,7 +139,7 @@ describe('group post rules', () => {
         a.title,
         a.summary || a.content.substring(0, 500),
       ]);
-      expect(announcementGroupText(a)).toBe(oneToOne);
+      expect(announcementGroupText(a, await loadNoticeEstateName())).toBe(oneToOne);
     }
   });
 });
@@ -231,7 +232,7 @@ describe('publishAnnouncementCore with the tick', () => {
     const res = await publishAnnouncementCore(c as never, 'ann-1', 'u1', c as never, { mayPostToGroup: async () => true, facts: f });
     expect(res.error).toBeNull();
     expect(res.error === null && res.groupPost).toEqual({ messageId: 'true_g_KEY1', error: null });
-    expect(f.sent).toEqual([`${GROUP}|${announcementGroupText(TICKED)}`]);
+    expect(f.sent).toEqual([`${GROUP}|${announcementGroupText(TICKED, await loadNoticeEstateName())}`]);
   });
 
   it('a street audience never posts, whatever the tick', async () => {

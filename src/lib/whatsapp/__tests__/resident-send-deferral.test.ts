@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeSupabase } from '@/lib/notifications/__tests__/helpers/fake-supabase';
+import { formatNotice } from '@/lib/whatsapp/notice-format';
 
 /** #1044: a resident send held back by a cap is queued for the next day instead of dropped, and goes out once. */
 const NOW = new Date('2026-10-22T10:00:00.000Z');
@@ -14,7 +15,11 @@ vi.mock('@/lib/supabase/server', () => ({ createAdminClient: mocks.createAdminCl
 vi.mock('@/lib/comms-override/resident-flag', () => ({ resolveResidentOverride: vi.fn(async () => ({ ok: true, residentOverride: undefined })) }));
 vi.mock('@/lib/whatsapp/provider', () => ({ sendWhatsAppMessage: mocks.sendWhatsAppMessage }));
 vi.mock('@/lib/whatsapp/send-policy', () => ({ evaluateSendPolicy: mocks.evaluateSendPolicy, createSendPolicyFacts: vi.fn(() => ({})) }));
-vi.mock('@/lib/settings/service', () => ({ getSettingValueAsService: mocks.getSettingValueAsService, getSettingResultAsService: vi.fn() }));
+vi.mock('@/lib/settings/service', () => ({
+  getSettingValueAsService: mocks.getSettingValueAsService,
+  getSettingResultAsService: vi.fn(),
+  getRawSettingsAsService: async () => ({ status: 'ok', values: new Map([['estate_name', 'Opera Estate']]) }),
+}));
 vi.mock('@/lib/whatsapp', () => ({ sendWhatsAppTemplate: vi.fn() }));
 vi.mock('@/lib/whatsapp/config', () => ({ resolveWhatsAppConfig: vi.fn() }));
 vi.mock('@/lib/sms/send-sms', () => ({ sendSms: vi.fn() }));
@@ -58,7 +63,8 @@ describe('deferred resident send (#1044)', () => {
     expect(mocks.sendWhatsAppMessage).not.toHaveBeenCalled();
     expect(queued()).toHaveLength(1);
     expect(queued()[0]).toMatchObject({
-      channel: 'whatsapp', recipient_id: 'r1', recipient_phone: '0801', body: 'hello', status: 'pending',
+      // Queued with the notice header already on, so the later send reads the same as a direct one (#1351).
+      channel: 'whatsapp', recipient_id: 'r1', recipient_phone: '0801', body: formatNotice('estate_notice', 'hello', 'Opera Estate'), status: 'pending',
       scheduled_for: '2026-10-22T23:00:00.000Z', deduplication_key: 'resident-send:approval:1:approved',
     });
   });
@@ -203,7 +209,7 @@ describe('deferred resident send (#1044)', () => {
       expect(mocks.evaluateSendPolicy).toHaveBeenLastCalledWith(expect.objectContaining({ recipientId: 'r1', freeForm: true }), expect.anything());
       expect(mocks.sendWhatsAppMessage).toHaveBeenCalledTimes(1);
       expect(mocks.sendWhatsAppMessage).toHaveBeenCalledWith(
-        { to: '0801', body: 'cert', idempotencySeed: 'a', mediaUrls: ['https://signed/c.pdf'] },
+        { to: '0801', body: formatNotice('estate_notice', 'cert', 'Opera Estate'), idempotencySeed: 'a', mediaUrls: ['https://signed/c.pdf'] },
         undefined, undefined,
         { purpose: 'notification', residentId: 'r1', notificationQueueId: 'q1', inboundMessageId: 't1' }
       );

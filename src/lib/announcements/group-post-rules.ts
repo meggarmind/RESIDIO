@@ -1,4 +1,5 @@
 import type { Announcement } from '@/types/database';
+import { formatNotice } from '@/lib/whatsapp/notice-format';
 
 /**
  * Rules for posting an announcement to the estate WhatsApp group (#1328, parent #1323). Pure, so
@@ -28,9 +29,13 @@ export function wantsEstateGroupPost(
 
 /**
  * The group message. Same text as a one-to-one WhatsApp announcement: the `announcement`
- * template (`renderTemplateToText`) with the parameters `buildAnnouncementWhatsApp` passes.
+ * template (`renderTemplateToText`) with the parameters `buildAnnouncementWhatsApp` passes,
+ * including the push notice header and footer (#1351). Pure, so the form can preview it.
  */
-export function announcementGroupText(announcement: Pick<Announcement, 'title' | 'summary' | 'content'>): string {
+export function announcementGroupText(
+  announcement: Pick<Announcement, 'title' | 'summary' | 'content'>,
+  estateName?: string | null
+): string {
   const summary = announcement.summary || announcement.content.substring(0, 500);
-  return `${announcement.title || 'Announcement'}\n\n${summary || ''}`;
+  return formatNotice('announcement', `*${announcement.title || 'Announcement'}*\n\n${summary || ''}`, estateName);
 }

@@ -15,6 +15,7 @@ import {
   wantsEstateGroupPost,
 } from '@/lib/announcements/group-post-rules';
 import type { Announcement } from '@/types/database';
+import { loadNoticeEstateName } from '@/lib/whatsapp/build-notice';
 
 /**
  * Publishing core shared by the `publishAnnouncement` action and the publish-announcements cron
@@ -102,7 +103,7 @@ export async function publishAnnouncementCore(
 
   let groupPost: GroupPostOutcome = null;
   if (groupTarget) {
-    groupPost = await sendEstateGroupPost(groupTarget, announcementGroupText(data), groupFacts);
+    groupPost = await sendEstateGroupPost(groupTarget, announcementGroupText(data, await loadNoticeEstateName()), groupFacts);
     if (groupPost.error !== null) {
       console.error('publishAnnouncementCore: estate group post failed', { id, error: groupPost.error });
     }
