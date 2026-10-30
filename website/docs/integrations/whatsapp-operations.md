@@ -11,8 +11,8 @@ residio_sources:
   - src/app/(dashboard)/system/whatsapp-monitoring/**
   - src/app/(dashboard)/system/whatsapp-bot-health/**
   - src/app/api/whatsapp/**
-residio_verified_commit: ab8a13f4
-residio_verified_at: '2026-10-29'
+residio_verified_commit: 0302bd8
+residio_verified_at: '2026-10-30'
 residio_app_version: '0.4.0'
 ---
 
@@ -117,6 +117,21 @@ WAHA works through a phone that stays paired to the session, so the same limits 
 - **Hidden sender numbers.** WhatsApp can hide the number of a contact behind an internal `@lid` identifier. Residio asks WAHA for the number behind it and answers the sender as usual. If WAHA does not know the number, Residio does not answer, because it cannot be sure who the sender is. The 15-minute catch-up does not look up these numbers, so a missed message from such a sender is not answered later.
 - **Ignored messages leave a reason.** Each message Residio does not answer leaves an `inbound_ignored` row in the System Action Log, with the reason only: `group`, `from_me`, `lid_unresolved`, `other_id`, `no_text` or `human_takeover`. The row holds no phone number and no message text.
 - **Failed batches leave a reason.** When Residio cannot process a batch of incoming messages, the `inbound_messages` failure row in the System Action Log names the step that failed (`claim`, `handle` or `release`) and the type of error, never the error text. WAHA then sends the batch again.
+
+## How push notices look
+
+With Chatmaid or WAHA, a message that Residio sends without a question from the resident is a push notice. A push notice starts with an icon and a bold title, and ends with the line *Automatic notice from* and the estate name from **Settings → Estate**. This keeps a notice apart from the Assistant's replies in the same chat. The phone's lock screen shows the title line.
+
+| Notice | Title line |
+| --- | --- |
+| Payment receipt | ✅ Payment received |
+| Reported payment approved / rejected | ✅ Payment confirmed / ⚠️ Payment not confirmed |
+| Payment reminder | 🔔 Payment reminder |
+| Announcement (one-to-one and estate group) | 📢 Announcement, then the title in bold |
+| Clearance certificate and its copies | 📄 Clearance certificate |
+| Other messages to a resident (for example a co-resident link notice) | 📌 Estate notice |
+
+The title and footer are fixed. **Message wording** changes only the text between them. The default receipt and reminder wording puts each value (amount, date, reference, invoice, due date) on its own line. Replies to a resident's message (menu, balance, statement) have no title or footer. Meta and Twilio send their approved templates unchanged.
 
 ## Turning the channel on
 

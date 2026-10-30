@@ -4,11 +4,15 @@ import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { evaluateSendPolicy } from '@/lib/whatsapp/send-policy';
 import { sendWhatsAppToResident } from '@/lib/whatsapp/resident-send';
+import { formatNotice } from '@/lib/whatsapp/notice-format';
 
 vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
 vi.mock('@/lib/comms-override/resident-flag', () => ({ resolveResidentOverride: vi.fn() }));
 vi.mock('@/lib/whatsapp/provider', () => ({ sendWhatsAppMessage: vi.fn() }));
 vi.mock('@/lib/whatsapp/send-policy', () => ({ evaluateSendPolicy: vi.fn(), createSendPolicyFacts: vi.fn(() => ({})) }));
+vi.mock('@/lib/settings/service', () => ({
+  getRawSettingsAsService: async () => ({ status: 'ok', values: new Map([['estate_name', 'Opera Estate']]) }),
+}));
 
 function mockResident(result: unknown) {
   const chain: Record<string, unknown> = {};
@@ -30,11 +34,18 @@ describe('sendWhatsAppToResident', () => {
 
     expect(result).toEqual({ sent: true });
     expect(sendWhatsAppMessage).toHaveBeenCalledWith(
-      { to: '+2348000000000', body: 'Hello', idempotencySeed: 'seed-1', mediaUrls: ['https://files.test/a.pdf'] },
+      { to: '+2348000000000', body: formatNotice('estate_notice', 'Hello', 'Opera Estate'), idempotencySeed: 'seed-1', mediaUrls: ['https://files.test/a.pdf'] },
       undefined,
       { residentOverride: true },
       { purpose: 'notification', residentId: 'resident-1' }
     );
+  });
+
+  it('starts the message with the header of the notice kind it is given (#1351)', async () => {
+    await sendWhatsAppToResident('resident-1', 'Your payment was confirmed.', { seed: 'seed-2', notice: 'payment_confirmed' });
+
+    const body = vi.mocked(sendWhatsAppMessage).mock.calls[0][0].body;
+    expect(body).toBe('*✅ Payment confirmed*\n\nYour payment was confirmed.\n\n_Automatic notice from Opera Estate_');
   });
 
   it('sends nothing to a resident who has not opted in', async () => {

@@ -5,9 +5,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createChatmaidWhatsAppProvider } from '@/lib/whatsapp/providers/chatmaid';
 import { getEventDefaults, renderEventText } from '@/lib/notifications/event-content-registry';
 import type { ChatmaidWhatsAppConfig } from '@/lib/whatsapp/config';
+import { formatNotice } from '@/lib/whatsapp/notice-format';
 
 const { createAdminClient } = vi.hoisted(() => ({ createAdminClient: vi.fn() }));
 vi.mock('@/lib/supabase/server', () => ({ createAdminClient }));
+vi.mock('@/lib/settings/service', () => ({
+  getRawSettingsAsService: async () => ({ status: 'ok', values: new Map([['estate_name', 'Opera Estate']]) }),
+}));
+
+const receipt = (body: string) => formatNotice('payment_received', body, 'Opera Estate');
+const reminder = (body: string) => formatNotice('payment_reminder', body, 'Opera Estate');
 
 let counter = 0;
 function makeConfig(): ChatmaidWhatsAppConfig {
@@ -49,32 +56,32 @@ describe('Chatmaid wording (#908)', () => {
     stubOverrides({});
   });
 
-  it('with no override the text is exactly what the old hard-coded renderers produced', async () => {
+  it('with no override the default wording is one field per line, inside the notice header and footer (#1351)', async () => {
     expect(await sendTemplate('invoice_reminder', ['Ada', 'INV-001', 'NGN 10,000', '1 Sep'])).toBe(
-      'Hi Ada, invoice INV-001 for NGN 10,000 is due 1 Sep. Please make payment at your earliest convenience.'
+      reminder('Hi Ada, please pay this invoice.\n\nInvoice: INV-001\nAmount: *NGN 10,000*\nDue: 1 Sep')
     );
     expect(await sendTemplate('payment_received', ['Ada', 'NGN 5,000', '01 Sep 2026', 'REF'])).toBe(
-      "Hi Ada, we've received your payment of NGN 5,000 on 01 Sep 2026 (Ref: REF). Thank you."
+      receipt('Hi Ada, we have received your payment. Thank you.\n\nAmount: *NGN 5,000*\nDate: 01 Sep 2026\nReference: REF')
     );
   });
 
-  it('empty parameters degrade the way the old renderers did', async () => {
+  it('empty parameters fall back to readable words', async () => {
     expect(await sendTemplate('invoice_reminder', ['', '', '', ''])).toBe(
-      'Hi there, invoice  for  is due soon. Please make payment at your earliest convenience.'
+      reminder('Hi there, please pay this invoice.\n\nInvoice: \nAmount: **\nDue: soon')
     );
     expect(await sendTemplate('payment_received', ['', '', '', ''])).toBe(
-      "Hi there, we've received your payment of  on  (Ref: Not provided). Thank you."
+      receipt('Hi there, we have received your payment. Thank you.\n\nAmount: **\nDate: \nReference: Not provided')
     );
   });
 
   it('a stored override reaches the Chatmaid send body with named variables filled in', async () => {
     stubOverrides({ body: 'Dear {{resident_name}}: {{invoice_number}} ({{amount}}) is due {{due_date}}.' });
     expect(await sendTemplate('invoice_reminder', ['Ada', 'INV-001', 'NGN 10,000', '1 Sep'])).toBe(
-      'Dear Ada: INV-001 (NGN 10,000) is due 1 Sep.'
+      reminder('Dear Ada: INV-001 (NGN 10,000) is due 1 Sep.')
     );
     stubOverrides({ body: 'Got {{amount}} ({{reference_number}}) on {{payment_date}}' });
     expect(await sendTemplate('payment_received', ['Ada', 'NGN 5,000', '01 Sep 2026', 'REF'])).toBe(
-      'Got NGN 5,000 (REF) on 01 Sep 2026'
+      receipt('Got NGN 5,000 (REF) on 01 Sep 2026')
     );
   });
 
@@ -83,17 +90,20 @@ describe('Chatmaid wording (#908)', () => {
       throw new Error('no db');
     });
     expect(await sendTemplate('payment_received', ['Ada', 'NGN 5,000', '01 Sep 2026', 'REF'])).toBe(
-      renderEventText(getEventDefaults('payment_receipt', 'whatsapp').body, {
+      receipt(renderEventText(getEventDefaults('payment_receipt', 'whatsapp').body, {
         resident_name: 'Ada',
         amount: 'NGN 5,000',
         payment_date: '01 Sep 2026',
         reference_number: 'REF',
-      })
+      }))
     );
   });
 
   it('announcements and unmapped templates keep the code path and never read the wording', async () => {
-    expect(await sendTemplate('announcement', ['Water', 'Off today'])).toBe('Water\n\nOff today');
+    expect(await sendTemplate('announcement', ['Water', 'Off today'])).toBe(
+      formatNotice('announcement', '*Water*\n\nOff today', 'Opera Estate')
+    );
+    // No notice kind for an unmapped template: it is sent as rendered, with no header.
     expect(await sendTemplate('something_else', ['a', 'b'])).toBe('a b');
     expect(createAdminClient).not.toHaveBeenCalled();
   });

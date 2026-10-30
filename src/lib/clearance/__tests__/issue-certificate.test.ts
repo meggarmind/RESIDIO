@@ -147,7 +147,7 @@ describe('clearance certificate copies (#816 decisions 18-21, 24)', () => {
 
     const body = 'Clearance certificate issued: Ada Example, 12 Palm Close, 12 Oct 2026.';
     expect(sendWhatsAppToResident).toHaveBeenCalledTimes(2);
-    expect(sendWhatsAppToResident).toHaveBeenCalledWith('official-1', body, { seed: 'clearance-copy:doc-1:official-1', mediaUrls: ['https://storage.test/signed/certificate.pdf'], deferMedia: [{ bucket: 'documents', path: 'clearance-certificates/CLR-202610-3F9A1C.pdf' }], clearanceCopy: { documentId: 'doc-1', recipientId: 'official-1' } });
+    expect(sendWhatsAppToResident).toHaveBeenCalledWith('official-1', body, { seed: 'clearance-copy:doc-1:official-1', mediaUrls: ['https://storage.test/signed/certificate.pdf'], deferMedia: [{ bucket: 'documents', path: 'clearance-certificates/CLR-202610-3F9A1C.pdf' }], clearanceCopy: { documentId: 'doc-1', recipientId: 'official-1' }, notice: 'clearance' });
     expect(sendWhatsAppToResident).toHaveBeenCalledWith('official-2', body, expect.objectContaining({ mediaUrls: ['https://storage.test/signed/certificate.pdf'] }));
     const upserts = calls.filter((call) => call.op === 'upsert').map((call) => call.args[0]);
     expect(upserts).toEqual([

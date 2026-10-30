@@ -183,7 +183,7 @@ export const EVENT_REGISTRY: Record<EventKey, EventDefinition> = {
         f(
           'body',
           'Message',
-          "Hi {{resident_name}}, we've received your payment of {{amount}} on {{payment_date}} (Ref: {{reference_number}}). Thank you.",
+          'Hi {{resident_name}}, we have received your payment. Thank you.\n\nAmount: *{{amount}}*\nDate: {{payment_date}}\nReference: {{reference_number}}',
           true
         ),
       ],
@@ -213,7 +213,7 @@ export const EVENT_REGISTRY: Record<EventKey, EventDefinition> = {
         f(
           'body',
           'Message',
-          'Hi {{resident_name}}, invoice {{invoice_number}} for {{amount}} is due {{due_date}}. Please make payment at your earliest convenience.',
+          'Hi {{resident_name}}, please pay this invoice.\n\nInvoice: {{invoice_number}}\nAmount: *{{amount}}*\nDue: {{due_date}}',
           true
         ),
       ],

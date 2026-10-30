@@ -4,6 +4,9 @@ import { EVENT_KEYS, EVENT_REGISTRY, renderEventText } from '@/lib/notifications
 import type { ChatmaidWhatsAppConfig } from '@/lib/whatsapp/config';
 import type { WhatsAppProvider } from '@/lib/whatsapp/provider';
 import { isRetryableHttpStatus } from '@/lib/whatsapp/retry';
+import { buildNotice } from '@/lib/whatsapp/build-notice';
+import type { NoticeKind } from '@/lib/whatsapp/notice-format';
+import { WHATSAPP_TEMPLATE_NAMES } from '@/lib/whatsapp/templates';
 import type {
   WhatsAppSendResult,
   WhatsAppTemplateMessage,
@@ -304,7 +307,14 @@ function buildIdempotencyKey(
  */
 const TEMPLATE_RENDERERS: Record<string, (parameters: string[]) => string> = {
   // parameters: [title, summary]
-  announcement: ([title, summary]) => `${title || 'Announcement'}\n\n${summary || ''}`,
+  announcement: ([title, summary]) => `*${title || 'Announcement'}*\n\n${summary || ''}`,
+};
+
+/** Every bridge template is a push notice, so each gets the notice header and footer (#1351). */
+const NOTICE_BY_TEMPLATE: Record<string, NoticeKind> = {
+  [WHATSAPP_TEMPLATE_NAMES.paymentReceived]: 'payment_received',
+  [WHATSAPP_TEMPLATE_NAMES.invoiceReminder]: 'payment_reminder',
+  [WHATSAPP_TEMPLATE_NAMES.announcement]: 'announcement',
 };
 
 /** What an empty parameter reads as, so a missing value never leaves a gap in the sentence. */
@@ -323,6 +333,12 @@ const EVENT_BY_TEMPLATE = new Map(
 
 /** Shared with the WAHA adapter, which renders templates to text the same way. */
 export async function renderTemplateToText(templateName: string, parameters: string[]): Promise<string> {
+  const body = await renderTemplateBody(templateName, parameters);
+  const notice = NOTICE_BY_TEMPLATE[templateName];
+  return notice ? buildNotice(notice, body) : body;
+}
+
+async function renderTemplateBody(templateName: string, parameters: string[]): Promise<string> {
   const event = EVENT_BY_TEMPLATE.get(templateName);
   const order = event && EVENT_REGISTRY[event].whatsapp?.parameterOrder;
   if (event && order) {

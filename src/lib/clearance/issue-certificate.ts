@@ -170,6 +170,7 @@ async function copyTo(member: RecipientGroupMember, documentId: string, body: st
     mediaUrls: [url],
     deferMedia: [{ bucket: DOCUMENTS_BUCKET, path: filePath }],
     clearanceCopy: { documentId, recipientId: member.residentId },
+    notice: 'clearance',
   });
 }
 
@@ -195,6 +196,7 @@ export async function retryClearanceCopy(copyId: string): Promise<({ sent: true 
   const outcome = await sendWhatsAppToResident(copy.recipient_resident_id, copy.body, {
     seed: `clearance-copy:${copy.document_id}:${copy.recipient_resident_id}:${Date.now()}`,
     mediaUrls: [await signedUrl(admin, document.file_path)],
+    notice: 'clearance',
   });
   await recordCopy(admin, copy.document_id, copy.recipient_resident_id, copy.body, outcome);
   return { ...outcome, documentId: copy.document_id };

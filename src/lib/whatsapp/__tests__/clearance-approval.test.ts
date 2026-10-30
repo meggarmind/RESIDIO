@@ -90,6 +90,7 @@ describe('issueApprovedClearance (#816 decisions 15, 21, 22)', () => {
       trackingId: `clearance:${request.id}`,
       // A held-back copy is re-signed from the permanent file, not the 12-hour chat file (#1044).
       deferMedia: [{ bucket: 'documents', path: 'clearance-certificates/x.pdf' }],
+      notice: 'clearance',
     });
   });
 

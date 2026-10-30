@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/server';
 import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
+import { buildNotice } from '@/lib/whatsapp/build-notice';
+import type { NoticeKind } from '@/lib/whatsapp/notice-format';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { createSendPolicyFacts, evaluateSendPolicy } from '@/lib/whatsapp/send-policy';
 
@@ -98,7 +100,7 @@ async function deferResidentSend(
  * A system-initiated WhatsApp message to one resident, outside any reply (a payment outcome, a
  * clearance certificate copy). Obeys the same send policy as queued notifications (master switch,
  * pilot audience, daily and burst caps, opt-in; #1037), then follows the communications override
- * like any notification (#716). Never throws: callers decide what a
+ * like any notification (#716). The body gets the push notice header and footer (#1351). Never throws: callers decide what a
  * failed send means.
  */
 export async function sendWhatsAppToResident(
@@ -111,6 +113,8 @@ export async function sendWhatsAppToResident(
     /** The stored file behind `mediaUrls`. Without it a send with media is not deferred (its URL would expire). */
     deferMedia?: DeferredMedia[];
     clearanceCopy?: ClearanceCopyRef;
+    /** The notice header the message starts with (#1351); a general estate notice when not given. */
+    notice?: NoticeKind;
   }
 ): Promise<ResidentSendResult> {
   try {
@@ -118,6 +122,8 @@ export async function sendWhatsAppToResident(
     if (error || !resident) return { sent: false, reason: 'resident not found' };
     const phone = resident.phone_primary?.trim();
     if (!phone) return { sent: false, reason: 'no WhatsApp number' };
+    // Formatted before a possible deferral, so the queued copy reads the same as a direct send.
+    body = await buildNotice(options.notice ?? 'estate_notice', body);
     const decision = await evaluateSendPolicy(
       { recipientId: residentId, recipientPhone: phone, metadata: null, freeForm: true },
       createSendPolicyFacts()

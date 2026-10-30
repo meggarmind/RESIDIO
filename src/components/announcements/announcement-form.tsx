@@ -34,6 +34,7 @@ import {
   useAnnouncementCategories,
   useEstateGroupPostAvailability,
 } from '@/hooks/use-announcements';
+import { useEstateDetails } from '@/hooks/use-estate-details';
 import { announcementGroupText, isEstateWideAudience } from '@/lib/announcements/group-post-rules';
 import type { Announcement, AnnouncementInput } from '@/types/database';
 import Link from 'next/link';
@@ -78,6 +79,7 @@ export function AnnouncementForm({
   const { data: categories, isLoading: categoriesLoading } = useAnnouncementCategories();
   const { data: audienceGroups } = useAnnouncementAudienceGroups();
   const { data: groupPostAvailable } = useEstateGroupPostAvailability();
+  const { estateName } = useEstateDetails();
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -355,7 +357,7 @@ export function AnnouncementForm({
                             aria-label="Estate group message preview"
                             className="whitespace-pre-wrap break-words rounded-md bg-muted p-3 font-sans text-sm"
                           >
-                            {announcementGroupText({ title, summary: summary || null, content })}
+                            {announcementGroupText({ title, summary: summary || null, content }, estateName)}
                           </pre>
                         )}
                       </FormItem>
