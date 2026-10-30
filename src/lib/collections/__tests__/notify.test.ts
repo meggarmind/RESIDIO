@@ -123,6 +123,8 @@ describe('collection payment notices (#1194)', () => {
         metadata: expect.objectContaining({ whatsapp_resident_send: { seed: 'collection-notice:pay-1:Supervisor:whatsapp' } }),
       }),
     ]);
+    // A push notice, so it opens with the estate notice header (#1351).
+    expect(queued()[0].body).toMatch(/^\*📌 Estate notice\*\n\n/);
     expect(result.skipped).toEqual([
       'Fleet manager (WhatsApp): the WhatsApp number has not opted in',
       'Fleet manager (SMS): SMS is not available',
