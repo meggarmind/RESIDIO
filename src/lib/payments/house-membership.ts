@@ -28,3 +28,25 @@ export async function residentHasHouse(
     }
     return { ok: true };
 }
+
+/**
+ * The house to record a payment against when the caller gave none (#1363): the resident's
+ * only active house. Zero or several active houses, or a failed lookup, give null; we never guess.
+ */
+export async function soleActiveHouseId(
+    supabase: SupabaseClient,
+    residentId: string,
+): Promise<string | null> {
+    const { data, error } = await supabase
+        .from('resident_houses')
+        .select('house_id')
+        .eq('resident_id', residentId)
+        .eq('is_active', true)
+        .limit(2);
+
+    if (error) {
+        console.error('Payment sole active house lookup failed:', error);
+        return null;
+    }
+    return data?.length === 1 ? data[0].house_id : null;
+}

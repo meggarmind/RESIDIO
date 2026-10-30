@@ -14,7 +14,7 @@ import { isWhatsAppOptedIn } from '@/lib/whatsapp/opt-in'
 import { addToQueue } from '@/lib/notifications/queue'
 import { isEventChannelEnabled } from '@/lib/notifications/event-content'
 import { lagosDateString } from '@/lib/whatsapp/assistant-format'
-import { residentHasHouse } from '@/lib/payments/house-membership'
+import { residentHasHouse, soleActiveHouseId } from '@/lib/payments/house-membership'
 import { DEFAULT_CHARGE_CATEGORY } from '@/lib/billing/charge-categories'
 
 // Extended schema to include import tracking fields, house association, and verification
@@ -130,6 +130,9 @@ async function recordPayment(
         }
     }
 
+    // No house given: use the resident's only active house, else leave it null (#1363)
+    const houseId = result.data.house_id || await soleActiveHouseId(supabase, result.data.resident_id)
+
     const chargeCategory = result.data.charge_category || DEFAULT_CHARGE_CATEGORY
 
     // Check for duplicates
@@ -149,7 +152,7 @@ async function recordPayment(
     // Create payment record
     const { data: paymentRecord, error } = await supabase.from('payment_records').insert({
         resident_id: result.data.resident_id,
-        house_id: result.data.house_id,
+        house_id: houseId,
         split_payment_group_id: result.data.split_payment_group_id,
         amount: result.data.amount,
         payment_date: lagosDateString(result.data.payment_date),
@@ -180,7 +183,7 @@ async function recordPayment(
     // Credit and eligible invoice allocation share the atomic settlement RPC.
     const allocateResult = await allocate(
         result.data.resident_id,
-        result.data.house_id,
+        houseId,
         lagosDateString(result.data.payment_date),
         {
             sourcePaymentId: paymentRecord?.id,
@@ -203,11 +206,11 @@ async function recordPayment(
 
     // Get house info if provided
     let houseInfo = ''
-    if (result.data.house_id) {
+    if (houseId) {
         const { data: house } = await supabase
             .from('houses')
             .select('house_number, street:streets(name)')
-            .eq('id', result.data.house_id)
+            .eq('id', houseId)
             .single()
         if (house) {
             houseInfo = ` for ${house.house_number}`
@@ -222,7 +225,7 @@ async function recordPayment(
         entityDisplay: `Payment ₦${result.data.amount.toLocaleString()}${houseInfo} for ${resident?.first_name} ${resident?.last_name}`,
         newValues: {
             amount: result.data.amount,
-            house_id: result.data.house_id,
+            house_id: houseId,
             method: result.data.method,
             reference_number: result.data.reference_number,
             from_import: !!result.data.import_id,
