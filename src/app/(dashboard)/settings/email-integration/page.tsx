@@ -29,6 +29,7 @@ import {
   useManualFetch,
 } from '@/hooks/use-gmail-connection';
 import { useCan } from '@/components/auth/can';
+import { ImportRulesSection } from '@/components/settings/email-integration/import-rules-section';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 /**
@@ -172,7 +173,7 @@ function EmailIntegrationContent() {
                     <p className="font-medium text-info mb-2">How it works:</p>
                     <ul className="list-disc list-inside space-y-1">
                       <li>You&apos;ll be redirected to Google to authorize read-only email access</li>
-                      <li>Only emails from First Bank will be fetched</li>
+                      <li>Only emails from the senders in Import rules will be fetched</li>
                       <li>Emails are processed hourly or when manually triggered</li>
                       <li>Transaction data is extracted and matched to residents</li>
                     </ul>
@@ -220,6 +221,8 @@ function EmailIntegrationContent() {
           }
         </SettingsRow>
       </SettingsSection>
+
+      <ImportRulesSection />
     </SettingsMergedPage>
   );
 }

@@ -32,6 +32,7 @@ const { authorizePermission, createServerSupabaseClient, createAdminClient, logA
   calls: [] as string[],
   results: {} as Record<string, QueryResult>,
 }));
+const updatePayloads: unknown[] = [];
 
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission }));
 vi.mock('@/lib/supabase/server', () => ({
@@ -48,6 +49,7 @@ vi.mock('@/lib/billing/wallet-invoice-debit', () => ({ debitWalletForInvoiceAtom
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
 const boom = { message: 'boom' };
+const rulesInput = { senders: ['firstbanknigeria.com'], keywords: ['alert'] };
 const pilotInput = {
   mode: 'disabled' as const, residentIds: [], streetId: '', outboundDailyCap: 1, outboundBurstCap: 1,
   outboundBurstWindowMinutes: 1, financialLookupDailyCap: 1, sessionRetentionDays: 7, processedMessageRetentionDays: 7, surveyResponseRetentionDays: 90, outboundSendRetentionDays: 90,
@@ -59,10 +61,24 @@ beforeEach(() => {
   for (const k of Object.keys(results)) delete results[k];
   authorizePermission.mockResolvedValue({ authorized: true, userId: uid(900), roleName: 'super_admin' });
   updateSetting.mockResolvedValue({ data: { id: uid(1) }, error: null });
-  const client = () => ({
-    ...makeRecordingSupabase({ results, calls }),
-    storage: { from: () => ({ remove: async () => ({ error: null }) }) },
-  });
+  updatePayloads.length = 0;
+  const client = () => {
+    const base = makeRecordingSupabase({ results, calls });
+    return {
+      ...base,
+      // Records each update() payload so a test can check what was written.
+      from: (table: string) => {
+        const chain = base.from(table) as Record<string, (...args: unknown[]) => unknown>;
+        const update = chain.update;
+        chain.update = (...args: unknown[]) => {
+          updatePayloads.push(args[0]);
+          return update(...args);
+        };
+        return chain;
+      },
+      storage: { from: () => ({ remove: async () => ({ error: null }) }) },
+    };
+  };
   createServerSupabaseClient.mockImplementation(async () => client());
   createAdminClient.mockImplementation(() => client());
   vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -163,16 +179,47 @@ describe('system_settings group sites (first row stands for the group)', () => {
 describe('batch and row sites', () => {
   it('updateSyncCriteria audits the updated credentials row; skips when none is active', async () => {
     results['gmail_oauth_credentials.update'] = { data: [{ id: uid(10) }] };
-    await updateSyncCriteria({ a: 1 });
+    await updateSyncCriteria(rulesInput);
     expectAuditedOnce({ entityType: 'gmail_oauth_credentials', entityId: uid(10) });
     logAudit.mockClear();
     results['gmail_oauth_credentials.update'] = { data: [] };
-    await updateSyncCriteria({ a: 1 });
+    expect((await updateSyncCriteria(rulesInput)).error).toBe('No active Gmail connection');
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+  it('updateSyncCriteria needs email_imports.configure (#1349)', async () => {
+    authorizePermission.mockResolvedValue({ authorized: false, error: 'Unauthorized' });
+    expect((await updateSyncCriteria(rulesInput)).error).toBe('Unauthorized');
+    expect(authorizePermission).toHaveBeenCalledWith('email_imports.configure');
+    expect(calls).toEqual([]);
+  });
+  it('updateSyncCriteria refuses invalid rules before writing (#1349)', async () => {
+    const result = await updateSyncCriteria({ senders: ['x OR in:anywhere'], keywords: [] });
+    expect(result.error).toMatch(/not an email address or a domain/);
+    expect(calls).toEqual([]);
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+  it('updateSyncCriteria audits old and new rules (#1349)', async () => {
+    results['gmail_oauth_credentials.select'] = { data: { sync_criteria: { senders: ['old.com'], keywords: ['alert'], days_back: 7 } } };
+    results['gmail_oauth_credentials.update'] = { data: [{ id: uid(10) }] };
+    await updateSyncCriteria(rulesInput);
+    // The other stored fields survive the save.
+    expect(updatePayloads).toContainEqual({
+      sync_criteria: { senders: ['firstbanknigeria.com'], keywords: ['alert'], days_back: 7 },
+    });
+    expectAuditedOnce({
+      oldValues: { senders: ['old.com'], keywords: ['alert'] },
+      newValues: { senders: ['firstbanknigeria.com'], keywords: ['alert'] },
+    });
+  });
+  it('updateSyncCriteria writes nothing when the stored rules cannot be read (#1349)', async () => {
+    results['gmail_oauth_credentials.select'] = { error: boom };
+    expect((await updateSyncCriteria(rulesInput)).error).toBe('boom');
+    expect(updatePayloads).toEqual([]);
     expect(logAudit).not.toHaveBeenCalled();
   });
   it('updateSyncCriteria does not audit on failure', async () => {
     results['gmail_oauth_credentials.update'] = { error: boom };
-    await updateSyncCriteria({ a: 1 });
+    await updateSyncCriteria(rulesInput);
     expect(logAudit).not.toHaveBeenCalled();
   });
   it('resetEmailImports (global) audits the first import id with total_count; skips when empty', async () => {
