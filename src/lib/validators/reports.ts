@@ -2,14 +2,14 @@ import { z } from 'zod';
 
 // Report Types
 export const reportTypes = [
-    { value: 'financial_overview', label: 'Financial Overview', description: 'Summary of income, expenses, and net balance' },
-    { value: 'collection_report', label: 'Collection Report', description: 'Payment collection summary by resident' },
-    { value: 'invoice_aging', label: 'Invoice Aging Report', description: 'Outstanding invoices by age brackets' },
-    { value: 'transaction_log', label: 'Transaction Log', description: 'Detailed list of all transactions' },
-    { value: 'debtors_report', label: 'Debtors Report', description: 'Detailed debtors list with aging buckets and contact info' },
-    { value: 'indebtedness_summary', label: 'Indebtedness Report', description: 'Simple indebted/non-indebted status per house with optional amounts' },
-    { value: 'indebtedness_detail', label: 'Indebtedness Detail Report', description: 'Detailed breakdown of indebtedness per property' },
-    { value: 'development_levy', label: 'Development Levy Report', description: 'Development levy status per property' },
+    { value: 'financial_overview', label: 'Financial Overview', description: 'Summary of income, expenses, and net balance', group: 'Money in and out' },
+    { value: 'collection_report', label: 'Collection Report', description: 'Payment collection summary by resident', group: 'Money in and out' },
+    { value: 'invoice_aging', label: 'Invoice Aging Report', description: 'Outstanding invoices by age brackets', group: 'Debts' },
+    { value: 'transaction_log', label: 'Transaction Log', description: 'Detailed list of all transactions', group: 'Money in and out' },
+    { value: 'debtors_report', label: 'Debtors Report', description: 'Detailed debtors list with aging buckets and contact info', group: 'Debts' },
+    { value: 'indebtedness_summary', label: 'Indebtedness Report', description: 'Simple indebted/non-indebted status per house with optional amounts', group: 'Debts' },
+    { value: 'indebtedness_detail', label: 'Indebtedness Detail Report', description: 'Detailed breakdown of indebtedness per property', group: 'Debts' },
+    { value: 'development_levy', label: 'Development Levy Report', description: 'Development levy status per property', group: 'Levies' },
 ] as const;
 
 export type ReportType = typeof reportTypes[number]['value'];
