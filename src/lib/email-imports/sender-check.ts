@@ -1,27 +1,34 @@
 /**
- * Sender check for bank alerts (#1340). Anyone who knows the app's Gmail address can send it a
- * false alert, so the scheduled run records a payment only when Gmail's own authentication of the
- * message proves where it came from:
+ * Sender check for bank alerts (#1340, hardened in #1353). Anyone who knows the app's Gmail address
+ * can send it a false alert, so the scheduled run records a payment only when Gmail's own
+ * authentication of the message proves FirstBank sent it. All of these must hold:
  *
- * - FirstBank, auto-forwarded by a Gmail filter: the original From and body survive, so FirstBank's
- *   DKIM signature still passes (`dkim=pass` for a domain in FIRST_BANK_SENDERS). SPF for FirstBank
- *   fails after a forward, so it is not used.
- * - A manual forward: From is the estate mailbox, which must be an exact address in the sender
- *   list, with `dkim=pass` for its own domain or `spf=pass` for it.
+ * - `dkim=pass` with `header.d` / `header.i` under firstbanknigeria.com. A Gmail filter auto-forward
+ *   keeps the original From and body, so FirstBank's signature still passes. SPF for FirstBank fails
+ *   after a forward, so it is not used.
+ * - `dmarc=pass` with `header.from=firstbanknigeria.com`.
+ * - The message has one From header holding exactly one address under firstbanknigeria.com.
  *
- * Only the topmost Authentication-Results header, added by mx.google.com on delivery, is read: a
- * sender can put any header lower down. X-Forwarded-For/To can be forged and are not used.
+ * A manual forward (From is the estate mailbox) fails the From check and is queued for review.
+ *
+ * Only the topmost Authentication-Results header is read, and it must be added by mx.google.com:
+ * Gmail prepends it on delivery, and a sender can put any header lower down. It is parsed per
+ * RFC 8601 (quoted strings, nested comments); a malformed value or a repeated property fails closed,
+ * never falling through to a lower header. X-Forwarded-For/To can be forged and are not used.
  *
  * Pure function, no 'use server'.
  */
 
-// First Bank sender patterns: the Gmail search default and the DKIM domains trusted here.
+// First Bank sender patterns for the Gmail search default. Only FIRST_BANK_DOMAIN is trusted here.
 export const FIRST_BANK_SENDERS = [
   'firstbanknigeria.com',
   'firstbank.com',
   'alert@firstbanknigeria.com',
   'noreply@firstbanknigeria.com',
 ];
+
+/** FirstBank Nigeria's alert domain: `FirstAlert@firstbanknigeria.com`, DKIM `header.i=@firstbanknigeria.com`. */
+export const FIRST_BANK_DOMAIN = 'firstbanknigeria.com';
 
 export interface SenderCheck {
   verified: boolean;
@@ -31,80 +38,192 @@ export interface SenderCheck {
 
 type Header = { name?: string | null; value?: string | null };
 
-interface AuthResult {
+export interface AuthResult {
   method: string;
   result: string;
   props: Record<string, string>;
 }
 
-const domainOf = (value: string) => value.slice(value.lastIndexOf('@') + 1).toLowerCase();
+export interface AuthResultsHeader {
+  authServId: string;
+  results: AuthResult[];
+}
+
+class Malformed extends Error {}
+
+const DOMAIN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/;
+const KEYWORD = /^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$/i;
 
 const isUnder = (domain: string, parent: string) => domain === parent || domain.endsWith(`.${parent}`);
 
-/** The bare address of a From header: `Name <a@b.com>` or `a@b.com`. */
+/**
+ * Parse one Authentication-Results value per RFC 8601. Throws Malformed on anything it cannot read
+ * unambiguously: an unterminated quote or comment, a missing `=`, a repeated property.
+ */
+export function parseAuthResults(value: string): AuthResultsHeader {
+  let pos = 0;
+  const at = () => value[pos];
+
+  // CFWS: whitespace and comments, which nest and take backslash escapes.
+  const skipCfws = () => {
+    for (;;) {
+      while (pos < value.length && /\s/.test(at())) pos++;
+      if (at() !== '(') return;
+      let depth = 0;
+      do {
+        if (pos >= value.length) throw new Malformed('unterminated comment');
+        const c = value[pos++];
+        if (c === '\\') pos++;
+        else if (c === '(') depth++;
+        else if (c === ')') depth--;
+      } while (depth > 0);
+    }
+  };
+
+  // A token or quoted-string. `withEq` lets a property value hold `=` (base64 in header.b).
+  const readValue = (withEq: boolean): string => {
+    if (at() === '"') {
+      pos++;
+      let out = '';
+      for (;;) {
+        if (pos >= value.length) throw new Malformed('unterminated quoted string');
+        const c = value[pos++];
+        if (c === '"') return out;
+        if (c === '\\') {
+          if (pos >= value.length) throw new Malformed('unterminated quoted string');
+          out += value[pos++];
+        } else out += c;
+      }
+    }
+    const start = pos;
+    while (pos < value.length && !/[\s;()"]/.test(at()) && (withEq || at() !== '=')) pos++;
+    if (pos === start) throw new Malformed(`unexpected ${pos >= value.length ? 'end' : `"${at()}"`}`);
+    return value.slice(start, pos);
+  };
+
+  const expect = (c: string) => {
+    if (at() !== c) throw new Malformed(`expected "${c}"`);
+    pos++;
+  };
+
+  skipCfws();
+  const authServId = readValue(false).toLowerCase();
+  skipCfws();
+  if (pos < value.length && at() !== ';') {
+    // authres-version
+    if (!/^\d+$/.test(readValue(false))) throw new Malformed('bad version');
+    skipCfws();
+  }
+
+  const results: AuthResult[] = [];
+  while (pos < value.length) {
+    expect(';');
+    skipCfws();
+    // A method-version (`dkim/1`) stays in the name, so it never matches a method checked below.
+    const method = readValue(false).toLowerCase();
+    skipCfws();
+    if (method === 'none' && results.length === 0 && pos >= value.length) break;
+    if (!KEYWORD.test(method.split('/')[0])) throw new Malformed(`bad method "${method}"`);
+    expect('=');
+    skipCfws();
+    const result = readValue(false).toLowerCase();
+    if (!KEYWORD.test(result)) throw new Malformed(`bad result "${result}"`);
+
+    const props: Record<string, string> = {};
+    for (;;) {
+      skipCfws();
+      if (pos >= value.length || at() === ';') break;
+      const key = readValue(false).toLowerCase();
+      if (key !== 'reason' && !/^[a-z0-9-]+\.[a-z0-9_.-]+$/.test(key)) throw new Malformed(`bad property "${key}"`);
+      skipCfws();
+      expect('=');
+      skipCfws();
+      const prop = readValue(key !== 'reason');
+      if (key in props) throw new Malformed(`repeated ${key} in ${method}`);
+      props[key] = prop.toLowerCase();
+    }
+    results.push({ method, result, props });
+  }
+
+  return { authServId, results };
+}
+
+/** The bare address of a From value holding exactly one mailbox, `Name <a@b.com>` or `a@b.com`; else null. */
 export function fromAddressOf(from: string | null | undefined): string | null {
   if (!from) return null;
-  const address = (from.match(/<([^>]+)>/)?.[1] ?? from).trim().toLowerCase();
-  return address.includes('@') ? address : null;
+  // Drop quoted display names and comments, so a `<`, `@` or `,` inside them cannot pass as syntax.
+  let bare = '';
+  let depth = 0;
+  let quoted = false;
+  for (let i = 0; i < from.length; i++) {
+    const c = from[i];
+    if (c === '\\' && (quoted || depth > 0)) i++;
+    else if (quoted) quoted = c !== '"';
+    else if (c === '(') depth++;
+    else if (c === ')') {
+      if (depth === 0) return null;
+      depth--;
+    } else if (depth > 0) continue;
+    else if (c === '"') quoted = true;
+    else bare += c;
+  }
+  if (quoted || depth > 0 || /[,;:]/.test(bare)) return null;
+  const angle = bare.match(/</g)?.length ?? 0;
+  if (angle > 1) return null;
+  const address = (angle === 1 ? bare.match(/^[^<>]*<([^<>]+)>\s*$/)?.[1] : bare)?.trim().toLowerCase();
+  if (!address) return null;
+  const parts = address.split('@');
+  if (parts.length !== 2 || !/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+$/.test(parts[0]) || !DOMAIN.test(parts[1])) return null;
+  return address;
 }
 
-function parseResults(segments: string[]): AuthResult[] {
-  return segments.flatMap((segment) => {
-    const clean = segment.replace(/\([^)]*\)/g, ' ').trim();
-    const head = clean.match(/^([a-z]+)\s*=\s*([a-z]+)/i);
-    if (!head) return [];
-    const props: Record<string, string> = {};
-    for (const [, key, value] of clean.matchAll(/\b((?:header|smtp)\.[a-z]+)=([^\s;]+)/gi)) {
-      props[key.toLowerCase()] = value.toLowerCase();
-    }
-    return [{ method: head[1].toLowerCase(), result: head[2].toLowerCase(), props }];
-  });
+/** The domain of a DKIM `header.d` or `header.i` (`[local]@domain`) value, or null if it is not one. */
+function dkimDomain(value: string): string | null {
+  const domain = value.slice(value.lastIndexOf('@') + 1);
+  return DOMAIN.test(domain) ? domain : null;
 }
 
-export function checkAlertSender(
-  headers: Header[] | null | undefined,
-  fromHeader: string | null | undefined,
-  senderList: string[] | null | undefined
-): SenderCheck {
-  const authResults = (headers ?? []).find((h) => h.name?.toLowerCase() === 'authentication-results')?.value;
+export function checkAlertSender(headers: Header[] | null | undefined): SenderCheck {
+  const all = headers ?? [];
+  const authResults = all.find((h) => h.name?.toLowerCase() === 'authentication-results')?.value;
   if (!authResults) return { verified: false, detail: 'No Authentication-Results header' };
 
-  const [authServ, ...segments] = authResults.split(';');
-  if (authServ.trim().split(/\s+/)[0].toLowerCase() !== 'mx.google.com') {
+  let parsed: AuthResultsHeader;
+  try {
+    parsed = parseAuthResults(authResults);
+  } catch (error) {
+    if (!(error instanceof Malformed)) throw error;
+    return { verified: false, detail: `Authentication-Results is malformed: ${error.message}` };
+  }
+  if (parsed.authServId !== 'mx.google.com') {
     return { verified: false, detail: 'Authentication-Results is not from mx.google.com' };
   }
 
-  const results = parseResults(segments);
-  const dkimPassDomains = results
-    .filter((r) => r.method === 'dkim' && r.result === 'pass')
-    .map((r) => r.props['header.d'] ?? (r.props['header.i'] ? domainOf(r.props['header.i']) : null))
-    .filter((d): d is string => !!d);
+  // Every domain a passing signature names must be FirstBank's: header.d and header.i both, if present.
+  const dkim = parsed.results.find((r) => {
+    if (r.method !== 'dkim' || r.result !== 'pass') return false;
+    const named = ['header.d', 'header.i'].filter((k) => k in r.props).map((k) => dkimDomain(r.props[k]));
+    return named.length > 0 && named.every((d) => d !== null && isUnder(d, FIRST_BANK_DOMAIN));
+  });
+  if (!dkim) return { verified: false, detail: `No dkim=pass for ${FIRST_BANK_DOMAIN}` };
 
-  const bankDomains = [...new Set(FIRST_BANK_SENDERS.map(domainOf))];
-  const bankDomain = dkimPassDomains.find((d) => bankDomains.some((b) => isUnder(d, b)));
-  if (bankDomain) return { verified: true, detail: `dkim=pass header.d=${bankDomain}` };
-
-  const from = fromAddressOf(fromHeader);
-  const forwarders = (senderList ?? [])
-    .map((s) => s.trim().toLowerCase())
-    .filter((s) => s.includes('@') && !bankDomains.some((b) => isUnder(domainOf(s), b)));
-
-  if (from && forwarders.includes(from)) {
-    const fromDomain = domainOf(from);
-    if (dkimPassDomains.includes(fromDomain)) {
-      return { verified: true, detail: `dkim=pass header.d=${fromDomain} for forwarding address ${from}` };
-    }
-    const spf = results.find(
-      (r) => r.method === 'spf' && r.result === 'pass' && [from, fromDomain].includes(domainOrAddress(r.props['smtp.mailfrom']))
-    );
-    if (spf) return { verified: true, detail: `spf=pass smtp.mailfrom=${from} for forwarding address ${from}` };
-    return { verified: false, detail: `Forwarding address ${from} has no dkim=pass or spf=pass` };
+  const dmarc = parsed.results.filter((r) => r.method === 'dmarc');
+  if (dmarc.length === 0 || !dmarc.every((r) => r.result === 'pass' && r.props['header.from'] === FIRST_BANK_DOMAIN)) {
+    return { verified: false, detail: `No dmarc=pass header.from=${FIRST_BANK_DOMAIN}` };
   }
 
-  return { verified: false, detail: 'No dkim=pass for a FirstBank domain and From is not a forwarding address' };
-}
+  const fromHeaders = all.filter((h) => h.name?.toLowerCase() === 'from');
+  const from = fromHeaders.length === 1 ? fromAddressOf(fromHeaders[0].value) : null;
+  if (!from || !isUnder(from.slice(from.indexOf('@') + 1), FIRST_BANK_DOMAIN)) {
+    return {
+      verified: false,
+      detail: `From is not one ${FIRST_BANK_DOMAIN} address (a manual forward needs review)`,
+    };
+  }
 
-/** smtp.mailfrom can be an address or a bare domain. */
-function domainOrAddress(value: string | undefined): string {
-  return (value ?? '').replace(/^<|>$/g, '');
+  const dkimDomainName = dkimDomain(dkim.props['header.d'] ?? dkim.props['header.i']);
+  return {
+    verified: true,
+    detail: `dkim=pass header.d=${dkimDomainName}; dmarc=pass header.from=${FIRST_BANK_DOMAIN}; from=${from}`,
+  };
 }

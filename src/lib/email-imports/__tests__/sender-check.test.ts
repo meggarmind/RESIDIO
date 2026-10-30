@@ -1,129 +1,229 @@
 import { describe, expect, it } from 'vitest';
-import { checkAlertSender, fromAddressOf } from '@/lib/email-imports/sender-check';
+import { checkAlertSender, fromAddressOf, parseAuthResults } from '@/lib/email-imports/sender-check';
 
 /**
- * #1340 sender check. The fixtures follow the header shape Gmail adds on delivery. The issue asks
- * for a real auto-forwarded alert's headers as a fixture; none was available when this was
- * written, so these are built from Gmail's documented format and must be compared with a real
- * sample once the owner connects the app mailbox.
+ * #1340 / #1353 sender check. The FirstBank facts come from a real alert (#1353 provenance):
+ * `From: FirstBank <FirstAlert@firstbanknigeria.com>`,
+ * `dkim=pass header.i=@firstbanknigeria.com header.s=pepipost`,
+ * `dmarc=pass (p=REJECT) header.from=firstbanknigeria.com`. The rest follows Gmail's format.
  */
 
 const ESTATE = 'estate.mailbox@gmail.com';
-const SENDERS = ['alert@firstbanknigeria.com', 'firstbanknigeria.com', ESTATE];
+const FROM = 'FirstBank <FirstAlert@firstbanknigeria.com>';
 
 const ar = (value: string) => ({ name: 'Authentication-Results', value });
+const from = (value: string) => ({ name: 'From', value });
 
-// A FirstBank alert auto-forwarded by a Gmail filter: DKIM survives, SPF for FirstBank fails.
+const GOOD_AR =
+  'mx.google.com;\r\n       dkim=pass header.i=@firstbanknigeria.com header.s=pepipost header.b=Ab/C+12=;\r\n' +
+  '       arc=pass (i=1 spf=pass spfdomain=firstbanknigeria.com dkim=pass dkdomain=firstbanknigeria.com);\r\n' +
+  '       spf=softfail (google.com: domain of transitioning FirstAlert@firstbanknigeria.com does not designate 209.85.220.41 as permitted sender) smtp.mailfrom=FirstAlert@firstbanknigeria.com;\r\n' +
+  '       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=firstbanknigeria.com';
+
+// A FirstBank alert auto-forwarded by a Gmail filter: DKIM and DMARC survive, SPF for FirstBank fails.
 const AUTO_FORWARD = [
   { name: 'Delivered-To', value: 'app.box@gmail.com' },
   { name: 'ARC-Authentication-Results', value: 'i=2; mx.google.com; dkim=pass header.i=@firstbanknigeria.com' },
-  ar(
-    'mx.google.com;\r\n       dkim=pass header.i=@firstbanknigeria.com header.s=sel1 header.b=AbC123;\r\n' +
-      '       arc=pass (i=1 spf=pass spfdomain=firstbanknigeria.com dkim=pass dkdomain=firstbanknigeria.com);\r\n' +
-      '       spf=softfail (google.com: domain of transitioning alert@firstbanknigeria.com does not designate 209.85.220.41 as permitted sender) smtp.mailfrom=alert@firstbanknigeria.com;\r\n' +
-      '       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=firstbanknigeria.com'
-  ),
-  { name: 'From', value: 'FirstBank <alert@firstbanknigeria.com>' },
+  ar(GOOD_AR),
+  from(FROM),
 ];
 
-describe('checkAlertSender (#1340)', () => {
-  it('passes a FirstBank alert auto-forwarded by a Gmail filter on its DKIM signature alone', () => {
-    expect(checkAlertSender(AUTO_FORWARD, 'FirstBank <alert@firstbanknigeria.com>', SENDERS)).toEqual({
+const withAr = (value: string, fromValue = FROM) => [ar(value), from(fromValue)];
+const PASS = 'dkim=pass header.i=@firstbanknigeria.com; dmarc=pass header.from=firstbanknigeria.com';
+
+describe('checkAlertSender (#1353)', () => {
+  it('passes a FirstBank alert auto-forwarded by a Gmail filter', () => {
+    expect(checkAlertSender(AUTO_FORWARD)).toEqual({
       verified: true,
-      detail: 'dkim=pass header.d=firstbanknigeria.com',
+      detail:
+        'dkim=pass header.d=firstbanknigeria.com; dmarc=pass header.from=firstbanknigeria.com; from=firstalert@firstbanknigeria.com',
     });
   });
 
-  it('reads header.d as well as header.i, and accepts a FirstBank subdomain', () => {
-    const headers = [ar('mx.google.com; dkim=pass header.d=alerts.firstbanknigeria.com header.s=s1')];
-    expect(checkAlertSender(headers, 'x@alerts.firstbanknigeria.com', [])).toMatchObject({ verified: true });
+  it('reads header.d as well as header.i, and accepts a FirstBank subdomain for DKIM and From', () => {
+    const headers = withAr(
+      'mx.google.com; dkim=pass header.d=alerts.firstbanknigeria.com header.s=s1; dmarc=pass header.from=firstbanknigeria.com',
+      'x@alerts.firstbanknigeria.com'
+    );
+    expect(checkAlertSender(headers)).toMatchObject({ verified: true });
   });
 
-  it('refuses lookalike domains', () => {
+  it('refuses lookalike DKIM domains', () => {
     for (const d of ['firstbanknigeria.com.evil.io', 'evilfirstbanknigeria.com', 'firstbanknigeria.co']) {
-      const headers = [ar(`mx.google.com; dkim=pass header.d=${d}`)];
-      expect(checkAlertSender(headers, `alert@${d}`, SENDERS).verified).toBe(false);
+      const headers = withAr(`mx.google.com; dkim=pass header.d=${d}; dmarc=pass header.from=firstbanknigeria.com`);
+      expect(checkAlertSender(headers).verified).toBe(false);
     }
+  });
+
+  it('no longer trusts firstbank.com as a DKIM domain', () => {
+    const headers = withAr('mx.google.com; dkim=pass header.d=firstbank.com; dmarc=pass header.from=firstbanknigeria.com');
+    expect(checkAlertSender(headers)).toEqual({ verified: false, detail: 'No dkim=pass for firstbanknigeria.com' });
+  });
+
+  it('refuses a signature whose header.d and header.i disagree', () => {
+    const headers = withAr(
+      'mx.google.com; dkim=pass header.d=evil.io header.i=@firstbanknigeria.com; dmarc=pass header.from=firstbanknigeria.com'
+    );
+    expect(checkAlertSender(headers).verified).toBe(false);
   });
 
   it('refuses a FirstBank signature that did not pass', () => {
     for (const result of ['fail', 'neutral', 'temperror', 'none']) {
-      const headers = [ar(`mx.google.com; dkim=${result} header.i=@firstbanknigeria.com`)];
-      expect(checkAlertSender(headers, 'alert@firstbanknigeria.com', SENDERS).verified).toBe(false);
+      const headers = withAr(`mx.google.com; dkim=${result} header.i=@firstbanknigeria.com; dmarc=pass header.from=firstbanknigeria.com`);
+      expect(checkAlertSender(headers).verified).toBe(false);
     }
   });
 
   it('does not accept SPF for FirstBank, which a forward breaks anyway', () => {
-    const headers = [ar('mx.google.com; spf=pass smtp.mailfrom=alert@firstbanknigeria.com')];
-    expect(checkAlertSender(headers, 'alert@firstbanknigeria.com', SENDERS).verified).toBe(false);
+    const headers = withAr('mx.google.com; spf=pass smtp.mailfrom=alert@firstbanknigeria.com; dmarc=pass header.from=firstbanknigeria.com');
+    expect(checkAlertSender(headers).verified).toBe(false);
+  });
+
+  it('requires dmarc=pass with header.from=firstbanknigeria.com', () => {
+    const cases = [
+      'dkim=pass header.i=@firstbanknigeria.com',
+      'dkim=pass header.i=@firstbanknigeria.com; dmarc=fail header.from=firstbanknigeria.com',
+      'dkim=pass header.i=@firstbanknigeria.com; dmarc=pass header.from=evil.io',
+      'dkim=pass header.i=@firstbanknigeria.com; dmarc=pass header.from=alerts.firstbanknigeria.com',
+      'dkim=pass header.i=@firstbanknigeria.com; dmarc=pass',
+      'dkim=pass header.i=@firstbanknigeria.com; dmarc=pass header.from=firstbanknigeria.com; dmarc=fail header.from=firstbanknigeria.com',
+    ];
+    for (const results of cases) {
+      expect(checkAlertSender(withAr(`mx.google.com; ${results}`))).toEqual({
+        verified: false,
+        detail: 'No dmarc=pass header.from=firstbanknigeria.com',
+      });
+    }
+  });
+
+  it('requires From to be exactly one firstbanknigeria.com address', () => {
+    const cases = [
+      `Estate <${ESTATE}>`,
+      'alert@firstbanknigeria.com.evil.io',
+      'FirstBank <a@firstbanknigeria.com>, b@evil.io',
+      'a@firstbanknigeria.com, b@firstbanknigeria.com',
+      '"x <a@firstbanknigeria.com>" <a@evil.io>',
+      'FirstBank: a@firstbanknigeria.com;',
+      'no address',
+    ];
+    for (const value of cases) {
+      expect(checkAlertSender(withAr(`mx.google.com; ${PASS}`, value))).toEqual({
+        verified: false,
+        detail: 'From is not one firstbanknigeria.com address (a manual forward needs review)',
+      });
+    }
+  });
+
+  it('refuses a message with no From header or two of them', () => {
+    expect(checkAlertSender([ar(`mx.google.com; ${PASS}`)]).verified).toBe(false);
+    expect(checkAlertSender([...withAr(`mx.google.com; ${PASS}`), from('evil@evil.io')]).verified).toBe(false);
+  });
+
+  it('queues a manual forward from the estate mailbox, even with every Gmail check passing for it', () => {
+    const headers = withAr(
+      `mx.google.com; dkim=pass header.i=@gmail.com header.s=20230601; spf=pass smtp.mailfrom=${ESTATE}; dmarc=pass header.from=gmail.com`,
+      `Estate <${ESTATE}>`
+    );
+    expect(checkAlertSender(headers)).toMatchObject({ verified: false });
   });
 
   it('reads only the topmost Authentication-Results: a forged one lower down does not count', () => {
-    const headers = [
-      ar('mx.google.com; dkim=none; spf=fail smtp.mailfrom=attacker@evil.io'),
-      ar('mx.google.com; dkim=pass header.i=@firstbanknigeria.com'),
-    ];
-    expect(checkAlertSender(headers, 'alert@firstbanknigeria.com', SENDERS).verified).toBe(false);
+    const headers = [ar('mx.google.com; dkim=none; spf=fail smtp.mailfrom=attacker@evil.io'), ar(`mx.google.com; ${PASS}`), from(FROM)];
+    expect(checkAlertSender(headers).verified).toBe(false);
+  });
+
+  it('fails closed on a malformed topmost header, never falling through to a lower one', () => {
+    const headers = [ar(`mx.google.com; dkim=pass header.i="@firstbanknigeria.com`), ar(`mx.google.com; ${PASS}`), from(FROM)];
+    expect(checkAlertSender(headers)).toMatchObject({ verified: false, detail: expect.stringMatching(/^Authentication-Results is malformed/) });
   });
 
   it('refuses an Authentication-Results header not added by mx.google.com', () => {
-    const headers = [ar('evil.io; dkim=pass header.i=@firstbanknigeria.com')];
-    expect(checkAlertSender(headers, 'alert@firstbanknigeria.com', SENDERS)).toEqual({
+    expect(checkAlertSender(withAr(`evil.io; ${PASS}`))).toEqual({
       verified: false,
       detail: 'Authentication-Results is not from mx.google.com',
     });
   });
 
   it('fails closed with no header at all', () => {
-    expect(checkAlertSender([], 'alert@firstbanknigeria.com', SENDERS)).toEqual({
+    expect(checkAlertSender([from(FROM)])).toEqual({ verified: false, detail: 'No Authentication-Results header' });
+    expect(checkAlertSender(undefined).verified).toBe(false);
+  });
+
+  it('a quoted value cannot inject a fake result segment', () => {
+    const headers = withAr(
+      'mx.google.com; dkim=fail header.i="x;dkim=pass header.d=firstbanknigeria.com"; dmarc=pass header.from=firstbanknigeria.com'
+    );
+    expect(checkAlertSender(headers)).toEqual({ verified: false, detail: 'No dkim=pass for firstbanknigeria.com' });
+  });
+
+  it('a comment holding ")" or ";" cannot inject a fake result segment', () => {
+    const cases = [
+      'mx.google.com; dkim=fail (bad (nested) sig; dkim=pass header.d=firstbanknigeria.com) header.d=evil.io; dmarc=pass header.from=firstbanknigeria.com',
+      'mx.google.com; dkim=fail (a \\) b; dkim=pass header.d=firstbanknigeria.com) header.d=evil.io; dmarc=pass header.from=firstbanknigeria.com',
+    ];
+    for (const value of cases) {
+      expect(checkAlertSender(withAr(value))).toEqual({ verified: false, detail: 'No dkim=pass for firstbanknigeria.com' });
+    }
+  });
+
+  it('fails closed on a repeated property in one result', () => {
+    const headers = withAr(
+      'mx.google.com; dkim=pass header.d=evil.io header.d=firstbanknigeria.com; dmarc=pass header.from=firstbanknigeria.com'
+    );
+    expect(checkAlertSender(headers)).toEqual({
       verified: false,
-      detail: 'No Authentication-Results header',
-    });
-    expect(checkAlertSender(undefined, null, null).verified).toBe(false);
-  });
-
-  it('passes a manual forward from the estate mailbox in the sender list with dkim=pass for gmail.com', () => {
-    const headers = [ar('mx.google.com; dkim=pass header.i=@gmail.com header.s=20230601; spf=pass smtp.mailfrom=estate.mailbox@gmail.com')];
-    expect(checkAlertSender(headers, `Estate <${ESTATE}>`, SENDERS)).toEqual({
-      verified: true,
-      detail: `dkim=pass header.d=gmail.com for forwarding address ${ESTATE}`,
+      detail: 'Authentication-Results is malformed: repeated header.d in dkim',
     });
   });
+});
 
-  it('passes a forwarding address on spf=pass for that address', () => {
-    const headers = [ar(`mx.google.com; dkim=none; spf=pass (google.com: domain of ${ESTATE} designates 1.2.3.4) smtp.mailfrom=${ESTATE}`)];
-    expect(checkAlertSender(headers, ESTATE, SENDERS)).toMatchObject({ verified: true });
-  });
-
-  it('refuses any other gmail.com sender, even with dkim=pass for gmail.com', () => {
-    const headers = [ar('mx.google.com; dkim=pass header.i=@gmail.com; spf=pass smtp.mailfrom=someone.else@gmail.com')];
-    expect(checkAlertSender(headers, 'someone.else@gmail.com', SENDERS).verified).toBe(false);
-  });
-
-  it('refuses the estate address when it is not in the sender list', () => {
-    const headers = [ar('mx.google.com; dkim=pass header.i=@gmail.com')];
-    expect(checkAlertSender(headers, ESTATE, ['firstbanknigeria.com']).verified).toBe(false);
-  });
-
-  it('refuses a forged From of the estate mailbox with no passing gmail.com result', () => {
-    const headers = [ar(`mx.google.com; dkim=pass header.d=evil.io; spf=fail smtp.mailfrom=${ESTATE}`)];
-    expect(checkAlertSender(headers, ESTATE, SENDERS)).toEqual({
-      verified: false,
-      detail: `Forwarding address ${ESTATE} has no dkim=pass or spf=pass`,
+describe('parseAuthResults', () => {
+  it('parses Gmail’s header with comments, quoted values and base64 property values', () => {
+    expect(parseAuthResults(GOOD_AR)).toEqual({
+      authServId: 'mx.google.com',
+      results: [
+        { method: 'dkim', result: 'pass', props: { 'header.i': '@firstbanknigeria.com', 'header.s': 'pepipost', 'header.b': 'ab/c+12=' } },
+        { method: 'arc', result: 'pass', props: {} },
+        { method: 'spf', result: 'softfail', props: { 'smtp.mailfrom': 'firstalert@firstbanknigeria.com' } },
+        { method: 'dmarc', result: 'pass', props: { 'header.from': 'firstbanknigeria.com' } },
+      ],
     });
   });
 
-  it('never treats a domain-only sender list entry as a forwarding address', () => {
-    const headers = [ar('mx.google.com; dkim=pass header.i=@gmail.com')];
-    expect(checkAlertSender(headers, 'anyone@gmail.com', ['gmail.com']).verified).toBe(false);
+  it('accepts a version and a no-result header', () => {
+    expect(parseAuthResults('mx.google.com 1; none')).toEqual({ authServId: 'mx.google.com', results: [] });
+    expect(parseAuthResults('mx.google.com; spf=pass smtp.mailfrom="a;b@x.io"').results[0].props).toEqual({
+      'smtp.mailfrom': 'a;b@x.io',
+    });
+  });
+
+  it.each([
+    ['an unterminated comment', 'mx.google.com; dkim=pass (oops header.d=x.io'],
+    ['an unterminated quote', 'mx.google.com; dkim=pass header.d="x.io'],
+    ['a stray ")"', 'mx.google.com; dkim=pass ) header.d=x.io'],
+    ['a missing "="', 'mx.google.com; dkim pass'],
+    ['a property with no value', 'mx.google.com; dkim=pass header.d='],
+    ['an empty segment', 'mx.google.com;; dkim=pass'],
+    ['a bad version', 'mx.google.com v1; dkim=pass'],
+  ])('throws on %s', (_label, value) => {
+    expect(() => parseAuthResults(value)).toThrow();
   });
 });
 
 describe('fromAddressOf', () => {
-  it('takes the bare, lower-cased address', () => {
-    expect(fromAddressOf('FirstBank <Alert@FirstBankNigeria.com>')).toBe('alert@firstbanknigeria.com');
+  it('takes the bare, lower-cased address of one mailbox', () => {
+    expect(fromAddressOf(FROM)).toBe('firstalert@firstbanknigeria.com');
+    expect(fromAddressOf('"First, Bank" <a@b.co>')).toBe('a@b.co');
+    expect(fromAddressOf('a@b.co (FirstBank)')).toBe('a@b.co');
     expect(fromAddressOf('a@b.co')).toBe('a@b.co');
+  });
+
+  it('returns null for anything but exactly one address', () => {
     expect(fromAddressOf('no address')).toBeNull();
+    expect(fromAddressOf('a@b.co, c@d.co')).toBeNull();
+    expect(fromAddressOf('<a@b.co> <c@d.co>')).toBeNull();
+    expect(fromAddressOf('a@b@c.co')).toBeNull();
+    expect(fromAddressOf('"unterminated <a@b.co>')).toBeNull();
     expect(fromAddressOf(null)).toBeNull();
   });
 });

@@ -400,7 +400,7 @@ export async function runEmailFetch(
           rawContentPath,
           attachments: attachmentPaths,
           // Read by the scheduled auto-record step (#1340); a failed check keeps the alert in review.
-          senderCheck: checkAlertSender(message.payload?.headers, metadata.from, criteria.senders),
+          senderCheck: checkAlertSender(message.payload?.headers),
         });
 
         if (messageError === 'duplicate') {

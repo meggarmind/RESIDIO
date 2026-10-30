@@ -106,7 +106,15 @@ describe('runEmailFetch on the cron trigger (#879)', () => {
     };
     mocks.getMessage
       .mockResolvedValueOnce({
-        payload: { headers: [{ name: 'Authentication-Results', value: 'mx.google.com; dkim=pass header.i=@firstbanknigeria.com' }] },
+        payload: {
+          headers: [
+            {
+              name: 'Authentication-Results',
+              value: 'mx.google.com; dkim=pass header.i=@firstbanknigeria.com; dmarc=pass header.from=firstbanknigeria.com',
+            },
+            { name: 'From', value: 'FirstBank <FirstAlert@firstbanknigeria.com>' },
+          ],
+        },
       })
       .mockResolvedValueOnce({});
     mocks.listMessagesByCriteria.mockResolvedValue({ messages: [{ id: 'm1' }, { id: 'm2' }] });
@@ -114,7 +122,7 @@ describe('runEmailFetch on the cron trigger (#879)', () => {
     await runEmailFetch('cron');
 
     expect(inserts.map((r) => [r.sender_verified, r.sender_check])).toEqual([
-      [true, 'dkim=pass header.d=firstbanknigeria.com'],
+      [true, 'dkim=pass header.d=firstbanknigeria.com; dmarc=pass header.from=firstbanknigeria.com; from=firstalert@firstbanknigeria.com'],
       [false, 'No Authentication-Results header'],
     ]);
   });
