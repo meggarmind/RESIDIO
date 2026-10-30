@@ -130,6 +130,12 @@ async function recordPayment(
         }
     }
 
+    // No house given (bank imports, #1363): use the resident's only active house. With none or several, keep none.
+    let houseId = result.data.house_id
+    if (!houseId) {
+        houseId = (await soleActiveHouseId(supabase, result.data.resident_id)) ?? houseId
+    }
+
     const chargeCategory = result.data.charge_category || DEFAULT_CHARGE_CATEGORY
 
     // Check for duplicates
@@ -149,7 +155,7 @@ async function recordPayment(
     // Create payment record
     const { data: paymentRecord, error } = await supabase.from('payment_records').insert({
         resident_id: result.data.resident_id,
-        house_id: result.data.house_id,
+        house_id: houseId,
         split_payment_group_id: result.data.split_payment_group_id,
         amount: result.data.amount,
         payment_date: lagosDateString(result.data.payment_date),
@@ -178,6 +184,7 @@ async function recordPayment(
     }
 
     // Credit and eligible invoice allocation share the atomic settlement RPC.
+    // Settle on the input house, never the derived one: the resident may owe on a past house (#1363).
     const allocateResult = await allocate(
         result.data.resident_id,
         result.data.house_id,
@@ -203,11 +210,11 @@ async function recordPayment(
 
     // Get house info if provided
     let houseInfo = ''
-    if (result.data.house_id) {
+    if (houseId) {
         const { data: house } = await supabase
             .from('houses')
             .select('house_number, street:streets(name)')
-            .eq('id', result.data.house_id)
+            .eq('id', houseId)
             .single()
         if (house) {
             houseInfo = ` for ${house.house_number}`
@@ -222,7 +229,7 @@ async function recordPayment(
         entityDisplay: `Payment ₦${result.data.amount.toLocaleString()}${houseInfo} for ${resident?.first_name} ${resident?.last_name}`,
         newValues: {
             amount: result.data.amount,
-            house_id: result.data.house_id,
+            house_id: houseId,
             method: result.data.method,
             reference_number: result.data.reference_number,
             from_import: !!result.data.import_id,
@@ -266,4 +273,30 @@ async function recordPayment(
     }
 
     return { success: true, data: paymentRecord as PaymentRecord }
+}
+
+/**
+ * The resident's one active house, or null when there are none or several (#1363). A failed
+ * lookup is logged and gives null, so it never fails the payment.
+ */
+async function soleActiveHouseId(
+    supabase: PaymentDeps['supabase'],
+    residentId: string,
+): Promise<string | null> {
+    try {
+        const { data, error } = await supabase
+            .from('resident_houses')
+            .select('house_id')
+            .eq('resident_id', residentId)
+            .eq('is_active', true)
+        if (error) {
+            console.error('Payment house lookup failed for resident', residentId, error)
+            return null
+        }
+        const houseIds = new Set((data ?? []).map((row) => row.house_id))
+        return houseIds.size === 1 ? [...houseIds][0] : null
+    } catch (error) {
+        console.error('Payment house lookup failed for resident', residentId, error)
+        return null
+    }
 }
