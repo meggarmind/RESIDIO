@@ -9,7 +9,7 @@ residio_sources:
   - src/app/api/health/cron-status/**
   - src/actions/system/cron-status.ts
   - src/lib/system/cron-status.ts
-  - src/app/(dashboard)/system/cron-status/**
+  - src/app/(dashboard)/(oversight)/system/cron-status/**
 residio_verified_commit: b7aa8ecf
 residio_verified_at: '2026-10-21'
 residio_app_version: '0.4.0'

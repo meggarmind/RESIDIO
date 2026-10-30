@@ -3,8 +3,8 @@ id: reports-and-analytics
 title: Reports and analytics
 sidebar_label: Reports and analytics
 residio_sources:
-  - src/app/(dashboard)/analytics/**
-  - src/app/(dashboard)/reports/**
+  - src/app/(dashboard)/(oversight)/analytics/**
+  - src/app/(dashboard)/(oversight)/reports/**
   - src/actions/analytics/**
   - src/actions/reports/**
 residio_verified_commit: fe2c42a

@@ -8,7 +8,7 @@ vi.mock('@/lib/auth/auth-provider', () => ({ useAuth: () => ({ hasPermission: (p
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 vi.mock('@/actions/whatsapp/admin-console', () => ({ retryWhatsAppClearanceCopy: vi.fn() }));
 
-import { ClearanceCopyFailures } from '@/app/(dashboard)/system/whatsapp-monitoring/clearance-copy-failures';
+import { ClearanceCopyFailures } from '@/app/(dashboard)/(oversight)/system/whatsapp-monitoring/clearance-copy-failures';
 
 const rows = [
   {

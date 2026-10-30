@@ -26,7 +26,7 @@ vi.mock('@/actions/whatsapp/admin-console', () => ({
   })),
 }));
 
-import WhatsAppBotHealthPage from '@/app/(dashboard)/system/whatsapp-bot-health/page';
+import WhatsAppBotHealthPage from '@/app/(dashboard)/(oversight)/system/whatsapp-bot-health/page';
 
 afterEach(() => cleanup());
 

@@ -87,7 +87,7 @@ vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.f
 
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import AccountsPage from '@/app/(dashboard)/settings/access/page';
-import AccountsRedirect from '@/app/(dashboard)/system/accounts/page';
+import AccountsRedirect from '@/app/(dashboard)/(oversight)/system/accounts/page';
 import RolesRedirect from '@/app/(dashboard)/settings/roles/page';
 import UserRolesRedirect from '@/app/(dashboard)/settings/user-roles/page';
 
