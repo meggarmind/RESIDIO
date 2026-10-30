@@ -48,6 +48,7 @@ vi.mock('@/lib/billing/wallet-invoice-debit', () => ({ debitWalletForInvoiceAtom
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
 const boom = { message: 'boom' };
+const rulesInput = { senders: ['firstbanknigeria.com'], keywords: ['alert'] };
 const pilotInput = {
   mode: 'disabled' as const, residentIds: [], streetId: '', outboundDailyCap: 1, outboundBurstCap: 1,
   outboundBurstWindowMinutes: 1, financialLookupDailyCap: 1, sessionRetentionDays: 7, processedMessageRetentionDays: 7, surveyResponseRetentionDays: 90, outboundSendRetentionDays: 90,
@@ -163,16 +164,31 @@ describe('system_settings group sites (first row stands for the group)', () => {
 describe('batch and row sites', () => {
   it('updateSyncCriteria audits the updated credentials row; skips when none is active', async () => {
     results['gmail_oauth_credentials.update'] = { data: [{ id: uid(10) }] };
-    await updateSyncCriteria({ a: 1 });
+    await updateSyncCriteria(rulesInput);
     expectAuditedOnce({ entityType: 'gmail_oauth_credentials', entityId: uid(10) });
     logAudit.mockClear();
     results['gmail_oauth_credentials.update'] = { data: [] };
-    await updateSyncCriteria({ a: 1 });
+    await updateSyncCriteria(rulesInput);
     expect(logAudit).not.toHaveBeenCalled();
+  });
+  it('updateSyncCriteria refuses invalid rules before writing (#1349)', async () => {
+    const result = await updateSyncCriteria({ senders: ['x OR in:anywhere'], keywords: [] });
+    expect(result.error).toMatch(/not an email address or a domain/);
+    expect(calls).toEqual([]);
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+  it('updateSyncCriteria audits old and new rules (#1349)', async () => {
+    results['gmail_oauth_credentials.select'] = { data: { sync_criteria: { senders: ['old.com'], keywords: ['alert'], days_back: 7 } } };
+    results['gmail_oauth_credentials.update'] = { data: [{ id: uid(10) }] };
+    await updateSyncCriteria(rulesInput);
+    expectAuditedOnce({
+      oldValues: { senders: ['old.com'], keywords: ['alert'] },
+      newValues: { senders: ['firstbanknigeria.com'], keywords: ['alert'] },
+    });
   });
   it('updateSyncCriteria does not audit on failure', async () => {
     results['gmail_oauth_credentials.update'] = { error: boom };
-    await updateSyncCriteria({ a: 1 });
+    await updateSyncCriteria(rulesInput);
     expect(logAudit).not.toHaveBeenCalled();
   });
   it('resetEmailImports (global) audits the first import id with total_count; skips when empty', async () => {

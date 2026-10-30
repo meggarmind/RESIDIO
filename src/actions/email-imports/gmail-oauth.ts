@@ -23,6 +23,7 @@ import {
   verifyGmailOAuthState,
 } from '@/lib/email-imports/gmail-client';
 import { encrypt, decrypt } from '@/lib/email-imports/oauth-encryption';
+import { validateImportRules } from '@/lib/email-imports/import-rules';
 import type { GmailConnectionStatus, GmailSyncCriteria } from '@/types/database';
 
 // ============================================================
@@ -290,14 +291,31 @@ export async function disconnectGmail(): Promise<{ error: string | null }> {
 // Update Sync Criteria
 // ============================================================
 
-export async function updateSyncCriteria(criteria: Record<string, unknown>): Promise<{ error: string | null }> {
+/**
+ * Sets the import senders and subject words (#1349). Other criteria fields keep their stored
+ * values. The input is validated here as well as in the form: each value goes into the Gmail query.
+ */
+export async function updateSyncCriteria(input: { senders: unknown; keywords: unknown }): Promise<{ error: string | null }> {
   // Check permission
   const auth = await authorizePermission(PERMISSIONS.EMAIL_IMPORTS_CONFIGURE);
   if (!auth.authorized) {
     return { error: auth.error || 'Unauthorized' };
   }
 
+  const validated = validateImportRules(input);
+  if (validated.error !== null) {
+    return { error: validated.error };
+  }
+
   const supabase = await createServerSupabaseClient();
+
+  const { data: current } = await supabase
+    .from('gmail_oauth_credentials')
+    .select('sync_criteria')
+    .eq('is_active', true)
+    .maybeSingle();
+  const oldCriteria = (current?.sync_criteria as Record<string, unknown> | null) ?? {};
+  const criteria = { ...oldCriteria, ...validated.rules };
 
   const { data: updatedRows, error } = await supabase
     .from('gmail_oauth_credentials')
@@ -320,7 +338,8 @@ export async function updateSyncCriteria(criteria: Record<string, unknown>): Pro
       entityType: 'gmail_oauth_credentials',
       entityId: credentialsId,
       entityDisplay: 'Gmail Sync Criteria',
-      newValues: criteria,
+      oldValues: { senders: oldCriteria.senders, keywords: oldCriteria.keywords },
+      newValues: { ...validated.rules },
     });
   }
 

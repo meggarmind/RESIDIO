@@ -792,6 +792,15 @@ export const settingsConfig: SettingsGroup[] = [
                             { id: "gmail-sync", label: "Sync and import history", help: "Fetch new emails now, or open the history of what was imported.", keywords: ["manual fetch", "manual sync", "import history", "fetch emails"] },
                         ],
                     },
+                    {
+                        // #1349: who the fetch reads mail from. Read with the page's permission; saving needs email_imports.configure.
+                        id: "import-rules",
+                        title: "Import rules",
+                        rows: [
+                            { id: "gmail-import-senders", label: "Senders", help: "Email addresses or domains to read bank mail from, one per line. Include the bank and any mailbox that forwards its mail.", keywords: ["sender", "from", "forward", "bank email", "domain", "firstbank"] },
+                            { id: "gmail-import-keywords", label: "Subject words", help: "Read only mail that contains one of these words, one per line. Leave empty to read all mail from the senders.", keywords: ["keyword", "subject", "filter", "alert", "statement"] },
+                        ],
+                    },
                 ],
             },
             // Paystack and SMS integrations are planned but not yet built.

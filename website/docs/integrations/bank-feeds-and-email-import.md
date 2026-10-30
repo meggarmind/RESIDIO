@@ -29,7 +29,7 @@ Open **Settings → Connections → Gmail Import**.
 2. Grant access with the mailbox that actually receives the bank alerts, not a personal account.
    Finish the connection in the same browser and signed-in session that started it, within 10 minutes. If you are signed in as a different admin, the link is reused, or it has expired, Residio refuses it and asks you to select **Connect** again.
 3. Confirm the page returns showing a connected status and a mailbox address.
-4. Check the sync criteria so Residio reads only the relevant mail.
+4. Check the **Import rules** section so Residio reads only the relevant mail (see [Import rules](#import-rules)).
 5. Wait for the first sync, then confirm imports appear.
 
 The page shows the connection status and the last sync time. A connection that reports connected but has never synced is a criteria problem, not an authorisation problem.
@@ -37,6 +37,15 @@ The page shows the connection status and the last sync time. A connection that r
 :::warning[Use an estate mailbox]
 Connecting a personal Gmail account ties the estate's bank feed to one person's credentials. When they leave or change their password, the feed stops. Use a mailbox the estate controls.
 :::
+
+### Import rules
+
+The **Import rules** section shows while Gmail is connected. It holds two lists, one value per line:
+
+- **Senders**: the email addresses or domains that Residio reads mail from, for example `firstbanknigeria.com`. If another mailbox forwards the bank mail, add that mailbox too. A forward made by a Gmail filter usually keeps the bank as the sender; a forward made by hand shows the forwarding mailbox.
+- **Subject words**: Residio reads only mail that contains one of these words. Leave the list empty to read all mail from the senders.
+
+Each sender must be an email address or a domain, with no spaces; subject words cannot contain quotes. Each list holds at most 20 values. Anyone who can open the page can see the rules; changing them needs the configure email imports permission. Every change is recorded in the audit log with the old and new lists.
 
 ### Disconnect
 

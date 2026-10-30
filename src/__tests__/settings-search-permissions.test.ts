@@ -178,6 +178,8 @@ describe('Settings row search entry permissions (#934, #935, #937)', () => {
       'email-auto-process-limit': ['settings.manage_billing', 'settings.manage_reference', 'system.manage_maintenance'],
       'gmail-connection': ['email_imports.view'],
       'gmail-sync': ['email_imports.view'],
+      'gmail-import-senders': ['email_imports.view'],
+      'gmail-import-keywords': ['email_imports.view'],
       // Billing rules (#935): the page opens for manage_billing in the nav and its sections declare none of their own.
       'bill-vacant-houses': BILLING,
       'bill-under-renovation': BILLING,
