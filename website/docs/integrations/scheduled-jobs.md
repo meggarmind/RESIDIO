@@ -97,6 +97,6 @@ Scheduled endpoints are protected by a shared secret and reject any call that do
 ## Related
 
 - [Email and SMS channels](./email-and-sms) for the notification queue
-- [Gmail import and bank feeds](./bank-feeds-and-email-import) for the hourly mailbox sync
+- [Gmail import and bank feeds](./bank-feeds-and-email-import) for the scheduled mailbox sync
 - [WhatsApp operations](./whatsapp-operations) for the retention purge
 - [Access and system health](../settings/access-and-system-health) for maintenance mode
