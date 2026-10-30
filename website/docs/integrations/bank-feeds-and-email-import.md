@@ -8,8 +8,8 @@ residio_sources:
   - src/lib/parsers/**
   - src/actions/email-imports/**
   - src/app/(dashboard)/settings/email-integration/**
-residio_verified_commit: c8f57c63
-residio_verified_at: '2026-10-28'
+residio_verified_commit: 5eb7529
+residio_verified_at: '2026-10-30'
 residio_app_version: '0.4.0'
 ---
 
