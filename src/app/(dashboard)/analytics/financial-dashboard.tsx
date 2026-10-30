@@ -4,6 +4,7 @@ import { Suspense, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { JumpSection } from '@/components/settings/settings-sections-provider';
 import { Skeleton } from '@/components/ui/skeleton';
+import { EnhancedStatCard } from '@/components/dashboard/enhanced-stat-card';
 import {
   useDashboardFinancialHealth,
   useDashboardInvoiceDistribution,
@@ -31,7 +32,7 @@ const RevenueTrendChart = dynamic(
 
 const FinancialDashboardSkeleton = () => (
   <div className="space-y-6">
-    <div className="grid gap-4 md:grid-cols-4">
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
     </div>
     <Skeleton className="h-80 rounded-xl" />
@@ -72,47 +73,39 @@ function FinancialDashboardContent() {
   return (
     <div className="space-y-6">
       {/* Collection Health Cards */}
-      <JumpSection id="totals" title="Totals" className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Collection Rate</CardTitle>
-            <TrendingUp className="h-4 w-4 text-emerald-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{fhLoading ? <Skeleton className="h-8 w-16" /> : financialHealth ? `${financialHealth.collectionRate.toFixed(1)}%` : '-'}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Outstanding</CardTitle>
-            <AlertCircle className="h-4 w-4 text-amber-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold tabular-nums">{fhLoading ? <Skeleton className="h-8 w-24" /> : financialHealth ? formatCurrency(financialHealth.totalOutstanding) : '-'}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Overdue Invoices</CardTitle>
-            <Clock className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold tabular-nums">{fhLoading ? <Skeleton className="h-8 w-12" /> : invoiceDist ? invoiceDist.overdue : '-'}</div>
-            <div className="text-xs text-muted-foreground">{fhLoading ? <Skeleton className="h-3 w-24 mt-1" /> : financialHealth ? `${formatCurrency(financialHealth.overdueAmount)} total` : 'Amount unavailable'}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Portfolio Value</CardTitle>
-            <Wallet className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold tabular-nums">{fhLoading ? <Skeleton className="h-8 w-28" /> : financialHealth ? formatCurrency(financialHealth.portfolioValue) : '-'}</div>
-          </CardContent>
-        </Card>
+      <JumpSection id="totals" title="Totals" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <EnhancedStatCard
+          title="Collection Rate"
+          value={financialHealth ? `${financialHealth.collectionRate.toFixed(1)}%` : '-'}
+          icon={TrendingUp}
+          isLoading={fhLoading}
+          description="Share of all invoiced amounts paid"
+          accentColor="success"
+        />
+        <EnhancedStatCard
+          title="Outstanding"
+          value={financialHealth ? formatCurrency(financialHealth.totalOutstanding) : '-'}
+          icon={AlertCircle}
+          isLoading={fhLoading}
+          description="Unpaid balance on all invoices"
+          accentColor="warning"
+        />
+        <EnhancedStatCard
+          title="Overdue Invoices"
+          value={invoiceDist ? invoiceDist.overdue : '-'}
+          icon={Clock}
+          isLoading={fhLoading}
+          description={financialHealth ? `${formatCurrency(financialHealth.overdueAmount)} total` : 'Amount unavailable'}
+          accentColor="danger"
+        />
+        <EnhancedStatCard
+          title="Portfolio Value"
+          value={financialHealth ? formatCurrency(financialHealth.portfolioValue) : '-'}
+          icon={Wallet}
+          isLoading={fhLoading}
+          description="Bank balance plus petty cash"
+          accentColor="info"
+        />
       </JumpSection>
 
       {/* Revenue vs Expenses Monthly Trend */}
