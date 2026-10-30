@@ -1,9 +1,10 @@
 /**
  * Queue an import's transactions for admin review (service-role library, NOT a server action)
  *
- * The scheduled fetch-emails run ends here instead of processEmailTransactions: it posts no
- * payment, expense or petty-cash entry. Money is written only when an admin processes a queued
- * transaction through the permission-gated review actions (owner decision on #879).
+ * The scheduled fetch-emails run ends here instead of processEmailTransactions. Before it,
+ * `autoRecordEmailPayments` records the sender-checked alert credits within the limit (#1340,
+ * reversing #879 option B for those only); every transaction still open is queued here, and is
+ * written as money only when an admin processes it through the permission-gated review actions.
  *
  * Deliberately has no server-action directive and no auth: it uses the service-role client and
  * is only called by the CRON_SECRET cron route. Exporting it from a server-action file would
@@ -16,7 +17,9 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { writeEmailImportStatus } from '@/lib/email-imports/import-records';
 
 export async function queueEmailTransactionsForReview(
-  importId: string
+  importId: string,
+  // What the auto-record step did in this run, for the import's counts.
+  counts: { autoProcessed?: number; skipped?: number; errored?: number } = {}
 ): Promise<{ queuedForReview: number; error: string | null }> {
   const adminClient = await createAdminClient();
 
@@ -41,8 +44,10 @@ export async function queueEmailTransactionsForReview(
   await writeEmailImportStatus(adminClient, {
     importId,
     status: 'completed',
-    transactionsAutoProcessed: 0,
+    transactionsAutoProcessed: counts.autoProcessed ?? 0,
     transactionsQueued: queuedForReview,
+    transactionsSkipped: counts.skipped,
+    transactionsErrored: counts.errored,
   });
 
   if (queuedForReview > 0) {

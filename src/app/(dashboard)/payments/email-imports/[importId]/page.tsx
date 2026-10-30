@@ -591,6 +591,11 @@ export default function EmailImportDetailPage() {
                             {overLimitLabel}
                           </Badge>
                         )}
+                      {tx.status === 'queued_for_review' && tx.review_reason && (
+                        <Badge variant="outline" className="ml-1 rounded-full border-amber-500 text-amber-700 dark:text-amber-400" title={tx.review_reason}>
+                          {tx.review_reason.startsWith('Sender check failed') ? 'Sender not verified' : 'Needs review'}
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       {['queued_for_review', 'pending', 'matched'].includes(tx.status) && (

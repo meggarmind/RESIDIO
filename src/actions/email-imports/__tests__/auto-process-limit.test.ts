@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   authorizePermission: vi.fn(),
   logAudit: vi.fn(),
   createPayment: vi.fn(),
+  createPaymentAsSystem: vi.fn(),
   createExpense: vi.fn(),
   runEmailFetch: vi.fn(),
   parseAllPendingEmails: vi.fn(),
@@ -82,6 +83,7 @@ vi.mock('@/lib/settings/service', () => ({ getSettingResultAsService: mocks.getS
 vi.mock('@/actions/settings/get-settings', () => ({ getSettingValue: mocks.getSettingValue }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit: mocks.logAudit }));
 vi.mock('@/actions/payments/create-payment', () => ({ createPayment: mocks.createPayment }));
+vi.mock('@/lib/payments/create-payment', () => ({ createPaymentAsSystem: mocks.createPaymentAsSystem }));
 vi.mock('@/actions/expenses/create-expense', () => ({ createExpense: mocks.createExpense }));
 vi.mock('@/lib/notifications/admin-notifier', () => ({ notifyAdmins: vi.fn() }));
 vi.mock('@/lib/matching/duplicate-matcher', () => ({
@@ -324,9 +326,12 @@ describe('exceedsEmailAutoProcessLimit', () => {
   });
 });
 
-describe('cron fetch-emails route (#879: scheduled runs only queue for review)', () => {
-  it('posts no payment even for an under-limit high-confidence credit, and queues instead', async () => {
-    mocks.rows = [credit('tx-small', 20000), credit('tx-big', 75000)];
+describe('cron fetch-emails route (#1340: auto-records only checked alert credits within the limit)', () => {
+  it('never calls the session-bound createPayment action, and queues an unverified or over-limit credit', async () => {
+    const alert = (verified: boolean) => ({
+      email_messages: { email_type: 'transaction_alert', sender_verified: verified, sender_check: 'No Authentication-Results header' },
+    });
+    mocks.rows = [credit('tx-small', 20000, alert(false)), credit('tx-big', 75000, alert(true))];
     mocks.runEmailFetch.mockResolvedValue({
       success: true, importId: 'import-1', emailsFetched: 2, emailsSkipped: 0, emailsErrored: 0,
     });
@@ -336,8 +341,12 @@ describe('cron fetch-emails route (#879: scheduled runs only queue for review)',
     const body = await (await GET({} as NextRequest)).json();
 
     expect(mocks.createPayment).not.toHaveBeenCalled();
+    expect(mocks.createPaymentAsSystem).not.toHaveBeenCalled();
     expect(mocks.createExpense).not.toHaveBeenCalled();
     expect(body.processPhase).toBeUndefined();
+    expect(body.autoRecordPhase).toMatchObject({ autoRecorded: 0, senderRejected: 1 });
+    expect(updatesFor('tx-small')).toEqual([{ review_reason: 'Sender check failed: No Authentication-Results header' }]);
+    expect(updatesFor('tx-big')).toEqual([]);
     expect(body.queuePhase).toEqual({ queuedForReview: 2 });
   });
 });
