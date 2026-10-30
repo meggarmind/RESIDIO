@@ -79,6 +79,7 @@ describe('Gmail import rules section (#1349)', () => {
     expect(senders).toHaveValue('firstbanknigeria.com\nopera4street@gmail.com');
     expect(senders).toBeDisabled();
     expect(screen.getByRole('textbox', { name: 'Subject words' })).toHaveValue('alert');
+    expect(screen.getByRole('textbox', { name: 'Subject words' })).toBeDisabled();
     expect(saveButton()).toBeDisabled();
     expect(screen.getByText('Only users who can configure Gmail import can change these rules.')).toBeInTheDocument();
   });

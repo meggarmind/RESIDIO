@@ -183,8 +183,14 @@ describe('batch and row sites', () => {
     expectAuditedOnce({ entityType: 'gmail_oauth_credentials', entityId: uid(10) });
     logAudit.mockClear();
     results['gmail_oauth_credentials.update'] = { data: [] };
-    await updateSyncCriteria(rulesInput);
+    expect((await updateSyncCriteria(rulesInput)).error).toBe('No active Gmail connection');
     expect(logAudit).not.toHaveBeenCalled();
+  });
+  it('updateSyncCriteria needs email_imports.configure (#1349)', async () => {
+    authorizePermission.mockResolvedValue({ authorized: false, error: 'Unauthorized' });
+    expect((await updateSyncCriteria(rulesInput)).error).toBe('Unauthorized');
+    expect(authorizePermission).toHaveBeenCalledWith('email_imports.configure');
+    expect(calls).toEqual([]);
   });
   it('updateSyncCriteria refuses invalid rules before writing (#1349)', async () => {
     const result = await updateSyncCriteria({ senders: ['x OR in:anywhere'], keywords: [] });

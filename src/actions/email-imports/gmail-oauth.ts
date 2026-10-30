@@ -334,18 +334,19 @@ export async function updateSyncCriteria(input: { senders: unknown; keywords: un
   }
 
   // Audit log. audit_logs.entity_id is a uuid: use the updated credentials row (#594).
-  // No active connection means nothing changed, so nothing to audit.
+  // No active connection means nothing changed: say so rather than report a save.
   const credentialsId = updatedRows?.[0]?.id;
-  if (credentialsId) {
-    await logAudit({
-      action: 'UPDATE',
-      entityType: 'gmail_oauth_credentials',
-      entityId: credentialsId,
-      entityDisplay: 'Gmail Sync Criteria',
-      oldValues: { senders: oldCriteria.senders, keywords: oldCriteria.keywords },
-      newValues: { ...validated.rules },
-    });
+  if (!credentialsId) {
+    return { error: 'No active Gmail connection' };
   }
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'gmail_oauth_credentials',
+    entityId: credentialsId,
+    entityDisplay: 'Gmail Sync Criteria',
+    oldValues: { senders: oldCriteria.senders, keywords: oldCriteria.keywords },
+    newValues: { ...validated.rules },
+  });
 
   return { error: null };
 }
