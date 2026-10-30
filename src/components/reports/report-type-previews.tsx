@@ -188,7 +188,7 @@ export function ReportTypePreview({ type, title }: { type: ReportType; title: st
             className="relative rounded-lg border bg-background p-4 shadow-sm md:p-6"
             data-testid="report-type-preview"
         >
-            <figcaption className="absolute right-3 top-3 rounded-full border bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+            <figcaption className="absolute right-3 top-3 rounded-full border bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
                 Example layout
             </figcaption>
             <p className="pr-28 text-lg font-bold tracking-tight">{title}</p>
@@ -197,7 +197,7 @@ export function ReportTypePreview({ type, title }: { type: ReportType; title: st
             <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4">
                 {preview.stats.map((stat) => (
                     <div key={stat.label} className="rounded-md border bg-muted/40 p-2.5">
-                        <p className="text-[11px] text-muted-foreground">{stat.label}</p>
+                        <p className="text-xs text-muted-foreground">{stat.label}</p>
                         <p className="text-sm font-semibold tabular-nums">{stat.value}</p>
                     </div>
                 ))}

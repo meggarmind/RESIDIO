@@ -89,7 +89,7 @@ export function ReportTypePicker({ value, onChange, config, realtimeTypes, accou
                                     >
                                         {open ? <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />}
                                         <span className="flex-1 text-left">{group.name}</span>
-                                        <Badge variant="secondary" className="h-5 min-w-5 justify-center px-1.5 text-[11px]">
+                                        <Badge variant="secondary" className="h-5 min-w-5 justify-center px-1.5 text-xs">
                                             {group.items.length}
                                         </Badge>
                                     </button>
