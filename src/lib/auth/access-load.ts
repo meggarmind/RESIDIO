@@ -9,6 +9,12 @@
  */
 export type ProfileLoadResult = 'loaded' | 'incomplete' | 'failed';
 
+/** Maps one profile load to its result. A failure wins over a missing access set. */
+export function profileLoadResult({ failed, accessIncomplete }: { failed: boolean; accessIncomplete: boolean }): ProfileLoadResult {
+  if (failed) return 'failed';
+  return accessIncomplete ? 'incomplete' : 'loaded';
+}
+
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /**

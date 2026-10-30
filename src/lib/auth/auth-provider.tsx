@@ -16,7 +16,7 @@ import {
   type PortalAccessOverride,
 } from '@/lib/auth/portal-visibility';
 import { fetchPortalAccessOverride, fetchResidentPortalEnabled } from '@/lib/auth/portal-visibility-fetch';
-import type { ProfileLoadResult } from '@/lib/auth/access-load';
+import { profileLoadResult, type ProfileLoadResult } from '@/lib/auth/access-load';
 
 // Profile as the app sees it. The legacy `role` column is gone (#193):
 // every role and permission decision reads role_id -> the Access module
@@ -473,8 +473,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
     }
 
-    if (toastReason) return 'failed';
-    return accessIncomplete ? 'incomplete' : 'loaded';
+    return profileLoadResult({ failed: toastReason !== null, accessIncomplete });
   }, [supabase]);
 
   // #1341: an explicit load for the current session, awaited by the two-factor screen
@@ -487,14 +486,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(currentUser);
     setSession(currentSession);
     isInitialized.current = true;
+    let result: ProfileLoadResult = 'failed';
     try {
-      return await fetchProfile(currentUser.id, { notify: false });
+      result = await fetchProfile(currentUser.id, { notify: false });
     } catch (err) {
       console.error('[AuthProvider] refreshProfile failed:', err);
-      return 'failed';
-    } finally {
-      setIsLoading(false);
     }
+    // Anything but a full load lets the next page start its own load again, so a
+    // partial snapshot is never kept for the rest of the visit.
+    if (result !== 'loaded') isInitialized.current = false;
+    setIsLoading(false);
+    return result;
   }, [supabase, fetchProfile]);
 
   const signOut = async () => {

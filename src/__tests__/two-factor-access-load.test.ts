@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { loadAccessWithRetry, type ProfileLoadResult } from '@/lib/auth/access-load';
+import { loadAccessWithRetry, profileLoadResult, type ProfileLoadResult } from '@/lib/auth/access-load';
 
 // #1341: after the two-factor screen the app opened with the empty permission set read
 // before the code was accepted, so only the Dashboard menu showed until a refresh.
@@ -38,6 +38,14 @@ describe('loadAccessWithRetry (#1341)', () => {
   });
 });
 
+describe('profileLoadResult (#1341)', () => {
+  it('maps a failure, a role with no access rows and a full load', () => {
+    expect(profileLoadResult({ failed: false, accessIncomplete: false })).toBe('loaded');
+    expect(profileLoadResult({ failed: false, accessIncomplete: true })).toBe('incomplete');
+    expect(profileLoadResult({ failed: true, accessIncomplete: true })).toBe('failed');
+  });
+});
+
 describe('two-factor sign-in wiring (#1341)', () => {
   const read = (file: string) => readFileSync(path.join(process.cwd(), file), 'utf8').replace(/\s+/g, '');
 
@@ -50,6 +58,13 @@ describe('two-factor sign-in wiring (#1341)', () => {
   it('a role with no access rows is never cached', () => {
     const source = read('src/lib/auth/auth-provider.tsx');
     expect(source).toMatch(/access\.status==='no-access'\)\{[^}]*accessIncomplete=true;cacheUnsafe=true;/);
+    expect(source).toMatch(/cacheProfileIfHealthy\(newProfile,cacheUnsafe,?\)/);
+    expect(source).toContain('returnprofileLoadResult({failed:toastReason!==null,accessIncomplete});');
+  });
+
+  it('a partial load lets the next page load again', () => {
+    const source = read('src/lib/auth/auth-provider.tsx');
+    expect(source).toContain("if(result!=='loaded')isInitialized.current=false;");
   });
 
   it('the screen loads access before it opens the app', () => {
