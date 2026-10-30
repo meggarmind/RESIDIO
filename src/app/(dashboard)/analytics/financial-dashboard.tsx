@@ -10,7 +10,9 @@ import {
   useDashboardInvoiceDistribution,
   useDashboardQuickStats,
 } from '@/hooks/use-dashboard';
-import { useAnalytics } from '@/hooks/use-analytics';
+import { useAnalytics, useDebtStatusByStreet } from '@/hooks/use-analytics';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { useOverdueInvoiceAging } from '@/hooks/use-billing';
 import { formatCurrency } from '@/lib/utils';
 import {
@@ -28,6 +30,11 @@ import dynamic from 'next/dynamic';
 const RevenueTrendChart = dynamic(
   () => import('@/components/analytics/revenue-trend-chart').then((m) => ({ default: m.RevenueTrendChart })),
   { loading: () => <Skeleton className="h-80 w-full" />, ssr: false }
+);
+
+const DebtStatusByStreetChart = dynamic(
+  () => import('@/components/analytics/debt-status-by-street-chart').then((m) => ({ default: m.DebtStatusByStreetChart })),
+  { loading: () => <Skeleton className="h-72 w-full" />, ssr: false }
 );
 
 const FinancialDashboardSkeleton = () => (
@@ -69,6 +76,11 @@ function FinancialDashboardContent() {
     };
   }, []);
   const { data: trendData, isLoading: trendLoading } = useAnalytics({ startDate, endDate });
+
+  // The debt chart reads through a reports.view_financial action, so only holders see its section (CORE.md §6).
+  const { hasPermission, isLoading: authLoading } = useAuth();
+  const canViewDebt = !authLoading && hasPermission(PERMISSIONS.REPORTS_VIEW_FINANCIAL);
+  const debt = useDebtStatusByStreet({ enabled: canViewDebt });
 
   return (
     <div className="space-y-6">
@@ -114,6 +126,12 @@ function FinancialDashboardContent() {
           <RevenueTrendChart data={trendData?.revenueTrend ?? null} isLoading={trendLoading} />
         </Suspense>
       </JumpSection>
+
+      {canViewDebt && (
+        <JumpSection id="debt-status" title="Debt status">
+          <DebtStatusByStreetChart data={debt.data} isLoading={debt.isLoading} error={debt.error} />
+        </JumpSection>
+      )}
 
       <JumpSection id="invoice-aging" title="Invoice aging">
         <Card>

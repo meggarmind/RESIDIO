@@ -13,7 +13,8 @@ import type { SettingsGroup } from '@/config/settings-nav';
  */
 export const oversightConfig: SettingsGroup[] = [
     {
-        title: 'Overview',
+        // Pages that show live charts and counts; Reports below holds the report pages (owner, 30 Oct 2026, #1347).
+        title: 'Dashboard',
         icon: LayoutDashboard,
         items: [
             {
@@ -22,32 +23,10 @@ export const oversightConfig: SettingsGroup[] = [
                 description: 'Is anything wrong? Scheduled jobs, message queue, audit activity and account approvals at a glance',
                 permissions: [PERMISSIONS.SYSTEM_VIEW_ALL_SETTINGS],
             },
-        ],
-    },
-    {
-        title: 'Reports',
-        icon: BarChart3,
-        items: [
             {
                 title: 'Collections dashboard',
                 href: '/analytics',
-                description: 'Revenue, collections, invoices and estate portfolio health',
-                permissions: [
-                    PERMISSIONS.REPORTS_VIEW_FINANCIAL,
-                    PERMISSIONS.REPORTS_VIEW_OCCUPANCY,
-                    PERMISSIONS.REPORTS_VIEW_SECURITY,
-                ],
-            },
-            {
-                title: 'Income & expenses',
-                href: '/reports/financial-overview',
-                description: 'Income and expenses by category, from imported bank statements',
-                permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
-            },
-            {
-                title: 'Generate reports',
-                href: '/reports',
-                description: 'Create and download financial, occupancy and security reports',
+                description: 'Revenue, collections, invoices, debt status by street and estate portfolio health',
                 permissions: [
                     PERMISSIONS.REPORTS_VIEW_FINANCIAL,
                     PERMISSIONS.REPORTS_VIEW_OCCUPANCY,
@@ -60,6 +39,28 @@ export const oversightConfig: SettingsGroup[] = [
                 title: 'Announcement engagement',
                 href: '/analytics/announcements',
                 description: 'Who opened and read announcements',
+                permissions: [
+                    PERMISSIONS.REPORTS_VIEW_FINANCIAL,
+                    PERMISSIONS.REPORTS_VIEW_OCCUPANCY,
+                    PERMISSIONS.REPORTS_VIEW_SECURITY,
+                ],
+            },
+        ],
+    },
+    {
+        title: 'Reports',
+        icon: BarChart3,
+        items: [
+            {
+                title: 'Income & expenses',
+                href: '/reports/financial-overview',
+                description: 'Income and expenses by category, from imported bank statements',
+                permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
+            },
+            {
+                title: 'Generate reports',
+                href: '/reports',
+                description: 'Create and download financial, occupancy and security reports',
                 permissions: [
                     PERMISSIONS.REPORTS_VIEW_FINANCIAL,
                     PERMISSIONS.REPORTS_VIEW_OCCUPANCY,

@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { ChevronDown, Menu } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth/auth-provider';
+import { useFitToMain } from '@/hooks/use-fit-to-main';
 import { oversightConfig } from '@/config/oversight-nav';
 import { activeSettingsHref, settingsPageLabel, type SettingsGroup } from '@/config/settings-nav';
 import { Button } from '@/components/ui/button';
@@ -68,8 +69,14 @@ function OversightLinks({ groups, onNavigate }: { groups: SettingsGroup[]; onNav
 
 export function OversightSidebar({ className }: { className?: string }) {
     const groups = useOversightGroups();
+    const asideRef = useFitToMain<HTMLElement>();
+    // Same scroll as the Settings menu (#1012): sticky, fitted to the visible page, native scroll bar (#1347).
     return (
-        <aside className={cn('overflow-y-auto pr-4 [scrollbar-width:thin]', className)}>
+        <aside
+            ref={asideRef}
+            data-testid="oversight-nav-scroll"
+            className={cn('sticky top-0 h-[calc(100dvh-12rem)] overflow-y-auto overflow-x-hidden pr-4 pb-10 [scrollbar-width:thin]', className)}
+        >
             <OversightLinks groups={groups} />
         </aside>
     );
