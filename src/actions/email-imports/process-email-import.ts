@@ -55,10 +55,10 @@ export async function processEmailTransactions(
 
   const adminClient = await createAdminClient();
 
-  // Get matched transactions for this import
+  // Get matched transactions for this import, with what the auto-record gate (#1353) reads
   const { data: transactions, error: fetchError } = await adminClient
     .from('email_transactions')
-    .select('*')
+    .select('*, email_messages(email_type, sender_verified, sender_check)')
     .eq('email_import_id', importId)
     .in('status', ['matched', 'pending']);
 
@@ -85,6 +85,15 @@ export async function processEmailTransactions(
 
   // Read once per run, not per transaction.
   const autoProcessLimit = await readEmailAutoProcessLimit();
+
+  // Same gate as the scheduled autoRecordEmailPayments (#1353): a credit becomes a payment with no
+  // admin step only from a sender-checked alert to an estate account. A failed read queues every credit.
+  const { data: accounts, error: accountsError } = await adminClient
+    .from('estate_bank_accounts')
+    .select('account_number')
+    .eq('is_active', true);
+  if (accountsError) console.error('[email-imports] could not read estate accounts; queueing every credit:', accountsError);
+  const estateLast4 = accountsError ? null : new Set((accounts ?? []).map((a) => String(a.account_number).slice(-4)));
 
   // 1. Process Matched Credits (Payments)
   const creditTransactions = (transactions || []).filter(tx => tx.transaction_type === 'credit');
@@ -125,6 +134,17 @@ export async function processEmailTransactions(
       await adminClient
         .from('email_transactions')
         .update({ status: 'queued_for_review' })
+        .eq('id', emailTx.id);
+      result.queuedForReview++;
+      continue;
+    }
+
+    const message = (tx as { email_messages?: SenderGateMessage | null }).email_messages;
+    const blockedReason = canAutoProcess ? autoRecordBlockReason(emailTx, message, estateLast4) : null;
+    if (blockedReason) {
+      await adminClient
+        .from('email_transactions')
+        .update({ status: 'queued_for_review', review_reason: blockedReason })
         .eq('id', emailTx.id);
       result.queuedForReview++;
       continue;
@@ -335,6 +355,21 @@ export async function processEmailTransactions(
   }
 
   return result;
+}
+
+type SenderGateMessage = { email_type: string | null; sender_verified: boolean | null; sender_check: string | null };
+
+/** Why a matched credit within the limit must wait for review, or null when it may be recorded. */
+function autoRecordBlockReason(
+  tx: EmailTransaction,
+  message: SenderGateMessage | null | undefined,
+  estateLast4: Set<string> | null
+): string | null {
+  if (message?.email_type !== 'transaction_alert') return 'Not a transaction alert';
+  if (!estateLast4) return 'Estate accounts could not be read';
+  if (!tx.bank_account_last4 || !estateLast4.has(tx.bank_account_last4)) return 'Credited account is not an estate account';
+  if (message.sender_verified !== true) return `Sender check failed: ${message.sender_check ?? 'not checked'}`;
+  return null;
 }
 
 // ============================================================

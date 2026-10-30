@@ -127,7 +127,9 @@ describe('Email Import Processing', () => {
                     matched_resident_id: 'res_123',
                     amount: 1000,
                     match_confidence: 'high',
-                    match_method: 'alias'
+                    match_method: 'alias',
+                    bank_account_last4: '1234',
+                    email_messages: { email_type: 'transaction_alert', sender_verified: true, sender_check: 'dkim=pass' },
                 },
             ];
 
@@ -153,8 +155,12 @@ describe('Email Import Processing', () => {
                         }
                         return query;
                     });
+                    // The credit read: .eq('email_import_id').in('status', ['matched', 'pending'])
+                    query.in.mockImplementation((col: string, val: unknown) =>
+                        Array.isArray(val) && val.includes('matched') ? createMockQuery(mockCredits) : query);
                     return query;
                 }
+                if (table === 'estate_bank_accounts') return createMockQuery([{ account_number: '0001234' }]);
                 return createMockQuery();
             });
 
@@ -163,7 +169,8 @@ describe('Email Import Processing', () => {
 
             const result = await processEmailTransactions('import_123');
 
-            expect(result.autoProcessed).toBe(1);
+            expect(createPayment).toHaveBeenCalledTimes(1);
+            expect(result.autoProcessed).toBe(2);
             expect(result.expensesCreated).toBe(1);
         });
 
