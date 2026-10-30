@@ -80,6 +80,13 @@ describe('checkAlertSender (#1340, #1353)', () => {
       expect(result).toEqual({ verified: false, detail: 'No dkim=pass for firstbanknigeria.com' });
     });
 
+    it('does not let an escaped \\) close a comment early and inject results', () => {
+      const result = check(
+        'mx.google.com; dkim=none (x \\) ; dkim=pass header.d=firstbanknigeria.com; dmarc=pass header.from=firstbanknigeria.com ( y))'
+      );
+      expect(result).toEqual({ verified: false, detail: 'No dkim=pass for firstbanknigeria.com' });
+    });
+
     it('does not take a quoted property name as header.i', () => {
       const result = check(
         'mx.google.com; dkim=pass header.i=@evil.com "header.i=@firstbanknigeria.com"; dmarc=pass header.from=firstbanknigeria.com'
@@ -157,6 +164,18 @@ describe('checkAlertSender (#1340, #1353)', () => {
           'No dmarc=pass header.from=firstbanknigeria.com'
         );
       }
+    });
+
+    it('reads header.d, not header.i, when a DKIM result has both', () => {
+      expect(
+        check('mx.google.com; dkim=pass header.d=evil.com header.i=@firstbanknigeria.com; dmarc=pass header.from=firstbanknigeria.com')
+      ).toEqual({ verified: false, detail: 'No dkim=pass for firstbanknigeria.com' });
+      expect(
+        check('mx.google.com; dkim=pass header.d=firstbanknigeria.com header.i=@evil.com; dmarc=pass header.from=firstbanknigeria.com')
+      ).toEqual({
+        verified: true,
+        detail: 'dkim=pass header.d=firstbanknigeria.com; dmarc=pass header.from=firstbanknigeria.com; From firstalert@firstbanknigeria.com',
+      });
     });
 
     it('no longer trusts firstbank.com as a DKIM domain', () => {

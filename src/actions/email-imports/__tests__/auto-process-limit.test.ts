@@ -8,6 +8,7 @@ type Row = Record<string, unknown>;
 
 const mocks = vi.hoisted(() => ({
   rows: [] as Record<string, unknown>[],
+  estateError: null as string | null,
   updates: [] as { id: unknown; values: Record<string, unknown> }[],
   authorizePermission: vi.fn(),
   logAudit: vi.fn(),
@@ -30,7 +31,10 @@ function fakeClient() {
       let update: Record<string, unknown> | null = null;
       let single = false;
       const resolve = () => {
-        if (table === 'estate_bank_accounts') return { data: [{ account_number: '0001234' }], error: null };
+        if (table === 'estate_bank_accounts') {
+          if (mocks.estateError) return { data: null, error: { message: mocks.estateError } };
+          return { data: [{ account_number: '0001234' }], error: null };
+        }
         if (table !== 'email_transactions') return { data: null, error: null };
         if (update) {
           mocks.updates.push({ id: filters.id, values: update });
@@ -164,6 +168,7 @@ const updatesFor = (id: string) => mocks.updates.filter((u) => u.id === id).map(
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.rows = [];
+  mocks.estateError = null;
   mocks.updates = [];
   authAs(PROCESS_ONLY);
   mocks.createPayment.mockResolvedValue({ data: { id: 'pay-1' }, error: null });
@@ -351,6 +356,19 @@ describe('processEmailTransactions source gate (#1353: same as the scheduled aut
     expect(mocks.createPayment).not.toHaveBeenCalled();
     expect(result).toMatchObject({ autoProcessed: 0, queuedForReview: 1 });
     expect(updatesFor('tx-gate')).toEqual([{ status: 'queued_for_review', review_reason: reason }]);
+  });
+});
+
+describe('processEmailTransactions when the estate accounts cannot be read (#1353)', () => {
+  it('returns the error and creates no payment', async () => {
+    mocks.estateError = 'db down';
+    mocks.rows = [credit('tx-ok', 1000)];
+
+    const result = await processEmailTransactions('import-1');
+
+    expect(result).toMatchObject({ success: false, autoProcessed: 0, error: 'db down' });
+    expect(mocks.createPayment).not.toHaveBeenCalled();
+    expect(mocks.updates).toEqual([]);
   });
 });
 
