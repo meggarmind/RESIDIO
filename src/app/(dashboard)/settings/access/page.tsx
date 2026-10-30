@@ -31,7 +31,7 @@ function AccountsContent() {
   const router = useRouter();
   const pathname = usePathname();
   const { hasPermission } = useAuth();
-  // The route admits system.assign_roles; the Roles and Rules tabs also need
+  // The route admits system.assign_roles; the Roles, Titles and Rules tabs also need
   // system.manage_roles, which every read and write behind them enforces server-side.
   const canManageRoles = hasPermission(PERMISSIONS.SYSTEM_MANAGE_ROLES);
 
@@ -56,7 +56,7 @@ function AccountsContent() {
       <AccountsHeading />
 
       <Tabs value={tab} onValueChange={onTabChange} className="space-y-4">
-        {/* Scrolls inside the bar so five tabs never widen the page at phone width. */}
+        {/* Scrolls inside the bar so six tabs never widen the page at phone width. */}
         <div className="overflow-x-auto">
           <TabsList className={TABS_LIST_CLASS}>
             <TabsTrigger value="administrators" className={TAB_CLASS}>

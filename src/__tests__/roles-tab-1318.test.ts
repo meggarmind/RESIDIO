@@ -495,6 +495,13 @@ describe('title rank guard (#1361)', () => {
     expect(state.writes).toEqual([]);
   });
 
+  it('refuses a title for a role that does not exist, even for a super admin', async () => {
+    const result = await createAdminTitle({ role_id: '00000000-0000-4000-8000-0000000000ff', name: 'Ghost', seats: 1 });
+
+    expect(result.error).toBe('Role not found');
+    expect(state.writes).toEqual([]);
+  });
+
   it('refuses a non-super admin moving a title onto super_admin', async () => {
     asCaller('treasurer', TREASURER);
 
@@ -553,6 +560,8 @@ describe('moving a title to another role', () => {
     const result = await updateAdminTitle('t-junior', { name: 'Junior Auditor', seats: null, role_id: CHAIR });
 
     expect(result.success).toBe(true);
+    expect(state.tables.admin_titles.find((t) => t.id === 't-junior')?.role_id).toBe(CHAIR);
+    expect(writesTo('admin_titles').length).toBeGreaterThan(0);
   });
 
   it('refuses moving a principal title', async () => {
