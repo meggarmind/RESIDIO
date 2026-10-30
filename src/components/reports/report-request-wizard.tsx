@@ -174,7 +174,7 @@ function StepIndicator({ steps, currentStep, reportType }: { steps: Step[]; curr
     const progressPercent = ((currentStep - 1) / (steps.length - 1)) * 100;
 
     return (
-        <div className="relative mb-10">
+        <div className="relative pb-1">
             {/* Progress track */}
             <div className="absolute top-5 left-0 right-0 h-0.5 bg-muted mx-10">
                 <div
@@ -1180,12 +1180,16 @@ export function ReportRequestWizard({
         }
     };
 
+    const selectedTypeLabel = reportTypes.find((t) => t.value === formData.reportType)?.label;
+
     return (
-        <form onSubmit={handleSubmit(onSubmit)} className="max-w-3xl mx-auto">
-            <Card className="overflow-hidden shadow-xl border-0 bg-gradient-to-b from-background to-muted/20">
-                <CardContent className="p-8">
-                    {/* Step Indicator */}
-                    <StepIndicator steps={STEPS} currentStep={step} reportType={formData.reportType || ''} />
+        <form onSubmit={handleSubmit(onSubmit)}>
+            <Card className="shadow-xl border-0 bg-gradient-to-b from-background to-muted/20">
+                <CardContent className="p-4 md:p-6">
+                    {/* Step Indicator: pinned under the page header and tabs (height set on the Tabs root as --reports-sticky-h). */}
+                    <div className="z-20 -mx-2 mb-6 bg-background px-2 pt-2 md:sticky md:top-[var(--reports-sticky-h,6rem)]">
+                        <StepIndicator steps={STEPS} currentStep={step} reportType={formData.reportType || ''} />
+                    </div>
 
                     {/* Step Content */}
                     <div className="min-h-[400px]">
@@ -1244,8 +1248,8 @@ export function ReportRequestWizard({
                         )}
                     </div>
 
-                    {/* Navigation */}
-                    <div className="flex justify-between pt-4">
+                    {/* Navigation: pinned to the bottom of the scroll area */}
+                    <div className="sticky bottom-0 z-20 -mx-2 mt-4 flex items-center justify-between gap-3 border-t bg-background px-2 py-3">
                         <Button
                             variant="outline"
                             type="button"
@@ -1255,6 +1259,12 @@ export function ReportRequestWizard({
                             <ChevronLeft className="mr-2 h-4 w-4" />
                             Back
                         </Button>
+
+                        {selectedTypeLabel && (
+                            <p className="hidden min-w-0 flex-1 truncate text-center text-sm text-muted-foreground sm:block">
+                                Selected: <span className="font-medium text-foreground">{selectedTypeLabel}</span>
+                            </p>
+                        )}
 
                         {step < 5 ? (
                             <Button type="button" onClick={handleNext} disabled={!canProceed()}>
