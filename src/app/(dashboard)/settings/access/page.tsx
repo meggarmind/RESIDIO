@@ -12,14 +12,14 @@ import { RolesList } from '@/components/admin/roles-list';
 import { RoleTitlesManager } from '@/components/admin/role-titles-manager';
 import { RoleAssignmentRulesEditor } from '@/components/admin/role-assignment-rules';
 import { SettingsPageHeader } from '@/components/settings/settings-page-header';
-import { Users, Ghost, UserCheck, Shield, Settings, Loader2 } from 'lucide-react';
+import { Users, Ghost, UserCheck, Shield, Tag, Settings, Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 // Values from before #912 still work in old bookmarks and links.
 const TAB_ALIASES: Record<string, string> = { assignments: 'administrators', orphaned: 'unlinked' };
 const OPEN_TABS = ['administrators', 'pending', 'unlinked'];
-const MANAGE_TABS = ['roles', 'rules'];
+const MANAGE_TABS = ['roles', 'titles', 'rules'];
 
 // Same look as the "On this page" tabs (SettingsPageNav): rectangles, primary fill on the current tab.
 const TABS_LIST_CLASS = 'h-auto w-max min-w-full justify-start gap-1.5 bg-transparent p-0';
@@ -75,6 +75,12 @@ function AccountsContent() {
               <TabsTrigger value="roles" className={TAB_CLASS}>
                 <Shield className="h-4 w-4" />
                 Roles
+              </TabsTrigger>
+            )}
+            {canManageRoles && (
+              <TabsTrigger value="titles" className={TAB_CLASS}>
+                <Tag className="h-4 w-4" />
+                Titles
               </TabsTrigger>
             )}
             {canManageRoles && (
@@ -159,7 +165,11 @@ function AccountsContent() {
                 <RolesList />
               </CardContent>
             </Card>
+          </TabsContent>
+        )}
 
+        {canManageRoles && (
+          <TabsContent value="titles" className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle>Titles</CardTitle>

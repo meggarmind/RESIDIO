@@ -255,10 +255,23 @@ describe('RoleTitlesManager (#1318)', () => {
     expect(screen.getByRole('button', { name: 'Add title to Auditor' })).toBeInTheDocument();
   });
 
-  it('hides title controls on a role the caller may not change', () => {
-    mocks.roles = { data: [role('r-ch', 'chairman', { is_system_role: true })], isLoading: false, error: null };
+  it('shows title controls on the own role and on system roles (#1361)', () => {
+    mocks.roles = {
+      data: [role('r-ch', 'chairman', { is_system_role: true }), role('r-treasurer', 'treasurer')],
+      isLoading: false,
+      error: null,
+    };
     render(<RoleTitlesManager />);
-    expect(screen.queryByRole('button', { name: 'Add title to Chairman' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add title to Chairman' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add title to Treasurer' })).toBeInTheDocument();
+    expect(screen.queryByText('Only Super Administrator can change these titles.')).not.toBeInTheDocument();
+  });
+
+  it('hides title controls on super_admin and says why', () => {
+    mocks.roles = { data: [role('r-sa', 'super_admin', { is_system_role: true })], isLoading: false, error: null };
+    render(<RoleTitlesManager />);
+    expect(screen.queryByRole('button', { name: /Add title to/ })).not.toBeInTheDocument();
+    expect(screen.getByText('Only Super Administrator can change these titles.')).toBeInTheDocument();
   });
 
   it('shows the load error with its reason', () => {

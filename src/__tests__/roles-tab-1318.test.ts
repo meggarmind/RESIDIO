@@ -482,34 +482,42 @@ describe('deleteAdminTitle', () => {
   });
 });
 
-describe('title rank guard', () => {
-  it('refuses a non-super admin adding, editing or deleting a title of a system role', async () => {
+describe('title rank guard (#1361)', () => {
+  const SUPER_REFUSAL = 'Only Super Administrator can change the titles of the Super Administrator role';
+
+  it('refuses a non-super admin adding, editing or deleting a title of super_admin', async () => {
+    state.tables.admin_titles.push({ id: 't-sa', role_id: SA, name: 'Root', is_principal: false, seats: 1, sort_order: 0 });
     asCaller('treasurer', TREASURER);
 
-    expect((await createAdminTitle({ role_id: CHAIR, name: 'Deputy', seats: 1 })).error).toBe(
-      'Only Super Administrator can change the titles of system roles'
-    );
-    expect((await updateAdminTitle('t-vice', { name: 'Deputy', seats: 1 })).success).toBe(false);
-    expect((await deleteAdminTitle('t-vice')).success).toBe(false);
+    expect((await createAdminTitle({ role_id: SA, name: 'Deputy', seats: 1 })).error).toBe(SUPER_REFUSAL);
+    expect((await updateAdminTitle('t-sa', { name: 'Deputy', seats: 1 })).success).toBe(false);
+    expect((await deleteAdminTitle('t-sa')).success).toBe(false);
     expect(state.writes).toEqual([]);
   });
 
-  it("refuses a non-super admin changing the titles of their own role", async () => {
+  it('refuses a non-super admin moving a title onto super_admin', async () => {
+    asCaller('treasurer', TREASURER);
+
+    const result = await updateAdminTitle('t-junior', { name: 'Junior Auditor', seats: null, role_id: SA });
+
+    expect(result.error).toBe(SUPER_REFUSAL);
+    expect(writesTo('admin_titles')).toEqual([]);
+  });
+
+  it('lets a chairman change the titles of their own role and of a system role', async () => {
+    asCaller('chairman', CHAIR);
+
+    expect((await createAdminTitle({ role_id: CHAIR, name: 'Deputy', seats: 1 })).success).toBe(true);
+    expect((await updateAdminTitle('t-vice', { name: 'Deputy Chairman', seats: 1 })).success).toBe(true);
+    expect((await createAdminTitle({ role_id: AUDITOR, name: 'Clerk', seats: 1 })).success).toBe(true);
+    expect((await deleteAdminTitle('t-junior')).success).toBe(true);
+  });
+
+  it('lets a non-super admin change the titles of their own custom role', async () => {
     asCaller('auditor', AUDITOR);
 
-    expect((await createAdminTitle({ role_id: AUDITOR, name: 'Deputy', seats: 1 })).error).toBe(
-      'You cannot change the titles of your own role'
-    );
-    expect((await updateAdminTitle('t-lead', { name: 'Head', seats: 2 })).success).toBe(false);
-    expect((await deleteAdminTitle('t-junior')).success).toBe(false);
-    expect(state.writes).toEqual([]);
-  });
-
-  it('lets a non-super admin change the titles of another custom role', async () => {
-    asCaller('treasurer', TREASURER);
-
     expect((await createAdminTitle({ role_id: AUDITOR, name: 'Deputy', seats: 1 })).success).toBe(true);
-    expect((await updateAdminTitle('t-lead', { name: 'Head Auditor', seats: 2 })).success).toBe(true);
+    expect((await updateAdminTitle('t-lead', { name: 'Head', seats: 2 })).success).toBe(true);
     expect((await deleteAdminTitle('t-junior')).success).toBe(true);
   });
 
@@ -539,13 +547,12 @@ describe('moving a title to another role', () => {
     expect(writesTo('admin_titles')).toEqual([]);
   });
 
-  it('refuses a non-super admin moving a title onto a system role', async () => {
+  it('lets a non-super admin move a title onto a system role', async () => {
     asCaller('treasurer', TREASURER);
 
     const result = await updateAdminTitle('t-junior', { name: 'Junior Auditor', seats: null, role_id: CHAIR });
 
-    expect(result.success).toBe(false);
-    expect(writesTo('admin_titles')).toEqual([]);
+    expect(result.success).toBe(true);
   });
 
   it('refuses moving a principal title', async () => {
