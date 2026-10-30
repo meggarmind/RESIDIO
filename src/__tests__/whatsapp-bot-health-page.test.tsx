@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 
@@ -8,7 +8,7 @@ import '@testing-library/jest-dom/vitest';
 const person = { first_name: 'Ada', last_name: 'Okoro', resident_code: 'RES001' };
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   usePathname: () => '/system/whatsapp-bot-health',
   useSearchParams: () => new URLSearchParams(),
 }));
@@ -31,20 +31,23 @@ import WhatsAppBotHealthPage from '@/app/(dashboard)/(oversight)/system/whatsapp
 afterEach(() => cleanup());
 
 describe('WhatsApp bot health page', () => {
-  it('renders the four sections from the action results, with a jump tab for each', async () => {
+  it('renders the four sections from the action results, with a tab for each after Summary (#1365)', async () => {
     render(await WhatsAppBotHealthPage());
 
     expect(screen.getByRole('heading', { level: 1, name: 'WhatsApp bot health' })).toBeInTheDocument();
 
     const nav = await screen.findByRole('navigation', { name: 'On this page' });
-    expect(within(nav).getAllByRole('link').map((a) => a.textContent)).toEqual(['Bot health', 'Feedback', 'Undelivered', 'Statements waiting']);
+    expect(within(nav).getAllByRole('tab').map((a) => a.textContent)).toEqual(['Summary', 'Bot health', 'Feedback', 'Undelivered', 'Statements waiting']);
+    const open = (name: string) => {
+      fireEvent.click(within(nav).getByRole('tab', { name }));
+      return screen.getByRole('region', { name });
+    };
 
-    const health = screen.getByRole('region', { name: 'Bot health' });
-    expect(within(health).getByText('41')).toBeInTheDocument();
-    expect(within(screen.getByRole('region', { name: 'Feedback' })).getByText('Asked: 9')).toBeInTheDocument();
-    const undelivered = screen.getByRole('region', { name: 'Undelivered' });
+    expect(within(open('Bot health')).getByText('41')).toBeInTheDocument();
+    expect(within(open('Feedback')).getByText('Asked: 9')).toBeInTheDocument();
+    const undelivered = open('Undelivered');
     expect(within(undelivered).getByText('Ada Okoro')).toBeInTheDocument();
     expect(within(undelivered).getByText('63016: Outside window')).toBeInTheDocument();
-    expect(within(screen.getByRole('region', { name: 'Statements waiting' })).getByText('Bayo Adeyemi')).toBeInTheDocument();
+    expect(within(open('Statements waiting')).getByText('Bayo Adeyemi')).toBeInTheDocument();
   });
 });
