@@ -471,9 +471,15 @@ function parseStructuredAlert(body: string, subject?: string | null): ParsedEmai
 }
 
 /**
- * Extract simple account number if not using the exported complex one
+ * The credited account as stored in `bank_account_last4` (#1356):
+ * - a masked number such as `202XXXX725` (visible leading digits, a run of X or *, visible
+ *   trailing digits) is kept whole, with the mask written as X, so the estate-account check can
+ *   compare both ends and the length;
+ * - any other form (`2021234725`, `****1234`) keeps only its last 4 digits, as before.
  */
 function extractAccountNumber(text: string): string | null {
+  const masked = text.match(/(?<![\dX*])(\d+[X*]+\d+)(?![\dX*])/i);
+  if (masked) return masked[1].toUpperCase().replace(/\*/g, 'X');
   const match = text.match(/[\dX*]{4,}(\d{4})/);
   return match ? match[1] : null;
 }

@@ -57,7 +57,9 @@ export function buildPaymentReceivedWhatsApp(input: {
         input.residentName,
         amount,
         paymentDate,
-        input.referenceNumber || 'Not provided',
+        // No bank reference (a FirstBank alert has none, #1356): the payment's receipt number, in
+        // the same RCP- form the email and PDF receipts print for it. Never stored as the reference.
+        input.referenceNumber || `RCP-${input.paymentId.slice(0, 8).toUpperCase()}`,
       ]),
     },
   };

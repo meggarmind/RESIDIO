@@ -342,6 +342,9 @@ describe('processEmailTransactions source gate (#1353: same as the scheduled aut
     ],
     ['a non-estate account', { bank_account_last4: '9999' }, 'Credited account is not an estate account'],
     ['no account number', { bank_account_last4: null }, 'Credited account is not an estate account'],
+    // #1356: the estate account is 0001234, so a mask of another total length is not it.
+    ['a masked account of another length', { bank_account_last4: '000XXX34' }, 'Credited account is not an estate account'],
+    ['a masked account with another prefix', { bank_account_last4: '001XX34' }, 'Credited account is not an estate account'],
     [
       'a statement row',
       { email_messages: { email_type: 'statement', sender_verified: true, sender_check: 'dkim=pass' } },
@@ -356,6 +359,17 @@ describe('processEmailTransactions source gate (#1353: same as the scheduled aut
     expect(mocks.createPayment).not.toHaveBeenCalled();
     expect(result).toMatchObject({ autoProcessed: 0, queuedForReview: 1 });
     expect(updatesFor('tx-gate')).toEqual([{ status: 'queued_for_review', review_reason: reason }]);
+  });
+});
+
+describe('processEmailTransactions with a masked alert account (#1356)', () => {
+  it('auto-processes a credit whose mask matches the one estate account', async () => {
+    mocks.rows = [credit('tx-masked', 1000, { bank_account_last4: '000XX34' })];
+
+    const result = await processEmailTransactions('import-1');
+
+    expect(mocks.createPayment).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ autoProcessed: 1, queuedForReview: 0 });
   });
 });
 

@@ -224,3 +224,51 @@ describe('(D1) labels glued to their values, and key word boundaries', () => {
     expect(dayOf(['Updated 2026-01-01', 'Validated', 'Amount', '15,000.00 CR'].join('\n'))).toBeNull();
   });
 });
+
+describe('(#1356) masked account in the Transaction Details table', () => {
+  // The FirstBank alert of 30 Oct 2026, as the owner pasted its Transaction Details table.
+  const FIELDS: [string, string][] = [
+    ['Date/Time', '30-Oct-26 09:50 AM'],
+    ['Account Number', '202XXXX725'],
+    ['Amount', '100.00 CR'],
+    ['Narration', 'ISW:MMB/Feyijimi Adewol/Test Notification /AT117TR'],
+  ];
+  const layouts: [string, string][] = [
+    ['label and value on one line', ['Transaction Details', ...FIELDS.map(([k, v]) => `${k} ${v}`)].join('\n')],
+    ['label and value on separate lines', ['Transaction Details', ...FIELDS.flat()].join('\n')],
+    ['tabs, blank lines and extra spaces', ['Transaction Details', ...FIELDS.map(([k, v]) => `${k}\t  \n\n   ${v}  `)].join('\n')],
+    [
+      'an HTML table, one cell per label and value',
+      '<p>Transaction Details</p><table>' +
+        FIELDS.map(([k, v]) => `<tr>\n  <td>${k}</td>\n  <td>&nbsp;${v}</td>\n</tr>`).join('') +
+        '</table>',
+    ],
+    ['a minified HTML table', `<table>${FIELDS.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</table>`],
+  ];
+
+  it.each(layouts)('reads the real alert with %s', (_name, body) => {
+    const parsed = parseFirstBankAlert(body, SUBJECT)!;
+    expect(parsed).not.toBeNull();
+    expect(parsed.bankAccountLast4).toBe('202XXXX725');
+    expect(parsed.amount).toBe(100);
+    expect(parsed.transactionType).toBe('credit');
+    expect(toCalendarDateString(parsed.transactionDate!)).toBe('2026-10-30');
+    expect(parsed.description).toBe('ISW:MMB/Feyijimi Adewol/Test Notification /AT117TR');
+    // The narration's tail (/AT117TR) is not a bank reference.
+    expect(parsed.reference).toBeNull();
+  });
+
+  it('writes a * mask as X and keeps the length', () => {
+    const body = ['Date/Time', '30-Oct-26 09:50 AM', 'Account Number', '202****725', 'Amount', '100.00 CR'].join('\n');
+    expect(parseFirstBankAlert(body, SUBJECT)!.bankAccountLast4).toBe('202XXXX725');
+  });
+
+  it('keeps the last 4 digits of the older forms', () => {
+    const table = (account: string) =>
+      parseFirstBankAlert(['Date/Time', '30-Oct-26 09:50 AM', 'Account Number', account, 'Amount', '100.00 CR'].join('\n'), SUBJECT)!;
+    expect(table('2021234725').bankAccountLast4).toBe('4725');
+    expect(table('******3725').bankAccountLast4).toBe('3725');
+    const sentence = parseFirstBankAlert('Your account ****1234 has been credited with NGN 50,000.00 by JAKE DEE on 31/10/2026.', null)!;
+    expect(sentence.bankAccountLast4).toBe('1234');
+  });
+});

@@ -7,7 +7,7 @@
  * - high-confidence alias or phone match to a resident (the `processEmailTransactions` rule);
  * - amount at or below the live `email_import_auto_process_limit` setting (fail closed on a bad read);
  * - it came from a transaction alert, not a statement;
- * - the credited account is an active estate account (last 4 digits), else it is queued with the reason;
+ * - the credited account is exactly one active estate account (`isEstateAccount`), else it is queued with the reason;
  * - the message passed the sender check (`sender-check.ts`), else it is queued with the reason;
  * - no duplicate payment exists.
  *
@@ -76,17 +76,17 @@ export interface AutoRecordGateFailure {
 /**
  * The source gate a credit must pass before it may become a payment with no admin step, shared by
  * this scheduled step and the manual `processEmailTransactions` (#1353): it came from a transaction
- * alert, not a statement; the credited account is an active estate account (last 4 digits); and
- * the message passed the sender check. Returns null when it passes.
+ * alert, not a statement; the credited account is exactly one active estate account
+ * (`isEstateAccount`); and the message passed the sender check. Returns null when it passes.
  */
 export function checkAutoRecordGate(
   tx: { bank_account_last4: string | null; email_messages: GateMessage },
-  estateLast4: Set<string>
+  estateAccounts: readonly string[]
 ): AutoRecordGateFailure | null {
   if (tx.email_messages?.email_type !== 'transaction_alert') {
     return { check: 'not_alert', reviewReason: 'Not a transaction alert' };
   }
-  if (!tx.bank_account_last4 || !estateLast4.has(tx.bank_account_last4)) {
+  if (!isEstateAccount(tx.bank_account_last4, estateAccounts)) {
     return { check: 'estate_account', reviewReason: 'Credited account is not an estate account' };
   }
   if (tx.email_messages.sender_verified !== true) {
@@ -95,13 +95,39 @@ export function checkAutoRecordGate(
   return null;
 }
 
-/** The last 4 digits of every active estate account, for `checkAutoRecordGate`. */
-export async function readEstateAccountLast4(
+/**
+ * Whether the parsed account (`email_transactions.bank_account_last4`) is exactly one of the
+ * active estate accounts (#1356). Two stored forms are accepted:
+ * - masked, as FirstBank alerts show it (`202XXXX725`): the visible leading and trailing digits
+ *   must match and the total length must be the same;
+ * - the older last-4-digit form (`1234`): the account must end with those digits.
+ * No match, or more than one, is not an estate account. Any other value fails closed, including a
+ * mask that shows fewer than 4 digits in all.
+ */
+export function isEstateAccount(stored: string | null, estateAccounts: readonly string[]): boolean {
+  if (!stored) return false;
+  const value = stored.trim().toUpperCase();
+  let matches: (account: string) => boolean;
+  const masked = value.match(/^(\d+)[X*]+(\d+)$/);
+  if (/^\d{4}$/.test(value)) {
+    matches = (account) => account.endsWith(value);
+  } else if (masked && masked[1].length + masked[2].length >= 4) {
+    const [, head, tail] = masked;
+    matches = (account) => account.length === value.length && account.startsWith(head) && account.endsWith(tail);
+  } else {
+    return false;
+  }
+  return estateAccounts.filter(matches).length === 1;
+}
+
+/** The distinct digit-only numbers of every active estate account, for `checkAutoRecordGate`. */
+export async function readEstateAccountNumbers(
   client: AdminClient
-): Promise<{ last4: Set<string>; error: null } | { last4: null; error: string }> {
+): Promise<{ accounts: string[]; error: null } | { accounts: null; error: string }> {
   const { data, error } = await client.from('estate_bank_accounts').select('account_number').eq('is_active', true);
-  if (error) return { last4: null, error: error.message };
-  return { last4: new Set((data ?? []).map((a) => String(a.account_number).slice(-4))), error: null };
+  if (error) return { accounts: null, error: error.message };
+  const numbers = (data ?? []).map((a) => String(a.account_number ?? '').replace(/\s/g, '')).filter((n) => /^\d+$/.test(n));
+  return { accounts: [...new Set(numbers)], error: null };
 }
 
 type CandidateRow = {
@@ -151,7 +177,7 @@ export async function autoRecordEmailPayments(importId: string): Promise<AutoRec
 
   if (error) return { ...result, error: error.message };
 
-  const estate = await readEstateAccountLast4(adminClient);
+  const estate = await readEstateAccountNumbers(adminClient);
   if (estate.error !== null) return { ...result, error: estate.error };
 
   // Read once per run, so a Settings change applies from the next run.
@@ -161,7 +187,7 @@ export async function autoRecordEmailPayments(importId: string): Promise<AutoRec
     const amount = Number(tx.amount);
     if (!isAutoProcessMatch(tx) || !tx.matched_resident_id || !(amount > 0)) continue;
     if (exceedsEmailAutoProcessLimit(tx, limit)) continue;
-    const gate = checkAutoRecordGate(tx, estate.last4);
+    const gate = checkAutoRecordGate(tx, estate.accounts);
     // A statement row is left for queueEmailTransactionsForReview, as before.
     if (gate?.check === 'not_alert') continue;
     if (gate) {

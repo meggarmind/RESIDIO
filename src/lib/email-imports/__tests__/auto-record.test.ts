@@ -67,7 +67,7 @@ vi.mock('@/lib/matching/duplicate-matcher', () => ({ checkDuplicateGuardrail: mo
 vi.mock('@/lib/payments/create-payment', () => ({ createPaymentAsSystem: mocks.createPaymentAsSystem }));
 vi.mock('@/lib/notifications/admin-notifier', () => ({ notifyAdmins: mocks.notifyAdmins }));
 
-import { autoRecordEmailPayments, AUTO_RECORD_SOURCE } from '@/lib/email-imports/auto-record';
+import { autoRecordEmailPayments, AUTO_RECORD_SOURCE, isEstateAccount, readEstateAccountNumbers } from '@/lib/email-imports/auto-record';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 const IMPORT_ID = 'import-1';
@@ -101,6 +101,7 @@ beforeEach(() => {
   mocks.rows = [];
   mocks.updates = [];
   mocks.selectError = null;
+  mocks.accounts = [{ account_number: '0123451234' }];
   paymentSeq = 0;
   mocks.getSettingResultAsService.mockResolvedValue({ status: 'absent' }); // default N60,000
   mocks.checkDuplicateGuardrail.mockResolvedValue({ isDuplicate: false });
@@ -119,6 +120,77 @@ describe('autoRecordEmailPayments estate account guard (#1340)', () => {
     expect(result.autoRecorded).toEqual([]);
     expect(mocks.createPaymentAsSystem).not.toHaveBeenCalled();
     expect(updatesFor('tx-acct')).toEqual([{ review_reason: 'Credited account is not an estate account' }]);
+  });
+});
+
+// Stage's two active accounts (#1356): one is 202...725 (ends 3725), the other 203...151.
+const STAGE_ACCOUNTS = ['2024443725', '2035550151'];
+
+describe('isEstateAccount (#1356)', () => {
+  it.each([
+    ['the masked alert form', '202XXXX725'],
+    ['a * mask', '202****725'],
+    ['a lower-case mask', '202xxxx725'],
+    ['the older last-4 form', '3725'],
+  ])('matches exactly one estate account for %s', (_name, stored) => {
+    expect(isEstateAccount(stored, STAGE_ACCOUNTS)).toBe(true);
+  });
+
+  it.each([
+    ['a non-matching prefix', '201XXXX725'],
+    ['a non-matching suffix', '202XXXX726'],
+    ['the other account\'s prefix with this suffix', '203XXXX725'],
+    ['a shorter total length', '202XXX725'],
+    ['a longer total length', '202XXXXX725'],
+    ['an old last-4 that matches nothing', '9999'],
+    ['fewer than 4 visible digits', '2XXXXXXXX5'],
+    ['no mask digits at all', 'XXXXXXXXXX'],
+    ['a full number (not a stored form)', '2024443725'],
+    ['an empty value', ''],
+    ['null', null],
+  ])('is not an estate account for %s', (_name, stored) => {
+    expect(isEstateAccount(stored, STAGE_ACCOUNTS)).toBe(false);
+  });
+
+  it('is not an estate account when the mask matches more than one', () => {
+    const ambiguous = ['2021113725', '2022223725'];
+    expect(isEstateAccount('202XXXX725', ambiguous)).toBe(false);
+    expect(isEstateAccount('3725', ambiguous)).toBe(false);
+    // Either one alone matches.
+    expect(isEstateAccount('202XXXX725', ambiguous.slice(0, 1))).toBe(true);
+  });
+
+  it('is not an estate account when there are no active accounts', () => {
+    expect(isEstateAccount('202XXXX725', [])).toBe(false);
+  });
+
+  it('reads each active account once, digits only', async () => {
+    mocks.accounts = [{ account_number: '2024443725' }, { account_number: ' 2024443725 ' }, { account_number: null }, { account_number: '203-555' }];
+    const result = await readEstateAccountNumbers(client as never);
+    expect(result).toEqual({ accounts: ['2024443725'], error: null });
+  });
+});
+
+describe('autoRecordEmailPayments with the masked alert account (#1356)', () => {
+  it('records a credit to 202XXXX725 when it matches one estate account', async () => {
+    mocks.accounts = STAGE_ACCOUNTS.map((account_number) => ({ account_number }));
+    mocks.rows = [credit('tx-masked', 100, { bank_account_last4: '202XXXX725' })];
+
+    const result = await autoRecordEmailPayments(IMPORT_ID);
+
+    expect(result.autoRecorded.map((p) => p.transactionId)).toEqual(['tx-masked']);
+    expect(mocks.createPaymentAsSystem).toHaveBeenCalledTimes(1);
+  });
+
+  it('queues it with the reason when the mask matches two estate accounts', async () => {
+    mocks.accounts = [{ account_number: '2021113725' }, { account_number: '2022223725' }];
+    mocks.rows = [credit('tx-ambiguous', 100, { bank_account_last4: '202XXXX725' })];
+
+    const result = await autoRecordEmailPayments(IMPORT_ID);
+
+    expect(result.autoRecorded).toEqual([]);
+    expect(mocks.createPaymentAsSystem).not.toHaveBeenCalled();
+    expect(updatesFor('tx-ambiguous')).toEqual([{ review_reason: 'Credited account is not an estate account' }]);
   });
 });
 
