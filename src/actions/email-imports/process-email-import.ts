@@ -21,7 +21,7 @@ import {
   checkAutoRecordGate,
   isAutoProcessMatch,
   readEmailAutoProcessLimit,
-  readEstateAccountLast4,
+  readEstateAccountNumbers,
 } from '@/lib/email-imports/auto-record';
 import { createExpense } from '@/actions/expenses/create-expense';
 import { writeEmailImportStatus } from '@/lib/email-imports/import-records';
@@ -91,7 +91,7 @@ export async function processEmailTransactions(
 
   // Read once per run, not per transaction.
   const autoProcessLimit = await readEmailAutoProcessLimit();
-  const estate = await readEstateAccountLast4(adminClient);
+  const estate = await readEstateAccountNumbers(adminClient);
   if (estate.error !== null) {
     return {
       success: false,
@@ -149,7 +149,7 @@ export async function processEmailTransactions(
     }
 
     const gate = canAutoProcess
-      ? checkAutoRecordGate(tx, estate.last4)
+      ? checkAutoRecordGate(tx, estate.accounts)
       : null;
     if (gate) {
       // Same gate as the scheduled auto-record step: a statement row, another account or an
