@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -37,7 +37,6 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { EnhancedPageHeader } from '@/components/dashboard/enhanced-stat-card';
 import { ReportRequestWizard } from '@/components/reports/report-request-wizard';
 import { ReportViewer } from '@/components/reports/report-viewer';
 import { ReportSchedulesPanel } from '@/components/reports/report-schedules';
@@ -289,10 +288,10 @@ function EmptyReportsState({ onCreateNew }: { onCreateNew: () => void }) {
 }
 
 // ============================================================
-// Quick Stats Card
+// Quick Stats Chip
 // ============================================================
 
-function QuickStatsCard() {
+function QuickStatsChip() {
     const { data: reportsResult } = useGeneratedReports();
     const reports = reportsResult?.data || [];
     const reportsThisMonth = reports.filter((r) => {
@@ -303,23 +302,16 @@ function QuickStatsCard() {
             reportDate.getFullYear() === now.getFullYear()
         );
     }).length;
+    const total = reportsResult?.count || 0;
 
     return (
-        <Card className="border-dashed">
-            <CardContent className="p-4">
-                <div className="flex items-center gap-4">
-                    <div className="p-2.5 rounded-lg bg-emerald-500/10">
-                        <TrendingUp className="h-5 w-5 text-emerald-600" />
-                    </div>
-                    <div>
-                        <p className="text-2xl font-bold">{reportsResult?.count || 0}</p>
-                        <p className="text-xs text-muted-foreground">
-                            {reportsThisMonth} generated this month
-                        </p>
-                    </div>
-                </div>
-            </CardContent>
-        </Card>
+        <Badge variant="outline" className="shrink-0 gap-1.5 px-2.5 py-1 text-xs font-normal text-muted-foreground">
+            <TrendingUp className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
+            <span>
+                <span className="font-semibold text-foreground">{total}</span> {total === 1 ? 'report' : 'reports'} ·{' '}
+                <span className="font-semibold text-foreground">{reportsThisMonth}</span> this month
+            </span>
+        </Badge>
     );
 }
 
@@ -338,6 +330,17 @@ export function ReportsPageClient() {
     const reportsCount = reportsData?.count || 0;
     const generateReport = useGenerateReport();
     const deleteReport = useDeleteGeneratedReport();
+
+    // The wizard's step bar pins itself under this header, so it needs the header's real height.
+    const stickyRef = useRef<HTMLDivElement>(null);
+    const [stickyHeight, setStickyHeight] = useState(96);
+    useEffect(() => {
+        const el = stickyRef.current;
+        if (!el || typeof ResizeObserver === 'undefined') return;
+        const observer = new ResizeObserver(() => setStickyHeight(Math.round(el.getBoundingClientRect().height)));
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, []);
 
     const handleGenerate = async (data: ReportRequestFormData) => {
         try {
@@ -380,17 +383,25 @@ export function ReportsPageClient() {
     }
 
     return (
-        <div className="space-y-6">
-            <EnhancedPageHeader
-                title="Generate reports"
-                description="Generate detailed financial reports and analytics for your estate"
-                icon={FileBarChart}
-                actions={<QuickStatsCard />}
-            />
+        // The Tabs root is the parent of the sticky bar, so the bar stays pinned for the whole page.
+        <Tabs
+            value={activeTab}
+            onValueChange={setActiveTab}
+            className="gap-6"
+            style={{ '--reports-sticky-h': `${stickyHeight}px` } as React.CSSProperties}
+        >
+            {/* <main> is the scroller (p-4 md:p-6). A sticky top-0 bar would stop below that padding and let content show above it,
+                so the bar pins at minus the padding and fills that strip with its own matching top padding. */}
+            <div ref={stickyRef} className="sticky -top-4 z-30 -mx-1 -mt-4 space-y-3 bg-background px-1 pb-3 pt-4 md:-top-6 md:-mt-6 md:pt-6">
+                <div className="flex items-center justify-between gap-3">
+                    <h1 className="flex min-w-0 items-center gap-2 text-xl font-bold tracking-tight">
+                        <FileBarChart className="h-5 w-5 shrink-0 text-emerald-600" aria-hidden="true" />
+                        <span className="truncate">Generate reports</span>
+                    </h1>
+                    <QuickStatsChip />
+                </div>
 
-            {/* Tabs */}
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-                <TabsList className="grid w-full max-w-3xl grid-cols-5">
+                <TabsList className="w-full justify-start overflow-x-auto sm:grid sm:grid-cols-5">
                     <TabsTrigger value="new" className="gap-2">
                         <Plus className="h-4 w-4" />
                         New Report
@@ -420,74 +431,74 @@ export function ReportsPageClient() {
                         Wallet Check
                     </TabsTrigger>
                 </TabsList>
+            </div>
 
-                {/* New Report Tab */}
-                <TabsContent value="new" className="mt-6">
-                    <ReportRequestWizard
-                        onGenerate={handleGenerate}
-                        isGenerating={generateReport.isPending}
-                    />
-                </TabsContent>
+            {/* New Report Tab */}
+            <TabsContent value="new">
+                <ReportRequestWizard
+                    onGenerate={handleGenerate}
+                    isGenerating={generateReport.isPending}
+                />
+            </TabsContent>
 
-                {/* Recent Reports Tab */}
-                <TabsContent value="recent" className="mt-6">
-                    <Card>
-                        <CardHeader className="pb-4">
-                            <CardTitle className="text-lg flex items-center gap-2">
-                                <History className="h-5 w-5 text-emerald-600" />
-                                Generated Reports
-                            </CardTitle>
-                            <CardDescription>
-                                View and download previously generated reports
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            {reportsLoading ? (
-                                <ReportsListSkeleton />
-                            ) : reports && reports.length > 0 ? (
-                                <div className="space-y-3">
-                                    {reports.map((report) => (
-                                        <ReportCard
-                                            key={report.id}
-                                            report={report}
-                                            onView={handleViewReport}
-                                            onDelete={handleDeleteReport}
-                                        />
-                                    ))}
-                                </div>
-                            ) : (
-                                <EmptyReportsState onCreateNew={() => setActiveTab('new')} />
-                            )}
-                        </CardContent>
-                    </Card>
-                </TabsContent>
+            {/* Recent Reports Tab */}
+            <TabsContent value="recent">
+                <Card>
+                    <CardHeader className="pb-4">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                            <History className="h-5 w-5 text-emerald-600" />
+                            Generated Reports
+                        </CardTitle>
+                        <CardDescription>
+                            View and download previously generated reports
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {reportsLoading ? (
+                            <ReportsListSkeleton />
+                        ) : reports && reports.length > 0 ? (
+                            <div className="space-y-3">
+                                {reports.map((report) => (
+                                    <ReportCard
+                                        key={report.id}
+                                        report={report}
+                                        onView={handleViewReport}
+                                        onDelete={handleDeleteReport}
+                                    />
+                                ))}
+                            </div>
+                        ) : (
+                            <EmptyReportsState onCreateNew={() => setActiveTab('new')} />
+                        )}
+                    </CardContent>
+                </Card>
+            </TabsContent>
 
-                {/* Schedules Tab */}
-                <TabsContent value="schedules" className="mt-6">
-                    <Card>
-                        <CardHeader className="pb-4">
-                            <CardTitle className="text-lg flex items-center gap-2">
-                                <CalendarClock className="h-5 w-5 text-emerald-600" />
-                                Report Schedules
-                            </CardTitle>
-                            <CardDescription>
-                                Configure automated recurring report generation
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <ReportSchedulesPanel />
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-                {/* Archive Tab */}
-                <TabsContent value="archive" className="mt-6">
-                    <ArchivePanel />
-                </TabsContent>
-                <TabsContent value="wallet-check" className="mt-6">
-                    <WalletBatchReconciliationPanel />
-                </TabsContent>
-            </Tabs>
-        </div>
+            {/* Schedules Tab */}
+            <TabsContent value="schedules">
+                <Card>
+                    <CardHeader className="pb-4">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                            <CalendarClock className="h-5 w-5 text-emerald-600" />
+                            Report Schedules
+                        </CardTitle>
+                        <CardDescription>
+                            Configure automated recurring report generation
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <ReportSchedulesPanel />
+                    </CardContent>
+                </Card>
+            </TabsContent>
+            {/* Archive Tab */}
+            <TabsContent value="archive">
+                <ArchivePanel />
+            </TabsContent>
+            <TabsContent value="wallet-check">
+                <WalletBatchReconciliationPanel />
+            </TabsContent>
+        </Tabs>
     );
 }
 
