@@ -384,7 +384,7 @@ Mobile at 375 px: the sidebar hides below `lg`. `SettingsMobileNav` replaces it 
 
 Best example: `src/components/settings/settings-merged-page.tsx` (used by 12 pages). It gives the header, the chips and the leave guard in one frame.
 
-Worst divergence: `src/app/(dashboard)/system/*`. Six pages use `<h3 className="text-lg font-medium">` and no `<h1>` (for example `system/audit-logs/page.tsx:55`). `settings/billing/profiles/page.tsx` has no header at all.
+Worst divergence: `src/app/(dashboard)/(oversight)/system/*`. Six pages use `<h3 className="text-lg font-medium">` and no `<h1>` (for example `system/audit-logs/page.tsx:55`). `settings/billing/profiles/page.tsx` has no header at all.
 
 Rules:
 
@@ -414,9 +414,9 @@ Primary action: Export or Apply, in the header `actions` or at the end of the fi
 
 Mobile at 375 px: the report pages delegate layout to `FinancialDashboard` and `FinancialOverview`. Date inputs and selects are plain `Select` and `Input` (`financial-overview.tsx:17-21`). The count of `md:hidden` or `hidden md:` uses in these files is 0.
 
-Best example: `src/app/(dashboard)/analytics/page.tsx` (`EnhancedPageHeader` plus `FinancialDashboard`). It is 18 lines and has one `<h1>`.
+Best example: `src/app/(dashboard)/(oversight)/analytics/page.tsx` (`EnhancedPageHeader` plus `FinancialDashboard`). It is 18 lines and has one `<h1>`.
 
-Worst divergence: `src/app/(dashboard)/reports/financial-overview/page.tsx:30-34`. It renders `<h3 className="text-lg font-medium">` and no `<h1>`. It also runs its own auth redirects in the page (`:19-27`).
+Worst divergence: `src/app/(dashboard)/(oversight)/reports/financial-overview/page.tsx:30-34`. It renders `<h3 className="text-lg font-medium">` and no `<h1>`. It also runs its own auth redirects in the page (`:19-27`).
 
 Rules:
 

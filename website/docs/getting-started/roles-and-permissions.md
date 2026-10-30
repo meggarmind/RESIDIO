@@ -11,7 +11,7 @@ residio_sources:
   - src/components/dashboard/header.tsx
   - src/app/(dashboard)/settings/roles/**
   - src/app/(dashboard)/settings/user-roles/**
-  - src/app/(dashboard)/system/accounts/**
+  - src/app/(dashboard)/(oversight)/system/accounts/**
   - src/components/admin/role-assignment-section.tsx
   - src/components/admin/admin-role-actions.tsx
   - src/components/admin/role-title-picker.tsx

@@ -35,7 +35,7 @@ function navItems(): SettingsItem[] {
   return settingsConfig.flatMap((group) => flatten(group.items));
 }
 
-const systemDir = fileURLToPath(new URL('../app/(dashboard)/system', import.meta.url));
+const systemDir = fileURLToPath(new URL('../app/(dashboard)/(oversight)/system', import.meta.url));
 const stripQuery = (href: string) => href.split('?')[0];
 
 // Hrefs as written in the nav config. The Monitoring links point into /system and may

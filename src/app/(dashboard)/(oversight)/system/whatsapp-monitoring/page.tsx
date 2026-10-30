@@ -1,12 +1,12 @@
 import { getWhatsAppOptIns, getWhatsAppPendingContacts } from '@/actions/whatsapp/identity';
 import { getWhatsAppClearanceCopyFailures, getWhatsAppDisclosureLogs, getWhatsAppSessions } from '@/actions/whatsapp/admin-console';
 import type { Disclosure, OptIn, Pending, Session } from '@/app/(dashboard)/settings/whatsapp/operations-console';
-import { ClearanceCopyFailures, type ClearanceCopyFailure } from '@/app/(dashboard)/system/whatsapp-monitoring/clearance-copy-failures';
-import { MonitorRefresh } from '@/app/(dashboard)/system/whatsapp-monitoring/monitor-refresh';
-import { OutboundSendsList } from '@/app/(dashboard)/system/whatsapp-monitoring/outbound-sends-list';
+import { ClearanceCopyFailures, type ClearanceCopyFailure } from '@/app/(dashboard)/(oversight)/system/whatsapp-monitoring/clearance-copy-failures';
+import { MonitorRefresh } from '@/app/(dashboard)/(oversight)/system/whatsapp-monitoring/monitor-refresh';
+import { OutboundSendsList } from '@/app/(dashboard)/(oversight)/system/whatsapp-monitoring/outbound-sends-list';
 import { SettingsMergedPage } from '@/components/settings/settings-merged-page';
 import { JumpSection } from '@/components/settings/settings-sections-provider';
-import { WhatsAppActivityLogs } from '@/app/(dashboard)/system/whatsapp-monitoring/activity-logs';
+import { WhatsAppActivityLogs } from '@/app/(dashboard)/(oversight)/system/whatsapp-monitoring/activity-logs';
 
 // Live system state, so it lives under /system, not /settings (ADR-0004, #1228).
 export default async function WhatsAppMonitoringPage() {

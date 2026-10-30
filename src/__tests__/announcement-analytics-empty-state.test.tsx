@@ -55,7 +55,7 @@ vi.mock('@/components/analytics/date-range-filter', () => ({
   DateRangeFilter: () => <div>Date range</div>,
 }));
 
-import { AnnouncementAnalyticsClient } from '@/app/(dashboard)/analytics/announcements/analytics-client';
+import { AnnouncementAnalyticsClient } from '@/app/(dashboard)/(oversight)/analytics/announcements/analytics-client';
 
 const emptyAnalytics: AnnouncementAnalyticsData = {
   metrics: {

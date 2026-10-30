@@ -2,7 +2,10 @@ import { Separator } from '@/components/ui/separator';
 import { PageTransition } from '@/components/ui/page-transition';
 import { OversightMobileNav, OversightSidebar } from './oversight-nav';
 
-/** Shared by the /system, /analytics and /reports layouts: Oversight's left menu around the page (#1272). */
+/**
+ * The layout of the `(oversight)` route group (/system, /analytics, /reports): Oversight's left menu around the
+ * page (#1272). One layout for all three, as Settings has one, so the menu stays mounted between pages (#1357).
+ */
 export function OversightLayout({ children }: { children: React.ReactNode }) {
     return (
         <div className="space-y-6 p-4 md:p-10 pb-16 block">
