@@ -263,6 +263,19 @@ describe('(#1356) masked account in the Transaction Details table', () => {
     expect(parseFirstBankAlert(body, SUBJECT)!.bankAccountLast4).toBe('202XXXX725');
   });
 
+  it('writes a lower-case x mask as X', () => {
+    const body = ['Date/Time', '30-Oct-26 09:50 AM', 'Account Number', '202xxxx725', 'Amount', '100.00 CR'].join('\n');
+    expect(parseFirstBankAlert(body, SUBJECT)!.bankAccountLast4).toBe('202XXXX725');
+  });
+
+  it.each(['X202XXXX725', '*202XXXX725', '202XXXX725X'])(
+    'does not take a mask that runs into other mask characters (%s) as the account',
+    (account) => {
+      const body = ['Date/Time', '30-Oct-26 09:50 AM', 'Account Number', account, 'Amount', '100.00 CR'].join('\n');
+      expect(parseFirstBankAlert(body, SUBJECT)!.bankAccountLast4).toBeNull();
+    }
+  );
+
   it('keeps the last 4 digits of the older forms', () => {
     const table = (account: string) =>
       parseFirstBankAlert(['Date/Time', '30-Oct-26 09:50 AM', 'Account Number', account, 'Amount', '100.00 CR'].join('\n'), SUBJECT)!;

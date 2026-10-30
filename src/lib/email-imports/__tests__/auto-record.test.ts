@@ -144,6 +144,8 @@ describe('isEstateAccount (#1356)', () => {
     ['a longer total length', '202XXXXX725'],
     ['an old last-4 that matches nothing', '9999'],
     ['fewer than 4 visible digits', '2XXXXXXXX5'],
+    ['exactly 3 visible digits', '2XXXXXXX25'],
+    ['no visible leading digits', 'XXXXXX3725'],
     ['no mask digits at all', 'XXXXXXXXXX'],
     ['a full number (not a stored form)', '2024443725'],
     ['an empty value', ''],
@@ -168,6 +170,13 @@ describe('isEstateAccount (#1356)', () => {
     mocks.accounts = [{ account_number: '2024443725' }, { account_number: ' 2024443725 ' }, { account_number: null }, { account_number: '203-555' }];
     const result = await readEstateAccountNumbers(client as never);
     expect(result).toEqual({ accounts: ['2024443725'], error: null });
+  });
+
+  it('strips spaces from an account stored with them, so it still matches', async () => {
+    mocks.accounts = [{ account_number: ' 2024443725 ' }];
+    const result = await readEstateAccountNumbers(client as never);
+    expect(result).toEqual({ accounts: ['2024443725'], error: null });
+    expect(isEstateAccount('202XXXX725', result.accounts!)).toBe(true);
   });
 });
 
