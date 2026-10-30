@@ -184,9 +184,10 @@ async function recordPayment(
     }
 
     // Credit and eligible invoice allocation share the atomic settlement RPC.
+    // Settle on the input house, never the derived one: the resident may owe on a past house (#1363).
     const allocateResult = await allocate(
         result.data.resident_id,
-        houseId,
+        result.data.house_id,
         lagosDateString(result.data.payment_date),
         {
             sourcePaymentId: paymentRecord?.id,

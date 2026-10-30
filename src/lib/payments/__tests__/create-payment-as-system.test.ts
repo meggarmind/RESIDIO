@@ -201,7 +201,7 @@ describe('house for a payment with no house given (#1363)', () => {
     mocks.createAdminClient.mockReturnValue(admin);
   }
 
-  it('uses the one active house for the insert, the settlement and the audit', async () => {
+  it('uses the one active house for the insert and the audit, but settles on the input house', async () => {
     useAdmin({ data: [{ house_id: HOUSE_A }], error: null });
 
     const result = await createPaymentAsSystem(INPUT, SOURCE);
@@ -209,8 +209,9 @@ describe('house for a payment with no house given (#1363)', () => {
     expect(result.success).toBe(true);
     expect(admin.houseLookupEqs).toEqual([['resident_id', RESIDENT_ID], ['is_active', true]]);
     expect(admin.inserts[0].house_id).toBe(HOUSE_A);
-    expect(mocks.eligibleSettlementInvoiceIds).toHaveBeenCalledWith(admin, expect.objectContaining({ houseId: HOUSE_A }));
-    expect(mocks.callWalletPaymentRpc).toHaveBeenCalledWith(admin, expect.objectContaining({ p_house_id: HOUSE_A }));
+    // Invoices on a past house must still be payable, so settlement is not scoped to the derived house.
+    expect(mocks.eligibleSettlementInvoiceIds).toHaveBeenCalledWith(admin, expect.objectContaining({ houseId: undefined }));
+    expect(mocks.callWalletPaymentRpc).toHaveBeenCalledWith(admin, expect.objectContaining({ p_house_id: null }));
     expect(mocks.recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({ entityType: 'payments', newValues: expect.objectContaining({ house_id: HOUSE_A }) }),
       expect.anything()
@@ -243,6 +244,7 @@ describe('house for a payment with no house given (#1363)', () => {
     expect(mocks.residentHasHouse).toHaveBeenCalledWith(admin, RESIDENT_ID, HOUSE_B);
     expect(admin.houseLookupEqs).toEqual([]);
     expect(admin.inserts[0].house_id).toBe(HOUSE_B);
+    expect(mocks.callWalletPaymentRpc).toHaveBeenCalledWith(admin, expect.objectContaining({ p_house_id: HOUSE_B }));
   });
 
   it('still refuses an explicit house that is not the resident\'s', async () => {
