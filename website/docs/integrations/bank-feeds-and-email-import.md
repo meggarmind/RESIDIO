@@ -69,9 +69,10 @@ Passwords are stored encrypted and are never displayed back. To change one, set 
 
 Imported rows are matched against residents, houses, and outstanding invoices. A credit is posted automatically only when it matched a resident with high confidence (by alias or phone number) and is at or below the auto-process limit. Every other credit is queued for review.
 
-The scheduled sync applies two more checks before it posts a credit:
+The scheduled sync applies three more checks before it posts a credit:
 
 - The credit must come from a bank alert. Rows from a statement attachment are always queued, because the same credit can also arrive as an alert.
+- The credit must go to an active estate bank account. Residio compares the last four digits of the credited account with the estate accounts; a credit to any other account is queued.
 - The alert must pass the **sender check**. Anyone who knows the mailbox address can send it a false alert, so Residio reads the authentication result that Gmail adds to each message. The alert passes when it has a valid FirstBank DKIM signature (an alert that the estate mailbox forwards automatically keeps this signature). A manual forward passes only when it comes from an address in the connection's sender list and Gmail confirms that address sent it. An alert that fails is queued and marked **Sender not verified**; hover over the label to see the reason.
 
 A posted credit is a verified payment. It is allocated to open invoices in the same way as a payment entered by hand, and the audit log records it with the scheduled job as the actor. Each run that posts payments sends one notification that lists them. The scheduled sync does not post a payment twice: an alert that is already recorded, or a duplicate payment, is skipped. Debits are never posted by the scheduled sync.
