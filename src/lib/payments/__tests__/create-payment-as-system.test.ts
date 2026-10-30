@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   eligibleSettlementInvoiceIds: vi.fn(),
   callWalletPaymentRpc: vi.fn(),
   checkDuplicateGuardrail: vi.fn(),
+  residentHasHouse: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -28,7 +29,7 @@ vi.mock('@/lib/audit/logger', () => ({ logAudit: mocks.logAudit }));
 vi.mock('@/lib/audit/recorder', () => ({ recordAudit: mocks.recordAudit }));
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: mocks.authorizePermission }));
 vi.mock('@/lib/matching/duplicate-matcher', () => ({ checkDuplicateGuardrail: mocks.checkDuplicateGuardrail }));
-vi.mock('@/lib/payments/house-membership', () => ({ residentHasHouse: vi.fn().mockResolvedValue({ ok: true }) }));
+vi.mock('@/lib/payments/house-membership', () => ({ residentHasHouse: mocks.residentHasHouse }));
 vi.mock('@/lib/notifications/event-content', () => ({ isEventChannelEnabled: vi.fn().mockResolvedValue(false) }));
 vi.mock('@/lib/notifications/preferences', () => ({ shouldSendToResident: vi.fn() }));
 vi.mock('@/lib/whatsapp/opt-in', () => ({ isWhatsAppOptedIn: vi.fn() }));
@@ -51,14 +52,27 @@ const INPUT = {
   is_verified: true,
 };
 
-function adminClient() {
+type HouseLookup = { data: { house_id: string }[] | null; error: { message: string } | null } | Error;
+
+function adminClient(houseLookup: HouseLookup = { data: [], error: null }) {
   const inserts: Record<string, unknown>[] = [];
+  const houseLookupEqs: unknown[][] = [];
   const client = {
     inserts,
+    houseLookupEqs,
     rpc: vi.fn().mockResolvedValue({ data: { success: true, new_balance: 25000, wallet_id: 'wallet-1' }, error: null }),
     from: vi.fn((table: string) => {
       const c: Record<string, unknown> = {};
       for (const m of ['select', 'eq']) c[m] = vi.fn(() => c);
+      if (table === 'resident_houses') {
+        // The active-house lookup (#1363) awaits the query after its eq filters.
+        c.eq = vi.fn((...args: unknown[]) => {
+          houseLookupEqs.push(args);
+          return c;
+        });
+        c.then = (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) =>
+          houseLookup instanceof Error ? reject(houseLookup) : resolve(houseLookup);
+      }
       c.insert = vi.fn((row: Record<string, unknown>) => {
         inserts.push(row);
         return c;
@@ -89,6 +103,7 @@ beforeEach(() => {
     error: null,
   });
   mocks.recordAudit.mockResolvedValue({ recorded: true });
+  mocks.residentHasHouse.mockResolvedValue({ ok: true });
 });
 
 describe('createPaymentAsSystem (#1340)', () => {
@@ -174,5 +189,83 @@ describe('createPaymentAsSystem (#1340)', () => {
     const result = await createPaymentAsSystem({ ...INPUT, amount: -5 }, SOURCE);
     expect(result.error).toBe('Invalid data');
     expect(admin.inserts).toEqual([]);
+  });
+});
+
+describe('house for a payment with no house given (#1363)', () => {
+  const HOUSE_A = '33333333-3333-4333-8333-333333333333';
+  const HOUSE_B = '44444444-4444-4444-8444-444444444444';
+
+  function useAdmin(houseLookup: HouseLookup) {
+    admin = adminClient(houseLookup);
+    mocks.createAdminClient.mockReturnValue(admin);
+  }
+
+  it('uses the one active house for the insert, the settlement and the audit', async () => {
+    useAdmin({ data: [{ house_id: HOUSE_A }], error: null });
+
+    const result = await createPaymentAsSystem(INPUT, SOURCE);
+
+    expect(result.success).toBe(true);
+    expect(admin.houseLookupEqs).toEqual([['resident_id', RESIDENT_ID], ['is_active', true]]);
+    expect(admin.inserts[0].house_id).toBe(HOUSE_A);
+    expect(mocks.eligibleSettlementInvoiceIds).toHaveBeenCalledWith(admin, expect.objectContaining({ houseId: HOUSE_A }));
+    expect(mocks.callWalletPaymentRpc).toHaveBeenCalledWith(admin, expect.objectContaining({ p_house_id: HOUSE_A }));
+    expect(mocks.recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ entityType: 'payments', newValues: expect.objectContaining({ house_id: HOUSE_A }) }),
+      expect.anything()
+    );
+  });
+
+  it('keeps no house when the resident has no active house', async () => {
+    useAdmin({ data: [], error: null });
+
+    await createPaymentAsSystem(INPUT, SOURCE);
+
+    expect(admin.inserts[0].house_id).toBeUndefined();
+    expect(mocks.callWalletPaymentRpc).toHaveBeenCalledWith(admin, expect.objectContaining({ p_house_id: null }));
+  });
+
+  it('keeps no house when the resident has several active houses', async () => {
+    useAdmin({ data: [{ house_id: HOUSE_A }, { house_id: HOUSE_B }], error: null });
+
+    await createPaymentAsSystem(INPUT, SOURCE);
+
+    expect(admin.inserts[0].house_id).toBeUndefined();
+    expect(mocks.callWalletPaymentRpc).toHaveBeenCalledWith(admin, expect.objectContaining({ p_house_id: null }));
+  });
+
+  it('keeps an explicit house, checked for membership, without the lookup', async () => {
+    useAdmin({ data: [{ house_id: HOUSE_A }], error: null });
+
+    await createPaymentAsSystem({ ...INPUT, house_id: HOUSE_B }, SOURCE);
+
+    expect(mocks.residentHasHouse).toHaveBeenCalledWith(admin, RESIDENT_ID, HOUSE_B);
+    expect(admin.houseLookupEqs).toEqual([]);
+    expect(admin.inserts[0].house_id).toBe(HOUSE_B);
+  });
+
+  it('still refuses an explicit house that is not the resident\'s', async () => {
+    mocks.residentHasHouse.mockResolvedValue({ ok: false, error: 'The selected house is not associated with this resident' });
+
+    const result = await createPaymentAsSystem({ ...INPUT, house_id: HOUSE_B }, SOURCE);
+
+    expect(result.error).toBe('The selected house is not associated with this resident');
+    expect(admin.inserts).toEqual([]);
+  });
+
+  it.each([
+    ['returns an error', { data: null, error: { message: 'boom' } }],
+    ['throws', new Error('network down')],
+  ] as const)('creates the payment with no house, and logs, when the lookup %s', async (_label, houseLookup) => {
+    useAdmin(houseLookup);
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = await createPaymentAsSystem(INPUT, SOURCE);
+
+    expect(result.success).toBe(true);
+    expect(admin.inserts[0].house_id).toBeUndefined();
+    expect(consoleError).toHaveBeenCalledWith('Payment house lookup failed for resident', RESIDENT_ID, expect.anything());
+    consoleError.mockRestore();
   });
 });
