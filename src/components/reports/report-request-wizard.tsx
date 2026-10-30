@@ -1073,7 +1073,7 @@ export function ReportRequestWizard({
 
     return (
         <form onSubmit={handleSubmit(onSubmit)} className="w-full">
-            <Card className="overflow-hidden shadow-xl border-0 bg-gradient-to-b from-background to-muted/20">
+            <Card className="shadow-xl border-0 bg-gradient-to-b from-background to-muted/20">
                 <CardContent className="p-4 md:p-6">
                     {/* Step Indicator: sticks under the page header and tabs (h-24 together, see reports-page-client) */}
                     <div className="sticky top-24 z-10 -mx-4 -mt-4 bg-background px-4 pt-4 md:-mx-6 md:-mt-6 md:px-6 md:pt-6">
