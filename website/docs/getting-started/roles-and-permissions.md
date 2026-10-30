@@ -17,8 +17,8 @@ residio_sources:
   - src/components/admin/role-title-picker.tsx
   - src/components/admin/role-titles-manager.tsx
   - src/components/admin/pending-accounts-list.tsx
-residio_verified_commit: ac5816c9
-residio_verified_at: '2026-10-29'
+residio_verified_commit: 66f30e80
+residio_verified_at: '2026-10-30'
 residio_app_version: '0.4.0'
 ---
 
@@ -133,7 +133,7 @@ Select someone, choose a role, then choose a **title** under that role and confi
 - **Residents only.** A role that can only be held by a resident, such as Chairman or Trustee, cannot be given to an account with no resident record. The page says so before you submit; link the account to a resident first.
 - **Search by full name.** You can type a first name and a last name together, for example "John Smith".
 - **Change role and Remove role.** Each row on the **Administrators** tab has both buttons, so you do not need to search for the person again. They appear only when you are allowed to change that account, and Remove role is never offered on a Super Administrator.
-- **Titles.** On the **Roles** tab, the **Titles** card lists every title with its seats and current holders. It also shows the titles of inactive roles, marked **Inactive**. A holder of Manage Roles can add a title, rename it, change its seats, move it to a different role, or delete it. The rules for the role itself apply: only a Super Administrator can change the titles of a system role, or of the role that they hold. Seats must be a whole number from 1 to 99. Leave seats empty for no limit. You cannot set seats below the number of people who hold the title. A person whose account is not active still counts as a holder, and shows with the account status, for example "Jane Doe (suspended)". You cannot move or delete a title while a person holds it. You cannot move or delete the principal title of a role; rename it instead.
+- **Titles.** On the **Titles** tab, the **Titles** card lists every title with its seats and current holders. It also shows the titles of inactive roles, marked **Inactive**. A holder of Manage Roles can add a title, rename it, change its seats, move it to a different role, or delete it. This applies to every role, including your own role and the system roles. Only a Super Administrator can change the titles of the Super Administrator role. For that role, the card shows "Only Super Administrator can change these titles." A title only changes the name that people see. It does not give or remove access. Seats must be a whole number from 1 to 99. Leave seats empty for no limit. You cannot set seats below the number of people who hold the title. A person whose account is not active still counts as a holder, and shows with the account status, for example "Jane Doe (suspended)". You cannot move or delete a title while a person holds it. You cannot move or delete the principal title of a role; rename it instead.
 
 The signed-in person's title shows next to their role in the header and sidebar, in the Administrators list and in the Roles tab.
 

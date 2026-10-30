@@ -116,15 +116,34 @@ describe('Roles & Access tabs are gated by permission (#912)', () => {
     expect(screen.getByRole('heading', { name: 'Roles & Access' })).toBeInTheDocument();
   });
 
-  it('adds Roles and Who can hold each role, after the others, with manage_roles', () => {
+  it('adds Roles, Titles and Who can hold each role, after the others, with manage_roles', () => {
     open('', [ASSIGN, MANAGE]);
     expect(tabNames()).toEqual([
       'Administrators',
       'Pending sign-ups',
       'Unlinked logins',
       'Roles',
+      'Titles',
       'Who can hold each role',
     ]);
+  });
+
+  it('shows the Titles card only on the Titles tab, and only with manage_roles (#1361)', () => {
+    const text = 'Add, rename or resize the titles people can hold under each role.';
+
+    const manage = open('tab=titles', [ASSIGN, MANAGE]);
+    expect(selectedTab()).toBe('Titles');
+    expect(screen.getByText(text)).toBeInTheDocument();
+    manage.unmount();
+
+    const assignOnly = open('tab=titles', [ASSIGN]);
+    expect(selectedTab()).toBe('Administrators');
+    expect(screen.queryByText(text)).not.toBeInTheDocument();
+    assignOnly.unmount();
+
+    open('tab=roles', [ASSIGN, MANAGE]);
+    expect(selectedTab()).toBe('Roles');
+    expect(screen.queryByText(text)).not.toBeInTheDocument();
   });
 
   it('never renders the role editor for an assign-only admin who opens ?tab=roles or ?tab=rules', () => {
@@ -149,6 +168,7 @@ describe('?tab= round trip (#912)', () => {
     ['pending', 'Pending sign-ups'],
     ['unlinked', 'Unlinked logins'],
     ['roles', 'Roles'],
+    ['titles', 'Titles'],
     ['rules', 'Who can hold each role'],
     ['assignments', 'Administrators'],
     ['orphaned', 'Unlinked logins'],
