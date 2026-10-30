@@ -11,7 +11,7 @@ import { reportTypes, type ReportType } from '@/lib/validators/reports';
 
 const config = Object.fromEntries(
   reportTypes.map((t) => [t.value, { icon: FileText, iconBg: 'bg-muted' }])
-) as Record<ReportType, { icon: React.ElementType; iconBg: string }>;
+) as unknown as Record<ReportType, { icon: React.ElementType; iconBg: string }>;
 
 // Same split as report-request-wizard.tsx.
 const REALTIME: ReportType[] = ['debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'];
@@ -110,5 +110,38 @@ describe('ReportTypePicker (#1362)', () => {
     const preview = screen.getByTestId('report-type-preview');
     expect(within(preview).getByText('Example layout')).toBeTruthy();
     expect(preview.textContent ?? '').not.toMatch(/\d{1,4}[/-]\d{1,2}[/-]\d{1,4}/);
+  });
+
+  it('shows the right count on each group header', () => {
+    renderPicker();
+    const countOf = (group: RegExp) => within(within(list()).getByRole('button', { name: group })).getByText(/^\d+$/).textContent;
+    expect(countOf(/Money in and out/)).toBe('3');
+    expect(countOf(/Debts/)).toBe('4');
+    expect(countOf(/Levies/)).toBe('1');
+  });
+
+  it('shows a preview that follows the selected type', () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <ReportTypePicker value="financial_overview" onChange={onChange} config={config} realtimeTypes={REALTIME} accountAgnosticTypes={AGNOSTIC} />
+    );
+    expect(within(screen.getByTestId('report-type-preview')).queryByText('Debtor')).toBeNull();
+    expect(within(screen.getByTestId('report-type-preview')).getByText('Expenses')).toBeTruthy();
+
+    rerender(
+      <ReportTypePicker value="debtors_report" onChange={onChange} config={config} realtimeTypes={REALTIME} accountAgnosticTypes={AGNOSTIC} />
+    );
+    const preview = screen.getByTestId('report-type-preview');
+    expect(within(preview).getByText('Debtor')).toBeTruthy();
+    expect(within(preview).queryByText('Expenses')).toBeNull();
+  });
+
+  it('opens a collapsed group while a search matches in it', () => {
+    renderPicker();
+    fireEvent.click(within(list()).getByRole('button', { name: /Debts/ }));
+    expect(within(list()).queryByRole('button', { name: 'Debtors Report' })).toBeNull();
+
+    fireEvent.change(screen.getByLabelText('Search report types'), { target: { value: 'debtors' } });
+    expect(within(list()).getByRole('button', { name: 'Debtors Report' })).toBeTruthy();
   });
 });

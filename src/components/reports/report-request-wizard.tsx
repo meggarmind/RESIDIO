@@ -1211,7 +1211,7 @@ export function ReportRequestWizard({
                         </Button>
 
                         {selectedTypeLabel && (
-                            <p className="hidden min-w-0 flex-1 truncate text-center text-sm text-muted-foreground sm:block">
+                            <p className="min-w-0 flex-1 truncate text-center text-xs text-muted-foreground sm:text-sm">
                                 Selected: <span className="font-medium text-foreground">{selectedTypeLabel}</span>
                             </p>
                         )}

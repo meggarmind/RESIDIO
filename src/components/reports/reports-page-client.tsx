@@ -433,71 +433,71 @@ export function ReportsPageClient() {
                 </TabsList>
             </div>
 
-                {/* New Report Tab */}
-                <TabsContent value="new">
-                    <ReportRequestWizard
-                        onGenerate={handleGenerate}
-                        isGenerating={generateReport.isPending}
-                    />
-                </TabsContent>
+            {/* New Report Tab */}
+            <TabsContent value="new">
+                <ReportRequestWizard
+                    onGenerate={handleGenerate}
+                    isGenerating={generateReport.isPending}
+                />
+            </TabsContent>
 
-                {/* Recent Reports Tab */}
-                <TabsContent value="recent">
-                    <Card>
-                        <CardHeader className="pb-4">
-                            <CardTitle className="text-lg flex items-center gap-2">
-                                <History className="h-5 w-5 text-emerald-600" />
-                                Generated Reports
-                            </CardTitle>
-                            <CardDescription>
-                                View and download previously generated reports
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            {reportsLoading ? (
-                                <ReportsListSkeleton />
-                            ) : reports && reports.length > 0 ? (
-                                <div className="space-y-3">
-                                    {reports.map((report) => (
-                                        <ReportCard
-                                            key={report.id}
-                                            report={report}
-                                            onView={handleViewReport}
-                                            onDelete={handleDeleteReport}
-                                        />
-                                    ))}
-                                </div>
-                            ) : (
-                                <EmptyReportsState onCreateNew={() => setActiveTab('new')} />
-                            )}
-                        </CardContent>
-                    </Card>
-                </TabsContent>
+            {/* Recent Reports Tab */}
+            <TabsContent value="recent">
+                <Card>
+                    <CardHeader className="pb-4">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                            <History className="h-5 w-5 text-emerald-600" />
+                            Generated Reports
+                        </CardTitle>
+                        <CardDescription>
+                            View and download previously generated reports
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {reportsLoading ? (
+                            <ReportsListSkeleton />
+                        ) : reports && reports.length > 0 ? (
+                            <div className="space-y-3">
+                                {reports.map((report) => (
+                                    <ReportCard
+                                        key={report.id}
+                                        report={report}
+                                        onView={handleViewReport}
+                                        onDelete={handleDeleteReport}
+                                    />
+                                ))}
+                            </div>
+                        ) : (
+                            <EmptyReportsState onCreateNew={() => setActiveTab('new')} />
+                        )}
+                    </CardContent>
+                </Card>
+            </TabsContent>
 
-                {/* Schedules Tab */}
-                <TabsContent value="schedules">
-                    <Card>
-                        <CardHeader className="pb-4">
-                            <CardTitle className="text-lg flex items-center gap-2">
-                                <CalendarClock className="h-5 w-5 text-emerald-600" />
-                                Report Schedules
-                            </CardTitle>
-                            <CardDescription>
-                                Configure automated recurring report generation
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <ReportSchedulesPanel />
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-                {/* Archive Tab */}
-                <TabsContent value="archive">
-                    <ArchivePanel />
-                </TabsContent>
-                <TabsContent value="wallet-check">
-                    <WalletBatchReconciliationPanel />
-                </TabsContent>
+            {/* Schedules Tab */}
+            <TabsContent value="schedules">
+                <Card>
+                    <CardHeader className="pb-4">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                            <CalendarClock className="h-5 w-5 text-emerald-600" />
+                            Report Schedules
+                        </CardTitle>
+                        <CardDescription>
+                            Configure automated recurring report generation
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <ReportSchedulesPanel />
+                    </CardContent>
+                </Card>
+            </TabsContent>
+            {/* Archive Tab */}
+            <TabsContent value="archive">
+                <ArchivePanel />
+            </TabsContent>
+            <TabsContent value="wallet-check">
+                <WalletBatchReconciliationPanel />
+            </TabsContent>
         </Tabs>
     );
 }
