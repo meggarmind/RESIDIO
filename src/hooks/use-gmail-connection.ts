@@ -131,7 +131,7 @@ export function useUpdateSyncCriteria() {
       return result;
     },
     onSuccess: () => {
-      toast.success('Sync criteria updated');
+      toast.success('Import rules saved');
       queryClient.invalidateQueries({ queryKey: gmailKeys.connectionStatus() });
     },
     onError: (error: Error) => {

@@ -16,6 +16,8 @@ import { parseRuleList, validateImportRules } from '@/lib/email-imports/import-r
  * (email_imports.view) can read them; saving needs email_imports.configure, which
  * updateSyncCriteria enforces.
  */
+const READ_ONLY_REASON = 'Only users who can configure Gmail import can change these rules.';
+
 export function ImportRulesSection() {
   const canConfigure = useCan(PERMISSIONS.EMAIL_IMPORTS_CONFIGURE);
   const { data: status, isLoading } = useGmailConnectionStatus();
@@ -58,7 +60,7 @@ export function ImportRulesSection() {
       isDirty={isDirty}
       isSaving={updateRules.isPending}
       canSave={canConfigure && check.error === null}
-      saveBlockedReason={canConfigure ? (check.error ?? undefined) : 'Only users who can configure Gmail import can change these rules.'}
+      saveBlockedReason={canConfigure ? (check.error ?? undefined) : READ_ONLY_REASON}
       onSave={save}
       onDiscard={discard}
     >
@@ -96,6 +98,9 @@ export function ImportRulesSection() {
           )
         }
       </SettingsRow>
+      {!canConfigure && (
+        <p className="px-4 pb-4 text-sm text-muted-foreground md:px-5">{READ_ONLY_REASON}</p>
+      )}
       {isDirty && check.error !== null && canConfigure && (
         <p role="alert" className="px-4 pb-4 text-sm text-destructive md:px-5">{check.error}</p>
       )}

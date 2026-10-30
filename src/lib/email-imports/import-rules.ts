@@ -10,6 +10,7 @@ export const IMPORT_RULES_MAX_ITEMS = 20;
 
 // An email address or a domain: no spaces, no Gmail operators.
 const SENDER_PATTERN = /^(?:[a-z0-9._%+-]+@)?[a-z0-9-]+(?:\.[a-z0-9-]+)+$/;
+const SENDER_MAX_LENGTH = 254;
 const KEYWORD_MAX_LENGTH = 60;
 
 export interface ImportRules {
@@ -17,10 +18,10 @@ export interface ImportRules {
   keywords: string[];
 }
 
-/** One value per line (commas also split). Trims, drops blanks and repeats. */
+/** One value per line. Trims, drops blanks and repeats. */
 export function parseRuleList(text: string): string[] {
   const seen = new Set<string>();
-  for (const part of text.split(/[\n,]/)) {
+  for (const part of text.split('\n')) {
     const value = part.trim();
     if (value) seen.add(value);
   }
@@ -29,9 +30,9 @@ export function parseRuleList(text: string): string[] {
 
 /** Returns the cleaned rules, or the first problem in words an admin can act on. */
 export function validateImportRules(
-  input: { senders: unknown; keywords: unknown }
+  input: { senders: unknown; keywords: unknown } | null | undefined
 ): { rules: ImportRules; error: null } | { rules: null; error: string } {
-  const { senders, keywords } = input;
+  const { senders, keywords } = input ?? {};
   if (!Array.isArray(senders) || !senders.every((s) => typeof s === 'string')) {
     return { rules: null, error: 'Senders must be a list of email addresses or domains.' };
   }
@@ -48,7 +49,7 @@ export function validateImportRules(
   if (cleanSenders.length > IMPORT_RULES_MAX_ITEMS) {
     return { rules: null, error: `Enter at most ${IMPORT_RULES_MAX_ITEMS} senders.` };
   }
-  const badSender = cleanSenders.find((s) => !SENDER_PATTERN.test(s));
+  const badSender = cleanSenders.find((s) => s.length > SENDER_MAX_LENGTH || !SENDER_PATTERN.test(s));
   if (badSender) {
     return { rules: null, error: `"${badSender}" is not an email address or a domain.` };
   }

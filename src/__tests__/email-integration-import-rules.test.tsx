@@ -80,6 +80,7 @@ describe('Gmail import rules section (#1349)', () => {
     expect(senders).toBeDisabled();
     expect(screen.getByRole('textbox', { name: 'Subject words' })).toHaveValue('alert');
     expect(saveButton()).toBeDisabled();
+    expect(screen.getByText('Only users who can configure Gmail import can change these rules.')).toBeInTheDocument();
   });
 
   it('saves the cleaned rules for a configure holder', async () => {
@@ -87,6 +88,7 @@ describe('Gmail import rules section (#1349)', () => {
     renderSection();
     const senders = await sendersField();
     expect(senders).toBeEnabled();
+    expect(screen.queryByText('Only users who can configure Gmail import can change these rules.')).not.toBeInTheDocument();
     fireEvent.change(senders, { target: { value: 'FirstBank.com\n\nopera4street@gmail.com\n' } });
     fireEvent.click(saveButton());
 

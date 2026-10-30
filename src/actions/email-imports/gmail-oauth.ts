@@ -309,11 +309,15 @@ export async function updateSyncCriteria(input: { senders: unknown; keywords: un
 
   const supabase = await createServerSupabaseClient();
 
-  const { data: current } = await supabase
+  const { data: current, error: readError } = await supabase
     .from('gmail_oauth_credentials')
     .select('sync_criteria')
     .eq('is_active', true)
     .maybeSingle();
+  // Without the stored criteria the merge below would drop days_back and the credit/debit flags.
+  if (readError) {
+    return { error: readError.message };
+  }
   const oldCriteria = (current?.sync_criteria as Record<string, unknown> | null) ?? {};
   const criteria = { ...oldCriteria, ...validated.rules };
 
