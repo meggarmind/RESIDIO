@@ -20,7 +20,11 @@ vi.mock('@/hooks/use-dashboard', () => ({
   useDashboardInvoiceDistribution: () => ({ data: distribution.current }),
   useDashboardQuickStats: () => ({ data: null }),
 }));
-vi.mock('@/hooks/use-analytics', () => ({ useAnalytics: () => ({ data: null, isLoading: false }) }));
+vi.mock('@/hooks/use-analytics', () => ({
+  useAnalytics: () => ({ data: null, isLoading: false }),
+  useDebtStatusByStreet: () => ({ data: null, isLoading: false, error: null }),
+}));
+vi.mock('@/lib/auth/auth-provider', () => ({ useAuth: () => ({ isLoading: false, hasPermission: () => false }) }));
 vi.mock('@/hooks/use-billing', () => ({ useOverdueInvoiceAging: () => ({ data: [] }) }));
 vi.mock('next/dynamic', () => ({ default: () => () => null }));
 
