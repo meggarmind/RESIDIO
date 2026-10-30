@@ -13,6 +13,8 @@ export interface DuplicateCheckResult {
 export interface DuplicateCheckOptions {
     threshold?: number; // Override system setting
     toleranceDays?: number;
+    /** Client to read with; the session client when omitted. A session-free job passes the service role (#1340). */
+    client?: Awaited<ReturnType<typeof createServerSupabaseClient>>;
 }
 
 
@@ -30,7 +32,7 @@ export async function checkDuplicateGuardrail(
     entityType: 'payment' | 'expense' | 'petty_cash',
     options: DuplicateCheckOptions = {}
 ): Promise<DuplicateCheckResult> {
-    const supabase = await createServerSupabaseClient();
+    const supabase = options.client ?? await createServerSupabaseClient();
     const dateObj = new Date(transaction.date);
     const toleranceDays = options.toleranceDays || 1;
 
