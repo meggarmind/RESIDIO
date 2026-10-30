@@ -30,6 +30,7 @@ function fakeClient() {
       let update: Record<string, unknown> | null = null;
       let single = false;
       const resolve = () => {
+        if (table === 'estate_bank_accounts') return { data: [{ account_number: '0001234' }], error: null };
         if (table !== 'email_transactions') return { data: null, error: null };
         if (update) {
           mocks.updates.push({ id: filters.id, values: update });
@@ -148,6 +149,7 @@ function credit(id: string, amount: number, extra: Row = {}): Row {
     match_confidence: 'high',
     match_method: 'alias',
     amount,
+    bank_account_last4: '1234',
     transaction_date: '2026-10-01',
     reference: `ref-${id}`,
     description: `Transfer ${id}`,
