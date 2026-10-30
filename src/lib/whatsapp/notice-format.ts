@@ -2,7 +2,7 @@
  * Push notices (receipts, reminders, announcements, documents) arrive in the same chat as the bot's
  * replies to the resident. Without a mark they read like one more reply and get missed (#1351). Every
  * push notice therefore starts with an icon and a bold title, which the phone's lock screen also shows,
- * and ends with an italic footer. Replies to the resident (`purpose: inbound_reply`) never use this.
+ * and ends with an italic footer. The Assistant's replies to a resident's own message never use this.
  *
  * The header and footer are added in code, not in the editable wording, so an admin edit cannot
  * remove them. Pure, so the announcement form can preview the text; servers use `buildNotice`.
