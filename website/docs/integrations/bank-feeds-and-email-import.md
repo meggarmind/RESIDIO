@@ -8,7 +8,7 @@ residio_sources:
   - src/lib/parsers/**
   - src/actions/email-imports/**
   - src/app/(dashboard)/settings/email-integration/**
-residio_verified_commit: c08f854e
+residio_verified_commit: bf3eb6f0
 residio_verified_at: '2026-10-30'
 residio_app_version: '0.4.0'
 ---
@@ -72,7 +72,7 @@ Imported rows are matched against residents, houses, and outstanding invoices. A
 The scheduled sync and a fetch an admin starts by hand apply three more checks before they post a credit:
 
 - The credit must come from a bank alert. Rows from a statement attachment are always queued, because the same credit can also arrive as an alert.
-- The credit must go to an active estate bank account. Residio compares the last four digits of the credited account with the estate accounts; a credit to any other account is queued.
+- The credit must go to an active estate bank account. A FirstBank alert shows the credited account with its middle digits hidden, for example `202XXXX725`. Residio compares the visible first digits, the visible last digits and the length with the active estate accounts. An older alert that shows only the last four digits (for example `****1234`) is compared on those digits. The credit passes only when exactly one estate account matches. A credit to any other account, or one that matches more than one estate account, is queued.
 - The alert must pass the **sender check**. Anyone who knows the mailbox address can send it a false alert, so Residio reads the authentication result that Gmail adds to the top of each message when it arrives. It never reads a result lower in the message, because a sender can write one there. The alert passes only when all of these are true:
   - Gmail found a valid DKIM signature from `firstbanknigeria.com` (or a subdomain of it).
   - Gmail's DMARC check passed for `firstbanknigeria.com`.
@@ -81,6 +81,8 @@ The scheduled sync and a fetch an admin starts by hand apply three more checks b
   If Gmail's result is damaged or unclear (for example, the same value given twice), the check fails. `firstbank.com` is not trusted. An alert that a Gmail filter forwards automatically keeps FirstBank's From line and signature, so it passes. An alert forwarded by hand shows the estate mailbox as the sender, so it always fails and an admin must review it.
 
 A credit that fails one of these checks is queued with the reason. It is marked **Sender not verified** when the sender check failed, and **Needs review** for the other checks; hover over the label to see the reason.
+
+A FirstBank alert has no payment reference, so a payment posted from an alert has none. The resident's WhatsApp receipt then shows the payment's receipt number (for example `RCP-273328F9`), the same number as on the email and PDF receipts.
 
 A posted credit is a verified payment. It is allocated to open invoices in the same way as a payment entered by hand, and the audit log records it with the scheduled job as the actor. Each run that posts payments sends one notification that lists them. The scheduled sync does not post a payment twice: an alert that is already recorded, or a duplicate payment, is skipped. Debits are never posted by the scheduled sync.
 

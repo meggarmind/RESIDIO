@@ -11,7 +11,7 @@ residio_sources:
   - src/app/(dashboard)/system/whatsapp-monitoring/**
   - src/app/(dashboard)/system/whatsapp-bot-health/**
   - src/app/api/whatsapp/**
-residio_verified_commit: 0302bd8
+residio_verified_commit: bf3eb6f0
 residio_verified_at: '2026-10-30'
 residio_app_version: '0.4.0'
 ---
@@ -131,7 +131,7 @@ With Chatmaid or WAHA, a message that Residio sends without a question from the 
 | Clearance certificate and its copies | 📄 Clearance certificate |
 | Other messages to a resident (for example a co-resident link notice) | 📌 Estate notice |
 
-The title and footer are fixed. **Message wording** changes only the text between them. The default receipt and reminder wording puts each value (amount, date, reference, invoice, due date) on its own line. Replies to a resident's message (menu, balance, statement) have no title or footer. Meta and Twilio send their approved templates unchanged.
+The title and footer are fixed. **Message wording** changes only the text between them. The default receipt and reminder wording puts each value (amount, date, reference, invoice, due date) on its own line. When a payment has no reference, the receipt shows its receipt number (for example `RCP-273328F9`), as the email and PDF receipts do. Replies to a resident's message (menu, balance, statement) have no title or footer. Meta and Twilio send their approved templates unchanged.
 
 ## Turning the channel on
 
