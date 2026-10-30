@@ -6,7 +6,7 @@ import { authorizeAnyPermission, authorizePermission } from '@/lib/auth/authoriz
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { getChangedValues } from '@/lib/audit/helpers';
-import { roleWriteBlock } from '@/lib/auth/role-write-access';
+import { titleWriteBlock } from '@/lib/auth/role-write-access';
 import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
 import type { AdminTitle, AdminTitleWithHolders } from '@/types/database';
 
@@ -34,14 +34,15 @@ type Caller = { roleName: string | null; roleId: string | null };
 type TitleRole = { id: string; name: string; display_name: string; is_system_role: boolean | null };
 
 /**
- * Rank guard for titles (#1318), the same rule as updateRole: only a super admin
- * may change the titles of super_admin, a system role, or the role they hold.
+ * Rank guard for titles (#1361): titles are display-only and grant no access, so
+ * a manage_roles holder may change the titles under every role except
+ * super_admin, their own and system roles included.
  */
 function titleRoleRefusal(caller: Caller, role: TitleRole | null): string | null {
   if (!role) return 'Role not found';
-  const block = roleWriteBlock(caller, role);
-  if (block === 'rank') return 'Only Super Administrator can change the titles of system roles';
-  if (block === 'own') return 'You cannot change the titles of your own role';
+  if (titleWriteBlock(caller, role) === 'rank') {
+    return 'Only Super Administrator can change the titles of the Super Administrator role';
+  }
   return null;
 }
 

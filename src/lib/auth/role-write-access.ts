@@ -3,9 +3,11 @@
  * Roles tab (#1318), so a button shows only when the action behind it would
  * succeed (CORE.md section 6, "Visibility follows access").
  *
- * Server side: updateRole, updateRolePermissions and the title actions call
- * roleWriteBlock. deleteRole refuses system roles itself, and a role someone
- * holds (the caller's own included) through its holder count.
+ * Server side: updateRole and updateRolePermissions call roleWriteBlock.
+ * deleteRole refuses system roles itself, and a role someone holds (the
+ * caller's own included) through its holder count. The title actions and the
+ * Titles tab call titleWriteBlock instead: titles are display-only and grant
+ * no access, so only super_admin's titles are guarded (#1361).
  */
 
 export interface RoleWriteCaller {
@@ -31,6 +33,21 @@ export function roleWriteBlock(
   if (caller.roleName === 'super_admin') return null;
   if (!role || role.name === 'super_admin' || role.is_system_role) return 'rank';
   if (caller.roleId !== null && caller.roleId === role.id) return 'own';
+  return null;
+}
+
+/**
+ * Rank guard for titles (#1361): a holder of system.manage_roles may change the
+ * titles under every role except super_admin, their own and system roles
+ * included. Only a super admin may change super_admin's titles. A missing role
+ * is refused. Returns why the write is refused, or null when it is allowed.
+ */
+export function titleWriteBlock(
+  caller: RoleWriteCaller,
+  role: RoleWriteTarget | null | undefined
+): 'rank' | null {
+  if (caller.roleName === 'super_admin') return null;
+  if (!role || role.name === 'super_admin') return 'rank';
   return null;
 }
 

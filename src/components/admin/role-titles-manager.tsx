@@ -40,7 +40,7 @@ import {
 } from '@/hooks/use-roles';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
-import { roleWriteBlock } from '@/lib/auth/role-write-access';
+import { titleWriteBlock } from '@/lib/auth/role-write-access';
 import { SettingsSkeleton } from '@/components/settings/settings-states';
 import type { AdminTitleWithHolders, AppRoleWithPermissions } from '@/types/database';
 
@@ -60,14 +60,15 @@ export function parseSeats(raw: string): { ok: true; seats: number | null } | { 
 /**
  * Add, rename, resize, move and delete the titles under each role (#827, #1318).
  * Each button shows only where the title actions would allow it: system.manage_roles,
- * and the same rank rule as editing the role itself.
+ * and every role except super_admin (titleWriteBlock, #1361). A role whose buttons
+ * are hidden says why.
  */
 export function RoleTitlesManager() {
   const { hasPermission, profile } = useAuth();
   const canManage = hasPermission(PERMISSIONS.SYSTEM_MANAGE_ROLES);
   const caller = { roleName: profile?.role_name ?? null, roleId: profile?.role_id ?? null };
   const canWriteTitlesOf = (role: AppRoleWithPermissions) =>
-    canManage && roleWriteBlock(caller, role) === null;
+    canManage && titleWriteBlock(caller, role) === null;
 
   const { data: roles, isLoading: rolesLoading, error: rolesError } = useRolesWithPermissions();
   const { data: titles, isLoading: titlesLoading, error: titlesError } = useAdminTitles();
@@ -177,6 +178,11 @@ export function RoleTitlesManager() {
                   </Button>
                 )}
               </div>
+              {canManage && !writable && (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Only Super Administrator can change these titles.
+                </p>
+              )}
               {roleTitles.length === 0 ? (
                 <p className="mt-2 text-sm text-muted-foreground">No titles.</p>
               ) : (
