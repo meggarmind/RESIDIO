@@ -178,15 +178,16 @@ describe('AuthProvider resolves permissions through the Access module (#536)', (
     expect(toastError).not.toHaveBeenCalled();
   });
 
-  it('no-access (zero rows) is a legitimate state: empty profile, cached normally, no toast', async () => {
+  it('no-access (zero rows) for a profile with a role: empty profile rendered, NOT cached, no toast (#1341)', async () => {
     mount(makeSupabase({ rpc: async () => ({ data: [], error: null }) }));
 
     await waitFor(() => expect(screen.getByTestId('name').textContent).toBe('Admin User'));
     expect(screen.getByTestId('perms').textContent).toBe('');
     expect(screen.getByTestId('role').textContent).toBe('null');
     expect(screen.getByTestId('display').textContent).toBe('null');
-    await waitFor(() => expect(cached()).not.toBeNull());
-    expect(cached().permissions).toEqual([]);
+    // A role with no access rows is the pre-2FA snapshot; caching it kept the
+    // menu empty for five minutes after the second step was done.
+    expect(cached()).toBeNull();
     expect(toastError).not.toHaveBeenCalled();
   });
 
