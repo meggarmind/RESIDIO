@@ -10,6 +10,7 @@ type Row = Record<string, unknown>;
 const mocks = vi.hoisted(() => ({
   rows: [] as Record<string, unknown>[],
   updates: [] as { id: unknown; values: Record<string, unknown> }[],
+  accounts: [{ account_number: '0123451234' }] as Record<string, unknown>[],
   selectError: null as { message: string } | null,
   getSettingResultAsService: vi.fn(),
   checkDuplicateGuardrail: vi.fn(),
@@ -25,6 +26,7 @@ function fakeClient() {
       const filters: Record<string, unknown> = {};
       let update: Record<string, unknown> | null = null;
       const resolve = () => {
+        if (table === 'estate_bank_accounts') return { data: mocks.accounts, error: null };
         if (table !== 'email_transactions') return { data: null, error: null };
         const matching = mocks.rows.filter((r) =>
           Object.entries(filters).every(([c, v]) => (Array.isArray(v) ? v.includes(r[c]) : r[c] === v))
@@ -81,6 +83,7 @@ function credit(id: string, amount: number, extra: Row = {}): Row {
     match_confidence: 'high',
     match_method: 'alias',
     amount,
+    bank_account_last4: '1234',
     transaction_date: '2026-10-01',
     reference: `ref-${id}`,
     description: `Transfer ${id}`,
@@ -102,6 +105,21 @@ beforeEach(() => {
   mocks.getSettingResultAsService.mockResolvedValue({ status: 'absent' }); // default N60,000
   mocks.checkDuplicateGuardrail.mockResolvedValue({ isDuplicate: false });
   mocks.createPaymentAsSystem.mockImplementation(async () => ({ success: true, data: { id: `pay-${++paymentSeq}` } }));
+});
+
+describe('autoRecordEmailPayments estate account guard (#1340)', () => {
+  it.each([
+    ['another account', '9999'],
+    ['an unparsed account', null],
+  ])('leaves a credit to %s open for review, with no payment', async (_name, last4) => {
+    mocks.rows = [credit('tx-acct', 1000, { bank_account_last4: last4 })];
+
+    const result = await autoRecordEmailPayments(IMPORT_ID);
+
+    expect(result.autoRecorded).toEqual([]);
+    expect(mocks.createPaymentAsSystem).not.toHaveBeenCalled();
+    expect(updatesFor('tx-acct')).toEqual([{ review_reason: 'Credited account is not an estate account' }]);
+  });
 });
 
 describe('autoRecordEmailPayments limit edge (#1340)', () => {

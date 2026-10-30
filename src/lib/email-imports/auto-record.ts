@@ -7,6 +7,7 @@
  * - high-confidence alias or phone match to a resident (the `processEmailTransactions` rule);
  * - amount at or below the live `email_import_auto_process_limit` setting (fail closed on a bad read);
  * - it came from a transaction alert, not a statement;
+ * - the credited account is an active estate account (last 4 digits), else it is queued with the reason;
  * - the message passed the sender check (`sender-check.ts`), else it is queued with the reason;
  * - no duplicate payment exists.
  *
@@ -66,6 +67,7 @@ type CandidateRow = {
   id: string;
   email_import_id: string;
   amount: number | null;
+  bank_account_last4: string | null;
   transaction_type: string | null;
   transaction_date: string | null;
   reference: string | null;
@@ -100,13 +102,20 @@ export async function autoRecordEmailPayments(importId: string): Promise<AutoRec
   const { data, error } = await adminClient
     .from('email_transactions')
     .select(
-      'id, email_import_id, amount, transaction_type, transaction_date, reference, description, match_confidence, match_method, matched_resident_id, email_messages(email_type, sender_verified, sender_check), residents(first_name, last_name)'
+      'id, email_import_id, amount, bank_account_last4, transaction_type, transaction_date, reference, description, match_confidence, match_method, matched_resident_id, email_messages(email_type, sender_verified, sender_check), residents(first_name, last_name)'
     )
     .eq('email_import_id', importId)
     .eq('transaction_type', 'credit')
     .in('status', ['pending', 'matched']);
 
   if (error) return { ...result, error: error.message };
+
+  const { data: accounts, error: accountsError } = await adminClient
+    .from('estate_bank_accounts')
+    .select('account_number')
+    .eq('is_active', true);
+  if (accountsError) return { ...result, error: accountsError.message };
+  const estateLast4 = new Set((accounts ?? []).map((a) => String(a.account_number).slice(-4)));
 
   // Read once per run, so a Settings change applies from the next run.
   const limit = await readEmailAutoProcessLimit();
@@ -116,6 +125,15 @@ export async function autoRecordEmailPayments(importId: string): Promise<AutoRec
     if (!isAutoProcessMatch(tx) || !tx.matched_resident_id || !(amount > 0)) continue;
     if (exceedsEmailAutoProcessLimit(tx, limit)) continue;
     if (tx.email_messages?.email_type !== 'transaction_alert') continue;
+
+    if (!tx.bank_account_last4 || !estateLast4.has(tx.bank_account_last4)) {
+      await adminClient
+        .from('email_transactions')
+        .update({ review_reason: 'Credited account is not an estate account' })
+        .eq('id', tx.id);
+      result.skipped++;
+      continue;
+    }
 
     if (tx.email_messages.sender_verified !== true) {
       await adminClient
