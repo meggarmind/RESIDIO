@@ -75,14 +75,14 @@ beforeEach(() => {
 });
 
 describe('payment house when none is given (#1363)', () => {
-  it('uses the only active house for the row, the allocation and the audit', async () => {
+  it('uses the only active house for the row and the audit, not the allocation', async () => {
     const { createPaymentCore } = await import('@/lib/payments/create-payment');
     residentHouses = [link(HOUSE_A, true), link(HOUSE_B, false)];
 
     const res = await createPaymentCore(base, { trustedVerification: true });
     expect(res.success).toBe(true);
     expect(inserts[0].house_id).toBe(HOUSE_A);
-    expect(allocate.mock.calls[0]).toContain(HOUSE_A);
+    expect(JSON.stringify(allocate.mock.calls[0])).not.toContain(HOUSE_A);
     expect(audit.mock.calls[0][0]).toMatchObject({ newValues: { house_id: HOUSE_A } });
   });
 
@@ -93,7 +93,7 @@ describe('payment house when none is given (#1363)', () => {
     const res = await createPaymentAsSystem(base, 'cron:fetch-emails');
     expect(res.success).toBe(true);
     expect(inserts[0].house_id).toBe(HOUSE_A);
-    expect(allocate.mock.calls[0][1]).toMatchObject({ houseId: HOUSE_A });
+    expect(allocate.mock.calls[0][1]).not.toMatchObject({ houseId: HOUSE_A });
   });
 
   it('leaves the house null when the resident has no active house', async () => {

@@ -183,7 +183,7 @@ async function recordPayment(
     // Credit and eligible invoice allocation share the atomic settlement RPC.
     const allocateResult = await allocate(
         result.data.resident_id,
-        houseId,
+        result.data.house_id,
         lagosDateString(result.data.payment_date),
         {
             sourcePaymentId: paymentRecord?.id,
