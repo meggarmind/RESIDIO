@@ -9,7 +9,7 @@ vi.setConfig({ testTimeout: 60000 });
 const { getSystemActionLog } = vi.hoisted(() => ({ getSystemActionLog: vi.fn() }));
 vi.mock('@/actions/system/action-log', () => ({ getSystemActionLog }));
 
-import SystemActionLogPage from '@/app/(dashboard)/system/action-log/page';
+import SystemActionLogPage from '@/app/(dashboard)/(oversight)/system/action-log/page';
 
 const row = (id: string) => ({
   id,

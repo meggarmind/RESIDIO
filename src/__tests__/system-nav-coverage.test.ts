@@ -20,7 +20,7 @@ import { flattenSettingsNav } from '@/config/settings-nav';
  * under-permissioned. See ADR-0004.
  */
 
-const systemDir = fileURLToPath(new URL('../app/(dashboard)/system', import.meta.url));
+const systemDir = fileURLToPath(new URL('../app/(dashboard)/(oversight)/system', import.meta.url));
 
 /** Every /system route with a page.tsx. */
 function routesOnDisk(dir = systemDir, prefix = '/system'): string[] {
@@ -122,7 +122,7 @@ describe('Oversight navigation (#1272)', () => {
   it('links only pages that exist and no title twice', () => {
     const titles = entries.map((e) => e.title);
     expect(new Set(titles).size).toBe(titles.length);
-    const appDir = fileURLToPath(new URL('../app/(dashboard)', import.meta.url));
+    const appDir = fileURLToPath(new URL('../app/(dashboard)/(oversight)', import.meta.url));
     for (const { href } of entries) {
       expect(() => statSync(path.join(appDir, href, 'page.tsx')), href).not.toThrow();
     }

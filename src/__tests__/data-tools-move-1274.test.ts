@@ -18,7 +18,7 @@ describe('Data Tools move (#1274)', () => {
 
   it('keeps both old URLs as redirects to the new page', async () => {
     const pages = [
-      await import('@/app/(dashboard)/system/data-tools/page'),
+      await import('@/app/(dashboard)/(oversight)/system/data-tools/page'),
       await import('@/app/(dashboard)/settings/data-management/page'),
     ];
     for (const page of pages) {

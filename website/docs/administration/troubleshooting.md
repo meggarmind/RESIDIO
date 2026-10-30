@@ -8,7 +8,7 @@ residio_sources:
   - src/app/(dashboard)/settings/data-retention/**
   - src/app/(dashboard)/settings/system/**
   - src/components/settings/system/**
-  - src/app/(dashboard)/system/cron-status/**
+  - src/app/(dashboard)/(oversight)/system/cron-status/**
   - src/app/api/health/**
   - src/actions/system/**
   - src/lib/system/**

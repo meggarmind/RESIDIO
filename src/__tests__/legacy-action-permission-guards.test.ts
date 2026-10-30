@@ -37,8 +37,8 @@ const approvalsIndexSource = read('actions/approvals/index.ts');
 const reportEngineSource = read('actions/reports/report-engine.ts');
 const financialOverviewActionSource = read('actions/reports/get-financial-overview.ts');
 const backfillOwnershipHistorySource = read('actions/settings/backfill-ownership-history.ts');
-const reportsPageSource = read('app/(dashboard)/reports/page.tsx');
-const financialOverviewPageSource = read('app/(dashboard)/reports/financial-overview/page.tsx');
+const reportsPageSource = read('app/(dashboard)/(oversight)/reports/page.tsx');
+const financialOverviewPageSource = read('app/(dashboard)/(oversight)/reports/financial-overview/page.tsx');
 const getStaffSource = read('actions/settings/get-staff.ts');
 const adminNotifierSource = read('lib/notifications/admin-notifier.ts');
 

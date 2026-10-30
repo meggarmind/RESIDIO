@@ -7,14 +7,14 @@ residio_sources:
   - src/app/(dashboard)/settings/data-retention/**
   - src/app/(dashboard)/settings/system/**
   - src/components/settings/system/**
-  - src/app/(dashboard)/system/audit-logs/**
-  - src/app/(dashboard)/system/action-log/**
+  - src/app/(dashboard)/(oversight)/system/audit-logs/**
+  - src/app/(dashboard)/(oversight)/system/action-log/**
   - src/app/(dashboard)/settings/access/**
   - src/app/(dashboard)/settings/roles/**
   - src/app/(dashboard)/settings/groups/**
   - src/actions/groups/**
-  - src/app/(dashboard)/system/accounts/**
-  - src/app/(dashboard)/system/page.tsx
+  - src/app/(dashboard)/(oversight)/system/accounts/**
+  - src/app/(dashboard)/(oversight)/system/page.tsx
   - src/components/system/**
   - src/actions/system/**
 residio_verified_commit: c8f57c63

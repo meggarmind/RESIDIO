@@ -8,8 +8,8 @@ residio_sources:
   - src/actions/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp-admin/**
-  - src/app/(dashboard)/system/whatsapp-monitoring/**
-  - src/app/(dashboard)/system/whatsapp-bot-health/**
+  - src/app/(dashboard)/(oversight)/system/whatsapp-monitoring/**
+  - src/app/(dashboard)/(oversight)/system/whatsapp-bot-health/**
   - src/app/api/whatsapp/**
 residio_verified_commit: 0302bd8
 residio_verified_at: '2026-10-30'
