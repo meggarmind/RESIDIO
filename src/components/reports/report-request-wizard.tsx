@@ -20,10 +20,6 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import {
-    FileBarChart,
-    Receipt,
-    Clock,
-    ScrollText,
     Calendar,
     CalendarDays,
     CalendarRange,
@@ -37,10 +33,7 @@ import {
     TableProperties,
     ArrowUpDown,
     Sparkles,
-    Users,
-    LayoutList,
     ClipboardList,
-    Construction,
     CalendarClock,
     Mail,
     Repeat,
@@ -60,6 +53,7 @@ import {
 import { getBankAccountsForFilter } from '@/actions/reports/get-financial-overview';
 import { useCreateReportSchedule, type CreateScheduleInput } from '@/hooks/use-reports';
 import { toast } from 'sonner';
+import { ReportTypePicker, reportTypeConfig } from '@/components/reports/report-type-picker';
 
 // ============================================================
 // Types
@@ -83,66 +77,6 @@ const STEPS: Step[] = [
     { id: 4, title: 'Options', description: 'Configure report options' },
     { id: 5, title: 'Review', description: 'Confirm and generate' },
 ];
-
-// ============================================================
-// Report Type Icons & Styles
-// ============================================================
-
-const reportTypeConfig: Record<ReportType, {
-    icon: React.ElementType;
-    gradient: string;
-    iconBg: string;
-    borderHover: string;
-}> = {
-    financial_overview: {
-        icon: FileBarChart,
-        gradient: 'from-emerald-500/10 to-teal-500/5',
-        iconBg: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
-        borderHover: 'hover:border-emerald-500/50',
-    },
-    collection_report: {
-        icon: Receipt,
-        gradient: 'from-blue-500/10 to-cyan-500/5',
-        iconBg: 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
-        borderHover: 'hover:border-blue-500/50',
-    },
-    invoice_aging: {
-        icon: Clock,
-        gradient: 'from-amber-500/10 to-orange-500/5',
-        iconBg: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
-        borderHover: 'hover:border-amber-500/50',
-    },
-    transaction_log: {
-        icon: ScrollText,
-        gradient: 'from-purple-500/10 to-violet-500/5',
-        iconBg: 'bg-purple-500/15 text-purple-600 dark:text-purple-400',
-        borderHover: 'hover:border-purple-500/50',
-    },
-    debtors_report: {
-        icon: Users,
-        gradient: 'from-red-500/10 to-rose-500/5',
-        iconBg: 'bg-red-500/15 text-red-600 dark:text-red-400',
-        borderHover: 'hover:border-red-500/50',
-    },
-    indebtedness_summary: {
-        icon: LayoutList,
-        gradient: 'from-orange-500/10 to-amber-500/5',
-        iconBg: 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
-        borderHover: 'hover:border-orange-500/50',
-    },
-    indebtedness_detail: {
-        icon: LayoutList,
-        gradient: 'from-yellow-500/10 to-orange-500/5',
-        iconBg: 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400',
-        borderHover: 'hover:border-yellow-500/50',
-    },
-    development_levy: {
-        icon: Construction,
-        gradient: 'from-indigo-500/10 to-blue-500/5',
-        iconBg: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400',
-        borderHover: 'hover:border-indigo-500/50',
-    },
-};
 
 // ============================================================
 // Period Preset Icons
@@ -174,7 +108,7 @@ function StepIndicator({ steps, currentStep, reportType }: { steps: Step[]; curr
     const progressPercent = ((currentStep - 1) / (steps.length - 1)) * 100;
 
     return (
-        <div className="relative mb-10">
+        <div className="relative mb-4">
             {/* Progress track */}
             <div className="absolute top-5 left-0 right-0 h-0.5 bg-muted mx-10">
                 <div
@@ -240,55 +174,12 @@ function ReportTypeStep({
     onChange: (type: ReportType) => void;
 }) {
     return (
-        <div className="space-y-6">
-            <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold tracking-tight">Select Report Type</h2>
-                <p className="text-muted-foreground mt-1">
-                    Choose the type of financial report you want to generate
-                </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {reportTypes.map((type) => {
-                    const config = reportTypeConfig[type.value];
-                    const Icon = config.icon;
-                    const isSelected = value === type.value;
-
-                    return (
-                        <button
-                            key={type.value}
-                            type="button"
-                            onClick={() => onChange(type.value)}
-                            className={cn(
-                                'group relative p-6 rounded-xl border-2 text-left transition-all duration-200',
-                                'bg-gradient-to-br',
-                                config.gradient,
-                                config.borderHover,
-                                isSelected
-                                    ? 'border-emerald-500 ring-2 ring-emerald-500/20 shadow-lg'
-                                    : 'border-border hover:shadow-md'
-                            )}
-                        >
-                            {/* Selection indicator */}
-                            {isSelected && (
-                                <div className="absolute top-3 right-3">
-                                    <div className="h-6 w-6 rounded-full bg-emerald-500 flex items-center justify-center">
-                                        <Check className="h-4 w-4 text-white" />
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className={cn('inline-flex p-3 rounded-xl mb-4', config.iconBg)}>
-                                <Icon className="h-6 w-6" />
-                            </div>
-
-                            <h3 className="font-semibold text-lg mb-1">{type.label}</h3>
-                            <p className="text-sm text-muted-foreground">{type.description}</p>
-                        </button>
-                    );
-                })}
-            </div>
-        </div>
+        <ReportTypePicker
+            value={value}
+            onChange={onChange}
+            isRealtime={(type) => REALTIME_REPORTS.includes(type)}
+            isAccountAgnostic={(type) => ACCOUNT_AGNOSTIC_REPORTS.includes(type)}
+        />
     );
 }
 
@@ -1181,14 +1072,16 @@ export function ReportRequestWizard({
     };
 
     return (
-        <form onSubmit={handleSubmit(onSubmit)} className="max-w-3xl mx-auto">
+        <form onSubmit={handleSubmit(onSubmit)} className="w-full">
             <Card className="overflow-hidden shadow-xl border-0 bg-gradient-to-b from-background to-muted/20">
-                <CardContent className="p-8">
-                    {/* Step Indicator */}
-                    <StepIndicator steps={STEPS} currentStep={step} reportType={formData.reportType || ''} />
+                <CardContent className="p-4 md:p-6">
+                    {/* Step Indicator: sticks under the page header and tabs (h-24 together, see reports-page-client) */}
+                    <div className="sticky top-24 z-10 -mx-4 -mt-4 bg-background px-4 pt-4 md:-mx-6 md:-mt-6 md:px-6 md:pt-6">
+                        <StepIndicator steps={STEPS} currentStep={step} reportType={formData.reportType || ''} />
+                    </div>
 
                     {/* Step Content */}
-                    <div className="min-h-[400px]">
+                    <div className={cn(step !== 1 && 'min-h-[400px]')}>
                         {step === 1 && (
                             <ReportTypeStep
                                 value={formData.reportType}
@@ -1245,7 +1138,7 @@ export function ReportRequestWizard({
                     </div>
 
                     {/* Navigation */}
-                    <div className="flex justify-between pt-4">
+                    <div className="sticky bottom-0 z-10 -mx-4 -mb-4 mt-4 flex items-center justify-between gap-3 border-t bg-background px-4 py-3 md:-mx-6 md:-mb-6 md:px-6">
                         <Button
                             variant="outline"
                             type="button"
@@ -1255,6 +1148,12 @@ export function ReportRequestWizard({
                             <ChevronLeft className="mr-2 h-4 w-4" />
                             Back
                         </Button>
+
+                        <p className="min-w-0 flex-1 truncate text-center text-sm text-muted-foreground">
+                            {formData.reportType
+                                ? <>Selected: <span className="font-medium text-foreground">{reportTypes.find((r) => r.value === formData.reportType)?.label}</span></>
+                                : 'No report selected'}
+                        </p>
 
                         {step < 5 ? (
                             <Button type="button" onClick={handleNext} disabled={!canProceed()}>

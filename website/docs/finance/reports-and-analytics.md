@@ -7,7 +7,7 @@ residio_sources:
   - src/app/(dashboard)/(oversight)/reports/**
   - src/actions/analytics/**
   - src/actions/reports/**
-residio_verified_commit: fe2c42a
+residio_verified_commit: bc152723
 residio_verified_at: '2026-10-30'
 residio_app_version: '0.4.0'
 ---
@@ -36,10 +36,10 @@ If the aging figures cannot be loaded, the card says *Invoice aging unavailable*
 
 ## Report workflow
 
-**Oversight → Generate reports** needs the view financial reports permission; without it you are returned to the dashboard. The page has five tabs: **New Report**, **History**, **Schedules**, **Archive** and **Wallet Check**.
+**Oversight → Generate reports** needs the view financial reports permission; without it you are returned to the dashboard. The header and the tab bar stay at the top while you scroll, and the **Back** and **Next** bar stays at the bottom with the name of the selected report. The page has five tabs: **New Report**, **History**, **Schedules**, **Archive** and **Wallet Check**.
 
 1. Open **Oversight → Generate reports → New Report**.
-2. Select the report type and period.
+2. Select the report type. The list on the left has a search field and groups (**Money in and out**, **Debts**, **Levies**) that open and close. The panel on the right shows what the report asks for and an **Example layout** of its tables; the values in it are examples, not your data. Then select the period.
 3. Review the preview or parameters.
 4. Generate and download the report only after confirming the scope.
 

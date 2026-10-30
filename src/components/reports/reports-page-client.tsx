@@ -37,7 +37,6 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { EnhancedPageHeader } from '@/components/dashboard/enhanced-stat-card';
 import { ReportRequestWizard } from '@/components/reports/report-request-wizard';
 import { ReportViewer } from '@/components/reports/report-viewer';
 import { ReportSchedulesPanel } from '@/components/reports/report-schedules';
@@ -292,34 +291,20 @@ function EmptyReportsState({ onCreateNew }: { onCreateNew: () => void }) {
 // Quick Stats Card
 // ============================================================
 
-function QuickStatsCard() {
+function QuickStatsChip() {
     const { data: reportsResult } = useGeneratedReports();
     const reports = reportsResult?.data || [];
+    const now = new Date();
     const reportsThisMonth = reports.filter((r) => {
         const reportDate = new Date(r.generatedAt);
-        const now = new Date();
-        return (
-            reportDate.getMonth() === now.getMonth() &&
-            reportDate.getFullYear() === now.getFullYear()
-        );
+        return reportDate.getMonth() === now.getMonth() && reportDate.getFullYear() === now.getFullYear();
     }).length;
 
     return (
-        <Card className="border-dashed">
-            <CardContent className="p-4">
-                <div className="flex items-center gap-4">
-                    <div className="p-2.5 rounded-lg bg-emerald-500/10">
-                        <TrendingUp className="h-5 w-5 text-emerald-600" />
-                    </div>
-                    <div>
-                        <p className="text-2xl font-bold">{reportsResult?.count || 0}</p>
-                        <p className="text-xs text-muted-foreground">
-                            {reportsThisMonth} generated this month
-                        </p>
-                    </div>
-                </div>
-            </CardContent>
-        </Card>
+        <Badge variant="outline" className="shrink-0 gap-1.5 whitespace-nowrap">
+            <TrendingUp className="h-3.5 w-3.5 text-emerald-600" />
+            {reportsResult?.count || 0} reports · {reportsThisMonth} this month
+        </Badge>
     );
 }
 
@@ -381,16 +366,17 @@ export function ReportsPageClient() {
 
     return (
         <div className="space-y-6">
-            <EnhancedPageHeader
-                title="Generate reports"
-                description="Generate detailed financial reports and analytics for your estate"
-                icon={FileBarChart}
-                actions={<QuickStatsCard />}
-            />
-
-            {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-                <TabsList className="grid w-full max-w-3xl grid-cols-5">
+                {/* Header and tabs stick to the top of the scroll area. h-24 in total: the wizard's step indicator sticks below it. */}
+                <div className="sticky top-0 z-20 -mx-4 -mt-4 flex h-24 flex-col justify-center gap-2 bg-background/95 px-4 backdrop-blur md:-mx-6 md:-mt-6 md:px-6">
+                    <div className="flex items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-2">
+                            <FileBarChart className="h-5 w-5 shrink-0 text-primary" />
+                            <h1 className="truncate text-xl font-bold tracking-tight">Generate reports</h1>
+                        </div>
+                        <QuickStatsChip />
+                    </div>
+                <TabsList className="grid w-full grid-cols-5">
                     <TabsTrigger value="new" className="gap-2">
                         <Plus className="h-4 w-4" />
                         New Report
@@ -420,6 +406,7 @@ export function ReportsPageClient() {
                         Wallet Check
                     </TabsTrigger>
                 </TabsList>
+                </div>
 
                 {/* New Report Tab */}
                 <TabsContent value="new" className="mt-6">
