@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { safeNextPath } from '@/lib/auth/safe-next-path';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { loadAccessWithRetry } from '@/lib/auth/access-load';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from '@/components/ui/input-otp';
@@ -16,6 +18,7 @@ export function Verify2FAForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
+  const { refreshProfile } = useAuth();
 
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -26,6 +29,8 @@ export function Verify2FAForm() {
   const [useBackupCode, setUseBackupCode] = useState(false);
   const [codeSent, setCodeSent] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  // #1341: after a correct code, the app opens only when the user's access is loaded.
+  const [accessPhase, setAccessPhase] = useState<'idle' | 'loading' | 'failed'>('idle');
 
   // Strict same-origin allow-list; anything else becomes /dashboard (#455).
   const redirectTo = safeNextPath(
@@ -131,8 +136,7 @@ export function Verify2FAForm() {
         setError(result.message);
         setCode('');
       } else {
-        // Verification successful, redirect
-        router.push(redirectTo);
+        await enterApp();
       }
     } catch {
       setError('Verification failed. Please try again.');
@@ -140,6 +144,48 @@ export function Verify2FAForm() {
       setIsLoading(false);
     }
   };
+
+  // #1341: load the profile and permissions for the verified session first. Without this the
+  // app opened with the empty permission set read before the code was accepted, so only the
+  // Dashboard menu showed until a page refresh.
+  const enterApp = async () => {
+    setAccessPhase('loading');
+    const result = await loadAccessWithRetry(refreshProfile);
+    if (result === 'failed') {
+      setAccessPhase('failed');
+      return;
+    }
+    // 'incomplete' after all tries is an account that is not approved yet; the server
+    // routes it from here. replace(): Back must not return to the used code screen.
+    router.replace(redirectTo);
+  };
+
+  if (accessPhase !== 'idle') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          {accessPhase === 'loading' ? (
+            <CardContent className="flex flex-col items-center justify-center gap-3 py-8" role="status">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Loading your access...</p>
+            </CardContent>
+          ) : (
+            <CardContent className="space-y-4 py-6">
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Your code is correct, but we could not load your access. Check your connection and try again.
+                </AlertDescription>
+              </Alert>
+              <Button className="w-full" onClick={() => void enterApp()}>
+                Try again
+              </Button>
+            </CardContent>
+          )}
+        </Card>
+      </div>
+    );
+  }
 
   const getMethodIcon = () => {
     switch (method) {

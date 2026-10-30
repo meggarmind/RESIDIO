@@ -16,6 +16,7 @@ import {
   type PortalAccessOverride,
 } from '@/lib/auth/portal-visibility';
 import { fetchPortalAccessOverride, fetchResidentPortalEnabled } from '@/lib/auth/portal-visibility-fetch';
+import type { ProfileLoadResult } from '@/lib/auth/access-load';
 
 // Profile as the app sees it. The legacy `role` column is gone (#193):
 // every role and permission decision reads role_id -> the Access module
@@ -56,6 +57,11 @@ interface AuthContextType {
   /** Re-run the portal visibility fetches (after the switch or own override changes). */
   refreshPortalVisibility: () => void;
   canSeeImpersonationLink: boolean;
+  /**
+   * Loads the profile and permissions now, for the current session (#1341). The two-factor
+   * screen awaits it before it opens the app. Shows no toast; the caller reports a failure.
+   */
+  refreshProfile: () => Promise<ProfileLoadResult>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -63,6 +69,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // PERFORMANCE: Session storage caching for faster initial loads
 const PROFILE_CACHE_KEY = 'residio_profile_cache';
 const PROFILE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Routes where the provider does not load the session on its own (#1341). On the two-factor
+// screen the database returns no permissions yet (#1029), so a load there makes an empty
+// snapshot that the app would keep after the code is accepted. The screen calls
+// refreshProfile() after a correct code instead.
+const NO_BOOTSTRAP_PATHS = new Set(['/login', '/auth/verify-2fa']);
 
 function getCachedProfile(): Profile | null {
   if (typeof window === 'undefined') return null;
@@ -131,8 +143,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // session bootstrap here, because Supabase browser clients coordinate
     // through a shared storage lock and a stalled bootstrap can block the
     // login request indefinitely. Session initialization resumes after the
-    // successful redirect into the application.
-    if (pathname === '/login') {
+    // successful redirect into the application. See NO_BOOTSTRAP_PATHS for the
+    // two-factor screen.
+    if (NO_BOOTSTRAP_PATHS.has(pathname)) {
       setIsLoading(false);
       return;
     }
@@ -269,7 +282,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, supabase]);
 
-  const fetchProfile = useCallback(async (userId: string) => {
+  const fetchProfile = useCallback(async (userId: string, { notify = true }: { notify?: boolean } = {}): Promise<ProfileLoadResult> => {
     // Fetch profile including resident_id for portal access
     const { data: profileDataRaw, error: profileError } = await supabase
       .from('profiles')
@@ -330,13 +343,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         cacheProfileIfHealthy(fallbackProfile, true);
         profileData = { ...fallbackProfile, admin_titles: [] };
       } else {
-        return;
+        return 'failed';
       }
     }
 
     // Guard: after the fallback branch we must have a usable profile to resolve
     // role/RBAC against; bail out otherwise rather than crashing.
-    if (!profileData) return;
+    if (!profileData) return 'failed';
 
     // Fetch role details and permissions
     let roleName: string | null = null;
@@ -354,6 +367,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // with the user's real role. Without this seed the degraded profile would
     // simply be cached 60 lines further down instead of at the fallback site.
     let cacheUnsafe = profileFetchFailed;
+    // #1341: a role with no access rows. See ProfileLoadResult 'incomplete'.
+    let accessIncomplete = false;
     // No legacy reverse lookup here any more (#193). It resolved a role by
     // name from the deprecated profiles.role column when role_id was absent;
     // #192 reconciled every profile and proved against live data that no row
@@ -391,8 +406,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.error('[AuthProvider] RBAC fetch failed:', access.error);
           toastReason = 'rbac';
           cacheUnsafe = true;
+        } else if (access.status === 'no-access') {
+          // A role with no rows: the second sign-in step is not done (#1029) or the
+          // account is not approved. Render it, but never cache it (#1341).
+          accessIncomplete = true;
+          cacheUnsafe = true;
         }
-        // 'no-access' is a legitimate state: empty permissions, cached normally.
       } catch (err) {
         console.error('[AuthProvider] RBAC fetch failed or timed out:', err);
         toastReason = 'rbac';
@@ -424,7 +443,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // every navigation and reload, turning a transient blip into an outage.
     cacheProfileIfHealthy(newProfile, cacheUnsafe);
 
-    if (toastReason) {
+    if (toastReason && notify) {
       // #256 part 2: two distinct causes land here -- the profiles row could
       // not be read at all, or it was read fine but the RBAC (#113) fetch
       // failed/timed out. Distinct copy lets an admin debugging this tell
@@ -453,7 +472,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         duration: 15000,
       });
     }
+
+    if (toastReason) return 'failed';
+    return accessIncomplete ? 'incomplete' : 'loaded';
   }, [supabase]);
+
+  // #1341: an explicit load for the current session, awaited by the two-factor screen
+  // before it opens the app. It also marks the provider initialized, so the first
+  // dashboard render uses this profile instead of starting a second load.
+  const refreshProfile = useCallback(async (): Promise<ProfileLoadResult> => {
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    if (!currentUser) return 'failed';
+    const { data: { session: currentSession } } = await supabase.auth.getSession();
+    setUser(currentUser);
+    setSession(currentSession);
+    isInitialized.current = true;
+    try {
+      return await fetchProfile(currentUser.id, { notify: false });
+    } catch (err) {
+      console.error('[AuthProvider] refreshProfile failed:', err);
+      return 'failed';
+    } finally {
+      setIsLoading(false);
+    }
+  }, [supabase, fetchProfile]);
 
   const signOut = async () => {
     setIsSigningOut(true);
@@ -575,6 +617,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       canSeeSelfPortalLinks,
       refreshPortalVisibility,
       canSeeImpersonationLink,
+      refreshProfile,
     }}>
       {children}
     </AuthContext.Provider>
