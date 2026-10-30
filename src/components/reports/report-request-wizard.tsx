@@ -1136,8 +1136,8 @@ export function ReportRequestWizard({
         <form onSubmit={handleSubmit(onSubmit)}>
             <Card className="shadow-xl border-0 bg-gradient-to-b from-background to-muted/20">
                 <CardContent className="p-4 md:p-6">
-                    {/* Step Indicator: pinned under the page header and tabs (height set on the Tabs root as --reports-sticky-h). */}
-                    <div className="z-20 -mx-2 mb-6 bg-background px-2 pt-2 md:sticky md:top-[var(--reports-sticky-h,6rem)]">
+                    {/* Step Indicator: pinned under the page header and tabs (height set on the Tabs root as --reports-sticky-h; the header pins 1.5rem above main's content edge). */}
+                    <div className="z-20 -mx-2 mb-6 bg-background px-2 pt-2 md:sticky md:top-[calc(var(--reports-sticky-h,7.5rem)-1.5rem)]">
                         <StepIndicator steps={STEPS} currentStep={step} reportType={formData.reportType || ''} />
                     </div>
 
@@ -1199,7 +1199,7 @@ export function ReportRequestWizard({
                     </div>
 
                     {/* Navigation: pinned to the bottom of the scroll area */}
-                    <div className="sticky bottom-0 z-20 -mx-2 mt-4 flex items-center justify-between gap-3 border-t bg-background px-2 py-3">
+                    <div className="sticky -bottom-4 z-20 -mx-2 mt-4 flex items-center justify-between gap-3 border-t bg-background px-2 pb-7 pt-3 md:-bottom-6 md:pb-9">
                         <Button
                             variant="outline"
                             type="button"

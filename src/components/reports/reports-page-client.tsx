@@ -390,8 +390,9 @@ export function ReportsPageClient() {
             className="gap-6"
             style={{ '--reports-sticky-h': `${stickyHeight}px` } as React.CSSProperties}
         >
-            {/* <main> is the scroller and starts below the app top bar, so top-0 is flush under that bar (same as the Oversight menu). */}
-            <div ref={stickyRef} className="sticky top-0 z-30 -mx-1 space-y-3 bg-background px-1 pb-3 pt-1">
+            {/* <main> is the scroller (p-4 md:p-6). A sticky top-0 bar would stop below that padding and let content show above it,
+                so the bar pins at minus the padding and fills that strip with its own matching top padding. */}
+            <div ref={stickyRef} className="sticky -top-4 z-30 -mx-1 -mt-4 space-y-3 bg-background px-1 pb-3 pt-4 md:-top-6 md:-mt-6 md:pt-6">
                 <div className="flex items-center justify-between gap-3">
                     <h1 className="flex min-w-0 items-center gap-2 text-xl font-bold tracking-tight">
                         <FileBarChart className="h-5 w-5 shrink-0 text-emerald-600" aria-hidden="true" />
