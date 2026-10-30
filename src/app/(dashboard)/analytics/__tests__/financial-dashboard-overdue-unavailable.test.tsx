@@ -101,6 +101,15 @@ describe('financial health tiles when financialHealth is null (#101)', () => {
   });
 });
 
+describe('Totals tile descriptions (#1345)', () => {
+  it('Portfolio Value says what it adds up', () => {
+    health.current = HEALTH;
+    distribution.current = null;
+    render(<FinancialDashboard />);
+    expect(tile('Portfolio Value')).toHaveTextContent('Bank balance plus petty cash');
+  });
+});
+
 describe('Overdue Invoices tile (#101)', () => {
   beforeEach(() => {
     health.current = HEALTH;
