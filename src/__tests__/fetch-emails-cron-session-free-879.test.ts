@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   notifyAdmins: vi.fn(),
   logAudit: vi.fn(),
   listMessagesByCriteria: vi.fn(),
+  getMessage: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -37,7 +38,7 @@ vi.mock('@/lib/email-imports/store-attachments', () => ({
 vi.mock('@/lib/email-imports/gmail-client', () => ({
   getGmailClient: vi.fn(async () => ({})),
   listMessagesByCriteria: mocks.listMessagesByCriteria,
-  getMessage: vi.fn(async () => ({})),
+  getMessage: mocks.getMessage,
   getAttachment: vi.fn(),
   extractEmailMetadata: vi.fn(() => ({
     subject: 'Credit Alert', from: 'alerts@bank', to: 'estate@x', date: new Date(), threadId: 't1',
@@ -62,6 +63,7 @@ beforeEach(() => {
   // A session client has no user on a cron run; RLS would hide every row from it.
   mocks.createServerSupabaseClient.mockRejectedValue(new Error('no session in cron'));
   mocks.listMessagesByCriteria.mockResolvedValue({ messages: [{ id: 'm1' }] });
+  mocks.getMessage.mockResolvedValue({});
 });
 
 describe('runEmailFetch on the cron trigger (#879)', () => {
@@ -81,6 +83,40 @@ describe('runEmailFetch on the cron trigger (#879)', () => {
     expect(mocks.createServerSupabaseClient).not.toHaveBeenCalled();
     expect(calls).toContain('write:email_imports.insert');
     expect(calls).toContain('write:email_messages.insert');
+  });
+
+  it('stores the sender check on each message for the auto-record step (#1340)', async () => {
+    const client = adminWith(
+      {
+        'gmail_oauth_credentials.select': { data: { email_address: 'estate@x', sync_criteria: {} } },
+        'email_imports.insert': { data: { id: IMPORT_ID } },
+      },
+      [],
+    );
+    const inserts: Record<string, unknown>[] = [];
+    const from = client.from.bind(client);
+    client.from = (table: string) => {
+      const chain = from(table) as Record<string, unknown> & { insert: (...a: unknown[]) => unknown };
+      const insert = chain.insert;
+      chain.insert = (...args: unknown[]) => {
+        if (table === 'email_messages') inserts.push(args[0] as Record<string, unknown>);
+        return insert(...args);
+      };
+      return chain;
+    };
+    mocks.getMessage
+      .mockResolvedValueOnce({
+        payload: { headers: [{ name: 'Authentication-Results', value: 'mx.google.com; dkim=pass header.i=@firstbanknigeria.com' }] },
+      })
+      .mockResolvedValueOnce({});
+    mocks.listMessagesByCriteria.mockResolvedValue({ messages: [{ id: 'm1' }, { id: 'm2' }] });
+
+    await runEmailFetch('cron');
+
+    expect(inserts.map((r) => [r.sender_verified, r.sender_check])).toEqual([
+      [true, 'dkim=pass header.d=firstbanknigeria.com'],
+      [false, 'No Authentication-Results header'],
+    ]);
   });
 
   it('does not chain into processEmailTransactions, so no money is written on schedule', async () => {
@@ -125,6 +161,31 @@ describe('queueEmailTransactionsForReview (#879)', () => {
       expect.objectContaining({ actionUrl: `/payments/email-imports/${IMPORT_ID}` }),
     );
     expect(mocks.createServerSupabaseClient).not.toHaveBeenCalled();
+  });
+
+  it('writes the auto-record counts of the run onto the import (#1340)', async () => {
+    const client = adminWith({ 'email_transactions.update': { data: [{ id: 'tx1' }] } }, []);
+    const importUpdates: Record<string, unknown>[] = [];
+    const from = client.from.bind(client);
+    client.from = (table: string) => {
+      const chain = from(table) as Record<string, unknown> & { update: (...a: unknown[]) => unknown };
+      const update = chain.update;
+      chain.update = (...args: unknown[]) => {
+        if (table === 'email_imports') importUpdates.push(args[0] as Record<string, unknown>);
+        return update(...args);
+      };
+      return chain;
+    };
+
+    await queueEmailTransactionsForReview(IMPORT_ID, { autoProcessed: 3, skipped: 1, errored: 2 });
+
+    expect(importUpdates[0]).toMatchObject({
+      status: 'completed',
+      transactions_auto_processed: 3,
+      transactions_queued: 1,
+      transactions_skipped: 1,
+      transactions_errored: 2,
+    });
   });
 
   it('notifies nobody when nothing was queued', async () => {

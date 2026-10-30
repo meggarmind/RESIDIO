@@ -7,11 +7,13 @@ import { parseAllPendingEmails } from '@/lib/email-imports/parse-email';
 import { processEmailTransactions } from '@/actions/email-imports/process-email-import';
 import { matchEmailTransactions } from '@/lib/email-imports/process-email-matching';
 import { queueEmailTransactionsForReview } from '@/lib/email-imports/queue-for-review';
+import { autoRecordEmailPayments } from '@/lib/email-imports/auto-record';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { recordSystemAction } from '@/lib/system-log/recorder';
 
 vi.mock('@/lib/email-imports/gmail-client', () => ({ getActiveGmailAddress: vi.fn() }));
 vi.mock('@/lib/email-imports/queue-for-review', () => ({ queueEmailTransactionsForReview: vi.fn() }));
+vi.mock('@/lib/email-imports/auto-record', () => ({ autoRecordEmailPayments: vi.fn() }));
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: vi.fn() }));
 vi.mock('@/lib/email-imports/fetch-emails', () => ({ runEmailFetch: vi.fn() }));
 vi.mock('@/lib/email-imports/parse-email', () => ({ parseAllPendingEmails: vi.fn() }));
@@ -20,6 +22,8 @@ vi.mock('@/lib/email-imports/process-email-matching', () => ({ matchEmailTransac
 vi.mock('@/lib/system-log/recorder', () => ({ recordSystemAction: vi.fn() }));
 
 const SECRET = 'cron-secret-for-tests';
+const NOTHING_RECORDED = { autoRecorded: [], senderRejected: 0, skipped: 0, errored: 0, error: null };
+const NO_COUNTS = { autoProcessed: 0, skipped: 0, errored: 0 };
 
 function request(authorization?: string): NextRequest {
   return new NextRequest('https://residio.test/api/cron/fetch-emails', {
@@ -48,6 +52,7 @@ describe('GET /api/cron/fetch-emails system log', () => {
     } as never);
     vi.mocked(matchEmailTransactions).mockResolvedValue({ matched: 2, unmatched: 1 } as never);
     vi.mocked(queueEmailTransactionsForReview).mockResolvedValue({ queuedForReview: 3, error: null });
+    vi.mocked(autoRecordEmailPayments).mockResolvedValue(NOTHING_RECORDED);
   });
   afterEach(() => vi.unstubAllEnvs());
 
@@ -95,10 +100,14 @@ describe('GET /api/cron/fetch-emails system log', () => {
     );
   });
 
-  it('runs every phase without a session and queues for review instead of processing (#879)', async () => {
+  it('runs every phase without a session: auto-record, then queue the rest, never the session action (#1340)', async () => {
     await GET(request(`Bearer ${SECRET}`));
     expect(runEmailFetch).toHaveBeenCalledWith('cron', { maxEmails: 50, sinceDays: 1 });
-    expect(queueEmailTransactionsForReview).toHaveBeenCalledWith('imp-1');
+    expect(autoRecordEmailPayments).toHaveBeenCalledWith('imp-1');
+    expect(queueEmailTransactionsForReview).toHaveBeenCalledWith('imp-1', NO_COUNTS);
+    expect(vi.mocked(autoRecordEmailPayments).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(queueEmailTransactionsForReview).mock.invocationCallOrder[0]
+    );
     expect(processEmailTransactions).not.toHaveBeenCalled();
     expect(authorizePermission).not.toHaveBeenCalled();
   });
@@ -106,7 +115,32 @@ describe('GET /api/cron/fetch-emails system log', () => {
   it('queues even when nothing matched, so unmatched transactions reach the review queue', async () => {
     vi.mocked(matchEmailTransactions).mockResolvedValue({ matched: 0, unmatched: 3 } as never);
     await GET(request(`Bearer ${SECRET}`));
-    expect(queueEmailTransactionsForReview).toHaveBeenCalledWith('imp-1');
+    expect(queueEmailTransactionsForReview).toHaveBeenCalledWith('imp-1', NO_COUNTS);
+  });
+
+  it('logs the auto-recorded payments in the run summary and passes the counts to the import (#1340)', async () => {
+    vi.mocked(autoRecordEmailPayments).mockResolvedValue({
+      ...NOTHING_RECORDED,
+      autoRecorded: [{ transactionId: 'tx-1', paymentId: 'pay-1', amount: 5000, residentName: 'Ada Obi', reference: 'R1' }],
+      senderRejected: 1,
+      skipped: 1,
+    });
+    await GET(request(`Bearer ${SECRET}`));
+    expect(queueEmailTransactionsForReview).toHaveBeenCalledWith('imp-1', { autoProcessed: 1, skipped: 1, errored: 0 });
+    const entry = vi.mocked(recordSystemAction).mock.calls[0][0];
+    expect(entry).toMatchObject({ outcome: 'success' });
+    expect(entry.summary).toMatchObject({
+      autoRecordPhase: { autoRecorded: 1, senderRejected: 1, skipped: 1, errored: 0, paymentIds: ['pay-1'] },
+    });
+  });
+
+  it('still queues the rest, and records failure, when the auto-record step fails (#1340)', async () => {
+    vi.mocked(autoRecordEmailPayments).mockResolvedValue({ ...NOTHING_RECORDED, error: 'select failed' });
+    await GET(request(`Bearer ${SECRET}`));
+    expect(queueEmailTransactionsForReview).toHaveBeenCalledWith('imp-1', NO_COUNTS);
+    expect(recordSystemAction).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'cron:fetch-emails', outcome: 'failure', error: 'select failed' })
+    );
   });
 
   it('records failure when queueing for review fails', async () => {

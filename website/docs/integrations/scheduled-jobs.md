@@ -38,7 +38,7 @@ Times are in UTC. Adjust for your estate's local time when reasoning about when 
 | Payment reminders | Daily, 08:00 | Queues reminder messages for outstanding balances |
 | Notification processing | Every 15 minutes | Sends what is waiting in the notification queue, retrying failed sends with a backoff, alerts admins to Chatmaid WhatsApp messages still unconfirmed after 15 minutes, and deletes WhatsApp statement PDFs 12 hours after they were made |
 | Announcement publishing | Hourly | Publishes announcements whose scheduled time has arrived |
-| Email import | Hourly | Reads the connected mailbox for bank alerts and statements, and queues every transaction it finds for admin review (it posts no money) |
+| Email import | Every 5 minutes | Reads the connected mailbox for bank alerts and statements, posts sender-checked alert credits at or below the auto-process limit as payments, and queues every other transaction for admin review |
 | Approval expiry | Hourly | Rejects approval requests left pending past their 72-hour expiry and notifies the requester |
 
 These schedules run as scheduled tasks on both the production and the staging server. On staging, every email, SMS and WhatsApp message a job sends goes to the contacts set on **Settings → Messages → Email & sending → Testing**, never to the real resident, staff member or report recipient; if the needed override contact is blank the message is blocked instead. See [Email and SMS channels](./email-and-sms) for how the override works.
@@ -97,6 +97,6 @@ Scheduled endpoints are protected by a shared secret and reject any call that do
 ## Related
 
 - [Email and SMS channels](./email-and-sms) for the notification queue
-- [Gmail import and bank feeds](./bank-feeds-and-email-import) for the hourly mailbox sync
+- [Gmail import and bank feeds](./bank-feeds-and-email-import) for the scheduled mailbox sync
 - [WhatsApp operations](./whatsapp-operations) for the retention purge
 - [Access and system health](../settings/access-and-system-health) for maintenance mode

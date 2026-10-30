@@ -193,6 +193,16 @@ describe('recordAudit', () => {
       expect(rows[0].metadata).toEqual({ reason: 'x', actor_resident_id: 'resident-1', via: 'whatsapp' });
     });
 
+    it('records a scheduled job with no actor id and the job named in the metadata (#1340)', async () => {
+      const { sink, rows } = fakeSink();
+
+      const result = await recordAudit(entry({ metadata: { reason: 'x' } }), { userId: null, system: 'cron:fetch-emails' }, sink);
+
+      expect(result).toEqual({ recorded: true });
+      expect(rows[0].actor_id).toBeNull();
+      expect(rows[0].metadata).toEqual({ reason: 'x', actor_system: 'cron:fetch-emails' });
+    });
+
     it('keeps an admin actor and the entry metadata untouched', async () => {
       const { sink, rows } = fakeSink();
 

@@ -1503,6 +1503,8 @@ export type Database = {
           processing_status: Database["public"]["Enums"]["email_processing_status"]
           raw_content_path: string | null
           received_at: string | null
+          sender_check: string | null
+          sender_verified: boolean | null
           subject: string | null
           to_address: string | null
           transactions_extracted: number
@@ -1521,6 +1523,8 @@ export type Database = {
           processing_status?: Database["public"]["Enums"]["email_processing_status"]
           raw_content_path?: string | null
           received_at?: string | null
+          sender_check?: string | null
+          sender_verified?: boolean | null
           subject?: string | null
           to_address?: string | null
           transactions_extracted?: number
@@ -1539,6 +1543,8 @@ export type Database = {
           processing_status?: Database["public"]["Enums"]["email_processing_status"]
           raw_content_path?: string | null
           received_at?: string | null
+          sender_check?: string | null
+          sender_verified?: boolean | null
           subject?: string | null
           to_address?: string | null
           transactions_extracted?: number
@@ -1577,6 +1583,7 @@ export type Database = {
           raw_extracted_data: Json | null
           reference: string | null
           review_notes: string | null
+          review_reason: string | null
           reviewed_at: string | null
           reviewed_by: string | null
           skip_reason: string | null
@@ -1608,6 +1615,7 @@ export type Database = {
           raw_extracted_data?: Json | null
           reference?: string | null
           review_notes?: string | null
+          review_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           skip_reason?: string | null
@@ -1639,6 +1647,7 @@ export type Database = {
           raw_extracted_data?: Json | null
           reference?: string | null
           review_notes?: string | null
+          review_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           skip_reason?: string | null

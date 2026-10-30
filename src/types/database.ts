@@ -2959,6 +2959,9 @@ export interface EmailMessage {
   processing_status: EmailProcessingStatus;
   processing_error: string | null;
   transactions_extracted: number;
+  // Sender check (#1340); null = not checked
+  sender_verified: boolean | null;
+  sender_check: string | null;
   processed_at: string | null;
   created_at: string;
 }
@@ -2999,6 +3002,8 @@ export interface EmailTransaction {
   reviewed_by: string | null;
   reviewed_at: string | null;
   review_notes: string | null;
+  // Why the scheduled run queued it instead of recording it (#1340)
+  review_reason: string | null;
   matched_at: string | null;
   processed_at: string | null;
   created_at: string;

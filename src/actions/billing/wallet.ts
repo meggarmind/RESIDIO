@@ -5,12 +5,11 @@ import { revalidatePath } from 'next/cache';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
-import { callWalletPaymentRpc } from '@/lib/billing/wallet-payment-rpc';
+import { settlePaymentBatch } from '@/lib/billing/settle-payment';
 import { debitWalletForInvoiceAtomic, type WalletInvoiceDebitResult } from '@/lib/billing/wallet-invoice-debit';
 import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
 import { invoiceLabel } from '@/lib/billing/invoice-label';
 import { DEFAULT_CHARGE_CATEGORY } from '@/lib/billing/charge-categories';
-import { eligibleSettlementInvoiceIds } from '@/lib/billing/eligible-invoices';
 
 export type WalletTransaction = {
     id: string;
@@ -321,55 +320,19 @@ export async function allocateWalletToInvoices(
     // transaction, while preserving the legacy allocator for callers that do
     // not yet create a payment batch (chargeCategory alone is not batch metadata).
     if (options && Object.keys(batch).length > 0) {
-        const settlementDate = paymentDate || new Date().toISOString().slice(0, 10);
-        const eligible = await eligibleSettlementInvoiceIds(supabase, { residentId, houseId, chargeCategory, settlementDate });
-        if (eligible.error) return { success: false, invoicesPaid: 0, totalAllocated: 0, error: eligible.error };
-        const invoiceIds = eligible.ids;
-
-        if (invoiceIds.length === 0) {
-            if (Number(options.creditAmount || 0) > 0) {
-                const credit = await creditWallet(
-                    residentId,
-                    Number(options.creditAmount),
-                    'payment',
-                    options.sourcePaymentId || undefined,
-                    'Payment retained as wallet credit because no eligible invoice was found',
-                    chargeCategory,
-                );
-                return { success: credit.success, invoicesPaid: 0, totalAllocated: 0, error: credit.error };
-            }
-            return { success: true, invoicesPaid: 0, totalAllocated: 0, error: null };
-        }
-
-        const rpcResult = await callWalletPaymentRpc(supabase, {
-            p_resident_id: residentId,
-            p_invoice_ids: invoiceIds,
-            p_batch_type: options.batchType || 'payment_received',
-            p_payment_date: settlementDate,
-            p_source_payment_id: options.sourcePaymentId || null,
-            p_house_id: houseId || null,
-            p_credit_amount: Number(options.creditAmount || 0),
-            p_batch_amount: options.batchAmount == null ? null : Number(options.batchAmount),
-            p_charge_category: chargeCategory,
-        });
-        if (rpcResult.error) return { success: false, invoicesPaid: 0, totalAllocated: 0, error: rpcResult.error.message };
-
-        const data = (rpcResult.data || {}) as {
-            success?: boolean;
-            batch_id?: string;
-            receipt_number?: string;
-            total_allocated?: number;
-            allocations?: Array<{ status_after?: string }>;
-        };
-        const allocations = data.allocations || [];
-        return {
-            success: data.success !== false,
-            invoicesPaid: allocations.filter((allocation) => allocation.status_after === 'paid').length,
-            totalAllocated: Number(data.total_allocated || 0),
-            error: data.success === false ? 'Wallet settlement failed' : null,
-            batchId: data.batch_id,
-            receiptNumber: data.receipt_number,
-        };
+        return settlePaymentBatch(
+            supabase,
+            { residentId, houseId, paymentDate, chargeCategory },
+            batch,
+            (amount) => creditWallet(
+                residentId,
+                amount,
+                'payment',
+                options.sourcePaymentId || undefined,
+                'Payment retained as wallet credit because no eligible invoice was found',
+                chargeCategory,
+            ),
+        );
     }
 
     let invoicesPaid = 0;

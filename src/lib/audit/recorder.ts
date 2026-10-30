@@ -18,6 +18,12 @@ export interface AuditActor {
    * written with no actor and the resident named in its metadata.
    */
   residentId?: string;
+  /**
+   * A scheduled job with no session (#1340), named by its system-log source such as
+   * `cron:fetch-emails`. With no `userId`, the entry is written with no actor and the job named in
+   * its metadata.
+   */
+  system?: string;
 }
 
 export interface AuditEntry {
@@ -196,9 +202,13 @@ function buildRow(entry: AuditEntry, actor: AuditActor): AuditLogInsert {
     old_values: (oldValues || null) as AuditLogInsert['old_values'],
     new_values: (newValues || null) as AuditLogInsert['new_values'],
     description: entry.description || null,
-    metadata: (actor.userId || !actor.residentId
+    metadata: (actor.userId
       ? entry.metadata || null
-      : { ...entry.metadata, actor_resident_id: actor.residentId, via: 'whatsapp' }) as AuditLogInsert['metadata'],
+      : actor.residentId
+        ? { ...entry.metadata, actor_resident_id: actor.residentId, via: 'whatsapp' }
+        : actor.system
+          ? { ...entry.metadata, actor_system: actor.system }
+          : entry.metadata || null) as AuditLogInsert['metadata'],
     ip_address: null, // Could be populated from request headers in future
     user_agent: null, // Could be populated from request headers in future
   };
@@ -214,7 +224,7 @@ export async function recordAudit(
   sink?: AuditSink
 ): Promise<{ recorded: boolean }> {
   try {
-    if (!actor.userId && !actor.residentId) {
+    if (!actor.userId && !actor.residentId && !actor.system) {
       console.error('[Audit] Cannot log audit: No authenticated user');
       return { recorded: false };
     }
