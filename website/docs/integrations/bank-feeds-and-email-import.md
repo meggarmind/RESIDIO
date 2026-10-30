@@ -8,14 +8,14 @@ residio_sources:
   - src/lib/parsers/**
   - src/actions/email-imports/**
   - src/app/(dashboard)/settings/email-integration/**
-residio_verified_commit: 377c7fa
+residio_verified_commit: 0a675b39
 residio_verified_at: '2026-10-30'
 residio_app_version: '0.4.0'
 ---
 
 # Gmail import and bank feeds
 
-Residio gets bank data into the system through two routes: an automated Gmail connection that reads bank alerts and statement attachments, and manual file upload from **Transactions → Import Statement**. Gmail items from the hourly sync always land in the email review queue. A fetch an admin starts by hand can also post high-confidence credits at or below the auto-process limit (₦60,000 by default) automatically (see [The review queue](#the-review-queue)). An uploaded statement is submitted for approval and processed from its own import page under **Transactions → Import History**.
+Residio gets bank data into the system through two routes: an automated Gmail connection that reads bank alerts and statement attachments, and manual file upload from **Transactions → Import Statement**. The scheduled sync and a fetch an admin starts by hand can both post a high-confidence credit at or below the auto-process limit (₦60,000 by default) automatically. All other Gmail items land in the email review queue (see [The review queue](#the-review-queue)). An uploaded statement is submitted for approval and processed from its own import page under **Transactions → Import History**.
 
 For the day-to-day payment workflow, see [Payments and statement imports](../finance/payments-and-imports). This page covers the connection itself.
 
@@ -67,7 +67,14 @@ Passwords are stored encrypted and are never displayed back. To change one, set 
 
 ## The review queue
 
-Imported rows are matched against residents, houses, and outstanding invoices. The hourly sync never posts money: it queues every row it imports for review, whatever the match. A fetch an admin starts by hand posts a credit automatically only when it matched a resident with high confidence (by alias or phone number) and is at or below the auto-process limit. Every other credit is queued for review.
+Imported rows are matched against residents, houses, and outstanding invoices. A credit is posted automatically only when it matched a resident with high confidence (by alias or phone number) and is at or below the auto-process limit. Every other credit is queued for review.
+
+The scheduled sync applies two more checks before it posts a credit:
+
+- The credit must come from a bank alert. Rows from a statement attachment are always queued, because the same credit can also arrive as an alert.
+- The alert must pass the **sender check**. Anyone who knows the mailbox address can send it a false alert, so Residio reads the authentication result that Gmail adds to each message. The alert passes when it has a valid FirstBank DKIM signature (an alert that the estate mailbox forwards automatically keeps this signature). A manual forward passes only when it comes from an address in the connection's sender list and Gmail confirms that address sent it. An alert that fails is queued and marked **Sender not verified**; hover over the label to see the reason.
+
+A posted credit is a verified payment. It is allocated to open invoices in the same way as a payment entered by hand, and the audit log records it with the scheduled job as the actor. Each run that posts payments sends one notification that lists them. The scheduled sync does not post a payment twice: an alert that is already recorded, or a duplicate payment, is skipped. Debits are never posted by the scheduled sync.
 
 A credit above the limit is always queued, however confident the match, and is marked **Needs approval: over ₦60,000** (the label shows the current limit). Releasing it needs the import approval permission or the super admin role; without it the Process button is disabled. Anyone who can process email imports can still skip it. Debits (expenses) are not limited.
 
@@ -75,7 +82,7 @@ A credit above the limit is always queued, however confident the match, and is m
 
 The limit is set on **Settings → Money → Banking** in the **Approval limit** section, in the **Auto-process limit (NGN)** field. **Settings → Connections → Gmail Import** links to it. It defaults to ₦60,000. Anyone who can open the Banking page can see it; only a super admin can change it, because a very large value would switch the approval control off. Every change is recorded in the audit log. The value must be a whole naira amount from 1 to 100,000,000.
 
-If Residio cannot read the limit, or the stored value is invalid, it fails safe: that fetch posts no credit automatically and queues every credit for review, marked **Needs approval: approval limit unavailable**. Only an approver can release them until the limit is readable again.
+If Residio cannot read the limit, or the stored value is invalid, it fails safe: that fetch or scheduled run posts no credit automatically and queues every credit for review, marked **Needs approval: approval limit unavailable**. Only an approver can release them until the limit is readable again.
 
 For each queued row you can:
 
@@ -96,7 +103,7 @@ Both actions require the email import permission and are written to the audit lo
 
 ## Automatic syncing
 
-Residio checks the connected mailbox on an hourly schedule. Each run fetches, parses and matches new mail, then queues every transaction for review; it posts no payment, expense or petty-cash entry, so nothing is written to the books until an admin processes a queued row. Each run is recorded in the system action log. If imports stop appearing, confirm the job is running under **Settings → Cron Status** before assuming the Gmail connection has failed. See [Scheduled jobs](./scheduled-jobs).
+Residio checks the connected mailbox every 5 minutes. Each run fetches, parses and matches new mail, posts the credits that pass every check in [The review queue](#the-review-queue) as payments, then queues every other transaction for review. It posts no expense or petty-cash entry. A change to the auto-process limit applies from the next run. Each run is recorded in the system action log. If imports stop appearing, confirm the job is running under **Settings → Cron Status** before assuming the Gmail connection has failed. See [Scheduled jobs](./scheduled-jobs).
 
 ## Troubleshooting
 

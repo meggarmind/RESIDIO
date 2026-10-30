@@ -108,7 +108,7 @@ read from the container's environment by the command, so it is never written int
 | Route | Cron (UTC) | Timeout (ms) |
 |---|---|---|
 | `publish-announcements` | `0 * * * *` | 300000 |
-| `fetch-emails` | `0 * * * *` | 300000 |
+| `fetch-emails` | `*/5 * * * *` | 300000 |
 | `refresh-payment-cadence` | `0 0 * * *` | 300000 |
 | `whatsapp-retention` | `15 0 * * *` | 60000 |
 | `purge-performance-events` | `30 0 * * *` | 60000 |
@@ -121,6 +121,12 @@ read from the container's environment by the command, so it is never written int
 | `process-notifications` | `*/15 * * * *` | 60000 |
 | `expire-approvals` | `0 * * * *` | 60000 |
 | `whatsapp-admin-weekly` | `0 6 * * 1` | 120000 |
+
+`fetch-emails` runs every 5 minutes (#1340), so a bank alert that passes the sender check and is at
+or below the auto-process limit is recorded as a payment within minutes. Change it on Stage first,
+and on Prod after the release that ships #1340. A run that takes the full 300 s can overlap the next
+one; each transaction is claimed before its payment is created, so an overlap cannot record an alert
+twice.
 
 `process-notifications` runs every 15 minutes (#546), not daily: a transient send failure is put
 back on the queue with a backoff of 15 minutes, 1 hour, 6 hours, then 24 hours (or until the
@@ -146,7 +152,7 @@ Only the route and the timeout differ between tasks.
 # publish-announcements  (0 * * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/publish-announcements',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(300000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
 
-# fetch-emails  (0 * * * *)
+# fetch-emails  (*/5 * * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/fetch-emails',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(300000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
 
 # refresh-payment-cadence  (0 0 * * *)
