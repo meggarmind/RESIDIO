@@ -8,8 +8,8 @@ residio_sources:
   - src/app/(dashboard)/announcements/**
   - src/actions/approvals/**
   - src/actions/announcements/**
-residio_verified_commit: 6da75484
-residio_verified_at: '2026-10-29'
+residio_verified_commit: 0302bd8
+residio_verified_at: '2026-10-30'
 residio_app_version: '0.4.0'
 ---
 
@@ -40,7 +40,7 @@ A request that nobody decides within 72 hours of being submitted is rejected aut
 
 ### Post to the estate WhatsApp group
 
-When WAHA is the active WhatsApp provider and an estate group is chosen in **Settings → WhatsApp**, an announcement for **All** shows **Post to estate group**. Turn it on to also post the announcement to the estate group as one message when it is published. The form shows the exact text: the title, then the summary (or the start of the message when there is no summary). The message is text only. The one-to-one WhatsApp messages still go out as before.
+When WAHA is the active WhatsApp provider and an estate group is chosen in **Settings → WhatsApp**, an announcement for **All** shows **Post to estate group**. Turn it on to also post the announcement to the estate group as one message when it is published. The form shows the exact text: the *📢 Announcement* title line, the title in bold, the summary (or the start of the message when there is no summary), then the *Automatic notice from* footer with the estate name. The message is text only. The one-to-one WhatsApp messages still go out as before.
 
 - Anyone who can create or edit announcements can turn it on and save the draft.
 - Only Super Admin, Chairman or Secretary can publish an announcement with it on. Other users see "Only Super Admin, Chairman or Secretary can post to the estate group." in place of **Publish Now**; to publish without the group post, turn it off.
