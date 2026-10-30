@@ -30,7 +30,7 @@ function tile(title: string) {
   return screen.getByText(title).closest('div[class*="rounded"]') as HTMLElement;
 }
 function overdueValue() {
-  return tile('Overdue Invoices').querySelector('.text-2xl')!.textContent;
+  return tile('Overdue Invoices').querySelector('.text-3xl')!.textContent;
 }
 
 const HEALTH: FinancialHealthMetrics = {
@@ -69,7 +69,7 @@ describe('financial health tiles when financialHealth is null (#101)', () => {
     health.current = null;
     distribution.current = null;
     render(<FinancialDashboard />);
-    const text = tile(title).querySelector('.text-2xl')!.textContent;
+    const text = tile(title).querySelector('.text-3xl')!.textContent;
     expect(text).toBe('-');
     expect(text).not.toBe(zeroText);
   });
@@ -78,12 +78,12 @@ describe('financial health tiles when financialHealth is null (#101)', () => {
     health.current = ZERO_HEALTH;
     distribution.current = null;
     render(<FinancialDashboard />);
-    expect(tile(title).querySelector('.text-2xl')!.textContent).toBe(zeroText);
+    expect(tile(title).querySelector('.text-3xl')!.textContent).toBe(zeroText);
     cleanup();
 
     health.current = HEALTH;
     render(<FinancialDashboard />);
-    expect(tile(title).querySelector('.text-2xl')!.textContent).toBe(realText);
+    expect(tile(title).querySelector('.text-3xl')!.textContent).toBe(realText);
   });
 
   it('Overdue tile sub-line says unavailable when null, and shows a real zero amount', () => {
