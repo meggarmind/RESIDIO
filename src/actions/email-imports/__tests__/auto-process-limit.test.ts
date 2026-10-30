@@ -8,6 +8,7 @@ type Row = Record<string, unknown>;
 
 const mocks = vi.hoisted(() => ({
   rows: [] as Record<string, unknown>[],
+  estateError: null as string | null,
   updates: [] as { id: unknown; values: Record<string, unknown> }[],
   authorizePermission: vi.fn(),
   logAudit: vi.fn(),
@@ -30,7 +31,10 @@ function fakeClient() {
       let update: Record<string, unknown> | null = null;
       let single = false;
       const resolve = () => {
-        if (table === 'estate_bank_accounts') return { data: [{ account_number: '0001234' }], error: null };
+        if (table === 'estate_bank_accounts') {
+          if (mocks.estateError) return { data: null, error: { message: mocks.estateError } };
+          return { data: [{ account_number: '0001234' }], error: null };
+        }
         if (table !== 'email_transactions') return { data: null, error: null };
         if (update) {
           mocks.updates.push({ id: filters.id, values: update });
@@ -153,6 +157,8 @@ function credit(id: string, amount: number, extra: Row = {}): Row {
     transaction_date: '2026-10-01',
     reference: `ref-${id}`,
     description: `Transfer ${id}`,
+    // A sender-checked FirstBank alert to the estate account: passes the #1353 source gate.
+    email_messages: { email_type: 'transaction_alert', sender_verified: true, sender_check: 'dkim=pass' },
     ...extra,
   };
 }
@@ -162,6 +168,7 @@ const updatesFor = (id: string) => mocks.updates.filter((u) => u.id === id).map(
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.rows = [];
+  mocks.estateError = null;
   mocks.updates = [];
   authAs(PROCESS_ONLY);
   mocks.createPayment.mockResolvedValue({ data: { id: 'pay-1' }, error: null });
@@ -318,6 +325,50 @@ describe('processEmailTransactions with the limit setting (#710)', () => {
     ];
 
     expect(await processEmailTransactions('import-1')).toMatchObject({ autoProcessed: 1 });
+  });
+});
+
+describe('processEmailTransactions source gate (#1353: same as the scheduled auto-record step)', () => {
+  it.each([
+    [
+      'an unverified sender',
+      { email_messages: { email_type: 'transaction_alert', sender_verified: false, sender_check: 'Manual forward: not a FirstBank-signed alert' } },
+      'Sender check failed: Manual forward: not a FirstBank-signed alert',
+    ],
+    [
+      'a sender never checked',
+      { email_messages: { email_type: 'transaction_alert', sender_verified: null, sender_check: null } },
+      'Sender check failed: not checked',
+    ],
+    ['a non-estate account', { bank_account_last4: '9999' }, 'Credited account is not an estate account'],
+    ['no account number', { bank_account_last4: null }, 'Credited account is not an estate account'],
+    [
+      'a statement row',
+      { email_messages: { email_type: 'statement', sender_verified: true, sender_check: 'dkim=pass' } },
+      'Not a transaction alert',
+    ],
+    ['a row with no message', { email_messages: null }, 'Not a transaction alert'],
+  ])('queues %s with the reason instead of creating a payment', async (_label, extra, reason) => {
+    mocks.rows = [credit('tx-gate', 1000, extra)];
+
+    const result = await processEmailTransactions('import-1');
+
+    expect(mocks.createPayment).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ autoProcessed: 0, queuedForReview: 1 });
+    expect(updatesFor('tx-gate')).toEqual([{ status: 'queued_for_review', review_reason: reason }]);
+  });
+});
+
+describe('processEmailTransactions when the estate accounts cannot be read (#1353)', () => {
+  it('returns the error and creates no payment', async () => {
+    mocks.estateError = 'db down';
+    mocks.rows = [credit('tx-ok', 1000)];
+
+    const result = await processEmailTransactions('import-1');
+
+    expect(result).toMatchObject({ success: false, autoProcessed: 0, error: 'db down' });
+    expect(mocks.createPayment).not.toHaveBeenCalled();
+    expect(mocks.updates).toEqual([]);
   });
 });
 

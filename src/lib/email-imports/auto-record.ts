@@ -63,6 +63,47 @@ export function isAutoProcessMatch(tx: { match_confidence: string | null; match_
   return tx.match_confidence === 'high' && (tx.match_method === 'alias' || tx.match_method === 'phone');
 }
 
+type AdminClient = Awaited<ReturnType<typeof createAdminClient>>;
+
+type GateMessage = { email_type: string | null; sender_verified: boolean | null; sender_check: string | null } | null;
+
+/** Why a credit failed the gate below; `reviewReason` is written to email_transactions.review_reason. */
+export interface AutoRecordGateFailure {
+  check: 'not_alert' | 'estate_account' | 'sender';
+  reviewReason: string;
+}
+
+/**
+ * The source gate a credit must pass before it may become a payment with no admin step, shared by
+ * this scheduled step and the manual `processEmailTransactions` (#1353): it came from a transaction
+ * alert, not a statement; the credited account is an active estate account (last 4 digits); and
+ * the message passed the sender check. Returns null when it passes.
+ */
+export function checkAutoRecordGate(
+  tx: { bank_account_last4: string | null; email_messages: GateMessage },
+  estateLast4: Set<string>
+): AutoRecordGateFailure | null {
+  if (tx.email_messages?.email_type !== 'transaction_alert') {
+    return { check: 'not_alert', reviewReason: 'Not a transaction alert' };
+  }
+  if (!tx.bank_account_last4 || !estateLast4.has(tx.bank_account_last4)) {
+    return { check: 'estate_account', reviewReason: 'Credited account is not an estate account' };
+  }
+  if (tx.email_messages.sender_verified !== true) {
+    return { check: 'sender', reviewReason: `Sender check failed: ${tx.email_messages.sender_check ?? 'not checked'}` };
+  }
+  return null;
+}
+
+/** The last 4 digits of every active estate account, for `checkAutoRecordGate`. */
+export async function readEstateAccountLast4(
+  client: AdminClient
+): Promise<{ last4: Set<string>; error: null } | { last4: null; error: string }> {
+  const { data, error } = await client.from('estate_bank_accounts').select('account_number').eq('is_active', true);
+  if (error) return { last4: null, error: error.message };
+  return { last4: new Set((data ?? []).map((a) => String(a.account_number).slice(-4))), error: null };
+}
+
 type CandidateRow = {
   id: string;
   email_import_id: string;
@@ -75,7 +116,7 @@ type CandidateRow = {
   match_confidence: string | null;
   match_method: string | null;
   matched_resident_id: string | null;
-  email_messages: { email_type: string | null; sender_verified: boolean | null; sender_check: string | null } | null;
+  email_messages: GateMessage;
   residents: { first_name: string | null; last_name: string | null } | null;
 };
 
@@ -110,12 +151,8 @@ export async function autoRecordEmailPayments(importId: string): Promise<AutoRec
 
   if (error) return { ...result, error: error.message };
 
-  const { data: accounts, error: accountsError } = await adminClient
-    .from('estate_bank_accounts')
-    .select('account_number')
-    .eq('is_active', true);
-  if (accountsError) return { ...result, error: accountsError.message };
-  const estateLast4 = new Set((accounts ?? []).map((a) => String(a.account_number).slice(-4)));
+  const estate = await readEstateAccountLast4(adminClient);
+  if (estate.error !== null) return { ...result, error: estate.error };
 
   // Read once per run, so a Settings change applies from the next run.
   const limit = await readEmailAutoProcessLimit();
@@ -124,23 +161,13 @@ export async function autoRecordEmailPayments(importId: string): Promise<AutoRec
     const amount = Number(tx.amount);
     if (!isAutoProcessMatch(tx) || !tx.matched_resident_id || !(amount > 0)) continue;
     if (exceedsEmailAutoProcessLimit(tx, limit)) continue;
-    if (tx.email_messages?.email_type !== 'transaction_alert') continue;
-
-    if (!tx.bank_account_last4 || !estateLast4.has(tx.bank_account_last4)) {
-      await adminClient
-        .from('email_transactions')
-        .update({ review_reason: 'Credited account is not an estate account' })
-        .eq('id', tx.id);
-      result.skipped++;
-      continue;
-    }
-
-    if (tx.email_messages.sender_verified !== true) {
-      await adminClient
-        .from('email_transactions')
-        .update({ review_reason: `Sender check failed: ${tx.email_messages.sender_check ?? 'not checked'}` })
-        .eq('id', tx.id);
-      result.senderRejected++;
+    const gate = checkAutoRecordGate(tx, estate.last4);
+    // A statement row is left for queueEmailTransactionsForReview, as before.
+    if (gate?.check === 'not_alert') continue;
+    if (gate) {
+      await adminClient.from('email_transactions').update({ review_reason: gate.reviewReason }).eq('id', tx.id);
+      if (gate.check === 'sender') result.senderRejected++;
+      else result.skipped++;
       continue;
     }
 
