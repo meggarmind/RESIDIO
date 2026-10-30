@@ -35,6 +35,7 @@ vi.mock('@/lib/notifications/queue', () => ({
 }));
 vi.mock('@/lib/payments/house-membership', () => ({
   residentHasHouse: vi.fn().mockResolvedValue({ ok: true }),
+  soleActiveHouseId: vi.fn().mockResolvedValue(null),
 }));
 vi.mock('@/lib/matching/duplicate-matcher', () => ({
   checkDuplicateGuardrail: vi.fn().mockResolvedValue({ isDuplicate: false }),

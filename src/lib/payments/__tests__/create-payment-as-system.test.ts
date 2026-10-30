@@ -28,7 +28,10 @@ vi.mock('@/lib/audit/logger', () => ({ logAudit: mocks.logAudit }));
 vi.mock('@/lib/audit/recorder', () => ({ recordAudit: mocks.recordAudit }));
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: mocks.authorizePermission }));
 vi.mock('@/lib/matching/duplicate-matcher', () => ({ checkDuplicateGuardrail: mocks.checkDuplicateGuardrail }));
-vi.mock('@/lib/payments/house-membership', () => ({ residentHasHouse: vi.fn().mockResolvedValue({ ok: true }) }));
+vi.mock('@/lib/payments/house-membership', () => ({
+  residentHasHouse: vi.fn().mockResolvedValue({ ok: true }),
+  soleActiveHouseId: vi.fn().mockResolvedValue(null),
+}));
 vi.mock('@/lib/notifications/event-content', () => ({ isEventChannelEnabled: vi.fn().mockResolvedValue(false) }));
 vi.mock('@/lib/notifications/preferences', () => ({ shouldSendToResident: vi.fn() }));
 vi.mock('@/lib/whatsapp/opt-in', () => ({ isWhatsAppOptedIn: vi.fn() }));
