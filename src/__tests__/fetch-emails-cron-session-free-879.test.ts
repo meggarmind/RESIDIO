@@ -41,7 +41,7 @@ vi.mock('@/lib/email-imports/gmail-client', () => ({
   getMessage: mocks.getMessage,
   getAttachment: vi.fn(),
   extractEmailMetadata: vi.fn(() => ({
-    subject: 'Credit Alert', from: 'alerts@bank', to: 'estate@x', date: new Date(), threadId: 't1',
+    subject: 'Credit Alert', from: 'FirstBank <FirstAlert@firstbanknigeria.com>', to: 'estate@x', date: new Date(), threadId: 't1',
   })),
   extractEmailBody: vi.fn(() => ({ text: 'Your account has been credited', html: null })),
   extractAttachments: vi.fn(() => []),
@@ -106,7 +106,7 @@ describe('runEmailFetch on the cron trigger (#879)', () => {
     };
     mocks.getMessage
       .mockResolvedValueOnce({
-        payload: { headers: [{ name: 'Authentication-Results', value: 'mx.google.com; dkim=pass header.i=@firstbanknigeria.com' }] },
+        payload: { headers: [{ name: 'Authentication-Results', value: 'mx.google.com; dkim=pass header.i=@firstbanknigeria.com; dmarc=pass (p=REJECT) header.from=firstbanknigeria.com' }] },
       })
       .mockResolvedValueOnce({});
     mocks.listMessagesByCriteria.mockResolvedValue({ messages: [{ id: 'm1' }, { id: 'm2' }] });
@@ -114,7 +114,7 @@ describe('runEmailFetch on the cron trigger (#879)', () => {
     await runEmailFetch('cron');
 
     expect(inserts.map((r) => [r.sender_verified, r.sender_check])).toEqual([
-      [true, 'dkim=pass header.d=firstbanknigeria.com'],
+      [true, 'dkim=pass header.d=firstbanknigeria.com; dmarc=pass header.from=firstbanknigeria.com; From firstalert@firstbanknigeria.com'],
       [false, 'No Authentication-Results header'],
     ]);
   });

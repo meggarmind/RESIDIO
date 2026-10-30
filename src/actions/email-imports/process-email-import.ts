@@ -16,7 +16,13 @@ import { logAudit } from '@/lib/audit/logger';
 import { createPayment } from '@/actions/payments/create-payment';
 import { exceedsEmailAutoProcessLimit, extractSenderName } from '@/lib/email-imports/utils';
 // The limit (#710) and match rule are shared with the scheduled auto-record step (#1340).
-import { isAutoProcessMatch, readEmailAutoProcessLimit } from '@/lib/email-imports/auto-record';
+// So is the source gate: alert only, estate account, sender checked (#1353).
+import {
+  checkAutoRecordGate,
+  isAutoProcessMatch,
+  readEmailAutoProcessLimit,
+  readEstateAccountLast4,
+} from '@/lib/email-imports/auto-record';
 import { createExpense } from '@/actions/expenses/create-expense';
 import { writeEmailImportStatus } from '@/lib/email-imports/import-records';
 import type {
@@ -58,7 +64,7 @@ export async function processEmailTransactions(
   // Get matched transactions for this import
   const { data: transactions, error: fetchError } = await adminClient
     .from('email_transactions')
-    .select('*')
+    .select('*, email_messages(email_type, sender_verified, sender_check)')
     .eq('email_import_id', importId)
     .in('status', ['matched', 'pending']);
 
@@ -85,6 +91,18 @@ export async function processEmailTransactions(
 
   // Read once per run, not per transaction.
   const autoProcessLimit = await readEmailAutoProcessLimit();
+  const estate = await readEstateAccountLast4(adminClient);
+  if (estate.error !== null) {
+    return {
+      success: false,
+      autoProcessed: 0,
+      queuedForReview: 0,
+      skipped: 0,
+      errored: 0,
+      expensesCreated: 0,
+      error: estate.error,
+    };
+  }
 
   // 1. Process Matched Credits (Payments)
   const creditTransactions = (transactions || []).filter(tx => tx.transaction_type === 'credit');
@@ -125,6 +143,20 @@ export async function processEmailTransactions(
       await adminClient
         .from('email_transactions')
         .update({ status: 'queued_for_review' })
+        .eq('id', emailTx.id);
+      result.queuedForReview++;
+      continue;
+    }
+
+    const gate = canAutoProcess
+      ? checkAutoRecordGate(tx, estate.last4)
+      : null;
+    if (gate) {
+      // Same gate as the scheduled auto-record step: a statement row, another account or an
+      // unchecked sender waits for an admin.
+      await adminClient
+        .from('email_transactions')
+        .update({ status: 'queued_for_review', review_reason: gate.reviewReason })
         .eq('id', emailTx.id);
       result.queuedForReview++;
       continue;

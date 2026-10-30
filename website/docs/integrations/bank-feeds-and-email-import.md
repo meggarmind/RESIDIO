@@ -8,7 +8,7 @@ residio_sources:
   - src/lib/parsers/**
   - src/actions/email-imports/**
   - src/app/(dashboard)/settings/email-integration/**
-residio_verified_commit: 0a675b39
+residio_verified_commit: c08f854e
 residio_verified_at: '2026-10-30'
 residio_app_version: '0.4.0'
 ---
@@ -42,7 +42,7 @@ Connecting a personal Gmail account ties the estate's bank feed to one person's 
 
 The **Import rules** section shows while Gmail is connected. It holds two lists, one value per line:
 
-- **Senders**: the email addresses or domains that Residio reads mail from, for example `firstbanknigeria.com`. If another mailbox forwards the bank mail, add that mailbox too. A forward made by a Gmail filter usually keeps the bank as the sender; a forward made by hand shows the forwarding mailbox.
+- **Senders**: the email addresses or domains that Residio reads mail from, for example `firstbanknigeria.com`. If another mailbox forwards the bank mail, add that mailbox too. A forward made by a Gmail filter usually keeps the bank as the sender; a forward made by hand shows the forwarding mailbox. This list only selects the mail that Residio reads. It does not make a sender trusted: only an alert that passes the sender check (see [The review queue](#the-review-queue)) can be posted automatically.
 - **Subject words**: Residio reads only mail that contains one of these words. Leave the list empty to read all mail from the senders.
 
 Each sender must be an email address or a domain, with no spaces; subject words cannot contain quotes. Each list holds at most 20 values. Anyone who can open the page can see the rules; changing them needs the configure email imports permission. Every change is recorded in the audit log with the old and new lists.
@@ -69,11 +69,18 @@ Passwords are stored encrypted and are never displayed back. To change one, set 
 
 Imported rows are matched against residents, houses, and outstanding invoices. A credit is posted automatically only when it matched a resident with high confidence (by alias or phone number) and is at or below the auto-process limit. Every other credit is queued for review.
 
-The scheduled sync applies three more checks before it posts a credit:
+The scheduled sync and a fetch an admin starts by hand apply three more checks before they post a credit:
 
 - The credit must come from a bank alert. Rows from a statement attachment are always queued, because the same credit can also arrive as an alert.
 - The credit must go to an active estate bank account. Residio compares the last four digits of the credited account with the estate accounts; a credit to any other account is queued.
-- The alert must pass the **sender check**. Anyone who knows the mailbox address can send it a false alert, so Residio reads the authentication result that Gmail adds to each message. The alert passes when it has a valid FirstBank DKIM signature (an alert that the estate mailbox forwards automatically keeps this signature). A manual forward passes only when it comes from an address in the connection's sender list and Gmail confirms that address sent it. An alert that fails is queued and marked **Sender not verified**; hover over the label to see the reason.
+- The alert must pass the **sender check**. Anyone who knows the mailbox address can send it a false alert, so Residio reads the authentication result that Gmail adds to the top of each message when it arrives. It never reads a result lower in the message, because a sender can write one there. The alert passes only when all of these are true:
+  - Gmail found a valid DKIM signature from `firstbanknigeria.com` (or a subdomain of it).
+  - Gmail's DMARC check passed for `firstbanknigeria.com`.
+  - The **From** line holds exactly one address, and that address is at `firstbanknigeria.com` (or a subdomain of it).
+
+  If Gmail's result is damaged or unclear (for example, the same value given twice), the check fails. `firstbank.com` is not trusted. An alert that a Gmail filter forwards automatically keeps FirstBank's From line and signature, so it passes. An alert forwarded by hand shows the estate mailbox as the sender, so it always fails and an admin must review it.
+
+A credit that fails one of these checks is queued with the reason. It is marked **Sender not verified** when the sender check failed, and **Needs review** for the other checks; hover over the label to see the reason.
 
 A posted credit is a verified payment. It is allocated to open invoices in the same way as a payment entered by hand, and the audit log records it with the scheduled job as the actor. Each run that posts payments sends one notification that lists them. The scheduled sync does not post a payment twice: an alert that is already recorded, or a duplicate payment, is skipped. Debits are never posted by the scheduled sync.
 
