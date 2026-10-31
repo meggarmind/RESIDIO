@@ -47,7 +47,7 @@ Other item fields:
 
 - `Announcements` has `mobileLabel: 'News'` (`navigation.ts:227`).
 - `Approvals` has `showBadge: true` and `badgeType: 'approvals'` (`navigation.ts:236-237`).
-- `Oversight` is one flat entry with no `children`. Its href is the first Oversight page the user may open (`/system` for the overview), and the entry is active on any Oversight page. Its pages are listed in the Oversight left menu (`config/oversight-nav.ts`, rendered by `OversightLayout`), and its permissions are the union of that menu's, so a role that holds one page still sees the entry. `Analytics` and `Reports` are in that menu, not in the sidebar.
+- `Oversight` is one flat entry with no `children`. Its href is the first Oversight page the user may open (`/system` for the overview), and the entry is active on any Oversight page. Its pages are listed in the Oversight left menu (`config/oversight-nav.ts`, rendered by `OversightLayout`), and its permissions are the union of that menu's, so a role that holds one page still sees the entry. `Analytics` and `Income & expenses` are in that menu, not in the sidebar. `Reports` (Generate reports) is its own sidebar entry under `Dashboard`.
 
 ### Permission filtering
 

@@ -15,7 +15,7 @@ residio_app_version: '0.4.0'
 
 # Reports and analytics
 
-**Reports** has its own entry in the sidebar, directly under **Dashboard**. It opens the Generate reports page, and its three sub-entries open one tab of it: **New report**, **History** and **Schedules**. You see the entry only if you have the view financial reports permission. The analytics pages live under **Oversight** in the sidebar. Its left menu has four groups: **Dashboard** (Oversight overview, Collections dashboard, Announcement engagement), **Reports** (Income & expenses), **Messages** and **System**. The left menu scrolls when it is taller than the screen. Use **Collections dashboard** for trends, **Income & expenses** for the income and expense breakdown, **Generate reports** for generated operational or financial outputs, and **Announcement engagement** for announcement reach.
+**Reports** has its own entry in the sidebar, directly under **Dashboard**. It opens the Generate reports page, and its three sub-entries open one tab of it: **New report**, **History** and **Schedules**. You see the entry only if you have the view financial reports permission. The analytics pages live under **Oversight** in the sidebar. Its left menu has four groups: **Dashboard** (Oversight overview, Collections dashboard, Announcement engagement), **Reports** (Income & expenses only), **Messages** and **System**. The left menu scrolls when it is taller than the screen. Use **Collections dashboard** for trends, **Income & expenses** for the income and expense breakdown, and **Announcement engagement** for announcement reach.
 
 ![Residio analytics dashboard](../assets/admin/analytics-dashboard.png)
 
