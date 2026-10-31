@@ -8,7 +8,7 @@ residio_sources:
   - src/app/(dashboard)/settings/data-retention/**
   - src/app/(dashboard)/settings/system/**
   - src/components/settings/system/**
-  - src/app/(dashboard)/system/cron-status/**
+  - src/app/(dashboard)/(oversight)/system/cron-status/**
   - src/app/api/health/**
   - src/actions/system/**
   - src/lib/system/**
@@ -37,4 +37,4 @@ Trace it from dashboard to module to source records. For finance, verify period,
 
 ## A page is stuck loading
 
-Refresh once, confirm network access, and check **System → Cron Status** if you have permission. Do not repeatedly submit a write action while the first request may still be running.
+Refresh once, confirm network access, and check **Oversight → Scheduled jobs** if you have permission. Do not repeatedly submit a write action while the first request may still be running.

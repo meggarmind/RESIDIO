@@ -56,7 +56,10 @@ export async function notifyResidentOfApprovalOutcome(request: { id: string; req
     const what = `Your payment of ${formatNaira(Number(payment.amount))} on ${formatDay(String(payment.payment_date))}`;
     const paid = outcome === 'approved' ? await housesPaid(admin, approval.entity_id) : '';
     const body = outcome === 'approved' ? `${what} was confirmed.${paid}` : `${what} could not be confirmed. Contact the estate office.`;
-    const sent = await sendWhatsAppToResident(approval.requested_by_resident_id, body, { seed: `approval:${request.id}:${outcome}` });
+    const sent = await sendWhatsAppToResident(approval.requested_by_resident_id, body, {
+      seed: `approval:${request.id}:${outcome}`,
+      notice: outcome === 'approved' ? 'payment_confirmed' : 'payment_not_confirmed',
+    });
     if (!sent.sent) console.error('[WhatsApp] Payment outcome not sent:', { requestId: request.id, outcome, reason: sent.reason });
     return sent.sent ? undefined : `WhatsApp message to the resident ${sent.deferred ? 'is held back' : 'was not sent'}: ${sent.reason}`;
   } catch (error) {

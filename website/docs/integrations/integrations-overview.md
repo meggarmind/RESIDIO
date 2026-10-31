@@ -10,8 +10,8 @@ residio_sources:
   - src/lib/sms/**
   - src/lib/paystack/index.ts
   - src/lib/email-imports/gmail-client.ts
-residio_verified_commit: 32105e9e
-residio_verified_at: '2026-10-20'
+residio_verified_commit: 86f51e25
+residio_verified_at: '2026-10-28'
 residio_app_version: '0.4.0'
 ---
 
@@ -23,13 +23,13 @@ Residio talks to a small set of external services. Most are configured with serv
 
 | Connection | What it does | Where you operate it |
 |---|---|---|
-| WhatsApp (Meta, Twilio or Chatmaid) | Resident messaging, identity checks, and balance lookups | **Settings → WhatsApp** |
+| WhatsApp (Meta, Twilio, Chatmaid or WAHA) | Resident messaging, identity checks, and balance lookups | **Settings → WhatsApp** |
 | Email (Resend) | Outbound notifications, reminders, receipts | **Settings → Email Settings** |
 | SMS (Termii) | Emergency broadcasts, two-factor codes (contact verification SMS is switched off until Termii is connected) | **Settings → Notifications** |
 | Gmail import | Pulls bank alerts and statements into the payment queue | **Settings → Gmail Import** |
 | Bank statement files | CSV, Excel, and PDF statement parsing | **Transactions → Import Statement** |
 | Paystack | Online card payment collection and reconciliation | **Transactions**, **Approvals** |
-| Scheduled jobs | Invoice generation, reminders, report delivery, cleanups | **System → Cron Status** |
+| Scheduled jobs | Invoice generation, reminders, report delivery, cleanups | **Oversight → Scheduled jobs** |
 
 ## Two layers of configuration
 
@@ -57,11 +57,11 @@ Follow the same sequence for email, SMS, and WhatsApp alike.
 
 | Symptom | First place to look |
 |---|---|
-| Residents report no messages | The channel's settings page, then **System → Notification Queue** |
-| Messages queued but never sent | **System → Cron Status** for the notification job |
+| Residents report no messages | The channel's settings page, then **Oversight → Notification queue** |
+| Messages queued but never sent | **Oversight → Scheduled jobs** for the notification job |
 | Bank alerts not appearing | **Settings → Gmail Import** connection status and last sync time |
 | Online payments missing | **Approvals** for unverified transactions, then the payment gateway logs |
-| A job has not run | **System → Cron Status** |
+| A job has not run | **Oversight → Scheduled jobs** |
 
 A failed integration is an investigation, not a cleanup. Do not delete queued messages, imported rows, or transactions to clear a warning — the record of the failure is what makes the fix verifiable.
 

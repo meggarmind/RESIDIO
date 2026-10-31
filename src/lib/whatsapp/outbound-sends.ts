@@ -31,7 +31,10 @@ export type OutboundDeliveryStatus = 'sent' | 'delivered' | 'failed';
 /** Repeated failures that raise an admin notification: this many within the window. */
 export const OUTBOUND_FAILURE_ALERT_THRESHOLD = 3;
 export const OUTBOUND_FAILURE_ALERT_WINDOW_MINUTES = 10;
-/** A Chatmaid send still `pending` this long after acceptance is treated as failed. */
+/** Providers that report delivery status by webhook (Chatmaid, WAHA); see `bridge-provider.ts`. */
+const BRIDGE_PROVIDER_NAMES = ['chatmaid', 'waha'];
+
+/** A bridge send still `pending` this long after acceptance is treated as failed. */
 export const OUTBOUND_PENDING_TIMEOUT_MINUTES = 15;
 
 // Status events can arrive out of order; a status only moves forward, so a
@@ -42,6 +45,24 @@ const PRIOR_STATUSES: Record<OutboundDeliveryStatus, string[]> = {
   delivered: ['pending', 'sent'],
   failed: ['pending', 'sent', 'failed'],
 };
+
+/**
+ * Ties a WAHA status event to its stored send by the message key (the part after the last `_`)
+ * rather than the whole id. The send id is built from the phone chat (`true_<phone>@c.us_<key>`)
+ * but an ack may name the chat as `@lid`, so the whole ids differ for one message (#1299).
+ * Chatmaid ids, and ids with no usable key, match exactly.
+ */
+export function matchProviderMessageId<T>(query: T, provider: string, providerMessageId: string): T {
+  // A PostgREST filter builder's own types recurse too deeply to constrain `T` here.
+  const builder = query as unknown as { eq: (column: string, value: string) => T & typeof builder; like: (column: string, pattern: string) => T };
+  const scoped = builder.eq('provider', provider) as unknown as typeof builder;
+  const key = providerMessageId.slice(providerMessageId.lastIndexOf('_') + 1);
+  // The key is interpolated into a LIKE pattern, so only a plain alphanumeric key is used.
+  if (provider !== 'waha' || key === providerMessageId || !/^[A-Za-z0-9]+$/.test(key)) {
+    return scoped.eq('provider_message_id', providerMessageId);
+  }
+  return scoped.like('provider_message_id', `%\\_${key}`);
+}
 
 /** Stores an accepted send. Never throws: the message already went out. */
 export async function recordOutboundSend(
@@ -78,15 +99,17 @@ export async function updateOutboundSendStatus(
   status: OutboundDeliveryStatus,
   failure?: { code: string | null; message: string | null }
 ): Promise<boolean> {
-  const { data, error } = await createAdminClient()
-    .from('whatsapp_outbound_sends')
-    .update({
-      status,
-      status_updated_at: new Date().toISOString(),
-      ...(status === 'failed' ? { error_code: failure?.code ?? null, error_message: failure?.message ?? null } : {}),
-    })
-    .eq('provider', provider)
-    .eq('provider_message_id', providerMessageId)
+  const { data, error } = await matchProviderMessageId(
+    createAdminClient()
+      .from('whatsapp_outbound_sends')
+      .update({
+        status,
+        status_updated_at: new Date().toISOString(),
+        ...(status === 'failed' ? { error_code: failure?.code ?? null, error_message: failure?.message ?? null } : {}),
+      }),
+    provider,
+    providerMessageId
+  )
     .in('status', PRIOR_STATUSES[status])
     .select('id');
   if (error) throw error;
@@ -100,12 +123,11 @@ export async function updateOutboundSendStatus(
  * Throws on a database error.
  */
 export async function outboundSendExists(provider: string, providerMessageId: string): Promise<boolean> {
-  const { data, error } = await createAdminClient()
-    .from('whatsapp_outbound_sends')
-    .select('id')
-    .eq('provider', provider)
-    .eq('provider_message_id', providerMessageId)
-    .limit(1);
+  const { data, error } = await matchProviderMessageId(
+    createAdminClient().from('whatsapp_outbound_sends').select('id'),
+    provider,
+    providerMessageId
+  ).limit(1);
   if (error) throw error;
   return (data || []).length > 0;
 }
@@ -125,8 +147,8 @@ export async function countRecentOutboundFailures(
 }
 
 /**
- * Claims Chatmaid sends still `pending` past the timeout that no earlier sweep
- * has alerted on, and returns how many were claimed. Only Chatmaid reports
+ * Claims bridge sends (Chatmaid, WAHA) still `pending` past the timeout that no earlier sweep
+ * has alerted on, and returns how many were claimed. Only the bridges report
  * delivery status, so other providers' sends are never treated as stale.
  */
 export async function claimStalePendingSends(
@@ -136,7 +158,7 @@ export async function claimStalePendingSends(
   const { data, error } = await createAdminClient()
     .from('whatsapp_outbound_sends')
     .update({ pending_alerted_at: new Date().toISOString() })
-    .eq('provider', 'chatmaid')
+    .in('provider', BRIDGE_PROVIDER_NAMES)
     .eq('status', 'pending')
     .is('pending_alerted_at', null)
     .lt('created_at', cutoff)

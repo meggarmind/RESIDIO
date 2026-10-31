@@ -52,10 +52,8 @@ function defer(reason: string, message: string): SendDecision {
   return { outcome: 'defer', reason, message };
 }
 
-export async function evaluateSendPolicy(
-  input: SendPolicyInput,
-  facts: SendPolicyFacts
-): Promise<SendDecision> {
+/** Kill switch. Returns the refusal, or null when WhatsApp is enabled. */
+async function checkKillSwitch(facts: Pick<SendPolicyFacts, 'getWhatsAppEnabled'>): Promise<SendDecision | null> {
   // Kill switch. Fails CLOSED (#134): absent and error are blocked with
   // distinct messages because the operator fix for each differs.
   const enabled = await facts.getWhatsAppEnabled();
@@ -68,15 +66,13 @@ export async function evaluateSendPolicy(
   if (enabled.value !== true) {
     return refuse('whatsapp_disabled', 'WhatsApp notifications are disabled in system settings');
   }
+  return null;
+}
 
-  if (!input.recipientPhone) {
-    return refuse('no_recipient_phone', 'No recipient phone number provided');
-  }
-
-  if (!(await facts.isRecipientInRollout(input.recipientId))) {
-    return refuse('outside_rollout', 'WhatsApp recipient is outside the active rollout audience');
-  }
-
+/** Daily and burst caps. Returns the refusal or deferral, or null when under both. */
+async function checkCaps(
+  facts: Pick<SendPolicyFacts, 'getNumberSetting' | 'countWhatsAppSentSince' | 'now'>
+): Promise<SendDecision | null> {
   // Daily cap.
   const configuredDailyCap = await facts.getNumberSetting('whatsapp_outbound_daily_cap');
   const dailyCap =
@@ -121,6 +117,37 @@ export async function evaluateSendPolicy(
   if ((burst.count || 0) >= burstCap) {
     return defer('burst_limit_reached', 'WhatsApp outbound burst limit reached');
   }
+  return null;
+}
+
+/**
+ * A post to the estate WhatsApp group (#1328): the kill switch and the caps only. A group has no
+ * recipient, rollout entry, opt-in or template, so those checks do not apply.
+ */
+export async function evaluateGroupSendPolicy(
+  facts: Pick<SendPolicyFacts, 'getWhatsAppEnabled' | 'getNumberSetting' | 'countWhatsAppSentSince' | 'now'>
+): Promise<{ outcome: 'allow' } | Exclude<SendDecision, { outcome: 'allow' }>> {
+  const refusal = (await checkKillSwitch(facts)) ?? (await checkCaps(facts));
+  return refusal && refusal.outcome !== 'allow' ? refusal : { outcome: 'allow' };
+}
+
+export async function evaluateSendPolicy(
+  input: SendPolicyInput,
+  facts: SendPolicyFacts
+): Promise<SendDecision> {
+  const enablement = await checkKillSwitch(facts);
+  if (enablement) return enablement;
+
+  if (!input.recipientPhone) {
+    return refuse('no_recipient_phone', 'No recipient phone number provided');
+  }
+
+  if (!(await facts.isRecipientInRollout(input.recipientId))) {
+    return refuse('outside_rollout', 'WhatsApp recipient is outside the active rollout audience');
+  }
+
+  const capped = await checkCaps(facts);
+  if (capped) return capped;
 
   // WhatsApp Opt-in.
   const normalizedPhone = facts.normalizePhone(input.recipientPhone);

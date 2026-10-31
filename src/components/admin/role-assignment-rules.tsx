@@ -46,7 +46,7 @@ const SECONDARY_ROLES: ResidentRole[] = ['co_resident', 'household_member', 'dom
 
 export function RoleAssignmentRulesEditor() {
   const { data: rules, isLoading: rulesLoading, error: rulesError } = useRoleAssignmentRules();
-  const { data: roles, isLoading: rolesLoading } = useRolesWithPermissions();
+  const { data: roles, isLoading: rolesLoading, error: rolesError } = useRolesWithPermissions();
   const batchUpdate = useBatchUpdateRoleAssignmentRules();
 
   const [pendingChanges, setPendingChanges] = useState<
@@ -56,8 +56,9 @@ export function RoleAssignmentRulesEditor() {
   const isLoading = rulesLoading || rolesLoading;
 
   // super_admin is an operator role, not tied to a resident type, so it has no
-  // assignment rules (#825)
-  const executiveRoles = roles?.filter((r) => r.name !== 'super_admin') || [];
+  // assignment rules (#825). Inactive roles cannot be assigned, and the rules read
+  // ignores them, so they get no column either (#1318).
+  const executiveRoles = roles?.filter((r) => r.name !== 'super_admin' && r.is_active) || [];
 
   const getKey = (residentRole: ResidentRole, appRoleId: string) =>
     `${residentRole}-${appRoleId}`;
@@ -100,8 +101,12 @@ export function RoleAssignmentRulesEditor() {
     const updates = Array.from(pendingChanges.values());
     if (updates.length === 0) return;
 
-    await batchUpdate.mutateAsync(updates);
-    setPendingChanges(new Map());
+    try {
+      await batchUpdate.mutateAsync(updates);
+      setPendingChanges(new Map());
+    } catch {
+      // The hook's onError already showed the reason; keep the unsaved changes.
+    }
   };
 
   const handleReset = () => {
@@ -110,11 +115,14 @@ export function RoleAssignmentRulesEditor() {
 
   const hasChanges = pendingChanges.size > 0;
 
-  if (rulesError) {
+  const loadError = rulesError ?? rolesError;
+  if (loadError) {
     return (
-      <div className="flex items-center gap-2 text-destructive p-4 border border-destructive/20 rounded-md">
+      <div role="alert" className="flex items-center gap-2 text-destructive p-4 border border-destructive/20 rounded-md">
         <AlertCircle className="h-5 w-5" />
-        <span>Error loading rules: {rulesError.message}</span>
+        <span>
+          Error loading {rulesError ? 'rules' : 'roles'}: {loadError.message}
+        </span>
       </div>
     );
   }
@@ -125,10 +133,11 @@ export function RoleAssignmentRulesEditor() {
         <Info className="h-4 w-4" />
         <AlertTitle>How Role Assignment Rules Work</AlertTitle>
         <AlertDescription>
-          These rules determine which executive roles can be assigned to users based on their
-          resident type. When a user has a resident profile, their resident type (e.g.,
-          Owner-Occupier, Renter) is checked against these rules before allowing role
-          assignment. Users without a resident profile are not restricted.
+          Each row is a resident type, each column an active role. When an account linked to a
+          resident is given a role, the resident type of their primary active house (for example
+          Owner-Occupier or Renter) is checked against this table: off blocks the role, on allows
+          it. Contractor has no row and is never restricted, nor are accounts with no linked
+          resident or no active house.
         </AlertDescription>
       </Alert>
 
@@ -237,7 +246,7 @@ export function RoleAssignmentRulesEditor() {
                 <TableRow>
                   <TableCell colSpan={executiveRoles.length + 1} className="bg-muted/50">
                     <span className="text-xs font-medium uppercase text-muted-foreground">
-                      Secondary Residents (Family Members)
+                      Secondary Residents (Household and Staff)
                     </span>
                   </TableCell>
                 </TableRow>

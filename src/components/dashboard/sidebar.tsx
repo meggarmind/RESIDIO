@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { activeSettingsHref } from '@/config/settings-nav';
+import { isNavHrefActive, type SearchParamsReader } from '@/config/nav-active';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { roleWithTitle } from '@/lib/auth/role-label';
 import { User, UserSearch, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
@@ -19,9 +21,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 
 interface SidebarProps {
   className?: string;
+  /** The address's query, read by the caller inside a Suspense boundary (see dashboard-shell) */
+  searchParams?: SearchParamsReader | null;
 }
 
-export function Sidebar({ className }: SidebarProps) {
+export function Sidebar({ className, searchParams = null }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { profile, canSeeSelfPortalLinks, canSeeImpersonationLink } = useAuth();
@@ -47,10 +51,12 @@ export function Sidebar({ className }: SidebarProps) {
   const { userToggled, setMenuOpen } = useSidebarNavState();
 
   // Check if any child is active
-  const hasActiveChild = (children?: { href: string }[]) => {
+  const hasActiveChild = (children?: { href: string; queryDefaults?: Record<string, string> }[]) => {
     if (!children) return false;
-    return children.some(
-      (child) => pathname === child.href || pathname.startsWith(`${child.href}/`)
+    return children.some((child: { href: string; queryDefaults?: Record<string, string> }) =>
+      child.href.includes('?')
+        ? isNavHrefActive(pathname, searchParams, child.href, { defaults: child.queryDefaults })
+        : pathname === child.href || pathname.startsWith(`${child.href}/`)
     );
   };
 
@@ -141,7 +147,7 @@ export function Sidebar({ className }: SidebarProps) {
               )}
               <ul className="space-y-1">
                 {section.items.map((item) => {
-                  const isActive = pathname === item.href;
+                  const isActive = item.area ? activeSettingsHref(pathname, item.area) !== null : pathname === item.href;
                   const hasChildren = item.children && item.children.length > 0;
                   const isParentOfActive = hasActiveChild(item.children);
                   const isMenuExpanded = userToggled[item.id] ?? isParentOfActive;
@@ -260,7 +266,7 @@ export function Sidebar({ className }: SidebarProps) {
                         >
                           <ul className="relative ml-5 border-l space-y-1" style={{ borderColor: 'var(--border-subtle)' }}>
                             {item.children!.map((child) => {
-                              const isChildActive = pathname === child.href;
+                              const isChildActive = isNavHrefActive(pathname, searchParams, child.href, { defaults: child.queryDefaults });
                               return (
                                 <li key={child.id} className="relative">
                                   <Link

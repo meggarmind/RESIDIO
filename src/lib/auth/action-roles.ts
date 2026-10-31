@@ -96,6 +96,8 @@ export const PERMISSIONS = {
   SETTINGS_MANAGE_DEBT_STATUS: 'settings.manage_debt_status',
   SETTINGS_MANAGE_SECURITY: 'settings.manage_security',
   SETTINGS_MANAGE_REFERENCE: 'settings.manage_reference',
+  // Bank accounts and transaction tags on /settings/banking only (#1286). Narrower than manage_reference.
+  SETTINGS_MANAGE_BANKING_REFERENCE: 'settings.manage_banking_reference',
   SETTINGS_VIEW_AUDIT_LOGS: 'settings.view_audit_logs',
 
   // Imports Module
@@ -149,6 +151,7 @@ export const PERMISSIONS = {
   ANNOUNCEMENTS_MANAGE_CATEGORIES: 'announcements.manage_categories',
   ANNOUNCEMENTS_MANAGE_TEMPLATES: 'announcements.manage_templates',
   ANNOUNCEMENTS_EMERGENCY_BROADCAST: 'announcements.emergency_broadcast',
+  ANNOUNCEMENTS_POST_TO_GROUP: 'announcements.post_to_group',
 
   // In-App Notifications Module (Phase 16)
   NOTIFICATIONS_VIEW: 'notifications.view',
@@ -160,6 +163,12 @@ export const PERMISSIONS = {
   WHATSAPP_MANAGE: 'whatsapp.manage',
   // WhatsApp admin mode (#972): link a number and run approved admin lookups with an authenticator code.
   WHATSAPP_ADMIN_QUERY: 'whatsapp_admin.query',
+  // One permission per Admin tools menu item (#1292), each on top of whatsapp_admin.query.
+  WHATSAPP_ADMIN_RESIDENT_STATUS: 'whatsapp_admin.resident_status',
+  WHATSAPP_ADMIN_DEBT_REPORT: 'whatsapp_admin.debt_report',
+  WHATSAPP_ADMIN_COLLECTIONS: 'whatsapp_admin.collections',
+  WHATSAPP_ADMIN_CLEARANCE_QUEUE: 'whatsapp_admin.clearance_queue',
+  WHATSAPP_ADMIN_APPROVE_PAYMENT: 'whatsapp_admin.approve_payment',
 
   // Recipient groups: named lists of residents to send to (#819)
   GROUPS_VIEW: 'groups.view',
@@ -220,9 +229,6 @@ export const PERMISSIONS = {
   SYSTEM_VIEW_ALL_PROFILES: 'system.view_all_profiles',
   DOCUMENTS_VIEW_ALL: 'documents.view_all',
 } as const;
-
-/** Either one lets a WhatsApp admin read finance information (ADMIN OWES, ADMIN DEBT). */
-export const FINANCE_VIEW_PERMISSIONS: string[] = [PERMISSIONS.BILLING_VIEW, PERMISSIONS.REPORTS_VIEW_FINANCIAL];
 
 export type Permission = typeof PERMISSIONS[keyof typeof PERMISSIONS];
 
@@ -292,6 +298,9 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/system/notification-queue': [PERMISSIONS.NOTIFICATIONS_MANAGE],
   '/system/notification-history': [PERMISSIONS.NOTIFICATIONS_MANAGE],
   '/system/whatsapp-monitoring': [PERMISSIONS.WHATSAPP_VIEW],
+  // Without this key the middleware skips authorization and the page is public (ADR-0004, #1273).
+  '/system/whatsapp-bot-health': [PERMISSIONS.WHATSAPP_VIEW],
+  // Now a redirect stub to /settings/data-tools (#1274); kept so the stub stays gated (ADR-0004).
   '/system/data-tools': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
   // Canonical home for cron job status, moved from /settings/cron-status and
   // /settings/system/health (#174, ADR-0004: live system state is not
@@ -308,7 +317,8 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   // General & Preferences
   '/settings/estate-info': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
   '/settings/branding': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
-  // Retained after the move to /system/data-tools: the redirect stub at this
+  '/settings/data-tools': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
+  // Retained after the move to /settings/data-tools: the redirect stub at this
   // path is a page component and runs after middleware, so this entry is what
   // gates who reaches it — deleting it would widen access to the generic
   // /settings fallback. See ADR-0004.
@@ -325,8 +335,8 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   // Estate configuration
   '/settings/streets': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
   '/settings/house-types': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
-  '/settings/transaction-tags': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
-  '/settings/bank-accounts': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
+  '/settings/transaction-tags': [PERMISSIONS.SETTINGS_MANAGE_BANKING_REFERENCE, PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
+  '/settings/bank-accounts': [PERMISSIONS.SETTINGS_MANAGE_BANKING_REFERENCE, PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
   '/settings/document-categories': [PERMISSIONS.DOCUMENTS_MANAGE_CATEGORIES],
   '/settings/document-taxonomy': [PERMISSIONS.DOCUMENTS_MANAGE_TAGS, PERMISSIONS.DOCUMENTS_MANAGE_CUSTOM_FIELDS],
   // Merged Documents task page (#937, #791): the OR of its sections. The two old routes above stay (ADR-0004).
@@ -357,7 +367,8 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/settings/debt-status': [PERMISSIONS.SETTINGS_MANAGE_DEBT_STATUS],
   // Merged Banking page (#935): the OR of bank accounts and tags (manage_reference) and duplicate matching
   // (manage_maintenance). The old /settings/bank-accounts and /settings/transaction-tags keys stay (ADR-0004).
-  '/settings/banking': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE, PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE],
+  // settings.manage_banking_reference (#1286) opens it for bank accounts and tags only.
+  '/settings/banking': [PERMISSIONS.SETTINGS_MANAGE_BANKING_REFERENCE, PERMISSIONS.SETTINGS_MANAGE_REFERENCE, PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE, PERMISSIONS.SETTINGS_MANAGE_BILLING],
   '/settings/email-integration': [PERMISSIONS.EMAIL_IMPORTS_VIEW],
   '/settings/email-integration/config': [PERMISSIONS.EMAIL_IMPORTS_CONFIGURE],
 

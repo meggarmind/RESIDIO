@@ -7,18 +7,18 @@ residio_sources:
   - src/app/(dashboard)/settings/data-retention/**
   - src/app/(dashboard)/settings/system/**
   - src/components/settings/system/**
-  - src/app/(dashboard)/system/audit-logs/**
-  - src/app/(dashboard)/system/action-log/**
+  - src/app/(dashboard)/(oversight)/system/audit-logs/**
+  - src/app/(dashboard)/(oversight)/system/action-log/**
   - src/app/(dashboard)/settings/access/**
   - src/app/(dashboard)/settings/roles/**
   - src/app/(dashboard)/settings/groups/**
   - src/actions/groups/**
-  - src/app/(dashboard)/system/accounts/**
-  - src/app/(dashboard)/system/page.tsx
+  - src/app/(dashboard)/(oversight)/system/accounts/**
+  - src/app/(dashboard)/(oversight)/system/page.tsx
   - src/components/system/**
   - src/actions/system/**
-residio_verified_commit: 6eff3279
-residio_verified_at: '2026-10-22'
+residio_verified_commit: 5a870640
+residio_verified_at: '2026-10-30'
 residio_app_version: '0.4.0'
 ---
 
@@ -26,7 +26,7 @@ residio_app_version: '0.4.0'
 
 ## System dashboard
 
-Open **System** in the sidebar — or the status indicator next to the menu button in the header — to land on the System dashboard at `/system`. It answers "is anything wrong?" at a glance: cards for cron health, notification queue depth, recent audit activity, accounts awaiting approval, and data tools, each showing enough to tell a healthy state from one that needs attention without opening it. A card only appears if your role can open the page it links to, so this page shows a different set of cards to different roles, same as the sections below. Use it as the entry point before working through the detail pages this guide covers next.
+Open **Oversight** in the sidebar — or the status indicator next to the menu button in the header — to land on the **Oversight overview** at `/system`. Oversight has its own left menu with every report and monitoring page. It answers "is anything wrong?" at a glance: cards for cron health, notification queue depth, recent audit activity, accounts awaiting approval, and data tools, each showing enough to tell a healthy state from one that needs attention without opening it. A card only appears if your role can open the page it links to, so this page shows a different set of cards to different roles, same as the sections below. A row of tabs at the top shows one card at a time; the first tab, **Summary**, shows the key value of each. Use it as the entry point before working through the detail pages this guide covers next.
 
 ## Roles and permissions
 
@@ -37,14 +37,15 @@ Defining a role and giving it to a person are one task, so both live on one page
 | Administrators | Who currently holds an admin role and under which title, assigning one, and Change role or Remove role on each row | Assign roles |
 | Pending sign-ups | Sign-ups waiting to be approved or rejected | Assign roles |
 | Unlinked logins | Logins that are not linked to any resident. A login that already holds a role carries a *Holds role* badge | Assign roles |
-| Roles | Roles, the modules and privileges each one carries, how many people hold each, and the titles under each role with their seats | Manage roles |
+| Roles | Roles, the modules and privileges each one carries, and how many people hold each | Manage roles |
+| Titles | The titles under each role with their seats. You can change the titles of every role except Super Administrator. Only a Super Administrator can change the titles of that role | Manage roles |
 | Who can hold each role | Which resident types are eligible for each executive role | Manage roles |
 
 The tab is kept in the address (?tab=), so a link opens the tab you were on. The holder count on the Roles tab opens the Administrators tab filtered to that role; clear the filter from the *Showing* line.
 
 ## Recipient groups
 
-Open **Settings → Groups** to keep named lists of residents, such as the estate officials,
+Open **Settings → Messages → Groups** to keep named lists of residents, such as the estate officials,
 that the estate sends copies to. Define a group once and select it wherever a copy is sent;
 after an election or handover, change the members in one place. Members are residents only:
 an admin login with no resident record cannot be added.
@@ -71,19 +72,19 @@ Work the **Pending sign-ups** queue, under Settings → Roles & Access, as part 
 
 ## Audit logs
 
-Open **System → Audit Logs** to trace creates, updates, approvals, and administrative changes. Filter by entity, actor, action, or date range. Audit logs are something you watch, not something you configure, so the page lives under System rather than Settings.
+Open **Oversight → Audit logs** to trace creates, updates, approvals, and administrative changes. Filter by entity, actor, action, or date range. Audit logs are something you watch, not something you configure, so the page lives under System rather than Settings.
 
 ## Action log
 
-Open **System → Action Log** to see what automated processes, such as scheduled jobs and incoming webhooks, did and whether it worked. Audit logs record what a signed-in person changed; the action log covers runs with nobody signed in. Each entry shows when it ran, its source, the action, an outcome (success, partial or failure), how long it took, any error message, and a collapsible summary of counts and ids. Filter by source, outcome, or date range; newest entries come first. Only super administrators see this page and its sidebar link. It is read-only. Entries older than 90 days are removed when someone runs **Prune Data** under **Settings → Maintenance & Data → Data retention**; nothing prunes them automatically.
+Open **Oversight → Action log** to see what automated processes, such as scheduled jobs and incoming webhooks, did and whether it worked. Audit logs record what a signed-in person changed; the action log covers runs with nobody signed in. Each entry shows when it ran, its source, the action, an outcome (success, partial or failure), how long it took, any error message, and a collapsible summary of counts and ids. Filter by source, outcome, or date range; newest entries come first. Only super administrators see this page and its sidebar link. It is read-only. Entries older than 90 days are removed when someone runs **Prune Data** under **Settings → Maintenance & Data → Data retention**; nothing prunes them automatically.
 
 ## System health
 
-Maintenance mode and data retention (the two sections of **Settings → Maintenance & Data**; the duplicate transaction threshold sits under **Settings → Money → Banking**) are configuration, so they stay under **Settings**. The things you only watch have moved to **System**: **System → Cron Status** for scheduled jobs, and **System → Notification Queue** for messages waiting to go out. A health warning is a prompt to investigate, not a reason to delete data.
+Maintenance mode and data retention (the two sections of **Settings → Maintenance & Data**; the duplicate transaction threshold sits under **Settings → Money → Banking**) are configuration, so they stay under **Settings**. The things you only watch have moved to **System**: **Oversight → Scheduled jobs** for scheduled jobs, and **Oversight → Notification queue** for messages waiting to go out. A health warning is a prompt to investigate, not a reason to delete data.
 
 Turning maintenance mode on asks first and lists how many active accounts, by role, would be sent to the maintenance page: everyone without the super admin role. It shows the saved maintenance message; unsaved edits to the message are not used until you save them. Turning it off takes effect at once. While it is on, admins who can manage maintenance see a banner on every dashboard page saying non-admin users are locked out, so it is hard to leave on by mistake. The maintenance message is saved with the **Save Maintenance mode** button at the foot of the section, which lights up when the message has changed, and the page warns before you leave with unsaved changes. The section is marked **Needs attention** while maintenance mode is on. The switch and the message both need the manage maintenance permission.
 
-**Session timeout** is under **Settings → People & Access → Security rules**, in its own *Session timeout* section (it moved there from the Maintenance page). It sets how many minutes of inactivity sign a user out, from 5 to 1,440; 60 if never saved. The section has its own **Save** and **Discard**, and still needs the manage maintenance permission.
+**Admin sign-in timeout** is under **Settings → People & Access → Security rules**, in its own *Admin sign-in timeout* section (it moved there from the Maintenance page). It sets how many minutes of inactivity sign an admin out, from 5 to 1,440; 60 if never saved. The section has its own **Save** and **Discard**, and still needs the manage maintenance permission.
 
 **Prune Data** sits in the **Data retention** section of **Settings → Maintenance & Data**, which starts collapsed. It shows how many audit log entries, notifications, search entries and system action log entries it would delete, and runs only after you type PRUNE. It deletes audit logs older than the saved **Audit Log Retention** setting in the same section (30 to 3650 days; 365 if never saved; saved with **Save Data retention**), and the other data by fixed ages. Changing the retention setting and running **Prune Data** both need the manage data retention permission.
 

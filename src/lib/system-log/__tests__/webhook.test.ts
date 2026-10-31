@@ -40,6 +40,13 @@ describe('recordInboundBatch', () => {
     );
   });
 
+  it('records the failure reason in the summary (#1285)', async () => {
+    await recordInboundBatch('whatsapp-waha', { ...batch, accepted: false, error: 'x', failureReason: 'handle: ReplySendError' });
+    expect(recordSystemAction).toHaveBeenCalledWith(
+      expect.objectContaining({ summary: expect.objectContaining({ reason: 'handle: ReplySendError' }) })
+    );
+  });
+
   it('records nothing for an ignored-only delivery (ignored messages are counted as processed upstream)', async () => {
     await recordInboundBatch('whatsapp-meta', { ...batch, processedCount: 2, ignoredCount: 2, duplicateCount: 0 });
     expect(recordSystemAction).not.toHaveBeenCalled();

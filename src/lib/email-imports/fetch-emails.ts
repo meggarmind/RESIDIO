@@ -21,6 +21,7 @@ import {
   extractAttachments,
 } from '@/lib/email-imports/gmail-client';
 import { storeEmailAttachments } from '@/lib/email-imports/store-attachments';
+import { checkAlertSender, type SenderCheck } from '@/lib/email-imports/sender-check';
 import { updateGmailSyncStatus } from '@/lib/email-imports/gmail-sync-status';
 import { insertEmailImport, writeEmailImportStatus } from '@/lib/email-imports/import-records';
 import { logAudit } from '@/lib/audit/logger';
@@ -176,6 +177,7 @@ async function createEmailMessage(params: {
   emailType: 'transaction_alert' | 'statement_attachment' | 'unknown';
   rawContentPath: string | null;
   attachments: Array<{ name: string; path: string; size: number; mimeType: string }>;
+  senderCheck: SenderCheck;
 }): Promise<{ data: EmailMessage | null; error: string | null }> {
   const adminClient = await createAdminClient();
 
@@ -192,6 +194,8 @@ async function createEmailMessage(params: {
       email_type: params.emailType,
       raw_content_path: params.rawContentPath,
       attachments: params.attachments,
+      sender_verified: params.senderCheck.verified,
+      sender_check: params.senderCheck.detail,
       processing_status: 'pending',
     })
     .select()
@@ -395,6 +399,8 @@ export async function runEmailFetch(
           emailType,
           rawContentPath,
           attachments: attachmentPaths,
+          // Read by the scheduled auto-record step (#1340); a failed check keeps the alert in review.
+          senderCheck: checkAlertSender(message.payload?.headers, metadata.from),
         });
 
         if (messageError === 'duplicate') {
@@ -430,8 +436,8 @@ export async function runEmailFetch(
     // ============================================================
     // PIPELINE CHAINING
     // Trigger subsequent stages immediately for manual fetches. A cron fetch
-    // leaves them to the cron route, which queues every transaction for admin
-    // review and never posts money on schedule (#879).
+    // leaves them to the cron route, which auto-records only sender-checked
+    // alert credits within the limit and queues the rest for review (#1340).
     // ============================================================
 
     if (result.emailsFetched > 0 && trigger === 'manual') {

@@ -12,7 +12,7 @@ Every page renders inside `DashboardShell`. The shell gives the header, the brea
 - The breadcrumb is part of the shell header (`src/components/dashboard/header.tsx:128`). A page cannot change its trail.
 - `src/app/(dashboard)/loading.tsx` and `src/app/(dashboard)/error.tsx` are the fallbacks for all pages.
 - Only 5 routes have their own `loading.tsx`: `dashboard`, `houses`, `houses/[id]`, `payments`, `residents`. Only `dashboard` has its own `error.tsx`.
-- `settings/layout.tsx` adds a label, a sidebar and a mobile nav (`src/app/(dashboard)/settings/layout.tsx:8-22`). `system/layout.tsx` adds padding only (`src/app/(dashboard)/system/layout.tsx:8`).
+- `settings/layout.tsx` adds a label, a sidebar and a mobile nav (`src/app/(dashboard)/settings/layout.tsx:8-22`). `system/layout.tsx`, `reports/layout.tsx` and `analytics/layout.tsx` wrap their pages in `OversightLayout`, which adds the Oversight left menu and mobile nav.
 
 Header components in use:
 
@@ -93,7 +93,6 @@ Columns: `Header` is the component that renders the `<h1>`. `Loading` and `Error
 | `system/action-log` | `settings` (registry-shaped) | none (`<h3 text-lg>`, `page.tsx:70`) | root | root |
 | `system/audit-logs` | `settings` (registry-shaped) | none (`<h3 text-lg>`, `page.tsx:55`) | root | root |
 | `system/cron-status` | `settings` (monitor) | none (`<h3 text-lg>`, `page.tsx:79`) | root | root |
-| `system/data-tools` | `settings` | none (`<h3 text-lg>`, `page.tsx:53`) | root | root |
 | `system/notification-history` | `settings` (registry-shaped) | none (`<h3 text-lg>`, `page.tsx:10`) | root | root |
 | `system/notification-queue` | `settings` (registry-shaped) | none (`<h3 text-lg>`, `page.tsx:11`) | root | root |
 
@@ -115,7 +114,7 @@ These pages hold no UI. They keep their `ROUTE_PERMISSIONS` entry because the re
 | `settings/branding` | `/settings/estate#logo` |
 | `settings/comms-override` | `/settings/sending#testing` |
 | `settings/cron-status` | `/system/cron-status` |
-| `settings/data-management` | `/system/data-tools` |
+| `settings/data-management` | `/settings/data-tools` |
 | `settings/data-retention` | `/settings/system#retention` |
 | `settings/document-categories` | `/settings/documents#categories` |
 | `settings/document-taxonomy` | `/settings/documents#tags-fields` |
@@ -376,8 +375,8 @@ Required regions, top to bottom:
 
 1. Layout label "Settings" and the sidebar (`lg`) or mobile nav (`settings/layout.tsx:8-22`).
 2. `SettingsPageHeader`: breadcrumb, `<h1>` from `settings-nav.ts`, description, optional save bar.
-3. Section chips "On this page" (`SettingsPageNav`).
-4. Stacked section cards.
+3. Section tabs (`SettingsPageNav`, #1365): **Summary** first, with one card per section, then one tab per section. A tab shows only its own section; the choice is kept in `?section=`.
+4. The section cards of the open tab.
 
 Primary action: the `Save changes` button in the sticky save bar. It appears when `isDirty` is true (`settings-page-header.tsx:78-95`). Section-level add actions sit in each section header.
 
@@ -385,7 +384,7 @@ Mobile at 375 px: the sidebar hides below `lg`. `SettingsMobileNav` replaces it 
 
 Best example: `src/components/settings/settings-merged-page.tsx` (used by 12 pages). It gives the header, the chips and the leave guard in one frame.
 
-Worst divergence: `src/app/(dashboard)/system/*`. Six pages use `<h3 className="text-lg font-medium">` and no `<h1>` (for example `system/audit-logs/page.tsx:55`). `system/layout.tsx` has no sidebar or nav. `settings/billing/profiles/page.tsx` has no header at all.
+Worst divergence: `src/app/(dashboard)/(oversight)/system/*`. Six pages use `<h3 className="text-lg font-medium">` and no `<h1>` (for example `system/audit-logs/page.tsx:55`). `settings/billing/profiles/page.tsx` has no header at all.
 
 Rules:
 
@@ -415,9 +414,9 @@ Primary action: Export or Apply, in the header `actions` or at the end of the fi
 
 Mobile at 375 px: the report pages delegate layout to `FinancialDashboard` and `FinancialOverview`. Date inputs and selects are plain `Select` and `Input` (`financial-overview.tsx:17-21`). The count of `md:hidden` or `hidden md:` uses in these files is 0.
 
-Best example: `src/app/(dashboard)/analytics/page.tsx` (`EnhancedPageHeader` plus `FinancialDashboard`). It is 18 lines and has one `<h1>`.
+Best example: `src/app/(dashboard)/(oversight)/analytics/page.tsx` (`EnhancedPageHeader` plus `FinancialDashboard`). It is 18 lines and has one `<h1>`.
 
-Worst divergence: `src/app/(dashboard)/reports/financial-overview/page.tsx:30-34`. It renders `<h3 className="text-lg font-medium">` and no `<h1>`. It also runs its own auth redirects in the page (`:19-27`).
+Worst divergence: `src/app/(dashboard)/(oversight)/reports/financial-overview/page.tsx:30-34`. It renders `<h3 className="text-lg font-medium">` and no `<h1>`. It also runs its own auth redirects in the page (`:19-27`).
 
 Rules:
 

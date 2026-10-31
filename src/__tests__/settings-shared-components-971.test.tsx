@@ -1,22 +1,27 @@
 // @vitest-environment jsdom
 import * as React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 
 vi.mock('@/components/dashboard/sidebar', () => ({ Sidebar: () => <aside /> }));
 vi.mock('@/components/dashboard/header', () => ({ Header: () => <header /> }));
 vi.mock('@/components/dashboard/mobile-nav', () => ({ MobileNav: () => null }));
 vi.mock('@/components/dashboard/ops-status-banner', () => ({ OpsStatusBanner: () => null }));
-vi.mock('next/navigation', () => ({ usePathname: () => '/settings/sending' }));
+vi.mock('next/navigation', () => ({ usePathname: () => '/settings/sending', useSearchParams: () => new URLSearchParams() }));
 vi.mock('@/hooks/use-settings-navigation', () => ({ useSettingsNavigation: () => ({ groups: [] }) }));
-vi.mock('@/components/settings/settings-sections-provider', () => ({
+const goToSection = vi.fn();
+vi.mock('@/components/settings/settings-sections-provider', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/components/settings/settings-sections-provider')>()),
   useSettingsSections: () => ({
     sections: [
       { id: 'one', title: 'One', visible: true, dirty: false },
       { id: 'two', title: 'Two', visible: true, dirty: false },
     ],
-    goToSection: vi.fn(),
+    activeTab: 'one',
+    goToSection,
+    goToSummary: vi.fn(),
+    setSummaryEl: vi.fn(),
   }),
   useOptionalSettingsSections: () => null,
 }));
@@ -67,34 +72,14 @@ describe('dashboard shell scroll model (M1)', () => {
     expect(screen.getByRole('main')).toHaveClass('relative');
   });
 
-  it('the page nav follows the scrolling <main>, not the window', () => {
-    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
-      cb(0);
-      return 1;
-    });
-    const tops: Record<string, number> = { one: 0, two: 800 };
-    // Stub before render: the nav measures once on mount.
-    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
-      return { top: tops[this.id] ?? 0 } as DOMRect;
-    });
-    const { container } = render(
-      <div data-testid="scroller">
-        <SettingsPageNav />
-        {['one', 'two'].map((id) => (
-          <section key={id} id={id} />
-        ))}
-      </div>,
-    );
-    const current = () => container.querySelector('a[aria-current="true"]')?.textContent;
-    expect(current()).toBe('One');
-    tops.one = -900;
-    tops.two = 50;
-    act(() => {
-      fireEvent.scroll(screen.getByTestId('scroller'));
-    });
-    expect(current()).toBe('Two');
-    vi.restoreAllMocks();
-    vi.unstubAllGlobals();
+  it('the page nav marks the open tab and opens another on click (#1365)', () => {
+    render(<SettingsPageNav />);
+    const tab = (name: string) => screen.getByRole('tab', { name });
+    expect(tab('One')).toHaveAttribute('aria-selected', 'true');
+    expect(tab('Two')).toHaveAttribute('aria-selected', 'false');
+    expect(tab('Summary')).toHaveAttribute('aria-selected', 'false');
+    fireEvent.click(tab('Two'));
+    expect(goToSection).toHaveBeenCalledWith('two');
   });
 });
 

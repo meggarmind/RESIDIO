@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { publishAnnouncementCore } from '@/lib/announcements/publish';
+import { recordAudit } from '@/lib/audit/recorder';
+import { profileHasPermission } from '@/lib/auth/account-guards';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { insertBulkNotifications } from '@/lib/notifications/in-app';
 import { verifyCronAuth } from '@/lib/auth/cron-auth';
 import { withSystemLog, type SystemLogRun } from '@/lib/system-log/with-system-log';
@@ -81,8 +84,13 @@ async function runAnnouncementPublishing(run: SystemLogRun) {
     // Process each announcement
     for (const announcement of announcements) {
       try {
-        // 1. Publish the announcement
-        const publishResult = await publishAnnouncementCore(supabase, announcement.id, null);
+        // 1. Publish the announcement. scheduleAnnouncement sets updated_by, so that is who scheduled it;
+        // an estate group post (#1328) needs their announcements.post_to_group.
+        const scheduledBy: string | null = announcement.updated_by ?? announcement.created_by;
+        const publishResult = await publishAnnouncementCore(supabase, announcement.id, null, supabase, {
+          mayPostToGroup: async () =>
+            scheduledBy !== null && (await profileHasPermission(scheduledBy, PERMISSIONS.ANNOUNCEMENTS_POST_TO_GROUP)),
+        });
 
         if (publishResult.error) {
           log.error(`Failed to publish announcement ${announcement.id}:`, publishResult.error);
@@ -94,6 +102,20 @@ async function runAnnouncementPublishing(run: SystemLogRun) {
         }
 
         log.info(`Published announcement: ${announcement.title}`);
+
+        if (publishResult.error === null && publishResult.groupPost?.messageId) {
+          await recordAudit(
+            {
+              action: 'CREATE',
+              entityType: 'announcements',
+              entityId: announcement.id,
+              entityDisplay: announcement.title,
+              newValues: { whatsapp_group_post: publishResult.groupPost.messageId },
+              description: `Posted scheduled announcement to the estate WhatsApp group: ${announcement.title}`,
+            },
+            { userId: scheduledBy }
+          );
+        }
 
         // 2. Determine target residents
         let recipientIds: string[] = [];

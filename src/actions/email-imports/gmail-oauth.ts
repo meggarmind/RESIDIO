@@ -23,6 +23,7 @@ import {
   verifyGmailOAuthState,
 } from '@/lib/email-imports/gmail-client';
 import { encrypt, decrypt } from '@/lib/email-imports/oauth-encryption';
+import { validateImportRules } from '@/lib/email-imports/import-rules';
 import type { GmailConnectionStatus, GmailSyncCriteria } from '@/types/database';
 
 // ============================================================
@@ -290,14 +291,35 @@ export async function disconnectGmail(): Promise<{ error: string | null }> {
 // Update Sync Criteria
 // ============================================================
 
-export async function updateSyncCriteria(criteria: Record<string, unknown>): Promise<{ error: string | null }> {
+/**
+ * Sets the import senders and subject words (#1349). Other criteria fields keep their stored
+ * values. The input is validated here as well as in the form: each value goes into the Gmail query.
+ */
+export async function updateSyncCriteria(input: { senders: unknown; keywords: unknown }): Promise<{ error: string | null }> {
   // Check permission
   const auth = await authorizePermission(PERMISSIONS.EMAIL_IMPORTS_CONFIGURE);
   if (!auth.authorized) {
     return { error: auth.error || 'Unauthorized' };
   }
 
+  const validated = validateImportRules(input);
+  if (validated.error !== null) {
+    return { error: validated.error };
+  }
+
   const supabase = await createServerSupabaseClient();
+
+  const { data: current, error: readError } = await supabase
+    .from('gmail_oauth_credentials')
+    .select('sync_criteria')
+    .eq('is_active', true)
+    .maybeSingle();
+  // Without the stored criteria the merge below would drop days_back and the credit/debit flags.
+  if (readError) {
+    return { error: readError.message };
+  }
+  const oldCriteria = (current?.sync_criteria as Record<string, unknown> | null) ?? {};
+  const criteria = { ...oldCriteria, ...validated.rules };
 
   const { data: updatedRows, error } = await supabase
     .from('gmail_oauth_credentials')
@@ -312,17 +334,19 @@ export async function updateSyncCriteria(criteria: Record<string, unknown>): Pro
   }
 
   // Audit log. audit_logs.entity_id is a uuid: use the updated credentials row (#594).
-  // No active connection means nothing changed, so nothing to audit.
+  // No active connection means nothing changed: say so rather than report a save.
   const credentialsId = updatedRows?.[0]?.id;
-  if (credentialsId) {
-    await logAudit({
-      action: 'UPDATE',
-      entityType: 'gmail_oauth_credentials',
-      entityId: credentialsId,
-      entityDisplay: 'Gmail Sync Criteria',
-      newValues: criteria,
-    });
+  if (!credentialsId) {
+    return { error: 'No active Gmail connection' };
   }
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'gmail_oauth_credentials',
+    entityId: credentialsId,
+    entityDisplay: 'Gmail Sync Criteria',
+    oldValues: { senders: oldCriteria.senders, keywords: oldCriteria.keywords },
+    newValues: { ...validated.rules },
+  });
 
   return { error: null };
 }

@@ -157,7 +157,7 @@ export function DocumentUploadForm({
         <DialogHeader>
           <DialogTitle>Upload Document</DialogTitle>
           <DialogDescription>
-            Upload a document to the library. Supported formats: PDF, DOCX, XLSX, TXT (max 50MB).
+            Upload a document to the library. Supported formats: PDF, DOCX, XLSX, TXT, JPG, PNG, WebP (max 50MB).
           </DialogDescription>
         </DialogHeader>
 

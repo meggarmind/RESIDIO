@@ -42,7 +42,7 @@ const FOOTER = 'Reply 0 for menu or 9 to contact the estate office.';
 const CODE = '614205';
 const NEW_PIN = '5307';
 const CURRENT_PIN = '829104';
-const FINANCIAL_MENU = /\n\nFinancial standing\n1\. What I owe\n2\. Recent payments\n3\. Statement\n4\. Wallet\n/;
+const FINANCIAL_MENU = /\n\n💰 Financial standing\n\n1\. 💳 What I owe\n2\. 💵 Recent payments\n3\. 📄 Statement\n4\. 👛 Wallet\n/;
 const PIN_SET = 'Your PIN is set ✅ Your financial standing is unlocked for 15 minutes. For privacy, you can delete the messages with your PIN from this chat.';
 const PIN_VERIFIED = 'PIN verified. Your financial standing is unlocked for 15 minutes.';
 const VERIFY_PROMPT = 'Enter your 4–6 digit PIN to view your financial standing (e.g. 4821).';
@@ -152,7 +152,7 @@ describe('first PIN with a setup code (#892)', () => {
     expect(state.pinHash).toBeNull();
 
     const done = await say(NEW_PIN);
-    expect(done.startsWith(`${PIN_SET}\n\nFinancial standing`)).toBe(true);
+    expect(done.startsWith(`${PIN_SET}\n\n💰 Financial standing`)).toBe(true);
     expect(done).toMatch(FINANCIAL_MENU);
     expect(repo.setPinHash).toHaveBeenCalledWith('resident-1', expect.stringMatching(/^scrypt:/), null);
     expect(verifyPin(NEW_PIN, state.pinHash!)).toBe(true);
@@ -198,7 +198,7 @@ describe('first PIN with a setup code (#892)', () => {
     vi.mocked(repo.claimSetupCode).mockResolvedValue({ status: 'paused', pausedUntil: '2026-10-20T10:45:00.000Z' });
     await say('PIN');
     expect(await say('000111')).toBe(
-      `Too many wrong setup codes. Nothing was changed. Try again after 11:45, or ask the estate office for a new code.\n${CONTACT}\n${FOOTER}`
+      `Too many wrong setup codes. Nothing was changed. Try again after 11:45, or ask the estate office for a new code.\n\n${CONTACT}\n\n${FOOTER}`
     );
     expect(node()).toBe('main');
   });
@@ -208,7 +208,7 @@ describe('first PIN with a setup code (#892)', () => {
     vi.mocked(repo.claimSetupCode).mockResolvedValue({ status: 'none' });
     await say('PIN');
     expect(await say(CODE)).toBe(
-      `That setup code is invalid or expired. Nothing was changed. Ask the estate office for a new code.\n${CONTACT}\n${FOOTER}`
+      `That setup code is invalid or expired. Nothing was changed. Ask the estate office for a new code.\n\n${CONTACT}\n\n${FOOTER}`
     );
     expect(node()).toBe('main');
     // A choose-PIN step cannot be reached without a code.
@@ -317,7 +317,7 @@ describe('changing a PIN (#892)', () => {
   it('counts a wrong current PIN toward the lock and stays in the step', async () => {
     const { say, state, repo } = statefulRepository(hashPin(CURRENT_PIN));
     await say('Change PIN');
-    expect(await say('111999')).toBe(`That PIN isn't correct. You have 2 tries left before it locks for 15 minutes.\n${CONTACT}`);
+    expect(await say('111999')).toBe(`That PIN isn't correct. You have 2 tries left before it locks for 15 minutes.\n\n${CONTACT}`);
     expect(repo.claimPinAttempt).toHaveBeenCalledWith('resident-1');
     expect(state.session).toMatchObject({ currentNode: 'pin_change_current', pinAuthenticated: false });
   });
@@ -326,7 +326,7 @@ describe('changing a PIN (#892)', () => {
     const { say, state, repo } = statefulRepository(hashPin(CURRENT_PIN));
     vi.mocked(repo.claimPinAttempt).mockResolvedValue({ status: 'hard_locked' });
     await say('Change PIN');
-    expect(await say(CURRENT_PIN)).toBe(`Your PIN is locked after several wrong tries. The estate office needs to reset it.\n${CONTACT}`);
+    expect(await say(CURRENT_PIN)).toBe(`Your PIN is locked after several wrong tries. The estate office needs to reset it.\n\n${CONTACT}`);
     expect(state.session).toMatchObject({ currentNode: 'main', pinAuthenticated: false });
     expect(repo.clearPinAttempts).not.toHaveBeenCalled();
   });
@@ -354,7 +354,7 @@ describe('verifying a PIN (#892)', () => {
   it('asks for the PIN when a financial item is chosen, with the example, then answers it in one message', async () => {
     const { say, state, repo, node } = statefulRepository(hashPin(CURRENT_PIN));
 
-    expect(await say('owe')).toBe(`${VERIFY_PROMPT}\n${FOOTER}`);
+    expect(await say('owe')).toBe(`${VERIFY_PROMPT}\n\n${FOOTER}`);
     expect(node()).toBe('pin:what_i_owe');
     expect(repo.getOwed).not.toHaveBeenCalled();
 
@@ -368,14 +368,14 @@ describe('verifying a PIN (#892)', () => {
     const { say, state } = statefulRepository(hashPin(CURRENT_PIN), 'resident_cap');
     await say('wallet');
     expect(await say(CURRENT_PIN)).toBe(
-      `${PIN_VERIFIED}\n\nYou've reached today's limit of 20 financial lookups. It resets at midnight.\n${CONTACT}`
+      `${PIN_VERIFIED}\n\nYou've reached today's limit of 20 financial lookups. It resets at midnight.\n\n${CONTACT}`
     );
     expect(state.session?.pinAuthenticated).toBe(true);
   });
 
   it('PIN alone asks for the PIN and a correct one shows the Financial standing menu', async () => {
     const { say } = statefulRepository(hashPin(CURRENT_PIN));
-    expect(await say('PIN')).toBe(`${VERIFY_PROMPT}\n${FOOTER}`);
+    expect(await say('PIN')).toBe(`${VERIFY_PROMPT}\n\n${FOOTER}`);
     const reply = await say(CURRENT_PIN);
     expect(reply.startsWith(PIN_VERIFIED)).toBe(true);
     expect(reply).toMatch(FINANCIAL_MENU);
@@ -396,7 +396,7 @@ describe('verifying a PIN (#892)', () => {
   it('treats a one-digit reply in the PIN step as a menu choice', async () => {
     const { say, node, repo } = statefulRepository(hashPin(CURRENT_PIN));
     await say('owe');
-    expect(await say('4')).toMatch(/^Alert settings/);
+    expect(await say('4')).toMatch(/^🔔 Alert settings/);
     expect(node()).toBe('alerts');
     expect(repo.claimPinAttempt).not.toHaveBeenCalled();
   });
@@ -425,7 +425,7 @@ describe('verifying a PIN (#892)', () => {
 
   it('a resident without a PIN under force-PIN is told to reply PIN, without an example', async () => {
     const { say } = statefulRepository();
-    expect(await say('owe')).toBe(`A security PIN is required before viewing financial standing. To set one, reply PIN.\n${FOOTER}`);
+    expect(await say('owe')).toBe(`A security PIN is required before viewing financial standing. To set one, reply PIN.\n\n${FOOTER}`);
   });
 });
 

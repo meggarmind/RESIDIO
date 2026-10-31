@@ -49,6 +49,7 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/hooks/use-roles', () => ({
   useCurrentAdmins: () => ({ data: ADMINS, isLoading: false, error: null }),
   useRolesWithPermissions: () => ({ data: ROLES, isLoading: false }),
+  useAssignableRoles: () => ({ data: ROLES, isLoading: false, error: null }),
   usePermissions: () => ({ data: [], isLoading: false }),
   useCreateRoleWithPermissions: mutation,
   useUpdateRole: mutation,
@@ -56,6 +57,7 @@ vi.mock('@/hooks/use-roles', () => ({
   useAdminTitles: () => ({ data: [], isLoading: false }),
   useCreateAdminTitle: mutation,
   useUpdateAdminTitle: mutation,
+  useDeleteAdminTitle: mutation,
 }));
 vi.mock('@tanstack/react-query', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tanstack/react-query')>()),
@@ -85,7 +87,7 @@ vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.f
 
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import AccountsPage from '@/app/(dashboard)/settings/access/page';
-import AccountsRedirect from '@/app/(dashboard)/system/accounts/page';
+import AccountsRedirect from '@/app/(dashboard)/(oversight)/system/accounts/page';
 import RolesRedirect from '@/app/(dashboard)/settings/roles/page';
 import UserRolesRedirect from '@/app/(dashboard)/settings/user-roles/page';
 
@@ -114,15 +116,34 @@ describe('Roles & Access tabs are gated by permission (#912)', () => {
     expect(screen.getByRole('heading', { name: 'Roles & Access' })).toBeInTheDocument();
   });
 
-  it('adds Roles and Who can hold each role, after the others, with manage_roles', () => {
+  it('adds Roles, Titles and Who can hold each role, after the others, with manage_roles', () => {
     open('', [ASSIGN, MANAGE]);
     expect(tabNames()).toEqual([
       'Administrators',
       'Pending sign-ups',
       'Unlinked logins',
       'Roles',
+      'Titles',
       'Who can hold each role',
     ]);
+  });
+
+  it('shows the Titles card only on the Titles tab, and only with manage_roles (#1361)', () => {
+    const text = 'Add, rename or resize the titles people can hold under each role.';
+
+    const manage = open('tab=titles', [ASSIGN, MANAGE]);
+    expect(selectedTab()).toBe('Titles');
+    expect(screen.getByText(text)).toBeInTheDocument();
+    manage.unmount();
+
+    const assignOnly = open('tab=titles', [ASSIGN]);
+    expect(selectedTab()).toBe('Administrators');
+    expect(screen.queryByText(text)).not.toBeInTheDocument();
+    assignOnly.unmount();
+
+    open('tab=roles', [ASSIGN, MANAGE]);
+    expect(selectedTab()).toBe('Roles');
+    expect(screen.queryByText(text)).not.toBeInTheDocument();
   });
 
   it('never renders the role editor for an assign-only admin who opens ?tab=roles or ?tab=rules', () => {
@@ -147,6 +168,7 @@ describe('?tab= round trip (#912)', () => {
     ['pending', 'Pending sign-ups'],
     ['unlinked', 'Unlinked logins'],
     ['roles', 'Roles'],
+    ['titles', 'Titles'],
     ['rules', 'Who can hold each role'],
     ['assignments', 'Administrators'],
     ['orphaned', 'Unlinked logins'],
@@ -272,10 +294,9 @@ describe('Unlinked logins (#912)', () => {
 });
 
 describe('navigation, search and route guards (#912)', () => {
-  it('takes Roles & Access out of the System sidebar (#939)', async () => {
-    const { ADMIN_NAV_SECTIONS } = await import('@/config/navigation');
-    const system = ADMIN_NAV_SECTIONS.find((s) => s.id === 'system')!;
-    expect(system.items.map((i) => i.href)).not.toContain('/system/accounts');
+  it('takes Roles & Access out of the Oversight menu (#939)', async () => {
+    const { oversightConfig } = await import('@/config/oversight-nav');
+    expect(oversightConfig.flatMap((g) => g.items).map((i) => i.href)).not.toContain('/system/accounts');
   });
 
   it('lists Roles & Access in Settings at /settings/access, indexed for search (#939)', async () => {

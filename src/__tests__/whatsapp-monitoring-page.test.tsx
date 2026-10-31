@@ -11,8 +11,8 @@ const mocks = vi.hoisted(() => ({ getSends: vi.fn(), refresh: vi.fn() }));
 vi.mock('@/actions/whatsapp/admin-console', () => ({ getWhatsAppOutboundSends: mocks.getSends }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
 
-import { MonitorRefresh } from '@/app/(dashboard)/system/whatsapp-monitoring/monitor-refresh';
-import { OutboundSendsList } from '@/app/(dashboard)/system/whatsapp-monitoring/outbound-sends-list';
+import { MonitorRefresh } from '@/app/(dashboard)/(oversight)/system/whatsapp-monitoring/monitor-refresh';
+import { OutboundSendsList } from '@/app/(dashboard)/(oversight)/system/whatsapp-monitoring/outbound-sends-list';
 
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

@@ -14,8 +14,8 @@ residio_sources:
   - src/app/(dashboard)/settings/sending/**
   - src/app/(dashboard)/settings/announcements/**
   - src/components/settings/messages/**
-residio_verified_commit: 7dcc1133
-residio_verified_at: '2026-10-26'
+residio_verified_commit: bc152723
+residio_verified_at: '2026-10-30'
 residio_app_version: '0.4.0'
 ---
 
@@ -23,7 +23,7 @@ residio_app_version: '0.4.0'
 
 ## Billing
 
-**Settings → Money → Billing rules** is one page with four sections: **General**, **Invoices & due dates**, **Late fees** and **Levies**. The row of section names under the page title jumps to a section and stays in view as you scroll. The old addresses (Late Fees, Invoices and Development Levies) still work and open the matching section. **Rate cards** stays a separate page. Billing rules save as you change them: a switch, a choice or a number takes effect when you set it, so these sections have no Save button.
+**Settings → Money → Billing rules** is one page with four sections: **General**, **Invoices & due dates**, **Late fees** and **Levies**. The row of tabs under the page title shows one section at a time. The first tab, **Summary**, shows a card for each section with its current values; select a card to open that section. Unsaved changes stay when you change tabs, and the tab shows a dot until you save. The old addresses (Late Fees, Invoices and Development Levies) still work and open the matching section. **Rate cards** stays a separate page. Billing rules save as you change them: a switch, a choice or a number takes effect when you set it, so these sections have no Save button.
 
 Review billing settings before changing rates or periods. For a rate change, confirm the effective date, affected profile, and whether existing invoices should remain unchanged.
 
@@ -49,7 +49,7 @@ Each billing setting carries an **Affects** line saying whether a change reaches
 
 ## Banking
 
-**Settings → Money → Banking** holds three sections. **Bank accounts** lists the estate's accounts used for statement imports, with the **PDF statement passwords** for protected statements beneath it. **Transaction tags** classify imported credits and debits for reporting, and start collapsed. **Duplicate matching** sets the confidence threshold, a percentage: a transaction that scores above it is flagged as a likely duplicate. Bank accounts and tags need the manage reference data permission; duplicate matching needs the manage maintenance permission, as it did when it sat on the Maintenance page. An admin who holds only one of them sees only that section. The old Bank Accounts and Transaction Tags addresses open the matching section. The tables become stacked cards on a phone.
+**Settings → Money → Banking** holds four sections. **Bank accounts** lists the estate's accounts used for statement imports, with the **PDF statement passwords** for protected statements beneath it. **Transaction tags** classify imported credits and debits for reporting, and start collapsed. **Duplicate matching** sets the confidence threshold, a percentage: a transaction that scores above it is flagged as a likely duplicate. Bank accounts and tags need the manage bank accounts and transaction tags permission, which the Financial Officer holds, or the manage reference data permission. Only a chairman or super admin can set or change the **PDF statement passwords**; other admins see whether one is set. Duplicate matching needs the manage maintenance permission, as it did when it sat on the Maintenance page. **Approval limit** sets the amount above which an auto-matched emailed payment waits for approval; it moved here from Gmail Import, and only a super admin can change it. A financial officer, who holds the manage billing settings permission, sees the approval limit but cannot change it. An admin who holds only one of them sees only that section. The old Bank Accounts and Transaction Tags addresses open the matching section. The tables become stacked cards on a phone.
 
 Bank accounts and tags save through their own dialogs. The duplicate threshold is a draft until you press **Save Duplicate matching** at the foot of its section; **Discard** puts the saved value back, and the page warns before you leave with it unsaved.
 
@@ -61,7 +61,7 @@ Three controls affect payment reminders. **Send payment reminders** under **Remi
 
 The **Send payment reminders** switch saves the state you set it to. **Reset to Default** on the reminder schedule asks before it replaces your steps, and **Send Reminders** under **Send now** shows how many reminders would go to how many residents before it sends.
 
-Sent-notification history and the outgoing queue are system state rather than configuration, so they live under **System → Notification History** and **System → Notification Queue** instead; **Reminders → On or off** links to both and no longer shows live counts. From the queue you can cancel a pending item or retry one that failed.
+Sent-notification history and the outgoing queue are system state rather than configuration, so they live under **Oversight → Notification history** and **Oversight → Notification queue** instead; **Reminders → On or off** links to both and no longer shows live counts. From the queue you can cancel a pending item or retry one that failed.
 
 ## Email and WhatsApp
 

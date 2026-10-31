@@ -27,7 +27,7 @@ type Result = { data?: unknown; error: unknown };
 function query(result: Result) {
   const calls: [string, unknown[]][] = [];
   const builder: Record<string, unknown> = {};
-  for (const method of ['insert', 'update', 'select', 'eq', 'in', 'is', 'lt', 'gte', 'limit']) {
+  for (const method of ['insert', 'update', 'select', 'eq', 'in', 'is', 'lt', 'gte', 'limit', 'like']) {
     builder[method] = (...args: unknown[]) => {
       calls.push([method, args]);
       return builder;
@@ -168,6 +168,36 @@ describe('status event order (#941)', () => {
   });
 });
 
+describe('WAHA ack ids (#1299)', () => {
+  it('matches an @lid ack to a send stored under the @c.us chat id by message key', async () => {
+    const update = query({ data: [{ id: 'row-1' }], error: null });
+    mocks.from.mockReturnValue(update.builder);
+
+    expect(await updateOutboundSendStatus('waha', 'true_227934065430751@lid_3EB0ABC123', 'delivered')).toBe(true);
+    expect(update.calls).toContainEqual(['eq', ['provider', 'waha']]);
+    expect(update.calls).toContainEqual(['like', ['provider_message_id', '%\\_3EB0ABC123']]);
+    expect(update.calls.some(([method, args]) => method === 'eq' && args[0] === 'provider_message_id')).toBe(false);
+  });
+
+  it('checks existence by message key too', async () => {
+    const exists = query({ data: [{ id: 'row-1' }], error: null });
+    mocks.from.mockReturnValue(exists.builder);
+
+    expect(await outboundSendExists('waha', 'false_1@lid_3EB0ABC123')).toBe(true);
+    expect(exists.calls).toContainEqual(['like', ['provider_message_id', '%\\_3EB0ABC123']]);
+  });
+
+  it('keeps an exact match for Chatmaid and for a key that is not alphanumeric', async () => {
+    for (const [provider, id] of [['chatmaid', 'out_msg_1'], ['waha', 'true_1@c.us_3EB0%']] as const) {
+      const update = query({ data: [], error: null });
+      mocks.from.mockReturnValue(update.builder);
+      await updateOutboundSendStatus(provider, id, 'sent');
+      expect(update.calls).toContainEqual(['eq', ['provider_message_id', id]]);
+      expect(update.calls.some(([method]) => method === 'like')).toBe(false);
+    }
+  });
+});
+
 describe('outboundSendExists', () => {
   it.each([[[{ id: 'row-1' }], true], [[], false]] as const)('maps %j to %s', async (data, expected) => {
     mocks.from.mockReturnValue(query({ data, error: null }).builder);
@@ -181,7 +211,7 @@ describe('outboundSendExists', () => {
 });
 
 describe('alertStalePendingSends (pending timeout)', () => {
-  it('claims Chatmaid sends pending over 15 minutes and alerts admins once', async () => {
+  it('claims bridge (Chatmaid and WAHA) sends pending over 15 minutes and alerts admins once', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(Date.parse('2026-10-20T12:00:00.000Z'));
     const claim = query({ data: [{ id: 'a' }, { id: 'b' }], error: null });
@@ -190,7 +220,7 @@ describe('alertStalePendingSends (pending timeout)', () => {
 
     expect(await alertStalePendingSends()).toBe(2);
     expect(claim.calls).toEqual(expect.arrayContaining([
-      ['eq', ['provider', 'chatmaid']],
+      ['in', ['provider', ['chatmaid', 'waha']]],
       ['eq', ['status', 'pending']],
       ['is', ['pending_alerted_at', null]],
       ['lt', ['created_at', '2026-10-20T11:45:00.000Z']],

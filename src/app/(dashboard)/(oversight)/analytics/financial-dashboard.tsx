@@ -1,0 +1,242 @@
+'use client';
+
+import { Suspense, useMemo } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { JumpSection } from '@/components/settings/settings-sections-provider';
+import { Skeleton } from '@/components/ui/skeleton';
+import { EnhancedStatCard } from '@/components/dashboard/enhanced-stat-card';
+import {
+  useDashboardFinancialHealth,
+  useDashboardInvoiceDistribution,
+  useDashboardQuickStats,
+} from '@/hooks/use-dashboard';
+import { useAnalytics, useDebtStatusByStreet } from '@/hooks/use-analytics';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { useOverdueInvoiceAging } from '@/hooks/use-billing';
+import { formatCurrency } from '@/lib/utils';
+import {
+  TrendingUp,
+  AlertCircle,
+  DollarSign,
+  Clock,
+  Wallet,
+  ArrowUpRight,
+  ArrowDownRight,
+  Users,
+} from 'lucide-react';
+import dynamic from 'next/dynamic';
+
+const RevenueTrendChart = dynamic(
+  () => import('@/components/analytics/revenue-trend-chart').then((m) => ({ default: m.RevenueTrendChart })),
+  { loading: () => <Skeleton className="h-80 w-full" />, ssr: false }
+);
+
+const DebtStatusByStreetChart = dynamic(
+  () => import('@/components/analytics/debt-status-by-street-chart').then((m) => ({ default: m.DebtStatusByStreetChart })),
+  { loading: () => <Skeleton className="h-72 w-full" />, ssr: false }
+);
+
+const FinancialDashboardSkeleton = () => (
+  <div className="space-y-6">
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
+    </div>
+    <Skeleton className="h-80 rounded-xl" />
+    <div className="grid gap-6 lg:grid-cols-2">
+      <Skeleton className="h-72 rounded-xl" />
+      <Skeleton className="h-72 rounded-xl" />
+    </div>
+  </div>
+);
+
+export function FinancialDashboard() {
+  return (
+    <Suspense fallback={<FinancialDashboardSkeleton />}>
+      <FinancialDashboardContent />
+    </Suspense>
+  );
+}
+
+function FinancialDashboardContent() {
+  const { data: financialHealth, isLoading: fhLoading } = useDashboardFinancialHealth();
+  const { data: invoiceDist } = useDashboardInvoiceDistribution();
+  const { data: quickStats } = useDashboardQuickStats();
+  const { data: invoiceAging, isLoading: agingLoading, isError: agingError } = useOverdueInvoiceAging();
+
+  // Trailing 12-month range for the Revenue vs Expenses trend chart
+  const { startDate, endDate } = useMemo(() => {
+    const end = new Date();
+    const start = new Date();
+    start.setMonth(start.getMonth() - 11);
+    start.setDate(1);
+    return {
+      startDate: start.toISOString().slice(0, 10),
+      endDate: end.toISOString().slice(0, 10),
+    };
+  }, []);
+  const { data: trendData, isLoading: trendLoading } = useAnalytics({ startDate, endDate });
+  const latestRevenue = trendData?.revenueTrend?.at(-1);
+
+  // The debt chart reads through a reports.view_financial action, so only holders see its section (CORE.md §6).
+  const { hasPermission, isLoading: authLoading } = useAuth();
+  const canViewDebt = !authLoading && hasPermission(PERMISSIONS.REPORTS_VIEW_FINANCIAL);
+  const debt = useDebtStatusByStreet({ enabled: canViewDebt });
+
+  return (
+    <div className="space-y-6">
+      {/* Collection Health Cards */}
+      <JumpSection
+        id="totals"
+        title="Totals"
+        summary={financialHealth ? `${financialHealth.collectionRate.toFixed(1)}% collected · ${formatCurrency(financialHealth.totalOutstanding)} outstanding` : undefined}
+        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+      >
+        <EnhancedStatCard
+          title="Collection Rate"
+          value={financialHealth ? `${financialHealth.collectionRate.toFixed(1)}%` : '-'}
+          icon={TrendingUp}
+          isLoading={fhLoading}
+          description="Share of all invoiced amounts paid"
+          accentColor="success"
+        />
+        <EnhancedStatCard
+          title="Outstanding"
+          value={financialHealth ? formatCurrency(financialHealth.totalOutstanding) : '-'}
+          icon={AlertCircle}
+          isLoading={fhLoading}
+          description="Unpaid balance on all invoices"
+          accentColor="warning"
+        />
+        <EnhancedStatCard
+          title="Overdue Invoices"
+          value={invoiceDist ? invoiceDist.overdue : '-'}
+          icon={Clock}
+          isLoading={fhLoading}
+          description={financialHealth ? `${formatCurrency(financialHealth.overdueAmount)} total` : 'Amount unavailable'}
+          accentColor="danger"
+        />
+        <EnhancedStatCard
+          title="Portfolio Value"
+          value={financialHealth ? formatCurrency(financialHealth.portfolioValue) : '-'}
+          icon={Wallet}
+          isLoading={fhLoading}
+          description="Bank balance plus petty cash"
+          accentColor="info"
+        />
+      </JumpSection>
+
+      {/* Revenue vs Expenses Monthly Trend */}
+      <JumpSection id="trends" title="Trends" summary={latestRevenue ? `${latestRevenue.label}: ${formatCurrency(latestRevenue.value)} collected` : undefined}>
+        <Suspense fallback={<Skeleton className="h-80 w-full" />}>
+          <RevenueTrendChart data={trendData?.revenueTrend ?? null} isLoading={trendLoading} />
+        </Suspense>
+      </JumpSection>
+
+      {canViewDebt && (
+        <JumpSection
+          id="debt-status"
+          title="Debt status"
+          summary={debt.data ? `${debt.data.totals.arrears} of ${debt.data.totalHouses} houses in ${debt.data.labels.arrears}` : undefined}
+        >
+          <DebtStatusByStreetChart data={debt.data} isLoading={debt.isLoading} error={debt.error} />
+        </JumpSection>
+      )}
+
+      <JumpSection
+        id="invoice-aging"
+        title="Invoice aging"
+        summary={invoiceAging ? `${invoiceAging.reduce((sum, item) => sum + item.count, 0)} overdue invoices` : undefined}
+      >
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2"><Clock className="h-5 w-5" />Invoice Aging</CardTitle></CardHeader>
+          <CardContent>
+            {agingLoading ? (
+              <Skeleton className="h-36 w-full" />
+            ) : agingError ? (
+              <p className="text-sm text-muted-foreground">Invoice aging unavailable</p>
+            ) : invoiceAging?.length ? (
+              <div className="flex h-36 items-end gap-1" aria-label="Exact days overdue histogram">
+                {invoiceAging.map(({ daysOverdue, count }) => (
+                  <div key={daysOverdue} className="flex min-w-6 flex-1 flex-col items-center gap-1">
+                    <div className="w-full rounded-t bg-amber-500" style={{ height: `${Math.max(8, (count / Math.max(...invoiceAging.map((item) => item.count))) * 100)}%` }} title={`${daysOverdue} days overdue: ${count} invoice(s)`} />
+                    <span className="text-xs text-muted-foreground">{daysOverdue}d</span>
+                  </div>
+                ))}
+              </div>
+            ) : <p className="text-sm text-muted-foreground">No overdue invoices.</p>}
+          </CardContent>
+        </Card>
+      </JumpSection>
+
+      {/* Invoice Distribution + Quick Stats */}
+      <JumpSection
+        id="invoices-houses"
+        title="Invoices & houses"
+        summary={invoiceDist && quickStats ? `${invoiceDist.paid} paid, ${invoiceDist.unpaid} unpaid · ${quickStats.occupiedHouses} of ${quickStats.totalHouses} houses occupied` : undefined}
+        className="grid gap-6 lg:grid-cols-2"
+      >
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5" />
+              Invoice Status
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {([
+                { label: 'paid', key: 'paid' },
+                { label: 'unpaid', key: 'unpaid' },
+                { label: 'partially paid', key: 'partiallyPaid' },
+                { label: 'overdue', key: 'overdue' },
+                { label: 'void', key: 'void' },
+              ] as const).map(({ label, key }) => {
+                const value = invoiceDist?.[key] ?? 0;
+                const total = (invoiceDist?.paid ?? 0) + (invoiceDist?.unpaid ?? 0) + (invoiceDist?.partiallyPaid ?? 0) + (invoiceDist?.overdue ?? 0) + (invoiceDist?.void ?? 0);
+                return (
+                  <div key={key} className="flex items-center justify-between">
+                    <span className="text-sm capitalize text-muted-foreground">{label}</span>
+                    <div className="flex items-center gap-3">
+                      <div className="h-2 rounded-full bg-muted w-32 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-primary"
+                          style={{ width: `${value > 0 ? (value / (total || 1)) * 100 : 0}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-medium tabular-nums w-8 text-right">{invoiceDist ? value : '-'}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Quick Stats
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { label: 'Total Houses', value: quickStats?.totalHouses, icon: DollarSign },
+                { label: 'Occupied', value: quickStats?.occupiedHouses, icon: ArrowUpRight, color: 'text-emerald-600' },
+                { label: 'Vacant', value: quickStats?.vacantHouses, icon: ArrowDownRight, color: 'text-amber-600' },
+                { label: 'Residents', value: quickStats?.activeResidents, icon: Users, color: 'text-blue-600' },
+              ].map((stat) => (
+                <div key={stat.label} className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">{stat.label}</p>
+                  <p className={`mt-1 text-xl font-bold tabular-nums ${stat.color || ''}`}>{stat.value ?? '-'}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </JumpSection>
+    </div>
+  );
+}

@@ -307,7 +307,7 @@ function roleAliases(code: string): Set<string> {
  * literal.
  */
 const NAME_COMPARES_TO_LITERAL =
-  /^(?:\s*\)?\s*::\s*[a-z_]+(?:\s+varying)?)*\s*\)?\s*(?:=|<>|!=|IN)\s*(?:ANY\s*|ALL\s*)?\(*\s*(?:ARRAY\s*)?\[?\(*\s*'/i;
+  /^(?:\s*(?:\)\s*)?::\s*[a-z_]+(?:\s+varying)?)*\s*\)?\s*(?:=|<>|!=|IN)\s*(?:ANY\s*|ALL\s*)?\(*\s*(?:ARRAY\s*)?\[?\(*\s*'/i;
 
 /**
  * Statements that seed or catalogue roles/permissions rather than authorize

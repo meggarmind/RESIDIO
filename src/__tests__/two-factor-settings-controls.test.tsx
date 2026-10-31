@@ -2,6 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { QRCodeSVG } from 'qrcode.react';
 
 /**
  * #1029: the Settings screen that turns two-factor login on and off for the signed-in admin.
@@ -27,6 +29,7 @@ vi.mock('@/hooks/use-two-factor', () => ({
   useDisable2FA: () => mocks.hooks.disable,
   useRequestDisableCode: () => mocks.hooks.requestDisable,
   useGenerateBackupCodes: () => mocks.hooks.regenerate,
+  useSendBackupCodes: () => mocks.hooks.send,
 }));
 
 import { TwoFactorControls } from '@/app/(dashboard)/settings/two-factor/two-factor-controls';
@@ -42,9 +45,16 @@ beforeEach(() => {
     disable: mutation(),
     requestDisable: mutation(),
     regenerate: mutation(),
+    send: mutation(),
   };
 });
 afterEach(cleanup);
+
+/** The path of a QR code drawn for `value`, to compare against what the screen draws. */
+const qrPath = (value: string) => {
+  const markup = renderToStaticMarkup(<QRCodeSVG value={value} />);
+  return [...markup.matchAll(/ d="([^"]+)"/g)].map((m) => m[1]).pop();
+};
 
 const typeCode = (code: string) =>
   fireEvent.change(screen.getByLabelText('Code from your authenticator app'), { target: { value: code } });
@@ -64,6 +74,12 @@ describe('two-factor settings controls', () => {
       'href',
       'otpauth://totp/Estate:a?secret=JBSWY3DPEHPK3PXP'
     );
+
+    // The QR code holds the same otpauth link, so scanning it adds the same key.
+    const qr = screen.getByRole('img', { name: 'QR code for your authenticator app' });
+    const drawn = [...qr.querySelectorAll('path')].map((p) => p.getAttribute('d')).pop();
+    expect(drawn).toBe(qrPath('otpauth://totp/Estate:a?secret=JBSWY3DPEHPK3PXP'));
+    expect(drawn).not.toBe(qrPath('otpauth://totp/Estate:a?secret=AAAAAAAAAAAAAAAA'));
 
     const turnOn = screen.getByRole('button', { name: 'Turn on' });
     expect(turnOn).toBeDisabled();
@@ -101,6 +117,99 @@ describe('two-factor settings controls', () => {
     expect(code).toBe('111222');
     act(() => opts.onSuccess?.({ success: true, codes: ['CCCC3333'] }));
     expect(screen.getByRole('list', { name: 'Backup codes' })).toHaveTextContent('CCCC3333');
+  });
+
+  /** Opens the backup codes dialog with these codes, through Make new backup codes. */
+  const showCodes = (codes: string[]) => {
+    mocks.status = on;
+    render(<TwoFactorControls />);
+    fireEvent.click(screen.getByRole('button', { name: 'Make new backup codes' }));
+    typeCode('111222');
+    fireEvent.click(screen.getByRole('button', { name: 'Make new codes' }));
+    const [, opts] = mocks.hooks.regenerate.mutate.mock.calls[0] as [string, MutateOptions];
+    act(() => opts.onSuccess?.({ success: true, codes }));
+  };
+
+  describe('saving the backup codes', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      vi.restoreAllMocks();
+      Object.assign(navigator, { canShare: undefined, share: undefined });
+    });
+
+    it('saves the codes as a text file', async () => {
+      let saved: Blob | null = null;
+      vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn((blob: Blob) => { saved = blob; return 'blob:codes'; }), revokeObjectURL: vi.fn() });
+      const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+      showCodes(['CCCC3333', 'DDDD4444']);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Save as file' }));
+
+      expect(click).toHaveBeenCalledTimes(1);
+      expect((click.mock.contexts[0] as HTMLAnchorElement).download).toBe('residio-backup-codes.txt');
+      const text = await (saved as unknown as Blob).text();
+      expect(text.split('\n')).toEqual(expect.arrayContaining(['CCCC3333', 'DDDD4444']));
+    });
+
+    it('offers Share only when the device can share a file, and shares the codes file', async () => {
+      const share = vi.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, { canShare: () => true, share });
+      showCodes(['EEEE5555']);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Share' }));
+
+      const [data] = share.mock.calls[0] as [{ files: File[] }];
+      expect(data.files[0].name).toBe('residio-backup-codes.txt');
+      expect(await data.files[0].text()).toContain('EEEE5555');
+    });
+
+    it('says nothing when the share sheet is closed, and shows an error when sharing fails', async () => {
+      const { toast } = await import('sonner');
+      vi.mocked(toast.error).mockClear();
+      const share = vi.fn().mockRejectedValueOnce(new DOMException('closed', 'AbortError')).mockRejectedValueOnce(new Error('denied'));
+      Object.assign(navigator, { canShare: () => true, share });
+      showCodes(['GGGG7777']);
+
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Share' })); });
+      expect(toast.error).not.toHaveBeenCalled();
+
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Share' })); });
+      expect(toast.error).toHaveBeenCalledWith('Could not share. Save the file instead.');
+    });
+
+    it.each([
+      ['Email me', 'email'],
+      ['WhatsApp me', 'whatsapp'],
+    ])('%s sends the shown codes by %s and toasts the result', async (label, channel) => {
+      const { toast } = await import('sonner');
+      vi.mocked(toast.success).mockClear();
+      vi.mocked(toast.error).mockClear();
+      showCodes(['HHHH8888', 'IIII9999']);
+
+      fireEvent.click(screen.getByRole('button', { name: label }));
+
+      const [input, opts] = mocks.hooks.send.mutate.mock.calls[0] as [unknown, MutateOptions];
+      expect(input).toEqual({ channel, codes: ['HHHH8888', 'IIII9999'] });
+      act(() => opts.onSuccess?.({ success: true, message: 'Backup codes sent to f***@example.com' }));
+      expect(toast.success).toHaveBeenCalledWith('Backup codes sent to f***@example.com');
+      act(() => opts.onError?.(new Error('These codes can no longer be sent. Make new backup codes.')));
+      expect(toast.error).toHaveBeenCalledWith('These codes can no longer be sent. Make new backup codes.');
+    });
+
+    it('disables Email me and WhatsApp me while a send is pending, and warns about inbox and chat access', () => {
+      mocks.hooks.send.isPending = true;
+      showCodes(['JJJJ0000']);
+      expect(screen.getByRole('button', { name: 'Email me' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'WhatsApp me' })).toBeDisabled();
+      expect(screen.getByText(/anyone who can open that inbox or chat can use the codes/i)).toBeInTheDocument();
+    });
+
+    it('hides Share when the device cannot share a file', () => {
+      Object.assign(navigator, { canShare: () => false, share: vi.fn() });
+      showCodes(['FFFF6666']);
+      expect(screen.getByRole('button', { name: 'Save as file' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Share' })).not.toBeInTheDocument();
+    });
   });
 
   it('hides Turn off without the disable permission', () => {

@@ -83,10 +83,10 @@ describe('Link a co-resident in the Assistant (#1072)', () => {
     for (const role of ['tenant', 'resident_landlord']) {
       const repo = repository([{ ...PALM, role }]);
       const replies = await chat(repo, ['1', PIN, '8']);
-      expect(replies[1]).toContain('8. Link a co-resident');
+      expect(replies[1]).toContain('8. 👥 Link a co-resident');
       expect(replies[1]).not.toContain('More');
       expect(replies[1]).not.toContain('10.');
-      expect(replies[2]).toBe(['Which co-resident?', '1. Bola Example', '2. Chidi Example', 'Reply with the number.'].join('\n'));
+      expect(replies[2]).toBe(['Which co-resident?', '', '1. Bola Example', '2. Chidi Example', '', 'Reply with the number.'].join('\n'));
       expect(repo.hasLinkedCoResident).toHaveBeenCalledWith(SPONSOR, 'house-1');
     }
   });
@@ -116,7 +116,7 @@ describe('Link a co-resident in the Assistant (#1072)', () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const repo = repository([PALM], { hasLinkedCoResident: vi.fn().mockRejectedValue(new Error('down')) });
     const replies = await chat(repo, ['1', PIN]);
-    expect(replies[1]).toContain('8. Link a co-resident');
+    expect(replies[1]).toContain('8. 👥 Link a co-resident');
     error.mockRestore();
   });
 
@@ -132,10 +132,10 @@ describe('Link a co-resident in the Assistant (#1072)', () => {
     const CEDAR: FinancialHouse = { id: 'house-2', label: '4 Cedar Way', role: 'tenant' };
     const many = await chat(repository([PALM, CEDAR]), ['1', PIN, '2', '10']);
     const menu = many[2];
-    expect(menu).toContain('Financial standing: 4 Cedar Way');
-    expect(menu).toContain('8. Link a co-resident');
-    expect(menu).toContain('10. Switch property (now: 4 Cedar Way)');
-    expect(menu.indexOf('8. Link')).toBeLessThan(menu.indexOf('10. Switch'));
+    expect(menu).toContain('💰 Financial standing: 4 Cedar Way');
+    expect(menu).toContain('8. 👥 Link a co-resident');
+    expect(menu).toContain('10. 🔄 Switch property (now: 4 Cedar Way)');
+    expect(menu.indexOf('8. 👥 Link')).toBeLessThan(menu.indexOf('10. 🔄 Switch'));
     expect(many[3]).toContain('Which property?');
 
     const one = await chat(repository([PALM]), ['1', PIN, '10']);

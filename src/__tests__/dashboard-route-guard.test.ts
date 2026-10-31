@@ -125,6 +125,8 @@ describe('dashboard route guard', () => {
             '/auth/verify-2fa',
             '/maintenance',
             '/privacy-policy',
+            '/guide',
+            '/guide/docs/release-notes',
             '/api/health/cron-status',
         ]) {
             expect(isPublicRoute(pathname), `${pathname} must be reachable without a session`).toBe(true);
@@ -137,5 +139,12 @@ describe('dashboard route guard', () => {
         expect(isPublicRoute('/')).toBe(true);
         expect(isPublicRoute('/residents')).toBe(false);
         expect(isPublicRoute('/nobody-has-built-this-yet')).toBe(false);
+    });
+
+    it('matches the public guide by path segment, not by prefix', () => {
+        expect(isPublicRoute('/guide')).toBe(true);
+        expect(isPublicRoute('/guide/assets/js/main.js')).toBe(true);
+        expect(isPublicRoute('/guides')).toBe(false);
+        expect(isPublicRoute('/guidelines/x')).toBe(false);
     });
 });

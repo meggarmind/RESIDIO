@@ -10,8 +10,15 @@ import {
 import { RegistryKpiStrip } from '@/components/dashboard/registry-kpi-strip';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Can } from '@/components/auth/can';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
+
+// useSearchParams needs its own Suspense boundary so the page can still prerender.
+function RegistryTable() {
+  return <ResidentsTable initialSearch={useSearchParams().get('search') ?? undefined} />;
+}
 
 export default function ResidentsPage() {
   // Use optimized stats query instead of fetching all residents
@@ -52,7 +59,9 @@ export default function ResidentsPage() {
       <EnhancedTableCard
         className="[&>div]:pt-4"
       >
-        <ResidentsTable />
+        <Suspense fallback={null}>
+          <RegistryTable />
+        </Suspense>
       </EnhancedTableCard>
     </div>
   );

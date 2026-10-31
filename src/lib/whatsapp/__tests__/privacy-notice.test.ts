@@ -49,6 +49,11 @@ describe('WhatsApp privacy notice', () => {
     vi.unstubAllEnvs();
   });
 
+  it('fills {{Version}} with the stored version and marks the notice as showing it', async () => {
+    withSettings({ whatsapp_privacy_notice_version: ' v2 ', whatsapp_privacy_notice_text: 'Policy (version {{Version}})' });
+    await expect(loadWhatsAppPrivacyNotice()).resolves.toEqual({ version: 'v2', text: 'Policy (version v2)', versionInText: true });
+  });
+
   it('uses assistant_name for {{App Assistant}} when set', async () => {
     withSettings({ whatsapp_privacy_notice_version: 'v1', whatsapp_privacy_notice_text: 'Hi from {{App Assistant}}', estate_name: 'Palm Estate', assistant_name: ' Ada ' });
     await expect(loadWhatsAppPrivacyNotice()).resolves.toEqual({ version: 'v1', text: 'Hi from Ada' });

@@ -52,7 +52,7 @@ describe('notifyResidentOfApprovalOutcome for a clearance request (#816)', () =>
 describe('notifyResidentOfApprovalOutcome (#816 decision 13)', () => {
   it('tells the resident the payment was confirmed', async () => {
     await notifyResidentOfApprovalOutcome(request, 'approved');
-    expect(sendWhatsAppToResident).toHaveBeenCalledWith('resident-1', 'Your payment of ₦50,000.00 on 12 Oct 2026 was confirmed.', { seed: 'approval:request-1:approved' });
+    expect(sendWhatsAppToResident).toHaveBeenCalledWith('resident-1', 'Your payment of ₦50,000.00 on 12 Oct 2026 was confirmed.', { seed: 'approval:request-1:approved', notice: 'payment_confirmed' });
     expect(closeReportedPayment).not.toHaveBeenCalled();
   });
 
@@ -64,13 +64,13 @@ describe('notifyResidentOfApprovalOutcome (#816 decision 13)', () => {
       wallet_payment_batches: [{ data: { wallet_payment_batch_items: [item({ house_number: '12', short_name: '12 Palm Close', street: null }), item({ house_number: '4', short_name: null, street: { name: 'Cedar Way' } }), item({ house_number: '12', short_name: '12 Palm Close', street: null })] }, error: null }],
     });
     await notifyResidentOfApprovalOutcome(request, 'approved');
-    expect(sendWhatsAppToResident).toHaveBeenCalledWith('resident-1', 'Your payment of ₦50,000.00 on 12 Oct 2026 was confirmed. It paid 12 Palm Close and 4, Cedar Way.', { seed: 'approval:request-1:approved' });
+    expect(sendWhatsAppToResident).toHaveBeenCalledWith('resident-1', 'Your payment of ₦50,000.00 on 12 Oct 2026 was confirmed. It paid 12 Palm Close and 4, Cedar Way.', { seed: 'approval:request-1:approved', notice: 'payment_confirmed' });
   });
 
   it.each(['rejected', 'expired'] as const)('closes the payment and tells the resident it could not be confirmed when %s', async (outcome) => {
     await notifyResidentOfApprovalOutcome(request, outcome);
     expect(closeReportedPayment).toHaveBeenCalledWith('payment-1');
-    expect(sendWhatsAppToResident).toHaveBeenCalledWith('resident-1', 'Your payment of ₦50,000.00 on 12 Oct 2026 could not be confirmed. Contact the estate office.', { seed: `approval:request-1:${outcome}` });
+    expect(sendWhatsAppToResident).toHaveBeenCalledWith('resident-1', 'Your payment of ₦50,000.00 on 12 Oct 2026 could not be confirmed. Contact the estate office.', { seed: `approval:request-1:${outcome}`, notice: 'payment_not_confirmed' });
   });
 
   it('ignores other request types', async () => {

@@ -62,6 +62,7 @@ describe('registry and page components agree', () => {
     'src/components/settings/banking/bank-accounts-section.tsx',
     'src/components/settings/banking/transaction-tags-section.tsx',
     'src/components/settings/banking/duplicate-matching-section.tsx',
+    'src/components/settings/banking/approval-limit-section.tsx',
   ];
   const source = components.map(read).join('\n');
 
@@ -85,9 +86,9 @@ describe('registry and page components agree', () => {
       'LateFeesSection',
       'LeviesSection',
     ]);
-    expect(order(`${PAGE_DIR}/banking/page.tsx`)).toEqual(['BankAccountsSection', 'TransactionTagsSection', 'DuplicateMatchingSection']);
+    expect(order(`${PAGE_DIR}/banking/page.tsx`)).toEqual(['BankAccountsSection', 'TransactionTagsSection', 'DuplicateMatchingSection', 'ApprovalLimitSection']);
     expect(item('/settings/billing').sections!.map((s) => s.id)).toEqual(['general', 'invoices', 'late-fees', 'levies']);
-    expect(item('/settings/banking').sections!.map((s) => s.id)).toEqual(['bank-accounts', 'tags', 'duplicate-matching']);
+    expect(item('/settings/banking').sections!.map((s) => s.id)).toEqual(['bank-accounts', 'tags', 'duplicate-matching', 'approval-limit']);
   });
 });
 
@@ -106,16 +107,22 @@ describe('permissions: each section keeps its own, the route is their OR (#791 d
     expect(new Set(page.permissions)).toEqual(union);
   });
 
-  it('keeps duplicate matching under system.manage_maintenance and the lists under settings.manage_reference', () => {
+  it('keeps duplicate matching under system.manage_maintenance and the lists under settings.manage_banking_reference or settings.manage_reference (#1286)', () => {
     const sections = item('/settings/banking').sections!;
     expect(sections.find((s) => s.id === 'duplicate-matching')?.permissions).toEqual([PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE]);
-    expect(sections.find((s) => s.id === 'bank-accounts')?.permissions).toEqual([PERMISSIONS.SETTINGS_MANAGE_REFERENCE]);
-    expect(sections.find((s) => s.id === 'tags')?.permissions).toEqual([PERMISSIONS.SETTINGS_MANAGE_REFERENCE]);
+    expect(sections.find((s) => s.id === 'bank-accounts')?.permissions).toEqual([PERMISSIONS.SETTINGS_MANAGE_BANKING_REFERENCE, PERMISSIONS.SETTINGS_MANAGE_REFERENCE]);
+    expect(sections.find((s) => s.id === 'tags')?.permissions).toEqual([PERMISSIONS.SETTINGS_MANAGE_BANKING_REFERENCE, PERMISSIONS.SETTINGS_MANAGE_REFERENCE]);
+  });
+
+  it('admits the financial officer to Banking only for the read-only Approval limit (#1283)', () => {
+    const sections = item('/settings/banking').sections!;
+    const withBilling = sections.filter((s) => s.permissions?.includes(PERMISSIONS.SETTINGS_MANAGE_BILLING)).map((s) => s.id);
+    expect(withBilling).toEqual(['approval-limit']);
   });
 
   it('keeps every old route key with its old permission (ADR-0004)', () => {
-    expect(ROUTE_PERMISSIONS['/settings/bank-accounts']).toEqual([PERMISSIONS.SETTINGS_MANAGE_REFERENCE]);
-    expect(ROUTE_PERMISSIONS['/settings/transaction-tags']).toEqual([PERMISSIONS.SETTINGS_MANAGE_REFERENCE]);
+    expect(ROUTE_PERMISSIONS['/settings/bank-accounts']).toEqual([PERMISSIONS.SETTINGS_MANAGE_BANKING_REFERENCE, PERMISSIONS.SETTINGS_MANAGE_REFERENCE]);
+    expect(ROUTE_PERMISSIONS['/settings/transaction-tags']).toEqual([PERMISSIONS.SETTINGS_MANAGE_BANKING_REFERENCE, PERMISSIONS.SETTINGS_MANAGE_REFERENCE]);
     expect(ROUTE_PERMISSIONS['/settings/maintenance']).toEqual([PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE]);
   });
 });

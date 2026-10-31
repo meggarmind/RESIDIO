@@ -10,7 +10,7 @@ vi.mock('@/lib/auth/authorize', () => ({ authorizePermission }));
 
 import { getSystemActionLog } from '@/actions/system/action-log';
 import { PERMISSIONS, ROUTE_PERMISSIONS } from '@/lib/auth/action-roles';
-import { ADMIN_NAV_SECTIONS } from '@/config/navigation';
+import { oversightConfig } from '@/config/oversight-nav';
 
 /** A chainable, awaitable stand-in for the PostgREST query builder. */
 function makeBuilder(result: { data: unknown[] | null; count: number | null; error: unknown }) {
@@ -127,8 +127,7 @@ describe('system action log gating', () => {
   });
 
   it('gates the nav item on the same permission', () => {
-    const items = ADMIN_NAV_SECTIONS.flatMap((s) => s.items);
-    const item = items.find((i) => i.href === '/system/action-log');
+    const item = oversightConfig.flatMap((g) => g.items).find((i) => i.href === '/system/action-log');
     expect(item?.permissions).toEqual([PERMISSIONS.SYSTEM_VIEW_SYSTEM_LOG]);
   });
 });

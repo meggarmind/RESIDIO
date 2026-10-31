@@ -7,9 +7,10 @@ import { cn } from '@/lib/utils';
 import { activeSettingsHref, flattenSettingsNav, type SettingsGroup } from '@/config/settings-nav';
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation';
 import { useSettingsNavState } from '@/hooks/use-settings-nav-state';
+import { useFitToMain } from '@/hooks/use-fit-to-main';
 import { Button } from '@/components/ui/button';
 import { ChevronRight, ChevronDown } from 'lucide-react';
-import { OpensSystemMark, SettingsSearchField, SettingsSearchResults, useSettingsSearch } from './settings-search';
+import { SettingsSearchField, SettingsSearchResults, useSettingsSearch } from './settings-search';
 import {
     Collapsible,
     CollapsibleContent,
@@ -45,28 +46,7 @@ export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
         setGroupOpen(title, !isOpen);
     };
 
-    // Sticks inside <main>, the only scroller in the h-dvh shell. A fixed height cannot fit both states: at the
-    // top of the page the aside starts below the title and its foot falls off screen. So fit it to what is
-    // visible of <main> on every scroll and resize; the class height is only the first-paint fallback.
-    const asideRef = React.useRef<HTMLElement>(null);
-    React.useLayoutEffect(() => {
-        const aside = asideRef.current;
-        const main = aside?.closest('main');
-        if (!aside || !main) return;
-        const fit = () => {
-            const visibleBottom = main.getBoundingClientRect().bottom - parseFloat(getComputedStyle(main).paddingBottom);
-            // Also stop at the row's foot: past it, sticky pushes the aside up and each fit would grow it again.
-            const rowBottom = aside.parentElement?.getBoundingClientRect().bottom ?? visibleBottom;
-            aside.style.height = `${Math.max(240, Math.min(visibleBottom, rowBottom) - aside.getBoundingClientRect().top)}px`;
-        };
-        fit();
-        main.addEventListener('scroll', fit, { passive: true });
-        window.addEventListener('resize', fit);
-        return () => {
-            main.removeEventListener('scroll', fit);
-            window.removeEventListener('resize', fit);
-        };
-    }, []);
+    const asideRef = useFitToMain<HTMLElement>();
 
     return (
         <aside ref={asideRef} className={cn("lg:w-56 xl:w-64 sticky top-0 flex h-[calc(100dvh-12rem)] flex-col gap-3", className)} {...props}>
@@ -126,7 +106,6 @@ export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
                                                             )}
                                                         >
                                                             {item.title}
-                                                            {item.opensSystem && <span className="ml-2 text-xs font-normal">Opens System</span>}
                                                         </p>
                                                         {item.children.map((child) => {
                                                             const active = child.href === activeHref;
@@ -137,14 +116,12 @@ export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
                                                                     size="sm"
                                                                     asChild
                                                                     className={cn(
-                                                                        // has-[>svg]: the Opens System arrow is an svg child, and the size's has-[>svg]:px-2.5 would win over a plain pl-12.
-                                                                        "h-auto min-h-8 py-1.5 w-full justify-start whitespace-normal text-left pl-12 has-[>svg]:pl-12",
+                                                                        "h-auto min-h-8 py-1.5 w-full justify-start whitespace-normal text-left pl-12",
                                                                         active && "bg-secondary/50 font-medium text-primary shadow-sm"
                                                                     )}
                                                                 >
                                                                     <Link href={child.href} aria-current={active ? 'page' : undefined}>
                                                                         {child.title}
-                                                                        {child.opensSystem && <OpensSystemMark />}
                                                                     </Link>
                                                                 </Button>
                                                             );

@@ -184,7 +184,7 @@ describe('uploadEstateLogo', () => {
     const { upload } = setup();
     const r = await uploadEstateLogo(form(makeFile(bytes, 'x.bin', 'application/octet-stream')));
     expect(r.error).toBeNull();
-    expect(upload.mock.calls[0][0]).toMatch(new RegExp(`\.${ext}$`));
+    expect(upload.mock.calls[0][0]).toMatch(new RegExp(`\\.${ext}$`));
     expect(upload.mock.calls[0][2].contentType).toBe(mime);
   });
 

@@ -42,9 +42,15 @@ Hostinger KVM 2  (x86, 2 vCPU, 8 GB RAM, 100 GB NVMe)
 └── Coolify (Traefik terminates TLS)
     ├── residio-prod   -> app.<domain>    -> Supabase project Residio_Prod
     ├── residio-stage-image -> stage.<domain> -> Supabase project Residio_Stage (CI-built GHCR image)
-    └── Scheduled tasks: the 11 scheduled cron routes (see "Scheduled tasks" below), on prod and stage
+    ├── residio-waha-stage  -> WAHA WhatsApp gateway for Stage (#1260); no app hostname, reached by the Stage app over HTTPS
+    └── Scheduled tasks: the 13 scheduled cron routes (see "Scheduled tasks" below), on prod and stage
 ```
 
+- `residio-waha-stage` is the self-hosted WAHA container (`devlikeapro/waha`, NOWEB engine) that the
+  `waha` WhatsApp provider talks to (ADR-0008). The Coolify service, its volume and the QR pairing are
+  set up by #1261, not by the app code. The app reaches it at the server address saved in **Settings
+  → WhatsApp**, and WAHA calls back to `/api/whatsapp/webhook/waha` on the Stage app. Its cron task is
+  `whatsapp-waha-reconcile` (see "The tasks"). There is no Prod WAHA service yet.
 - Builds run on the VPS (8 GB covers Coolify ~1 GB, two app containers ~0.5-1 GB each, and a
   2-4 GB build spike). x86, so no ARM image concern.
 - One image per environment: `NEXT_PUBLIC_*_CLOUD` values are inlined at build time
@@ -57,7 +63,7 @@ Hostinger KVM 2  (x86, 2 vCPU, 8 GB RAM, 100 GB NVMe)
 ## Scheduled tasks (#399)
 
 `vercel.json` was the only definition of Residio's schedules and is inert off Vercel, so it has
-been removed. The eleven schedules now live as **Coolify scheduled tasks on both the `residio-prod`
+been removed. The thirteen schedules now live as **Coolify scheduled tasks on both the `residio-prod`
 and the `residio-stage-image` application**, with the same container, frequency and command on each.
 Stage's 11 Coolify scheduled tasks are attached to `residio-stage-image` (moved from the
 stopped `residio-stage`, #1114). Coolify configuration is not in the repo, so this section is the record; if a task is changed in
@@ -102,16 +108,25 @@ read from the container's environment by the command, so it is never written int
 | Route | Cron (UTC) | Timeout (ms) |
 |---|---|---|
 | `publish-announcements` | `0 * * * *` | 300000 |
-| `fetch-emails` | `0 * * * *` | 300000 |
+| `fetch-emails` | `*/5 * * * *` | 300000 |
 | `refresh-payment-cadence` | `0 0 * * *` | 300000 |
 | `whatsapp-retention` | `15 0 * * *` | 60000 |
 | `purge-performance-events` | `30 0 * * *` | 60000 |
 | `whatsapp-chatmaid-reconcile` | `*/15 * * * *` | 120000 |
+| `whatsapp-waha-reconcile` | `*/15 * * * *` | 120000 |
+| `whatsapp-waha-group-sync` | `30 1 * * *` | 120000 |
 | `generate-invoices` | `0 6 * * *` | 300000 |
 | `process-report-schedules` | `0 7 * * *` | 300000 |
 | `payment-reminders` | `0 8 * * *` | 120000 |
 | `process-notifications` | `*/15 * * * *` | 60000 |
 | `expire-approvals` | `0 * * * *` | 60000 |
+| `whatsapp-admin-weekly` | `0 6 * * 1` | 120000 |
+
+`fetch-emails` runs every 5 minutes (#1340), so a bank alert that passes the sender check and is at
+or below the auto-process limit is recorded as a payment within minutes. Change it on Stage first,
+and on Prod after the release that ships #1340. A run that takes the full 300 s can overlap the next
+one; each transaction is claimed before its payment is created, so an overlap cannot record an alert
+twice.
 
 `process-notifications` runs every 15 minutes (#546), not daily: a transient send failure is put
 back on the queue with a backoff of 15 minutes, 1 hour, 6 hours, then 24 hours (or until the
@@ -137,7 +152,7 @@ Only the route and the timeout differ between tasks.
 # publish-announcements  (0 * * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/publish-announcements',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(300000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
 
-# fetch-emails  (0 * * * *)
+# fetch-emails  (*/5 * * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/fetch-emails',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(300000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
 
 # refresh-payment-cadence  (0 0 * * *)
@@ -148,6 +163,12 @@ node -e "fetch('http://127.0.0.1:3000/api/cron/whatsapp-retention',{headers:{Aut
 
 # whatsapp-chatmaid-reconcile  (*/15 * * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/whatsapp-chatmaid-reconcile',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(120000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
+
+# whatsapp-waha-reconcile  (*/15 * * * *)
+node -e "fetch('http://127.0.0.1:3000/api/cron/whatsapp-waha-reconcile',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(120000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
+
+# whatsapp-waha-group-sync  (30 1 * * *)
+node -e "fetch('http://127.0.0.1:3000/api/cron/whatsapp-waha-group-sync',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(120000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
 
 # generate-invoices  (0 6 * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/generate-invoices',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(300000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
@@ -160,6 +181,9 @@ node -e "fetch('http://127.0.0.1:3000/api/cron/payment-reminders',{headers:{Auth
 
 # expire-approvals  (0 * * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/expire-approvals',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(60000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
+
+# whatsapp-admin-weekly  (0 6 * * 1)
+node -e "fetch('http://127.0.0.1:3000/api/cron/whatsapp-admin-weekly',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(120000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
 
 # purge-performance-events  (30 0 * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/purge-performance-events',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(60000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
@@ -178,6 +202,9 @@ node -e "fetch('http://127.0.0.1:3000/api/cron/process-notifications',{headers:{
 | 60 s | `process-notifications` | Declared `maxDuration`. |
 | 60 s | `expire-approvals` | One read, one set-based UPDATE inside `process_expired_approvals()` and one in-app notification per expired request (#558). Hourly, so the backlog is small. New route: the owner must create this Coolify task; nothing runs it until then. |
 | 120 s | `whatsapp-chatmaid-reconcile` | New route (#511): at most 3 Chatmaid list calls (15 s timeout each) plus the Assistant reply for any message the webhook missed. Nothing runs it until the owner creates this Coolify task. |
+| 120 s | `whatsapp-waha-reconcile` | New route (#1262): at most 3 WAHA message-store reads (15 s timeout each) plus the Assistant reply for any message the webhook missed. It does nothing unless WAHA is the active provider. Nothing runs it until the owner creates this Coolify task. |
+| 120 s | `whatsapp-waha-group-sync` | New route (#1325): one participant read of the estate group (15 s timeout), at most one `groups/refresh` a day, and one LID lookup (10 s timeout, 10 at a time) for each member whose number is not yet stored. It does nothing unless WAHA is the active provider and an estate group is chosen. Nothing runs it until the owner creates this Coolify task. |
+| 120 s | `whatsapp-admin-weekly` | New route (#1298): two reads over the past 7 days and one email per active Chairman. It runs Monday 07:00 Lagos time and covers the 7 whole Lagos days before it (Monday to Sunday). It answers HTTP 500 (logged as a failure, so the Coolify task fails) when no active Chairman has an email address. Nothing runs it until the owner creates this Coolify task. |
 | 60 s | `purge-performance-events` | New route (#957): one `DELETE ... WHERE occurred_at < now() - 30 days` on `performance_events`. Nothing runs it until the owner creates this Coolify task. |
 | 60 s | `whatsapp-retention` | **Previously undeclared.** Four bulk `DELETE ... WHERE <timestamp> < cutoff` statements run in parallel (`src/lib/whatsapp/retention.ts`) and nothing else; it runs daily so the backlog is small. Anything near 60 s means something is wrong. |
 
@@ -187,13 +214,13 @@ the app logs and the run history before re-triggering anything that creates reco
 
 ### Not scheduled: `apply-late-fees`
 
-There are twelve cron routes and **eleven** schedules. `src/app/api/cron/apply-late-fees` exists and
+There are fourteen cron routes and **thirteen** schedules. `src/app/api/cron/apply-late-fees` exists and
 authenticates like the others, but it has **never had a `vercel.json` entry** (its handler comment
 says "7 AM UTC daily (configured in vercel.json)"; that was never true), so late fees have never
 run on a schedule in any environment. It was left unscheduled because #399 listed nine schedules.
 Whether to schedule it (the handler's comment suggests `0 7 * * *`) is an owner decision rather
-than an infrastructure one, because it starts charging residents. If the owner says yes, add an
-eleventh task with the same command (300000 ms) and update this table.
+than an infrastructure one, because it starts charging residents. If the owner says yes, add a
+fourteenth task with the same command (300000 ms) and update this table.
 
 ### Failure visibility (owner, in Coolify)
 
@@ -201,6 +228,14 @@ Enable **scheduled-task failure notifications** to the owner (Coolify: Notificat
 scheduled-task failure event on a channel that is actually read). Without this a failed job is
 silent from the user side. Each task also records its executions in the application's Scheduled
 Tasks tab; check that after the first run.
+
+Do not send scheduled-task failures by email when Coolify's email uses the app's Resend team. Each
+failed run is one email, so a task that fails every 5 minutes sends about 288 a day and uses the
+100/day quota (28 Oct 2026, #1268). Use Telegram or Discord for that event.
+
+`whatsapp-chatmaid-reconcile` exits 0 when Chatmaid refuses the key (HTTP 401/403), so it does not
+alert every run. The refusal and Chatmaid's reason still go to the System log as a failure
+(source `cron:whatsapp-chatmaid-reconcile`).
 
 ### Triggering a job by hand against stage
 
@@ -387,6 +422,13 @@ are covered by `src/__tests__/integration/backup-retention.test.ts`.
 
 Weekly: a small query against `Residio_Stage` so it does not pause.
 
+### WAHA session volume (KVM)
+
+The WhatsApp link lives in a Docker volume on the KVM, which GitHub runners cannot reach, so it
+is not part of `backup-database.yml`. It is backed up by `scripts/backup/waha-sessions-backup.sh`
+from the `claude` user's crontab (#1337). Setup, cron line and restore are in
+"WAHA session volume: backup and restore" in the next section.
+
 ### Known traps
 
 
@@ -502,6 +544,67 @@ For the files mirror, `rclone ls` through a crypt remote built with the same two
 - [ ] **Owner has run the test restore above once and the data came back. #415 is not done until this is ticked.**
 - [ ] A second test restore is scheduled for three months out
 - [ ] R2 lifecycle rule "abort incomplete multipart uploads after 1 day" set on the backup bucket (see "Retention and size guards")
+
+### WAHA session volume: backup and restore
+
+**What and why.** The Stage WAHA session volume `kcaayyjlk7mxojspks56ziwe-waha-stage-sessions`
+(mounted at `/app/.sessions`, about 40 MB) holds the WhatsApp link for the estate number: NOWEB
+credentials, pre-keys and LID mappings. If the volume or the KVM is lost, the Assistant stops
+until the handset is re-paired by QR code. `scripts/backup/waha-sessions-backup.sh stage` runs
+`docker exec <container> tar -C /app -czf - .sessions`, pipes the stream straight into `age`
+(no plaintext archive touches disk) and uploads it to
+`R2:<bucket>/waha/stage/daily/YYYY-MM-DD.tar.gz.age`. It checks the uploaded size, copies the first
+backup of each month to `monthly/YYYY-MM.tar.gz.age`, then keeps the newest 30 daily and 12
+monthly (`KEEP_DAILY` / `KEEP_MONTHLY`). Any failure posts one message to the Coolify Discord
+channel, using the webhook URL in `~/.config/waha-watch/discord-webhook`. Prod has no WAHA
+container yet: `prod` is refused until `WAHA_APP_UUID` is set.
+
+**Setup on the KVM (owner, once).**
+
+1. Create a NEW R2 API token with **Object Read & Write**, scoped to the backup bucket only
+   (owner decision, 29 Oct 2026). Do not reuse the GitHub Actions token.
+2. Create `~/.config/residio-backup/waha-stage.env` with mode **600** (the script refuses a wider
+   mode) holding `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` and
+   `BACKUP_AGE_PUBLIC_KEY` (the same `age1...` public key the database dumps use). Never commit it.
+3. Run `scripts/backup/install-tools-user.sh` once. It installs pinned `rclone` and `age` into
+   `~/.local/bin` with no sudo, verifying rclone against its SHA256SUMS and age against the sha256
+   pinned in the script.
+4. The cron job runs from a dedicated checkout of `stage`, not from the shared working checkout
+   (whose branch changes between sessions). Create it once:
+   `git clone --branch stage --single-branch https://github.com/meggarmind/RESIDIO.git /home/claude/residio-ops`.
+   After every change to `scripts/backup`, update it with
+   `git -C /home/claude/residio-ops pull --ff-only`.
+5. After the PR merges into `stage`, the coordinator installs this crontab line:
+
+```cron
+53 1 * * * /home/claude/residio-ops/scripts/backup/waha-sessions-backup.sh stage >> /home/claude/.config/residio-backup/waha-stage.log 2>&1
+```
+
+**Restore.** A snapshot can be up to a day old. If WhatsApp rejects it, re-pair by QR instead.
+
+```bash
+# 1. In Coolify, stop residio-waha-stage.
+
+# 2. Fetch the chosen archive and decrypt it with the private key from the password manager
+#    The remote is `R2` (case-sensitive); it exists only after r2-env.sh defines it from the env file.
+export PATH="$HOME/.local/bin:$PATH"
+set -a; . ~/.config/residio-backup/waha-stage.env; set +a
+. /home/claude/residio-ops/scripts/backup/r2-env.sh
+rclone copy "R2:${R2_BUCKET}/waha/stage/daily/<YYYY-MM-DD>.tar.gz.age" .
+age -d -i residio-backup.agekey -o sessions.tar.gz <YYYY-MM-DD>.tar.gz.age
+
+# 3. Clear the volume, then extract into it
+docker run --rm -v kcaayyjlk7mxojspks56ziwe-waha-stage-sessions:/app/.sessions alpine \
+  sh -c 'rm -rf /app/.sessions/* /app/.sessions/.[!.]*'
+docker run --rm -v kcaayyjlk7mxojspks56ziwe-waha-stage-sessions:/app/.sessions \
+  -v "$PWD":/restore:ro alpine tar -xzf /restore/sessions.tar.gz -C /app
+
+# 4. Start residio-waha-stage in Coolify, then confirm GET /api/sessions shows `default` WORKING
+#    (the volume should contain .sessions/noweb/default/).
+
+# 5. Delete sessions.tar.gz and the private key copy.
+```
+
 
 ## KVM setup runbook (Coolify)
 

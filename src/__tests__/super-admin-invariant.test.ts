@@ -149,7 +149,8 @@ describe('super_admin invariant — the readable error', () => {
     // 2026-09-04), so the app path to deleting it is already closed. The
     // app_roles trigger exists for the direct-database path, not this one.
     expect(rolesIndexSource).toMatch(
-      /role\?\.is_system_role[\s\S]{0,80}Cannot delete system roles/
+      // #1318: the role read now fails closed, so `role` is known to be present here.
+      /role\??\.is_system_role[\s\S]{0,80}Cannot delete system roles/
     );
   });
 });

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { safeNextPath } from '@/lib/auth/safe-next-path';
+import { useAuth } from '@/lib/auth/auth-provider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from '@/components/ui/input-otp';
@@ -12,10 +13,16 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 
 type TwoFactorMethod = 'sms' | 'authenticator' | 'email';
 
+// After a correct code, access can take a moment to become readable, so the
+// load is tried a few times before the error and Retry are shown (#1341).
+const ACCESS_LOAD_ATTEMPTS = 3;
+const ACCESS_RETRY_DELAY_MS = 1000;
+
 export function Verify2FAForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
+  const { refreshProfile } = useAuth();
 
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -26,6 +33,7 @@ export function Verify2FAForm() {
   const [useBackupCode, setUseBackupCode] = useState(false);
   const [codeSent, setCodeSent] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [accessState, setAccessState] = useState<'idle' | 'loading' | 'failed'>('idle');
 
   // Strict same-origin allow-list; anything else becomes /dashboard (#455).
   const redirectTo = safeNextPath(
@@ -108,6 +116,22 @@ export function Verify2FAForm() {
     }
   };
 
+  // Enter the app only once the access rows have loaded, so the sidebar never
+  // renders from an empty pre-2FA profile (#1341).
+  const loadAccessAndEnter = async () => {
+    setAccessState('loading');
+    for (let attempt = 1; attempt <= ACCESS_LOAD_ATTEMPTS; attempt++) {
+      if (await refreshProfile()) {
+        router.push(redirectTo);
+        return;
+      }
+      if (attempt < ACCESS_LOAD_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, ACCESS_RETRY_DELAY_MS * attempt));
+      }
+    }
+    setAccessState('failed');
+  };
+
   const handleVerify = async () => {
     if (!userId || code.length !== (useBackupCode ? 8 : 6)) return;
 
@@ -131,8 +155,7 @@ export function Verify2FAForm() {
         setError(result.message);
         setCode('');
       } else {
-        // Verification successful, redirect
-        router.push(redirectTo);
+        await loadAccessAndEnter();
       }
     } catch {
       setError('Verification failed. Please try again.');
@@ -169,6 +192,33 @@ export function Verify2FAForm() {
         return 'Enter your verification code.';
     }
   };
+
+  if (accessState !== 'idle') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          {accessState === 'loading' ? (
+            <CardContent className="flex flex-col items-center justify-center gap-3 py-8" role="status">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Loading your access</p>
+            </CardContent>
+          ) : (
+            <CardContent className="space-y-4 py-6">
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Your code was accepted, but we could not load your access. Try again.
+                </AlertDescription>
+              </Alert>
+              <Button onClick={loadAccessAndEnter} className="w-full">
+                Retry
+              </Button>
+            </CardContent>
+          )}
+        </Card>
+      </div>
+    );
+  }
 
   if (!method) {
     return (

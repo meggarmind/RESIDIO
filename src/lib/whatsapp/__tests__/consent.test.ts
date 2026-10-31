@@ -91,7 +91,7 @@ describe('identity read-back (#871 step 1)', () => {
     const { result, bodies, onIdentified } = await run('OWE', repo);
 
     expect(result.status).toBe('consent_pending');
-    expect(bodies).toEqual(["This number is registered to Ada E. on Palm Street. Is that you?\n1. Yes, that's me\n2. No, not me"]);
+    expect(bodies).toEqual(["This number is registered to Ada E. on Palm Street. Is that you?\n\n1. Yes, that's me\n2. No, not me"]);
     expect(bodies[0]).not.toContain('Example');
     expect(repo.saveConsentStep).toHaveBeenCalledWith(PHONE, 'resident-1', `identity:${FINGERPRINT}`, 'OWE');
     expect(repo.recordConsentDecision).not.toHaveBeenCalled();
@@ -137,6 +137,15 @@ describe('identity read-back (#871 step 1)', () => {
     expect(send.mock.calls[0][0].body).toBe('Full notice\n\n_Version v1_\n\n1. Accept\n2. Decline');
     expect(repo.saveConsentStep).toHaveBeenCalledWith(PHONE, 'resident-1', 'privacy:resident-1:v1', 'OWE');
     expect(onIdentified).not.toHaveBeenCalled();
+  });
+
+  it('adds no version line when the notice shows the version itself', async () => {
+    const repo = repository(state({ step: `identity:${FINGERPRINT}` }), {
+      getPrivacyNotice: vi.fn().mockResolvedValue({ version: 'v1', text: 'Read the policy (version v1)', versionInText: true }),
+    });
+    const { send } = await run('1', repo);
+
+    expect(send.mock.calls[0][0].body).toBe('Read the policy (version v1)\n\n1. Accept\n2. Decline');
   });
 
   it('asks again when the roster record changes', async () => {
@@ -251,7 +260,7 @@ describe('"No, not me" (#871 step 2)', () => {
     expect(repo.markDisputed).toHaveBeenCalledWith(PHONE, 'resident-1');
     expect(repo.notifyDisputed).toHaveBeenCalledWith(PHONE, 'resident-1');
     expect(repo.saveConsentStep).toHaveBeenCalledWith(PHONE, 'resident-1', null, null);
-    expect(bodies).toEqual([`${NOT_ME_REPLY}\n${CONTACT}`]);
+    expect(bodies).toEqual([`${NOT_ME_REPLY}\n\n${CONTACT}`]);
     expect(onIdentified).not.toHaveBeenCalled();
   });
 
@@ -266,7 +275,7 @@ describe('"No, not me" (#871 step 2)', () => {
 
     const link = await run('LINK 123456', repo);
     expect(link.result.status).toBe('disputed');
-    expect(link.bodies).toEqual([`${NOT_ME_REPLY}\n${CONTACT}`]);
+    expect(link.bodies).toEqual([`${NOT_ME_REPLY}\n\n${CONTACT}`]);
     expect(repo.consumeLinkToken).not.toHaveBeenCalled();
     expect(repo.attachPendingContact).not.toHaveBeenCalled();
 
@@ -282,7 +291,7 @@ describe('"No, not me" (#871 step 2)', () => {
     const { result, bodies, onIdentified } = await run('OWE', repo);
 
     expect(result.status).toBe('disputed');
-    expect(bodies[0]).toBe(`${NOT_ME_REPLY}\n${CONTACT}`);
+    expect(bodies[0]).toBe(`${NOT_ME_REPLY}\n\n${CONTACT}`);
     expect(bodies[0]).not.toContain('Ada');
     expect(onIdentified).not.toHaveBeenCalled();
   });
@@ -359,7 +368,7 @@ describe('privacy notice (#871 steps 3-7)', () => {
     expect(result.status).toBe('declined');
     expect(repo.recordConsentDecision).toHaveBeenCalledWith(expect.objectContaining({ decision: 'privacy_declined', noticeVersion: 'v1' }));
     expect(repo.saveConsentStep).toHaveBeenCalledWith(PHONE, 'resident-1', null, null);
-    expect(bodies).toEqual([`${DECLINED_REPLY}\n${CONTACT}\n${ACCEPT_ANY_TIME}`]);
+    expect(bodies).toEqual([`${DECLINED_REPLY}\n\n${CONTACT}\n\n${ACCEPT_ANY_TIME}`]);
     expect(onIdentified).not.toHaveBeenCalled();
   });
 

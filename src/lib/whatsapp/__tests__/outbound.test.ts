@@ -104,19 +104,24 @@ describe('WhatsApp outbound producers', () => {
       ]);
     });
 
-    it('defaults missing reference to Not provided', () => {
-      const item = buildPaymentReceivedWhatsApp({
-        paymentId: 'pay-no-ref',
-        residentId: 'res-4',
-        residentPhone: '+2348000000000',
-        residentName: 'Uche',
-        amount: 20000,
-        paymentDate: '2026-01-01',
-      });
-      const template = (item.metadata as Record<string, unknown>)
-        ?.whatsapp_template as Record<string, unknown>;
-      expect((template.parameters as string[])[3]).toBe('Not provided');
-    });
+    it.each([undefined, null, ''])(
+      'uses the receipt number when the reference is %j (#1356)',
+      (referenceNumber) => {
+        const item = buildPaymentReceivedWhatsApp({
+          paymentId: '273328f9-068a-43a9-aa2b-0c9f9122e8e4',
+          residentId: 'res-4',
+          residentPhone: '+2348000000000',
+          residentName: 'Uche',
+          amount: 20000,
+          paymentDate: '2026-01-01',
+          referenceNumber,
+        });
+        const template = (item.metadata as Record<string, unknown>)
+          ?.whatsapp_template as Record<string, unknown>;
+        // The RCP- form the email and PDF receipts print for the same payment.
+        expect((template.parameters as string[])[3]).toBe('RCP-273328F9');
+      }
+    );
 
     it('uses the approved payment_received template name', () => {
       const item = buildPaymentReceivedWhatsApp({

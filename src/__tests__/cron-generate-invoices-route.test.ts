@@ -78,7 +78,7 @@ describe('cron generate-invoices route catch-up (#638)', () => {
     expect(mocks.prepareInvoiceGenerationRunCore.mock.calls[0][0]).toMatchObject({
       targetMonth: '2026-10-01',
       trigger: 'cron',
-      walletAllocation: false,
+      walletAllocation: true,
       sendEmails: false,
       assessLateFees: false,
     });

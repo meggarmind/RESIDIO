@@ -1,20 +1,19 @@
 import { randomUUID } from 'node:crypto';
-import { getEstateLogoUrl } from '@/lib/branding/estate-logo-server';
 import { usableEstateLogoUrl } from '@/lib/branding/estate-logo';
 import { createElement } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { renderToBuffer } from '@react-pdf/renderer';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getRawSettingsAsService } from '@/lib/settings/service';
 import { loadAccountStatement, type AccountStatementData } from '@/lib/billing/account-statement-data';
 import { isResidentRollForwardEnabled } from '@/lib/billing/account-balance';
-import { AccountStatementPDF } from '@/lib/pdf/account-statement';
+import { renderStatementPdf, statementEstateName as estateName } from '@/lib/billing/statement-pdf';
 import { WhatsAppStatementEmail } from '@/emails/whatsapp-statement';
 import { addToQueue, PRIORITY } from '@/lib/notifications/queue';
+import { matchProviderMessageId } from '@/lib/whatsapp/outbound-sends';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
 import { getSponsoredHouses } from '@/lib/whatsapp/co-resident';
-import { earliestMoveIn, formatDay, formatNaira, offeredPeriods, PERIOD_LABELS, statementDates, type StatementPeriod } from '@/lib/whatsapp/assistant-format';
+import { earliestMoveIn, formatDay, formatNaira, maskEmail, offeredPeriods, PERIOD_LABELS, spaceOut, statementDates, type StatementPeriod } from '@/lib/whatsapp/assistant-format';
 
 /**
  * Statement PDF delivery for the WhatsApp Assistant (#804 decision 24, #917): every statement is a
@@ -50,11 +49,7 @@ export interface StatementRequestInput {
   inboundMessageId: string;
 }
 
-export async function estateName(): Promise<string> {
-  const settings = await getRawSettingsAsService(['estate_name']);
-  const value = settings.status === 'ok' ? settings.values.get('estate_name') : null;
-  return typeof value === 'string' && value.trim() ? value.trim() : 'Residio Estate';
-}
+export { estateName };
 
 /**
  * The admin account statement for one resident and house, read with the service-role client.
@@ -104,16 +99,6 @@ export async function loadWhatsAppStatementForPeriod(residentId: string, houseId
   if (period === 'since_move_in' && !moveIn) return null;
   const { fromDate, toDate } = statementDates(period, now, moveIn);
   return { fromDate, toDate, statement: await loadWhatsAppStatement(residentId, houseId, fromDate, toDate) };
-}
-
-async function estateAddress(): Promise<string> {
-  const settings = await getRawSettingsAsService(['estate_address']);
-  const value = settings.status === 'ok' ? settings.values.get('estate_address') : null;
-  return typeof value === 'string' ? value.trim() : '';
-}
-
-async function renderStatementPdf(statement: AccountStatementData): Promise<Buffer> {
-  return renderToBuffer(AccountStatementPDF({ data: statement, estateName: await estateName(), estateAddress: await estateAddress(), estateLogoUrl: await getEstateLogoUrl() }));
 }
 
 async function signedUrl(path: string): Promise<string> {
@@ -216,14 +201,25 @@ export async function queueStatementEmail(requestId: string, residentId: string,
   if (error) throw error;
 }
 
-/** Moves a statement request from `queued` to `sent` once its email has left; a cancelled request stays cancelled. */
-export async function markStatementEmailSent(requestId: string): Promise<void> {
-  const { error } = await db()
+/** Moves a statement request from `queued` to `sent` once its email has left; a cancelled request stays cancelled. True when a row moved. */
+export async function markStatementEmailSent(requestId: string): Promise<boolean> {
+  return moveQueuedStatementRequest(requestId, 'sent');
+}
+
+/** Moves a statement request from `queued` to `failed` once its email has no send attempt left (#1252). True when a row moved. */
+export async function markStatementEmailFailed(requestId: string): Promise<boolean> {
+  return moveQueuedStatementRequest(requestId, 'failed');
+}
+
+async function moveQueuedStatementRequest(requestId: string, status: 'sent' | 'failed'): Promise<boolean> {
+  const { data, error } = await db()
     .from('whatsapp_statement_requests')
-    .update({ status: 'sent', updated_at: new Date().toISOString() })
+    .update({ status, updated_at: new Date().toISOString() })
     .eq('id', requestId)
-    .eq('status', 'queued');
+    .eq('status', 'queued')
+    .select('id');
   if (error) throw error;
+  return (data ?? []).length > 0;
 }
 
 /**
@@ -309,12 +305,11 @@ export async function buildStatementEmail(requestId: string) {
  */
 export async function retryFailedStatementSend(provider: string, providerMessageId: string): Promise<boolean> {
   const client = db();
-  const { data: send, error: sendError } = await client
-    .from('whatsapp_outbound_sends')
-    .select('inbound_message_id')
-    .eq('provider', provider)
-    .eq('provider_message_id', providerMessageId)
-    .maybeSingle();
+  const { data: send, error: sendError } = await matchProviderMessageId(
+    client.from('whatsapp_outbound_sends').select('inbound_message_id'),
+    provider,
+    providerMessageId
+  ).maybeSingle();
   if (sendError) throw sendError;
   const inboundMessageId = (send as { inbound_message_id: string | null } | null)?.inbound_message_id;
   if (!inboundMessageId) return false;
@@ -336,7 +331,7 @@ export async function retryFailedStatementSend(provider: string, providerMessage
   const override = await resolveResidentOverride([request.resident_id]);
   if (!override.ok) throw new Error(override.error);
   const result = await sendWhatsAppMessage(
-    { to: request.phone_number, body: request.reply_text, idempotencySeed: `${inboundMessageId}:statement-retry`, mediaUrls: [await signedUrl(request.storage_path)] },
+    { to: request.phone_number, body: spaceOut(request.reply_text), idempotencySeed: `${inboundMessageId}:statement-retry`, mediaUrls: [await signedUrl(request.storage_path)] },
     undefined,
     { residentOverride: override.residentOverride },
     { residentId: request.resident_id, inboundMessageId }
@@ -368,4 +363,60 @@ export async function purgeExpiredStatementFiles(now = new Date()): Promise<numb
     .in('id', rows.map((row) => row.id));
   if (updateError) throw updateError;
   return rows.length;
+}
+
+/**
+ * One WhatsApp notice about a statement email (#1252). Sent directly, like retryFailedStatementSend,
+ * so the communications override applies (#716). A failed notice is logged and never thrown: the
+ * email is already out or already failed, and a retry of the queue row would send the email twice.
+ */
+async function sendStatementEmailNotice(requestId: string, seedSuffix: string, lines: (estatePhone: string | undefined) => string[]): Promise<boolean> {
+  try {
+    const client = db();
+    const { data, error } = await client
+      .from('whatsapp_statement_requests')
+      .select('resident_id, phone_number, house_id, period, from_date, to_date')
+      .eq('id', requestId)
+      .single();
+    if (error || !data) throw error ?? new Error('Statement request not found');
+    const request = data as RequestRow & { phone_number: string };
+
+    let property = 'your property';
+    if (request.house_id) {
+      const { data: house } = await client.from('houses').select('short_name, address').eq('id', request.house_id).maybeSingle();
+      const row = house as { short_name: string | null; address: string | null } | null;
+      property = row?.short_name || row?.address || property;
+    }
+    const settings = await getRawSettingsAsService(['estate_phone']);
+    const rawPhone = settings.status === 'ok' ? settings.values.get('estate_phone') : null;
+    const estatePhone = typeof rawPhone === 'string' && rawPhone.trim() ? rawPhone.trim() : undefined;
+    const periodLabel = `${PERIOD_LABELS[request.period]}, ${formatDay(request.from_date)} to ${formatDay(request.to_date)}`;
+
+    const override = await resolveResidentOverride([request.resident_id]);
+    if (!override.ok) throw new Error(override.error);
+    const result = await sendWhatsAppMessage(
+      { to: request.phone_number, body: spaceOut([`*Statement, ${periodLabel}, ${property}*`, ...lines(estatePhone), 'Reply 0 for menu'].join('\n')), idempotencySeed: `${requestId}:${seedSuffix}` },
+      undefined,
+      { residentOverride: override.residentOverride },
+      { residentId: request.resident_id }
+    );
+    if (!result.success) throw new Error(result.error);
+    return true;
+  } catch (error) {
+    console.error('[whatsapp-statement] Email notice not sent:', { requestId, seedSuffix, error });
+    return false;
+  }
+}
+
+/** Tells the resident their statement PDF was emailed, naming the address on file masked. */
+export function sendStatementEmailedNotice(requestId: string, email: string): Promise<boolean> {
+  return sendStatementEmailNotice(requestId, 'statement-emailed', () => [`Your PDF was emailed to ${maskEmail(email)}.`]);
+}
+
+/** Tells the resident their statement email could not be sent, with the estate office number when set. */
+export function sendStatementEmailFailedNotice(requestId: string): Promise<boolean> {
+  return sendStatementEmailNotice(requestId, 'statement-email-failed', (estatePhone) => [
+    'Sorry, we could not email your statement.',
+    ...(estatePhone ? [`Please contact the estate office on ${estatePhone}.`] : []),
+  ]);
 }

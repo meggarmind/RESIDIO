@@ -20,7 +20,7 @@ const state = vi.hoisted(() => ({
     authorized: true,
     userId: 'caller',
     roleName: 'treasurer' as string | null,
-    roleId: 'r-treasurer' as string | null,
+    roleId: '00000000-0000-4000-8000-0000000000a4' as string | null,
     permissions: [] as string[],
     error: null as string | null,
   },
@@ -125,12 +125,12 @@ import { toggleImpersonationEnabled } from '@/actions/impersonation/approval';
 const TARGET = '22222222-2222-4222-8222-222222222222';
 
 const ROLES: Record<string, Row> = {
-  super_admin: { id: 'r-sa', name: 'super_admin', display_name: 'Super Admin', is_active: true, is_system_role: true },
-  chairman: { id: 'r-ch', name: 'chairman', display_name: 'Chairman', is_active: true, is_system_role: true },
-  secretary: { id: 'r-sec', name: 'secretary', display_name: 'Secretary', is_active: true, is_system_role: true },
-  treasurer: { id: 'r-treasurer', name: 'treasurer', display_name: 'Treasurer', is_active: true, is_system_role: false },
-  auditor: { id: 'r-auditor', name: 'auditor', display_name: 'Auditor', is_active: true, is_system_role: false },
-  trustee: { id: 'r-tr', name: 'trustee', display_name: 'Trustee', is_active: true, is_system_role: true },
+  super_admin: { id: '00000000-0000-4000-8000-0000000000a1', name: 'super_admin', display_name: 'Super Admin', is_active: true, is_system_role: true },
+  chairman: { id: '00000000-0000-4000-8000-0000000000a2', name: 'chairman', display_name: 'Chairman', is_active: true, is_system_role: true },
+  secretary: { id: '00000000-0000-4000-8000-0000000000a3', name: 'secretary', display_name: 'Secretary', is_active: true, is_system_role: true },
+  treasurer: { id: '00000000-0000-4000-8000-0000000000a4', name: 'treasurer', display_name: 'Treasurer', is_active: true, is_system_role: false },
+  auditor: { id: '00000000-0000-4000-8000-0000000000a5', name: 'auditor', display_name: 'Auditor', is_active: true, is_system_role: false },
+  trustee: { id: '00000000-0000-4000-8000-0000000000a6', name: 'trustee', display_name: 'Trustee', is_active: true, is_system_role: true },
 };
 
 const PERMS: Row[] = [
@@ -149,10 +149,10 @@ function seed(caller: keyof typeof ROLES, target: keyof typeof ROLES | null = 's
     app_permissions: PERMS.map((p) => ({ ...p })),
     // the custom auditor role already holds x.admin, which no non-super_admin caller below does
     role_permissions: [
-      { role_id: 'r-auditor', permission_id: 'p-admin' },
-      { role_id: 'r-sa', permission_id: 'p-assign' },
-      { role_id: 'r-sa', permission_id: 'p-board' },
-      { role_id: 'r-ch', permission_id: 'p-assign' },
+      { role_id: '00000000-0000-4000-8000-0000000000a5', permission_id: 'p-admin' },
+      { role_id: '00000000-0000-4000-8000-0000000000a1', permission_id: 'p-assign' },
+      { role_id: '00000000-0000-4000-8000-0000000000a1', permission_id: 'p-board' },
+      { role_id: '00000000-0000-4000-8000-0000000000a2', permission_id: 'p-assign' },
     ],
     role_assignment_rules: [],
     profiles: [
@@ -194,7 +194,7 @@ describe('removeRoleFromProfile', () => {
     const result = await removeRoleFromProfile(TARGET);
     expect(result).toEqual({ success: false, error: CANNOT_CHANGE_ACCOUNT_ERROR });
     expect(writesTo('profiles')).toEqual([]);
-    expect(profileOf(TARGET).role_id).toBe('r-ch');
+    expect(profileOf(TARGET).role_id).toBe('00000000-0000-4000-8000-0000000000a2');
   });
 
   it('still refuses removing super_admin, even for a super_admin', async () => {
@@ -282,7 +282,8 @@ describe('createRoleWithPermissions', () => {
     seed('chairman', 'secretary', ['x.view', 'x.edit']);
     const result = await createRoleWithPermissions(input, ['p-view', 'p-edit']);
     expect(result.success).toBe(true);
-    expect(writesTo('role_permissions')).toHaveLength(2);
+    // #1318: the grants go in one insert of two rows, with nothing deleted first.
+    expect(writesTo('role_permissions').flatMap((w) => w.values as Row[])).toHaveLength(2);
   });
 
   it('lets a super_admin attach any permission', async () => {

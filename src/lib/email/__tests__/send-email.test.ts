@@ -72,7 +72,11 @@ describe('sendEmail', () => {
     mocks.isEmailConfigured.mockReturnValue(true);
     mocks.send.mockResolvedValue({ data: { id: 'rid-1' }, error: null });
     mocks.insert.mockResolvedValue({ error: null });
-    mocks.from.mockImplementation(() => ({ insert: mocks.insert }));
+    // `select` is the email daily cap count (#1265): none sent yet.
+    const countChain: Record<string, unknown> = {};
+    countChain.eq = () => countChain;
+    countChain.gte = async () => ({ count: 0, error: null });
+    mocks.from.mockImplementation(() => ({ insert: mocks.insert, select: () => countChain }));
     settings({});
     mocks.decideSend.mockResolvedValue({ result: { redirect: false }, envLabel: 'TEST' });
   });

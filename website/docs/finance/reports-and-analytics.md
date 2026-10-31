@@ -3,24 +3,27 @@ id: reports-and-analytics
 title: Reports and analytics
 sidebar_label: Reports and analytics
 residio_sources:
-  - src/app/(dashboard)/analytics/**
+  - src/app/(dashboard)/(oversight)/analytics/**
+  - src/app/(dashboard)/(oversight)/reports/**
   - src/app/(dashboard)/reports/**
   - src/actions/analytics/**
   - src/actions/reports/**
-residio_verified_commit: b59d58f5
-residio_verified_at: '2026-10-20'
+residio_verified_commit: 7ee5c794
+residio_verified_at: '2026-10-31'
 residio_app_version: '0.4.0'
 ---
 
 # Reports and analytics
 
-Use **Analytics** for trends and **Reports** for generated operational or financial outputs.
+Analytics live under **Oversight** in the sidebar. Its left menu has four groups: **Dashboard** (Oversight overview, Collections dashboard, Announcement engagement), **Reports** (Income & expenses), **Messages** and **System**. The left menu scrolls when it is taller than the screen. Use **Collections dashboard** for trends, **Income & expenses** for the income and expense breakdown, and **Announcement engagement** for announcement reach. Generated operational and financial reports have their own **Reports** entry in the main sidebar, directly under **Dashboard**, with the links **New report**, **History** and **Schedules**.
 
 ![Residio analytics dashboard](../assets/admin/analytics-dashboard.png)
 
-## Analytics workflow
+## Collections dashboard workflow
 
-**Analytics** opens the **Financial Overview**: collection rate, outstanding balance, overdue invoices and portfolio value at the top, a revenue against expenses trend for the last 12 months, **Invoice Aging** (how many overdue invoices are overdue by each number of days), **Invoice Status** (paid, unpaid, partially paid, overdue and void), and **Quick Stats** for houses, occupancy and residents. The page has no period filter.
+**Oversight → Collections dashboard** shows: collection rate, outstanding balance, overdue invoices and portfolio value at the top, a revenue against expenses trend for the last 12 months, **Houses by debt status and street**, **Invoice Aging** (how many overdue invoices are overdue by each number of days), **Invoice Status** (paid, unpaid, partially paid, overdue and void), and **Quick Stats** for houses, occupancy and residents. The page has no period filter. Tabs at the top show one part at a time: **Summary** (one card for each part, with its key number), **Totals**, **Trends**, **Debt status**, **Invoice aging** and **Invoices & houses**. The open tab is part of the page address (`?section=debt-status`), so a link can open one tab.
+
+**Houses by debt status and street** is a stacked bar chart with one bar for each street. Each bar shows how many houses are in **Arrears**, **Outstanding**, **Paid in Full** and **Credit**. The subtitle gives the estate totals, and the title gives the "as at" date. It counts the same houses and uses the same rule as the debt status report: active, verified, lived-in houses that have an active primary resident. The labels come from **Settings > Debt Status**. The chart refreshes every minute, and when you return to the browser tab. Only users who can view financial reports see this section.
 
 1. Read the summary cards first.
 2. Use the trend and aging charts to locate the problem.
@@ -28,12 +31,16 @@ Use **Analytics** for trends and **Reports** for generated operational or financ
 
 If the aging figures cannot be loaded, the card says *Invoice aging unavailable* rather than showing no overdue invoices, so an empty card is never mistaken for a clean ledger.
 
+## Income and expenses
+
+**Oversight → Income & expenses** shows the financial summary and the transaction breakdown by category, from imported bank statements. It needs the view financial reports permission.
+
 ## Report workflow
 
-**Reports** needs the view financial reports permission; without it you are returned to the dashboard. The page has five tabs: **New Report**, **History**, **Schedules**, **Archive** and **Wallet Check**.
+**Reports** in the main sidebar needs the view financial reports permission; without it you are returned to the dashboard. The page has five tabs: **New Report**, **History**, **Schedules**, **Archive** and **Wallet Check**.
 
-1. Open **Reports → New Report**.
-2. Select the report type and period.
+1. Open **Reports → New report** in the sidebar.
+2. On step 1, select the report type. The list on the left has a search field and groups (**Money in and out**, **Debts**, **Levies**); select a group name to close or open it. The right side shows what the report asks for (a date range or "as of today", and bank accounts or none), the next step, and an **Example layout** of the report. Then select the period, if the report asks for one.
 3. Review the preview or parameters.
 4. Generate and download the report only after confirming the scope.
 

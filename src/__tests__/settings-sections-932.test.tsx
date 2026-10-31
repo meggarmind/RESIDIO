@@ -8,14 +8,17 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { findSettingsRow, flattenSettingsRows, type SettingsGroup } from '@/config/settings-nav';
 
 const push = vi.fn();
+const replace = vi.fn();
 let rowParam: string | null = null;
+let sectionParam: string | null = null;
 let held: string[] = [PERMISSIONS.SETTINGS_MANAGE_GENERAL];
 let authLoading = false;
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push }),
+  useRouter: () => ({ push, replace }),
   usePathname: () => '/settings/email',
-  useSearchParams: () => new URLSearchParams(rowParam ? { row: rowParam } : {}),
+  useSearchParams: () =>
+    new URLSearchParams({ ...(rowParam ? { row: rowParam } : {}), ...(sectionParam ? { section: sectionParam } : {}) }),
 }));
 vi.mock('@/lib/auth/auth-provider', () => ({
   useAuth: () => ({ isLoading: authLoading, hasAnyPermission: (p: string[]) => p.some((x) => held.includes(x)) }),
@@ -84,10 +87,14 @@ function Harness({
   );
 }
 const edit = (title: string) => fireEvent.click(screen.getByRole('button', { name: `edit ${title}` }));
+/** Opens a tab when the page has tabs (#1365). */
+const openTab = (name: string) => fireEvent.click(screen.getByRole('tab', { name }));
 
 beforeEach(() => {
   push.mockClear();
+  replace.mockClear();
   rowParam = null;
+  sectionParam = null;
   authLoading = false;
   held = [PERMISSIONS.SETTINGS_MANAGE_GENERAL];
 });
@@ -226,20 +233,25 @@ describe('SettingsSectionsProvider', () => {
       </SettingsSectionsProvider>,
     );
 
-  it('saves two dirty sections independently', async () => {
+  it('saves two dirty sections independently, and an edit survives a tab switch (#1365)', async () => {
     page();
+    openTab('Channels');
     edit('Channels');
+    openTab('Testing');
     edit('Testing');
+    openTab('Channels (unsaved)');
     const channels = screen.getByRole('region', { name: 'Channels' });
-    const testing = screen.getByRole('region', { name: 'Testing' });
     fireEvent.click(within(channels).getByRole('button', { name: 'Save Channels' }));
     await within(channels).findByText('Saved');
-    expect(within(testing).getByText('Unsaved changes')).toBeInTheDocument();
+    openTab('Testing (unsaved)');
+    expect(within(screen.getByRole('region', { name: 'Testing' })).getByText('Unsaved changes')).toBeInTheDocument();
   });
 
   it('names both dirty sections in the dialog on an in-app link, and Stay keeps the page', async () => {
     page();
+    openTab('Channels');
     edit('Channels');
+    openTab('Testing');
     edit('Testing');
     expect(fireEvent.click(screen.getByRole('link', { name: 'Other page' }))).toBe(false);
     expect(await screen.findByText(/Channels and Testing have unsaved changes/)).toBeInTheDocument();
@@ -312,10 +324,11 @@ describe('?row= while auth loads', () => {
 
   it('stops after the retry limit without throwing or announcing when the row never appears', () => {
     vi.useFakeTimers();
+    let raf: ReturnType<typeof vi.spyOn> | undefined;
     try {
       rowParam = 'test-recipient';
       authLoading = true;
-      const raf = vi.spyOn(window, 'requestAnimationFrame');
+      raf = vi.spyOn(window, 'requestAnimationFrame');
       expect(() => render(tree())).not.toThrow();
       act(() => {
         vi.advanceTimersByTime(5000);
@@ -324,6 +337,8 @@ describe('?row= while auth loads', () => {
       expect(screen.getByRole('status')).toBeEmptyDOMElement();
       expect(raf.mock.calls.length).toBeLessThan(80);
     } finally {
+      // The spy wraps the fake rAF; left in place, later tests' frames never run.
+      raf?.mockRestore();
       vi.useRealTimers();
     }
   });
@@ -339,9 +354,10 @@ describe('SettingsPageNav', () => {
         <Harness id="testing" title="Testing" />
       </SettingsSectionsProvider>,
     );
-    const nav = screen.getByRole('navigation', { name: 'On this page' });
-    expect(within(nav).queryByRole('link', { name: /Channels/ })).toBeNull();
-    expect(within(nav).getByRole('link', { name: 'Testing' })).toBeInTheDocument();
+    // One visible section: no tabs, the section shows on its own.
+    expect(screen.queryByRole('navigation', { name: 'On this page' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Channels' })).toBeNull();
+    expect(screen.getByRole('region', { name: 'Testing' })).toBeVisible();
   });
 
   it('adds "(unsaved)" to a dirty section tab', () => {
@@ -352,9 +368,75 @@ describe('SettingsPageNav', () => {
         <Harness id="testing" title="Testing" />
       </SettingsSectionsProvider>,
     );
+    openTab('Testing');
     edit('Testing');
     const nav = screen.getByRole('navigation', { name: 'On this page' });
-    expect(within(nav).getByRole('link', { name: 'Testing (unsaved)' })).toBeInTheDocument();
-    expect(within(nav).getByRole('link', { name: 'Channels' })).toBeInTheDocument();
+    expect(within(nav).getByRole('tab', { name: 'Testing (unsaved)' })).toBeInTheDocument();
+    expect(within(nav).getByRole('tab', { name: 'Channels' })).toBeInTheDocument();
+  });
+});
+
+describe('tabs with a Summary tab first (#1365)', () => {
+  const page = () =>
+    render(
+      <SettingsSectionsProvider groups={groups}>
+        <SettingsPageNav />
+        <Harness id="channels" title="Channels" />
+        <Harness id="testing" title="Testing" />
+      </SettingsSectionsProvider>,
+    );
+
+  it('opens on Summary: one card per section, every section hidden', () => {
+    page();
+    expect(screen.getByRole('tab', { name: 'Summary' })).toHaveAttribute('aria-selected', 'true');
+    const summary = screen.getByRole('tabpanel', { name: 'Summary' });
+    expect(within(summary).getByRole('button', { name: /Channels/ })).toHaveTextContent('Currently on');
+    expect(within(summary).getByRole('button', { name: /Testing/ })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Channels' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Testing' })).toBeNull();
+  });
+
+  it('a Summary card opens its tab, shows only that section and writes ?section=', () => {
+    page();
+    fireEvent.click(within(screen.getByRole('tabpanel', { name: 'Summary' })).getByRole('button', { name: /Testing/ }));
+    expect(screen.getByRole('tab', { name: 'Testing' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('region', { name: 'Testing' })).toBeVisible();
+    expect(screen.queryByRole('region', { name: 'Channels' })).toBeNull();
+    expect(document.getElementById('section-summary')).not.toBeVisible();
+    expect(replace).toHaveBeenLastCalledWith('/?section=testing', { scroll: false });
+  });
+
+  it('?section= opens that tab; an unknown one falls back to Summary', () => {
+    sectionParam = 'channels';
+    page();
+    expect(screen.getByRole('region', { name: 'Channels' })).toBeVisible();
+    cleanup();
+    sectionParam = 'nope';
+    page();
+    expect(screen.getByRole('tab', { name: 'Summary' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('marks a dirty section on its Summary card and keeps the leave guard', async () => {
+    page();
+    openTab('Testing');
+    edit('Testing');
+    openTab('Summary (unsaved)');
+    expect(within(screen.getByRole('tabpanel', { name: 'Summary' })).getByRole('button', { name: /Testing/ })).toHaveTextContent('Unsaved');
+    render(<a href="/settings/other">Other page</a>);
+    expect(fireEvent.click(screen.getByRole('link', { name: 'Other page' }))).toBe(false);
+    expect(await screen.findByText(/Testing has unsaved changes/)).toBeInTheDocument();
+  });
+
+  it('?row= opens the tab of the row\'s section', async () => {
+    rowParam = 'test-recipient';
+    render(
+      <SettingsSectionsProvider groups={groups}>
+        <SettingsPageNav />
+        <Harness id="channels" title="Channels" />
+        <Harness id="testing" title="Testing" defaultCollapsed withRow="test-recipient" />
+      </SettingsSectionsProvider>,
+    );
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Test recipient' })).toHaveFocus());
+    expect(screen.getByRole('tab', { name: 'Testing' })).toHaveAttribute('aria-selected', 'true');
   });
 });

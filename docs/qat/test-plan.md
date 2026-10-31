@@ -434,7 +434,7 @@ Actor: super_admin. One case per page. **Expected result for every case:** the p
 | ID | Route | ID | Route |
 |---|---|---|---|
 | QAT-SMK-01 | `/announcements` | QAT-SMK-21 | `/system/audit-logs` |
-| QAT-SMK-02 | `/announcements/new` | QAT-SMK-22 | `/system/data-tools` |
+| QAT-SMK-02 | `/announcements/new` | QAT-SMK-22 | `/settings/data-tools` |
 | QAT-SMK-03 | `/documents` | QAT-SMK-23 | `/settings/cron-status` |
 | QAT-SMK-04 | `/personnel` | QAT-SMK-24 | `/settings/roles` |
 | QAT-SMK-05 | `/projects` | QAT-SMK-25 | `/settings/user-roles` (expect redirect) |

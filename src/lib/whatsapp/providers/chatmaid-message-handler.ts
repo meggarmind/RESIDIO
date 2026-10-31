@@ -7,6 +7,7 @@ import {
   handleResidentMessage,
   processInboundMessages,
 } from '@/lib/whatsapp';
+import { createWhatsAppAdminTools } from '@/lib/whatsapp/admin';
 import { isStopCommand } from '@/lib/whatsapp/identity';
 import { createSupabaseChatmaidSessionPauseStore } from '@/lib/whatsapp/providers/chatmaid-inbound';
 import type { InboundMessageResult, WhatsAppInboundMessage } from '@/lib/whatsapp/types';
@@ -56,6 +57,7 @@ export async function processChatmaidMessages(
             repository: createSupabaseWhatsAppFinancialRepository(),
             optedIn: true,
             canLookup: canPerformWhatsAppFinancialLookup,
+            adminTools: createWhatsAppAdminTools(),
           });
         },
       });

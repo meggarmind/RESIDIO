@@ -4,7 +4,7 @@
  * WhatsApp Provider Connection
  *
  * Lets an admin connect, replace, test, and disconnect the estate's WhatsApp
- * provider (Meta Cloud API, Twilio or Chatmaid) without a redeploy. Exactly one
+ * provider (Meta Cloud API, Twilio, Chatmaid or WAHA) without a redeploy. Exactly one
  * provider is active at a time. Credentials are
  * encrypted at rest in `whatsapp_provider_credentials` (see the migration
  * `20260902080000_create_whatsapp_provider_credentials.sql`) and written via
@@ -18,6 +18,7 @@
  */
 
 import { z } from 'zod';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { revalidatePath } from 'next/cache';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
@@ -28,6 +29,7 @@ import { resolveWhatsAppConfig, invalidateWhatsAppConfigCache } from '@/lib/what
 import { isApprovedWhatsAppTemplateName } from '@/lib/whatsapp/templates';
 import { CHATMAID_DEFAULT_BASE_URL } from '@/lib/whatsapp/config-db';
 import { fetchChatmaidConnectionStatus, lookupChatmaidPhone } from '@/lib/whatsapp/providers/chatmaid';
+import { lookupWahaPhone } from '@/lib/whatsapp/providers/waha';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
 import { getRawSettingsAsService } from '@/lib/settings/service';
 import { OVERRIDE_SETTING_KEYS, parseOverrideSettings } from '@/lib/comms-override/settings';
@@ -46,7 +48,7 @@ const ENCRYPTION_NOT_CONFIGURED_ERROR =
 // Connection status (read-only, never decrypts anything)
 // ============================================================
 
-export type WhatsAppProviderName = 'meta' | 'twilio' | 'chatmaid';
+export type WhatsAppProviderName = 'meta' | 'twilio' | 'chatmaid' | 'waha';
 
 export type WhatsAppConnectionStatus = {
   connected: boolean;
@@ -62,6 +64,11 @@ export type WhatsAppConnectionStatus = {
   hasAuthToken: boolean;
   hasChatmaidApiKey: boolean;
   hasChatmaidWebhookSecret: boolean;
+  hasWahaApiKey: boolean;
+  hasWahaWebhookSecret: boolean;
+  // Not secrets: the WAHA server address and session name are shown back to the admin.
+  wahaBaseUrl: string | null;
+  wahaSession: string | null;
   // Twilio Content SIDs, keyed by approved template name (see
   // src/lib/whatsapp/templates.ts). Unlike the secret booleans above, these
   // are not sensitive -- a Content SID identifies a template, it does not
@@ -84,6 +91,10 @@ const DISCONNECTED_STATUS: WhatsAppConnectionStatus = {
   hasAuthToken: false,
   hasChatmaidApiKey: false,
   hasChatmaidWebhookSecret: false,
+  hasWahaApiKey: false,
+  hasWahaWebhookSecret: false,
+  wahaBaseUrl: null,
+  wahaSession: null,
   templateContentSids: null,
 };
 
@@ -100,11 +111,13 @@ export async function getWhatsAppConnectionStatus(): Promise<ActionResult<WhatsA
     return { success: false, data: null, error: authorization.error || 'Unauthorized' };
   }
 
-  const adminClient = createAdminClient();
+  // The waha_* columns are not in the generated types until the #1262 migration is applied and the types
+  // are regenerated, so this read goes through an untyped client (same approach as statement-delivery.ts).
+  const adminClient = createAdminClient() as unknown as SupabaseClient;
   const { data, error } = await adminClient
     .from('whatsapp_provider_credentials')
     .select(
-      'provider, phone_number_id, whatsapp_from_number, api_version, updated_at, access_token_encrypted, verify_token_encrypted, app_secret_encrypted, auth_token_encrypted, account_sid_encrypted, chatmaid_api_key_encrypted, chatmaid_webhook_secret_encrypted, template_content_sids, updated_by_profile:profiles!updated_by(full_name)'
+      'provider, phone_number_id, whatsapp_from_number, api_version, updated_at, access_token_encrypted, verify_token_encrypted, app_secret_encrypted, auth_token_encrypted, account_sid_encrypted, chatmaid_api_key_encrypted, chatmaid_webhook_secret_encrypted, waha_api_key_encrypted, waha_webhook_secret_encrypted, waha_base_url, waha_session, template_content_sids, updated_by_profile:profiles!updated_by(full_name)'
     )
     .eq('is_active', true)
     .maybeSingle();
@@ -142,6 +155,10 @@ export async function getWhatsAppConnectionStatus(): Promise<ActionResult<WhatsA
       hasAuthToken: Boolean(data.auth_token_encrypted),
       hasChatmaidApiKey: Boolean(data.chatmaid_api_key_encrypted),
       hasChatmaidWebhookSecret: Boolean(data.chatmaid_webhook_secret_encrypted),
+      hasWahaApiKey: Boolean(data.waha_api_key_encrypted),
+      hasWahaWebhookSecret: Boolean(data.waha_webhook_secret_encrypted),
+      wahaBaseUrl: data.waha_base_url ?? null,
+      wahaSession: data.waha_session ?? null,
       templateContentSids: (data.template_content_sids as Record<string, string> | null) || null,
     },
     error: null,
@@ -185,10 +202,29 @@ const chatmaidCredentialsSchema = z.object({
     .regex(E164_PATTERN, 'From number must be in E.164 format, e.g. +2348031234567'),
 });
 
+// The server is the estate's own (a self-hosted WAHA), so its address is an admin input, not a constant.
+const wahaCredentialsSchema = z.object({
+  provider: z.literal('waha'),
+  apiKey: z.string().trim().min(1, 'API key is required'),
+  webhookSecret: z.string().trim().min(1, 'Webhook secret is required'),
+  baseUrl: z
+    .string()
+    .trim()
+    .url('Server address must be a valid URL')
+    .refine((value) => value.startsWith('https://'), 'Server address must start with https://')
+    .refine((value) => !value.endsWith('/'), 'Server address must not end with a slash'),
+  session: z.string().trim().min(1, 'Session name is required').default('default'),
+  fromNumber: z
+    .string()
+    .trim()
+    .regex(E164_PATTERN, 'From number must be in E.164 format, e.g. +2348031234567'),
+});
+
 const saveWhatsAppCredentialsSchema = z.discriminatedUnion('provider', [
   metaCredentialsSchema,
   twilioCredentialsSchema,
   chatmaidCredentialsSchema,
+  wahaCredentialsSchema,
 ]);
 
 async function readOverrideNumbers(): Promise<OverrideNumbers | null> {
@@ -217,6 +253,13 @@ async function validateFromNumberAgainstOverride(fromNumber: string): Promise<st
   const numbers = await readOverrideNumbers();
   if (!numbers) return 'Could not verify the from number against the communications override; try again.';
   return fromNumberConflict(fromNumber, numbers);
+}
+
+/** What a WAHA session reports about its paired handset, for the from-number mismatch message (#843). */
+function describeWahaPairedPhone(phone: string | null): string {
+  return phone === null
+    ? 'This WAHA session has no paired phone.'
+    : `Paired phone on this session: +${phone}.`;
 }
 
 function describePairedPhones(pairedNumbers: string[]): string {
@@ -276,13 +319,13 @@ export type SaveWhatsAppCredentialsResult = {
    * paste it into Meta's console before navigating away. It is never
    * re-readable afterwards -- getWhatsAppConnectionStatus() only ever
    * reports `hasVerifyToken: boolean`, never the value itself. Absent for
-   * Twilio and Chatmaid, which have no equivalent field.
+   * Twilio, Chatmaid and WAHA, which have no equivalent field.
    */
   verifyToken?: string;
 };
 
 /**
- * Replaces the estate's WhatsApp credentials (Meta, Twilio or Chatmaid) in one atomic
+ * Replaces the estate's WhatsApp credentials (Meta, Twilio, Chatmaid or WAHA) in one atomic
  * RPC call. Secrets are encrypted before they leave this function; the
  * plaintext values are never written to the audit log.
  */
@@ -317,7 +360,7 @@ export async function saveWhatsAppCredentials(
   let auditValues: Record<string, string>;
 
   // newValues MUST NEVER contain a plaintext secret (access token, verify
-  // token, app secret, auth token, Chatmaid API key or webhook secret). Only
+  // token, app secret, auth token, Chatmaid or WAHA API key or webhook secret). Only
   // non-sensitive facts are logged: provider, phone/from number, API version.
   if (value.provider === 'meta') {
     rpcParams = {
@@ -348,6 +391,22 @@ export async function saveWhatsAppCredentials(
       p_actor_id: authorization.userId,
     };
     auditValues = { provider: 'twilio', fromNumber: value.fromNumber };
+  } else if (value.provider === 'waha') {
+    // The from number is checked against the live session by the connection test, not here: pairing
+    // the handset can follow the save, and an unreachable server must not block saving credentials.
+    const overrideConflict = await validateFromNumberAgainstOverride(value.fromNumber);
+    if (overrideConflict) return { success: false, data: null, error: overrideConflict };
+
+    rpcParams = {
+      p_provider: 'waha',
+      p_waha_api_key_encrypted: encrypt(value.apiKey),
+      p_waha_webhook_secret_encrypted: encrypt(value.webhookSecret),
+      p_waha_base_url: value.baseUrl,
+      p_waha_session: value.session,
+      p_whatsapp_from_number: value.fromNumber,
+      p_actor_id: authorization.userId,
+    };
+    auditValues = { provider: 'waha', baseUrl: value.baseUrl, session: value.session, fromNumber: value.fromNumber };
   } else {
     const fromNumberError = await validateChatmaidFromNumber(adminClient, value);
     if (fromNumberError) {
@@ -556,6 +615,54 @@ export async function testWhatsAppConnection(): Promise<ActionResult<TestWhatsAp
         data: {
           ok: connectionStatus === 'connected',
           message: `Connected to the Chatmaid API. ${config.fromNumber} is paired; bridge status: ${connectionStatus}.`,
+        },
+        error: null,
+      };
+    }
+
+    if (config.provider === 'waha') {
+      // One authenticated read of the session, never a send: its status, then the paired number.
+      const lookup = await lookupWahaPhone(config);
+
+      if (!lookup.ok) {
+        console.error(`WhatsApp WAHA connection test failed (HTTP ${lookup.httpStatus})`);
+        return {
+          success: true,
+          data: {
+            ok: false,
+            message: `WAHA rejected the request (HTTP ${lookup.httpStatus}). Check the API key, server address and session name.`,
+          },
+          error: null,
+        };
+      }
+
+      if (lookup.status !== 'WORKING') {
+        return {
+          success: true,
+          data: {
+            ok: false,
+            message: `WAHA session ${config.session} is ${lookup.status}. Pair the handset in the WAHA dashboard.`,
+          },
+          error: null,
+        };
+      }
+
+      if (lookup.phone !== config.fromNumber.replace(/\D/g, '')) {
+        return {
+          success: true,
+          data: {
+            ok: false,
+            message: `From number ${config.fromNumber} is not paired to this WAHA session. ${describeWahaPairedPhone(lookup.phone)}`,
+          },
+          error: null,
+        };
+      }
+
+      return {
+        success: true,
+        data: {
+          ok: true,
+          message: `Connected to WAHA. ${config.fromNumber} is paired; session status: ${lookup.status}.`,
         },
         error: null,
       };

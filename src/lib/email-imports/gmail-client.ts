@@ -14,6 +14,7 @@ import { google, gmail_v1 } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 import { decrypt, encrypt } from './oauth-encryption';
 import { createAdminClient } from '@/lib/supabase/server';
+import { FIRST_BANK_SENDERS } from './sender-check';
 
 // Gmail API scopes - read-only access
 export const GMAIL_SCOPES = [
@@ -21,13 +22,8 @@ export const GMAIL_SCOPES = [
   'https://www.googleapis.com/auth/userinfo.email',
 ];
 
-// First Bank sender patterns
-export const FIRST_BANK_SENDERS = [
-  'firstbanknigeria.com',
-  'firstbank.com',
-  'alert@firstbanknigeria.com',
-  'noreply@firstbanknigeria.com',
-];
+// First Bank sender patterns; defined with the sender check that also uses them (#1340)
+export { FIRST_BANK_SENDERS };
 
 /**
  * Create an OAuth2 client with credentials from environment.

@@ -56,6 +56,11 @@ interface AuthContextType {
   /** Re-run the portal visibility fetches (after the switch or own override changes). */
   refreshPortalVisibility: () => void;
   canSeeImpersonationLink: boolean;
+  /**
+   * Re-load the signed-in user's profile and access (#1341). Resolves true only
+   * when the access rows loaded; false on any failure or empty access.
+   */
+  refreshProfile: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -132,7 +137,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // through a shared storage lock and a stalled bootstrap can block the
     // login request indefinitely. Session initialization resumes after the
     // successful redirect into the application.
-    if (pathname === '/login') {
+    // The 2FA screen is skipped too (#1341): until the second step is done,
+    // get_my_access() returns no rows, so a profile loaded here is an empty
+    // pre-2FA snapshot. The form loads access through refreshProfile() after
+    // a correct code.
+    if (pathname === '/login' || pathname === '/auth/verify-2fa') {
       setIsLoading(false);
       return;
     }
@@ -269,7 +278,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, supabase]);
 
-  const fetchProfile = useCallback(async (userId: string) => {
+  // Resolves true when the profile and its access loaded cleanly, which is
+  // exactly when the snapshot is safe to cache. `notify: false` skips the
+  // failure toast for callers that show their own error (#1341).
+  const fetchProfile = useCallback(async (userId: string, { notify = true }: { notify?: boolean } = {}): Promise<boolean> => {
     // Fetch profile including resident_id for portal access
     const { data: profileDataRaw, error: profileError } = await supabase
       .from('profiles')
@@ -330,13 +342,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         cacheProfileIfHealthy(fallbackProfile, true);
         profileData = { ...fallbackProfile, admin_titles: [] };
       } else {
-        return;
+        return false;
       }
     }
 
     // Guard: after the fallback branch we must have a usable profile to resolve
     // role/RBAC against; bail out otherwise rather than crashing.
-    if (!profileData) return;
+    if (!profileData) return false;
 
     // Fetch role details and permissions
     let roleName: string | null = null;
@@ -391,8 +403,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.error('[AuthProvider] RBAC fetch failed:', access.error);
           toastReason = 'rbac';
           cacheUnsafe = true;
+        } else {
+          // 'no-access' with a role_id: the profile has a role but no access
+          // rows, as before the 2FA step is done (#1341). Render it, but never
+          // cache it, or the empty menu outlives the condition by five minutes.
+          // A role granted zero permissions still returns rows, so it resolves.
+          cacheUnsafe = true;
         }
-        // 'no-access' is a legitimate state: empty permissions, cached normally.
       } catch (err) {
         console.error('[AuthProvider] RBAC fetch failed or timed out:', err);
         toastReason = 'rbac';
@@ -424,7 +441,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // every navigation and reload, turning a transient blip into an outage.
     cacheProfileIfHealthy(newProfile, cacheUnsafe);
 
-    if (toastReason) {
+    if (toastReason && notify) {
       // #256 part 2: two distinct causes land here -- the profiles row could
       // not be read at all, or it was read fine but the RBAC (#113) fetch
       // failed/timed out. Distinct copy lets an admin debugging this tell
@@ -453,7 +470,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         duration: 15000,
       });
     }
+
+    return !cacheUnsafe;
   }, [supabase]);
+
+  const refreshProfile = useCallback(async (): Promise<boolean> => {
+    try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) return false;
+      return await fetchProfile(currentUser.id, { notify: false });
+    } catch (err) {
+      console.error('[AuthProvider] refreshProfile failed:', err);
+      return false;
+    }
+  }, [supabase, fetchProfile]);
 
   const signOut = async () => {
     setIsSigningOut(true);
@@ -575,6 +605,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       canSeeSelfPortalLinks,
       refreshPortalVisibility,
       canSeeImpersonationLink,
+      refreshProfile,
     }}>
       {children}
     </AuthContext.Provider>

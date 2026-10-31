@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowUpRight, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth/auth-provider';
@@ -99,12 +99,6 @@ export function SettingsSearchResults({
                     >
                         <span className="flex items-center gap-1 font-medium">
                             {entry.title}
-                            {entry.opensSystem && (
-                                <>
-                                    <ArrowUpRight className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
-                                    <span className="sr-only">(opens System)</span>
-                                </>
-                            )}
                         </span>
                         {entry.subtitle && <span className="block text-xs text-muted-foreground">{entry.subtitle}</span>}
                     </Link>
@@ -114,12 +108,3 @@ export function SettingsSearchResults({
     );
 }
 
-/** The "Opens System" mark on a nav link to a live-state page. */
-export function OpensSystemMark() {
-    return (
-        <>
-            <ArrowUpRight className="ml-1 h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <span className="sr-only">(opens System)</span>
-        </>
-    );
-}

@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { getWhatsAppClearanceCopyFailures, getWhatsAppDeliveryProblems, getWhatsAppDisclosureLogs, getWhatsAppHealth, getWhatsAppOutboundSends, getWhatsAppSessions, getWhatsAppStatementFlags, getWhatsAppSurveySummary, retryWhatsAppClearanceCopy } from '../admin-console';
 import { logAudit } from '@/lib/audit/logger';
 import { retryClearanceCopy } from '@/lib/clearance/issue-certificate';
-import { filterDisclosureLogs, filterOptIns } from '@/app/(dashboard)/system/whatsapp-monitoring/activity-logs';
+import { filterDisclosureLogs, filterOptIns } from '@/app/(dashboard)/(oversight)/system/whatsapp-monitoring/activity-logs';
 
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: vi.fn() }));
 vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
@@ -145,7 +145,7 @@ describe('WhatsApp operations console actions', () => {
 
     expect(result.data).toEqual([{ id: 'send-1', status: 'failed' }]);
     expect(String(problems.select.mock.calls[0][0])).toMatch(/inbound_message_id.*resident:residents\(/);
-    expect(problems.or).toHaveBeenCalledWith('status.eq.failed,and(status.eq.pending,provider.eq.chatmaid,created_at.lt.2026-10-20T11:45:00.000Z)');
+    expect(problems.or).toHaveBeenCalledWith('status.eq.failed,and(status.eq.pending,provider.in.(chatmaid,waha),created_at.lt.2026-10-20T11:45:00.000Z)');
     vi.useRealTimers();
   });
 

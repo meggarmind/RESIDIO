@@ -36,6 +36,12 @@ const OVERRIDE = 'override@example.test';
 // Debug Mode counts only with a parseable expiry in the future (#717); a switch on with none is expired.
 const FAR_FUTURE = '2999-01-01T00:00:00.000Z';
 
+/** Empty daily-cap count (#1265): the head count query on notification_history resolves to zero sent. */
+const dailyCapCount = () => {
+  const q: Record<string, unknown> = { eq: () => q, gte: () => q, then: (r: (v: unknown) => unknown) => r({ count: 0, error: null }) };
+  return q;
+};
+
 type FlagResult = { rows?: Array<{ id: string; use_override_comms: unknown }>; error?: string };
 
 /** The residents flag query, plus enough of the history and queue writes for the record step. */
@@ -53,7 +59,7 @@ function adminClient(flag: FlagResult) {
     const chain: Record<string, unknown> = {
       insert: (payload: unknown) => (writes.push({ table, op: 'insert', payload }), chain),
       update: (payload: unknown) => (writes.push({ table, op: 'update', payload }), chain),
-      select: () => chain,
+      select: (_cols?: string, opts?: { head?: boolean }) => (opts?.head ? dailyCapCount() : chain),
       single: async () => ({ data: { id: 'history-1' }, error: null }),
       eq: async () => ({ error: null }),
     };

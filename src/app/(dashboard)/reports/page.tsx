@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -6,7 +7,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { ReportsPageClient } from '@/components/reports/reports-page-client';
 
 export const metadata: Metadata = {
-    title: 'Financial Reports',
+    title: 'Generate reports',
     description: 'Generate and view financial reports',
 };
 
@@ -26,5 +27,10 @@ export default async function ReportsPage() {
         redirect('/dashboard');
     }
 
-    return <ReportsPageClient />;
+    // The client reads ?tab= with useSearchParams, which needs a Suspense boundary for the build.
+    return (
+        <Suspense fallback={null}>
+            <ReportsPageClient />
+        </Suspense>
+    );
 }

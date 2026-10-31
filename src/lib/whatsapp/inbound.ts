@@ -97,6 +97,16 @@ export function createInMemoryProcessedMessageStore(): ProcessedMessageStore {
 }
 
 /**
+ * The error's class and database code (#1285), never its text: error messages
+ * can carry a phone number or the resident's message.
+ */
+function errorClass(error: unknown): string {
+  const name = error instanceof Error ? error.name : typeof error;
+  const code = (error as { code?: unknown } | null)?.code;
+  return typeof code === 'string' && /^[A-Za-z0-9_]{1,16}$/.test(code) ? `${name} ${code}` : name;
+}
+
+/**
  * Provider-neutral core of inbound message handling: dedupe claim/release
  * plus dispatch into `onMessage`. Takes already-extracted, canonical-shaped
  * messages, so it has no idea whether they came from Meta's JSON payload or
@@ -110,9 +120,12 @@ export async function processInboundMessages(
   let processedCount = 0;
   let duplicateCount = 0;
   let ignoredCount = 0;
+  let step = 'claim';
+  let failureReason: string | undefined;
 
   try {
     for (const message of messages) {
+      step = 'claim';
       const claim = await store.claim(message.id, new Date().toISOString());
 
       if (claim === 'duplicate') {
@@ -132,18 +145,22 @@ export async function processInboundMessages(
         try {
           await options.onMessage(message);
         } catch (error) {
+          failureReason = `handle: ${errorClass(error)}`;
+          step = 'release';
           await store.release?.(message.id);
           throw error;
         }
       }
     }
-  } catch {
+  } catch (error) {
     return {
       accepted: false,
       processedCount,
       duplicateCount,
       ignoredCount,
       error: 'Inbound WhatsApp message could not be processed',
+      // The handler's error is the cause even when the release after it also fails.
+      failureReason: failureReason ?? `${step}: ${errorClass(error)}`,
     };
   }
 

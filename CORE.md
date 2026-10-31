@@ -260,6 +260,22 @@ and never fails the action. See `src/lib/audit/README.md`.
 by `module.view` must still filter its buttons by `module.create` / `module.update` /
 `module.delete`. Gate on the action, not the page.
 
+**Visibility follows access** (owner decision 2026-10-29). Show a link, tab, button or form only
+when the user can complete what it opens. "Complete" covers every server action the screen needs,
+reads included: a dialog whose list loads through an action the user cannot call is a broken
+screen, not a gated one. So:
+
+- The client check and the server guard name the same permission. A read that feeds a write
+  form is guarded by the write's permission (or narrower), never by a broader one.
+- When a user can see the entry point but one part of the screen needs more, hide that part and
+  say why in one line. Never show an empty control.
+- A load that the server refuses shows an error with the reason, never an empty list.
+- Applies across the admin app: sidebar and settings nav, page tabs, row actions, dialogs.
+
+*Why:* on Roles & Access the Chairman held `system.assign_roles`, so the page and the Change role
+button showed, but the role list loaded through a `system.manage_roles` action. The pop-up opened
+with an empty role list and no Title field (2026-10-29 review).
+
 ### Enforcement, and what "green" means
 
 `src/__tests__/integration/module-integration.test.ts` scans `src/actions/**` **per exported

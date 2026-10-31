@@ -23,6 +23,7 @@ function fakeFrom(table: string) {
   let op: 'select' | 'update' | 'insert' = 'select';
   let values: Row = {};
   let head = false;
+  let range: [number, number] | null = null;
 
   const matching = () =>
     (state.tables[table] ?? []).filter(
@@ -56,7 +57,9 @@ function fakeFrom(table: string) {
         ? { ...r, app_roles: (state.tables.app_roles ?? []).find((x) => x.id === r.role_id) ?? null }
         : { ...r } // a copy, as PostgREST returns: later writes must not rewrite what was read
     );
-    return head ? { data: null, count: rows.length, error: null } : { data: rows, error: null };
+    if (head) return { data: null, count: rows.length, error: null };
+    // getAdminTitles pages its holder read (#1318).
+    return { data: range ? rows.slice(range[0], range[1] + 1) : rows, error: null };
   };
 
   const builder: Record<string, unknown> = {
@@ -70,6 +73,7 @@ function fakeFrom(table: string) {
     is: () => builder,
     order: () => builder,
     limit: () => builder,
+    range: (from: number, to: number) => ((range = [from, to]), builder),
     single: async () => {
       const r = run();
       return r.error ? r : r.data?.[0] ? { data: r.data[0], error: null } : { data: null, error: { message: 'no rows' } };
@@ -130,11 +134,12 @@ function seed(profiles: Row[] = []) {
       { id: VICE, role_id: CHAIRMAN, name: 'Vice Chairman', is_principal: false, seats: 1, sort_order: 1 },
       { id: SECRETARY_TITLE, role_id: SECRETARY, name: 'Secretary', is_principal: true, seats: 1, sort_order: 0 },
     ],
+    // Approved accounts unless a test says otherwise: assignRoleToProfile refuses the rest (#1316).
     profiles: [
       { id: 'jane', email: 'jane@example.test', full_name: 'Jane Doe', role_id: null, title_id: null, resident_id: 'res-jane' },
       { id: 'noresident', email: 'nr@example.test', full_name: 'No Resident', role_id: null, title_id: null, resident_id: null },
       ...profiles,
-    ],
+    ].map((p) => ({ approval_status: 'active', ...p })),
   };
 }
 

@@ -3,6 +3,7 @@
 import { useState, memo } from 'react';
 import { useCan } from '@/components/auth/can';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { GROUP_POST_PERMISSION_REASON, wantsEstateGroupPost } from '@/lib/announcements/group-post-rules';
 import Link from 'next/link';
 import {
   Table,
@@ -81,6 +82,7 @@ const AnnouncementRow = memo(function AnnouncementRow({
   onDelete,
   canUpdate,
   canPublish,
+  canPostToGroup,
   canDelete,
 }: {
   announcement: Announcement;
@@ -92,8 +94,11 @@ const AnnouncementRow = memo(function AnnouncementRow({
   canUpdate: boolean;
   /** announcements.publish: publish, schedule changes and unpublish. */
   canPublish: boolean;
+  /** announcements.post_to_group: needed to publish a draft ticked "Post to estate group" (#1328). */
+  canPostToGroup: boolean;
   canDelete: boolean;
 }) {
+  const groupPostBlocked = wantsEstateGroupPost(announcement) && !canPostToGroup;
   return (
     <TableRow className="hover:bg-gray-50 dark:hover:bg-[#0F172A]">
       <TableCell>
@@ -170,12 +175,15 @@ const AnnouncementRow = memo(function AnnouncementRow({
               </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />
-            {canPublish && (announcement.status === 'draft' || announcement.status === 'scheduled') && (
-              <DropdownMenuItem onClick={() => onPublish(announcement.id)}>
-                <Send className="mr-2 h-4 w-4" />
-                Publish Now
-              </DropdownMenuItem>
-            )}
+            {canPublish && (announcement.status === 'draft' || announcement.status === 'scheduled') &&
+              (groupPostBlocked ? (
+                <p className="max-w-56 px-2 py-1.5 text-xs text-muted-foreground">{GROUP_POST_PERMISSION_REASON}</p>
+              ) : (
+                <DropdownMenuItem onClick={() => onPublish(announcement.id)}>
+                  <Send className="mr-2 h-4 w-4" />
+                  Publish Now
+                </DropdownMenuItem>
+              ))}
             {canPublish && announcement.status === 'scheduled' && (
               <DropdownMenuItem onClick={() => onUnpublish(announcement.id)}>
                 <X className="mr-2 h-4 w-4" />
@@ -236,6 +244,7 @@ export function AnnouncementsTable() {
   const canCreate = useCan(PERMISSIONS.ANNOUNCEMENTS_CREATE);
   const canUpdate = useCan(PERMISSIONS.ANNOUNCEMENTS_UPDATE);
   const canPublish = useCan(PERMISSIONS.ANNOUNCEMENTS_PUBLISH);
+  const canPostToGroup = useCan(PERMISSIONS.ANNOUNCEMENTS_POST_TO_GROUP);
   const canDelete = useCan(PERMISSIONS.ANNOUNCEMENTS_DELETE);
   const [params, setParams] = useState<AnnouncementListParams>({
     status: undefined,
@@ -437,6 +446,7 @@ export function AnnouncementsTable() {
                       onDelete={setDeleteId}
                       canUpdate={canUpdate}
                       canPublish={canPublish}
+                      canPostToGroup={canPostToGroup}
                       canDelete={canDelete}
                     />
                   ))}

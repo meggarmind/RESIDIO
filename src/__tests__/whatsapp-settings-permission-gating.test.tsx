@@ -39,8 +39,8 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { ConnectionSettings } from '@/app/(dashboard)/settings/whatsapp/connection-settings';
 import { ForcePinToggle } from '@/app/(dashboard)/settings/whatsapp/force-pin-toggle';
 import { RollForwardBalanceToggle } from '@/app/(dashboard)/settings/whatsapp/roll-forward-balance-toggle';
-import { OperationsConsole } from '@/app/(dashboard)/settings/whatsapp/operations-console';
-import { WhatsAppActivityLogs } from '@/app/(dashboard)/system/whatsapp-monitoring/activity-logs';
+import { BotHealthSections } from '@/app/(dashboard)/(oversight)/system/whatsapp-bot-health/bot-health-sections';
+import { WhatsAppActivityLogs } from '@/app/(dashboard)/(oversight)/system/whatsapp-monitoring/activity-logs';
 import { OptInImport } from '@/app/(dashboard)/settings/whatsapp/opt-in-import';
 import { PilotControls } from '@/app/(dashboard)/settings/whatsapp/pilot-controls';
 import { WhatsAppEnabledToggle } from '@/app/(dashboard)/settings/whatsapp/whatsapp-enabled-toggle';
@@ -59,6 +59,10 @@ const status = {
   hasAuthToken: true,
   hasChatmaidApiKey: false,
   hasChatmaidWebhookSecret: false,
+  hasWahaApiKey: false,
+  hasWahaWebhookSecret: false,
+  wahaBaseUrl: null,
+  wahaSession: null,
   templateContentSids: null,
 };
 
@@ -97,7 +101,7 @@ function Page() {
         sessions={[{ phone_number: '+2348000000002', current_node: 'menu', pin_authenticated: false, selected_house_id: null, expires_at: '2026-10-02T00:00:00Z', updated_at: '2026-10-01T00:00:00Z', resident: person, house: null }]}
         disclosures={[]}
       />
-      <OperationsConsole
+      <BotHealthSections
         health={{ inboundToday: 0, outboundToday: 0, deliveryFailuresToday: 0, templateErrorsToday: 0, capLimitEventsToday: 0 }}
       />
     </div>

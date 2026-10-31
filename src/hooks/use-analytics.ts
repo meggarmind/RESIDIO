@@ -2,7 +2,9 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { getAnalyticsData } from '@/actions/analytics/get-analytics-data';
+import { getDebtStatusByStreet } from '@/actions/analytics/get-debt-status-by-street';
 import type { AnalyticsData } from '@/types/analytics';
+import type { DebtByStreet } from '@/lib/billing/debt-by-street';
 import { POLLING_INTERVALS } from '@/lib/config/polling';
 
 interface UseAnalyticsOptions {
@@ -30,5 +32,24 @@ export function useAnalytics({ startDate, endDate }: UseAnalyticsOptions) {
     staleTime: POLLING_INTERVALS.STANDARD,
     // Keep previous data while fetching new date range
     placeholderData: (previousData) => previousData,
+  });
+}
+
+/**
+ * Houses by debt status and street (#1347). Polls every minute and on window focus, so the chart
+ * follows payments and new invoices without a page reload.
+ */
+export function useDebtStatusByStreet({ enabled = true }: { enabled?: boolean } = {}) {
+  return useQuery<DebtByStreet | null, Error>({
+    queryKey: ['analytics', 'debt-status-by-street'],
+    queryFn: async () => {
+      const result = await getDebtStatusByStreet();
+      if (result.error) throw new Error(result.error);
+      return result.data;
+    },
+    enabled,
+    refetchInterval: POLLING_INTERVALS.STANDARD,
+    refetchOnWindowFocus: true,
+    staleTime: POLLING_INTERVALS.REALTIME,
   });
 }

@@ -14,14 +14,15 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { createPayment } from '@/actions/payments/create-payment';
-import { getSettingResultAsService } from '@/lib/settings/service';
+import { exceedsEmailAutoProcessLimit, extractSenderName } from '@/lib/email-imports/utils';
+// The limit (#710) and match rule are shared with the scheduled auto-record step (#1340).
+// So is the source gate: alert only, estate account, sender checked (#1353).
 import {
-  EMAIL_AUTO_PROCESS_LIMIT_KEY,
-  EMAIL_AUTO_PROCESS_LIMIT_NGN,
-  exceedsEmailAutoProcessLimit,
-  extractSenderName,
-  isValidEmailAutoProcessLimit,
-} from '@/lib/email-imports/utils';
+  checkAutoRecordGate,
+  isAutoProcessMatch,
+  readEmailAutoProcessLimit,
+  readEstateAccountNumbers,
+} from '@/lib/email-imports/auto-record';
 import { createExpense } from '@/actions/expenses/create-expense';
 import { writeEmailImportStatus } from '@/lib/email-imports/import-records';
 import type {
@@ -29,36 +30,6 @@ import type {
   ProcessEmailTransactionsOptions,
   ProcessEmailTransactionsResult,
 } from '@/types/database';
-
-// ============================================================
-// Auto-process limit (#710)
-// ============================================================
-
-/**
- * The current auto-process limit, read with the service reader because the
- * fetch-emails cron has no user session. Returns null when the read failed or
- * the stored value is invalid, which callers treat as "every credit is over
- * the limit": a failed read must never raise it.
- */
-async function readEmailAutoProcessLimit(): Promise<number | null> {
-  const result = await getSettingResultAsService(EMAIL_AUTO_PROCESS_LIMIT_KEY);
-  if (result.status === 'absent') return EMAIL_AUTO_PROCESS_LIMIT_NGN;
-  if (result.status === 'error') {
-    console.error(
-      `[email-imports] could not read "${EMAIL_AUTO_PROCESS_LIMIT_KEY}"; queueing every credit for review:`,
-      result.message
-    );
-    return null;
-  }
-  if (!isValidEmailAutoProcessLimit(result.value)) {
-    console.error(
-      `[email-imports] invalid "${EMAIL_AUTO_PROCESS_LIMIT_KEY}" value; queueing every credit for review:`,
-      result.value
-    );
-    return null;
-  }
-  return result.value;
-}
 
 // ============================================================
 // Process Email Transactions (Auto-process + Queue)
@@ -93,7 +64,7 @@ export async function processEmailTransactions(
   // Get matched transactions for this import
   const { data: transactions, error: fetchError } = await adminClient
     .from('email_transactions')
-    .select('*')
+    .select('*, email_messages(email_type, sender_verified, sender_check)')
     .eq('email_import_id', importId)
     .in('status', ['matched', 'pending']);
 
@@ -120,6 +91,18 @@ export async function processEmailTransactions(
 
   // Read once per run, not per transaction.
   const autoProcessLimit = await readEmailAutoProcessLimit();
+  const estate = await readEstateAccountNumbers(adminClient);
+  if (estate.error !== null) {
+    return {
+      success: false,
+      autoProcessed: 0,
+      queuedForReview: 0,
+      skipped: 0,
+      errored: 0,
+      expensesCreated: 0,
+      error: estate.error,
+    };
+  }
 
   // 1. Process Matched Credits (Payments)
   const creditTransactions = (transactions || []).filter(tx => tx.transaction_type === 'credit');
@@ -152,10 +135,7 @@ export async function processEmailTransactions(
     }
 
     // Determine if auto-processable
-    const canAutoProcess =
-      autoProcessHighConfidence &&
-      emailTx.match_confidence === 'high' &&
-      (emailTx.match_method === 'alias' || emailTx.match_method === 'phone');
+    const canAutoProcess = autoProcessHighConfidence && isAutoProcessMatch(emailTx);
 
     if (canAutoProcess && exceedsEmailAutoProcessLimit(emailTx, autoProcessLimit)) {
       // Over the limit: wait for an approver (#709). The review queue shows
@@ -163,6 +143,20 @@ export async function processEmailTransactions(
       await adminClient
         .from('email_transactions')
         .update({ status: 'queued_for_review' })
+        .eq('id', emailTx.id);
+      result.queuedForReview++;
+      continue;
+    }
+
+    const gate = canAutoProcess
+      ? checkAutoRecordGate(tx, estate.accounts)
+      : null;
+    if (gate) {
+      // Same gate as the scheduled auto-record step: a statement row, another account or an
+      // unchecked sender waits for an admin.
+      await adminClient
+        .from('email_transactions')
+        .update({ status: 'queued_for_review', review_reason: gate.reviewReason })
         .eq('id', emailTx.id);
       result.queuedForReview++;
       continue;

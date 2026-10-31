@@ -11,7 +11,6 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   Home,
-  BarChart3,
   Users,
   Building2,
   CreditCard,
@@ -21,22 +20,20 @@ import {
   HandCoins,
   Shield,
   Briefcase,
-  FileBarChart,
   FilePlus,
   FileText,
   Megaphone,
   ClipboardCheck,
   Settings,
+  Eye,
   History,
-  Archive,
-  ListTodo,
-  Send,
-  Activity,
-  LayoutDashboard,
-  ScrollText,
-  MessageSquare,
+  FileBarChart,
+  Plus,
+  CalendarClock,
 } from 'lucide-react';
 import { PERMISSIONS, type Permission } from '@/lib/auth/action-roles';
+import { oversightConfig } from '@/config/oversight-nav';
+import { flattenSettingsNav, type SettingsGroup } from '@/config/settings-nav';
 
 /**
  * Navigation item definition
@@ -60,6 +57,10 @@ export interface NavItem {
   badgeType?: 'approvals' | 'notifications';
   /** Short label for mobile display (optional, defaults to title) */
   mobileLabel?: string;
+  /** For a child whose href has a query string: the value a missing query key stands for (e.g. the default tab), so the child is active on the bare path */
+  queryDefaults?: Record<string, string>;
+  /** An area with its own left menu: the entry opens the first page of it the user may open, and is active on any of its pages */
+  area?: SettingsGroup[];
 }
 
 /**
@@ -89,14 +90,6 @@ const NAV_DASHBOARD: NavItem = {
   title: 'Dashboard',
   href: '/dashboard',
   icon: Home,
-};
-
-const NAV_ANALYTICS: NavItem = {
-  id: 'analytics',
-  title: 'Analytics',
-  href: '/analytics',
-  icon: BarChart3,
-  permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
 };
 
 const NAV_RESIDENTS: NavItem = {
@@ -184,34 +177,6 @@ const NAV_SECURITY: NavItem = {
   permissions: [PERMISSIONS.SECURITY_VIEW],
 };
 
-const NAV_REPORTS: NavItem = {
-  id: 'reports',
-  title: 'Reports',
-  href: '/reports',
-  icon: FileBarChart,
-  permissions: [
-    PERMISSIONS.REPORTS_VIEW_FINANCIAL,
-    PERMISSIONS.REPORTS_VIEW_OCCUPANCY,
-    PERMISSIONS.REPORTS_VIEW_SECURITY,
-  ],
-  children: [
-    {
-      id: 'reports-generate',
-      title: 'Generate Reports',
-      href: '/reports',
-      icon: FilePlus,
-      permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
-    },
-    {
-      id: 'reports-financial-overview',
-      title: 'Financial Overview',
-      href: '/reports/financial-overview',
-      icon: FileBarChart,
-      permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
-    },
-  ],
-};
-
 const NAV_DOCUMENTS: NavItem = {
   id: 'documents',
   title: 'Documents',
@@ -247,92 +212,54 @@ const NAV_SETTINGS: NavItem = {
   permissions: [PERMISSIONS.SETTINGS_VIEW],
 };
 
-// The System landing page (#177). Added as a flat item alongside the six
-// pages below rather than as a parent with them nested as `children`
-// (the NAV_BILLING / NAV_PAYMENTS shape) deliberately: nesting would mean
-// `useNavigation`'s `filterItem` drops an item's entire subtree the moment
-// its *own* permissions check fails, before it even looks at the children.
-// NAV_SYSTEM's own permission (SYSTEM_VIEW_ALL_SETTINGS, matching this
-// route's ROUTE_PERMISSIONS entry) is disjoint from each child's permission
-// — e.g. NAV_AUDIT_LOGS only needs SETTINGS_VIEW_AUDIT_LOGS — so a role
-// holding a child's permission but not SYSTEM_VIEW_ALL_SETTINGS (a plausible
-// custom role; today only super_admin holds any `system` category
-// permission at all, per the RBAC seed) would lose that sidebar link if it
-// were nested under a gated parent, despite the middleware still letting
-// them open the page directly. Flat items keep each page's visibility tied
-// only to its own guard, matching how the other five already behave.
-const NAV_SYSTEM: NavItem = {
-  id: 'system',
-  title: 'System',
+// Reports (#1373): the report generator is its own page and sits under Dashboard. The children open its
+// tabs by `?tab=`; the permission is the page guard in `reports/page.tsx`, which is stricter than the
+// middleware's `/reports` entry, so the menu never links a page that would bounce.
+const NAV_REPORTS: NavItem = {
+  id: 'reports',
+  title: 'Reports',
+  href: '/reports',
+  icon: FileBarChart,
+  permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
+  children: [
+    {
+      id: 'reports-new',
+      title: 'New report',
+      href: '/reports?tab=new',
+      queryDefaults: { tab: 'new' },
+      icon: Plus,
+      permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
+    },
+    {
+      id: 'reports-history',
+      title: 'History',
+      href: '/reports?tab=recent',
+      icon: History,
+      permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
+    },
+    {
+      id: 'reports-schedules',
+      title: 'Schedules',
+      href: '/reports?tab=schedules',
+      icon: CalendarClock,
+      permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
+    },
+  ],
+};
+
+// Oversight (#1272): one flat entry for the reports and monitoring pages (menu in
+// `oversight-nav.ts`). It is flat, not a parent with `children`, because `filterItem` drops an
+// item whose own check fails; so its permissions are the union of every Oversight entry's, and a
+// role holding just one of those pages still sees it.
+const NAV_OVERSIGHT: NavItem = {
+  id: 'oversight',
+  title: 'Oversight',
   href: '/system',
-  icon: LayoutDashboard,
-  permissions: [PERMISSIONS.SYSTEM_VIEW_ALL_SETTINGS],
-};
-
-const NAV_AUDIT_LOGS: NavItem = {
-  id: 'system-audit-logs',
-  title: 'Audit Logs',
-  href: '/system/audit-logs',
-  icon: History,
-  permissions: [PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS],
-};
-
-// Relocated out of /settings per ADR-0004: these show live/historical system
-// state (the outgoing queue and what was actually sent), not configuration.
-const NAV_NOTIFICATION_QUEUE: NavItem = {
-  id: 'system-notification-queue',
-  title: 'Notification Queue',
-  href: '/system/notification-queue',
-  icon: ListTodo,
-  permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE],
-};
-
-const NAV_NOTIFICATION_HISTORY: NavItem = {
-  id: 'system-notification-history',
-  title: 'Notification History',
-  href: '/system/notification-history',
-  icon: Send,
-  permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE],
-};
-
-// Moved out of Settings > WhatsApp: every WhatsApp send is live state, not
-// configuration (ADR-0004). Same permission as getWhatsAppOutboundSends.
-const NAV_WHATSAPP_MONITORING: NavItem = {
-  id: 'system-whatsapp-monitoring',
-  title: 'WhatsApp Monitoring',
-  href: '/system/whatsapp-monitoring',
-  icon: MessageSquare,
-  permissions: [PERMISSIONS.WHATSAPP_VIEW],
-};
-
-const NAV_DATA_TOOLS: NavItem = {
-  id: 'system-data-tools',
-  title: 'Data Tools',
-  href: '/system/data-tools',
-  icon: Archive,
-  permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
-};
-
-// Canonical home for cron job status, moved from /settings/cron-status and
-// /settings/system/health (#174, ADR-0004: live system state is not
-// configuration). A flat item, not nested under NAV_SYSTEM — see the comment
-// on NAV_SYSTEM for why. Permissions match the route's own guard at
-// ROUTE_PERMISSIONS['/system/cron-status'].
-const NAV_CRON_STATUS: NavItem = {
-  id: 'system-cron-status',
-  title: 'Cron Status',
-  href: '/system/cron-status',
-  icon: Activity,
-  permissions: [PERMISSIONS.SYSTEM_MONITOR],
-};
-
-// System Action Log (#538). Same permission as ROUTE_PERMISSIONS['/system/action-log'].
-const NAV_ACTION_LOG: NavItem = {
-  id: 'system-action-log',
-  title: 'Action Log',
-  href: '/system/action-log',
-  icon: ScrollText,
-  permissions: [PERMISSIONS.SYSTEM_VIEW_SYSTEM_LOG],
+  icon: Eye,
+  area: oversightConfig,
+  permissions: [
+    ...new Set(flattenSettingsNav(oversightConfig).flatMap((item) => item.permissions ?? [])),
+  ],
 };
 
 // Collections ledger (#1194): contributions and item purchases, outside billing.
@@ -356,11 +283,11 @@ const NAV_PROJECTS: NavItem = {
  * Admin Dashboard Navigation Sections
  *
  * Grouped navigation for better visual organization:
- * - Core: Dashboard, Analytics (entry points)
+ * - Core: Dashboard (entry point), Reports
  * - People & Property: Residents, Houses
  * - Financial: Payments, Billing
- * - Operations: Security, Reports, Documents, Announcements, Approvals
- * - System: Settings
+ * - Operations: Security, Documents, Announcements, Approvals
+ * - Admin: Oversight (reports and monitoring), Settings
  */
 const NAV_EXPENDITURE: NavItem = {
   id: 'expenditure',
@@ -374,7 +301,7 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
   {
     id: 'core',
     label: null, // No header for first section
-    items: [NAV_DASHBOARD, NAV_ANALYTICS],
+    items: [NAV_DASHBOARD, NAV_REPORTS],
   },
   {
     id: 'people-property',
@@ -389,22 +316,12 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
   {
     id: 'operations',
     label: 'Operations',
-    items: [NAV_SECURITY, NAV_REPORTS, NAV_DOCUMENTS, NAV_ANNOUNCEMENTS, NAV_APPROVALS, NAV_PROJECTS],
+    items: [NAV_SECURITY, NAV_DOCUMENTS, NAV_ANNOUNCEMENTS, NAV_APPROVALS, NAV_PROJECTS],
   },
   {
-    id: 'system',
-    label: 'System',
-    items: [
-      NAV_SYSTEM,
-      NAV_SETTINGS,
-      NAV_AUDIT_LOGS,
-      NAV_NOTIFICATION_QUEUE,
-      NAV_NOTIFICATION_HISTORY,
-      NAV_WHATSAPP_MONITORING,
-      NAV_DATA_TOOLS,
-      NAV_CRON_STATUS,
-      NAV_ACTION_LOG,
-    ],
+    id: 'admin',
+    label: 'Admin',
+    items: [NAV_OVERSIGHT, NAV_SETTINGS],
   },
 ];
 

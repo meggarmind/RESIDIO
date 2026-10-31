@@ -12,21 +12,26 @@ import { RolesList } from '@/components/admin/roles-list';
 import { RoleTitlesManager } from '@/components/admin/role-titles-manager';
 import { RoleAssignmentRulesEditor } from '@/components/admin/role-assignment-rules';
 import { SettingsPageHeader } from '@/components/settings/settings-page-header';
-import { Users, Ghost, UserCheck, Shield, Settings, Loader2 } from 'lucide-react';
+import { Users, Ghost, UserCheck, Shield, Tag, Settings, Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 // Values from before #912 still work in old bookmarks and links.
 const TAB_ALIASES: Record<string, string> = { assignments: 'administrators', orphaned: 'unlinked' };
 const OPEN_TABS = ['administrators', 'pending', 'unlinked'];
-const MANAGE_TABS = ['roles', 'rules'];
+const MANAGE_TABS = ['roles', 'titles', 'rules'];
+
+// Same look as the "On this page" tabs (SettingsPageNav): rectangles, primary fill on the current tab.
+const TABS_LIST_CLASS = 'h-auto w-max min-w-full justify-start gap-1.5 bg-transparent p-0';
+const TAB_CLASS =
+  'h-auto min-h-11 gap-2 rounded-lg border bg-card px-3 data-[state=active]:border-transparent data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none dark:data-[state=active]:border-transparent dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground';
 
 function AccountsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
   const { hasPermission } = useAuth();
-  // The route admits system.assign_roles; the Roles and Rules tabs also need
+  // The route admits system.assign_roles; the Roles, Titles and Rules tabs also need
   // system.manage_roles, which every read and write behind them enforces server-side.
   const canManageRoles = hasPermission(PERMISSIONS.SYSTEM_MANAGE_ROLES);
 
@@ -51,29 +56,35 @@ function AccountsContent() {
       <AccountsHeading />
 
       <Tabs value={tab} onValueChange={onTabChange} className="space-y-4">
-        {/* Scrolls inside the bar so five tabs never widen the page at phone width. */}
+        {/* Scrolls inside the bar so six tabs never widen the page at phone width. */}
         <div className="overflow-x-auto">
-          <TabsList className="w-max min-w-full justify-start">
-            <TabsTrigger value="administrators" className="gap-2">
+          <TabsList className={TABS_LIST_CLASS}>
+            <TabsTrigger value="administrators" className={TAB_CLASS}>
               <Users className="h-4 w-4" />
               Administrators
             </TabsTrigger>
-            <TabsTrigger value="pending" className="gap-2">
+            <TabsTrigger value="pending" className={TAB_CLASS}>
               <UserCheck className="h-4 w-4" />
               Pending sign-ups
             </TabsTrigger>
-            <TabsTrigger value="unlinked" className="gap-2">
+            <TabsTrigger value="unlinked" className={TAB_CLASS}>
               <Ghost className="h-4 w-4" />
               Unlinked logins
             </TabsTrigger>
             {canManageRoles && (
-              <TabsTrigger value="roles" className="gap-2">
+              <TabsTrigger value="roles" className={TAB_CLASS}>
                 <Shield className="h-4 w-4" />
                 Roles
               </TabsTrigger>
             )}
             {canManageRoles && (
-              <TabsTrigger value="rules" className="gap-2">
+              <TabsTrigger value="titles" className={TAB_CLASS}>
+                <Tag className="h-4 w-4" />
+                Titles
+              </TabsTrigger>
+            )}
+            {canManageRoles && (
+              <TabsTrigger value="rules" className={TAB_CLASS}>
                 <Settings className="h-4 w-4" />
                 Who can hold each role
               </TabsTrigger>
@@ -154,7 +165,11 @@ function AccountsContent() {
                 <RolesList />
               </CardContent>
             </Card>
+          </TabsContent>
+        )}
 
+        {canManageRoles && (
+          <TabsContent value="titles" className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle>Titles</CardTitle>

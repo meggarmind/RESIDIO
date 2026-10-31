@@ -17,7 +17,17 @@ vi.mock('@/lib/settings/service', () => ({
   getSettingValueAsService: vi.fn().mockResolvedValue(null),
   getSettingResultAsService: vi.fn(),
 }));
-vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
+vi.mock('@/lib/supabase/server', () => ({
+  // Daily-cap count (#1265): zero sent today.
+  createAdminClient: () => ({
+    from: () => ({
+      select: () => {
+        const q: Record<string, unknown> = { eq: () => q, gte: () => q, then: (r: (v: unknown) => unknown) => r({ count: 0, error: null }) };
+        return q;
+      },
+    }),
+  }),
+}));
 vi.mock('@/lib/sms/send-sms', () => ({ sendSms: vi.fn() }));
 vi.mock('@/lib/whatsapp/send-policy', () => ({
   evaluateSendPolicy: mocks.evaluateSendPolicy,

@@ -1,15 +1,17 @@
 'use server';
 
-import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { authorizePermission } from '@/lib/auth/authorize';
+import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
+import { authorizePermission, authorizeAnyPermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { assertCanGrantRoles } from '@/lib/auth/account-guards';
-import type {
-  RoleAssignmentRule,
-  RoleAssignmentRuleWithRole,
-  ResidentRole,
-  AppRoleName,
+import { evaluateRoleAssignmentRules } from '@/lib/auth/role-assignment-checks';
+import { isUuid } from '@/lib/postgrest-filter';
+import {
+  RESIDENT_ROLE_LABELS,
+  type RoleAssignmentRuleWithRole,
+  type ResidentRole,
+  type AppRoleName,
 } from '@/types/database';
 
 // =====================================================
@@ -225,6 +227,9 @@ export async function batchUpdateRoleAssignmentRules(
     return { success: false, error: auth.error || 'Unauthorized' };
   }
 
+  const invalid = validateRuleUpdates(updates);
+  if (invalid) return { success: false, error: invalid };
+
   const refusal = await assertCanAllowRoles(
     auth.userId!,
     updates.filter((u) => u.isAllowed).map((u) => u.appRoleId)
@@ -232,6 +237,24 @@ export async function batchUpdateRoleAssignmentRules(
   if (refusal) return { success: false, error: refusal };
 
   const supabase = await createServerSupabaseClient();
+
+  // The rows being replaced, for created_by and the audit's old values.
+  const { data: existingRules, error: existingError } = updates.length > 0
+    ? await supabase
+        .from('role_assignment_rules')
+        .select('resident_role, app_role_id, is_allowed, created_by')
+        .in('resident_role', Array.from(new Set(updates.map((u) => u.residentRole))))
+        .in('app_role_id', Array.from(new Set(updates.map((u) => u.appRoleId))))
+    : { data: [], error: null };
+
+  if (existingError) {
+    console.error('[assignment-rules] Could not read the current rules:', existingError);
+    return { success: false, error: 'Could not read the current rules' };
+  }
+
+  const existingByKey = new Map(
+    (existingRules ?? []).map((r) => [ruleKey(r.resident_role, r.app_role_id), r])
+  );
 
   // Perform upserts
   const { data: savedRules, error } = await supabase
@@ -241,7 +264,8 @@ export async function batchUpdateRoleAssignmentRules(
         resident_role: u.residentRole,
         app_role_id: u.appRoleId,
         is_allowed: u.isAllowed,
-        created_by: auth.userId,
+        // An existing rule keeps the person who created it.
+        created_by: existingByKey.get(ruleKey(u.residentRole, u.appRoleId))?.created_by ?? auth.userId,
       })),
       { onConflict: 'resident_role,app_role_id' }
     )
@@ -260,6 +284,13 @@ export async function batchUpdateRoleAssignmentRules(
       entityType: 'role_assignment_rules',
       entityId: ruleIds[0],
       entityDisplay: `Batch update (${updates.length} rules)`,
+      oldValues: {
+        rules: updates.map((u) => ({
+          residentRole: u.residentRole,
+          appRoleId: u.appRoleId,
+          isAllowed: existingByKey.get(ruleKey(u.residentRole, u.appRoleId))?.is_allowed ?? null,
+        })),
+      },
       newValues: { total_count: updates.length, rule_ids: ruleIds.slice(0, 50), updates },
     });
   }
@@ -267,13 +298,42 @@ export async function batchUpdateRoleAssignmentRules(
   return { success: true };
 }
 
+function ruleKey(residentRole: string, appRoleId: string): string {
+  return `${residentRole}|${appRoleId}`;
+}
+
+/** Why a batch of rule updates is malformed, or null when it is not. */
+function validateRuleUpdates(
+  updates: Array<{ residentRole: ResidentRole; appRoleId: string; isAllowed: boolean }>
+): string | null {
+  if (!Array.isArray(updates)) return 'Invalid rule updates';
+
+  const seen = new Set<string>();
+  for (const u of updates) {
+    if (!u || !Object.prototype.hasOwnProperty.call(RESIDENT_ROLE_LABELS, u.residentRole)) {
+      return 'Unknown resident type in the rules';
+    }
+    if (!isUuid(u.appRoleId)) return 'Invalid role in the rules';
+    if (typeof u.isAllowed !== 'boolean') return 'Invalid rule value';
+
+    const key = ruleKey(u.residentRole, u.appRoleId);
+    if (seen.has(key)) return 'The same rule appears more than once';
+    seen.add(key);
+  }
+  return null;
+}
+
 // =====================================================
 // Validation
 // =====================================================
 
 /**
- * Check if a role can be assigned to a user based on their resident type
- * and contact verification status
+ * Check if a role can be assigned to an account under "Who can hold each role"
+ * and the role's contact verification requirement.
+ *
+ * Exported for assignRoleToUser, so it is a public endpoint: it reads other
+ * people's rows and therefore checks permission first. The assign actions call
+ * the shared check in '@/lib/auth/role-assignment-checks' directly.
  */
 export async function checkRoleAssignmentAllowed(
   userId: string,
@@ -283,133 +343,27 @@ export async function checkRoleAssignmentAllowed(
   allowed: boolean;
   reason?: string;
 }> {
-  const supabase = await createServerSupabaseClient();
+  const auth = await authorizeAnyPermission([
+    PERMISSIONS.SYSTEM_ASSIGN_ROLES,
+    PERMISSIONS.SYSTEM_MANAGE_ROLES,
+  ]);
+  if (!auth.authorized) {
+    return { success: false, allowed: false, reason: auth.error || 'Unauthorized' };
+  }
 
-  // Get user's resident_id
-  const { data: profile } = await supabase
+  const { data: profile, error } = await createAdminClient()
     .from('profiles')
     .select('resident_id')
     .eq('id', userId)
-    .single();
+    .maybeSingle();
 
-  // If user has no resident_id, they're a pure admin - allow assignment
-  if (!profile?.resident_id) {
-    return { success: true, allowed: true };
+  if (error) {
+    console.error('[assignment-rules] Could not read the account:', error);
+    return { success: false, allowed: false, reason: 'Could not check who can hold this role' };
   }
 
-  // Get user's primary resident role
-  const { data: residency } = await supabase
-    .from('resident_houses')
-    .select('resident_role')
-    .eq('resident_id', profile.resident_id)
-    .eq('is_active', true)
-    .order('is_primary', { ascending: false })
-    .order('move_in_date', { ascending: false })
-    .limit(1)
-    .single();
-
-  // If no active residency, allow
-  if (!residency?.resident_role) {
-    return { success: true, allowed: true };
-  }
-
-  // Check the rule
-  const { data: rule } = await supabase
-    .from('role_assignment_rules')
-    .select('is_allowed')
-    .eq('resident_role', residency.resident_role)
-    .eq('app_role_id', appRoleId)
-    .single();
-
-  // If no explicit rule, default to allowed
-  const isAllowed = rule?.is_allowed ?? true;
-
-  if (!isAllowed) {
-    // Get role name for error message
-    const { data: role } = await supabase
-      .from('app_roles')
-      .select('display_name')
-      .eq('id', appRoleId)
-      .single();
-
-    return {
-      success: true,
-      allowed: false,
-      reason: `Users with resident type "${residency.resident_role}" cannot be assigned the "${role?.display_name}" role.`,
-    };
-  }
-
-  // Check contact verification requirement
-  const verificationCheck = await checkContactVerificationRequirement(
-    profile.resident_id,
-    appRoleId
-  );
-
-  if (!verificationCheck.allowed) {
-    return {
-      success: true,
-      allowed: false,
-      reason: verificationCheck.reason,
-    };
-  }
-
-  return { success: true, allowed: true };
-}
-
-/**
- * Check if a resident meets the contact verification requirements for a role
- */
-async function checkContactVerificationRequirement(
-  residentId: string,
-  appRoleId: string
-): Promise<{
-  allowed: boolean;
-  reason?: string;
-}> {
-  const supabase = await createServerSupabaseClient();
-
-  // Get role's verification requirement
-  const { data: role, error: roleError } = await supabase
-    .from('app_roles')
-    .select('id, display_name, requires_contact_verification')
-    .eq('id', appRoleId)
-    .single();
-
-  if (roleError || !role) {
-    return { allowed: false, reason: 'Role not found' };
-  }
-
-  // If role doesn't require verification, allow
-  if (!role.requires_contact_verification) {
-    return { allowed: true };
-  }
-
-  // Get resident's verification status
-  const { data: resident, error: residentError } = await supabase
-    .from('residents')
-    .select('email, email_verified_at')
-    .eq('id', residentId)
-    .single();
-
-  if (residentError || !resident) {
-    return { allowed: false, reason: 'Resident not found' };
-  }
-
-  // Check if email is verified (email verification is required for all roles that need verification)
-  if (!resident.email_verified_at) {
-    // Check if they even have an email
-    if (!resident.email) {
-      return {
-        allowed: false,
-        reason: `The "${role.display_name}" role requires a verified email address. Please add an email address first.`,
-      };
-    }
-
-    return {
-      allowed: false,
-      reason: `The "${role.display_name}" role requires a verified email address. Please verify your email first.`,
-    };
-  }
-
-  return { allowed: true };
+  const check = await evaluateRoleAssignmentRules(profile?.resident_id ?? null, appRoleId);
+  return check.allowed
+    ? { success: true, allowed: true }
+    : { success: true, allowed: false, reason: check.reason };
 }

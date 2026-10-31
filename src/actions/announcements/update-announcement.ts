@@ -54,6 +54,7 @@ export async function updateAnnouncement(
   if (input.target_group_slug !== undefined) updateData.target_group_slug = input.target_group_slug;
   if (input.target_houses !== undefined) updateData.target_houses = input.target_houses;
   if (input.is_pinned !== undefined) updateData.is_pinned = input.is_pinned;
+  if (input.post_to_whatsapp_group !== undefined) updateData.post_to_whatsapp_group = input.post_to_whatsapp_group;
   if (input.scheduled_for !== undefined) updateData.scheduled_for = input.scheduled_for;
   if (input.expires_at !== undefined) updateData.expires_at = input.expires_at;
   if (input.attachment_urls !== undefined) updateData.attachment_urls = input.attachment_urls;

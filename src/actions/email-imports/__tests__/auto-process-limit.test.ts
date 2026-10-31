@@ -8,10 +8,12 @@ type Row = Record<string, unknown>;
 
 const mocks = vi.hoisted(() => ({
   rows: [] as Record<string, unknown>[],
+  estateError: null as string | null,
   updates: [] as { id: unknown; values: Record<string, unknown> }[],
   authorizePermission: vi.fn(),
   logAudit: vi.fn(),
   createPayment: vi.fn(),
+  createPaymentAsSystem: vi.fn(),
   createExpense: vi.fn(),
   runEmailFetch: vi.fn(),
   parseAllPendingEmails: vi.fn(),
@@ -29,6 +31,10 @@ function fakeClient() {
       let update: Record<string, unknown> | null = null;
       let single = false;
       const resolve = () => {
+        if (table === 'estate_bank_accounts') {
+          if (mocks.estateError) return { data: null, error: { message: mocks.estateError } };
+          return { data: [{ account_number: '0001234' }], error: null };
+        }
         if (table !== 'email_transactions') return { data: null, error: null };
         if (update) {
           mocks.updates.push({ id: filters.id, values: update });
@@ -82,6 +88,7 @@ vi.mock('@/lib/settings/service', () => ({ getSettingResultAsService: mocks.getS
 vi.mock('@/actions/settings/get-settings', () => ({ getSettingValue: mocks.getSettingValue }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit: mocks.logAudit }));
 vi.mock('@/actions/payments/create-payment', () => ({ createPayment: mocks.createPayment }));
+vi.mock('@/lib/payments/create-payment', () => ({ createPaymentAsSystem: mocks.createPaymentAsSystem }));
 vi.mock('@/actions/expenses/create-expense', () => ({ createExpense: mocks.createExpense }));
 vi.mock('@/lib/notifications/admin-notifier', () => ({ notifyAdmins: vi.fn() }));
 vi.mock('@/lib/matching/duplicate-matcher', () => ({
@@ -146,9 +153,12 @@ function credit(id: string, amount: number, extra: Row = {}): Row {
     match_confidence: 'high',
     match_method: 'alias',
     amount,
+    bank_account_last4: '1234',
     transaction_date: '2026-10-01',
     reference: `ref-${id}`,
     description: `Transfer ${id}`,
+    // A sender-checked FirstBank alert to the estate account: passes the #1353 source gate.
+    email_messages: { email_type: 'transaction_alert', sender_verified: true, sender_check: 'dkim=pass' },
     ...extra,
   };
 }
@@ -158,6 +168,7 @@ const updatesFor = (id: string) => mocks.updates.filter((u) => u.id === id).map(
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.rows = [];
+  mocks.estateError = null;
   mocks.updates = [];
   authAs(PROCESS_ONLY);
   mocks.createPayment.mockResolvedValue({ data: { id: 'pay-1' }, error: null });
@@ -317,6 +328,64 @@ describe('processEmailTransactions with the limit setting (#710)', () => {
   });
 });
 
+describe('processEmailTransactions source gate (#1353: same as the scheduled auto-record step)', () => {
+  it.each([
+    [
+      'an unverified sender',
+      { email_messages: { email_type: 'transaction_alert', sender_verified: false, sender_check: 'Manual forward: not a FirstBank-signed alert' } },
+      'Sender check failed: Manual forward: not a FirstBank-signed alert',
+    ],
+    [
+      'a sender never checked',
+      { email_messages: { email_type: 'transaction_alert', sender_verified: null, sender_check: null } },
+      'Sender check failed: not checked',
+    ],
+    ['a non-estate account', { bank_account_last4: '9999' }, 'Credited account is not an estate account'],
+    ['no account number', { bank_account_last4: null }, 'Credited account is not an estate account'],
+    // #1356: the estate account is 0001234, so a mask of another total length is not it.
+    ['a masked account of another length', { bank_account_last4: '000XXX34' }, 'Credited account is not an estate account'],
+    ['a masked account with another prefix', { bank_account_last4: '001XX34' }, 'Credited account is not an estate account'],
+    [
+      'a statement row',
+      { email_messages: { email_type: 'statement', sender_verified: true, sender_check: 'dkim=pass' } },
+      'Not a transaction alert',
+    ],
+    ['a row with no message', { email_messages: null }, 'Not a transaction alert'],
+  ])('queues %s with the reason instead of creating a payment', async (_label, extra, reason) => {
+    mocks.rows = [credit('tx-gate', 1000, extra)];
+
+    const result = await processEmailTransactions('import-1');
+
+    expect(mocks.createPayment).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ autoProcessed: 0, queuedForReview: 1 });
+    expect(updatesFor('tx-gate')).toEqual([{ status: 'queued_for_review', review_reason: reason }]);
+  });
+});
+
+describe('processEmailTransactions with a masked alert account (#1356)', () => {
+  it('auto-processes a credit whose mask matches the one estate account', async () => {
+    mocks.rows = [credit('tx-masked', 1000, { bank_account_last4: '000XX34' })];
+
+    const result = await processEmailTransactions('import-1');
+
+    expect(mocks.createPayment).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ autoProcessed: 1, queuedForReview: 0 });
+  });
+});
+
+describe('processEmailTransactions when the estate accounts cannot be read (#1353)', () => {
+  it('returns the error and creates no payment', async () => {
+    mocks.estateError = 'db down';
+    mocks.rows = [credit('tx-ok', 1000)];
+
+    const result = await processEmailTransactions('import-1');
+
+    expect(result).toMatchObject({ success: false, autoProcessed: 0, error: 'db down' });
+    expect(mocks.createPayment).not.toHaveBeenCalled();
+    expect(mocks.updates).toEqual([]);
+  });
+});
+
 describe('exceedsEmailAutoProcessLimit', () => {
   it('treats an unknown (null) limit as every credit over it, but never a debit', () => {
     expect(exceedsEmailAutoProcessLimit({ transaction_type: 'credit', amount: 1 }, null)).toBe(true);
@@ -324,9 +393,12 @@ describe('exceedsEmailAutoProcessLimit', () => {
   });
 });
 
-describe('cron fetch-emails route (#879: scheduled runs only queue for review)', () => {
-  it('posts no payment even for an under-limit high-confidence credit, and queues instead', async () => {
-    mocks.rows = [credit('tx-small', 20000), credit('tx-big', 75000)];
+describe('cron fetch-emails route (#1340: auto-records only checked alert credits within the limit)', () => {
+  it('never calls the session-bound createPayment action, and queues an unverified or over-limit credit', async () => {
+    const alert = (verified: boolean) => ({
+      email_messages: { email_type: 'transaction_alert', sender_verified: verified, sender_check: 'No Authentication-Results header' },
+    });
+    mocks.rows = [credit('tx-small', 20000, alert(false)), credit('tx-big', 75000, alert(true))];
     mocks.runEmailFetch.mockResolvedValue({
       success: true, importId: 'import-1', emailsFetched: 2, emailsSkipped: 0, emailsErrored: 0,
     });
@@ -336,8 +408,12 @@ describe('cron fetch-emails route (#879: scheduled runs only queue for review)',
     const body = await (await GET({} as NextRequest)).json();
 
     expect(mocks.createPayment).not.toHaveBeenCalled();
+    expect(mocks.createPaymentAsSystem).not.toHaveBeenCalled();
     expect(mocks.createExpense).not.toHaveBeenCalled();
     expect(body.processPhase).toBeUndefined();
+    expect(body.autoRecordPhase).toMatchObject({ autoRecorded: 0, senderRejected: 1 });
+    expect(updatesFor('tx-small')).toEqual([{ review_reason: 'Sender check failed: No Authentication-Results header' }]);
+    expect(updatesFor('tx-big')).toEqual([]);
     expect(body.queuePhase).toEqual({ queuedForReview: 2 });
   });
 });

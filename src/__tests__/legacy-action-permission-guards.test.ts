@@ -38,7 +38,7 @@ const reportEngineSource = read('actions/reports/report-engine.ts');
 const financialOverviewActionSource = read('actions/reports/get-financial-overview.ts');
 const backfillOwnershipHistorySource = read('actions/settings/backfill-ownership-history.ts');
 const reportsPageSource = read('app/(dashboard)/reports/page.tsx');
-const financialOverviewPageSource = read('app/(dashboard)/reports/financial-overview/page.tsx');
+const financialOverviewPageSource = read('app/(dashboard)/(oversight)/reports/financial-overview/page.tsx');
 const getStaffSource = read('actions/settings/get-staff.ts');
 const adminNotifierSource = read('lib/notifications/admin-notifier.ts');
 
@@ -226,14 +226,6 @@ describe('Part 2: approvals/index.ts hand-rolled legacy checks', () => {
       approveRequest: 'APPROVALS_APPROVE_REJECT',
       rejectRequest: 'APPROVALS_APPROVE_REJECT',
       reapplyApprovedRequest: 'APPROVALS_APPROVE_REJECT',
-      // Internal helper invoked by approveRequest after its own guard has
-      // already run -- must not carry a second, independently-driftable check.
-      applyRequestedChanges: null,
-      // Shared decision-core helpers (#555) used by approveRequest/rejectRequest after their own
-      // guard has run -- they must not carry a second, independently-driftable check.
-      loadPendingRequest: null,
-      reviewFields: null,
-      auditDecision: null,
       // Returns `auth.authorized` directly rather than an early return --
       // pinned separately below.
       canAutoApprove: null,

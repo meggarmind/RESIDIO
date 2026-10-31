@@ -56,7 +56,8 @@ export type PermissionCategory =
   | 'finance'       // Expenditure and Petty Cash
   | 'projects'      // Capital Projects
   | 'groups'        // Recipient groups (#819)
-  | 'collections';  // Collections ledger (#1194)
+  | 'collections'   // Collections ledger (#1194)
+  | 'whatsapp_admin'; // WhatsApp Admin tools menu items (#1292)
 
 // Account approval lifecycle (profiles.account_status).
 // Only 'active' resolves a role, resident link or permissions — the auth helpers
@@ -2128,6 +2129,9 @@ export const ALLOWED_DOCUMENT_MIME_TYPES = [
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // XLSX
   'text/plain', // TXT
+  'image/jpeg', // JPG
+  'image/png', // PNG
+  'image/webp', // WebP
 ] as const;
 
 export const DOCUMENT_MIME_TYPE_LABELS: Record<string, string> = {
@@ -2135,6 +2139,9 @@ export const DOCUMENT_MIME_TYPE_LABELS: Record<string, string> = {
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word Document',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'Excel Spreadsheet',
   'text/plain': 'Text File',
+  'image/jpeg': 'JPEG Image',
+  'image/png': 'PNG Image',
+  'image/webp': 'WebP Image',
 };
 
 export const DOCUMENT_FILE_EXTENSIONS: Record<string, string> = {
@@ -2142,6 +2149,9 @@ export const DOCUMENT_FILE_EXTENSIONS: Record<string, string> = {
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
   'text/plain': '.txt',
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
 };
 
 // Maximum file size for document upload (50MB)
@@ -2440,6 +2450,8 @@ export interface Announcement {
   target_group_slug: string | null;
   target_houses: string[] | null;
   is_pinned: boolean | null;
+  /** Post to the estate WhatsApp group on publish (#1328); estate-wide audiences only. */
+  post_to_whatsapp_group?: boolean | null;
   published_at: string | null;
   scheduled_for: string | null;
   expires_at: string | null;
@@ -2542,6 +2554,7 @@ export interface AnnouncementInput {
   target_group_slug?: string | null;
   target_houses?: string[];
   is_pinned?: boolean;
+  post_to_whatsapp_group?: boolean;
   scheduled_for?: string | null;
   expires_at?: string | null;
   attachment_urls?: string[];
@@ -2946,6 +2959,9 @@ export interface EmailMessage {
   processing_status: EmailProcessingStatus;
   processing_error: string | null;
   transactions_extracted: number;
+  // Sender check (#1340); null = not checked
+  sender_verified: boolean | null;
+  sender_check: string | null;
   processed_at: string | null;
   created_at: string;
 }
@@ -2986,6 +3002,8 @@ export interface EmailTransaction {
   reviewed_by: string | null;
   reviewed_at: string | null;
   review_notes: string | null;
+  // Why the scheduled run queued it instead of recording it (#1340)
+  review_reason: string | null;
   matched_at: string | null;
   processed_at: string | null;
   created_at: string;

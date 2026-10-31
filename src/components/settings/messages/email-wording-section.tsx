@@ -34,6 +34,7 @@ import {
   renderEventText,
 } from '@/lib/notifications/event-content-registry';
 import type { NotificationTemplate } from '@/lib/notifications/types';
+import { isBridgeProviderName } from '@/lib/whatsapp/bridge-provider';
 
 export function WordingSections() {
   const { hasPermission } = useAuth();
@@ -43,7 +44,7 @@ export function WordingSections() {
   const [editTemplate, setEditTemplate] = useState<NotificationTemplate | null>(null);
   const [previewTemplateData, setPreviewTemplateData] = useState<NotificationTemplate | null>(null);
 
-  // Only Chatmaid renders editable text; for any other provider (or an unreadable status) the tab is read-only.
+  // Only the bridges (Chatmaid, WAHA) render editable text; for any other provider (or an unreadable status) the tab is read-only.
   useEffect(() => {
     getWhatsAppConnectionStatus().then((result) => setWhatsappProvider(result.data?.provider ?? null));
   }, []);
@@ -80,17 +81,17 @@ export function WordingSections() {
       <SettingsSection
         id="whatsapp"
         title="WhatsApp"
-        summary={whatsappProvider === 'chatmaid' ? 'Editable: Chatmaid is the active provider' : 'Read-only: set in code for this provider'}
+        summary={isBridgeProviderName(whatsappProvider) ? 'Editable: a self-hosted bridge is the active provider' : 'Read-only: set in code for this provider'}
         defaultCollapsed
         instant
       >
         <SettingsRow rowId="whatsapp-wording" stacked>
           <div className="w-full space-y-3">
-            {whatsappProvider !== 'chatmaid' && (
+            {!isBridgeProviderName(whatsappProvider) && (
               <p className="text-sm text-muted-foreground">
                 WhatsApp messages sent through Meta or Twilio use approved templates that are set in
-                code, so their wording cannot be edited here. Wording is editable when Chatmaid is the
-                active provider.
+                code, so their wording cannot be edited here. Wording is editable when Chatmaid or WAHA is
+                the active provider.
               </p>
             )}
             <TemplateList

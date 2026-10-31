@@ -67,11 +67,11 @@ export function RemindersOnOffSection({
         <p>
           Queued and sent messages are live state, so they are in System:{' '}
           <Link href="/system/notification-queue" className="inline-flex items-center gap-0.5 font-medium text-primary underline">
-            Notification Queue <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
+            Notification queue <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
           </Link>
           {' and '}
           <Link href="/system/notification-history" className="inline-flex items-center gap-0.5 font-medium text-primary underline">
-            Notification History <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
+            Notification history <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
           </Link>
           .
         </p>

@@ -1,3 +1,4 @@
+import { isBridgeProviderName } from '@/lib/whatsapp/bridge-provider';
 import { loadWhatsAppConfigFromDb } from '@/lib/whatsapp/config-db';
 
 export interface MetaWhatsAppConfig {
@@ -34,7 +35,32 @@ export interface ChatmaidWhatsAppConfig {
   baseUrl: string;
 }
 
-export type WhatsAppConfig = MetaWhatsAppConfig | TwilioWhatsAppConfig | ChatmaidWhatsAppConfig;
+/**
+ * WAHA: a self-hosted WhatsApp Web bridge (#1262).
+ *
+ * Unlike Chatmaid, the server is the estate's own, so `baseUrl` and `session`
+ * are stored per estate and never defaulted. `fromNumber` is the paired
+ * handset's number in E.164.
+ */
+export interface WahaWhatsAppConfig {
+  provider: 'waha';
+  apiKey: string;
+  webhookSecret: string;
+  baseUrl: string;
+  session: string;
+  fromNumber: string;
+}
+
+export type WhatsAppConfig =
+  | MetaWhatsAppConfig
+  | TwilioWhatsAppConfig
+  | ChatmaidWhatsAppConfig
+  | WahaWhatsAppConfig;
+
+/** Whether the config is for a QR-paired bridge provider (Chatmaid, WAHA); see `bridge-provider.ts`. */
+export function isBridgeProvider(config: Pick<WhatsAppConfig, 'provider'> | null | undefined): boolean {
+  return isBridgeProviderName(config?.provider);
+}
 
 /**
  * Why this is a result type rather than `WhatsAppConfig | null`:

@@ -7,7 +7,7 @@ import { IconBox } from '@/components/ui/icon-box';
 import { useAuth } from '@/lib/auth/auth-provider';
 import type { Permission } from '@/lib/auth/action-roles';
 import { cn } from '@/lib/utils';
-import { useOptionalSettingsSections } from '@/components/settings/settings-sections-provider';
+import { isSectionShown, SectionSummaryCard, useOptionalSettingsSections } from '@/components/settings/settings-sections-provider';
 
 interface SettingsSectionProps {
   /** Anchor id. Must match the registry section id. */
@@ -104,9 +104,13 @@ export function SettingsSection({
   const btn = 'min-h-11 md:min-h-9';
 
   return (
+    <>
+    <SectionSummaryCard id={id} title={title} summary={summary} dirty={isDirty} warning={warning} />
     <section
       id={id}
       aria-labelledby={headingId}
+      // Hidden, not unmounted, on another tab (#1365): unsaved edits stay and the leave guard still sees them.
+      hidden={!isSectionShown(page, id)}
       data-dirty={isDirty}
       className={cn(
         'scroll-mt-20 rounded-xl border bg-card shadow-sm',
@@ -208,5 +212,6 @@ export function SettingsSection({
         </div>
       )}
     </section>
+    </>
   );
 }

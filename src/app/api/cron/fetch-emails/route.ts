@@ -7,6 +7,7 @@ import { runEmailFetch } from '@/lib/email-imports/fetch-emails';
 import { parseAllPendingEmails } from '@/lib/email-imports/parse-email';
 import { matchEmailTransactions } from '@/lib/email-imports/process-email-matching';
 import { queueEmailTransactionsForReview } from '@/lib/email-imports/queue-for-review';
+import { autoRecordEmailPayments } from '@/lib/email-imports/auto-record';
 
 const log = createLogger('[Cron:EmailFetch]');
 
@@ -15,19 +16,21 @@ export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 minutes max
 
 /**
- * Vercel Cron endpoint for automated email import
- * Scheduled to run hourly (configured in vercel.json)
+ * Cron endpoint for automated email import
+ * Scheduled every 5 minutes (Coolify scheduled task, docs/deployment/hosting-plan.md)
  *
  * Pipeline:
  * 1. Check if Gmail is connected
  * 2. Fetch new emails from Gmail
  * 3. Parse emails to extract transactions
  * 4. Match transactions to residents
- * 5. Queue every transaction for admin review
+ * 5. Auto-record sender-checked alert credits with a strong match at or below the limit (#1340)
+ * 6. Queue every other transaction for admin review
  *
- * Runs without a user session, so every step uses the service-role client. It
- * never posts a payment, expense or petty-cash entry: money is written only when
- * an admin processes a queued transaction (#879).
+ * Runs without a user session, so every step uses the service-role client. Step 5
+ * is the only money it writes, as payments with a system actor in the audit log
+ * (owner decision on #1340, reversing #879 option B for these credits only). It
+ * never posts an expense or petty-cash entry: debits always wait for an admin.
  *
  * Authentication: Bearer token matching CRON_SECRET env var
  */
@@ -67,7 +70,7 @@ async function runEmailImport(run: SystemLogRun) {
     log.info('Fetching new emails from Gmail');
     const fetchResult = await runEmailFetch('cron', {
       maxEmails: 50,
-      sinceDays: 1, // Only look at last 24 hours for hourly cron
+      sinceDays: 1, // Only look at the last 24 hours
     });
 
     results.fetchPhase = {
@@ -129,9 +132,29 @@ async function runEmailImport(run: SystemLogRun) {
     };
     run.summary.matchPhase = results.matchPhase;
 
-    // Step 5: Queue every transaction for admin review (no money is written)
-    log.info(`Queueing ${parseResult.transactionsExtracted} transactions for review`);
-    const queueResult = await queueEmailTransactionsForReview(importId);
+    // Step 5: Auto-record what passes every check; a failure leaves the rest for review
+    const autoResult = await autoRecordEmailPayments(importId);
+    results.autoRecordPhase = {
+      autoRecorded: autoResult.autoRecorded.length,
+      senderRejected: autoResult.senderRejected,
+      skipped: autoResult.skipped,
+      errored: autoResult.errored,
+      paymentIds: autoResult.autoRecorded.map((p) => p.paymentId),
+    };
+    run.summary.autoRecordPhase = results.autoRecordPhase;
+    if (autoResult.error) {
+      log.error('Auto-recording payments failed:', autoResult.error);
+      run.outcome = 'failure';
+      run.error = autoResult.error;
+    }
+
+    // Step 6: Queue every transaction still open for admin review
+    log.info('Queueing open transactions for review');
+    const queueResult = await queueEmailTransactionsForReview(importId, {
+      autoProcessed: autoResult.autoRecorded.length,
+      skipped: autoResult.skipped,
+      errored: autoResult.errored,
+    });
 
     results.queuePhase = { queuedForReview: queueResult.queuedForReview };
     run.summary.queuePhase = results.queuePhase;
@@ -153,6 +176,7 @@ async function runEmailImport(run: SystemLogRun) {
       importId,
       fetched: fetchResult.emailsFetched,
       transactions: parseResult.transactionsExtracted,
+      autoRecorded: autoResult.autoRecorded.length,
       queued: queueResult.queuedForReview,
       durationMs,
     });
@@ -164,6 +188,7 @@ async function runEmailImport(run: SystemLogRun) {
         emailsFetched: fetchResult.emailsFetched,
         transactionsExtracted: parseResult.transactionsExtracted,
         matched: matchResult.matched,
+        autoRecorded: autoResult.autoRecorded.length,
         queuedForReview: queueResult.queuedForReview,
       },
       ...results,

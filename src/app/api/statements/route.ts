@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getEstateLogoUrl } from '@/lib/branding/estate-logo-server';
-import { renderToBuffer } from '@react-pdf/renderer';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { resolveAccess, toAccessClient } from '@/lib/auth/access';
 import { loadAccountStatement } from '@/lib/billing/account-statement-data';
 import { isResidentRollForwardEnabled } from '@/lib/billing/account-balance';
-import { getSettingValue } from '@/actions/settings/get-settings';
-import { AccountStatementPDF } from '@/lib/pdf/account-statement';
+import { renderStatementPdf } from '@/lib/billing/statement-pdf';
 import { format } from 'date-fns';
 
 /**
@@ -131,16 +128,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get estate name from settings
-    const estateNameSetting = await getSettingValue('estate_name');
-    const estateName = typeof estateNameSetting === 'string' ? estateNameSetting : 'Residio Estate';
-    const estateAddressSetting = await getSettingValue('estate_address');
-    const estateAddress = typeof estateAddressSetting === 'string' ? estateAddressSetting.trim() : '';
-
-    // Generate PDF
-    const pdfBuffer = await renderToBuffer(
-      AccountStatementPDF({ data: statementData, estateName, estateAddress, estateLogoUrl: await getEstateLogoUrl() })
-    );
+    // Generate PDF: the same render as the WhatsApp statement (#1253)
+    const pdfBuffer = await renderStatementPdf(statementData);
 
     // Convert Buffer to Uint8Array for NextResponse compatibility
     const pdfBytes = new Uint8Array(pdfBuffer);

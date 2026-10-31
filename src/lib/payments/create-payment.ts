@@ -1,8 +1,10 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server'
 import { paymentFormSchema } from '@/lib/validators/payment'
 import { z } from 'zod'
 import { allocateWalletToInvoices } from '@/actions/billing/wallet'
 import { logAudit } from '@/lib/audit/logger'
+import { recordAudit, type AuditEntry } from '@/lib/audit/recorder'
+import { settlePaymentBatch, creditWalletAsService, type SettlementBatch, type SettlementResult } from '@/lib/billing/settle-payment'
 import { authorizePermission } from '@/lib/auth/authorize'
 import { PERMISSIONS } from '@/lib/auth/action-roles'
 import type { PaymentRecord } from '@/types/database'
@@ -56,8 +58,60 @@ export async function createPaymentCore(
         return { error: auth.error || 'Unauthorized' }
     }
 
-    const supabase = await createServerSupabaseClient()
+    return recordPayment(data, options, {
+        supabase: await createServerSupabaseClient(),
+        allocate: allocateWalletToInvoices,
+        audit: logAudit,
+    })
+}
 
+/**
+ * Session-free payment creation for a scheduled job (#1340). NOT a server action and has no
+ * permission check: only trusted server code that has already authenticated the job (the
+ * CRON_SECRET fetch-emails route) may call it. Everything else is the same as `createPaymentCore`
+ * with trustedVerification: validation, house check, duplicate guard, wallet allocation and the
+ * receipt. The audit entry names the job as a system actor.
+ */
+export async function createPaymentAsSystem(
+    data: CreatePaymentInput,
+    source: string,
+): Promise<CreatePaymentResult> {
+    const supabase = await createAdminClient()
+    const actor = { userId: null, system: source }
+    return recordPayment(data, { trustedVerification: true }, {
+        supabase,
+        allocate: (residentId, houseId, paymentDate, { chargeCategory, ...batch }) => settlePaymentBatch(
+            supabase,
+            { residentId, houseId, paymentDate, chargeCategory },
+            batch,
+            (amount) => creditWalletAsService(supabase, {
+                residentId,
+                amount,
+                paymentId: batch.sourcePaymentId,
+                description: 'Payment retained as wallet credit because no eligible invoice was found',
+                chargeCategory,
+            }, actor),
+        ),
+        audit: (entry) => recordAudit({ ...entry, metadata: { ...entry.metadata, source } }, actor).then(() => undefined),
+    })
+}
+
+type PaymentDeps = {
+    supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>
+    allocate: (
+        residentId: string,
+        houseId: string | null | undefined,
+        paymentDate: string,
+        batch: SettlementBatch & { chargeCategory: string },
+    ) => Promise<SettlementResult>
+    audit: (entry: AuditEntry) => Promise<void>
+}
+
+async function recordPayment(
+    data: CreatePaymentInput,
+    options: { trustedVerification?: boolean },
+    { supabase, allocate, audit }: PaymentDeps,
+): Promise<CreatePaymentResult> {
     const result = extendedPaymentSchema.safeParse(data)
 
     if (!result.success) {
@@ -76,6 +130,12 @@ export async function createPaymentCore(
         }
     }
 
+    // No house given (bank imports, #1363): use the resident's only active house. With none or several, keep none.
+    let houseId = result.data.house_id
+    if (!houseId) {
+        houseId = (await soleActiveHouseId(supabase, result.data.resident_id)) ?? houseId
+    }
+
     const chargeCategory = result.data.charge_category || DEFAULT_CHARGE_CATEGORY
 
     // Check for duplicates
@@ -86,7 +146,7 @@ export async function createPaymentCore(
         residentId: result.data.resident_id,
         reference: result.data.reference_number || undefined,
         description: result.data.notes || undefined
-    }, 'payment');
+    }, 'payment', { client: supabase });
 
     if (dupResult.isDuplicate) {
         return { error: `Duplicate Payment Detected: ${dupResult.reason}` };
@@ -95,7 +155,7 @@ export async function createPaymentCore(
     // Create payment record
     const { data: paymentRecord, error } = await supabase.from('payment_records').insert({
         resident_id: result.data.resident_id,
-        house_id: result.data.house_id,
+        house_id: houseId,
         split_payment_group_id: result.data.split_payment_group_id,
         amount: result.data.amount,
         payment_date: lagosDateString(result.data.payment_date),
@@ -124,7 +184,8 @@ export async function createPaymentCore(
     }
 
     // Credit and eligible invoice allocation share the atomic settlement RPC.
-    const allocateResult = await allocateWalletToInvoices(
+    // Settle on the input house, never the derived one: the resident may owe on a past house (#1363).
+    const allocateResult = await allocate(
         result.data.resident_id,
         result.data.house_id,
         lagosDateString(result.data.payment_date),
@@ -149,11 +210,11 @@ export async function createPaymentCore(
 
     // Get house info if provided
     let houseInfo = ''
-    if (result.data.house_id) {
+    if (houseId) {
         const { data: house } = await supabase
             .from('houses')
             .select('house_number, street:streets(name)')
-            .eq('id', result.data.house_id)
+            .eq('id', houseId)
             .single()
         if (house) {
             houseInfo = ` for ${house.house_number}`
@@ -161,14 +222,14 @@ export async function createPaymentCore(
     }
 
     // Audit log
-    await logAudit({
+    await audit({
         action: 'CREATE',
         entityType: 'payments',
         entityId: paymentRecord.id,
         entityDisplay: `Payment ₦${result.data.amount.toLocaleString()}${houseInfo} for ${resident?.first_name} ${resident?.last_name}`,
         newValues: {
             amount: result.data.amount,
-            house_id: result.data.house_id,
+            house_id: houseId,
             method: result.data.method,
             reference_number: result.data.reference_number,
             from_import: !!result.data.import_id,
@@ -212,4 +273,30 @@ export async function createPaymentCore(
     }
 
     return { success: true, data: paymentRecord as PaymentRecord }
+}
+
+/**
+ * The resident's one active house, or null when there are none or several (#1363). A failed
+ * lookup is logged and gives null, so it never fails the payment.
+ */
+async function soleActiveHouseId(
+    supabase: PaymentDeps['supabase'],
+    residentId: string,
+): Promise<string | null> {
+    try {
+        const { data, error } = await supabase
+            .from('resident_houses')
+            .select('house_id')
+            .eq('resident_id', residentId)
+            .eq('is_active', true)
+        if (error) {
+            console.error('Payment house lookup failed for resident', residentId, error)
+            return null
+        }
+        const houseIds = new Set((data ?? []).map((row) => row.house_id))
+        return houseIds.size === 1 ? [...houseIds][0] : null
+    } catch (error) {
+        console.error('Payment house lookup failed for resident', residentId, error)
+        return null
+    }
 }

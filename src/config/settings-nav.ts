@@ -31,11 +31,6 @@ export type SettingsItem = {
      * row labels, so search and the page cannot name a row differently.
      */
     sections?: SettingsSectionDef[];
-    /**
-     * The link leaves Settings for a live-state page under /system (ADR-0004), so
-     * the nav and search mark it "Opens System".
-     */
-    opensSystem?: boolean;
 };
 
 export type SettingsRowDef = {
@@ -293,14 +288,14 @@ export const settingsConfig: SettingsGroup[] = [
             {
                 title: "Banking",
                 href: "/settings/banking",
-                description: "Estate bank accounts, transaction tags and duplicate matching",
+                description: "Estate bank accounts, transaction tags, duplicate matching and the payment approval limit",
                 // The OR of the sections: the page opens for any one of them and each section keeps its own.
-                permissions: [PERMISSIONS.SETTINGS_MANAGE_REFERENCE, PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE],
+                permissions: [PERMISSIONS.SETTINGS_MANAGE_BANKING_REFERENCE, PERMISSIONS.SETTINGS_MANAGE_REFERENCE, PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE, PERMISSIONS.SETTINGS_MANAGE_BILLING],
                 sections: [
                     {
                         id: "bank-accounts",
                         title: "Bank accounts",
-                        permissions: [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
+                        permissions: [PERMISSIONS.SETTINGS_MANAGE_BANKING_REFERENCE, PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
                         rows: [
                             { id: "estate-bank-accounts", label: "Estate bank accounts", help: "Add, edit or remove the accounts used for statement imports. Changes by non-admin users require approval.", keywords: ["account number", "statement import", "bank"] },
                             { id: "statement-passwords", label: "PDF statement passwords", help: "Passwords for password-protected bank statement PDFs. They are encrypted at rest.", keywords: ["pdf password", "encrypted statement", "unlock"] },
@@ -309,7 +304,7 @@ export const settingsConfig: SettingsGroup[] = [
                     {
                         id: "tags",
                         title: "Transaction tags",
-                        permissions: [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
+                        permissions: [PERMISSIONS.SETTINGS_MANAGE_BANKING_REFERENCE, PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
                         rows: [
                             { id: "transaction-tags", label: "Transaction tags", help: "Category tags that classify incoming (credit) and outgoing (debit) bank statement transactions for financial reporting.", keywords: ["category", "classify", "credit", "debit", "keywords"] },
                         ],
@@ -320,6 +315,16 @@ export const settingsConfig: SettingsGroup[] = [
                         permissions: [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE],
                         rows: [
                             { id: "duplicate-threshold", label: "Confidence threshold", help: "Transactions scoring above this percentage are flagged as duplicates.", keywords: ["sensitivity", "duplicate payment", "double", "match score"] },
+                        ],
+                    },
+                    {
+                        // Moved from Gmail Import (#1274). Same setting key; saving still needs settings.manage_general and super_admin.
+                        // settings.manage_billing lets the financial officer see it read-only (#1283).
+                        id: "approval-limit",
+                        title: "Approval limit",
+                        permissions: [PERMISSIONS.SETTINGS_MANAGE_REFERENCE, PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE, PERMISSIONS.SETTINGS_MANAGE_BILLING],
+                        rows: [
+                            { id: "email-auto-process-limit", label: "Auto-process limit (NGN)", help: "Auto-matched payments above this amount wait for approval.", keywords: ["approval limit", "auto process", "email import", "gmail", "payment approval", "threshold"] },
                         ],
                     },
                 ],
@@ -524,6 +529,7 @@ export const settingsConfig: SettingsGroup[] = [
                     },
                 ],
             },
+            { title: "Groups", href: "/settings/groups", description: "Named lists of residents that messages and copies are sent to", permissions: [PERMISSIONS.GROUPS_VIEW] },
         ]
     },
     {
@@ -581,12 +587,11 @@ export const settingsConfig: SettingsGroup[] = [
             // SYSTEM_ASSIGN_ROLES, so the entry asks for exactly that. The Roles and rules tabs also need
             // SYSTEM_MANAGE_ROLES and fall back to Administrators without it.
             { title: "Roles & Access", href: "/settings/access", description: "Administrators, roles and titles, pending sign-ups and unlinked logins", permissions: [PERMISSIONS.SYSTEM_ASSIGN_ROLES] },
-            { title: "Two-factor login", href: "/settings/two-factor", description: "Set up an authenticator app for your own sign-in, backup codes, and turning it off", permissions: [PERMISSIONS.TWO_FACTOR_ENABLE] },
-            { title: "Groups", href: "/settings/groups", description: "Named lists of residents that messages and copies are sent to", permissions: [PERMISSIONS.GROUPS_VIEW] },
+            { title: "Two-factor login", href: "/settings/two-factor", description: "Your own sign-in: set up an authenticator app, backup codes, and turning it off", permissions: [PERMISSIONS.TWO_FACTOR_ENABLE] },
             {
                 title: "Security Rules",
                 href: "/settings/security",
-                description: "Limits on security contacts, their categories, and how long a session stays signed in",
+                description: "Limits on security contacts, their categories, and how long an admin stays signed in",
                 // The page opens for any one of its sections' permissions; each section keeps its own.
                 permissions: [PERMISSIONS.SETTINGS_MANAGE_SECURITY, PERMISSIONS.SECURITY_MANAGE_CATEGORIES, PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE],
                 sections: [
@@ -637,7 +642,7 @@ export const settingsConfig: SettingsGroup[] = [
                     {
                         // Moved from Maintenance (#937). Still written under system.manage_maintenance.
                         id: "session-timeout",
-                        title: "Session timeout",
+                        title: "Admin sign-in timeout",
                         permissions: [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE],
                         rows: [
                             {
@@ -662,9 +667,142 @@ export const settingsConfig: SettingsGroup[] = [
         title: "Connections",
         icon: Plug,
         items: [
-            { title: "WhatsApp", href: "/settings/whatsapp", description: "Provider credentials, rollout, consent, and pending contacts", permissions: [PERMISSIONS.WHATSAPP_VIEW] },
-            { title: "WhatsApp admin access", href: "/settings/whatsapp-admin", description: "Link your own WhatsApp number for admin mode, approved with your authenticator app", permissions: [PERMISSIONS.WHATSAPP_ADMIN_QUERY] },
-            { title: "Gmail Import", href: "/settings/email-integration", description: "Connect Gmail, manage the connection, and trigger a manual sync", permissions: [PERMISSIONS.EMAIL_IMPORTS_VIEW] },
+            {
+                title: "WhatsApp",
+                href: "/settings/whatsapp",
+                description: "Provider credentials, rollout, consent, and pending contacts",
+                permissions: [PERMISSIONS.WHATSAPP_VIEW],
+                sections: [
+                    {
+                        id: "connection",
+                        title: "Connection",
+                        rows: [
+                            {
+                                id: "whatsapp-provider",
+                                label: "Provider",
+                                help: "The service that sends and receives WhatsApp messages: Meta, Twilio, Chatmaid or WAHA. Use Change provider to switch.",
+                                keywords: ["provider", "WAHA", "Chatmaid", "Twilio", "Meta", "switch", "change provider", "credentials", "webhook", "connect"],
+                            },
+                        ],
+                    },
+                    {
+                        id: "channel",
+                        title: "Channel",
+                        rows: [
+                            {
+                                id: "whatsapp-enabled",
+                                label: "WhatsApp channel",
+                                help: "Master on/off switch. When off, no WhatsApp message can be sent regardless of rollout mode.",
+                                keywords: ["master switch", "enable", "disable", "on", "off"],
+                            },
+                        ],
+                    },
+                    {
+                        id: "rollout",
+                        title: "Rollout",
+                        rows: [
+                            {
+                                id: "whatsapp-rollout",
+                                label: "Rollout and pilot controls",
+                                help: "Choose who receives messages once the channel is on. Keep it disabled until a pilot is verified. Promotion is audited.",
+                                keywords: ["pilot", "mode", "caps", "limits", "retention"],
+                            },
+                        ],
+                    },
+                    {
+                        id: "pin-policy",
+                        title: "PIN policy",
+                        rows: [
+                            {
+                                id: "whatsapp-force-pin",
+                                label: "Financial PIN policy",
+                                help: "Require a PIN before any financial answer. Residents can still set a personal PIN when this is off.",
+                                keywords: ["pin", "security", "financial answers"],
+                            },
+                        ],
+                    },
+                    {
+                        id: "opt-ins",
+                        title: "Opt-ins",
+                        rows: [
+                            {
+                                id: "whatsapp-opt-in-import",
+                                label: "Import opt-ins",
+                                help: "Load approved resident consent records from CSV.",
+                                keywords: ["consent", "csv", "upload"],
+                            },
+                        ],
+                    },
+                    {
+                        id: "balance",
+                        title: "Resident balance",
+                        rows: [
+                            {
+                                id: "whatsapp-roll-forward-balance",
+                                label: "Show roll-forward balance",
+                                help: "Show residents the roll-forward balance: What I owe, statement PDFs and the portal, signed as owed or in credit. Leave off until legacy charges are invoiced, or residents with uninvoiced legacy payments see false credit. Admin statements always use it.",
+                                keywords: ["what i owe", "credit", "statement", "legacy"],
+                            },
+                        ],
+                    },
+                    {
+                        id: "assistant",
+                        title: "Assistant replies",
+                        rows: [
+                            {
+                                id: "whatsapp-assistant-text",
+                                label: "Assistant reply text",
+                                help: "Text the resident bot sends.",
+                                keywords: ["payment instructions", "keywords", "synonyms", "bot"],
+                            },
+                        ],
+                    },
+                    {
+                        id: "privacy",
+                        title: "Privacy notice",
+                        rows: [
+                            {
+                                id: "whatsapp-privacy-notice",
+                                label: "Privacy notice",
+                                help: "Residents confirm their identity and accept this notice before the assistant uses their records. Each decision is logged with the version.",
+                                keywords: ["disclosure", "consent", "identity"],
+                            },
+                        ],
+                    },
+                ],
+            },
+            { title: "WhatsApp admin access", href: "/settings/whatsapp-admin", description: "See linked admins, choose which Admin tools items each role sees, and set when a code is asked for", permissions: [PERMISSIONS.WHATSAPP_ADMIN_QUERY] },
+            {
+                title: "Gmail Import",
+                href: "/settings/email-integration",
+                description: "Connect Gmail, manage the connection, and trigger a manual sync",
+                permissions: [PERMISSIONS.EMAIL_IMPORTS_VIEW],
+                sections: [
+                    {
+                        id: "connection",
+                        title: "Connection",
+                        rows: [
+                            { id: "gmail-connection", label: "Gmail connection", help: "Connect or disconnect the Gmail account that bank statements and transaction alerts arrive in.", keywords: ["google", "email", "bank alerts", "connect", "disconnect", "pdf password"] },
+                        ],
+                    },
+                    {
+                        id: "sync",
+                        title: "Sync",
+                        rows: [
+                            { id: "gmail-sync", label: "Sync and import history", help: "Fetch new emails now, or open the history of what was imported.", keywords: ["manual fetch", "manual sync", "import history", "fetch emails"] },
+                        ],
+                    },
+                    {
+                        // #1349: who the fetch reads mail from. Read with the page's permission; saving needs email_imports.configure.
+                        id: "import-rules",
+                        title: "Import rules",
+                        rows: [
+                            { id: "gmail-import-senders", label: "Senders", help: "Email addresses or domains to read bank mail from, one per line. Include the bank and any mailbox that forwards its mail.", keywords: ["sender", "from", "forward", "bank email", "domain", "firstbank"] },
+                            { id: "gmail-import-keywords", label: "Subject words", help: "Read only mail that contains one of these words, one per line. Leave empty to read all mail from the senders.", keywords: ["keyword", "subject", "filter", "alert", "statement"] },
+                        ],
+                    },
+                ],
+            },
             // Paystack and SMS integrations are planned but not yet built.
         ]
     },
@@ -724,20 +862,8 @@ export const settingsConfig: SettingsGroup[] = [
                     },
                 ],
             },
-            {
-                // Live state stays in /system (ADR-0004); these entries only link to it (#933).
-                // No permissions on the parent: each child asks for exactly its /system route guard.
-                title: "Monitoring",
-                href: "/system/audit-logs",
-                opensSystem: true,
-                children: [
-                    { title: "Audit Logs", href: "/system/audit-logs", description: "Who changed what, and when", permissions: [PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS], opensSystem: true },
-                    { title: "Scheduled Jobs", href: "/system/cron-status", description: "Whether the scheduled jobs are running", permissions: [PERMISSIONS.SYSTEM_MONITOR], opensSystem: true },
-                    { title: "Notification Queue", href: "/system/notification-queue", description: "Messages waiting to be sent", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE], opensSystem: true },
-                    { title: "Notification History", href: "/system/notification-history", description: "Messages already sent", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE], opensSystem: true },
-                    { title: "WhatsApp Monitoring", href: "/system/whatsapp-monitoring", description: "WhatsApp sends, opt-ins, sessions and disclosures", permissions: [PERMISSIONS.WHATSAPP_VIEW], opensSystem: true },
-                ]
-            },
+            // Moved from /system/data-tools (#1274): it changes data, so it is not a monitor.
+            { title: "Data Tools", href: "/settings/data-tools", description: "Administrative utilities for data integrity, such as the ownership history backfill", permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL] },
         ]
     }
 ];

@@ -30,6 +30,10 @@ const DISCONNECTED_STATUS: WhatsAppConnectionStatus = {
   hasAuthToken: false,
   hasChatmaidApiKey: false,
   hasChatmaidWebhookSecret: false,
+  hasWahaApiKey: false,
+  hasWahaWebhookSecret: false,
+  wahaBaseUrl: null,
+  wahaSession: null,
   templateContentSids: null,
 };
 
@@ -37,13 +41,20 @@ const PROVIDER_LABELS: Record<WhatsAppProviderName, string> = {
   meta: 'Meta',
   twilio: 'Twilio',
   chatmaid: 'Chatmaid',
+  waha: 'WAHA',
 };
 
 const WEBHOOK_PATHS: Record<WhatsAppProviderName, string> = {
   meta: '/api/whatsapp/webhook',
   twilio: '/api/whatsapp/webhook/twilio',
   chatmaid: '/api/whatsapp/webhook/chatmaid',
+  waha: '/api/whatsapp/webhook/waha',
 };
+
+function formatConnectedOn(updatedAt: string | null): string {
+  if (!updatedAt) return '';
+  return `, connected ${new Date(updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+}
 
 function formatSavedAt(status: WhatsAppConnectionStatus): string {
   const when = status.updatedAt ? new Date(status.updatedAt).toLocaleString() : 'an unknown time';
@@ -79,6 +90,11 @@ export function ConnectionSettings({
   const [fromNumber, setFromNumber] = useState('');
   const [chatmaidApiKey, setChatmaidApiKey] = useState('');
   const [chatmaidWebhookSecret, setChatmaidWebhookSecret] = useState('');
+  const [wahaApiKey, setWahaApiKey] = useState('');
+  const [wahaWebhookSecret, setWahaWebhookSecret] = useState('');
+  // Not secrets, so they start from the saved values.
+  const [wahaBaseUrl, setWahaBaseUrl] = useState(initial.wahaBaseUrl ?? '');
+  const [wahaSession, setWahaSession] = useState(initial.wahaSession ?? 'default');
 
   const [message, setMessage] = useState<string | null>(null);
   const [testMessage, setTestMessage] = useState<string | null>(null);
@@ -100,6 +116,8 @@ export function ConnectionSettings({
     setAuthToken('');
     setChatmaidApiKey('');
     setChatmaidWebhookSecret('');
+    setWahaApiKey('');
+    setWahaWebhookSecret('');
   }
 
   function save() {
@@ -123,12 +141,21 @@ export function ConnectionSettings({
                 authToken,
                 fromNumber,
               }
-            : {
-                provider: 'chatmaid' as const,
-                apiKey: chatmaidApiKey,
-                webhookSecret: chatmaidWebhookSecret,
-                fromNumber,
-              };
+            : provider === 'waha'
+              ? {
+                  provider: 'waha' as const,
+                  apiKey: wahaApiKey,
+                  webhookSecret: wahaWebhookSecret,
+                  baseUrl: wahaBaseUrl.trim(),
+                  session: wahaSession.trim() || 'default',
+                  fromNumber,
+                }
+              : {
+                  provider: 'chatmaid' as const,
+                  apiKey: chatmaidApiKey,
+                  webhookSecret: chatmaidWebhookSecret,
+                  fromNumber,
+                };
 
       const result = await saveWhatsAppCredentials(input);
       if (!result.success || !result.data) {
@@ -187,6 +214,22 @@ export function ConnectionSettings({
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+        <p>
+          <span className="text-muted-foreground">Current provider: </span>
+          <span className="font-medium">
+            {status.connected && status.provider
+              ? `${PROVIDER_LABELS[status.provider]}${formatConnectedOn(status.updatedAt)}`
+              : 'None connected'}
+          </span>
+        </p>
+        {canManage && status.connected && !showForm && (
+          <Button type="button" size="sm" disabled={isPending} onClick={() => setShowForm(true)}>
+            Change provider
+          </Button>
+        )}
+      </div>
+
       {status.connected ? (
         <div className="space-y-2 rounded-md border bg-muted/30 p-3 text-sm">
           <div className="flex items-center justify-between gap-2">
@@ -252,6 +295,7 @@ export function ConnectionSettings({
               <option value="meta">Meta (WhatsApp Cloud API)</option>
               <option value="twilio">Twilio</option>
               <option value="chatmaid">Chatmaid (WhatsApp Web bridge)</option>
+              <option value="waha">Self-hosted gateway (WAHA)</option>
             </select>
           </label>
 
@@ -298,6 +342,33 @@ export function ConnectionSettings({
                 {fromNumberError && <span id="whatsapp-from-number-error" role="alert" className="block text-xs text-destructive">{fromNumberError}</span>}
               </label>
             </div>
+          ) : provider === 'waha' ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="space-y-1 text-sm">
+                <span className="text-muted-foreground">API key</span>
+                <Input type="password" autoComplete="off" value={wahaApiKey} onChange={(event) => setWahaApiKey(event.target.value)} />
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="text-muted-foreground">Webhook secret</span>
+                <Input type="password" autoComplete="off" value={wahaWebhookSecret} onChange={(event) => setWahaWebhookSecret(event.target.value)} />
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="text-muted-foreground">Server address</span>
+                <Input value={wahaBaseUrl} onChange={(event) => setWahaBaseUrl(event.target.value)} placeholder="https://waha.example.com" />
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="text-muted-foreground">Session name</span>
+                <Input value={wahaSession} onChange={(event) => setWahaSession(event.target.value)} placeholder="default" />
+              </label>
+              <label className="space-y-1 text-sm sm:col-span-2">
+                <span className="text-muted-foreground">From number (E.164)</span>
+                <Input value={fromNumber} onChange={(event) => setFromNumber(event.target.value)} placeholder="+2348031234567" aria-invalid={!!fromNumberError} aria-describedby={fromNumberError ? 'whatsapp-from-number-error' : undefined} />
+                {fromNumberError && <span id="whatsapp-from-number-error" role="alert" className="block text-xs text-destructive">{fromNumberError}</span>}
+                <span className="block text-xs text-muted-foreground">
+                  The number of the handset paired to the WAHA session. Use https and no trailing slash in the server address.
+                </span>
+              </label>
+            </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="space-y-1 text-sm">
@@ -335,7 +406,16 @@ export function ConnectionSettings({
               Save credentials
             </Button>
             {status.connected && (
-              <Button type="button" size="sm" variant="ghost" disabled={isPending} onClick={() => setShowForm(false)}>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={isPending}
+                onClick={() => {
+                  setProvider(status.provider || 'meta');
+                  setShowForm(false);
+                }}
+              >
                 Cancel
               </Button>
             )}
