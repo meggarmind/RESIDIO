@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { isNavHrefActive } from '@/config/nav-active';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { roleWithTitle } from '@/lib/auth/role-label';
 import { useEstateLogo } from '@/hooks/use-estate-logo';
@@ -32,6 +33,7 @@ interface MobileNavProps {
  */
 export function MobileNav({ open, onOpenChange }: MobileNavProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { profile } = useAuth();
   const { sections } = useSectionedNavigation();
   const { logoUrl } = useEstateLogo();
@@ -104,7 +106,7 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
                       {children.length > 0 && (
                         <ul className="ml-5 mt-1 space-y-1 border-l pl-2">
                           {children.map((child) => {
-                            const isChildActive = pathname === child.href;
+                            const isChildActive = isNavHrefActive(pathname, searchParams, child.href);
                             return (
                               <li key={child.id}>
                                 <Link

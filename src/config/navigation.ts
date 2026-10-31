@@ -27,6 +27,9 @@ import {
   Settings,
   Eye,
   History,
+  FileBarChart,
+  Plus,
+  CalendarClock,
 } from 'lucide-react';
 import { PERMISSIONS, type Permission } from '@/lib/auth/action-roles';
 import { oversightConfig } from '@/config/oversight-nav';
@@ -207,6 +210,40 @@ const NAV_SETTINGS: NavItem = {
   permissions: [PERMISSIONS.SETTINGS_VIEW],
 };
 
+// Reports (#1373): the report generator is its own page and sits under Dashboard. The children open its
+// tabs by `?tab=`; the permission is the page guard in `reports/page.tsx`, which is stricter than the
+// middleware's `/reports` entry, so the menu never links a page that would bounce.
+const NAV_REPORTS: NavItem = {
+  id: 'reports',
+  title: 'Reports',
+  href: '/reports',
+  icon: FileBarChart,
+  permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
+  children: [
+    {
+      id: 'reports-new',
+      title: 'New report',
+      href: '/reports?tab=new',
+      icon: Plus,
+      permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
+    },
+    {
+      id: 'reports-history',
+      title: 'History',
+      href: '/reports?tab=recent',
+      icon: History,
+      permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
+    },
+    {
+      id: 'reports-schedules',
+      title: 'Schedules',
+      href: '/reports?tab=schedules',
+      icon: CalendarClock,
+      permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
+    },
+  ],
+};
+
 // Oversight (#1272): one flat entry for the reports and monitoring pages (menu in
 // `oversight-nav.ts`). It is flat, not a parent with `children`, because `filterItem` drops an
 // item whose own check fails; so its permissions are the union of every Oversight entry's, and a
@@ -243,7 +280,7 @@ const NAV_PROJECTS: NavItem = {
  * Admin Dashboard Navigation Sections
  *
  * Grouped navigation for better visual organization:
- * - Core: Dashboard (entry point)
+ * - Core: Dashboard (entry point), Reports
  * - People & Property: Residents, Houses
  * - Financial: Payments, Billing
  * - Operations: Security, Documents, Announcements, Approvals
@@ -261,7 +298,7 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
   {
     id: 'core',
     label: null, // No header for first section
-    items: [NAV_DASHBOARD],
+    items: [NAV_DASHBOARD, NAV_REPORTS],
   },
   {
     id: 'people-property',

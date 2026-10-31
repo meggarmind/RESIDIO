@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { activeSettingsHref } from '@/config/settings-nav';
+import { isNavHrefActive } from '@/config/nav-active';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { roleWithTitle } from '@/lib/auth/role-label';
 import { User, UserSearch, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
@@ -24,6 +25,7 @@ interface SidebarProps {
 
 export function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const { profile, canSeeSelfPortalLinks, canSeeImpersonationLink } = useAuth();
   const { sections } = useSectionedNavigation();
@@ -50,8 +52,10 @@ export function Sidebar({ className }: SidebarProps) {
   // Check if any child is active
   const hasActiveChild = (children?: { href: string }[]) => {
     if (!children) return false;
-    return children.some(
-      (child) => pathname === child.href || pathname.startsWith(`${child.href}/`)
+    return children.some((child) =>
+      child.href.includes('?')
+        ? isNavHrefActive(pathname, searchParams, child.href)
+        : pathname === child.href || pathname.startsWith(`${child.href}/`)
     );
   };
 
@@ -261,7 +265,7 @@ export function Sidebar({ className }: SidebarProps) {
                         >
                           <ul className="relative ml-5 border-l space-y-1" style={{ borderColor: 'var(--border-subtle)' }}>
                             {item.children!.map((child) => {
-                              const isChildActive = pathname === child.href;
+                              const isChildActive = isNavHrefActive(pathname, searchParams, child.href);
                               return (
                                 <li key={child.id} className="relative">
                                   <Link
