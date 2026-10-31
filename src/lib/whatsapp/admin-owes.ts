@@ -309,7 +309,7 @@ export function createSupabaseOwesRepository(): OwesRepository {
           .filter((invoice) => Number(invoice.amount_due) - Number(invoice.amount_paid) > 0 && invoice.period_start)
           .map((invoice) => String(invoice.period_start).slice(0, 10))
           .sort();
-        if (months.length) unpaidMonths = { from: months[0], to: months[months.length - 1], count: months.length };
+        if (months.length) unpaidMonths = { from: months[0], to: months[months.length - 1], count: new Set(months.map((m) => m.slice(0, 7))).size };
         if (latest.data?.length) {
           // Every verified payment of that calendar month, so a month paid in two parts shows its total.
           const month = String(latest.data[0].payment_date).slice(0, 7);
