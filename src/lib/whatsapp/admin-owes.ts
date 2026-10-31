@@ -1,10 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AuditEntry } from '@/lib/audit/recorder';
-import { getDebtStatuses } from '@/lib/billing/debt-status';
+import { getDebtStatuses, type DebtStatus } from '@/lib/billing/debt-status';
 import { ilikeAny } from '@/lib/postgrest-filter';
 import { sanitizeSearchInput } from '@/lib/utils';
 import { createAdminClient } from '@/lib/supabase/server';
-import { formatMonth, formatNaira } from '@/lib/whatsapp/assistant-format';
+import { formatDay, formatMonth, formatNaira } from '@/lib/whatsapp/assistant-format';
 import { createSupabaseWhatsAppFinancialRepository, creditLine, type OwedFigures } from '@/lib/whatsapp/financial';
 
 /**
@@ -36,12 +36,13 @@ export interface OwesHouseData {
   houseLabel: string;
   /** The resident the house is billed to (tenant, else landlord); null when it has none. */
   billedTo: { residentId: string; name: string } | null;
-  status: { label: string };
+  /** The shared debt status key (#980); null when the house has no status row. */
+  status: { key: DebtStatus | null; label: string };
   owed: OwedFigures | null;
-  /** The first and the last month (first days) with an unpaid bill; null when none. */
-  unpaidMonths: { from: string; to: string } | null;
-  /** The latest verified payment for the house; null when there is none. */
-  lastPayment: { amount: number; date: string } | null;
+  /** The first and the last month (first days) with an unpaid bill, and how many such bills; null when none. */
+  unpaidMonths: { from: string; to: string; count: number } | null;
+  /** Every verified payment in the calendar month of the latest one (`month` is `YYYY-MM`); null when there is none. */
+  lastPayment: { month: string; payments: { amount: number; date: string }[] } | null;
   walletBalance: number;
 }
 
@@ -76,24 +77,46 @@ function monthRange(range: { from: string; to: string }): string {
   return range.from.slice(0, 7) === range.to.slice(0, 7) ? formatMonth(range.from) : `${formatMonth(range.from)} to ${formatMonth(range.to)}`;
 }
 
+/** `₦25k` for whole thousands, else full naira (`₦12,500`). */
+function shortNaira(amount: number): string {
+  if (amount > 0 && amount % 1000 === 0) return `₦${amount / 1000}k`;
+  return `₦${amount.toLocaleString('en-NG', { maximumFractionDigits: 2 })}`;
+}
+
+function statusText(status: OwesHouseData['status']): string {
+  if (status.key === 'arrears') return 'Owing ⛔';
+  if (status.key === 'outstanding') return 'Owing ⚠️';
+  if (status.key) return 'Cleared 🟢';
+  return status.label;
+}
+
+function lastPaidLine(lastPayment: OwesHouseData['lastPayment']): string {
+  if (!lastPayment) return 'No payment on record.';
+  const payments = [...lastPayment.payments].sort((a, b) => a.date.localeCompare(b.date));
+  const total = payments.reduce((sum, payment) => sum + payment.amount, 0);
+  const line = `Last paid: ${formatNaira(total)} in ${formatMonth(`${lastPayment.month}-01`)}`;
+  if (payments.length < 2) return `${line}.`;
+  const parts = payments.map((payment) => `${shortNaira(payment.amount)} on ${formatDay(payment.date).slice(0, -5)}`);
+  return `${line}, in ${payments.length} payments (${parts.join(', ')})`;
+}
+
 /**
- * Short form the owner chose (29 Oct 2026): status in the heading, then one line with what is owed for
- * which months and the last payment, for example
- * `*OJO.K-4, CONSTANCE OKA*: Arrears` / `Owes ₦110,000.00 for Dec 2025 to Oct 2026. Last payment was ₦100,000.00 (Jun 2025).`
+ * Layout the owner approved (#1371): status in the heading, then the outstanding amount with its months,
+ * then the last month paid, for example
+ * `*OJO.K-4, CONSTANCE OKA*: Owing ⚠️` / `Outstanding of *₦10,000.00* for 2 months (Sep 2026 to Oct 2026).` /
+ * `Last paid: ₦100,000.00 in Jun 2025.`
  */
 export function composeAdminOwesAnswer(data: OwesHouseData): string {
   if (!data.billedTo) return [`*${data.houseLabel}*`, 'No resident is billed for this house, so there is no figure to show.'].join('\n');
-  const lines = [`*${data.houseLabel}, ${data.billedTo.name}*: ${data.status.label}`];
+  const lines = [`*${data.houseLabel}, ${data.billedTo.name}*: ${statusText(data.status)}`];
   const owed = data.owed;
-  const lastPayment = data.lastPayment
-    ? `Last payment was ${formatNaira(data.lastPayment.amount)} (${formatMonth(data.lastPayment.date)}).`
-    : 'No payment on record.';
-  let owes: string;
-  if (!owed || owed.invoiceCount === 0) owes = 'No bills on record.';
-  else if (owed.outstanding > 0) owes = `Owes ${formatNaira(owed.outstanding)}${data.unpaidMonths ? ` for ${monthRange(data.unpaidMonths)}` : ''}.`;
-  else if (owed.outstanding < 0) owes = `Owes nothing, ${formatNaira(-owed.outstanding)} in credit.`;
-  else owes = 'Fully paid up.';
-  lines.push(`${owes} ${lastPayment}`);
+  if (!owed || owed.invoiceCount === 0) lines.push('No bills on record.');
+  else if (owed.outstanding > 0) {
+    const months = data.unpaidMonths;
+    lines.push(`Outstanding of *${formatNaira(owed.outstanding)}*${months ? ` for ${months.count} ${months.count === 1 ? 'month' : 'months'} (${monthRange(months)})` : ''}.`);
+  } else if (owed.outstanding < 0) lines.push(`Outstanding: nothing, ${formatNaira(-owed.outstanding)} in credit.`);
+  else lines.push('Outstanding: nothing.');
+  lines.push(lastPaidLine(data.lastPayment));
   // The wallet pays bills as they are made, so credit next to an open bill is for another charge category.
   if (owed?.credit) lines.push(creditLine(owed.credit));
   else if (data.walletBalance > 0 && (owed?.outstanding ?? 0) > 0) lines.push(`Credit: ${formatNaira(data.walletBalance)} (not for these bills)`);
@@ -257,7 +280,7 @@ export function createSupabaseOwesRepository(): OwesRepository {
       let unpaidMonths: OwesHouseData['unpaidMonths'] = null;
       let lastPayment: OwesHouseData['lastPayment'] = null;
       if (residentId) {
-        const [resident, figures, unpaid, payments] = await Promise.all([
+        const [resident, figures, unpaid, latest] = await Promise.all([
           supabase.from('residents').select('first_name, last_name').eq('id', residentId).maybeSingle(),
           financial.getOwed(residentId, houseId),
           supabase
@@ -267,25 +290,50 @@ export function createSupabaseOwesRepository(): OwesRepository {
             .eq('house_id', houseId)
             .in('status', ['unpaid', 'partially_paid'])
             .order('due_date', { ascending: true }),
-          financial.getRecentPayments(residentId, houseId, 10),
+          supabase
+            .from('payment_records')
+            .select('payment_date')
+            .eq('resident_id', residentId)
+            .eq('house_id', houseId)
+            .eq('status', 'paid')
+            .eq('is_verified', true)
+            .order('payment_date', { ascending: false })
+            .limit(1),
         ]);
         if (resident.error) throw resident.error;
         if (unpaid.error) throw unpaid.error;
+        if (latest.error) throw latest.error;
         billedTo = { residentId, name: `${resident.data?.first_name ?? ''} ${resident.data?.last_name ?? ''}`.trim() || 'Resident' };
         owed = figures;
         const months = (unpaid.data || [])
           .filter((invoice) => Number(invoice.amount_due) - Number(invoice.amount_paid) > 0 && invoice.period_start)
           .map((invoice) => String(invoice.period_start).slice(0, 10))
           .sort();
-        if (months.length) unpaidMonths = { from: months[0], to: months[months.length - 1] };
-        const verified = payments.find((payment) => payment.is_verified === true);
-        if (verified) lastPayment = { amount: Number(verified.amount || 0), date: String(verified.payment_date).slice(0, 10) };
+        if (months.length) unpaidMonths = { from: months[0], to: months[months.length - 1], count: new Set(months.map((m) => m.slice(0, 7))).size };
+        if (latest.data?.length) {
+          // Every verified payment of that calendar month, so a month paid in two parts shows its total.
+          const month = String(latest.data[0].payment_date).slice(0, 7);
+          const [year, monthNumber] = month.split('-').map(Number);
+          const next = monthNumber === 12 ? `${year + 1}-01` : `${year}-${String(monthNumber + 1).padStart(2, '0')}`;
+          const inMonth = await supabase
+            .from('payment_records')
+            .select('amount, payment_date')
+            .eq('resident_id', residentId)
+            .eq('house_id', houseId)
+            .eq('status', 'paid')
+            .eq('is_verified', true)
+            .gte('payment_date', `${month}-01`)
+            .lt('payment_date', `${next}-01`)
+            .order('payment_date', { ascending: true });
+          if (inMonth.error) throw inMonth.error;
+          lastPayment = { month, payments: (inMonth.data || []).map((row) => ({ amount: Number(row.amount || 0), date: String(row.payment_date).slice(0, 10) })) };
+        }
       }
       return {
         houseId,
         houseLabel: houseLabel(house as unknown as HouseRow),
         billedTo,
-        status: { label: status?.label ?? 'Unknown' },
+        status: { key: status?.status ?? null, label: status?.label ?? 'Unknown' },
         owed,
         unpaidMonths,
         lastPayment,
