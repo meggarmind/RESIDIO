@@ -228,7 +228,9 @@ describe('Resident status (owes lookup)', () => {
     const owes = owesRepo({ searchHouseCodes: vi.fn().mockResolvedValue([candidate('KOA-18A')]) });
     const repo = adminRepo();
     const reply = await send('KOA-18A', repo, owes);
-    expect(reply.mock.calls[0][0]).toMatch(/Send another house code or name, or reply 0 for Admin tools\.$/);
+    expect(reply).toHaveBeenCalledTimes(2);
+    expect(reply.mock.calls[0][0]).not.toContain('reply 0 for Admin tools');
+    expect(reply.mock.calls[1][0]).toBe('Send another house code or name, or reply 0 for Admin tools.');
     expect(repo.createRequest).toHaveBeenCalledWith(expect.objectContaining({ action: 'owes:choose', status: 'pending' }));
   });
 
