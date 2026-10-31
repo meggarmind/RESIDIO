@@ -8,7 +8,7 @@ vi.mock('@/components/dashboard/sidebar', () => ({ Sidebar: () => <aside /> }));
 vi.mock('@/components/dashboard/header', () => ({ Header: () => <header /> }));
 vi.mock('@/components/dashboard/mobile-nav', () => ({ MobileNav: () => null }));
 vi.mock('@/components/dashboard/ops-status-banner', () => ({ OpsStatusBanner: () => null }));
-vi.mock('next/navigation', () => ({ usePathname: () => '/settings/sending' }));
+vi.mock('next/navigation', () => ({ usePathname: () => '/settings/sending', useSearchParams: () => new URLSearchParams() }));
 vi.mock('@/hooks/use-settings-navigation', () => ({ useSettingsNavigation: () => ({ groups: [] }) }));
 const goToSection = vi.fn();
 vi.mock('@/components/settings/settings-sections-provider', async (importOriginal) => ({

@@ -1,10 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Sidebar } from '@/components/dashboard/sidebar';
 import { Header } from '@/components/dashboard/header';
 import { MobileNav } from '@/components/dashboard/mobile-nav';
 import { OpsStatusBanner } from '@/components/dashboard/ops-status-banner';
+
+// useSearchParams opts its component out of prerendering up to the nearest Suspense boundary. The menus
+// need the query only to mark a ?tab= child active (#1373), so each is rendered once without it as the
+// fallback (prerender and first paint keep the full menu) and again with it inside the boundary.
+function SidebarWithParams({ className }: { className?: string }) {
+    return <Sidebar className={className} searchParams={useSearchParams()} />;
+}
+
+function MobileNavWithParams(props: { open: boolean; onOpenChange: (open: boolean) => void }) {
+    return <MobileNav {...props} searchParams={useSearchParams()} />;
+}
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -14,10 +26,14 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     return (
         <div className="fixed inset-0 flex h-dvh overflow-clip">
             {/* Desktop Sidebar */}
-            <Sidebar className="hidden md:flex" />
+            <Suspense fallback={<Sidebar className="hidden md:flex" />}>
+                <SidebarWithParams className="hidden md:flex" />
+            </Suspense>
 
             {/* Mobile Navigation */}
-            <MobileNav open={mobileNavOpen} onOpenChange={setMobileNavOpen} />
+            <Suspense fallback={<MobileNav open={mobileNavOpen} onOpenChange={setMobileNavOpen} />}>
+                <MobileNavWithParams open={mobileNavOpen} onOpenChange={setMobileNavOpen} />
+            </Suspense>
 
             {/* Main Content */}
             <div className="flex flex-1 flex-col transition-all duration-300 ease-in-out overflow-hidden">

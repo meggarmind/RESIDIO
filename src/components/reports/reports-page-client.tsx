@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -38,6 +39,7 @@ import {
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { ReportRequestWizard } from '@/components/reports/report-request-wizard';
+import { parseReportsTab, type ReportsTab } from '@/components/reports/reports-tabs';
 import { ReportViewer } from '@/components/reports/report-viewer';
 import { ReportSchedulesPanel } from '@/components/reports/report-schedules';
 import { useCan } from '@/components/auth/can';
@@ -320,7 +322,12 @@ function QuickStatsChip() {
 // ============================================================
 
 export function ReportsPageClient() {
-    const [activeTab, setActiveTab] = useState<string>('new');
+    // The tab lives in the address (?tab=), so the main menu can open each one (#1373).
+    const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+    const activeTab = parseReportsTab(searchParams.get('tab'));
+    const setActiveTab = (tab: ReportsTab) => router.replace(`${pathname}?tab=${tab}`, { scroll: false });
     const [selectedReport, setSelectedReport] = useState<GeneratedReport | null>(null);
     const { data: generalSettings } = useGeneralSettings();
     // Empty falls through to ReportViewer's own default.
@@ -386,7 +393,7 @@ export function ReportsPageClient() {
         // The Tabs root is the parent of the sticky bar, so the bar stays pinned for the whole page.
         <Tabs
             value={activeTab}
-            onValueChange={setActiveTab}
+            onValueChange={(tab) => setActiveTab(parseReportsTab(tab))}
             className="gap-6"
             style={{ '--reports-sticky-h': `${stickyHeight}px` } as React.CSSProperties}
         >

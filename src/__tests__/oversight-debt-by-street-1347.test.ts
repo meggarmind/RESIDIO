@@ -24,10 +24,10 @@ describe('Oversight menu sections (#1347)', () => {
     expect(oversightConfig.map((group) => group.title)).toEqual(['Dashboard', 'Reports', 'Messages', 'System']);
   });
 
-  it('puts the chart pages in Dashboard and the report pages in Reports', () => {
+  it('puts the chart pages in Dashboard and the report page in Reports', () => {
     const hrefs = (title: string) => oversightConfig.find((g) => g.title === title)!.items.map((i) => i.href);
     expect(hrefs('Dashboard')).toEqual(['/system', '/analytics', '/analytics/announcements']);
-    expect(hrefs('Reports')).toEqual(['/reports/financial-overview', '/reports']);
+    expect(hrefs('Reports')).toEqual(['/reports/financial-overview']);
   });
 });
 

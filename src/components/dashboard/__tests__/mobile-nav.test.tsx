@@ -13,7 +13,7 @@ import { MobileNav } from '@/components/dashboard/mobile-nav';
 let pathname = '/dashboard';
 let granted: 'all' | Set<string> = 'all';
 
-vi.mock('next/navigation', () => ({ usePathname: () => pathname }));
+vi.mock('next/navigation', () => ({ usePathname: () => pathname, useSearchParams: () => new URLSearchParams() }));
 vi.mock('next/link', () => ({
   default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
     <a href={href} {...rest}>

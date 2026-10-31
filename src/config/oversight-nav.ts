@@ -8,12 +8,14 @@ import type { SettingsGroup } from '@/config/settings-nav';
  * `flattenSettingsNav` work on it unchanged. Web addresses are the old ones (owner decision,
  * #1270); only the menu is new.
  *
+ * Generate reports is not here: it has its own Reports entry in the main menu (#1373).
+ *
  * Each entry's permissions are its route guard in `ROUTE_PERMISSIONS`, so the menu never
  * links a page the middleware would bounce (`oversight-nav-coverage.test.ts`).
  */
 export const oversightConfig: SettingsGroup[] = [
     {
-        // Pages that show live charts and counts; Reports below holds the report pages (owner, 30 Oct 2026, #1347).
+        // Pages that show live charts and counts; Reports below holds the report page (owner, 30 Oct 2026, #1347).
         title: 'Dashboard',
         icon: LayoutDashboard,
         items: [
@@ -56,16 +58,6 @@ export const oversightConfig: SettingsGroup[] = [
                 href: '/reports/financial-overview',
                 description: 'Income and expenses by category, from imported bank statements',
                 permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
-            },
-            {
-                title: 'Generate reports',
-                href: '/reports',
-                description: 'Create and download financial, occupancy and security reports',
-                permissions: [
-                    PERMISSIONS.REPORTS_VIEW_FINANCIAL,
-                    PERMISSIONS.REPORTS_VIEW_OCCUPANCY,
-                    PERMISSIONS.REPORTS_VIEW_SECURITY,
-                ],
             },
         ],
     },
