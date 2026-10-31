@@ -23,10 +23,10 @@ Residio groups work by responsibility rather than by database table.
 
 ## Sidebar groups
 
-- **Core:** dashboard and analytics.
+- **Core:** dashboard, and **Reports** directly under it. Reports opens Generate reports; its **New report**, **History** and **Schedules** entries open that tab of the page. Only roles with the view financial reports permission see it.
 - **People & Property:** residents, houses, and contractors or staff.
 - **Financial:** transactions, imports, invoices, collections (contributions and item purchases), and expenditure.
-- **Operations:** security, reports, documents, announcements, approvals, and capital projects.
+- **Operations:** security, documents, announcements, approvals, and capital projects.
 - **System:** the System dashboard (an at-a-glance read on cron health, the notification queue, audit activity and account approvals), Settings, and the individual pages behind each of those cards — audit logs, accounts, notification queue and history, data tools, and cron status.
 
 On desktop, hover over the collapsed sidebar to reveal labels. On mobile, use **Toggle menu** in the header.
