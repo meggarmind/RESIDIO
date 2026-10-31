@@ -57,6 +57,8 @@ export interface NavItem {
   badgeType?: 'approvals' | 'notifications';
   /** Short label for mobile display (optional, defaults to title) */
   mobileLabel?: string;
+  /** For a child whose href has a query string: the value a missing query key stands for (e.g. the default tab), so the child is active on the bare path */
+  queryDefaults?: Record<string, string>;
   /** An area with its own left menu: the entry opens the first page of it the user may open, and is active on any of its pages */
   area?: SettingsGroup[];
 }
@@ -224,6 +226,7 @@ const NAV_REPORTS: NavItem = {
       id: 'reports-new',
       title: 'New report',
       href: '/reports?tab=new',
+      queryDefaults: { tab: 'new' },
       icon: Plus,
       permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
     },

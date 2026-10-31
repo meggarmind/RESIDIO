@@ -89,6 +89,12 @@ describe('isNavHrefActive (#1373)', () => {
     expect(isNavHrefActive('/reports/financial-overview', at('tab=new'), '/reports?tab=new')).toBe(false);
   });
 
+  it('treats a missing key as its default value when given one', () => {
+    expect(isNavHrefActive('/reports', at(''), '/reports?tab=new', { defaults: { tab: 'new' } })).toBe(true);
+    expect(isNavHrefActive('/reports', at(''), '/reports?tab=recent', { defaults: { tab: 'new' } })).toBe(false);
+    expect(isNavHrefActive('/reports', at('tab=recent'), '/reports?tab=new', { defaults: { tab: 'new' } })).toBe(false);
+  });
+
   it('keeps the old path-only behaviour for a plain href', () => {
     expect(isNavHrefActive('/payments', at('tab=x'), '/payments')).toBe(true);
     expect(isNavHrefActive('/payments/new', at(''), '/payments')).toBe(false);
