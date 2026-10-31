@@ -17,7 +17,7 @@ residio_sources:
   - src/app/(dashboard)/(oversight)/system/page.tsx
   - src/components/system/**
   - src/actions/system/**
-residio_verified_commit: 6701408c
+residio_verified_commit: 5a870640
 residio_verified_at: '2026-10-30'
 residio_app_version: '0.4.0'
 ---
@@ -26,7 +26,7 @@ residio_app_version: '0.4.0'
 
 ## System dashboard
 
-Open **Oversight** in the sidebar — or the status indicator next to the menu button in the header — to land on the **Oversight overview** at `/system`. Oversight has its own left menu with every report and monitoring page. It answers "is anything wrong?" at a glance: cards for cron health, notification queue depth, recent audit activity, accounts awaiting approval, and data tools, each showing enough to tell a healthy state from one that needs attention without opening it. A card only appears if your role can open the page it links to, so this page shows a different set of cards to different roles, same as the sections below. A row of jump tabs at the top scrolls to the cards. Use it as the entry point before working through the detail pages this guide covers next.
+Open **Oversight** in the sidebar — or the status indicator next to the menu button in the header — to land on the **Oversight overview** at `/system`. Oversight has its own left menu with every report and monitoring page. It answers "is anything wrong?" at a glance: cards for cron health, notification queue depth, recent audit activity, accounts awaiting approval, and data tools, each showing enough to tell a healthy state from one that needs attention without opening it. A card only appears if your role can open the page it links to, so this page shows a different set of cards to different roles, same as the sections below. A row of tabs at the top shows one card at a time; the first tab, **Summary**, shows the key value of each. Use it as the entry point before working through the detail pages this guide covers next.
 
 ## Roles and permissions
 

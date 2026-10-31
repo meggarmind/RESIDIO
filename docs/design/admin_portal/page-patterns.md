@@ -375,8 +375,8 @@ Required regions, top to bottom:
 
 1. Layout label "Settings" and the sidebar (`lg`) or mobile nav (`settings/layout.tsx:8-22`).
 2. `SettingsPageHeader`: breadcrumb, `<h1>` from `settings-nav.ts`, description, optional save bar.
-3. Section chips "On this page" (`SettingsPageNav`).
-4. Stacked section cards.
+3. Section tabs (`SettingsPageNav`, #1365): **Summary** first, with one card per section, then one tab per section. A tab shows only its own section; the choice is kept in `?section=`.
+4. The section cards of the open tab.
 
 Primary action: the `Save changes` button in the sticky save bar. It appears when `isDirty` is true (`settings-page-header.tsx:78-95`). Section-level add actions sit in each section header.
 
