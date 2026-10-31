@@ -100,7 +100,8 @@ const DEBIT_PATTERNS = [
 
 // Reference patterns
 const REFERENCE_PATTERNS = [
-  /ref(?:erence)?[:\s]*([A-Z0-9/\-]+)/i,
+  // A whole-word label (not "ref" inside Refund or Preferred), then a 4-40 character value.
+  /\bref(?:erence)?\b\s*[:#.]?\s*([A-Z0-9][A-Z0-9/\-]{3,39})(?![A-Z0-9/\-])/i,
   /trf[:/]?\s*([A-Z0-9]+)/i,
   /session\s*id[:\s]*([A-Z0-9]+)/i,
 ];
