@@ -253,7 +253,8 @@ describe('Resident status (owes lookup)', () => {
 
 describe('composeAdminOwesAnswer', () => {
   it('shows the signed roll-forward figure and the wallet credit', () => {
-    const text = composeAdminOwesAnswer(house({ owed: { invoiceCount: 1, outstanding: -1000, rollForward: true, overdue: null, next: null, awaitingVerification: 0 }, unpaidMonths: null }));
+    const text = composeAdminOwesAnswer(house({ owed: { invoiceCount: 1, outstanding: -1000, rollForward: true, overdue: null, next: null, nextPaymentDue: '2026-11-01', awaitingVerification: 0 }, unpaidMonths: null }), NOW);
+    expect(text).not.toContain('Next Payment Due');
     expect(text).toContain('Outstanding: nothing, ₦1,000.00 in credit.\nLast paid: ₦100,000.00 in Jun 2025.');
     expect(text).not.toContain('not for these bills');
     expect(text).not.toContain('netted');
@@ -295,14 +296,14 @@ describe('composeAdminOwesAnswer', () => {
 
   it('names one month alone, and says so when there is no payment or bill', () => {
     const owed = { invoiceCount: 1, outstanding: 10000, overdue: null, next: null, awaitingVerification: 5000 };
-    const one = composeAdminOwesAnswer(house({ owed, unpaidMonths: { from: '2026-10-01', to: '2026-10-01', count: 1 }, lastPayment: null, walletBalance: 0 }));
+    const one = composeAdminOwesAnswer(house({ owed, unpaidMonths: { from: '2026-10-01', to: '2026-10-01', count: 1 }, lastPayment: null, walletBalance: 0 }), NOW);
     expect(one).toContain('Outstanding of *₦10,000.00* for 1 month (Oct 2026).\nNo payment on record.');
     expect(one).toContain('Awaiting verification: ₦5,000.00');
-    const none = composeAdminOwesAnswer(house({ owed: { ...owed, invoiceCount: 0, outstanding: 0, awaitingVerification: 0 }, unpaidMonths: null, walletBalance: 0 }));
+    const none = composeAdminOwesAnswer(house({ owed: { ...owed, invoiceCount: 0, outstanding: 0, awaitingVerification: 0 }, unpaidMonths: null, walletBalance: 0 }), NOW);
     expect(none).toContain('No bills on record.');
   });
 
-  const sample = (overrides: Partial<OwesHouseData>) => composeAdminOwesAnswer(house({ walletBalance: 0, ...overrides }));
+  const sample = (overrides: Partial<OwesHouseData>) => composeAdminOwesAnswer(house({ walletBalance: 0, ...overrides }), NOW);
   const owedOf = (outstanding: number) => ({ invoiceCount: 2, outstanding, overdue: null, next: null, awaitingVerification: 0 });
 
   it('renders the approved sample for a house paid twice in the month', () => {
@@ -350,6 +351,6 @@ describe('composeAdminOwesAnswer', () => {
   });
 
   it('says so when no resident is billed', () => {
-    expect(composeAdminOwesAnswer(house({ billedTo: null, owed: null }))).toContain('No resident is billed');
+    expect(composeAdminOwesAnswer(house({ billedTo: null, owed: null }), NOW)).toContain('No resident is billed');
   });
 });

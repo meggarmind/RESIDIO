@@ -115,7 +115,7 @@ function lastPaidLine(lastPayment: OwesHouseData['lastPayment']): string {
  * `Last paid: ₦100,000.00 in Jun 2025.`
  * A cleared house shows when the next payment is due in place of the credit line (owner, 31 Oct 2026).
  */
-export function composeAdminOwesAnswer(data: OwesHouseData, now: Date = new Date()): string {
+export function composeAdminOwesAnswer(data: OwesHouseData, now: Date): string {
   if (!data.billedTo) return [`*${data.houseLabel}*`, 'No resident is billed for this house, so there is no figure to show.'].join('\n');
   const lines = [`*${data.houseLabel}, ${data.billedTo.name}*: ${statusText(data.status)}`];
   const owed = data.owed;
