@@ -146,7 +146,7 @@ export async function updateSetting(
     }
 
     if (error || !data) {
-        console.error(`Update setting "${key}" error:`, error);
+        console.error('Update setting "%s" error:', key, error);
         return { data: null, error: 'Failed to update setting' };
     }
 
@@ -324,7 +324,7 @@ export async function createSetting(
         if (error.code === '23505') {
             return { data: null, error: `Setting "${key}" already exists` };
         }
-        console.error(`Create setting "${key}" error:`, error);
+        console.error('Create setting "%s" error:', key, error);
         return { data: null, error: 'Failed to create setting' };
     }
 

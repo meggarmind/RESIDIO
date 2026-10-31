@@ -52,7 +52,7 @@ export async function readSetting(
         .maybeSingle();
 
     if (error) {
-        console.error(`Get setting value "${key}" error:`, error);
+        console.error('Get setting value "%s" error:', key, error);
         return { status: 'error', message: error.message };
     }
 
