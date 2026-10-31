@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { isNavHrefActive, type SearchParamsReader } from '@/config/nav-active';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { roleWithTitle } from '@/lib/auth/role-label';
 import { useEstateLogo } from '@/hooks/use-estate-logo';
@@ -20,6 +21,8 @@ import { useOpsStatus } from '@/hooks/use-ops-status';
 interface MobileNavProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** The address's query, read by the caller inside a Suspense boundary (see dashboard-shell) */
+  searchParams?: SearchParamsReader | null;
 }
 
 /**
@@ -30,7 +33,7 @@ interface MobileNavProps {
  * Mirrors the desktop sidebar information architecture, grouped by section.
  * Styling follows the active theme tokens.
  */
-export function MobileNav({ open, onOpenChange }: MobileNavProps) {
+export function MobileNav({ open, onOpenChange, searchParams = null }: MobileNavProps) {
   const pathname = usePathname();
   const { profile } = useAuth();
   const { sections } = useSectionedNavigation();
@@ -72,7 +75,10 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
               )}
               <ul className="space-y-1">
                 {section.items.map((item) => {
-                  const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  // An item whose children are tabs of its own page (?tab=) is not active on a sibling page below it.
+                  const hasQueryChild = item.children?.some((child) => child.href.includes('?'));
+                  const isActive =
+                    pathname === item.href || (!hasQueryChild && pathname.startsWith(`${item.href}/`));
                   // Children arrive already permission-filtered from the shared hook.
                   // A child sharing its parent's href is the same destination: skip it.
                   const children = (item.children ?? []).filter(
@@ -104,7 +110,7 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
                       {children.length > 0 && (
                         <ul className="ml-5 mt-1 space-y-1 border-l pl-2">
                           {children.map((child) => {
-                            const isChildActive = pathname === child.href;
+                            const isChildActive = isNavHrefActive(pathname, searchParams, child.href, { defaults: child.queryDefaults });
                             return (
                               <li key={child.id}>
                                 <Link

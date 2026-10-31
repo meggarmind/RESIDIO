@@ -3,8 +3,8 @@ import { PageTransition } from '@/components/ui/page-transition';
 import { OversightMobileNav, OversightSidebar } from './oversight-nav';
 
 /**
- * The layout of the `(oversight)` route group (/system, /analytics, /reports): Oversight's left menu around the
- * page (#1272). One layout for all three, as Settings has one, so the menu stays mounted between pages (#1357).
+ * The layout of the `(oversight)` route group (/system, /analytics, /reports/financial-overview): Oversight's left menu around the
+ * page (#1272). One layout for all of them, as Settings has one, so the menu stays mounted between pages (#1357).
  */
 export function OversightLayout({ children }: { children: React.ReactNode }) {
     return (

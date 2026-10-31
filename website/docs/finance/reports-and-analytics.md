@@ -5,16 +5,17 @@ sidebar_label: Reports and analytics
 residio_sources:
   - src/app/(dashboard)/(oversight)/analytics/**
   - src/app/(dashboard)/(oversight)/reports/**
+  - src/app/(dashboard)/reports/**
   - src/actions/analytics/**
   - src/actions/reports/**
-residio_verified_commit: 17480e1a
-residio_verified_at: '2026-10-30'
+residio_verified_commit: 7ee5c794
+residio_verified_at: '2026-10-31'
 residio_app_version: '0.4.0'
 ---
 
 # Reports and analytics
 
-Both live under **Oversight** in the sidebar. Its left menu has four groups: **Dashboard** (Oversight overview, Collections dashboard, Announcement engagement), **Reports** (Income & expenses, Generate reports), **Messages** and **System**. The left menu scrolls when it is taller than the screen. Use **Collections dashboard** for trends, **Income & expenses** for the income and expense breakdown, **Generate reports** for generated operational or financial outputs, and **Announcement engagement** for announcement reach.
+Analytics live under **Oversight** in the sidebar. Its left menu has four groups: **Dashboard** (Oversight overview, Collections dashboard, Announcement engagement), **Reports** (Income & expenses), **Messages** and **System**. The left menu scrolls when it is taller than the screen. Use **Collections dashboard** for trends, **Income & expenses** for the income and expense breakdown, and **Announcement engagement** for announcement reach. Generated operational and financial reports have their own **Reports** entry in the main sidebar, directly under **Dashboard**, with the links **New report**, **History** and **Schedules**.
 
 ![Residio analytics dashboard](../assets/admin/analytics-dashboard.png)
 
@@ -36,9 +37,9 @@ If the aging figures cannot be loaded, the card says *Invoice aging unavailable*
 
 ## Report workflow
 
-**Oversight → Generate reports** needs the view financial reports permission; without it you are returned to the dashboard. The page has five tabs: **New Report**, **History**, **Schedules**, **Archive** and **Wallet Check**.
+**Reports** in the main sidebar needs the view financial reports permission; without it you are returned to the dashboard. The page has five tabs: **New Report**, **History**, **Schedules**, **Archive** and **Wallet Check**.
 
-1. Open **Oversight → Generate reports → New Report**.
+1. Open **Reports → New report** in the sidebar.
 2. On step 1, select the report type. The list on the left has a search field and groups (**Money in and out**, **Debts**, **Levies**); select a group name to close or open it. The right side shows what the report asks for (a date range or "as of today", and bank accounts or none), the next step, and an **Example layout** of the report. Then select the period, if the report asks for one.
 3. Review the preview or parameters.
 4. Generate and download the report only after confirming the scope.
