@@ -285,3 +285,25 @@ describe('(#1356) masked account in the Transaction Details table', () => {
     expect(sentence.bankAccountLast4).toBe('1234');
   });
 });
+
+describe('(#1359) the Ref label is a whole word', () => {
+  const alert = (tail: string) =>
+    parseFirstBankAlert(`Your account ****1234 has been credited with NGN 5,000.00 by JAKE DEE on 31/10/2026. ${tail}`, null)!;
+
+  it.each(['FIP:GTB/JAKE DEE/Refund dues', 'Refunds for dues', 'Preferred payment for dues', 'Pref 2026 dues'])('takes no reference from "ref" inside a word (%s)', (tail) => {
+    expect(alert(tail).reference).toBeNull();
+  });
+
+  it.each([
+    ['Ref: ABC123', 'ABC123'],
+    ['Ref ABC123', 'ABC123'],
+    ['Reference: TRF/123456789', 'TRF/123456789'],
+    ['ref# 0001-22', '0001-22'],
+  ])('reads a real label (%s)', (tail, ref) => {
+    expect(alert(tail).reference).toBe(ref);
+  });
+
+  it.each(['Ref: AB', `Ref: ${'A'.repeat(41)}`])('takes no value that is too short or too long (%s)', (tail) => {
+    expect(alert(tail).reference).toBeNull();
+  });
+});
