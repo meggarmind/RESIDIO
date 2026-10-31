@@ -31,21 +31,29 @@ import { calendarDate } from '@/lib/utils/calendar-date';
  * Converts HTML to plain text for parsing.
  */
 export function stripHtmlTags(html: string): string {
-  return html
-    // Replace <br>, <p>, <div>, <tr> with newlines for structure preservation
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/?(p|div|tr|li)[^>]*>/gi, '\n')
-    // Remove all remaining HTML tags
-    .replace(/<[^>]+>/g, '')
-    // Decode common HTML entities
+  // Repeat until nothing changes, so removing one tag cannot leave another behind.
+  let text = html;
+  let previous: string;
+  do {
+    previous = text;
+    text = text
+      // Replace <br>, <p>, <div>, <tr> with newlines for structure preservation
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/?(p|div|tr|li)[^>]*>/gi, '\n')
+      // Remove all remaining HTML tags
+      .replace(/<[^>]+>/g, '');
+  } while (text !== previous);
+
+  return text
+    // Decode common HTML entities. &amp; goes last, so "&amp;lt;" becomes "&lt;", not "<".
     .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
     .replace(/&lt;/gi, '<')
     .replace(/&gt;/gi, '>')
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
     .replace(/&#x27;/gi, "'")
     .replace(/&#x2F;/gi, '/')
+    .replace(/&amp;/gi, '&')
     // Clean up excessive whitespace
     .replace(/\n\s*\n/g, '\n')
     .trim();

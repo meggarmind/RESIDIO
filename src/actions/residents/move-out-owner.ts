@@ -106,7 +106,8 @@ function generateCertificateNumber(): string {
     const date = new Date();
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
-    const random = Math.random().toString(36).substring(2, 8).toUpperCase();
+    // Six base-36 characters from a CSPRNG, so certificate numbers cannot be predicted.
+    const random = Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => (b % 36).toString(36)).join('').toUpperCase();
     return `OWN-${year}${month}-${random}`;
 }
 
