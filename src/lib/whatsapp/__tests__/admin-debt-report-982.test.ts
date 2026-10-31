@@ -228,7 +228,7 @@ describe('Security debt status: running with a fresh code', () => {
   const code = () => generateTOTPCode(SECRET, totpStepAt(NOW.getTime()));
   const params = { all: false, streetIds: ['s-a'] };
   const context = (overrides: Partial<WhatsAppAdminActionContext> = {}): WhatsAppAdminActionContext => ({
-    account, binding, now: NOW, requestId: 'r', params, audit: vi.fn(), owes: {} as OwesRepository, ...overrides,
+    account, binding, now: NOW, codeNeeded: true, requestId: 'r', params, audit: vi.fn(), owes: {} as OwesRepository, ...overrides,
   });
 
   it('takes the code, queues the report without drawing it, replies with the count, and audits who asked for what', async () => {

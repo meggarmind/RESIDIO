@@ -3,7 +3,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { embed } from '@/lib/utils';
 import type {
-  ApprovalRequest,
   ApprovalRequestWithDetails,
   ApprovalStatus,
   ApprovalRequestType,
@@ -11,7 +10,7 @@ import type {
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
-import { getApprovalHandler } from '@/lib/approvals/registry';
+import { approveAsReviewer, rejectAsReviewer, applyRequestedChanges, SESSION_REVIEWER } from '@/lib/approvals/decision';
 import { isStuckApproval } from '@/lib/approvals/stuck';
 import { notifyRequesterOfOutcome } from '@/lib/approvals/notify-requester';
 
@@ -179,64 +178,8 @@ export async function getPendingApprovalsCount(): Promise<PendingCountResponse> 
   return { count: count || 0, error: null };
 }
 
-type DecisionStatus = 'approved' | 'rejected';
-type DecisionClient = Awaited<ReturnType<typeof createServerSupabaseClient>>;
-
-// Shared decision core (approve and reject). Each action still calls authorizePermission()
-// itself, first, so its guard stays visible at the action; everything after that is shared.
-
-// Fetch the request and check it is still pending. Failure strings are part of the contract.
-async function loadPendingRequest(
-  supabase: DecisionClient,
-  requestId: string
-): Promise<{ request: ApprovalRequest; error: null } | { request: null; error: string }> {
-  const { data: request, error: fetchError } = await supabase
-    .from('approval_requests')
-    .select('*')
-    .eq('id', requestId)
-    .single();
-
-  if (fetchError || !request) {
-    return { request: null, error: 'Request not found' };
-  }
-
-  if (request.status !== 'pending') {
-    return { request: null, error: 'Request has already been processed' };
-  }
-
-  return { request, error: null };
-}
-
-// The review fields every decision writes onto the request row.
-function reviewFields(status: DecisionStatus, reviewerId: string, notes?: string) {
-  return {
-    status,
-    reviewed_by: reviewerId,
-    reviewed_at: new Date().toISOString(),
-    review_notes: notes || null,
-    updated_at: new Date().toISOString(),
-  };
-}
-
-// Audit the decision on the approval request itself.
-async function auditDecision(
-  action: 'APPROVE' | 'REJECT',
-  request: ApprovalRequest,
-  status: DecisionStatus,
-  reviewerId: string,
-  notes?: string
-) {
-  await logAudit({
-    action,
-    entityType: 'approval_requests',
-    entityId: request.id,
-    entityDisplay: `${request.request_type} approval request`,
-    oldValues: { status: request.status },
-    newValues: { status, reviewed_by: reviewerId, review_notes: notes || null },
-  });
-}
-
-// Approve a request
+// Approve a request. The rules (maker-checker, the claim guarded on pending, apply, release on
+// failure) live in the shared decision core, which WhatsApp Admin tools use too (#1297).
 export async function approveRequest(
   requestId: string,
   notes?: string
@@ -249,81 +192,7 @@ export async function approveRequest(
     return { success: false, error: auth.error || 'Unauthorized' };
   }
 
-  const loaded = await loadPendingRequest(supabase, requestId);
-  if (loaded.error !== null) {
-    return { success: false, error: loaded.error };
-  }
-  const request = loaded.request;
-
-  // Maker-checker: the requester cannot approve their own request (#473).
-  if (request.requested_by === auth.userId) {
-    return { success: false, error: 'You cannot approve your own request' };
-  }
-
-  // Claim the request first, guarded on status = 'pending', so concurrent
-  // approvals (or approve vs reject) cannot both apply the changes.
-  const { data: claimed, error: updateError } = await supabase
-    .from('approval_requests')
-    .update(reviewFields('approved', auth.userId!, notes))
-    .eq('id', requestId)
-    .eq('status', 'pending')
-    .select('id')
-    .maybeSingle();
-
-  if (updateError) {
-    return { success: false, error: updateError.message };
-  }
-
-  if (!claimed) {
-    return { success: false, error: 'Request has already been processed' };
-  }
-
-  // Apply the changes based on request type
-  const applyResult = await applyRequestedChanges(request);
-  if (!applyResult.success) {
-    // Release the claim so the request can be retried.
-    const { error: releaseError } = await supabase
-      .from('approval_requests')
-      .update({
-        status: 'pending',
-        reviewed_by: null,
-        reviewed_at: null,
-        review_notes: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', requestId)
-      .eq('status', 'approved');
-    if (releaseError) {
-      console.error('Approval claim release error (request may be stuck approved):', releaseError);
-      return {
-        success: false,
-        error: `${applyResult.error} The request could not be reset and may be stuck as approved without its changes applied. Contact an administrator.`,
-      };
-    }
-    return applyResult;
-  }
-
-  // Record that the change landed. A failure here must not fail the approval: the change is
-  // applied, and a row left without applied_at looks stuck, which reapplyApprovedRequest
-  // resolves idempotently.
-  const appliedAt = new Date().toISOString();
-  const { error: appliedError } = await supabase
-    .from('approval_requests')
-    .update({ applied_at: appliedAt, updated_at: appliedAt })
-    .eq('id', requestId)
-    .eq('status', 'approved');
-  if (appliedError) {
-    console.error(
-      `Failed to record applied_at for approval request ${requestId} (change was applied; it may show as stuck):`,
-      appliedError
-    );
-  }
-
-  await auditDecision('APPROVE', request, 'approved', auth.userId!, notes);
-
-  const notifyWarning = await notifyRequesterOfOutcome({ request, outcome: 'approved', reviewerId: auth.userId, reviewNotes: notes });
-
-  return { success: true, error: null, warning: applyResult.warning ?? notifyWarning };
+  return approveAsReviewer(supabase, requestId, auth.userId!, SESSION_REVIEWER, notes);
 }
 
 // Re-apply an approved request whose change was never applied (#557): the process died between
@@ -364,7 +233,7 @@ export async function reapplyApprovedRequest(requestId: string): Promise<Approva
     };
   }
 
-  const applyResult = await applyRequestedChanges(request);
+  const applyResult = await applyRequestedChanges(request, supabase, SESSION_REVIEWER);
   if (!applyResult.success) {
     return applyResult;
   }
@@ -409,7 +278,7 @@ export async function reapplyApprovedRequest(requestId: string): Promise<Approva
 }
 
 // Reject a request. A requester MAY reject their own request (withdrawing it), so there is
-// deliberately no self-reject check here.
+// deliberately no self-reject check (the shared decision core, #1297).
 export async function rejectRequest(
   requestId: string,
   notes?: string
@@ -422,60 +291,7 @@ export async function rejectRequest(
     return { success: false, error: auth.error || 'Unauthorized' };
   }
 
-  const loaded = await loadPendingRequest(supabase, requestId);
-  if (loaded.error !== null) {
-    return { success: false, error: loaded.error };
-  }
-  const request = loaded.request;
-
-  // Update the request status, guarded on pending so a racing approve is never overwritten
-  const { data: updated, error: updateError } = await supabase
-    .from('approval_requests')
-    .update(reviewFields('rejected', auth.userId!, notes))
-    .eq('id', requestId)
-    .eq('status', 'pending')
-    .select('id')
-    .maybeSingle();
-
-  if (updateError) {
-    return { success: false, error: updateError.message };
-  }
-
-  // No row back: another approver claimed or rejected it between our read and this write
-  if (!updated) {
-    return { success: false, error: 'Request has already been processed' };
-  }
-
-  await auditDecision('REJECT', request, 'rejected', auth.userId!, notes);
-
-  const warning = await notifyRequesterOfOutcome({ request, outcome: 'rejected', reviewerId: auth.userId, reviewNotes: notes });
-
-  return { success: true, error: null, warning };
-}
-
-// Apply the requested changes through the request-type registry: unknown/unhandled type fails
-// closed, the payload is validated against the handler schema, then the handler applies it.
-async function applyRequestedChanges(request: ApprovalRequest): Promise<ApprovalActionResponse> {
-  const handler = getApprovalHandler(request.request_type);
-  if (!handler) {
-    return {
-      success: false,
-      error: `Unhandled approval request type: ${request.request_type}`,
-    };
-  }
-
-  const parsed = handler.schema.safeParse(request.requested_changes);
-  if (!parsed.success) {
-    return {
-      success: false,
-      error: `Invalid requested changes for ${request.request_type}: ${parsed.error.issues
-        .map((issue) => (issue.path.length ? `${issue.path.join('.')}: ${issue.message}` : issue.message))
-        .join('; ')}`,
-    };
-  }
-
-  const supabase = await createServerSupabaseClient();
-  return handler.apply(request, parsed.data, supabase);
+  return rejectAsReviewer(supabase, requestId, auth.userId!, SESSION_REVIEWER, notes);
 }
 
 // Check if user can auto-approve (holds approvals.approve_reject)
