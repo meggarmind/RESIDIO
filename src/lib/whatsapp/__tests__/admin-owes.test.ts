@@ -52,7 +52,7 @@ const house = (overrides: Partial<OwesHouseData> = {}): OwesHouseData => ({
   houseId: 'house-1',
   houseLabel: 'KOA-18A',
   billedTo: { residentId: 'res-1', name: 'Tolu Bello' },
-  status: { label: 'Arrears' },
+  status: { key: 'arrears', label: 'Arrears' },
   owed: {
     invoiceCount: 3,
     outstanding: 45000,
@@ -60,8 +60,8 @@ const house = (overrides: Partial<OwesHouseData> = {}): OwesHouseData => ({
     next: null,
     awaitingVerification: 0,
   },
-  unpaidMonths: { from: '2026-08-01', to: '2026-10-01' },
-  lastPayment: { amount: 100000, date: '2025-06-14' },
+  unpaidMonths: { from: '2026-08-01', to: '2026-10-01', count: 3 },
+  lastPayment: { month: '2025-06', payments: [{ amount: 100000, date: '2025-06-14' }] },
   walletBalance: 2500,
   ...overrides,
 });
@@ -125,8 +125,9 @@ describe('Resident status (owes lookup)', () => {
 
     const text = reply.mock.calls[0][0] as string;
     expect(text.startsWith([
-      '*KOA-18A, Tolu Bello*: Arrears',
-      'Owes ₦45,000.00 for Aug 2026 to Oct 2026. Last payment was ₦100,000.00 (Jun 2025).',
+      '*KOA-18A, Tolu Bello*: Owing ⛔',
+      'Outstanding of *₦45,000.00* for 3 months (Aug 2026 to Oct 2026).',
+      'Last paid: ₦100,000.00 in Jun 2025.',
       'Credit: ₦2,500.00 (not for these bills)',
     ].join('\n'))).toBe(true);
     expect(owes.logDisclosure).toHaveBeenCalledWith({ residentId: 'res-1', phoneNumber: PHONE, houseId: 'id-KOA-18A', adminProfileId: 'admin-1' });
@@ -140,7 +141,7 @@ describe('Resident status (owes lookup)', () => {
     const owes = owesRepo({ searchResidents: vi.fn().mockResolvedValue([candidate('KOA-18A', 'Tolu Bello')]) });
     const reply = await send('tolu', adminRepo(), owes);
     expect(owes.searchResidents).toHaveBeenCalledWith(['tolu']);
-    expect(reply.mock.calls[0][0]).toContain('*KOA-18A, Tolu Bello*: Arrears');
+    expect(reply.mock.calls[0][0]).toContain('*KOA-18A, Tolu Bello*: Owing ⛔');
   });
 
   it('lists several name matches, numbered, and keeps the list for five minutes', async () => {
@@ -184,7 +185,7 @@ describe('Resident status (owes lookup)', () => {
     const reply = await send('2', adminRepo(), owes);
     expect(owes.loadHouse).toHaveBeenCalledWith('id-KOA-2');
     expect(owes.clearChoices).toHaveBeenCalledWith('binding-1');
-    expect(reply.mock.calls[0][0]).toContain('*KOA-18A, Tolu Bello*: Arrears');
+    expect(reply.mock.calls[0][0]).toContain('*KOA-18A, Tolu Bello*: Owing ⛔');
   });
 
   it('refuses a pick when the list has expired', async () => {
@@ -251,28 +252,76 @@ describe('Resident status (owes lookup)', () => {
 describe('composeAdminOwesAnswer', () => {
   it('shows the signed roll-forward figure and the wallet credit', () => {
     const text = composeAdminOwesAnswer(house({ owed: { invoiceCount: 1, outstanding: -1000, rollForward: true, overdue: null, next: null, awaitingVerification: 0 }, unpaidMonths: null }));
-    expect(text).toContain('Owes nothing, ₦1,000.00 in credit. Last payment was ₦100,000.00 (Jun 2025).');
+    expect(text).toContain('Outstanding: nothing, ₦1,000.00 in credit.\nLast paid: ₦100,000.00 in Jun 2025.');
     expect(text).not.toContain('not for these bills');
     expect(text).not.toContain('netted');
   });
 
   it('says which months the credit pays when nothing is owed (owner decision 29 Oct 2026)', () => {
     const owed = { invoiceCount: 4, outstanding: 0, overdue: null, next: null, nextPaymentDue: '2027-01-01', awaitingVerification: 0, credit: { amount: 20000, months: ['2026-11-01', '2026-12-01'] } };
-    const text = composeAdminOwesAnswer(house({ owed, unpaidMonths: null, walletBalance: 20000, status: { label: 'Credit' } }));
+    const text = composeAdminOwesAnswer(house({ owed, unpaidMonths: null, walletBalance: 20000, status: { key: 'credit', label: 'Credit' } }));
     expect(text).toBe([
-      '*KOA-18A, Tolu Bello*: Credit',
-      'Fully paid up. Last payment was ₦100,000.00 (Jun 2025).',
+      '*KOA-18A, Tolu Bello*: Cleared 🟢',
+      'Outstanding: nothing.',
+      'Last paid: ₦100,000.00 in Jun 2025.',
       'Credit: ₦20,000.00. This pays Nov and Dec 2026.',
     ].join('\n'));
   });
 
   it('names one month alone, and says so when there is no payment or bill', () => {
     const owed = { invoiceCount: 1, outstanding: 10000, overdue: null, next: null, awaitingVerification: 5000 };
-    const one = composeAdminOwesAnswer(house({ owed, unpaidMonths: { from: '2026-10-01', to: '2026-10-01' }, lastPayment: null, walletBalance: 0 }));
-    expect(one).toContain('Owes ₦10,000.00 for Oct 2026. No payment on record.');
+    const one = composeAdminOwesAnswer(house({ owed, unpaidMonths: { from: '2026-10-01', to: '2026-10-01', count: 1 }, lastPayment: null, walletBalance: 0 }));
+    expect(one).toContain('Outstanding of *₦10,000.00* for 1 month (Oct 2026).\nNo payment on record.');
     expect(one).toContain('Awaiting verification: ₦5,000.00');
     const none = composeAdminOwesAnswer(house({ owed: { ...owed, invoiceCount: 0, outstanding: 0, awaitingVerification: 0 }, unpaidMonths: null, walletBalance: 0 }));
     expect(none).toContain('No bills on record.');
+  });
+
+  const sample = (overrides: Partial<OwesHouseData>) => composeAdminOwesAnswer(house({ walletBalance: 0, ...overrides }));
+  const owedOf = (outstanding: number) => ({ invoiceCount: 2, outstanding, overdue: null, next: null, awaitingVerification: 0 });
+
+  it('renders the approved sample for a house paid twice in the month', () => {
+    expect(sample({
+      houseLabel: 'KOA-10F-4',
+      billedTo: { residentId: 'r', name: 'MRS BANKE BAYO OJO' },
+      owed: owedOf(65000),
+      unpaidMonths: { from: '2025-10-01', to: '2026-10-01', count: 13 },
+      lastPayment: { month: '2025-09', payments: [{ amount: 15000, date: '2025-09-24' }, { amount: 25000, date: '2025-09-19' }] },
+    })).toBe([
+      '*KOA-10F-4, MRS BANKE BAYO OJO*: Owing ⛔',
+      'Outstanding of *₦65,000.00* for 13 months (Oct 2025 to Oct 2026).',
+      'Last paid: ₦40,000.00 in Sep 2025, in 2 payments (₦25k on 19 Sep, ₦15k on 24 Sep)',
+    ].join('\n'));
+  });
+
+  it('renders the approved sample for an outstanding house with one payment', () => {
+    expect(sample({
+      houseLabel: 'OJO.K-4',
+      billedTo: { residentId: 'r', name: 'CONSTANCE OKA' },
+      status: { key: 'outstanding', label: 'Outstanding' },
+      owed: owedOf(10000),
+      unpaidMonths: { from: '2026-09-01', to: '2026-10-01', count: 2 },
+    })).toBe([
+      '*OJO.K-4, CONSTANCE OKA*: Owing ⚠️',
+      'Outstanding of *₦10,000.00* for 2 months (Sep 2026 to Oct 2026).',
+      'Last paid: ₦100,000.00 in Jun 2025.',
+    ].join('\n'));
+  });
+
+  it('renders the approved sample for a cleared house', () => {
+    expect(sample({
+      houseLabel: 'IBB-5',
+      billedTo: { residentId: 'r', name: 'CHIKE' },
+      status: { key: 'paid_in_full', label: 'Paid in Full' },
+      owed: owedOf(0),
+      unpaidMonths: null,
+      lastPayment: { month: '2026-10', payments: [{ amount: 60000, date: '2026-10-05' }] },
+    })).toBe(['*IBB-5, CHIKE*: Cleared 🟢', 'Outstanding: nothing.', 'Last paid: ₦60,000.00 in Oct 2026.'].join('\n'));
+  });
+
+  it('shows amounts that are not whole thousands in full naira', () => {
+    const text = sample({ lastPayment: { month: '2026-03', payments: [{ amount: 12500, date: '2026-03-02' }, { amount: 7500.5, date: '2026-03-09' }] } });
+    expect(text).toContain('in 2 payments (₦12,500 on 2 Mar, ₦7,500.5 on 9 Mar)');
   });
 
   it('says so when no resident is billed', () => {
