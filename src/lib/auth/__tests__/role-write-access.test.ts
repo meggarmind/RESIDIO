@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveRoleKey, roleActionAccess, roleWriteBlock } from '@/lib/auth/role-write-access';
+import { deriveRoleKey, roleActionAccess, roleWriteBlock, titleWriteBlock } from '@/lib/auth/role-write-access';
 
 // #1318: the one rule behind the Roles tab buttons and the role actions' rank guard.
 
@@ -35,6 +35,27 @@ describe('roleWriteBlock', () => {
   it('treats a caller with no role id as not holding the role', () => {
     expect(roleWriteBlock(unknownCaller, AUDITOR)).toBeNull();
     expect(roleWriteBlock(unknownCaller, CHAIRMAN)).toBe('rank');
+  });
+});
+
+describe('titleWriteBlock (#1361)', () => {
+  it('lets a super admin change the titles of every role', () => {
+    for (const role of [SUPER_ADMIN, CHAIRMAN, TREASURER, AUDITOR]) {
+      expect(titleWriteBlock(superAdmin, role)).toBeNull();
+    }
+  });
+
+  it('refuses a non-super admin on super_admin, flagged or not, and on a missing role', () => {
+    expect(titleWriteBlock(treasurer, SUPER_ADMIN)).toBe('rank');
+    expect(titleWriteBlock(treasurer, UNFLAGGED_SUPER_ADMIN)).toBe('rank');
+    expect(titleWriteBlock(treasurer, null)).toBe('rank');
+    expect(titleWriteBlock(treasurer, undefined)).toBe('rank');
+  });
+
+  it('allows a non-super admin on their own role, a system role and a custom role', () => {
+    expect(titleWriteBlock(treasurer, TREASURER)).toBeNull();
+    expect(titleWriteBlock(treasurer, CHAIRMAN)).toBeNull();
+    expect(titleWriteBlock(treasurer, AUDITOR)).toBeNull();
   });
 });
 

@@ -7,7 +7,7 @@ residio_sources:
   - src/app/(dashboard)/(oversight)/reports/**
   - src/actions/analytics/**
   - src/actions/reports/**
-residio_verified_commit: fe2c42a
+residio_verified_commit: 17480e1a
 residio_verified_at: '2026-10-30'
 residio_app_version: '0.4.0'
 ---
@@ -20,7 +20,7 @@ Both live under **Oversight** in the sidebar. Its left menu has four groups: **D
 
 ## Collections dashboard workflow
 
-**Oversight → Collections dashboard** shows: collection rate, outstanding balance, overdue invoices and portfolio value at the top, a revenue against expenses trend for the last 12 months, **Houses by debt status and street**, **Invoice Aging** (how many overdue invoices are overdue by each number of days), **Invoice Status** (paid, unpaid, partially paid, overdue and void), and **Quick Stats** for houses, occupancy and residents. The page has no period filter. Jump tabs at the top (**Totals**, **Trends**, **Debt status**, **Invoice aging**) scroll to each part.
+**Oversight → Collections dashboard** shows: collection rate, outstanding balance, overdue invoices and portfolio value at the top, a revenue against expenses trend for the last 12 months, **Houses by debt status and street**, **Invoice Aging** (how many overdue invoices are overdue by each number of days), **Invoice Status** (paid, unpaid, partially paid, overdue and void), and **Quick Stats** for houses, occupancy and residents. The page has no period filter. Tabs at the top show one part at a time: **Summary** (one card for each part, with its key number), **Totals**, **Trends**, **Debt status**, **Invoice aging** and **Invoices & houses**. The open tab is part of the page address (`?section=debt-status`), so a link can open one tab.
 
 **Houses by debt status and street** is a stacked bar chart with one bar for each street. Each bar shows how many houses are in **Arrears**, **Outstanding**, **Paid in Full** and **Credit**. The subtitle gives the estate totals, and the title gives the "as at" date. It counts the same houses and uses the same rule as the debt status report: active, verified, lived-in houses that have an active primary resident. The labels come from **Settings > Debt Status**. The chart refreshes every minute, and when you return to the browser tab. Only users who can view financial reports see this section.
 
@@ -39,7 +39,7 @@ If the aging figures cannot be loaded, the card says *Invoice aging unavailable*
 **Oversight → Generate reports** needs the view financial reports permission; without it you are returned to the dashboard. The page has five tabs: **New Report**, **History**, **Schedules**, **Archive** and **Wallet Check**.
 
 1. Open **Oversight → Generate reports → New Report**.
-2. Select the report type and period.
+2. On step 1, select the report type. The list on the left has a search field and groups (**Money in and out**, **Debts**, **Levies**); select a group name to close or open it. The right side shows what the report asks for (a date range or "as of today", and bank accounts or none), the next step, and an **Example layout** of the report. Then select the period, if the report asks for one.
 3. Review the preview or parameters.
 4. Generate and download the report only after confirming the scope.
 

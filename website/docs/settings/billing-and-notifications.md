@@ -14,8 +14,8 @@ residio_sources:
   - src/app/(dashboard)/settings/sending/**
   - src/app/(dashboard)/settings/announcements/**
   - src/components/settings/messages/**
-residio_verified_commit: 7c80e672
-residio_verified_at: '2026-10-28'
+residio_verified_commit: bc152723
+residio_verified_at: '2026-10-30'
 residio_app_version: '0.4.0'
 ---
 
@@ -23,7 +23,7 @@ residio_app_version: '0.4.0'
 
 ## Billing
 
-**Settings → Money → Billing rules** is one page with four sections: **General**, **Invoices & due dates**, **Late fees** and **Levies**. The row of section names under the page title jumps to a section and stays in view as you scroll. The old addresses (Late Fees, Invoices and Development Levies) still work and open the matching section. **Rate cards** stays a separate page. Billing rules save as you change them: a switch, a choice or a number takes effect when you set it, so these sections have no Save button.
+**Settings → Money → Billing rules** is one page with four sections: **General**, **Invoices & due dates**, **Late fees** and **Levies**. The row of tabs under the page title shows one section at a time. The first tab, **Summary**, shows a card for each section with its current values; select a card to open that section. Unsaved changes stay when you change tabs, and the tab shows a dot until you save. The old addresses (Late Fees, Invoices and Development Levies) still work and open the matching section. **Rate cards** stays a separate page. Billing rules save as you change them: a switch, a choice or a number takes effect when you set it, so these sections have no Save button.
 
 Review billing settings before changing rates or periods. For a rate change, confirm the effective date, affected profile, and whether existing invoices should remain unchanged.
 

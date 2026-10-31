@@ -76,6 +76,7 @@ function FinancialDashboardContent() {
     };
   }, []);
   const { data: trendData, isLoading: trendLoading } = useAnalytics({ startDate, endDate });
+  const latestRevenue = trendData?.revenueTrend?.at(-1);
 
   // The debt chart reads through a reports.view_financial action, so only holders see its section (CORE.md §6).
   const { hasPermission, isLoading: authLoading } = useAuth();
@@ -85,7 +86,12 @@ function FinancialDashboardContent() {
   return (
     <div className="space-y-6">
       {/* Collection Health Cards */}
-      <JumpSection id="totals" title="Totals" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <JumpSection
+        id="totals"
+        title="Totals"
+        summary={financialHealth ? `${financialHealth.collectionRate.toFixed(1)}% collected · ${formatCurrency(financialHealth.totalOutstanding)} outstanding` : undefined}
+        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+      >
         <EnhancedStatCard
           title="Collection Rate"
           value={financialHealth ? `${financialHealth.collectionRate.toFixed(1)}%` : '-'}
@@ -121,19 +127,27 @@ function FinancialDashboardContent() {
       </JumpSection>
 
       {/* Revenue vs Expenses Monthly Trend */}
-      <JumpSection id="trends" title="Trends">
+      <JumpSection id="trends" title="Trends" summary={latestRevenue ? `${latestRevenue.label}: ${formatCurrency(latestRevenue.value)} collected` : undefined}>
         <Suspense fallback={<Skeleton className="h-80 w-full" />}>
           <RevenueTrendChart data={trendData?.revenueTrend ?? null} isLoading={trendLoading} />
         </Suspense>
       </JumpSection>
 
       {canViewDebt && (
-        <JumpSection id="debt-status" title="Debt status">
+        <JumpSection
+          id="debt-status"
+          title="Debt status"
+          summary={debt.data ? `${debt.data.totals.arrears} of ${debt.data.totalHouses} houses in ${debt.data.labels.arrears}` : undefined}
+        >
           <DebtStatusByStreetChart data={debt.data} isLoading={debt.isLoading} error={debt.error} />
         </JumpSection>
       )}
 
-      <JumpSection id="invoice-aging" title="Invoice aging">
+      <JumpSection
+        id="invoice-aging"
+        title="Invoice aging"
+        summary={invoiceAging ? `${invoiceAging.reduce((sum, item) => sum + item.count, 0)} overdue invoices` : undefined}
+      >
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2"><Clock className="h-5 w-5" />Invoice Aging</CardTitle></CardHeader>
           <CardContent>
@@ -155,8 +169,13 @@ function FinancialDashboardContent() {
         </Card>
       </JumpSection>
 
-      {/* Bottom Row: Invoice Distribution + Quick Stats */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      {/* Invoice Distribution + Quick Stats */}
+      <JumpSection
+        id="invoices-houses"
+        title="Invoices & houses"
+        summary={invoiceDist && quickStats ? `${invoiceDist.paid} paid, ${invoiceDist.unpaid} unpaid · ${quickStats.occupiedHouses} of ${quickStats.totalHouses} houses occupied` : undefined}
+        className="grid gap-6 lg:grid-cols-2"
+      >
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -217,7 +236,7 @@ function FinancialDashboardContent() {
             </div>
           </CardContent>
         </Card>
-      </div>
+      </JumpSection>
     </div>
   );
 }

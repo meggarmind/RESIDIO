@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import {
@@ -13,6 +14,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { findSettingsRow, settingsConfig, type SettingsGroup } from '@/config/settings-nav';
+import { cn } from '@/lib/utils';
 
 /** What a section tells the page about itself. Changes here re-render the page nav and the guard. */
 export interface RegisteredSection {
@@ -31,14 +33,29 @@ export interface SectionHandles {
   setOpen: (open: boolean) => void;
 }
 
+/** The first tab of a page with tabs: one card per section (#1365). */
+export const SUMMARY_TAB = 'summary';
+
 interface SettingsSectionsContextValue {
   groups: SettingsGroup[];
   sections: RegisteredSection[];
   register: (section: RegisteredSection) => void;
   unregister: (id: string) => void;
   setHandles: (id: string, handles: SectionHandles) => void;
-  /** Opens the section, scrolls to it and focuses its header button. */
+  /** Shows the section's tab, opens the section and focuses its header button. */
   goToSection: (id: string) => void;
+  /**
+   * The tab on show (#1365): SUMMARY_TAB or a section id. Null when the page shows every
+   * section at once: no page nav is mounted, or fewer than two sections are visible.
+   */
+  activeTab: string | null;
+  /** Shows the Summary tab. */
+  goToSummary: () => void;
+  /** Where each section renders its Summary card (the page nav's grid); null without one. */
+  summaryEl: HTMLElement | null;
+  setSummaryEl: (el: HTMLElement | null) => void;
+  /** Each section's place on the page, so the Summary cards keep the page order. */
+  order: Record<string, number>;
 }
 
 const SettingsSectionsContext = React.createContext<SettingsSectionsContextValue | null>(null);
@@ -58,7 +75,20 @@ export function useSettingsSections() {
  * A plain block with a jump tab, for pages outside Settings whose content is already cards
  * (#1273). Registers like a SettingsSection, but has no header, fold or save footer.
  */
-export function JumpSection({ id, title, className, children }: { id: string; title: string; className?: string; children: React.ReactNode }) {
+export function JumpSection({
+  id,
+  title,
+  summary,
+  className,
+  children,
+}: {
+  id: string;
+  title: string;
+  /** The key value shown on this section's Summary card (#1365). */
+  summary?: React.ReactNode;
+  className?: string;
+  children: React.ReactNode;
+}) {
   const page = useOptionalSettingsSections();
   const register = page?.register;
   const unregister = page?.unregister;
@@ -72,9 +102,71 @@ export function JumpSection({ id, title, className, children }: { id: string; ti
   }, [setHandles, id]);
   React.useEffect(() => () => unregister?.(id), [unregister, id]);
   return (
-    <section id={id} aria-label={title} className={className ? `scroll-mt-20 ${className}` : 'scroll-mt-20'}>
-      {children}
-    </section>
+    <>
+      <section
+        id={id}
+        aria-label={title}
+        hidden={!isSectionShown(page, id)}
+        className={className ? `scroll-mt-20 ${className}` : 'scroll-mt-20'}
+      >
+        {children}
+      </section>
+      <SectionSummaryCard id={id} title={title} summary={summary} />
+    </>
+  );
+}
+
+/** Whether a section is on show: always without tabs, else only on its own tab (#1365). */
+export function isSectionShown(page: SettingsSectionsContextValue | null, id: string): boolean {
+  return !page || page.activeTab === null || page.activeTab === id;
+}
+
+/**
+ * A section's card on the Summary tab, rendered into the page nav's grid (#1365). Nothing
+ * renders while the page has no Summary tab.
+ */
+export function SectionSummaryCard({
+  id,
+  title,
+  summary,
+  dirty = false,
+  warning = false,
+}: {
+  id: string;
+  title: string;
+  summary?: React.ReactNode;
+  dirty?: boolean;
+  warning?: boolean;
+}) {
+  const page = useOptionalSettingsSections();
+  if (!page?.summaryEl || page.activeTab === null) return null;
+  return createPortal(
+    <button
+      type="button"
+      onClick={() => page.goToSection(id)}
+      style={{ order: page.order[id] ?? 0 }}
+      className={cn(
+        'flex min-w-0 flex-col items-start gap-2 rounded-xl border bg-card p-4 text-left shadow-sm transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring',
+        (dirty || warning) && 'border-warning/40',
+      )}
+    >
+      <span className="flex flex-wrap items-center gap-2 font-semibold">
+        {title}
+        {dirty && (
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-warning">
+            <span aria-hidden className="h-2 w-2 rounded-full bg-warning" />
+            Unsaved
+          </span>
+        )}
+      </span>
+      {summary !== undefined && summary !== null && (
+        <span className="w-full min-w-0 text-sm text-muted-foreground">{summary}</span>
+      )}
+      <span className="mt-auto text-sm font-medium text-primary">
+        Open {title} <span aria-hidden>→</span>
+      </span>
+    </button>,
+    page.summaryEl,
   );
 }
 
@@ -108,6 +200,16 @@ export function SettingsSectionsProvider({
   const [announcement, setAnnouncement] = React.useState('');
   const [pendingHref, setPendingHref] = React.useState<string | null>(null);
   const [leaving, setLeaving] = React.useState(false);
+  const [summaryEl, setSummaryEl] = React.useState<HTMLElement | null>(null);
+  const [order, setOrder] = React.useState<Record<string, number>>({});
+
+  // Tabs (#1365): the chosen tab lives in ?section=, so a link can open one and Back returns.
+  // Not ?tab=, which Roles & Access uses for its own tabs.
+  const sectionParam = searchParams?.get('section') ?? null;
+  const [chosenTab, setChosenTab] = React.useState<string | null>(sectionParam);
+  React.useEffect(() => {
+    setChosenTab(sectionParam);
+  }, [sectionParam]);
 
   const register = React.useCallback((next: RegisteredSection) => {
     setSections((prev) => {
@@ -136,15 +238,58 @@ export function SettingsSectionsProvider({
     handlesRef.current.set(id, h);
   }, []);
 
-  const goToSection = React.useCallback((id: string) => {
-    handlesRef.current.get(id)?.setOpen(true);
-    // Wait one frame so a collapsed body is shown before we scroll and focus.
-    requestAnimationFrame(() => {
-      const el = document.getElementById(id);
-      if (el) scrollToEl(el);
-      document.getElementById(`${id}-toggle`)?.focus({ preventScroll: true });
-    });
-  }, []);
+  const visibleSections = sections.filter((s) => s.visible);
+  // The page nav provides the Summary grid; without it (or with one section) every section shows.
+  const tabbed = summaryEl !== null && visibleSections.length >= 2;
+  const activeTab = !tabbed
+    ? null
+    : chosenTab && visibleSections.some((s) => s.id === chosenTab)
+      ? chosenTab
+      : SUMMARY_TAB;
+
+  const tabbedRef = React.useRef(tabbed);
+  tabbedRef.current = tabbed;
+  const showTab = React.useCallback(
+    (tab: string) => {
+      setChosenTab(tab);
+      const params = new URLSearchParams(window.location.search);
+      params.delete('row');
+      if (tab === SUMMARY_TAB) params.delete('section');
+      else params.set('section', tab);
+      const query = params.toString();
+      router.replace(`${window.location.pathname}${query ? `?${query}` : ''}`, { scroll: false });
+    },
+    [router],
+  );
+
+  const goToSection = React.useCallback(
+    (id: string) => {
+      // Chosen even before tabs apply, so a #hash link that lands while sections still register
+      // opens its tab once the second section arrives.
+      if (tabbedRef.current) showTab(id);
+      else setChosenTab(id);
+      handlesRef.current.get(id)?.setOpen(true);
+      // Wait one frame so a hidden or collapsed body is shown before we scroll and focus.
+      requestAnimationFrame(() => {
+        const el = document.getElementById(id);
+        // With tabs the section is the only content: keep the tab row in view instead.
+        if (el && !tabbedRef.current) scrollToEl(el);
+        document.getElementById(`${id}-toggle`)?.focus({ preventScroll: true });
+      });
+    },
+    [showTab],
+  );
+  const goToSummary = React.useCallback(() => showTab(SUMMARY_TAB), [showTab]);
+
+  // Summary cards follow the sections' order on the page, not the order they registered in.
+  const sectionIds = visibleSections.map((s) => s.id).join('|');
+  React.useLayoutEffect(() => {
+    const ids = sectionIds.split('|').filter(Boolean);
+    const els = ids.map((id) => [id, document.getElementById(id)] as const);
+    els.sort(([, a], [, b]) => (a && b && a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_PRECEDING ? 1 : -1));
+    const next = Object.fromEntries(els.map(([id], i) => [id, i]));
+    setOrder((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
+  }, [sectionIds]);
 
   const dirtySections = sections.filter((s) => s.dirty && s.visible);
   const anyDirty = dirtySections.length > 0;
@@ -205,14 +350,16 @@ export function SettingsSectionsProvider({
     if (!rowParam) return;
     const match = findSettingsRow(rowParam, groups);
     if (!match || !sections.some((s) => s.id === match.section.id && s.visible)) return;
+    setChosenTab(match.section.id);
     handlesRef.current.get(match.section.id)?.setOpen(true);
     let cleanup = () => {};
     let frame = 0;
     let tries = 0;
     const run = () => {
       const el = document.getElementById(match.row.id);
-      // Section bodies mount only after auth loads, so wait a few frames for the row.
-      if (!el) {
+      // Section bodies mount only after auth loads, so wait a few frames for the row; a row on a
+      // tab that is still hidden waits for the tab to show (#1365).
+      if (!el || el.closest('[hidden]')) {
         if (++tries < 60) frame = requestAnimationFrame(run);
         return;
       }
@@ -255,8 +402,8 @@ export function SettingsSectionsProvider({
   }, [rowParam, pathname, registeredIds, sections, goToSection]);
 
   const value = React.useMemo(
-    () => ({ groups, sections, register, unregister, setHandles, goToSection }),
-    [groups, sections, register, unregister, setHandles, goToSection],
+    () => ({ groups, sections, register, unregister, setHandles, goToSection, activeTab, goToSummary, summaryEl, setSummaryEl, order }),
+    [groups, sections, register, unregister, setHandles, goToSection, activeTab, goToSummary, summaryEl, order],
   );
 
   const names = joinTitles(dirtySections.map((s) => s.title));

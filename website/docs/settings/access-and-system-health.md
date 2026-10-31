@@ -17,8 +17,8 @@ residio_sources:
   - src/app/(dashboard)/(oversight)/system/page.tsx
   - src/components/system/**
   - src/actions/system/**
-residio_verified_commit: c8f57c63
-residio_verified_at: '2026-10-28'
+residio_verified_commit: 5a870640
+residio_verified_at: '2026-10-30'
 residio_app_version: '0.4.0'
 ---
 
@@ -26,7 +26,7 @@ residio_app_version: '0.4.0'
 
 ## System dashboard
 
-Open **Oversight** in the sidebar — or the status indicator next to the menu button in the header — to land on the **Oversight overview** at `/system`. Oversight has its own left menu with every report and monitoring page. It answers "is anything wrong?" at a glance: cards for cron health, notification queue depth, recent audit activity, accounts awaiting approval, and data tools, each showing enough to tell a healthy state from one that needs attention without opening it. A card only appears if your role can open the page it links to, so this page shows a different set of cards to different roles, same as the sections below. A row of jump tabs at the top scrolls to the cards. Use it as the entry point before working through the detail pages this guide covers next.
+Open **Oversight** in the sidebar — or the status indicator next to the menu button in the header — to land on the **Oversight overview** at `/system`. Oversight has its own left menu with every report and monitoring page. It answers "is anything wrong?" at a glance: cards for cron health, notification queue depth, recent audit activity, accounts awaiting approval, and data tools, each showing enough to tell a healthy state from one that needs attention without opening it. A card only appears if your role can open the page it links to, so this page shows a different set of cards to different roles, same as the sections below. A row of tabs at the top shows one card at a time; the first tab, **Summary**, shows the key value of each. Use it as the entry point before working through the detail pages this guide covers next.
 
 ## Roles and permissions
 
@@ -37,7 +37,8 @@ Defining a role and giving it to a person are one task, so both live on one page
 | Administrators | Who currently holds an admin role and under which title, assigning one, and Change role or Remove role on each row | Assign roles |
 | Pending sign-ups | Sign-ups waiting to be approved or rejected | Assign roles |
 | Unlinked logins | Logins that are not linked to any resident. A login that already holds a role carries a *Holds role* badge | Assign roles |
-| Roles | Roles, the modules and privileges each one carries, how many people hold each, and the titles under each role with their seats | Manage roles |
+| Roles | Roles, the modules and privileges each one carries, and how many people hold each | Manage roles |
+| Titles | The titles under each role with their seats. You can change the titles of every role except Super Administrator. Only a Super Administrator can change the titles of that role | Manage roles |
 | Who can hold each role | Which resident types are eligible for each executive role | Manage roles |
 
 The tab is kept in the address (?tab=), so a link opens the tab you were on. The holder count on the Roles tab opens the Administrators tab filtered to that role; clear the filter from the *Showing* line.

@@ -44,6 +44,12 @@ globalThis.ResizeObserver ??= class {
   disconnect() {}
 } as unknown as typeof ResizeObserver;
 
+// Radix Select calls these when it opens; jsdom has none.
+Element.prototype.hasPointerCapture ??= () => false;
+Element.prototype.setPointerCapture ??= () => {};
+Element.prototype.releasePointerCapture ??= () => {};
+Element.prototype.scrollIntoView ??= () => {};
+
 import { RolesList } from '@/components/admin/roles-list';
 import { PermissionPicker } from '@/components/admin/permission-picker';
 import { RolePermissionsDialog } from '@/components/admin/role-permissions-dialog';
@@ -255,10 +261,46 @@ describe('RoleTitlesManager (#1318)', () => {
     expect(screen.getByRole('button', { name: 'Add title to Auditor' })).toBeInTheDocument();
   });
 
-  it('hides title controls on a role the caller may not change', () => {
-    mocks.roles = { data: [role('r-ch', 'chairman', { is_system_role: true })], isLoading: false, error: null };
+  it('shows title controls on the own role and on system roles (#1361)', () => {
+    mocks.roles = {
+      data: [role('r-ch', 'chairman', { is_system_role: true }), role('r-treasurer', 'treasurer')],
+      isLoading: false,
+      error: null,
+    };
     render(<RoleTitlesManager />);
-    expect(screen.queryByRole('button', { name: 'Add title to Chairman' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add title to Chairman' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add title to Treasurer' })).toBeInTheDocument();
+    expect(screen.queryByText('Only Super Administrator can change these titles.')).not.toBeInTheDocument();
+  });
+
+  it('offers move targets other than super_admin, to a non-super admin', async () => {
+    mocks.roles = {
+      data: [
+        role('r-sa', 'super_admin', { is_system_role: true, display_name: 'Super Administrator' }),
+        role('r-ch', 'chairman', { is_system_role: true }),
+        role('r-auditor', 'auditor'),
+      ],
+      isLoading: false,
+      error: null,
+    };
+    mocks.titles = {
+      data: [{ id: 't2', role_id: 'r-auditor', name: 'Junior', is_principal: false, seats: null, sort_order: 0, holders: [] }],
+      isLoading: false,
+      error: null,
+    };
+    render(<RoleTitlesManager />);
+    fireEvent.click(screen.getByRole('button', { name: 'Edit title Junior' }));
+    fireEvent.keyDown(await screen.findByRole('combobox', { name: 'Role' }), { key: 'Enter' });
+
+    expect(await screen.findByRole('option', { name: 'Chairman' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Super Administrator' })).not.toBeInTheDocument();
+  });
+
+  it('hides title controls on super_admin and says why', () => {
+    mocks.roles = { data: [role('r-sa', 'super_admin', { is_system_role: true })], isLoading: false, error: null };
+    render(<RoleTitlesManager />);
+    expect(screen.queryByRole('button', { name: /Add title to/ })).not.toBeInTheDocument();
+    expect(screen.getByText('Only Super Administrator can change these titles.')).toBeInTheDocument();
   });
 
   it('shows the load error with its reason', () => {
