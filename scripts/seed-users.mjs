@@ -143,7 +143,8 @@ async function seedUsers() {
 
   console.log('Seeding complete.\n');
   console.log('Test users:');
-  testUsers.forEach((u) => console.log(`  - ${u.email} / ${u.password} (${u.roleName})`));
+  // The shared password is in testUsers above; it is not echoed to the console.
+  testUsers.forEach((u) => console.log(`  - ${u.email} (${u.roleName})`));
   console.log('');
 }
 
