@@ -135,8 +135,9 @@ describe('Oversight navigation (#1272)', () => {
     expect(new Set(oversight.permissions)).toEqual(union);
   });
 
-  it('leaves no Analytics, Reports or System item in the sidebar', () => {
-    for (const title of ['Analytics', 'Reports', 'System']) {
+  it('leaves no Analytics or System item in the sidebar', () => {
+    // Reports came back as its own entry under Dashboard (#1373, reports-nav-1373.test.tsx).
+    for (const title of ['Analytics', 'System']) {
       expect(sidebar.find((item) => item.title === title), title).toBeUndefined();
     }
     expect(ADMIN_NAV_SECTIONS.at(-1)).toMatchObject({ id: 'admin', label: 'Admin' });

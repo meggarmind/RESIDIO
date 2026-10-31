@@ -13,6 +13,7 @@ import { Sidebar } from '@/components/dashboard/sidebar';
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/dashboard',
+  useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ push: vi.fn() }),
 }));
 vi.mock('next/link', () => ({

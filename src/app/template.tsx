@@ -4,8 +4,8 @@ import { AnimatePresence } from 'framer-motion';
 import { usePathname } from 'next/navigation';
 import { PageTransition } from '@/components/ui/page-transition';
 
-/** Settings, then the Oversight route group `(dashboard)/(oversight)`. */
-const AREAS = ['/settings', '/system', '/analytics', '/reports'];
+/** Settings, then the Oversight route group `(dashboard)/(oversight)`. /reports itself is its own page (#1373). */
+const AREAS = ['/settings', '/system', '/analytics', '/reports/financial-overview'];
 
 export default function Template({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();

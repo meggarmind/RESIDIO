@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { roleWithTitle } from '@/lib/auth/role-label';
@@ -15,6 +16,8 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { useSectionedNavigation } from '@/hooks/use-navigation';
+import { isNavHrefActive } from '@/config/navigation';
+import { activeSettingsHref } from '@/config/settings-nav';
 import { useOpsStatus } from '@/hooks/use-ops-status';
 
 interface MobileNavProps {
@@ -30,12 +33,32 @@ interface MobileNavProps {
  * Mirrors the desktop sidebar information architecture, grouped by section.
  * Styling follows the active theme tokens.
  */
-export function MobileNav({ open, onOpenChange }: MobileNavProps) {
+// Same Suspense split as the desktop Sidebar: useSearchParams must not block a page's prerender.
+export function MobileNav(props: MobileNavProps) {
+  return (
+    <Suspense fallback={<MobileNavView {...props} searchParams={null} />}>
+      <MobileNavWithSearch {...props} />
+    </Suspense>
+  );
+}
+
+function MobileNavWithSearch(props: MobileNavProps) {
+  return <MobileNavView {...props} searchParams={useSearchParams()} />;
+}
+
+function MobileNavView({
+  open,
+  onOpenChange,
+  searchParams,
+}: MobileNavProps & { searchParams: { get(name: string): string | null } | null }) {
   const pathname = usePathname();
   const { profile } = useAuth();
   const { sections } = useSectionedNavigation();
   const { logoUrl } = useEstateLogo();
   const opsStatus = useOpsStatus();
+  const inArea = sections.some((section) =>
+    section.items.some((item) => item.area && activeSettingsHref(pathname, item.area) !== null)
+  );
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -72,7 +95,11 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
               )}
               <ul className="space-y-1">
                 {section.items.map((item) => {
-                  const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  // A page inside an area (Oversight) belongs to that entry only: /reports/financial-overview
+                  // is not a Reports page (#1373).
+                  const isActive = item.area
+                    ? activeSettingsHref(pathname, item.area) !== null
+                    : pathname === item.href || (pathname.startsWith(`${item.href}/`) && !inArea);
                   // Children arrive already permission-filtered from the shared hook.
                   // A child sharing its parent's href is the same destination: skip it.
                   const children = (item.children ?? []).filter(
@@ -104,7 +131,7 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
                       {children.length > 0 && (
                         <ul className="ml-5 mt-1 space-y-1 border-l pl-2">
                           {children.map((child) => {
-                            const isChildActive = pathname === child.href;
+                            const isChildActive = isNavHrefActive(child.href, pathname, searchParams);
                             return (
                               <li key={child.id}>
                                 <Link

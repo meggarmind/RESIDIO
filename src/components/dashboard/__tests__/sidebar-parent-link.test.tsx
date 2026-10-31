@@ -8,9 +8,12 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { Sidebar } from '@/components/dashboard/sidebar';
 
+let pathname = '/dashboard';
+let search = '';
 vi.mock('next/navigation', () => ({
-  usePathname: () => '/dashboard',
+  usePathname: () => pathname,
   useRouter: () => ({ push: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(search),
 }));
 vi.mock('next/link', () => ({
   default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
@@ -37,7 +40,11 @@ vi.mock('@/hooks/use-ops-status', () => ({
 }));
 vi.mock('@/components/ui/theme-switcher', () => ({ ThemeSwitcher: () => null }));
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  pathname = '/dashboard';
+  search = '';
+});
 
 describe('Sidebar parent with sub-items (#1180)', () => {
   it('links the label to its href and toggles the sub-list from a separate chevron', () => {
@@ -55,5 +62,18 @@ describe('Sidebar parent with sub-items (#1180)', () => {
   it('links Transactions to /payments', () => {
     render(<Sidebar />);
     expect(screen.getByRole('link', { name: /Transactions/ })).toHaveAttribute('href', '/payments');
+  });
+});
+
+describe('Sidebar Reports tab links (#1373)', () => {
+  it('opens the Reports sub-list on /reports and highlights only the open tab', () => {
+    pathname = '/reports';
+    search = 'tab=schedules';
+    render(<Sidebar />);
+    expect(screen.getByRole('button', { name: 'Show Reports pages' })).toHaveAttribute('aria-expanded', 'true');
+    const style = (name: string) => screen.getByRole('link', { name }).getAttribute('style') ?? '';
+    expect(style('Schedules')).toContain('var(--accent-primary)');
+    expect(style('New report')).not.toContain('var(--accent-primary)');
+    expect(style('History')).not.toContain('var(--accent-primary)');
   });
 });

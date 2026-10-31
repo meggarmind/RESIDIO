@@ -112,7 +112,8 @@ describe('Settings/System search entry permissions', () => {
       '/system': ['system.view_all_settings'],
       '/analytics': ['reports.view_financial', 'reports.view_occupancy', 'reports.view_security'],
       '/reports/financial-overview': ['reports.view_financial'],
-      '/reports': ['reports.view_financial', 'reports.view_occupancy', 'reports.view_security'],
+      // Its own main menu entry since #1373, with the page's guard (visibility follows access).
+      '/reports': ['reports.view_financial'],
       '/analytics/announcements': ['reports.view_financial', 'reports.view_occupancy', 'reports.view_security'],
       '/system/audit-logs': ['settings.view_audit_logs'],
       '/system/notification-queue': ['notifications.manage'],

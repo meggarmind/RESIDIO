@@ -27,6 +27,8 @@ import {
   Settings,
   Eye,
   History,
+  BarChart3,
+  CalendarClock,
 } from 'lucide-react';
 import { PERMISSIONS, type Permission } from '@/lib/auth/action-roles';
 import { oversightConfig } from '@/config/oversight-nav';
@@ -85,6 +87,39 @@ const NAV_DASHBOARD: NavItem = {
   title: 'Dashboard',
   href: '/dashboard',
   icon: Home,
+};
+
+// Reports (#1373): its own page, under Dashboard. The children open a tab of the page. The
+// permission is the page's own guard, so the link never shows to a role the page redirects.
+const NAV_REPORTS: NavItem = {
+  id: 'reports',
+  title: 'Reports',
+  href: '/reports',
+  icon: BarChart3,
+  permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
+  children: [
+    {
+      id: 'reports-new',
+      title: 'New report',
+      href: '/reports?tab=new',
+      icon: FilePlus,
+      permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
+    },
+    {
+      id: 'reports-history',
+      title: 'History',
+      href: '/reports?tab=recent',
+      icon: History,
+      permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
+    },
+    {
+      id: 'reports-schedules',
+      title: 'Schedules',
+      href: '/reports?tab=schedules',
+      icon: CalendarClock,
+      permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
+    },
+  ],
 };
 
 const NAV_RESIDENTS: NavItem = {
@@ -261,7 +296,7 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
   {
     id: 'core',
     label: null, // No header for first section
-    items: [NAV_DASHBOARD],
+    items: [NAV_DASHBOARD, NAV_REPORTS],
   },
   {
     id: 'people-property',
@@ -292,6 +327,20 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
  * Prefer using ADMIN_NAV_SECTIONS for new implementations.
  */
 export const ADMIN_NAV_ITEMS: NavItem[] = ADMIN_NAV_SECTIONS.flatMap(section => section.items);
+
+/**
+ * Whether a nav link opens the page being shown. An href with a query (`/reports?tab=recent`)
+ * matches only when every one of its query values is in the current URL too.
+ */
+export function isNavHrefActive(
+  href: string,
+  pathname: string,
+  searchParams: { get(name: string): string | null } | null
+): boolean {
+  const [path, query] = href.split('?');
+  if (pathname !== path) return false;
+  return [...new URLSearchParams(query)].every(([key, value]) => searchParams?.get(key) === value);
+}
 
 /**
  * IDs for mobile navigation subset

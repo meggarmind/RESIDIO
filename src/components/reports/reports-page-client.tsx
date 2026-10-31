@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -319,8 +320,20 @@ function QuickStatsChip() {
 // Main Component
 // ============================================================
 
+const REPORTS_TABS = ['new', 'recent', 'schedules', 'archive', 'wallet-check'] as const;
+type ReportsTab = (typeof REPORTS_TABS)[number];
+
+/** The tab a `?tab=` value opens; a missing or unknown value opens New Report (#1373). */
+export function parseReportsTab(value: string | null | undefined): ReportsTab {
+    return REPORTS_TABS.find((tab) => tab === value) ?? 'new';
+}
+
 export function ReportsPageClient() {
-    const [activeTab, setActiveTab] = useState<string>('new');
+    // The tab lives in the URL, so the main menu's tab links open it and highlight the right entry.
+    const activeTab = parseReportsTab(useSearchParams().get('tab'));
+    // replaceState, not router.replace: no server round trip and no history entry per tab;
+    // Next.js still updates useSearchParams from it.
+    const setActiveTab = (tab: string) => window.history.replaceState(null, '', `?tab=${parseReportsTab(tab)}`);
     const [selectedReport, setSelectedReport] = useState<GeneratedReport | null>(null);
     const { data: generalSettings } = useGeneralSettings();
     // Empty falls through to ReportViewer's own default.

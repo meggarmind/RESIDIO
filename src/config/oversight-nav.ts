@@ -48,6 +48,7 @@ export const oversightConfig: SettingsGroup[] = [
         ],
     },
     {
+        // Generate reports (/reports) has its own page and main menu entry (#1373).
         title: 'Reports',
         icon: BarChart3,
         items: [
@@ -56,16 +57,6 @@ export const oversightConfig: SettingsGroup[] = [
                 href: '/reports/financial-overview',
                 description: 'Income and expenses by category, from imported bank statements',
                 permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
-            },
-            {
-                title: 'Generate reports',
-                href: '/reports',
-                description: 'Create and download financial, occupancy and security reports',
-                permissions: [
-                    PERMISSIONS.REPORTS_VIEW_FINANCIAL,
-                    PERMISSIONS.REPORTS_VIEW_OCCUPANCY,
-                    PERMISSIONS.REPORTS_VIEW_SECURITY,
-                ],
             },
         ],
     },

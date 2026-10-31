@@ -11,9 +11,13 @@ import '@testing-library/jest-dom/vitest';
 import { MobileNav } from '@/components/dashboard/mobile-nav';
 
 let pathname = '/dashboard';
+let search = '';
 let granted: 'all' | Set<string> = 'all';
 
-vi.mock('next/navigation', () => ({ usePathname: () => pathname }));
+vi.mock('next/navigation', () => ({
+  usePathname: () => pathname,
+  useSearchParams: () => new URLSearchParams(search),
+}));
 vi.mock('next/link', () => ({
   default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
     <a href={href} {...rest}>
@@ -42,6 +46,7 @@ const PERMS = {
 
 beforeEach(() => {
   pathname = '/dashboard';
+  search = '';
   granted = 'all';
 });
 afterEach(cleanup);
@@ -110,5 +115,30 @@ describe('MobileNav Settings status dot (#789)', () => {
     document.cookie = 'residio_ops_status=00; path=/';
     render(<MobileNav open onOpenChange={() => {}} />);
     expect(dot()).not.toBeInTheDocument();
+  });
+});
+
+describe('MobileNav Reports tab links (#1373)', () => {
+  it('marks only the child whose tab is open', () => {
+    pathname = '/reports';
+    search = 'tab=recent';
+    render(<MobileNav open onOpenChange={() => {}} />);
+    expect(link('History')).toHaveAttribute('aria-current', 'page');
+    expect(link('New report')).not.toHaveAttribute('aria-current');
+    expect(link('Schedules')).not.toHaveAttribute('aria-current');
+  });
+
+  it('does not mark Reports on Income & expenses, which stays in Oversight', () => {
+    pathname = '/reports/financial-overview';
+    render(<MobileNav open onOpenChange={() => {}} />);
+    expect(link('Reports')).not.toHaveAttribute('aria-current');
+    expect(link('Oversight')).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('hides Reports from a user without reports.view_financial', () => {
+    granted = new Set(['reports.view_occupancy', 'reports.view_security']);
+    render(<MobileNav open onOpenChange={() => {}} />);
+    expect(screen.queryByRole('link', { name: 'Reports' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'History' })).not.toBeInTheDocument();
   });
 });

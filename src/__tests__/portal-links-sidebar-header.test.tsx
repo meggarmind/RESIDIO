@@ -26,6 +26,7 @@ vi.mock('@/lib/auth/auth-provider', () => ({
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/finance',
+  useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ push: vi.fn() }),
 }));
 

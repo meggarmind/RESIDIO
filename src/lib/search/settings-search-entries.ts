@@ -1,4 +1,4 @@
-import { ROUTE_PERMISSIONS, type Permission } from '@/lib/auth/action-roles';
+import { PERMISSIONS, ROUTE_PERMISSIONS, type Permission } from '@/lib/auth/action-roles';
 import { flattenSettingsNav, settingsConfig, type SettingsGroup, type SettingsItem } from '@/config/settings-nav';
 import { oversightConfig } from '@/config/oversight-nav';
 
@@ -140,6 +140,18 @@ export function flattenSettingsItems(
   return out;
 }
 
+// Generate reports left the Oversight menu for its own main menu entry (#1373); the palette still
+// finds it, with the page's own guard as its permission, like the menu link.
+const REPORTS_ENTRY: SettingsSearchEntry = {
+  id: 'reports',
+  title: 'Generate reports',
+  subtitle: 'Create and download financial, occupancy and security reports',
+  href: '/reports',
+  type: 'system',
+  permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
+  searchText: buildSearchText(['Reports', 'Generate reports', 'Create and download financial, occupancy and security reports']),
+};
+
 function buildOversightEntries(): SettingsSearchEntry[] {
   return oversightConfig.flatMap((group) =>
     group.items.map((item) => ({
@@ -206,6 +218,7 @@ function dedupeByHref(entries: SettingsSearchEntry[]): SettingsSearchEntry[] {
 export const SETTINGS_SEARCH_ENTRIES: SettingsSearchEntry[] = dedupeByHref([
   ...settingsConfig.flatMap((group) => flattenSettingsItems(group.items, group.title)),
   ...buildOversightEntries(),
+  REPORTS_ENTRY,
 ]);
 
 /**

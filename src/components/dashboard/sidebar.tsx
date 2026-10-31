@@ -1,9 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import { cn } from '@/lib/utils';
 import { activeSettingsHref } from '@/config/settings-nav';
+import { isNavHrefActive } from '@/config/navigation';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { roleWithTitle } from '@/lib/auth/role-label';
 import { User, UserSearch, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
@@ -22,7 +24,24 @@ interface SidebarProps {
   className?: string;
 }
 
-export function Sidebar({ className }: SidebarProps) {
+// useSearchParams needs its own Suspense boundary so a page can still prerender; the fallback is
+// the same menu without the query, so only a `?tab=` child highlight waits for the browser.
+export function Sidebar(props: SidebarProps) {
+  return (
+    <Suspense fallback={<SidebarView {...props} searchParams={null} />}>
+      <SidebarWithSearch {...props} />
+    </Suspense>
+  );
+}
+
+function SidebarWithSearch(props: SidebarProps) {
+  return <SidebarView {...props} searchParams={useSearchParams()} />;
+}
+
+function SidebarView({
+  className,
+  searchParams,
+}: SidebarProps & { searchParams: { get(name: string): string | null } | null }) {
   const pathname = usePathname();
   const router = useRouter();
   const { profile, canSeeSelfPortalLinks, canSeeImpersonationLink } = useAuth();
@@ -51,7 +70,7 @@ export function Sidebar({ className }: SidebarProps) {
   const hasActiveChild = (children?: { href: string }[]) => {
     if (!children) return false;
     return children.some(
-      (child) => pathname === child.href || pathname.startsWith(`${child.href}/`)
+      (child) => isNavHrefActive(child.href, pathname, searchParams) || pathname.startsWith(`${child.href}/`)
     );
   };
 
@@ -261,7 +280,7 @@ export function Sidebar({ className }: SidebarProps) {
                         >
                           <ul className="relative ml-5 border-l space-y-1" style={{ borderColor: 'var(--border-subtle)' }}>
                             {item.children!.map((child) => {
-                              const isChildActive = pathname === child.href;
+                              const isChildActive = isNavHrefActive(child.href, pathname, searchParams);
                               return (
                                 <li key={child.id} className="relative">
                                   <Link
