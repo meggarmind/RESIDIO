@@ -62,4 +62,14 @@ export const QUICK_ACTIONS: QuickAction[] = [
     type: 'action',
     permissions: [PERMISSIONS.SECURITY_VIEW],
   },
+  {
+    // Reports left the Oversight menu for its own main-menu entry (#1373), so the palette lost its
+    // "Generate reports" hit; this keeps /reports findable. The page guard is reports.view_financial.
+    id: 'generate-report',
+    title: 'Generate Report',
+    subtitle: 'Create and download financial reports, or open history and schedules',
+    href: '/reports',
+    type: 'action',
+    permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
+  },
 ];

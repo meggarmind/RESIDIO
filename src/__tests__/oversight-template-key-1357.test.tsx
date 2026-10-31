@@ -25,8 +25,12 @@ afterEach(() => cleanup());
 
 describe('root template animation key (#1357)', () => {
   it('gives every Oversight page one key, so its layout and menu stay mounted', () => {
-    const oversight = ['/system', '/system/audit-logs', '/analytics', '/analytics/announcements', '/reports', '/reports/financial-overview'];
+    const oversight = ['/system', '/system/audit-logs', '/analytics', '/analytics/announcements', '/reports/financial-overview'];
     expect(new Set(oversight.map(keyFor))).toEqual(new Set(['oversight']));
+  });
+
+  it('keeps /reports out of the Oversight key, as it has its own full-width page (#1373)', () => {
+    expect(keyFor('/reports')).toBe('/reports');
   });
 
   it('keeps one key for Settings and the pathname elsewhere', () => {
@@ -37,13 +41,16 @@ describe('root template animation key (#1357)', () => {
 });
 
 describe('Oversight route group (#1357)', () => {
-  it('has one layout for /system, /analytics and /reports', async () => {
+  it('has one layout for /system, /analytics and /reports/financial-overview', async () => {
     const { existsSync } = await import('node:fs');
     const { join } = await import('node:path');
     const dir = (p: string) => join(process.cwd(), 'src/app/(dashboard)/(oversight)', p);
     expect(existsSync(dir('layout.tsx'))).toBe(true);
-    for (const area of ['system', 'analytics', 'reports']) {
+    for (const area of ['system', 'analytics', 'reports/financial-overview']) {
       expect(existsSync(dir(`${area}/layout.tsx`)), area).toBe(false);
     }
+    // /reports is its own page outside the group (#1373).
+    expect(existsSync(dir('reports/page.tsx'))).toBe(false);
+    expect(existsSync(join(process.cwd(), 'src/app/(dashboard)/reports/page.tsx'))).toBe(true);
   });
 });

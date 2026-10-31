@@ -62,6 +62,7 @@ describe('Quick Action permissions', () => {
       'create-invoice': ['/billing', ['billing.view']],
       'add-house': ['/houses/new', ['houses.create', 'houses.view']],
       'security-log': ['/security/logs', ['security.view']],
+      'generate-report': ['/reports', ['reports.view_financial']],
     });
   });
 });

@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -26,5 +27,10 @@ export default async function ReportsPage() {
         redirect('/dashboard');
     }
 
-    return <ReportsPageClient />;
+    // The client reads ?tab= with useSearchParams, which needs a Suspense boundary for the build.
+    return (
+        <Suspense fallback={null}>
+            <ReportsPageClient />
+        </Suspense>
+    );
 }
