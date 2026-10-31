@@ -181,7 +181,7 @@ async function handlePhoneHealth(event: 'phone.disconnected' | 'phone.connected'
 
     return NextResponse.json({ received: true, processed: true, duplicate: outcome === 'duplicate' });
   } catch (error) {
-    console.error(`[chatmaid-webhook] Failed to handle ${event}:`, error);
+    console.error('[chatmaid-webhook] Failed to handle %s:', event, error);
     await recordWebhookDelivery({
       provider: 'whatsapp-chatmaid',
       action: event === 'phone.disconnected' ? 'phone_disconnected' : 'phone_connected',
@@ -280,7 +280,7 @@ async function handleDeliveryStatus(event: 'message.sent' | 'message.delivered' 
       console.warn('[chatmaid-webhook] Status event arrived before its send was stored; asking for a retry', { event, messageId });
       return processingFailed('Send not stored yet; retry');
     }
-    console.error(`[chatmaid-webhook] Failed to handle ${event}:`, error);
+    console.error('[chatmaid-webhook] Failed to handle %s:', event, error);
     await recordWebhookDelivery({
       provider: 'whatsapp-chatmaid',
       action: 'outbound_status',

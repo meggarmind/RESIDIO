@@ -101,6 +101,7 @@ describe('approveRequest records applied_at (#557)', () => {
     expect(result).toEqual({ success: true, error: null });
     expect(errSpy).toHaveBeenCalledWith(
       expect.stringContaining('applied_at'),
+      'req-1',
       expect.objectContaining({ message: 'applied_at boom' }),
     );
     expect(logAudit).toHaveBeenCalledWith(expect.objectContaining({ action: 'APPROVE' }));

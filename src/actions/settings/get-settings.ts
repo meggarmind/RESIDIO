@@ -50,7 +50,7 @@ export async function getSetting(key: string): Promise<GetSettingResponse> {
         .single();
 
     if (error) {
-        console.error(`Get setting "${key}" error:`, error);
+        console.error('Get setting "%s" error:', key, error);
         return { data: null, error: 'Setting not found' };
     }
 

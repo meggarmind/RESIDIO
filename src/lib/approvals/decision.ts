@@ -174,7 +174,8 @@ export async function approveAsReviewer(
     .eq('status', 'approved');
   if (appliedError) {
     console.error(
-      `Failed to record applied_at for approval request ${requestId} (change was applied; it may show as stuck):`,
+      'Failed to record applied_at for approval request %s (change was applied; it may show as stuck):',
+      requestId,
       appliedError
     );
   }

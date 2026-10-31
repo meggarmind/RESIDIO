@@ -2094,7 +2094,7 @@ describe('WhatsApp Assistant satisfaction survey (#872)', () => {
   it('asks after an accepted clearance request, and not when one is already waiting', async () => {
     const accepted = due({ getOwed: vi.fn().mockResolvedValue(PAID_UP) });
     const replies = await chat(accepted, ['clearance', '2']);
-    expect(replies[0]).toMatch(new RegExp(`${FOOTER}\\n\\n${ASK.replace(/\./g, '\\.').replace(/\?/g, '\\?')}$`));
+    expect(replies[0]).toMatch(new RegExp(`${FOOTER}\\n\\n${ASK.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`));
     expect(accepted.askSurvey).toHaveBeenCalledWith(expect.objectContaining({ trigger: 'clearance_request' }));
     expect(accepted.answerSurvey).toHaveBeenCalledWith('resident-1', 'survey-1', { score: 'okay' });
 

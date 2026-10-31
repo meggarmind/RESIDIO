@@ -46,10 +46,11 @@ const APP_PERMISSIONS_INSERT =
  * One `(...)` row. Fields are read positionally against the insert's column
  * list, because the seeds are not uniform: some are
  * `(name, display_name, description, category, is_active)` and others omit the
- * description. `(?:[^']|'')*` keeps a doubled quote inside a description from
- * ending the literal.
+ * description. A doubled quote inside a description reads as two adjacent
+ * `'[^']*'` literals, so it does not end the row early, and each quote has only
+ * one way to match (no catastrophic backtracking).
  */
-const VALUE_ROW = /\(((?:'(?:[^']|'')*'|[^)'])*)\)/g;
+const VALUE_ROW = /\(((?:'[^']*'|[^)'])*)\)/g;
 const FIELD = /'((?:[^']|'')*)'|([^,\s][^,]*)/g;
 
 function splitRow(row: string): string[] {
