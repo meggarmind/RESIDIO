@@ -257,15 +257,38 @@ describe('composeAdminOwesAnswer', () => {
     expect(text).not.toContain('netted');
   });
 
-  it('says which months the credit pays when nothing is owed (owner decision 29 Oct 2026)', () => {
+  it('renders the approved sample for a cleared house with credit: next payment due, no credit line (owner, 31 Oct 2026)', () => {
     const owed = { invoiceCount: 4, outstanding: 0, overdue: null, next: null, nextPaymentDue: '2027-01-01', awaitingVerification: 0, credit: { amount: 20000, months: ['2026-11-01', '2026-12-01'] } };
-    const text = composeAdminOwesAnswer(house({ owed, unpaidMonths: null, walletBalance: 20000, status: { key: 'credit', label: 'Credit' } }));
+    const text = composeAdminOwesAnswer(house({
+      houseLabel: 'OJO.K-2',
+      billedTo: { residentId: 'r', name: 'EMEKA ABARA (PASTOR)' },
+      owed,
+      unpaidMonths: null,
+      walletBalance: 20000,
+      status: { key: 'credit', label: 'Credit' },
+      lastPayment: { month: '2026-05', payments: [{ amount: 100000, date: '2026-05-04' }] },
+    }), NOW);
     expect(text).toBe([
-      '*KOA-18A, Tolu Bello*: Cleared 🟢',
+      '*OJO.K-2, EMEKA ABARA (PASTOR)*: Cleared 🟢',
       'Outstanding: nothing.',
-      'Last paid: ₦100,000.00 in Jun 2025.',
-      'Credit: ₦20,000.00. This pays Nov and Dec 2026.',
+      'Last paid: ₦100,000.00 in May 2026.',
+      'Next Payment Due January 2027.',
     ].join('\n'));
+  });
+
+  it('leaves the year out when the next payment is due this year, and keeps the credit line when no due month is known', () => {
+    const owed = { invoiceCount: 4, outstanding: 0, overdue: null, next: null, nextPaymentDue: '2026-11-01', awaitingVerification: 0 };
+    const text = composeAdminOwesAnswer(house({ owed, unpaidMonths: null, walletBalance: 0, status: { key: 'paid_in_full', label: 'Paid in Full' } }), NOW);
+    expect(text).toContain('Next Payment Due November.');
+    expect(text).not.toContain('Credit');
+    const unknown = composeAdminOwesAnswer(house({ owed: { ...owed, nextPaymentDue: null }, unpaidMonths: null, walletBalance: 5000, status: { key: 'credit', label: 'Credit' } }), NOW);
+    expect(unknown).toContain('Credit: ₦5,000.00');
+    expect(unknown).not.toContain('Next Payment Due');
+  });
+
+  it('does not show a next payment due while the house owes', () => {
+    const owed = { invoiceCount: 3, outstanding: 45000, overdue: null, next: null, nextPaymentDue: '2026-11-01', awaitingVerification: 0 };
+    expect(composeAdminOwesAnswer(house({ owed }), NOW)).not.toContain('Next Payment Due');
   });
 
   it('names one month alone, and says so when there is no payment or bill', () => {
