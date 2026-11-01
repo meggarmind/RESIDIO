@@ -63,11 +63,13 @@ import {
   REPORT_VIEW_PERMISSIONS,
   reportsForPermissions,
   getReportPermission,
+  GENERATABLE_REPORT_TYPES,
+  hasGenerator,
   type ReportRequestFormData,
 } from '@/lib/validators/reports';
 import { generateReport } from '@/actions/reports/report-engine';
 import { getReportArchive } from '@/actions/reports/get-report-archive';
-import { getReportSchedules, getGeneratedReports, updateReportSchedule } from '@/actions/reports/report-schedules';
+import { getReportSchedules, getGeneratedReports, updateReportSchedule, createReportSchedule } from '@/actions/reports/report-schedules';
 import { ADMIN_NAV_SECTIONS, type NavItem } from '@/config/navigation';
 import ReportsPage from '@/app/(dashboard)/reports/page';
 
@@ -98,9 +100,9 @@ describe('One report list for every schema (#1397)', () => {
     expect(REPORT_TYPE_VALUES).toEqual(ALL);
   });
 
-  it('the schedule update schema accepts every listed report and refuses others', async () => {
+  it('the schedule update schema accepts every generatable report and refuses others', async () => {
     held.perms = [PERMISSIONS.REPORTS_MANAGE_SCHEDULES];
-    for (const type of ALL) {
+    for (const type of GENERATABLE_REPORT_TYPES) {
       // Past validation the mock has no row, so the action stops at "Schedule not found".
       expect((await updateReportSchedule('s1', { report_type: type })).error, type).toBe('Schedule not found');
     }
@@ -223,5 +225,36 @@ describe('Reports page guard (#1397)', () => {
   it('sends anyone else to the dashboard', async () => {
     held.perms = [PERMISSIONS.REPORTS_VIEW_OCCUPANCY, PERMISSIONS.REPORTS_MANAGE_SCHEDULES];
     await expect(ReportsPage()).rejects.toThrow('redirect:/dashboard');
+  });
+});
+
+describe('Only reports with a generator can be scheduled (#1397)', () => {
+  const NO_GENERATOR = 'Indebtedness Detail Report cannot be generated yet, so it cannot be scheduled.';
+
+  it('GENERATABLE_REPORT_TYPES matches the cases in generateReportWithClient', async () => {
+    const real = await vi.importActual<typeof import('@/lib/reports/report-generator')>('@/lib/reports/report-generator');
+    // A stub client that fails on first use: a type with a case reaches it, a type without one does not.
+    const stub = { from: () => { throw new Error('stub client reached'); }, rpc: () => { throw new Error('stub client reached'); } };
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    for (const type of ALL) {
+      const result = await real.generateReportWithClient(stub as never, request(type));
+      expect(/cannot be generated yet/.test(result.error ?? ''), type).toBe(!hasGenerator(type));
+    }
+    spy.mockRestore();
+    expect(hasGenerator('indebtedness_detail')).toBe(false);
+  });
+
+  it('createReportSchedule refuses a report with no generator and writes nothing', async () => {
+    held.perms = [PERMISSIONS.REPORTS_MANAGE_SCHEDULES];
+    const result = await createReportSchedule({ name: 'x', report_type: 'indebtedness_detail', frequency: 'monthly', period_preset: 'last_month' });
+    expect(result).toEqual({ data: null, error: NO_GENERATOR });
+    expect(calls.from).toEqual([]);
+  });
+
+  it('updateReportSchedule refuses a change to a report with no generator and reads nothing', async () => {
+    held.perms = [PERMISSIONS.REPORTS_MANAGE_SCHEDULES];
+    const result = await updateReportSchedule('s1', { report_type: 'indebtedness_detail' });
+    expect(result).toEqual({ data: null, error: NO_GENERATOR });
+    expect(calls.from).toEqual([]);
   });
 });

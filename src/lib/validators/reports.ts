@@ -24,6 +24,26 @@ export const REPORT_TYPE_LABELS = Object.fromEntries(
     reportTypes.map(rt => [rt.value, rt.label])
 ) as Record<ReportType, string>;
 
+/**
+ * The reports the generator can produce: one per case in `generateReportWithClient`
+ * (`@/lib/reports/report-generator`); a test keeps the two in step. A listed report not here can be
+ * picked but not generated, so it must not be scheduled (#1397).
+ */
+export const GENERATABLE_REPORT_TYPES: readonly ReportType[] = [
+    'financial_overview',
+    'collection_report',
+    'invoice_aging',
+    'transaction_log',
+    'debtors_report',
+    'indebtedness_summary',
+    'development_levy',
+];
+
+/** True when the generator has a case for `type`. */
+export function hasGenerator(type: string): boolean {
+    return (GENERATABLE_REPORT_TYPES as readonly string[]).includes(type);
+}
+
 /** Every report value, as a tuple for z.enum. */
 export const REPORT_TYPE_VALUES = reportTypes.map((rt) => rt.value) as [ReportType, ...ReportType[]];
 

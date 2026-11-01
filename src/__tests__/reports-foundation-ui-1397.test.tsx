@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 //
 // #1397: the picker lists only permitted reports, the summary-first layout renders from its
-// marker in both templates, CSV comes from its table, and the wizard reports a failure.
+// marker in both templates, CSV comes from its table, the wizard reports a failure and does not
+// schedule a report it cannot generate, and History hides Delete without the delete permission.
 
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -15,7 +16,13 @@ globalThis.ResizeObserver ??= class {
   disconnect() {}
 } as unknown as typeof ResizeObserver;
 
-const { toastError, schema } = vi.hoisted(() => ({ toastError: vi.fn(), schema: { fail: false } }));
+const { toastError, schema, createSchedule, perms, history } = vi.hoisted(() => ({
+  toastError: vi.fn(),
+  schema: { fail: false },
+  createSchedule: vi.fn(),
+  perms: { held: [] as string[] },
+  history: { reports: [] as unknown[] },
+}));
 // The request schema, with a switch that makes it fail so the invalid path can be driven.
 vi.mock('@/lib/validators/reports', async (importOriginal) => {
   const real = await importOriginal<typeof import('@/lib/validators/reports')>();
@@ -28,7 +35,23 @@ vi.mock('@/lib/validators/reports', async (importOriginal) => {
 });
 vi.mock('sonner', () => ({ toast: { error: toastError, success: vi.fn(), info: vi.fn() } }));
 vi.mock('@/hooks/use-reports', () => ({
-  useCreateReportSchedule: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useCreateReportSchedule: () => ({ mutateAsync: createSchedule, isPending: false }),
+  useReportVersionHistory: () => ({ data: [], isLoading: false }),
+  useGenerateReport: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useGeneratedReports: () => ({ data: { data: history.reports, count: history.reports.length }, isLoading: false }),
+  useDeleteGeneratedReport: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useReportSchedules: () => ({ data: [], isLoading: false }),
+  useReportArchive: () => ({ data: { data: [], count: 0 }, isLoading: false }),
+}));
+vi.mock('@/lib/auth/auth-provider', () => ({
+  useAuth: () => ({ isLoading: false, hasPermission: (p: string) => perms.held.includes(p) }),
+}));
+vi.mock('@/hooks/use-settings', () => ({ useGeneralSettings: () => ({ data: [] }) }));
+vi.mock('@/components/reports/wallet-batch-reconciliation-panel', () => ({ WalletBatchReconciliationPanel: () => null }));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+  usePathname: () => '/reports',
+  useSearchParams: () => new URLSearchParams('tab=recent'),
 }));
 vi.mock('@/actions/reports/get-financial-overview', () => ({
   getBankAccountsForFilter: async () => ({ data: [], error: null }),
@@ -42,11 +65,18 @@ import { TraditionalTemplate } from '@/components/reports/templates/traditional-
 import { isSummaryReport, summaryTableToCsv, type SummaryReportData } from '@/lib/reports/summary-report';
 import { reportTypes, type ReportType } from '@/lib/validators/reports';
 import type { ReportData } from '@/lib/reports/report-generator';
+import { ReportViewer } from '@/components/reports/report-viewer';
+import { ReportsPageClient } from '@/components/reports/reports-page-client';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import type { GeneratedReport } from '@/hooks/use-reports';
 
 afterEach(() => {
   cleanup();
   toastError.mockReset();
+  createSchedule.mockReset();
   schema.fail = false;
+  perms.held = [];
+  history.reports = [];
 });
 
 const config = Object.fromEntries(
@@ -167,37 +197,97 @@ describe('summaryTableToCsv (#1397)', () => {
   });
 });
 
-describe('ReportRequestWizard reports a failure (#1379)', () => {
-  function renderWizard(onGenerate: () => Promise<void>, allowed: ReportType[]) {
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={client}>
-        <ReportRequestWizard allowedReportTypes={allowed} onGenerate={onGenerate} />
-      </QueryClientProvider>
-    );
-    // financial_overview (or any non-realtime type) walks steps 1 to 5.
-    for (let i = 0; i < 4; i++) fireEvent.click(screen.getByRole('button', { name: /^Next/ }));
-    fireEvent.click(screen.getByRole('button', { name: /Generate Report/ }));
-  }
+function renderWizard(allowed: ReportType[], onGenerate = vi.fn().mockResolvedValue(undefined)) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <ReportRequestWizard allowedReportTypes={allowed} onGenerate={onGenerate} />
+    </QueryClientProvider>
+  );
+  return onGenerate;
+}
+// A non-realtime type walks steps 1 to 5.
+const toReview = () => {
+  for (let i = 0; i < 4; i++) fireEvent.click(screen.getByRole('button', { name: /^Next/ }));
+};
 
-  it('shows a toast when generation fails', async () => {
-    const onGenerate = vi.fn().mockRejectedValue(new Error('Indebtedness Detail Report cannot be generated yet.'));
-    renderWizard(onGenerate, ['financial_overview']);
-    await waitFor(() => expect(onGenerate).toHaveBeenCalled());
-    await waitFor(() =>
-      expect(toastError).toHaveBeenCalledWith('Failed to generate report', {
-        description: 'Indebtedness Detail Report cannot be generated yet.',
-      })
-    );
+describe('ReportRequestWizard (#1397)', () => {
+  it('starts on the first report the user may run', () => {
+    renderWizard(['transaction_log', 'debtors_report']);
+    expect(screen.getByTestId('report-type-aim').textContent).toContain('Transaction Log');
   });
 
-  it('shows a toast when the form fails validation, and does not generate', async () => {
-    const onGenerate = vi.fn().mockResolvedValue(undefined);
+  it('shows a toast when the form fails validation, and does not generate (#1379)', async () => {
     schema.fail = true;
-    renderWizard(onGenerate, ['financial_overview']);
+    const onGenerate = renderWizard(['financial_overview']);
+    toReview();
+    fireEvent.click(screen.getByRole('button', { name: /Generate Report/ }));
     await waitFor(() =>
       expect(toastError).toHaveBeenCalledWith('Cannot generate this report', { description: 'Pick a report you may run' })
     );
     expect(onGenerate).not.toHaveBeenCalled();
+  });
+
+  it('offers no schedule for a report it cannot generate, and says why', () => {
+    renderWizard(['indebtedness_detail']);
+    toReview();
+    expect(screen.queryByRole('switch')).toBeNull();
+    expect(screen.getByText('This report cannot be generated yet, so it cannot be scheduled.')).toBeTruthy();
+  });
+
+  it('offers the schedule switch for a report it can generate', () => {
+    renderWizard(['financial_overview']);
+    toReview();
+    expect(screen.getByRole('switch')).toBeTruthy();
+    expect(screen.queryByText('This report cannot be generated yet, so it cannot be scheduled.')).toBeNull();
+  });
+});
+
+const summaryGenerated = {
+  id: 'r1',
+  type: 'financial_overview',
+  title: 'Occupancy - Oct 2026',
+  generatedAt: '2026-10-31T08:00:00Z',
+  parameters: { reportType: 'financial_overview', periodPreset: 'custom', startDate: '2026-10-01', endDate: '2026-10-31' },
+  data: { type: 'any_future_type', layout: 'summary', data: summary },
+  version: 1,
+  parentReportId: null,
+  isLatest: true,
+  editNotes: null,
+} as unknown as GeneratedReport;
+
+describe('ReportViewer CSV export of a summary-first report (#1397)', () => {
+  it('downloads the table as CSV', async () => {
+    let blob: Blob | null = null;
+    const create = vi.fn((b: Blob) => {
+      blob = b;
+      return 'blob:csv';
+    });
+    Object.assign(URL, { createObjectURL: create, revokeObjectURL: vi.fn() });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    render(<ReportViewer report={summaryGenerated} />);
+    fireEvent.click(screen.getByRole('button', { name: /Export CSV/ }));
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(await blob!.text()).toBe(summaryTableToCsv(summary.table));
+    click.mockRestore();
+  });
+});
+
+describe('History hides Delete without reports.manage_schedules (#1397)', () => {
+  const page = () => render(<ReportsPageClient allowedReportTypes={['financial_overview']} />);
+
+  it('no Delete for a viewer', () => {
+    perms.held = [PERMISSIONS.REPORTS_VIEW_FINANCIAL];
+    history.reports = [{ ...summaryGenerated, title: 'October overview' }];
+    page();
+    expect(screen.getByText('October overview')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Delete report/ })).toBeNull();
+  });
+
+  it('Delete for a holder of reports.manage_schedules', () => {
+    perms.held = [PERMISSIONS.REPORTS_VIEW_FINANCIAL, PERMISSIONS.REPORTS_MANAGE_SCHEDULES];
+    history.reports = [{ ...summaryGenerated, title: 'October overview' }];
+    page();
+    expect(screen.getByRole('button', { name: 'Delete report October overview' })).toBeTruthy();
   });
 });
