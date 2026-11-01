@@ -60,7 +60,7 @@ The connection card shows a **webhook callback URL** with a copy button. Paste t
 
 For Chatmaid, point the webhook at the callback URL shown on the card (it ends in `/api/whatsapp/webhook/chatmaid`). Residio rejects any call that is not signed with the webhook signing secret you saved, so the secret in Chatmaid and the one in Residio must match.
 
-For WAHA, set the webhook in the WAHA session to the callback URL shown on the card (it ends in `/api/whatsapp/webhook/waha`). Subscribe the session to the events `message`, `message.ack` and `session.status`. Set the WAHA webhook HMAC key to the webhook secret you saved in Residio. Residio rejects any call that is not signed with that secret. The WAHA container and the pairing of the phone are set up on the server, not in Residio. The steps are in the runbook of issue #1261.
+For WAHA, set the webhook in the WAHA session to the callback URL shown on the card (it ends in `/api/whatsapp/webhook/waha`). Subscribe the session to the events `message`, `message.ack`, `session.status` and `poll.vote`. `poll.vote` carries the answer to a sign-in approval poll (see Roles and permissions, Two-factor sign-in). Set the WAHA webhook HMAC key to the webhook secret you saved in Residio. Residio rejects any call that is not signed with that secret. The WAHA container and the pairing of the phone are set up on the server, not in Residio. The steps are in the runbook of issue #1261.
 
 If you're connecting Meta, the console also asks for a **verify token**. Residio shows this to you once, immediately after you save the connection — copy it into Meta's console at that moment. It cannot be retrieved again afterwards; if you lose it, save the connection again to generate a new one.
 

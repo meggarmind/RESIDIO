@@ -4,6 +4,7 @@ import type { WhatsAppProvider } from '@/lib/whatsapp/provider';
 import { renderTemplateToText } from '@/lib/whatsapp/providers/chatmaid';
 import { isRetryableHttpStatus } from '@/lib/whatsapp/retry';
 import type {
+  WhatsAppPollMessage,
   WhatsAppSendResult,
   WhatsAppTemplateMessage,
   WhatsAppTextMessage,
@@ -427,6 +428,20 @@ export function createWahaWhatsAppProvider(
     async sendTemplate(message: WhatsAppTemplateMessage) {
       const content = await renderTemplateToText(message.templateName, message.parameters);
       return sendContent(message.to, content);
+    },
+    /**
+     * `POST /api/sendPoll` (#1389), body `{ session, chatId, poll: { name, options, multipleAnswers } }`,
+     * read from the WAHA docs (1 Nov 2026). Single choice. The answer is read like a text send's.
+     */
+    async sendPoll(message: WhatsAppPollMessage) {
+      if (!(await isSessionWorking(config, fetchImpl))) {
+        return { success: false, error: DISCONNECTED_ERROR };
+      }
+      const sent = await post('/api/sendPoll', {
+        chatId: toChatId(message.to),
+        poll: { name: message.name, options: message.options, multipleAnswers: false },
+      });
+      return sent.ok ? { success: true, messageId: sent.messageId } : sent.result;
     },
   };
 }

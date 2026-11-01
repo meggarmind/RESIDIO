@@ -19,6 +19,14 @@ export interface WhatsAppTemplateMessage {
   idempotencySeed?: string;
 }
 
+/** A single-choice poll (#1389). WAHA only: the other providers have no poll send. */
+export interface WhatsAppPollMessage {
+  to: string;
+  /** The question shown above the options. */
+  name: string;
+  options: string[];
+}
+
 export interface WhatsAppSendResult {
   success: boolean;
   messageId?: string;
