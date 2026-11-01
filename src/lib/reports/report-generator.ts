@@ -13,7 +13,8 @@
 
 import type { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
 import type { ReportRequestFormData } from '@/lib/validators/reports';
-import { getDateRangeFromPreset } from '@/lib/validators/reports';
+import { getDateRangeFromPreset, REPORT_TYPE_LABELS } from '@/lib/validators/reports';
+import type { SummaryReport } from '@/lib/reports/summary-report';
 import { DEBT_STATUS_DEFAULTS, getDebtStatuses, type DebtStatus } from '@/lib/billing/debt-status';
 
 /** Either the cookie-bound session client or the service-role admin client. */
@@ -229,7 +230,9 @@ export type ReportData =
   | { type: 'transaction_log'; data: TransactionLogData }
   | { type: 'debtors_report'; data: DebtorsReportData }
   | { type: 'indebtedness_summary'; data: IndebtednessReportData }
-  | { type: 'development_levy'; data: DevelopmentLevyData };
+  | { type: 'development_levy'; data: DevelopmentLevyData }
+  // Summary-first layout (#1397): rendered from its `layout` marker, not from `type`.
+  | SummaryReport;
 
 export interface GenerateReportResult {
   success: boolean;
@@ -1450,8 +1453,11 @@ export async function generateReportWithClient(
         return { success: true, report: { type: 'development_levy', data } };
       }
 
-      default:
-        return { success: false, error: 'Invalid report type' };
+      default: {
+        // A listed report without a generator yet (#1397): say so rather than fail silently.
+        const label = REPORT_TYPE_LABELS[params.reportType];
+        return { success: false, error: label ? `${label} cannot be generated yet.` : 'Invalid report type' };
+      }
     }
   } catch (error) {
     console.error('Error generating report:', error);

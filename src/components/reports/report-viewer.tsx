@@ -19,6 +19,7 @@ import {
 import type { GeneratedReport } from '@/hooks/use-reports';
 import { useReportVersionHistory } from '@/hooks/use-reports';
 import { getDateRangeFromPreset, REPORT_TYPE_LABELS } from '@/lib/validators/reports';
+import { isSummaryReport, summaryTableToCsv } from '@/lib/reports/summary-report';
 import {
   Sheet,
   SheetContent,
@@ -280,7 +281,10 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
     const filename = `${report.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.csv`;
 
     try {
-      if (report.data.type === 'transaction_log' && report.data.data.transactions) {
+      if (isSummaryReport(report.data)) {
+        // Summary-first reports export their table, whatever their type (#1397).
+        csvContent = summaryTableToCsv(report.data.data.table);
+      } else if (report.data.type === 'transaction_log' && report.data.data.transactions) {
         const headers = ["Date", "Description", "Amount", "Type", "Category", "Bank Account", "Reference"];
         csvContent = [
           headers.join(","),

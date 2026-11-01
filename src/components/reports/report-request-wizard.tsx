@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, memo } from 'react';
-import { useForm, Controller, type Resolver } from 'react-hook-form';
+import { useForm, Controller, type FieldErrors, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -67,6 +67,8 @@ import { ReportTypePicker } from '@/components/reports/report-type-picker';
 // ============================================================
 
 interface ReportRequestWizardProps {
+    /** The report types the user may run (#1397); the picker lists only these. */
+    allowedReportTypes: readonly ReportType[];
     onGenerate: (data: ReportRequestFormData) => Promise<void>;
     isGenerating?: boolean;
 }
@@ -227,14 +229,17 @@ function StepIndicator({ steps, currentStep, reportType }: { steps: Step[]; curr
 function ReportTypeStep({
     value,
     onChange,
+    allowedTypes,
 }: {
     value: ReportType | '';
     onChange: (type: ReportType) => void;
+    allowedTypes: readonly ReportType[];
 }) {
     return (
         <ReportTypePicker
             value={value}
             onChange={onChange}
+            allowedTypes={allowedTypes}
             config={reportTypeConfig}
             realtimeTypes={REALTIME_REPORTS}
             accountAgnosticTypes={ACCOUNT_AGNOSTIC_REPORTS}
@@ -930,6 +935,7 @@ function ReviewStep({
 // ============================================================
 
 export function ReportRequestWizard({
+    allowedReportTypes,
     onGenerate,
     isGenerating = false,
 }: ReportRequestWizardProps) {
@@ -953,7 +959,8 @@ export function ReportRequestWizard({
     const { control, watch, handleSubmit, setValue } = useForm<ReportRequestFormData>({
         resolver: zodResolver(reportRequestSchema) as Resolver<ReportRequestFormData>,
         defaultValues: {
-            reportType: 'financial_overview' as const,
+            // The first report the user may run (financial_overview for everyone today).
+            reportType: allowedReportTypes[0] ?? 'financial_overview',
             periodPreset: 'this_month' as const,
             startDate: '',
             endDate: '',
@@ -1104,7 +1111,22 @@ export function ReportRequestWizard({
         }
 
         // Proceed to generate report immediately
-        await onGenerate(data);
+        try {
+            await onGenerate(data);
+        } catch (error) {
+            toast.error('Failed to generate report', {
+                description: error instanceof Error ? error.message : 'An unexpected error occurred',
+            });
+        }
+    };
+
+    // A form that fails validation must say so, not do nothing (#1379).
+    const onInvalid = (errors: FieldErrors<ReportRequestFormData>) => {
+        if (step !== 5) return;
+        const first = Object.values(errors)[0];
+        toast.error('Cannot generate this report', {
+            description: (first && typeof first.message === 'string' && first.message) || 'Check the report options and try again.',
+        });
     };
 
     // Validation for each step
@@ -1133,7 +1155,7 @@ export function ReportRequestWizard({
     const selectedTypeLabel = reportTypes.find((t) => t.value === formData.reportType)?.label;
 
     return (
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form onSubmit={handleSubmit(onSubmit, onInvalid)}>
             <Card className="shadow-xl border-0 bg-gradient-to-b from-background to-muted/20">
                 <CardContent className="p-4 md:p-6">
                     {/* Step Indicator: pinned under the page header and tabs (height set on the Tabs root as --reports-sticky-h; the header pins 1.5rem above main's content edge). */}
@@ -1147,6 +1169,7 @@ export function ReportRequestWizard({
                             <ReportTypeStep
                                 value={formData.reportType}
                                 onChange={(type) => setValue('reportType', type as ReportRequestFormData['reportType'])}
+                                allowedTypes={allowedReportTypes}
                             />
                         )}
 
@@ -1224,7 +1247,7 @@ export function ReportRequestWizard({
                         ) : (
                             <Button
                                 type="button"
-                                onClick={handleSubmit(onSubmit)}
+                                onClick={handleSubmit(onSubmit, onInvalid)}
                                 disabled={isGenerating || createSchedule.isPending}
                                 className={cn(
                                     "min-w-[140px]",

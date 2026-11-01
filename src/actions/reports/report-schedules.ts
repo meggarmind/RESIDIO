@@ -3,14 +3,16 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { authorizePermission } from '@/lib/auth/authorize';
+import { authorizeAnyPermission, authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { idOrParentFilterStrict } from '@/lib/postgrest-filter';
 import { calculateNextRunDate } from '@/lib/reports/scheduled-report-store';
+import { REPORT_TYPE_VALUES, REPORT_VIEW_PERMISSIONS, reportsForPermissions, type ReportType } from '@/lib/validators/reports';
 
 // Types
-export type ReportType = 'financial_overview' | 'collection_report' | 'invoice_aging' | 'transaction_log' | 'debtors_report' | 'indebtedness_summary' | 'indebtedness_detail' | 'development_levy';
+// Derived from the report list (#1397), so a listed report is always a valid schedule type.
+export type { ReportType };
 export type ScheduleFrequency = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 export type PeriodPreset = 'this_month' | 'last_month' | 'this_quarter' | 'last_quarter' | 'this_year' | 'last_year';
 export type TemplateStyle = 'traditional' | 'modern';
@@ -78,13 +80,17 @@ export interface CreateScheduleInput {
     template_style?: TemplateStyle;
 }
 
-// Get all report schedules
+// Get the report schedules of the report types the user may run (#1397).
 export async function getReportSchedules(): Promise<{ data: ReportSchedule[] | null; error: string | null }> {
+    const auth = await authorizeAnyPermission(REPORT_VIEW_PERMISSIONS);
+    if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
+
     const supabase = await createServerSupabaseClient();
 
     const { data, error } = await supabase
         .from('report_schedules')
         .select('*')
+        .in('report_type', reportsForPermissions(auth.permissions))
         .order('created_at', { ascending: false });
 
     if (error) {
@@ -173,7 +179,7 @@ export async function createReportSchedule(input: CreateScheduleInput): Promise<
 const updateScheduleSchema = z.object({
     name: z.string().min(1).optional(),
     description: z.string().optional(),
-    report_type: z.enum(['financial_overview', 'collection_report', 'invoice_aging', 'transaction_log', 'debtors_report', 'indebtedness_summary', 'indebtedness_detail', 'development_levy']).optional(),
+    report_type: z.enum(REPORT_TYPE_VALUES).optional(),
     frequency: z.enum(['daily', 'weekly', 'monthly', 'quarterly', 'yearly']).optional(),
     day_of_week: z.number().int().min(0).max(6).optional(),
     day_of_month: z.number().int().min(1).max(31).optional(),
@@ -293,11 +299,16 @@ export async function getGeneratedReports(options?: {
     report_type?: ReportType;
     schedule_id?: string;
 }): Promise<{ data: GeneratedReport[] | null; count: number; error: string | null }> {
+    // History lists only the report types the user may run (#1397).
+    const auth = await authorizeAnyPermission(REPORT_VIEW_PERMISSIONS);
+    if (!auth.authorized) return { data: null, count: 0, error: auth.error || 'Unauthorized' };
+
     const supabase = await createServerSupabaseClient();
 
     let query = supabase
         .from('generated_reports')
         .select('*', { count: 'exact' })
+        .in('report_type', reportsForPermissions(auth.permissions))
         .order('created_at', { ascending: false });
 
     if (options?.report_type) {

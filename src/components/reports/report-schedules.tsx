@@ -423,6 +423,12 @@ export function ReportSchedulesPanel() {
                     <p className="text-sm text-muted-foreground">
                         Reports are generated automatically at 6 AM UTC
                     </p>
+                    {/* Visibility follows access (#1397): say why the write controls are missing. */}
+                    {!canManage && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                            You can view schedules. Creating or changing one needs the Manage report schedules permission.
+                        </p>
+                    )}
                 </div>
                 {canManage && (
                     <Button onClick={() => setCreateDialogOpen(true)} size="sm">
