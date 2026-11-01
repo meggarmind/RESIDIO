@@ -21,7 +21,7 @@ vi.mock('@/lib/supabase/server', () => ({
 }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
-import { mergeResidents, previewResidentMerge } from '@/actions/residents/merge-residents';
+import { getMergeCandidates, mergeResidents, previewResidentMerge } from '@/actions/residents/merge-residents';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 const KEPT = '11111111-1111-4111-8111-111111111111';
@@ -175,5 +175,57 @@ describe('mergeResidents', () => {
 
     expect((await mergeResidents(validInput)).error).toMatch(/safety check and nothing was changed/);
     expect(mocks.logAudit).not.toHaveBeenCalled();
+  });
+});
+
+describe('getMergeCandidates', () => {
+  it('refuses without residents.merge and never touches the database', async () => {
+    mocks.authorizePermission.mockResolvedValue({ authorized: false, error: 'Forbidden' });
+
+    const result = await getMergeCandidates(KEPT, 'ada');
+
+    expect(mocks.authorizePermission).toHaveBeenCalledWith(PERMISSIONS.RESIDENTS_MERGE);
+    expect(result).toEqual({ data: null, error: 'Forbidden' });
+    expect(mocks.createServerSupabaseClient).not.toHaveBeenCalled();
+  });
+
+  it('rejects an invalid id before querying', async () => {
+    const result = await getMergeCandidates('nope');
+
+    expect(result.data).toBeNull();
+    expect(result.error).toBeTruthy();
+    expect(mocks.createServerSupabaseClient).not.toHaveBeenCalled();
+  });
+});
+
+describe('getMergeCandidates with rows', () => {
+  const ME = '44444444-4444-4444-8444-444444444444';
+  const link = (active: boolean) => ({ is_active: active, house: { id: 'h1', short_name: 'Close 1 No 4', house_number: '4' } });
+  const base = { phone_primary: null, phone_secondary: null, account_status: 'active', merged_into_resident_id: null };
+
+  it('counts only active house links as Same house', async () => {
+    const me = { id: ME, first_name: 'Ada', last_name: 'Obi', resident_code: '100001', ...base, resident_houses: [link(true)] };
+    const others = [
+      { id: 'active', first_name: 'Bola', last_name: 'Eze', resident_code: '100002', ...base, resident_houses: [link(true)] },
+      { id: 'ended', first_name: 'Chidi', last_name: 'Uzo', resident_code: '100003', ...base, resident_houses: [link(false)] },
+    ];
+    const list = {
+      neq: () => list,
+      is: () => list,
+      order: () => list,
+      limit: async () => ({ data: others, error: null }),
+    };
+    mocks.createServerSupabaseClient.mockResolvedValue({
+      from: () => ({
+        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: me, error: null }) }), neq: list.neq }),
+      }),
+    });
+
+    const result = await getMergeCandidates(ME);
+
+    expect(result.error).toBeNull();
+    expect(result.data?.suggestions).toEqual([
+      { id: 'active', name: 'Bola Eze', resident_code: '100002', houses: ['Close 1 No 4'], reason: 'Same house' },
+    ]);
   });
 });

@@ -16,14 +16,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { SearchableSelect } from '@/components/ui/searchable-select';
-import { useMergeResidents, useResidentMergePreview, useResidentOptions } from '@/hooks/use-residents';
-import { formatCurrency } from '@/lib/utils';
+import { useMergeCandidates, useMergeResidents, useResidentMergePreview } from '@/hooks/use-residents';
+import { useDebounce } from '@/hooks/use-debounce';
+import { cn, formatCurrency } from '@/lib/utils';
 import type {
   ResidentContactChoices,
   ResidentMergeContact,
   ResidentMergePreview,
   ResidentMergeResult,
+  MergeCandidate,
 } from '@/actions/residents/merge-residents';
 
 // Plain names for the preview's `table.column` keys; anything not listed falls back to the table name.
@@ -79,6 +80,47 @@ function contactOptions(field: ContactField, preview: ResidentMergePreview): Con
   return options;
 }
 
+function CandidateRows({
+  items,
+  selectedId,
+  onSelect,
+}: {
+  items: MergeCandidate[];
+  selectedId: string;
+  onSelect: (candidate: MergeCandidate) => void;
+}) {
+  return (
+    <ul className="space-y-1.5">
+      {items.map((c) => {
+        const selected = c.id === selectedId;
+        return (
+          <li key={c.id}>
+            <button
+              type="button"
+              onClick={() => onSelect(c)}
+              aria-pressed={selected}
+              className={cn(
+                'flex min-h-11 w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition-colors hover:bg-muted/50',
+                selected && 'border-primary bg-primary/5'
+              )}
+            >
+              <span className="min-w-0">
+                <span className="block font-medium">{c.name} · {c.resident_code}</span>
+                <span className="block text-xs text-muted-foreground">
+                  {[c.houses.join(', ') || 'No house', c.reason].filter(Boolean).join(' · ')}
+                </span>
+              </span>
+              <span className={cn('shrink-0 text-xs', selected ? 'font-medium text-primary' : 'text-muted-foreground')}>
+                {selected ? 'Selected' : 'Select'}
+              </span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 interface ResidentMergeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -87,28 +129,34 @@ interface ResidentMergeDialogProps {
 }
 
 export function ResidentMergeDialog({ open, onOpenChange, resident, onMerged }: ResidentMergeDialogProps) {
-  const [otherId, setOtherId] = useState('');
+  const [other, setOther] = useState<MergeCandidate | null>(null);
+  const [search, setSearch] = useState('');
   const [keepCurrent, setKeepCurrent] = useState(true);
   const [choices, setChoices] = useState<ResidentContactChoices>({});
   const [code, setCode] = useState('');
 
-  const { data: optionsData } = useResidentOptions();
+  const otherId = other?.id ?? '';
+  const debouncedSearch = useDebounce(search.trim(), 250);
+  const { data: candidates, error: candidatesError } = useMergeCandidates(resident.id, debouncedSearch, open);
   const keptId = otherId ? (keepCurrent ? resident.id : otherId) : undefined;
   const duplicateId = otherId ? (keepCurrent ? otherId : resident.id) : undefined;
   const { data: preview, isLoading: previewLoading, error: previewError } = useResidentMergePreview(keptId, duplicateId);
   const mergeMutation = useMergeResidents();
 
-  const options = (optionsData?.data ?? [])
-    .filter((r) => r.id !== resident.id)
-    .map((r) => ({ value: r.id, label: `${r.first_name} ${r.last_name}`, description: r.resident_code }));
-  const other = optionsData?.data.find((r) => r.id === otherId);
   const keptCode = preview?.kept?.resident_code;
   const movedRows = Object.entries(preview?.counts ?? {}).filter(([, n]) => n > 0);
   const canConfirm = !!preview?.can_merge && !!keptCode && code.trim() === keptCode && !mergeMutation.isPending;
 
   const reset = () => {
-    setOtherId('');
+    setOther(null);
+    setSearch('');
     setKeepCurrent(true);
+    setChoices({});
+    setCode('');
+  };
+
+  const selectOther = (candidate: MergeCandidate) => {
+    setOther(candidate);
     setChoices({});
     setCode('');
   };
@@ -153,20 +201,73 @@ export function ResidentMergeDialog({ open, onOpenChange, resident, onMerged }: 
         </DialogHeader>
 
         <div className="space-y-4 text-sm">
+          <div className="space-y-2">
+            <Label>
+              Likely duplicates of {resident.first_name} {resident.last_name} ({resident.resident_code})
+            </Label>
+            {candidatesError && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Could not load residents</AlertTitle>
+                <AlertDescription>{candidatesError.message}</AlertDescription>
+              </Alert>
+            )}
+            {!candidatesError && !candidates && (
+              <p className="flex items-center gap-2 text-muted-foreground" role="status">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Looking for likely duplicates…
+              </p>
+            )}
+            {candidates && candidates.suggestions.length === 0 && (
+              <p className="text-muted-foreground">No likely duplicates found.</p>
+            )}
+            {candidates && (
+              <CandidateRows items={candidates.suggestions} selectedId={otherId} onSelect={selectOther} />
+            )}
+          </div>
+
           <div className="space-y-1.5">
-            <Label>Other record</Label>
-            <SearchableSelect
-              options={options}
-              value={otherId}
-              onValueChange={(value) => {
-                setOtherId(value);
-                setChoices({});
-                setCode('');
-              }}
-              placeholder="Choose the other resident"
-              searchPlaceholder="Search by name or code..."
-              emptyMessage="No residents found."
+            <Label htmlFor="merge-search">Not in the list? Search all residents</Label>
+            <Input
+              id="merge-search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Type a name, resident code, house or phone"
+              autoComplete="off"
             />
+            {search.trim().length >= 2 && candidates && (
+              <div className="rounded-md border p-1.5">
+                {candidates.results.length === 0 ? (
+                  <p className="px-2 py-1.5 text-muted-foreground">No resident matches.</p>
+                ) : (
+                  <ul className="space-y-1">
+                    {candidates.results.map((c) => (
+                      <li key={c.id}>
+                        <button
+                          type="button"
+                          onClick={() => selectOther(c)}
+                          aria-pressed={c.id === otherId}
+                          className={cn(
+                            'flex min-h-11 w-full items-center justify-between gap-3 rounded px-2 py-1.5 text-left hover:bg-muted/50',
+                            c.id === otherId && 'bg-primary/5'
+                          )}
+                        >
+                          <span className="font-medium">{c.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {c.resident_code} · {c.houses.join(', ') || 'No house'}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+            {other && (
+              <p className="text-muted-foreground">
+                Selected: {other.name} ({other.resident_code})
+              </p>
+            )}
           </div>
 
           {otherId && (
@@ -187,7 +288,7 @@ export function ResidentMergeDialog({ open, onOpenChange, resident, onMerged }: 
                 </label>
                 <label className="flex items-center gap-2">
                   <RadioGroupItem value="other" aria-label={`Keep ${other?.resident_code ?? 'the other record'}`} />
-                  {other ? `${other.first_name} ${other.last_name} (${other.resident_code})` : 'The other record'}
+                  {other ? `${other.name} (${other.resident_code})` : 'The other record'}
                 </label>
               </RadioGroup>
             </div>
