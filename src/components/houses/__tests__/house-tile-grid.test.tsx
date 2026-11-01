@@ -84,6 +84,25 @@ describe('HouseTileGrid', () => {
     expect(screen.queryByTestId('house-tile-cue-tenant_occupied')).not.toBeInTheDocument();
   });
 
+  it('shows the legend icon in a flagged chip (occupancy) and not in a plain one', () => {
+    renderGrid();
+    expect(screen.getByTestId('house-tile-filter-empty').querySelector('svg')).not.toBeNull();
+    expect(screen.getByTestId('house-tile-filter-owner_occupied').querySelector('svg')).toBeNull();
+    expect(screen.getByTestId('house-tile-filter-all').querySelector('svg')).toBeNull();
+  });
+
+  it('shows the legend icon in the Overdue chip (payment) and not in Paid up', () => {
+    render(
+      <HouseTileGrid
+        houses={[{ id: 'p1', houseNumber: '1', streetName: 'A', status: 'overdue' as const }]}
+        statusMeta={PAYMENT_STATUS_META}
+        filterOrder={['overdue', 'paid_up']}
+      />
+    );
+    expect(screen.getByTestId('house-tile-filter-overdue').querySelector('svg')).not.toBeNull();
+    expect(screen.getByTestId('house-tile-filter-paid_up').querySelector('svg')).toBeNull();
+  });
+
   it('links to the house page by default and honours hrefFor', () => {
     const { unmount } = renderGrid();
     expect(screen.getByRole('link', { name: /House 1,/ })).toHaveAttribute('href', '/houses/1');
