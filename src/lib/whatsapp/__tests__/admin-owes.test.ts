@@ -13,6 +13,7 @@ import {
 import {
   OWES_PICK_MINUTES,
   composeAdminOwesAnswer,
+  monthsPaidBy,
   type OwesCandidate,
   type OwesHouseData,
   type OwesRepository,
@@ -363,6 +364,43 @@ describe('composeAdminOwesAnswer', () => {
 
   it('shows no icon and the stored label when the house has no status row', () => {
     expect(sample({ status: { key: null, label: 'Unknown' } }).split('\n').slice(0, 3)).toEqual(['*KOA-18A*', 'Name: Tolu Bello', 'Status: Unknown']);
+  });
+
+  it('renders the owner sample with the months the last payment paid (1 Nov 2026)', () => {
+    expect(sample({
+      houseLabel: 'GLB-5B',
+      billedTo: { residentId: 'r', name: 'CHARLES YEMI FARIMOYO' },
+      status: { key: 'paid_in_full', label: 'Paid in Full' },
+      owed: { ...owedOf(0), nextPaymentDue: '2026-11-01' },
+      unpaidMonths: null,
+      lastPayment: { month: '2026-03', payments: [{ amount: 120000, date: '2026-03-20' }] },
+      paidMonths: { from: '2025-11-01', to: '2026-10-01' },
+    })).toBe([
+      '*GLB-5B* 🟢',
+      'Name: CHARLES YEMI FARIMOYO',
+      'Status: Paid up',
+      'Last paid: ₦120,000.00 in Mar 2026 (Nov 2025 - Oct 2026)',
+      'Next Payment Due November 2026.',
+    ].join('\n'));
+    const one = sample({ lastPayment: { month: '2026-10', payments: [{ amount: 10000, date: '2026-10-02' }] }, paidMonths: { from: '2026-10-01', to: '2026-10-01' } });
+    expect(one).toContain('Last paid: ₦10,000.00 in Oct 2026 (Oct 2026)');
+  });
+
+  it('works out the months a payment paid, oldest bill first', () => {
+    const months = ['2025-09-01', '2025-10-01', '2025-11-01', '2025-12-01', '2026-01-01'];
+    const bills = months.map((periodStart) => ({ periodStart, amount: 10000 }));
+    expect(monthsPaidBy(bills, 20000, 30000)).toEqual({ from: '2025-11-01', to: '2026-01-01' });
+    expect(monthsPaidBy([...bills].reverse(), 0, 15000)).toEqual({ from: '2025-09-01', to: '2025-10-01' });
+    expect(monthsPaidBy(bills, 40000, 30000, ['2026-02-01', '2026-03-01'])).toEqual({ from: '2026-01-01', to: '2026-03-01' });
+    expect(monthsPaidBy(bills, 50000, 20000, ['2026-02-01', '2026-03-01'])).toEqual({ from: '2026-02-01', to: '2026-03-01' });
+    expect(monthsPaidBy(bills, 50000, 5000)).toBeNull();
+    // A payment that ends exactly on a bill boundary stops there.
+    expect(monthsPaidBy(bills, 0, 20000)).toEqual({ from: '2025-09-01', to: '2025-10-01' });
+    // Payments equal to the bills leave no credit, so credit months are not added.
+    expect(monthsPaidBy(bills, 20000, 30000, ['2026-02-01'])).toEqual({ from: '2025-11-01', to: '2026-01-01' });
+    // A zero bill is never counted as paid.
+    const withZero = [{ periodStart: '2025-09-01', amount: 10000 }, { periodStart: '2025-10-01', amount: 0 }, { periodStart: '2025-11-01', amount: 10000 }];
+    expect(monthsPaidBy(withZero, 10000, 10000)).toEqual({ from: '2025-11-01', to: '2025-11-01' });
   });
 
   it('says so when no resident is billed', () => {
