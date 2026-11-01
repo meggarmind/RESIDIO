@@ -54,11 +54,12 @@ vi.mock('@/hooks/use-two-factor', () => ({
 import { Verify2FAForm } from '@/app/auth/verify-2fa/verify-2fa-form';
 import { RememberedComputers } from '@/app/(dashboard)/settings/two-factor/remembered-computers';
 
-const fetchMock = vi.fn(async (url: string) => {
+const defaultFetch = async (url: string) => {
   if (url === '/api/auth/2fa/trusted-device/use') return { json: async () => ({ trusted: mocks.trusted }) };
   if (url === '/api/auth/2fa/whatsapp/start') return { json: async () => ({ available: false }) };
   return { json: async () => ({ success: true, verified: true }) };
-});
+};
+const fetchMock = vi.fn(defaultFetch);
 const calledUrls = () => fetchMock.mock.calls.map(([u]) => u);
 
 beforeEach(() => {
@@ -69,7 +70,7 @@ beforeEach(() => {
   mocks.computers = [];
   mocks.forget.mockReset();
   mocks.forgetAll.mockReset();
-  fetchMock.mockClear();
+  fetchMock.mockReset().mockImplementation(defaultFetch);
   vi.stubGlobal('fetch', fetchMock);
 });
 
@@ -101,6 +102,19 @@ describe('verify page', () => {
   });
 
   it('"Yes, remember it" asks the server to remember, then enters the app', async () => {
+    await enterCorrectCode();
+    fireEvent.click(await screen.findByRole('button', { name: 'Yes, remember it' }));
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith('/residents'));
+    expect(calledUrls()).toContain('/api/auth/2fa/trusted-device/remember');
+  });
+
+  it('a network error on "Yes, remember it" still enters the app', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/auth/2fa/trusted-device/remember') throw new TypeError('Failed to fetch');
+      if (url === '/api/auth/2fa/trusted-device/use') return { json: async () => ({ trusted: false }) };
+      if (url === '/api/auth/2fa/whatsapp/start') return { json: async () => ({ available: false }) };
+      return { json: async () => ({ success: true, verified: true }) };
+    });
     await enterCorrectCode();
     fireEvent.click(await screen.findByRole('button', { name: 'Yes, remember it' }));
     await waitFor(() => expect(mocks.push).toHaveBeenCalledWith('/residents'));

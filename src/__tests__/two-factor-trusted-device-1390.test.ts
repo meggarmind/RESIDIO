@@ -70,7 +70,8 @@ function createMemoryRepo() {
 const mocks = vi.hoisted(() => ({
   mem: null as unknown,
   session: null as { userId: string; sessionId: string | null } | null,
-  markerValid: false,
+  /** This session's residio_2fa marker: none, from a real second factor, or from a remembered computer. */
+  marker: 'none' as 'none' | 'real' | 'trusted',
   issued: [] as string[],
   jar: new Map<string, string>(),
   authorized: true,
@@ -81,9 +82,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/auth/two-factor-session', () => ({
   getTwoFactorSessionContext: async () => mocks.session,
-  hasVerifiedTwoFactorSession: async (userId: string) => mocks.markerValid && mocks.session?.userId === userId,
-  issueTwoFactorMarkerCookie: async () => {
+  hasVerifiedTwoFactorSession: async (userId: string, opts: { requireRealFactor?: boolean } = {}) =>
+    mocks.session?.userId === userId && mocks.marker !== 'none' && !(opts.requireRealFactor && mocks.marker === 'trusted'),
+  issueTwoFactorMarkerCookie: async (opts: { viaTrustedDevice?: boolean } = {}) => {
     mocks.issued.push(mocks.session!.userId);
+    mocks.marker = opts.viaTrustedDevice ? 'trusted' : 'real';
     return true;
   },
 }));
@@ -152,7 +155,7 @@ const remember = () =>
 const signIn = (user: string, session = `${user}-session-${Math.random()}`) => {
   mocks.session = { userId: user, sessionId: session };
   mocks.user = user;
-  mocks.markerValid = false;
+  mocks.marker = 'none';
 };
 
 beforeEach(() => {
@@ -255,7 +258,7 @@ describe('remember route', () => {
   });
 
   it('with the marker, remembers this computer for the session user and sets the cookie', async () => {
-    mocks.markerValid = true;
+    mocks.marker = 'real';
     const response = await remember();
     expect(await response.json()).toMatchObject({ success: true });
     expect(mem.rows.map((r) => [r.profileId, r.userAgentSummary])).toEqual([[A, 'Chrome on Windows']]);
@@ -265,7 +268,7 @@ describe('remember route', () => {
 
 describe('use route', () => {
   async function rememberAsA() {
-    mocks.markerValid = true;
+    mocks.marker = 'real';
     await remember();
   }
 
@@ -274,6 +277,43 @@ describe('use route', () => {
     signIn(A);
     expect(await (await useRoute()).json()).toEqual({ trusted: true });
     expect(mocks.issued).toEqual([A]);
+  });
+
+  it('a session that entered through a remembered computer cannot remember it again (no renewal)', async () => {
+    await rememberAsA();
+    signIn(A);
+    expect(await (await useRoute()).json()).toEqual({ trusted: true });
+    expect(mocks.marker).toBe('trusted');
+    const before = mem.rows.length;
+    const response = await remember();
+    expect(response.status).toBe(403);
+    expect(mem.rows).toHaveLength(before);
+  });
+
+  it('after a real second factor on a new session, remember works again', async () => {
+    await rememberAsA();
+    signIn(A);
+    mocks.marker = 'real';
+    expect(await (await remember()).json()).toMatchObject({ success: true });
+    expect(mem.rows).toHaveLength(2);
+  });
+
+  it('a Forget that lands between the lookup and last_used_at refuses, with no marker', async () => {
+    await rememberAsA();
+    signIn(A);
+    const repo = mem.repo;
+    const touch = repo.touch;
+    repo.touch = async (id, now) => {
+      await repo.revoke(A, 'forgotten', now, id);
+      return touch(id, now);
+    };
+    try {
+      expect(await (await useRoute()).json()).toEqual({ trusted: false });
+    } finally {
+      repo.touch = touch;
+    }
+    expect(mocks.issued).toEqual([]);
+    expect(mocks.jar.has('residio_2fa_device')).toBe(false);
   });
 
   it('issues no marker for another user on that computer', async () => {
@@ -312,7 +352,7 @@ describe('use route', () => {
 describe('settings actions', () => {
   async function rememberAs(user: string) {
     signIn(user);
-    mocks.markerValid = true;
+    mocks.marker = 'real';
     await remember();
   }
 

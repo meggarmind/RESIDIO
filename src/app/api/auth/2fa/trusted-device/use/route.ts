@@ -25,8 +25,9 @@ export async function POST() {
       return NextResponse.json({ trusted: false });
     }
 
-    // The marker binds to this request's own session id, as after a code.
-    if (!(await issueTwoFactorMarkerCookie())) {
+    // The marker binds to this request's own session id, as after a code, and says it came from a
+    // remembered computer, so the remember route refuses this session.
+    if (!(await issueTwoFactorMarkerCookie({ viaTrustedDevice: true }))) {
       return NextResponse.json({ trusted: false }, { status: 500 });
     }
     return NextResponse.json({ trusted: true });
