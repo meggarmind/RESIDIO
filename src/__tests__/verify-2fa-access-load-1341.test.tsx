@@ -59,6 +59,11 @@ async function submitCorrectCode() {
   fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
 }
 
+/** After the code, the form asks to remember the computer (#1390); these tests answer No. */
+async function answerNo() {
+  fireEvent.click(await screen.findByRole('button', { name: 'No, ask me each time' }));
+}
+
 describe('Verify2FAForm loads access before entering the app (#1341)', () => {
   beforeEach(() => {
     mocks.push.mockReset();
@@ -82,6 +87,7 @@ describe('Verify2FAForm loads access before entering the app (#1341)', () => {
     );
 
     await submitCorrectCode();
+    await answerNo();
 
     expect(await screen.findByText('Loading your access')).toBeTruthy();
     expect(mocks.push).not.toHaveBeenCalled();
@@ -95,6 +101,7 @@ describe('Verify2FAForm loads access before entering the app (#1341)', () => {
     mocks.refreshProfile.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
 
     await submitCorrectCode();
+    await answerNo();
 
     await waitFor(() => expect(mocks.push).toHaveBeenCalledWith('/residents'), { timeout: 3000 });
     expect(mocks.refreshProfile).toHaveBeenCalledTimes(2);
@@ -104,6 +111,7 @@ describe('Verify2FAForm loads access before entering the app (#1341)', () => {
     mocks.refreshProfile.mockResolvedValue(false);
 
     await submitCorrectCode();
+    await answerNo();
 
     expect(await screen.findByText(/could not load your access/i, undefined, { timeout: 5000 })).toBeTruthy();
     expect(mocks.refreshProfile).toHaveBeenCalledTimes(3);

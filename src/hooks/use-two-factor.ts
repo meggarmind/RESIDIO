@@ -16,6 +16,9 @@ import {
   getRecentTwoFactorActivity,
   getWhatsAppSignInApproval,
   setWhatsAppSignInApproval,
+  listRememberedComputers,
+  forgetRememberedComputer,
+  forgetAllRememberedComputers,
 } from '@/actions/two-factor';
 import type {
   TwoFactorStatus,
@@ -34,6 +37,7 @@ const QUERY_KEYS = {
   backupCodes: ['two-factor', 'backup-codes'],
   recentActivity: ['two-factor', 'recent-activity'],
   whatsappApproval: ['two-factor', 'whatsapp-approval'],
+  rememberedComputers: ['two-factor', 'remembered-computers'],
 };
 
 /**
@@ -161,6 +165,7 @@ export function useDisable2FA() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.status });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.backupCodes });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.rememberedComputers });
     },
   });
 }
@@ -180,6 +185,7 @@ export function useGenerateBackupCodes() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.status });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.backupCodes });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.rememberedComputers });
     },
   });
 }
@@ -225,6 +231,56 @@ export function useSetWhatsAppSignInApproval() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.whatsappApproval });
+    },
+  });
+}
+
+/**
+ * Hook to list the user's remembered computers (#1390)
+ */
+export function useRememberedComputers() {
+  return useQuery({
+    queryKey: QUERY_KEYS.rememberedComputers,
+    queryFn: async () => {
+      const result = await listRememberedComputers();
+      if (result.error) throw new Error(result.error);
+      return result.data ?? [];
+    },
+  });
+}
+
+/**
+ * Hook to forget one remembered computer (#1390)
+ */
+export function useForgetRememberedComputer() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (deviceId: string) => {
+      const result = await forgetRememberedComputer(deviceId);
+      if (!result.success) throw new Error(result.message);
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.rememberedComputers });
+    },
+  });
+}
+
+/**
+ * Hook to forget all remembered computers (#1390)
+ */
+export function useForgetAllRememberedComputers() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      const result = await forgetAllRememberedComputers();
+      if (!result.success) throw new Error(result.message);
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.rememberedComputers });
     },
   });
 }

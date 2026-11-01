@@ -78,7 +78,9 @@ describe('Verify2FAForm with WhatsApp approval (#1389)', () => {
     mocks.statuses = [{ status: 'pending' }, { status: 'approved' }];
     render(<Verify2FAForm />);
     await screen.findByLabelText('Number to tap');
-    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith('/residents'), { timeout: 6000 });
+    // Then the remember question (#1390), answered No.
+    fireEvent.click(await screen.findByRole('button', { name: 'No, ask me each time' }, { timeout: 6000 }));
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith('/residents'));
     expect(mocks.refreshProfile).toHaveBeenCalled();
   }, 10000);
 
