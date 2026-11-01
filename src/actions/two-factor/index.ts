@@ -7,3 +7,4 @@ export { disableTwoFactor, resetUserTwoFactor, requestDisableCode } from './disa
 export { generateBackupCodes, getBackupCodesCount, sendBackupCodes } from './backup-codes';
 export { updateTwoFactorPolicy } from './policies';
 export { getTwoFactorAuditLog, getRecentTwoFactorActivity } from './audit-log';
+export { getWhatsAppSignInApproval, setWhatsAppSignInApproval } from './whatsapp-approval';

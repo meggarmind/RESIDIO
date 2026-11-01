@@ -14,6 +14,8 @@ import {
   updateTwoFactorPolicy,
   getTwoFactorAuditLog,
   getRecentTwoFactorActivity,
+  getWhatsAppSignInApproval,
+  setWhatsAppSignInApproval,
 } from '@/actions/two-factor';
 import type {
   TwoFactorStatus,
@@ -31,6 +33,7 @@ const QUERY_KEYS = {
   auditLog: ['two-factor', 'audit-log'],
   backupCodes: ['two-factor', 'backup-codes'],
   recentActivity: ['two-factor', 'recent-activity'],
+  whatsappApproval: ['two-factor', 'whatsapp-approval'],
 };
 
 /**
@@ -190,6 +193,38 @@ export function useSendBackupCodes() {
       const result = await sendBackupCodes(channel, codes);
       if (!result.success) throw new Error(result.message);
       return result;
+    },
+  });
+}
+
+/**
+ * Hook to read the "Approve sign-ins on WhatsApp" switch (#1389)
+ */
+export function useWhatsAppSignInApproval() {
+  return useQuery({
+    queryKey: QUERY_KEYS.whatsappApproval,
+    queryFn: async () => {
+      const result = await getWhatsAppSignInApproval();
+      if (result.error) throw new Error(result.error);
+      return result.data;
+    },
+  });
+}
+
+/**
+ * Hook to turn "Approve sign-ins on WhatsApp" on or off (#1389)
+ */
+export function useSetWhatsAppSignInApproval() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const result = await setWhatsAppSignInApproval(enabled);
+      if (!result.success) throw new Error(result.message);
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.whatsappApproval });
     },
   });
 }
