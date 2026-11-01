@@ -806,13 +806,13 @@ describe('WAHA WhatsApp webhook route', () => {
       mockApproval(answer);
       vi.doMock('@/lib/whatsapp/providers/waha', async () => ({
         ...(await vi.importActual<typeof import('@/lib/whatsapp/providers/waha')>('@/lib/whatsapp/providers/waha')),
-        lookupWahaLidPhone: vi.fn().mockResolvedValue('99@lid'),
+        lookupWahaLidPhone: vi.fn().mockResolvedValue('120363012345678@lid'),
       }));
       const h = await load();
 
-      const group = await h.POST(post(voteEvent({ from: '1203@g.us' }, 'evt_v4')));
+      const group = await h.POST(post(voteEvent({ from: '120363012345678@g.us' }, 'evt_v4')));
       await expect(group.json()).resolves.toMatchObject({ processed: false, outcome: 'ignored' });
-      const lid = await h.POST(post(voteEvent({ from: '99@lid' }, 'evt_v5')));
+      const lid = await h.POST(post(voteEvent({ from: '234801234567890@lid' }, 'evt_v5')));
       await expect(lid.json()).resolves.toMatchObject({ processed: false, outcome: 'ignored' });
       expect(answer).not.toHaveBeenCalled();
     });
