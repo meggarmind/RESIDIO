@@ -42,6 +42,7 @@ afterEach(() => {
   cleanup();
 });
 
+const money = (n: number) => n.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const rh = (id: string) => [{ resident_id: id, resident_role: 'tenant', is_active: true, resident: { id, first_name: 'Res', last_name: id } }];
 const house = (id: string, n: string, street: string, occupied = true) => ({
   id, house_number: n, street: { id: `s-${street}`, name: street }, resident_houses: occupied ? rh(`r${id}`) : [],
@@ -82,7 +83,7 @@ const INVOICES = [
 function table(rows: Record<string, unknown>[]) {
   let filtered = rows;
   let lo = 0;
-  let hi = Infinity;
+  let hi = 999; // like PostgREST, a read with no range returns at most 1000 rows
   const q: Record<string, unknown> = {};
   for (const m of ['select', 'eq', 'order', 'not']) q[m] = () => q;
   q.neq = (col: string, val: unknown) => { filtered = filtered.filter((r) => r[col] !== val); return q; };
@@ -129,11 +130,11 @@ describe('Dues, levies and collection status (#1400)', () => {
     const data = await run();
     expect(data.table.columns.map((c) => c.label)).toEqual(['House', 'Street', 'Months paid', 'Months owed', 'Levy', 'Owed', 'Status']);
     expect(data.table.rows.map((r) => r.debtor)).toEqual(['3', '4', '1', '2']); // street, then house number
-    expect(rowFor(data, '1')).toMatchObject({ street: 'Palm Close', monthsPaid: '3 of 3', monthsOwed: 0, levy: 'Paid', owed: 0 });
-    expect(rowFor(data, '2')).toMatchObject({ monthsPaid: '1 of 3', monthsOwed: 2, levy: 'Part paid', owed: 20000 + 30000 });
-    expect(rowFor(data, '3')).toMatchObject({ street: 'Cedar Way', monthsPaid: '0 of 3', monthsOwed: 3, levy: 'Not paid', owed: 81000, status: 'Owing' });
-    expect(rowFor(data, '4')).toMatchObject({ monthsPaid: '0 of 0', monthsOwed: 0, levy: 'No levy', owed: 0 });
-    expect(data.table.totals).toMatchObject({ debtor: 'Total', monthsOwed: 5, owed: 131000 });
+    expect(rowFor(data, '1')).toMatchObject({ street: 'Palm Close', monthsPaid: '3 of 3', monthsOwed: 0, levy: 'Paid', owed: '0.00' });
+    expect(rowFor(data, '2')).toMatchObject({ monthsPaid: '1 of 3', monthsOwed: 2, levy: 'Part paid', owed: '50,000.00' });
+    expect(rowFor(data, '3')).toMatchObject({ street: 'Cedar Way', monthsPaid: '0 of 3', monthsOwed: 3, levy: 'Not paid', owed: '81,000.00', status: 'Owing' });
+    expect(rowFor(data, '4')).toMatchObject({ monthsPaid: '0 of 0', monthsOwed: 0, levy: 'No levy', owed: '0.00' });
+    expect(data.table.totals).toMatchObject({ debtor: 'Total', monthsOwed: 5, owed: '131,000.00' });
   });
 
   it('total owed equals the Indebtedness report for the same data, house by house', async () => {
@@ -142,8 +143,8 @@ describe('Dues, levies and collection status (#1400)', () => {
       const data = await run({ includeUnoccupied });
       const tile = data.summary[3].value as string;
       expect(Number(tile.replace(/,/g, '')), String(includeUnoccupied)).toBe(old.summary.totalOutstanding);
-      expect(data.table.totals!.owed).toBe(old.summary.totalOutstanding);
-      expect(data.table.rows.map((r) => [r.debtor, r.owed])).toEqual(old.houses.map((h) => [h.houseNumber, Math.max(0, h.outstandingAmount ?? 0)]));
+      expect(data.table.totals!.owed).toBe(money(old.summary.totalOutstanding!));
+      expect(data.table.rows.map((r) => [r.debtor, r.owed])).toEqual(old.houses.map((h) => [h.houseNumber, money(Math.max(0, h.outstandingAmount ?? 0))]));
       expect(data.table.rows).toHaveLength(old.houses.length);
     }
   });
@@ -157,8 +158,8 @@ describe('Dues, levies and collection status (#1400)', () => {
     const credit = [dues('h1', '2026-08', 'unpaid', '2026-08-10', 1000, 4000), ...INVOICES.filter((i) => i.house_id !== 'h1')];
     const old = await generateIndebtednessReport(clientWith(credit), false, true);
     const data = await run({}, credit);
-    expect(rowFor(data, '1').owed).toBe(0);
-    expect(data.table.totals!.owed).toBe(old.summary.totalOutstanding);
+    expect(rowFor(data, '1').owed).toBe('0.00');
+    expect(data.table.totals!.owed).toBe(money(old.summary.totalOutstanding!));
   });
 
   it('draws the chart as owed by street, biggest first', async () => {
@@ -194,11 +195,11 @@ describe('Dues, levies and collection status (#1400)', () => {
     expect(off.table.rows).toHaveLength(4);
     expect(on.table.rows).toHaveLength(4 + 3 + 5);
     const lines = on.table.rows.filter((r) => r.street === null);
-    expect(lines[0].debtor).toMatch(/^ {4}INV-\d+, due 10 Jul 2026, unpaid$/);
-    expect(lines.some((l) => /due 25 Oct 2026, part paid$/.test(String(l.debtor)))).toBe(true);
+    expect(lines[0].debtor).toMatch(/^ {4}INV-\d+, due 10 July 2026, unpaid$/);
+    expect(lines.some((l) => /due 25 October 2026, part paid$/.test(String(l.debtor)))).toBe(true);
     // The lines of a house add up to what it owes; the totals and tiles do not change.
     const h3Lines = on.table.rows.slice(on.table.rows.findIndex((r) => r.debtor === '3') + 1).filter((r) => r.street === null);
-    expect(h3Lines.slice(0, 5).reduce((sum, l) => sum + (l.owed as number), 0)).toBe(rowFor(on, '3').owed);
+    expect(h3Lines.slice(0, 5).reduce((sum, l) => sum + Number(String(l.owed).replace(/,/g, '')), 0)).toBe(81000);
     expect(on.table.totals).toEqual(off.table.totals);
     expect(on.summary).toEqual(off.summary);
   });
@@ -233,8 +234,14 @@ describe('Dues, levies and collection status (#1400)', () => {
 
   it('reads past 1000 invoices a page at a time', async () => {
     const many = Array.from({ length: 1500 }, () => inv('h4', 'unpaid', '2026-09-10', 10, 0, { period_start: '2026-09-01' }));
+    // The last row sits past the first 1000: a month read that is not paged would miss it.
+    many.push(dues('h4', '2026-10', 'paid', '2026-10-10'));
     const data = await run({}, many);
-    expect(rowFor(data, '4').owed).toBe(15000);
+    expect(rowFor(data, '4')).toMatchObject({ owed: '15,000.00', monthsPaid: '1 of 2' });
+    // The Indebtedness generator it reuses is paged too, so the total is the full 15,000 and not the first 1,000 rows.
+    const old = await generateIndebtednessReport(clientWith(many), false, true);
+    expect(old.summary.totalOutstanding).toBe(15000);
+    expect(data.summary[3].value).toBe('15,000.00');
   });
 
   it('reads cleanly with no houses', async () => {
@@ -295,7 +302,7 @@ describe('DuesMonthGrid (#1400)', () => {
     expect(cells[6].className).toContain('bg-muted'); // paid up is the plain cell
     expect(within(root).getByText('Not paid')).toBeTruthy();
     expect(within(root).getByText('Part paid')).toBeTruthy();
-    expect(within(root).getByText('81,000')).toBeTruthy();
+    expect(within(root).getByText('81,000.00')).toBeTruthy();
     // The legend uses the shared labels.
     for (const status of ['overdue', 'outstanding', 'paid_up', 'no_invoice'] as const) {
       expect(within(root).getAllByText(PAYMENT_STATUS_META[status].label).length).toBeGreaterThan(0);
@@ -359,7 +366,7 @@ describe('Server PDF (#1400)', () => {
     const { summaryTableToCsv } = await import('@/lib/reports/summary-report');
     const csv = summaryTableToCsv((await run()).table);
     expect(csv.split('\n')[0]).toBe('House,Street,Months paid,Months owed,Levy,Owed,Status');
-    expect(csv).toContain('3,Cedar Way,0 of 3,3,Not paid,81000,');
+    expect(csv).toContain('3,Cedar Way,0 of 3,3,Not paid,"81,000.00",');
   });
 
   it('renderToStaticMarkup of the layout shows the tiles', async () => {
@@ -406,6 +413,24 @@ describe('Retiring the Indebtedness reports (#1400)', () => {
     await processDueSchedules();
     expect(generate.mock.calls[0][1]).toMatchObject({ reportType: 'dues_collection_status', includeUnoccupied: true, includeDetails: false });
     expect(render.mock.calls[0][0]).toBe('dues_collection_status');
+    for (const m of ['@/lib/supabase/server', '@/lib/reports/report-generator', '@/lib/pdf/reports/renderer', '@/lib/email/send-email', '@/lib/audit/logger']) vi.doUnmock(m);
+  });
+
+  it.each([[true, true], [false, false]])('a dues schedule with include_summary %s runs with invoice lines %s', async (saved, expected) => {
+    vi.resetModules();
+    const generate = vi.fn().mockResolvedValue({ success: true, report: { type: 'dues_collection_status', layout: 'summary', data: {} } });
+    const schedule = { id: 's1', report_type: 'dues_collection_status', include_summary: saved, period_preset: 'last_month', frequency: 'monthly', bank_account_ids: [], recipients: [], configuration: {} };
+    const chain: Record<string, unknown> = {};
+    for (const method of ['select', 'eq', 'lte']) chain[method] = () => chain;
+    chain.order = async () => ({ data: [schedule], error: null });
+    vi.doMock('@/lib/supabase/server', () => ({ createAdminClient: () => ({ from: () => chain }) }));
+    vi.doMock('@/lib/reports/report-generator', () => ({ generateReportWithClient: generate }));
+    vi.doMock('@/lib/pdf/reports/renderer', () => ({ renderReportPdf: vi.fn().mockResolvedValue(null) }));
+    vi.doMock('@/lib/email/send-email', () => ({ sendEmail: vi.fn(), getEstateEmailSettings: vi.fn().mockResolvedValue({ estateName: 'Test Estate' }) }));
+    vi.doMock('@/lib/audit/logger', () => ({ logAudit: vi.fn() }));
+    const { processDueSchedules } = await import('@/lib/reports/process-schedules');
+    await processDueSchedules();
+    expect(generate.mock.calls[0][1].includeDetails).toBe(expected);
     for (const m of ['@/lib/supabase/server', '@/lib/reports/report-generator', '@/lib/pdf/reports/renderer', '@/lib/email/send-email', '@/lib/audit/logger']) vi.doUnmock(m);
   });
 

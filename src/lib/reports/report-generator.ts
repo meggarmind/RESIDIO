@@ -1260,20 +1260,30 @@ export async function generateIndebtednessReport(
     throw new Error(housesError.message);
   }
 
-  // Get outstanding amounts per house from invoices if needed or for summary counts
-  const { data: invoices, error: invoicesError } = await supabase
-    .from('invoices')
-    .select(`
+  // Get outstanding amounts per house from invoices if needed or for summary counts. Read a page at
+  // a time: the API returns at most 1,000 rows per request, and a single read would drop the rest
+  // from the totals.
+  const PAGE_SIZE = 1000;
+  const invoices: { house_id: string | null; amount_due: number | string | null; amount_paid: number | string | null; status: string }[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data: page, error: invoicesError } = await supabase
+      .from('invoices')
+      .select(`
       house_id,
       amount_due,
       amount_paid,
       status
     `)
-    .in('status', ['unpaid', 'partially_paid']);
+      .in('status', ['unpaid', 'partially_paid'])
+      .order('id')
+      .range(from, from + PAGE_SIZE - 1);
 
-  if (invoicesError) {
-    console.error('Error fetching invoices:', invoicesError);
-    throw new Error(invoicesError.message);
+    if (invoicesError) {
+      console.error('Error fetching invoices:', invoicesError);
+      throw new Error(invoicesError.message);
+    }
+    invoices.push(...(page ?? []));
+    if (!page || page.length < PAGE_SIZE) break;
   }
 
   // Calculate outstanding per house
@@ -1502,7 +1512,7 @@ export async function generateDuesCollectionStatus(
       monthsPaid: `${monthsPaid} of ${monthsBilled}`,
       monthsOwed,
       levy,
-      owed,
+      owed: money(owed),
       status: house.statusLabel,
     });
     if (showInvoiceLines) {
@@ -1515,7 +1525,7 @@ export async function generateDuesCollectionStatus(
         rows.push({
           debtor: `    ${i.invoice_number || 'Invoice'}, due ${reportDate(i.due_date)}, ${i.status === 'partially_paid' ? 'part paid' : 'unpaid'}`,
           street: null, monthsPaid: null, monthsOwed: null, levy: null,
-          owed: outstanding,
+          owed: money(outstanding),
           status: null,
         });
       }
@@ -1556,7 +1566,7 @@ export async function generateDuesCollectionStatus(
         { key: 'status', label: 'Status' },
       ],
       rows,
-      totals: { debtor: 'Total', street: null, monthsPaid: null, monthsOwed: monthsOwedTotal, levy: null, owed: totalOwed, status: null },
+      totals: { debtor: 'Total', street: null, monthsPaid: null, monthsOwed: monthsOwedTotal, levy: null, owed: money(totalOwed), status: null },
     },
     notes,
     grid,

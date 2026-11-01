@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils';
 import { PAYMENT_STATUS_META } from '@/components/houses/house-status-maps';
-import { formatSummaryCell, type SummaryGrid, type SummaryGridStatus } from '@/lib/reports/summary-report';
+import { type SummaryGrid, type SummaryGridStatus } from '@/lib/reports/summary-report';
 
 // Grid view of the dues sheet (#1400, mockup option C): houses down, months across, plus the levy
 // and the total owed. Screen only. A cell uses the same words and colours as the estate map and
@@ -76,7 +76,7 @@ export function DuesMonthGrid({ grid }: { grid: SummaryGrid }) {
                     );
                   })}
                   <td className={cn('px-2 py-1 whitespace-nowrap', LEVY_TONE[house.levy])}>{house.levy}</td>
-                  <td className="px-2 py-1 text-right font-medium tabular-nums">{formatSummaryCell(house.owed)}</td>
+                  <td className="px-2 py-1 text-right font-medium tabular-nums">{house.owed.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                 </tr>
               ))}
             </tbody>
