@@ -4,7 +4,7 @@ import { getDebtStatuses, type DebtStatus } from '@/lib/billing/debt-status';
 import { ilikeAny } from '@/lib/postgrest-filter';
 import { sanitizeSearchInput } from '@/lib/utils';
 import { createAdminClient } from '@/lib/supabase/server';
-import { formatDay, formatMonth, formatNaira, lagosParts } from '@/lib/whatsapp/assistant-format';
+import { formatDay, formatMonth, formatNaira } from '@/lib/whatsapp/assistant-format';
 import { createSupabaseWhatsAppFinancialRepository, creditLine, type OwedFigures } from '@/lib/whatsapp/financial';
 
 /**
@@ -83,19 +83,27 @@ function shortNaira(amount: number): string {
   return `₦${amount.toLocaleString('en-NG', { maximumFractionDigits: 2 })}`;
 }
 
-function statusText(status: OwesHouseData['status']): string {
-  if (status.key === 'arrears') return 'Owing ⛔';
-  if (status.key === 'outstanding') return 'Owing ⚠️';
-  if (status.key) return 'Cleared 🟢';
+/** The icon after the house code (owner, 1 Nov 2026): paid up, paid up with credit, arrears, outstanding. */
+function statusIcon(key: DebtStatus | null): string {
+  if (key === 'arrears') return ' ⛔';
+  if (key === 'outstanding') return ' ⚠️';
+  if (key === 'credit') return ' ✅';
+  if (key === 'paid_in_full') return ' 🟢';
+  return '';
+}
+
+function statusWord(status: OwesHouseData['status']): string {
+  if (status.key === 'arrears' || status.key === 'outstanding') return 'Outstanding';
+  if (status.key) return 'Paid up';
   return status.label;
 }
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-/** `Next Payment Due January 2027.`, or `Next Payment Due November.` in the current year (owner, 31 Oct 2026). */
-function nextPaymentDueLine(due: string, now: Date): string {
+/** `Next Payment Due January 2027.` */
+function nextPaymentDueLine(due: string): string {
   const [year, month] = due.split('-').map(Number);
-  return `Next Payment Due ${MONTH_NAMES[month - 1]}${year === lagosParts(now).year ? '' : ` ${year}`}.`;
+  return `Next Payment Due ${MONTH_NAMES[month - 1]} ${year}.`;
 }
 
 function lastPaidLine(lastPayment: OwesHouseData['lastPayment']): string {
@@ -109,25 +117,23 @@ function lastPaidLine(lastPayment: OwesHouseData['lastPayment']): string {
 }
 
 /**
- * Layout the owner approved (#1371): status in the heading, then the outstanding amount with its months,
- * then the last month paid, for example
- * `*OJO.K-4, CONSTANCE OKA*: Owing ⚠️` / `Outstanding of *₦10,000.00* for 2 months (Sep 2026 to Oct 2026).` /
- * `Last paid: ₦100,000.00 in Jun 2025.`
- * A cleared house shows when the next payment is due in place of the credit line (owner, 31 Oct 2026).
+ * Short lines so a long name does not wrap on a phone (owner, 1 Nov 2026), for example
+ * `*OJO.K-4* ⚠️` / `Name: CONSTANCE OKA` / `Status: Outstanding` /
+ * `Outstanding of *₦10,000.00* for 2 months (Sep 2026 to Oct 2026).` / `Last paid: ₦100,000.00 in Jun 2025.`
+ * A paid-up house shows when the next payment is due in place of the credit line.
  */
-export function composeAdminOwesAnswer(data: OwesHouseData, now: Date): string {
+export function composeAdminOwesAnswer(data: OwesHouseData): string {
   if (!data.billedTo) return [`*${data.houseLabel}*`, 'No resident is billed for this house, so there is no figure to show.'].join('\n');
-  const lines = [`*${data.houseLabel}, ${data.billedTo.name}*: ${statusText(data.status)}`];
+  const lines = [`*${data.houseLabel}*${statusIcon(data.status.key)}`, `Name: ${data.billedTo.name}`, `Status: ${statusWord(data.status)}`];
   const owed = data.owed;
   if (!owed || owed.invoiceCount === 0) lines.push('No bills on record.');
   else if (owed.outstanding > 0) {
     const months = data.unpaidMonths;
     lines.push(`Outstanding of *${formatNaira(owed.outstanding)}*${months ? ` for ${months.count} ${months.count === 1 ? 'month' : 'months'} (${monthRange(months)})` : ''}.`);
   } else if (owed.outstanding < 0) lines.push(`Outstanding: nothing, ${formatNaira(-owed.outstanding)} in credit.`);
-  else lines.push('Outstanding: nothing.');
   lines.push(lastPaidLine(data.lastPayment));
   // The wallet pays bills as they are made, so credit next to an open bill is for another charge category.
-  if (owed?.nextPaymentDue && owed.outstanding <= 0 && !owed.rollForward) lines.push(nextPaymentDueLine(owed.nextPaymentDue, now));
+  if (owed?.nextPaymentDue && owed.outstanding <= 0 && !owed.rollForward) lines.push(nextPaymentDueLine(owed.nextPaymentDue));
   else if (owed?.credit) lines.push(creditLine(owed.credit));
   else if (data.walletBalance > 0 && (owed?.outstanding ?? 0) > 0) lines.push(`Credit: ${formatNaira(data.walletBalance)} (not for these bills)`);
   else if (data.walletBalance > 0 && !owed?.rollForward) lines.push(`Credit: ${formatNaira(data.walletBalance)}`);
@@ -169,7 +175,7 @@ async function answerHouse(input: OwesRunInput, houseId: string): Promise<string
     description: 'Admin looked up what a house owes on WhatsApp',
     metadata: { channel: 'whatsapp_admin', billed_resident_id: data.billedTo?.residentId ?? null },
   });
-  return composeAdminOwesAnswer(data, input.now);
+  return composeAdminOwesAnswer(data);
 }
 
 export async function runAdminOwesLookup(input: OwesRunInput): Promise<string> {
