@@ -157,7 +157,7 @@ type CandidateQueryRow = Omit<MergeCandidateRow, 'houses'> & {
 };
 
 const CANDIDATE_SELECT =
-  'id, first_name, last_name, resident_code, phone_primary, phone_secondary, account_status, merged_into_resident_id, resident_houses(is_active, house:houses(id, short_name, house_number))';
+  'id, first_name, last_name, resident_code, phone_primary, phone_secondary, account_status, merged_into_resident_id, resident_houses!resident_id(is_active, house:houses(id, short_name, house_number))';
 
 function toCandidateRow(r: CandidateQueryRow): MergeCandidateRow {
   const { resident_houses, ...rest } = r;
