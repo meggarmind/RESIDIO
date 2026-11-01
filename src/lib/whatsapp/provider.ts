@@ -11,6 +11,7 @@ import type { CommsSendContext, OverrideLogRecord } from '@/lib/comms-override/t
 import { recordOutboundSend, type OutboundSendTracking } from '@/lib/whatsapp/outbound-sends';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
 import type {
+  WhatsAppPollMessage,
   WhatsAppSendResult,
   WhatsAppTemplateMessage,
   WhatsAppTextMessage,
@@ -19,6 +20,8 @@ import type {
 export interface WhatsAppProvider {
   sendText(message: WhatsAppTextMessage): Promise<WhatsAppSendResult>;
   sendTemplate(message: WhatsAppTemplateMessage): Promise<WhatsAppSendResult>;
+  /** Single-choice poll (#1389). Only WAHA has it; callers fall back when it is missing. */
+  sendPoll?(message: WhatsAppPollMessage): Promise<WhatsAppSendResult>;
 }
 
 // Re-exported for backward compatibility: callers (and the foundation test)
@@ -227,6 +230,52 @@ export async function sendWhatsAppTemplate(
       success: false,
       error: 'WhatsApp provider request failed',
       retryable: true,
+      ...(redirect.override ? { override: redirect.override } : {}),
+    };
+  }
+}
+
+/**
+ * Sends a poll (#1389), with the same config checks and communications override as a text send.
+ * A provider without polls returns a failure, so the caller can fall back to a typed reply.
+ * A redirected poll keeps its options unchanged: a label would change the option the voter taps.
+ */
+export async function sendWhatsAppPoll(
+  message: WhatsAppPollMessage,
+  provider?: WhatsAppProvider,
+  context?: CommsSendContext
+): Promise<WhatsAppSendResult> {
+  const resolved = provider ? null : await resolveWhatsAppConfig();
+
+  if (resolved && resolved.status === 'unusable') {
+    return { success: false, error: `WhatsApp credentials are unusable: ${resolved.reason}` };
+  }
+
+  if (resolved && resolved.status !== 'ok') {
+    return { success: false, error: 'WhatsApp service is not configured' };
+  }
+
+  if (resolved && !isProviderSupported(resolved.config)) {
+    return { success: false, error: 'WhatsApp provider is not supported yet' };
+  }
+
+  const config = resolved ? resolved.config : null;
+  const target = provider || resolveProvider(config!);
+  if (!target.sendPoll) {
+    return { success: false, error: 'This WhatsApp provider cannot send polls', retryable: false };
+  }
+
+  const redirect = await resolveWhatsAppRedirect(message.to, context, config && 'fromNumber' in config ? config.fromNumber : undefined);
+  if ('blocked' in redirect) return redirect.blocked;
+  const outbound = redirect.redirected ? { ...message, to: redirect.to } : message;
+
+  try {
+    const result = await target.sendPoll(outbound);
+    return redirect.override ? { ...result, override: redirect.override } : result;
+  } catch {
+    return {
+      success: false,
+      error: 'WhatsApp provider request failed',
       ...(redirect.override ? { override: redirect.override } : {}),
     };
   }

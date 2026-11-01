@@ -8,6 +8,8 @@ import {
   processInboundMessages,
 } from '@/lib/whatsapp';
 import { createWhatsAppAdminTools } from '@/lib/whatsapp/admin';
+import { consumeWhatsAppApprovalReply } from '@/lib/auth/two-factor-whatsapp';
+import { createTwoFactorWhatsAppDeps } from '@/lib/auth/two-factor-whatsapp-store';
 import { isStopCommand } from '@/lib/whatsapp/identity';
 import { createSupabaseChatmaidSessionPauseStore } from '@/lib/whatsapp/providers/chatmaid-inbound';
 import type { InboundMessageResult, WhatsAppInboundMessage } from '@/lib/whatsapp/types';
@@ -32,6 +34,12 @@ export async function processChatmaidMessages(
   const result = await processInboundMessages(messages, {
     store: createSupabaseProcessedMessageStore(),
     onMessage: async (message) => {
+      // A typed answer to a pending sign-in approval (#1389) is consumed first, so it never reaches
+      // the resident menu or admin mode (on 29 Oct a bare "1" went to the open resident session).
+      if (await consumeWhatsAppApprovalReply(message, createTwoFactorWhatsAppDeps())) {
+        return;
+      }
+
       // Human takeover: an admin typed on the handset recently, so the
       // Assistant stays quiet. The message is still claimed, so a retry does
       // not answer it once the pause lapses.

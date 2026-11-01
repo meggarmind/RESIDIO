@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { safeNextPath } from '@/lib/auth/safe-next-path';
@@ -8,7 +8,7 @@ import { useAuth } from '@/lib/auth/auth-provider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from '@/components/ui/input-otp';
-import { Shield, Smartphone, Mail, Key, AlertCircle, Loader2 } from 'lucide-react';
+import { Shield, Smartphone, Mail, Key, AlertCircle, Loader2, MessageCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 type TwoFactorMethod = 'sms' | 'authenticator' | 'email';
@@ -17,6 +17,23 @@ type TwoFactorMethod = 'sms' | 'authenticator' | 'email';
 // load is tried a few times before the error and Retry are shown (#1341).
 const ACCESS_LOAD_ATTEMPTS = 3;
 const ACCESS_RETRY_DELAY_MS = 1000;
+
+// WhatsApp approval (#1389): the page asks for the answer every 2 seconds.
+const WHATSAPP_POLL_INTERVAL_MS = 2000;
+
+type WhatsAppState = 'starting' | 'pending' | 'expired' | 'denied' | 'failed';
+
+interface WhatsAppRequest {
+  code: string;
+  expiresAt: string;
+  message: string;
+}
+
+/** m:ss for the countdown. */
+function formatCountdown(seconds: number): string {
+  const s = Math.max(0, seconds);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
 
 export function Verify2FAForm() {
   const router = useRouter();
@@ -34,6 +51,14 @@ export function Verify2FAForm() {
   const [codeSent, setCodeSent] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [accessState, setAccessState] = useState<'idle' | 'loading' | 'failed'>('idle');
+  // WhatsApp approval (#1389): offered when the start route says the account uses it.
+  const [whatsAppAvailable, setWhatsAppAvailable] = useState(false);
+  const [mode, setMode] = useState<'whatsapp' | 'code'>('code');
+  const [whatsAppState, setWhatsAppState] = useState<WhatsAppState>('starting');
+  const [whatsAppRequest, setWhatsAppRequest] = useState<WhatsAppRequest | null>(null);
+  const [secondsLeft, setSecondsLeft] = useState(0);
+  // The first WhatsApp start, shared by every run of the check below, so a re-run sends no second request.
+  const firstWhatsAppStart = useRef<Promise<boolean> | null>(null);
 
   // Strict same-origin allow-list; anything else becomes /dashboard (#455).
   const redirectTo = safeNextPath(
@@ -71,6 +96,10 @@ export function Verify2FAForm() {
 
       setMethod(profile.two_factor_method as TwoFactorMethod);
 
+      // WhatsApp approval first, when the account uses it (#1389). Otherwise the code entry as before.
+      firstWhatsAppStart.current ??= startWhatsAppApproval();
+      if (await firstWhatsAppStart.current) return;
+
       // For SMS/email, send code automatically
       if (profile.two_factor_method !== 'authenticator') {
         await sendVerificationCode(profile.two_factor_method as TwoFactorMethod);
@@ -79,6 +108,50 @@ export function Verify2FAForm() {
 
     check2FAStatus();
   }, [supabase, router, redirectTo]);
+
+  // WhatsApp approval: ask for the answer every 2 seconds while it is open.
+  useEffect(() => {
+    if (mode !== 'whatsapp' || whatsAppState !== 'pending') return;
+    let stopped = false;
+    const timer = setInterval(async () => {
+      try {
+        const response = await fetch('/api/auth/2fa/whatsapp/status', { cache: 'no-store' });
+        const result = await response.json();
+        if (stopped) return;
+        if (result.status === 'approved') {
+          stopped = true;
+          clearInterval(timer);
+          await loadAccessAndEnter();
+        } else if (result.status === 'denied') {
+          stopped = true;
+          clearInterval(timer);
+          setWhatsAppState('denied');
+          await supabase.auth.signOut();
+        } else if (result.status === 'expired') {
+          setWhatsAppState('expired');
+        } else if (result.status === 'used') {
+          setWhatsAppState('failed');
+          setError(result.message);
+        }
+      } catch {
+        // A missed check is tried again on the next tick.
+      }
+    }, WHATSAPP_POLL_INTERVAL_MS);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- restart only when the request changes
+  }, [mode, whatsAppState, whatsAppRequest]);
+
+  // WhatsApp approval: the 2-minute countdown.
+  useEffect(() => {
+    if (mode !== 'whatsapp' || whatsAppState !== 'pending' || !whatsAppRequest) return;
+    const tick = () => setSecondsLeft(Math.ceil((Date.parse(whatsAppRequest.expiresAt) - Date.now()) / 1000));
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [mode, whatsAppState, whatsAppRequest]);
 
   // Resend cooldown timer
   useEffect(() => {
@@ -113,6 +186,31 @@ export function Verify2FAForm() {
       setError('Failed to send verification code');
     } finally {
       setIsSendingCode(false);
+    }
+  };
+
+  /** Asks the server for a WhatsApp approval. False when the account does not use it. */
+  const startWhatsAppApproval = async (): Promise<boolean> => {
+    setError(null);
+    setWhatsAppState('starting');
+    try {
+      const response = await fetch('/api/auth/2fa/whatsapp/start', { method: 'POST' });
+      const result = await response.json();
+      if (result?.available !== true) return false;
+      setWhatsAppAvailable(true);
+      setMode('whatsapp');
+      if (result.success && typeof result.code === 'string') {
+        setWhatsAppRequest({ code: result.code, expiresAt: result.expiresAt, message: result.message });
+        setSecondsLeft(Math.ceil((Date.parse(result.expiresAt) - Date.now()) / 1000));
+        setWhatsAppState('pending');
+      } else {
+        setWhatsAppRequest(null);
+        setWhatsAppState('failed');
+        setError(result.message || 'Could not send the WhatsApp message.');
+      }
+      return true;
+    } catch {
+      return false;
     }
   };
 
@@ -226,6 +324,124 @@ export function Verify2FAForm() {
         <Card className="w-full max-w-md">
           <CardContent className="flex items-center justify-center py-8">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const cancelAndSignOut = async () => {
+    if (whatsAppAvailable) {
+      // Close the open WhatsApp request first, while the session still exists (#1389).
+      await fetch('/api/auth/2fa/whatsapp/cancel', { method: 'POST' }).catch(() => undefined);
+    }
+    await supabase.auth.signOut();
+    router.push('/login');
+  };
+
+  if (mode === 'whatsapp' && whatsAppState === 'denied') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl">Sign-in blocked</CardTitle>
+            <CardDescription>
+              This sign-in was refused on WhatsApp. You are signed out. If this was not you, change your password.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button className="w-full" onClick={() => router.push('/login')}>
+              Back to sign in
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (mode === 'whatsapp') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="flex justify-center mb-4">
+              <MessageCircle className="h-8 w-8 text-primary" />
+            </div>
+            <CardTitle className="text-2xl">Approve on WhatsApp</CardTitle>
+            <CardDescription>We sent a message to your WhatsApp.</CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-6">
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {whatsAppState === 'starting' && (
+              <div className="flex justify-center py-6" role="status">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            )}
+
+            {whatsAppState === 'pending' && whatsAppRequest && (
+              <div className="space-y-4 text-center">
+                <p className="text-6xl font-bold tracking-widest" aria-label="Number to tap">
+                  {whatsAppRequest.code}
+                </p>
+                <p className="text-sm">{whatsAppRequest.message}</p>
+                <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground" role="status">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Waiting for your answer. {formatCountdown(secondsLeft)} left.
+                </p>
+              </div>
+            )}
+
+            {whatsAppState === 'expired' && (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>The request has expired. Send the WhatsApp message again.</AlertDescription>
+              </Alert>
+            )}
+
+            <div className="flex flex-col items-center gap-1 border-t pt-4">
+              <Button variant="link" size="sm" onClick={() => startWhatsAppApproval()}>
+                Send the WhatsApp message again
+              </Button>
+              <Button
+                variant="link"
+                size="sm"
+                onClick={() => {
+                  setMode('code');
+                  setUseBackupCode(false);
+                  setCode('');
+                  setError(null);
+                }}
+              >
+                <Shield className="mr-2 h-4 w-4" />
+                Use my authenticator code
+              </Button>
+              <Button
+                variant="link"
+                size="sm"
+                onClick={() => {
+                  setMode('code');
+                  setUseBackupCode(true);
+                  setCode('');
+                  setError(null);
+                }}
+              >
+                <Key className="mr-2 h-4 w-4" />
+                Use a backup code
+              </Button>
+            </div>
+
+            <div className="text-center">
+              <Button variant="ghost" size="sm" onClick={cancelAndSignOut}>
+                Cancel and Sign Out
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -352,15 +568,21 @@ export function Verify2FAForm() {
             </Button>
           </div>
 
+          {whatsAppAvailable && (
+            <div className="text-center">
+              <Button variant="link" size="sm" onClick={() => startWhatsAppApproval()}>
+                <MessageCircle className="mr-2 h-4 w-4" />
+                Approve on WhatsApp instead
+              </Button>
+            </div>
+          )}
+
           {/* Cancel option */}
           <div className="text-center">
             <Button
               variant="ghost"
               size="sm"
-              onClick={async () => {
-                await supabase.auth.signOut();
-                router.push('/login');
-              }}
+              onClick={cancelAndSignOut}
             >
               Cancel and Sign Out
             </Button>

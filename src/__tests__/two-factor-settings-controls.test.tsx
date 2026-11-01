@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   status: {} as Record<string, unknown>,
   canDisable: true,
   hooks: {} as Record<string, { isPending: boolean; mutate: ReturnType<typeof vi.fn> }>,
+  whatsApp: { available: false, enabled: false } as { available: boolean; enabled: boolean },
 }));
 
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -30,6 +31,8 @@ vi.mock('@/hooks/use-two-factor', () => ({
   useRequestDisableCode: () => mocks.hooks.requestDisable,
   useGenerateBackupCodes: () => mocks.hooks.regenerate,
   useSendBackupCodes: () => mocks.hooks.send,
+  useWhatsAppSignInApproval: () => ({ isLoading: false, error: null, data: mocks.whatsApp }),
+  useSetWhatsAppSignInApproval: () => mocks.hooks.setWhatsApp,
 }));
 
 import { TwoFactorControls } from '@/app/(dashboard)/settings/two-factor/two-factor-controls';
@@ -46,7 +49,9 @@ beforeEach(() => {
     requestDisable: mutation(),
     regenerate: mutation(),
     send: mutation(),
+    setWhatsApp: mutation(),
   };
+  mocks.whatsApp = { available: false, enabled: false };
 });
 afterEach(cleanup);
 
@@ -217,5 +222,30 @@ describe('two-factor settings controls', () => {
     mocks.canDisable = false;
     render(<TwoFactorControls />);
     expect(screen.queryByRole('button', { name: 'Turn off' })).not.toBeInTheDocument();
+  });
+
+  describe('Approve sign-ins on WhatsApp (#1389)', () => {
+    it('is hidden when two-factor is on but no WhatsApp number is linked', () => {
+      mocks.status = on;
+      render(<TwoFactorControls />);
+      expect(screen.queryByRole('switch', { name: 'Approve sign-ins on WhatsApp' })).not.toBeInTheDocument();
+    });
+
+    it('is hidden while two-factor is off', () => {
+      mocks.status = off;
+      mocks.whatsApp = { available: true, enabled: false };
+      render(<TwoFactorControls />);
+      expect(screen.queryByRole('switch', { name: 'Approve sign-ins on WhatsApp' })).not.toBeInTheDocument();
+    });
+
+    it('shows the switch when two-factor is on and a number is linked, and saves a change', () => {
+      mocks.status = on;
+      mocks.whatsApp = { available: true, enabled: false };
+      render(<TwoFactorControls />);
+      const toggle = screen.getByRole('switch', { name: 'Approve sign-ins on WhatsApp' });
+      expect(toggle).not.toBeChecked();
+      fireEvent.click(toggle);
+      expect(mocks.hooks.setWhatsApp.mutate.mock.calls[0][0]).toBe(true);
+    });
   });
 });
