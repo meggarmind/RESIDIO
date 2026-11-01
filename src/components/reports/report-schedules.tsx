@@ -52,6 +52,7 @@ import {
     type CreateScheduleInput,
 } from '@/hooks/use-reports';
 import { format, formatDistanceToNow } from 'date-fns';
+import { REPORT_TYPE_LABELS } from '@/lib/validators/reports';
 
 // ============================================================
 // Configuration
@@ -60,7 +61,7 @@ import { format, formatDistanceToNow } from 'date-fns';
 const reportTypeOptions = [
     { value: 'financial_overview', label: 'Financial Overview', icon: FileBarChart },
     { value: 'collection_report', label: 'Collection Report', icon: Receipt },
-    { value: 'invoice_aging', label: 'Invoice Aging', icon: Clock },
+    { value: 'debtors_aging', label: 'Debtors and aging', icon: Clock },
     { value: 'transaction_log', label: 'Transaction Log', icon: ScrollText },
 ] as const;
 
@@ -124,7 +125,7 @@ function ScheduleCard({
                         <div className="min-w-0">
                             <h4 className="font-medium text-sm truncate">{schedule.name}</h4>
                             <p className="text-xs text-muted-foreground mt-0.5">
-                                {reportType?.label} &bull; {schedule.frequency}
+                                {reportType?.label ?? REPORT_TYPE_LABELS[schedule.report_type]} &bull; {schedule.frequency}
                             </p>
                             <div className="flex items-center gap-2 mt-2">
                                 <Badge variant="outline" className="text-xs">

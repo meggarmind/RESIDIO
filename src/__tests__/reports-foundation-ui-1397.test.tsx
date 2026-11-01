@@ -89,7 +89,7 @@ describe('ReportTypePicker lists only permitted reports (#1397)', () => {
       <ReportTypePicker
         value=""
         onChange={vi.fn()}
-        allowedTypes={['transaction_log', 'debtors_report']}
+        allowedTypes={['transaction_log', 'debtors_aging']}
         config={config}
         realtimeTypes={[]}
         accountAgnosticTypes={[]}
@@ -97,7 +97,7 @@ describe('ReportTypePicker lists only permitted reports (#1397)', () => {
     );
     const list = screen.getByTestId('report-type-list');
     const items = within(list).getAllByRole('button', { pressed: false });
-    expect(items.map((b) => b.textContent)).toEqual(['Transaction Log', 'Debtors Report']);
+    expect(items.map((b) => b.textContent)).toEqual(['Transaction Log', 'Debtors and aging']);
     expect(within(list).queryByRole('button', { name: /Levies/ })).toBeNull();
   });
 
@@ -213,7 +213,7 @@ const toReview = () => {
 
 describe('ReportRequestWizard (#1397)', () => {
   it('starts on the first report the user may run', () => {
-    renderWizard(['transaction_log', 'debtors_report']);
+    renderWizard(['transaction_log', 'debtors_aging']);
     expect(screen.getByTestId('report-type-aim').textContent).toContain('Transaction Log');
   });
 

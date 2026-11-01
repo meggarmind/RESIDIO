@@ -122,6 +122,11 @@ const reportTypeConfig: Record<ReportType, {
         gradient: 'from-red-500/10 to-rose-500/5',
         iconBg: 'bg-red-500/15 text-red-600 dark:text-red-400',
     },
+    debtors_aging: {
+        icon: Users,
+        gradient: 'from-red-500/10 to-rose-500/5',
+        iconBg: 'bg-red-500/15 text-red-600 dark:text-red-400',
+    },
     indebtedness_summary: {
         icon: LayoutList,
         gradient: 'from-orange-500/10 to-amber-500/5',
@@ -154,10 +159,10 @@ const periodIcons: Record<PeriodPreset, React.ElementType> = {
 };
 
 // Reports that don't depend on bank accounts
-const ACCOUNT_AGNOSTIC_REPORTS: ReportType[] = ['debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'];
+const ACCOUNT_AGNOSTIC_REPORTS: ReportType[] = ['debtors_aging', 'debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'];
 
 // Reports that are always "As of Today" (skip date selection)
-const REALTIME_REPORTS: ReportType[] = ['debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'];
+const REALTIME_REPORTS: ReportType[] = ['debtors_aging', 'debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'];
 
 // ============================================================
 // Stepper Component
@@ -503,6 +508,7 @@ const AccountSelectionStep = memo(function AccountSelectionStep({
 
 function OptionsStep({
     includeCharts,
+    includeDetails,
     includeUnoccupied,
     includeAmount,
     paymentStatus,
@@ -510,6 +516,7 @@ function OptionsStep({
     transactionType,
     reportType,
     onIncludeChartsChange,
+    onIncludeDetailsChange,
     onIncludeUnoccupiedChange,
     onIncludeAmountChange,
     onPaymentStatusChange,
@@ -517,6 +524,7 @@ function OptionsStep({
     onTransactionTypeChange,
 }: {
     includeCharts: boolean;
+    includeDetails: boolean;
     includeUnoccupied: boolean;
     includeAmount: boolean;
     paymentStatus: 'all' | 'paid' | 'unpaid';
@@ -524,6 +532,7 @@ function OptionsStep({
     transactionType: 'all' | 'credit' | 'debit';
     reportType: ReportType;
     onIncludeChartsChange: (value: boolean) => void;
+    onIncludeDetailsChange: (value: boolean) => void;
     onIncludeUnoccupiedChange: (value: boolean) => void;
     onIncludeAmountChange: (value: boolean) => void;
     onPaymentStatusChange: (value: 'all' | 'paid' | 'unpaid') => void;
@@ -534,7 +543,7 @@ function OptionsStep({
     const isDevelopmentLevyReport = reportType === 'development_levy';
     const isDebtReport = isIndebtednessReport || isDevelopmentLevyReport;
     // Real-time reports don't use aggregation or transaction type filtering
-    const isRealtimeReport = ['debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'].includes(reportType);
+    const isRealtimeReport = ['debtors_aging', 'debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'].includes(reportType);
     return (
         <div className="space-y-6">
             <div className="text-center mb-8">
@@ -564,6 +573,18 @@ function OptionsStep({
                     </div>
 
 
+
+                    {reportType === 'debtors_aging' && (
+                        <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-red-500/10">
+                            <div className="space-y-0.5">
+                                <Label className="font-medium">Show invoice lines</Label>
+                                <p className="text-sm text-muted-foreground">
+                                    List each unpaid invoice under its debtor
+                                </p>
+                            </div>
+                            <Switch checked={includeDetails} onCheckedChange={onIncludeDetailsChange} />
+                        </div>
+                    )}
 
                     {isDebtReport && (
                         <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-emerald-500/10">
@@ -696,8 +717,8 @@ function ReviewStep({
             ? { startDate: formData.startDate || '', endDate: formData.endDate || '' }
             : getDateRangeFromPreset(formData.periodPreset || 'this_month');
 
-    const REALTIME_REPORTS_REVIEW = ['debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'];
-    const ACCOUNT_AGNOSTIC_REPORTS_REVIEW = ['debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'];
+    const REALTIME_REPORTS_REVIEW = ['debtors_aging', 'debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'];
+    const ACCOUNT_AGNOSTIC_REPORTS_REVIEW = ['debtors_aging', 'debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'];
 
     return (
         <div className="space-y-6">
@@ -1200,6 +1221,8 @@ export function ReportRequestWizard({
                         {step === 4 && (
                             <OptionsStep
                                 includeCharts={formData.includeCharts ?? true}
+                                includeDetails={formData.includeDetails ?? true}
+                                onIncludeDetailsChange={(v) => setValue('includeDetails', v)}
                                 includeUnoccupied={formData.includeUnoccupied ?? false}
                                 includeAmount={formData.includeAmount ?? false}
                                 paymentStatus={formData.paymentStatus ?? 'all'}
