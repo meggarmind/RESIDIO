@@ -3,6 +3,7 @@ import {
   contactLine,
   describeOfficeHours,
   formatClock,
+  endOfLagosDay,
   formatDay,
   formatNaira,
   maskEmail,
@@ -21,6 +22,18 @@ const LAUNCH: OfficeHours = [
   ...Array.from({ length: 5 }, () => ({ mode: 'hours' as const, from: '17:00', to: '22:00' })),
   { mode: 'all_day' },
 ];
+
+describe('endOfLagosDay (#1410)', () => {
+  it('is 23:59:59 Lagos on the same Lagos day', () => {
+    expect(endOfLagosDay(new Date('2026-10-22T08:00:00Z')).toISOString()).toBe('2026-10-22T22:59:59.000Z'); // 09:00 Lagos
+    expect(endOfLagosDay(new Date('2026-10-22T22:58:00Z')).toISOString()).toBe('2026-10-22T22:59:59.000Z'); // 23:58 Lagos
+  });
+
+  it('rolls to the next Lagos day just after midnight, including at a month end', () => {
+    expect(endOfLagosDay(new Date('2026-10-22T23:01:00Z')).toISOString()).toBe('2026-10-23T22:59:59.000Z'); // 00:01 Lagos
+    expect(endOfLagosDay(new Date('2026-10-31T23:30:00Z')).toISOString()).toBe('2026-11-01T22:59:59.000Z');
+  });
+});
 
 describe('WhatsApp Assistant formatting (#804)', () => {
   it('formats amounts in naira with 2 decimals and signs credit', () => {

@@ -36,6 +36,12 @@ export function lagosMidnight(year: number, month: number, day: number): Date {
   return new Date(Date.UTC(year, month - 1, day) - LAGOS_OFFSET_MS);
 }
 
+/** 23:59:59 Africa/Lagos on the Lagos day that contains `now` (#1410: an admin session lasts until then). */
+export function endOfLagosDay(now: Date): Date {
+  const { year, month, day } = lagosParts(now);
+  return new Date(lagosMidnight(year, month, day + 1).getTime() - 1000);
+}
+
 /**
  * `12 Oct 2026`. A 'YYYY-MM-DD' value is a calendar day; anything else is an
  * instant shown on its Africa/Lagos day.

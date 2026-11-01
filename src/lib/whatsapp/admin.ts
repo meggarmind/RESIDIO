@@ -11,7 +11,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { maskPhone } from '@/lib/utils';
 import { OWES_PROMPT, createSupabaseOwesRepository, runAdminOwesLookup, toOwesParams, type OwesRepository } from '@/lib/whatsapp/admin-owes';
 import { isOnRoster } from '@/lib/whatsapp/co-resident';
-import { formatDay, lagosMidnight, lagosParts } from '@/lib/whatsapp/assistant-format';
+import { endOfLagosDay, formatDay, lagosMidnight, lagosParts } from '@/lib/whatsapp/assistant-format';
 import { WhatsAppAdminAlertEmail, whatsAppAdminAlertSubject, type WhatsAppAdminAlertEvent } from '@/emails/whatsapp-admin-alert';
 import type { WhatsAppInboundMessage } from '@/lib/whatsapp/types';
 import { debtReportAction } from '@/lib/whatsapp/admin-debt-report';
@@ -25,15 +25,14 @@ import { approvePaymentAction } from '@/lib/whatsapp/admin-approve-payment';
  * their number with a one-time code issued from their 2FA dashboard session (`ADMIN LINK <code>`),
  * or it is linked on first use when it is the phone of the resident record tied to their profile
  * (#1292). Admin tools open from "6. Admin tools" on the main menu, or `ADMIN`. When a code is
- * needed, a single-use authenticator code opens a 15-minute session; an action marked `freshCode`
- * needs a new code every time. Every turn re-checks the binding against the live account, so a role
+ * needed, a single-use authenticator code opens a session that lasts until 23:59:59 Lagos time that day (#1410);
+ * an action marked `freshCode` needs a new code every time. Every turn re-checks the binding against the live account, so a role
  * change, a disabled account or a new or removed authenticator ends it.
  */
 
 /** Role categories that may use admin tools (#1290 decision 4): every staff role, never a resident role. */
 export const WHATSAPP_ADMIN_ROLE_CATEGORIES = ['exco', 'bot', 'staff'];
 export const ADMIN_LINK_CODE_TTL_MINUTES = 10;
-export const ADMIN_SESSION_MINUTES = 15;
 export const ADMIN_REQUEST_TTL_MINUTES = 5;
 export const ADMIN_REVERIFY_DAYS = 90;
 export const ADMIN_IDLE_DAYS = 30;
@@ -948,7 +947,7 @@ async function adminTurn(message: WhatsAppInboundMessage, input: AdminInput, opt
 
   const open = async () => {
     if (codeNeeded) return sessionLive(binding, now) ? showMenu(binding) : askCode();
-    // No code needed (#1292 item 3): the linked number alone opens Admin tools; the session still ends in 15 minutes.
+    // No code needed (#1292 item 3): the linked number alone opens Admin tools; the session still ends at the end of the Lagos day.
     binding ??= await autoLink(null, null);
     if (!binding) {
       // Another message linked the number or the admin first; the next turn finds that binding.
@@ -957,14 +956,14 @@ async function adminTurn(message: WhatsAppInboundMessage, input: AdminInput, opt
       return;
     }
     if (!sessionLive(binding, now)) {
-      const sessionExpiresAt = new Date(now.getTime() + ADMIN_SESSION_MINUTES * MINUTE).toISOString();
+      const sessionExpiresAt = endOfLagosDay(now).toISOString();
       await repository.setSessionExpiry(binding.id, sessionExpiresAt, now);
       await repository.audit({
         action: 'APPROVE',
         entityType: 'whatsapp_admin_bindings',
         entityId: binding.id,
         entityDisplay: `WhatsApp admin link for ${admin.fullName}`,
-        description: `WhatsApp admin session opened for ${ADMIN_SESSION_MINUTES} minutes without a code (code not required)`,
+        description: `WhatsApp admin session opened until the end of the day without a code (code not required)`,
         metadata: { phone_number: masked, session_expires_at: sessionExpiresAt },
       }, admin.profileId);
       binding = { ...binding, sessionExpiresAt };
@@ -1003,7 +1002,7 @@ async function adminTurn(message: WhatsAppInboundMessage, input: AdminInput, opt
   const takeCode = async (code: string) => {
     if (!codeNeeded) return open();
     const step = matchTotpStep(code, admin.totpSecret!, now.getTime());
-    const sessionExpiresAt = new Date(now.getTime() + ADMIN_SESSION_MINUTES * MINUTE).toISOString();
+    const sessionExpiresAt = endOfLagosDay(now).toISOString();
     let live: WhatsAppAdminBinding | null;
     if (binding) {
       if (
@@ -1026,7 +1025,7 @@ async function adminTurn(message: WhatsAppInboundMessage, input: AdminInput, opt
       entityType: 'whatsapp_admin_bindings',
       entityId: live.id,
       entityDisplay: `WhatsApp admin link for ${admin.fullName}`,
-      description: `WhatsApp admin session opened for ${ADMIN_SESSION_MINUTES} minutes`,
+      description: `WhatsApp admin session opened until the end of the day`,
       metadata: { phone_number: masked, session_expires_at: sessionExpiresAt },
     }, admin.profileId);
 

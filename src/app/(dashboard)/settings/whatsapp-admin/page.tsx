@@ -11,7 +11,6 @@ import {
   ADMIN_LOCK_MINUTES,
   ADMIN_MAX_WRONG_CODES,
   ADMIN_REVERIFY_DAYS,
-  ADMIN_SESSION_MINUTES,
 } from '@/lib/whatsapp/admin';
 
 export default async function WhatsAppAdminAccessPage() {
@@ -48,7 +47,7 @@ export default async function WhatsAppAdminAccessPage() {
         <CardHeader>
           <CardTitle>Link your own number</CardTitle>
           <CardDescription>
-            Only a linked number can use admin mode. Each request needs a code from your authenticator app; one code opens a {ADMIN_SESSION_MINUTES}-minute session.
+            Only a linked number can use admin mode. Each request needs a code from your authenticator app; one code opens a session that lasts until the end of the day (Lagos time).
           </CardDescription>
         </CardHeader>
         <CardContent>
