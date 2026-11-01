@@ -92,6 +92,31 @@ export const reportTypePreviews: Record<ReportType, PreviewDefinition> = {
             ['3', '09 Oct 2026', 'Security contract', 'Security', '-₦210,000.00'],
         ],
     },
+    debtors_aging: {
+        stats: [
+            { label: 'Total owed', value: '1,260,000.00' },
+            { label: 'Debtors', value: '14' },
+            { label: 'Owed over 90 days', value: '340,000.00' },
+            { label: 'Oldest debt', value: '212 days' },
+        ],
+        tableTitle: 'Debtors by age of debt',
+        columns: [
+            { label: 'Debtor' },
+            { label: 'House' },
+            { label: 'Contact' },
+            { label: 'Current', align: 'right' },
+            { label: '1-30 days', align: 'right' },
+            { label: '31-60 days', align: 'right' },
+            { label: '61-90 days', align: 'right' },
+            { label: 'Over 90 days', align: 'right' },
+            { label: 'Total', align: 'right' },
+        ],
+        rows: [
+            ['M. Yusuf', 'Block 7, House 9', '0803 000 0000', '0.00', '0.00', '0.00', '0.00', '360,000.00', '360,000.00'],
+            ['C. Okafor', 'Block 2, House 3', '0805 000 0000', '0.00', '60,000.00', '0.00', '0.00', '0.00', '60,000.00'],
+        ],
+    },
+    // Retired (#1399): not offered in the picker; kept so the Record stays complete for old rows.
     debtors_report: {
         stats: [
             { label: 'Total Debtors', value: '14' },

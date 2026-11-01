@@ -1,7 +1,8 @@
 import React from 'react';
 import { pdf } from '@react-pdf/renderer';
 import type { DocumentProps } from '@react-pdf/renderer';
-import type { ReportRequestFormData } from '@/lib/validators/reports';
+import { REPORT_TYPE_LABELS, type ReportRequestFormData } from '@/lib/validators/reports';
+import { SummaryReportPdf } from '@/lib/pdf/reports/summary-report-pdf';
 import { FinancialOverviewPdf } from '@/lib/pdf/reports/financial-overview-pdf';
 import { CollectionReportPdf } from '@/lib/pdf/reports/collection-report-pdf';
 import { InvoiceAgingPdf } from '@/lib/pdf/reports/invoice-aging-pdf';
@@ -17,6 +18,8 @@ export async function renderReportPdf(type: ReportRequestFormData['reportType'],
     case 'invoice_aging': component = React.createElement(InvoiceAgingPdf, { data, estateName }) as React.ReactElement<DocumentProps>; break;
     case 'transaction_log': component = React.createElement(TransactionLogPdf, { data, estateName }) as React.ReactElement<DocumentProps>; break;
     case 'debtors_report': component = React.createElement(DebtorsReportPdf, { data, estateName }) as React.ReactElement<DocumentProps>; break;
+    // Summary-first reports (#1399): `data` is the SummaryReportData of a report with `layout: 'summary'`.
+    case 'debtors_aging': component = React.createElement(SummaryReportPdf, { data, title: REPORT_TYPE_LABELS[type], estateName }) as React.ReactElement<DocumentProps>; break;
     case 'indebtedness_summary': component = React.createElement(IndebtednessReportPdf, { data, estateName }) as React.ReactElement<DocumentProps>; break;
     case 'development_levy': component = React.createElement(DevelopmentLevyPdf, { data, estateName }) as React.ReactElement<DocumentProps>; break;
     default: return null;

@@ -8,7 +8,7 @@ residio_sources:
   - src/app/(dashboard)/reports/**
   - src/actions/analytics/**
   - src/actions/reports/**
-residio_verified_commit: 4582a7c3
+residio_verified_commit: a503d50d
 residio_verified_at: '2026-11-01'
 residio_app_version: '0.4.0'
 ---
@@ -45,5 +45,15 @@ Each report type has its own view permission. Today every report type needs the 
 4. Generate and download the report only after confirming the scope. If the report cannot be generated, a message tells you why.
 
 Scheduled reports are set up on the **Schedules** tab; creating or changing a schedule needs the manage report schedules permission. Without it, the tab shows the schedules and a line that tells you this. You cannot schedule a report that cannot be generated yet: on the last step of **New Report**, the schedule switch is not shown for it, and a line tells you why. They are generated and delivered by a scheduled job, without anyone signed in. Each scheduled email carries the report as a PDF attachment, with a short message naming the report and the period it covers. Report PDFs, the on-screen report and these emails all show the estate name from **Settings > Estate**.
+
+## Debtors and aging
+
+**Debtors and aging** is in the **Debts** group. It replaces the **Debtors Report** and the **Invoice Aging Report**. The report is always as of today, so it has no time period step and no bank account step.
+
+The report shows four figures at the top: **Total owed**, **Debtors**, **Owed over 90 days** and **Oldest debt**. A bar chart shows the amount owed in each age bucket: **Current** (not yet due), **1-30 days**, **31-60 days**, **61-90 days** and **Over 90 days**. The age is the number of days after the due date. The table has one row for each debtor, with the house, the street, the phone numbers and the email address. It shows the amount for each bucket and the total. The last row gives the totals. An unpaid invoice that has no resident is shown under **Unknown resident**.
+
+On the **Options** step, the switch **Show invoice lines** adds one row for each unpaid invoice under its debtor.
+
+Reports that were made before this change stay in **History** and **Archive**, and you can open them. You cannot make a new **Debtors Report** or **Invoice Aging Report**. A schedule that was set up for one of them now runs **Debtors and aging**.
 
 Reports are snapshots. If a number looks wrong, trace it back to residents, invoices, payments, or expenditure instead of editing the report output.

@@ -88,6 +88,12 @@ const reportTypeConfig: Record<
         gradient: 'from-purple-500 to-violet-500',
         iconBg: 'bg-purple-500/15 text-purple-600 dark:text-purple-400',
     },
+    debtors_aging: {
+        icon: Users,
+        label: 'Debtors and aging',
+        gradient: 'from-red-500 to-rose-500',
+        iconBg: 'bg-red-500/15 text-red-600 dark:text-red-400',
+    },
     debtors_report: {
         icon: Users,
         label: 'Debtors Report',

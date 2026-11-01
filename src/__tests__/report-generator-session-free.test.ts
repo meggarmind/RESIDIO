@@ -97,7 +97,7 @@ describe('generateReportWithClient', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const result = await generateReportWithClient(
       { from } as never,
-      { reportType: 'invoice_aging', periodPreset: 'last_month' } as never
+      { reportType: 'debtors_aging', periodPreset: 'last_month' } as never
     );
     spy.mockRestore();
     expect(from).toHaveBeenCalled();
