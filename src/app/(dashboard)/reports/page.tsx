@@ -2,8 +2,8 @@ import { Suspense } from 'react';
 import { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { authorizePermission } from '@/lib/auth/authorize';
-import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { authorizeAnyPermission } from '@/lib/auth/authorize';
+import { REPORT_VIEW_PERMISSIONS, reportsForPermissions } from '@/lib/validators/reports';
 import { ReportsPageClient } from '@/components/reports/reports-page-client';
 
 export const metadata: Metadata = {
@@ -21,16 +21,17 @@ export default async function ReportsPage() {
         redirect('/login');
     }
 
-    // Permission check (migrated off the legacy role-list check)
-    const auth = await authorizePermission(PERMISSIONS.REPORTS_VIEW_FINANCIAL);
+    // Open to a user who may run at least one listed report; the picker shows only those (#1397).
+    const auth = await authorizeAnyPermission(REPORT_VIEW_PERMISSIONS);
     if (!auth.authorized) {
         redirect('/dashboard');
     }
+    const allowedReportTypes = reportsForPermissions(auth.permissions);
 
     // The client reads ?tab= with useSearchParams, which needs a Suspense boundary for the build.
     return (
         <Suspense fallback={null}>
-            <ReportsPageClient />
+            <ReportsPageClient allowedReportTypes={allowedReportTypes} />
         </Suspense>
     );
 }

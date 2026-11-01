@@ -1,21 +1,64 @@
 import { z } from 'zod';
 
-// Report Types
+import { PERMISSIONS, type Permission } from '@/lib/auth/action-roles';
+
+// Picker groups. Occupancy and Security have no entries yet; their reports come in later issues.
+export type ReportGroup = 'Money in and out' | 'Debts' | 'Levies' | 'Occupancy' | 'Security';
+
+// Report Types: the single list of reports. The request and schedule schemas, the page guard,
+// the picker, the engine and the menu all derive from it (#1397). `permission` is what a user
+// needs to run, list or schedule that report.
 export const reportTypes = [
-    { value: 'financial_overview', label: 'Financial Overview', description: 'Summary of income, expenses, and net balance', group: 'Money in and out' },
-    { value: 'collection_report', label: 'Collection Report', description: 'Payment collection summary by resident', group: 'Money in and out' },
-    { value: 'invoice_aging', label: 'Invoice Aging Report', description: 'Outstanding invoices by age brackets', group: 'Debts' },
-    { value: 'transaction_log', label: 'Transaction Log', description: 'Detailed list of all transactions', group: 'Money in and out' },
-    { value: 'debtors_report', label: 'Debtors Report', description: 'Detailed debtors list with aging buckets and contact info', group: 'Debts' },
-    { value: 'indebtedness_summary', label: 'Indebtedness Report', description: 'Simple indebted/non-indebted status per house with optional amounts', group: 'Debts' },
-    { value: 'indebtedness_detail', label: 'Indebtedness Detail Report', description: 'Detailed breakdown of indebtedness per property', group: 'Debts' },
-    { value: 'development_levy', label: 'Development Levy Report', description: 'Development levy status per property', group: 'Levies' },
-] as const;
+    { value: 'financial_overview', label: 'Financial Overview', description: 'Summary of income, expenses, and net balance', group: 'Money in and out', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
+    { value: 'collection_report', label: 'Collection Report', description: 'Payment collection summary by resident', group: 'Money in and out', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
+    { value: 'invoice_aging', label: 'Invoice Aging Report', description: 'Outstanding invoices by age brackets', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
+    { value: 'transaction_log', label: 'Transaction Log', description: 'Detailed list of all transactions', group: 'Money in and out', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
+    { value: 'debtors_report', label: 'Debtors Report', description: 'Detailed debtors list with aging buckets and contact info', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
+    { value: 'indebtedness_summary', label: 'Indebtedness Report', description: 'Simple indebted/non-indebted status per house with optional amounts', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
+    { value: 'indebtedness_detail', label: 'Indebtedness Detail Report', description: 'Detailed breakdown of indebtedness per property', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
+    { value: 'development_levy', label: 'Development Levy Report', description: 'Development levy status per property', group: 'Levies', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
+] as const satisfies readonly { value: string; label: string; description: string; group: ReportGroup; permission: Permission }[];
 
 export type ReportType = typeof reportTypes[number]['value'];
 export const REPORT_TYPE_LABELS = Object.fromEntries(
     reportTypes.map(rt => [rt.value, rt.label])
 ) as Record<ReportType, string>;
+
+/**
+ * The reports the generator can produce: one per case in `generateReportWithClient`
+ * (`@/lib/reports/report-generator`); a test keeps the two in step. A listed report not here can be
+ * picked but not generated, so it must not be scheduled (#1397).
+ */
+export const GENERATABLE_REPORT_TYPES: readonly ReportType[] = [
+    'financial_overview',
+    'collection_report',
+    'invoice_aging',
+    'transaction_log',
+    'debtors_report',
+    'indebtedness_summary',
+    'development_levy',
+];
+
+/** True when the generator has a case for `type`. */
+export function hasGenerator(type: string): boolean {
+    return (GENERATABLE_REPORT_TYPES as readonly string[]).includes(type);
+}
+
+/** Every report value, as a tuple for z.enum. */
+export const REPORT_TYPE_VALUES = reportTypes.map((rt) => rt.value) as [ReportType, ...ReportType[]];
+
+/** The distinct permissions the reports ask for. Holding any one of them opens the Reports page. */
+export const REPORT_VIEW_PERMISSIONS: Permission[] = [...new Set(reportTypes.map((rt) => rt.permission))];
+
+/** The permission that runs `type`, or null for a value that is not a listed report. */
+export function getReportPermission(type: string): Permission | null {
+    return reportTypes.find((rt) => rt.value === type)?.permission ?? null;
+}
+
+/** The reports a user holding `permissions` may run, list and see in history. */
+export function reportsForPermissions(permissions: readonly string[]): ReportType[] {
+    return reportTypes.filter((rt) => permissions.includes(rt.permission)).map((rt) => rt.value);
+}
 
 // Period Presets
 export const periodPresets = [
@@ -43,7 +86,7 @@ export type AggregationType = typeof aggregationOptions[number]['value'];
 
 // Report Request Schema
 export const reportRequestSchema = z.object({
-    reportType: z.enum(['financial_overview', 'collection_report', 'invoice_aging', 'transaction_log', 'debtors_report', 'indebtedness_summary', 'development_levy']),
+    reportType: z.enum(REPORT_TYPE_VALUES),
     periodPreset: z.enum(['this_month', 'last_month', 'this_quarter', 'last_quarter', 'this_year', 'last_year', 'custom']),
     startDate: z.string().default(''),
     endDate: z.string().default(''),

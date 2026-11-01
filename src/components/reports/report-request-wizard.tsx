@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, memo } from 'react';
-import { useForm, Controller, type Resolver } from 'react-hook-form';
+import { useForm, Controller, type FieldErrors, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -52,6 +52,7 @@ import {
     aggregationOptions,
     reportRequestSchema,
     getDateRangeFromPreset,
+    hasGenerator,
     type ReportRequestFormData,
     type ReportType,
     type PeriodPreset,
@@ -67,6 +68,8 @@ import { ReportTypePicker } from '@/components/reports/report-type-picker';
 // ============================================================
 
 interface ReportRequestWizardProps {
+    /** The report types the user may run (#1397); the picker lists only these. */
+    allowedReportTypes: readonly ReportType[];
     onGenerate: (data: ReportRequestFormData) => Promise<void>;
     isGenerating?: boolean;
 }
@@ -227,14 +230,17 @@ function StepIndicator({ steps, currentStep, reportType }: { steps: Step[]; curr
 function ReportTypeStep({
     value,
     onChange,
+    allowedTypes,
 }: {
     value: ReportType | '';
     onChange: (type: ReportType) => void;
+    allowedTypes: readonly ReportType[];
 }) {
     return (
         <ReportTypePicker
             value={value}
             onChange={onChange}
+            allowedTypes={allowedTypes}
             config={reportTypeConfig}
             realtimeTypes={REALTIME_REPORTS}
             accountAgnosticTypes={ACCOUNT_AGNOSTIC_REPORTS}
@@ -663,8 +669,11 @@ function ReviewStep({
     onScheduleEnabledChange,
     scheduleData,
     onScheduleDataChange,
+    canSchedule,
 }: {
     formData: Partial<ReportRequestFormData>;
+    /** False for a report the generator cannot produce yet: it cannot be scheduled (#1397). */
+    canSchedule: boolean;
     scheduleEnabled: boolean;
     onScheduleEnabledChange: (value: boolean) => void;
     scheduleData: {
@@ -791,15 +800,20 @@ function ReviewStep({
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-muted-foreground">Automated Schedule</p>
-                                    <p className="font-semibold">{scheduleEnabled ? 'Enabled' : 'Disabled'}</p>
+                                    <p className="font-semibold">{scheduleEnabled && canSchedule ? 'Enabled' : 'Disabled'}</p>
+                                    {!canSchedule && (
+                                        <p className="text-xs text-muted-foreground">This report cannot be generated yet, so it cannot be scheduled.</p>
+                                    )}
                                 </div>
-                                <Switch
-                                    checked={scheduleEnabled}
-                                    onCheckedChange={onScheduleEnabledChange}
-                                />
+                                {canSchedule && (
+                                    <Switch
+                                        checked={scheduleEnabled}
+                                        onCheckedChange={onScheduleEnabledChange}
+                                    />
+                                )}
                             </div>
 
-                            {scheduleEnabled && (
+                            {scheduleEnabled && canSchedule && (
                                 <div className="mt-4 space-y-4 p-4 rounded-lg bg-muted/50 border animate-in fade-in slide-in-from-top-2">
                                     <div className="space-y-2">
                                         <Label htmlFor="scheduleName">Schedule Name</Label>
@@ -930,6 +944,7 @@ function ReviewStep({
 // ============================================================
 
 export function ReportRequestWizard({
+    allowedReportTypes,
     onGenerate,
     isGenerating = false,
 }: ReportRequestWizardProps) {
@@ -953,7 +968,8 @@ export function ReportRequestWizard({
     const { control, watch, handleSubmit, setValue } = useForm<ReportRequestFormData>({
         resolver: zodResolver(reportRequestSchema) as Resolver<ReportRequestFormData>,
         defaultValues: {
-            reportType: 'financial_overview' as const,
+            // The first report the user may run (financial_overview for everyone today).
+            reportType: allowedReportTypes[0] ?? 'financial_overview',
             periodPreset: 'this_month' as const,
             startDate: '',
             endDate: '',
@@ -1054,7 +1070,8 @@ export function ReportRequestWizard({
         // Safety check: ensure we are on the final step
         if (step !== 5) return;
 
-        if (scheduleEnabled) {
+        // The toggle may still be on from a type that could be scheduled (#1397).
+        if (scheduleEnabled && hasGenerator(data.reportType)) {
             if (!scheduleData.name) {
                 toast.error('Please enter a schedule name');
                 return;
@@ -1107,6 +1124,15 @@ export function ReportRequestWizard({
         await onGenerate(data);
     };
 
+    // A form that fails validation must say so, not do nothing (#1379).
+    const onInvalid = (errors: FieldErrors<ReportRequestFormData>) => {
+        if (step !== 5) return;
+        const first = Object.values(errors)[0];
+        toast.error('Cannot generate this report', {
+            description: (first && typeof first.message === 'string' && first.message) || 'Check the report options and try again.',
+        });
+    };
+
     // Validation for each step
     const canProceed = () => {
         switch (step) {
@@ -1131,9 +1157,10 @@ export function ReportRequestWizard({
     };
 
     const selectedTypeLabel = reportTypes.find((t) => t.value === formData.reportType)?.label;
+    const willSchedule = scheduleEnabled && hasGenerator(formData.reportType);
 
     return (
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form onSubmit={handleSubmit(onSubmit, onInvalid)}>
             <Card className="shadow-xl border-0 bg-gradient-to-b from-background to-muted/20">
                 <CardContent className="p-4 md:p-6">
                     {/* Step Indicator: pinned under the page header and tabs (height set on the Tabs root as --reports-sticky-h; the header pins 1.5rem above main's content edge). */}
@@ -1147,6 +1174,7 @@ export function ReportRequestWizard({
                             <ReportTypeStep
                                 value={formData.reportType}
                                 onChange={(type) => setValue('reportType', type as ReportRequestFormData['reportType'])}
+                                allowedTypes={allowedReportTypes}
                             />
                         )}
 
@@ -1190,6 +1218,7 @@ export function ReportRequestWizard({
                         {step === 5 && (
                             <ReviewStep
                                 formData={formData}
+                                canSchedule={hasGenerator(formData.reportType)}
                                 scheduleEnabled={scheduleEnabled}
                                 onScheduleEnabledChange={setScheduleEnabled}
                                 scheduleData={scheduleData}
@@ -1224,11 +1253,11 @@ export function ReportRequestWizard({
                         ) : (
                             <Button
                                 type="button"
-                                onClick={handleSubmit(onSubmit)}
+                                onClick={handleSubmit(onSubmit, onInvalid)}
                                 disabled={isGenerating || createSchedule.isPending}
                                 className={cn(
                                     "min-w-[140px]",
-                                    scheduleEnabled ? "bg-purple-600 hover:bg-purple-700" : ""
+                                    willSchedule ? "bg-purple-600 hover:bg-purple-700" : ""
                                 )}
                             >
                                 {isGenerating || createSchedule.isPending ? (
@@ -1238,7 +1267,7 @@ export function ReportRequestWizard({
                                     </>
                                 ) : (
                                     <>
-                                        {scheduleEnabled ? (
+                                        {willSchedule ? (
                                             <>
                                                 <CalendarClock className="mr-2 h-4 w-4" />
                                                 Schedule & Generate

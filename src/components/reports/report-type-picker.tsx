@@ -11,6 +11,8 @@ import { ReportTypePreview } from '@/components/reports/report-type-previews';
 export interface ReportTypePickerProps {
     value: ReportType | '';
     onChange: (type: ReportType) => void;
+    /** The report types the user may run (#1397); no other type is listed. */
+    allowedTypes: readonly ReportType[];
     /** Icon and tint for each type (kept with the wizard, which also uses them elsewhere). */
     config: Record<ReportType, { icon: React.ElementType; iconBg: string }>;
     /** Types that are always "as of today", so the wizard skips the time period step. */
@@ -21,7 +23,7 @@ export interface ReportTypePickerProps {
 
 type ReportEntry = (typeof reportTypes)[number];
 
-export function ReportTypePicker({ value, onChange, config, realtimeTypes, accountAgnosticTypes }: ReportTypePickerProps) {
+export function ReportTypePicker({ value, onChange, allowedTypes, config, realtimeTypes, accountAgnosticTypes }: ReportTypePickerProps) {
     const [query, setQuery] = useState('');
     const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
@@ -30,6 +32,7 @@ export function ReportTypePicker({ value, onChange, config, realtimeTypes, accou
         const order: string[] = [];
         const byGroup = new Map<string, ReportEntry[]>();
         for (const type of reportTypes) {
+            if (!allowedTypes.includes(type.value)) continue;
             if (needle && !`${type.label} ${type.description}`.toLowerCase().includes(needle)) continue;
             if (!byGroup.has(type.group)) {
                 byGroup.set(type.group, []);
@@ -38,9 +41,9 @@ export function ReportTypePicker({ value, onChange, config, realtimeTypes, accou
             byGroup.get(type.group)!.push(type);
         }
         return order.map((name) => ({ name, items: byGroup.get(name)! }));
-    }, [needle]);
+    }, [needle, allowedTypes]);
 
-    const selected = reportTypes.find((t) => t.value === value);
+    const selected = reportTypes.find((t) => t.value === value && allowedTypes.includes(t.value));
     const isRealtime = selected ? realtimeTypes.includes(selected.value) : false;
     const isAgnostic = selected ? accountAgnosticTypes.includes(selected.value) : false;
     const SelectedIcon = selected ? config[selected.value].icon : null;

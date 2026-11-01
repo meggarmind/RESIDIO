@@ -16,10 +16,11 @@ const config = Object.fromEntries(
 // Same split as report-request-wizard.tsx.
 const REALTIME: ReportType[] = ['debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'];
 const AGNOSTIC: ReportType[] = ['debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'];
+const ALL: ReportType[] = reportTypes.map((t) => t.value);
 
 function renderPicker(value: ReportType | '' = 'financial_overview', onChange = vi.fn()) {
   render(
-    <ReportTypePicker value={value} onChange={onChange} config={config} realtimeTypes={REALTIME} accountAgnosticTypes={AGNOSTIC} />
+    <ReportTypePicker value={value} onChange={onChange} allowedTypes={ALL} config={config} realtimeTypes={REALTIME} accountAgnosticTypes={AGNOSTIC} />
   );
   return onChange;
 }
@@ -123,13 +124,13 @@ describe('ReportTypePicker (#1362)', () => {
   it('shows a preview that follows the selected type', () => {
     const onChange = vi.fn();
     const { rerender } = render(
-      <ReportTypePicker value="financial_overview" onChange={onChange} config={config} realtimeTypes={REALTIME} accountAgnosticTypes={AGNOSTIC} />
+      <ReportTypePicker value="financial_overview" onChange={onChange} allowedTypes={ALL} config={config} realtimeTypes={REALTIME} accountAgnosticTypes={AGNOSTIC} />
     );
     expect(within(screen.getByTestId('report-type-preview')).queryByText('Debtor')).toBeNull();
     expect(within(screen.getByTestId('report-type-preview')).getByText('Expenses')).toBeTruthy();
 
     rerender(
-      <ReportTypePicker value="debtors_report" onChange={onChange} config={config} realtimeTypes={REALTIME} accountAgnosticTypes={AGNOSTIC} />
+      <ReportTypePicker value="debtors_report" onChange={onChange} allowedTypes={ALL} config={config} realtimeTypes={REALTIME} accountAgnosticTypes={AGNOSTIC} />
     );
     const preview = screen.getByTestId('report-type-preview');
     expect(within(preview).getByText('Debtor')).toBeTruthy();

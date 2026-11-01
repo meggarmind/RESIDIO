@@ -70,10 +70,10 @@ describe('source-level invariants (#483)', () => {
     }
   });
 
-  it('report-engine.ts stays a server-action module that gates on checkReportAccess', () => {
+  it('report-engine.ts stays a server-action module that gates on the report permission (#1397)', () => {
     const src = read('actions/reports/report-engine.ts');
     expect(src).toMatch(USE_SERVER);
-    expect(src).toContain('checkReportAccess()');
+    expect(src).toContain('await authorizePermission(permission)');
   });
 });
 

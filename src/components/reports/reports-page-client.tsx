@@ -48,7 +48,7 @@ import { WalletBatchReconciliationPanel } from '@/components/reports/wallet-batc
 import { useGeneralSettings } from '@/hooks/use-settings';
 import { useGenerateReport, useGeneratedReports, useDeleteGeneratedReport, useReportSchedules, useReportArchive, type GeneratedReport } from '@/hooks/use-reports';
 import type { ArchivedReport } from '@/actions/reports/get-report-archive';
-import type { ReportRequestFormData } from '@/lib/validators/reports';
+import type { ReportRequestFormData, ReportType } from '@/lib/validators/reports';
 import { formatDistanceToNow } from 'date-fns';
 
 // ============================================================
@@ -99,6 +99,12 @@ const reportTypeConfig: Record<
         label: 'Indebtedness Report',
         gradient: 'from-orange-500 to-amber-500',
         iconBg: 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
+    },
+    indebtedness_detail: {
+        icon: Users,
+        label: 'Indebtedness Detail Report',
+        gradient: 'from-yellow-500 to-orange-500',
+        iconBg: 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400',
     },
     development_levy: {
         icon: Sparkles,
@@ -321,7 +327,10 @@ function QuickStatsChip() {
 // Main Component
 // ============================================================
 
-export function ReportsPageClient() {
+export function ReportsPageClient({ allowedReportTypes }: {
+    /** The report types the user may run, worked out on the server from their permissions (#1397). */
+    allowedReportTypes: readonly ReportType[];
+}) {
     // The tab lives in the address (?tab=), so the main menu can open each one (#1373).
     const router = useRouter();
     const pathname = usePathname();
@@ -443,6 +452,7 @@ export function ReportsPageClient() {
             {/* New Report Tab */}
             <TabsContent value="new">
                 <ReportRequestWizard
+                    allowedReportTypes={allowedReportTypes}
                     onGenerate={handleGenerate}
                     isGenerating={generateReport.isPending}
                 />

@@ -1,0 +1,75 @@
+/**
+ * "Summary first" report layout (#1397, mockup option B): up to four summary tiles, an optional
+ * bar chart, then one table. A report result opts in with `layout: 'summary'`; the viewer, the
+ * print templates and CSV export pick it up from that marker, so a new report of this shape needs
+ * no change to their per-type switches.
+ *
+ * Values are shown as given. Generators format dates before they put them here, with month names
+ * (`dd mmm yyyy`, CORE.md section 4), e.g. through `formatCalendarDate` in `@/lib/utils/calendar-date`.
+ */
+
+export type SummaryTone = 'good' | 'bad' | 'neutral';
+
+export type SummaryCell = string | number | null;
+
+export interface SummaryReportData {
+  /** At most MAX_SUMMARY_TILES; extra entries are not shown. */
+  summary: { label: string; value: string | number; tone?: SummaryTone; hint?: string }[];
+  chart?: {
+    title: string;
+    bars: { label: string; value: number; display?: string; tone?: SummaryTone }[];
+  };
+  table: {
+    columns: { key: string; label: string; align?: 'left' | 'right' | 'center' }[];
+    rows: Record<string, SummaryCell>[];
+    totals?: Record<string, SummaryCell>;
+  };
+  notes?: string[];
+}
+
+/**
+ * Report types that use this layout. None yet: a later report adds its value here, and its
+ * generator returns `{ type, layout: 'summary', data }`.
+ */
+export type SummaryLayoutReportType = never;
+
+export interface SummaryReport {
+  type: SummaryLayoutReportType;
+  layout: 'summary';
+  data: SummaryReportData;
+}
+
+export const MAX_SUMMARY_TILES = 4;
+
+/** True for a report result that asks for the summary-first layout. */
+export function isSummaryReport(report: unknown): report is SummaryReport {
+  return (
+    typeof report === 'object' &&
+    report !== null &&
+    (report as { layout?: unknown }).layout === 'summary' &&
+    typeof (report as { data?: unknown }).data === 'object' &&
+    (report as { data?: unknown }).data !== null
+  );
+}
+
+/** Shows a cell: numbers with thousands separators, null as empty. */
+export function formatSummaryCell(value: SummaryCell | undefined): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'number') return value.toLocaleString('en-GB');
+  return value;
+}
+
+function csvField(value: SummaryCell | undefined): string {
+  if (value === null || value === undefined) return '';
+  const text = String(value);
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+/** CSV of the table: a header row of column labels, the rows, then the totals row if any. */
+export function summaryTableToCsv(table: SummaryReportData['table']): string {
+  const keys = table.columns.map((c) => c.key);
+  const lines = [table.columns.map((c) => csvField(c.label)).join(',')];
+  for (const row of table.rows) lines.push(keys.map((k) => csvField(row[k])).join(','));
+  if (table.totals) lines.push(keys.map((k) => csvField(table.totals![k])).join(','));
+  return lines.join('\n');
+}
