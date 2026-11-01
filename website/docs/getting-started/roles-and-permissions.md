@@ -17,8 +17,8 @@ residio_sources:
   - src/components/admin/role-title-picker.tsx
   - src/components/admin/role-titles-manager.tsx
   - src/components/admin/pending-accounts-list.tsx
-residio_verified_commit: 66f30e80
-residio_verified_at: '2026-10-30'
+residio_verified_commit: 480e535d
+residio_verified_at: '2026-11-01'
 residio_app_version: '0.4.0'
 ---
 
