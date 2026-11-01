@@ -768,4 +768,57 @@ describe('WAHA WhatsApp webhook route', () => {
       await expect(response.json()).resolves.toMatchObject({ processed: false, ignored: 'other_group' });
     });
   });
+
+  describe('poll.vote (#1389)', () => {
+    const voteEvent = (vote: Record<string, unknown>, envelopeId?: string) =>
+      webhook('poll.vote', { vote: { selectedOptions: ['47'], fromMe: false, ...vote }, poll: { id: 'true_2348030000001@c.us_POLL1' } }, envelopeId);
+
+    function mockApproval(answer: ReturnType<typeof vi.fn>) {
+      vi.doMock('@/lib/auth/two-factor-whatsapp', async () => ({
+        ...(await vi.importActual<typeof import('@/lib/auth/two-factor-whatsapp')>('@/lib/auth/two-factor-whatsapp')),
+        answerWhatsAppApprovalVote: answer,
+      }));
+      vi.doMock('@/lib/auth/two-factor-whatsapp-store', () => ({ createTwoFactorWhatsAppDeps: () => ({}) }));
+    }
+
+    it('passes the vote, with the voter phone, to the sign-in approval, once per envelope', async () => {
+      const answer = vi.fn().mockResolvedValue('approved');
+      mockApproval(answer);
+      const h = await load();
+
+      const response = await h.POST(post(voteEvent({ from: '2348030000001@c.us' }, 'evt_v1')));
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({ processed: true, outcome: 'approved' });
+      expect(answer.mock.calls[0][0]).toEqual({
+        pollMessageId: 'true_2348030000001@c.us_POLL1',
+        voterPhone: '+2348030000001',
+        selectedOptions: ['47'],
+      });
+
+      const retry = await h.POST(post(voteEvent({ from: '2348030000001@c.us' }, 'evt_v1')));
+      await expect(retry.json()).resolves.toMatchObject({ duplicate: true });
+      expect(answer).toHaveBeenCalledTimes(1);
+      expect(h.handleResidentMessage).not.toHaveBeenCalled();
+    });
+
+    it("ignores the handset's own vote", async () => {
+      const answer = vi.fn();
+      mockApproval(answer);
+      const h = await load();
+
+      const response = await h.POST(post(voteEvent({ from: '2348030000001@c.us', fromMe: true }, 'evt_v2')));
+      await expect(response.json()).resolves.toMatchObject({ processed: false, ignored: 'poll.vote' });
+      expect(answer).not.toHaveBeenCalled();
+    });
+
+    it('returns 500 and releases the claim when the approval fails, so the retry runs it again', async () => {
+      const answer = vi.fn().mockRejectedValueOnce(new Error('db down')).mockResolvedValue('denied');
+      mockApproval(answer);
+      const h = await load();
+
+      expect((await h.POST(post(voteEvent({ from: '2348030000001@c.us' }, 'evt_v3')))).status).toBe(500);
+      expect((await h.POST(post(voteEvent({ from: '2348030000001@c.us' }, 'evt_v3')))).status).toBe(200);
+      expect(answer).toHaveBeenCalledTimes(2);
+    });
+  });
 });
