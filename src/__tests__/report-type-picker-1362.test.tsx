@@ -14,8 +14,8 @@ const config = Object.fromEntries(
 ) as unknown as Record<ReportType, { icon: React.ElementType; iconBg: string }>;
 
 // Same split as report-request-wizard.tsx.
-const REALTIME: ReportType[] = ['debtors_aging', 'indebtedness_summary', 'development_levy'];
-const AGNOSTIC: ReportType[] = ['debtors_aging', 'indebtedness_summary', 'development_levy'];
+const REALTIME: ReportType[] = ['debtors_aging', 'development_levy'];
+const AGNOSTIC: ReportType[] = ['debtors_aging', 'dues_collection_status', 'development_levy'];
 const ALL: ReportType[] = reportTypes.map((t) => t.value);
 
 function renderPicker(value: ReportType | '' = 'financial_overview', onChange = vi.fn()) {
@@ -46,8 +46,12 @@ describe('ReportTypePicker (#1362)', () => {
     // The two reports Debtors and aging replaced (#1399) are not offered.
     expect(within(list()).queryByRole('button', { name: 'Debtors Report' })).toBeNull();
     expect(within(list()).queryByRole('button', { name: 'Invoice Aging Report' })).toBeNull();
-    expect(reportTypes).toHaveLength(9);
-    expect(listed).toHaveLength(7);
+    // The two Indebtedness reports Dues, levies and collection status replaced (#1400) are not offered either.
+    expect(within(list()).queryByRole('button', { name: 'Indebtedness Report' })).toBeNull();
+    expect(within(list()).queryByRole('button', { name: 'Indebtedness Detail Report' })).toBeNull();
+    expect(within(list()).getByRole('button', { name: 'Dues, levies and collection status' })).toBeTruthy();
+    expect(reportTypes).toHaveLength(10);
+    expect(listed).toHaveLength(6);
   });
 
   it('filters by label and by description', () => {
@@ -123,7 +127,7 @@ describe('ReportTypePicker (#1362)', () => {
     renderPicker();
     const countOf = (group: RegExp) => within(within(list()).getByRole('button', { name: group })).getByText(/^\d+$/).textContent;
     expect(countOf(/Money in and out/)).toBe('3');
-    expect(countOf(/Debts/)).toBe('3');
+    expect(countOf(/Debts/)).toBe('2');
     expect(countOf(/Levies/)).toBe('1');
   });
 

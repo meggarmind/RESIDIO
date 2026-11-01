@@ -8,7 +8,7 @@ residio_sources:
   - src/app/(dashboard)/reports/**
   - src/actions/analytics/**
   - src/actions/reports/**
-residio_verified_commit: a503d50d
+residio_verified_commit: ea6f5f02
 residio_verified_at: '2026-11-01'
 residio_app_version: '0.4.0'
 ---
@@ -55,5 +55,21 @@ The report shows four figures at the top: **Total owed**, **Debtors**, **Owed ov
 On the **Options** step, the switch **Show invoice lines** adds one row for each unpaid invoice under its debtor.
 
 Reports that were made before this change stay in **History** and **Archive**, and you can open them. You cannot make a new **Debtors Report** or **Invoice Aging Report**. A schedule that was set up for one of them now runs **Debtors and aging**.
+
+## Dues, levies and collection status
+
+**Dues, levies and collection status** is in the **Debts** group. It replaces the **Indebtedness Report** and the **Indebtedness Detail Report**. It shows one sheet for the estate, with one row for each house. This report asks for a time period, but not for bank accounts.
+
+The report shows four figures at the top: **Houses fully paid**, **Houses part paid**, **Houses not paid** and **Total owed**. A house is fully paid when it owes nothing. A house is part paid when it owes money and has paid at least one month in the period. A house is not paid when it owes money and has paid no month in the period. A bar chart shows the amount owed on each street.
+
+The table has these columns for each house: **House**, **Street**, **Months paid** (for example "3 of 4", the months in the period that are paid, out of the months that have an invoice), **Months owed**, **Levy**, **Owed** and **Status**. **Levy** shows **Paid**, **Part paid**, **Not paid** or **No levy** for the development levy. **Owed** is all the money that is still unpaid on the house, with earlier months and levies. It is the same amount as the **Indebtedness Report** gave. **Status** is the debt status from **Settings > Debt Status**. The last row gives the totals. A house that has paid more than it owes shows 0.00 and is not subtracted from the total.
+
+The report shows at most 24 months, the latest ones. Void invoices are not counted. Levy invoices show only in **Levy**, not in the months.
+
+On the **Options** step, the switch **Show invoice lines** adds one row for each unpaid invoice under its house. It is off until you turn it on. The switch **Unoccupied Properties** adds the houses that have no active resident.
+
+When you open the report, you can switch between **Sheet** and **Grid of months**. The grid has one row for each house and one column for each month. Each cell shows **Paid up**, **Outstanding**, **Overdue** or **No invoice**, with the same colours as the estate map. The two columns at the end show the levy and the amount owed. The grid is for the screen only. **Export PDF**, **Export CSV** and the scheduled email carry the sheet.
+
+Reports that were made before this change stay in **History** and **Archive**, and you can open them. You cannot make a new **Indebtedness Report** or **Indebtedness Detail Report**. A schedule that was set up for one of them now runs **Dues, levies and collection status**.
 
 Reports are snapshots. If a number looks wrong, trace it back to residents, invoices, payments, or expenditure instead of editing the report output.

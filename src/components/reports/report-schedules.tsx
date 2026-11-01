@@ -62,6 +62,7 @@ const reportTypeOptions = [
     { value: 'financial_overview', label: 'Financial Overview', icon: FileBarChart },
     { value: 'collection_report', label: 'Collection Report', icon: Receipt },
     { value: 'debtors_aging', label: 'Debtors and aging', icon: Clock },
+    { value: 'dues_collection_status', label: 'Dues, levies and collection status', icon: Receipt },
     { value: 'transaction_log', label: 'Transaction Log', icon: ScrollText },
 ] as const;
 

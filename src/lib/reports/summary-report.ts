@@ -10,6 +10,26 @@
 
 export type SummaryTone = 'good' | 'bad' | 'neutral';
 
+/** A house's state in one month: the vocabulary of the estate map and `PAYMENT_STATUS_META`. */
+export type SummaryGridStatus = 'paid_up' | 'outstanding' | 'overdue' | 'no_invoice';
+
+/**
+ * Optional extra view (mockup option C, #1400): houses down, months across. Shown on screen only, so a
+ * report without it is unchanged. `houses[].months` has one status per entry of `months`, by its `key`.
+ */
+export interface SummaryGrid {
+  months: { key: string; label: string }[];
+  houses: {
+    id: string;
+    houseNumber: string;
+    streetName: string;
+    /** Levy status text, e.g. "Paid" or "No levy". */
+    levy: string;
+    owed: number;
+    months: Record<string, SummaryGridStatus>;
+  }[];
+}
+
 export type SummaryCell = string | number | null;
 
 export interface SummaryReportData {
@@ -25,13 +45,14 @@ export interface SummaryReportData {
     totals?: Record<string, SummaryCell>;
   };
   notes?: string[];
+  grid?: SummaryGrid;
 }
 
 /**
  * Report types that use this layout. A later report adds its value here, and its generator
  * returns `{ type, layout: 'summary', data }`.
  */
-export type SummaryLayoutReportType = 'debtors_aging';
+export type SummaryLayoutReportType = 'debtors_aging' | 'dues_collection_status';
 
 export interface SummaryReport {
   type: SummaryLayoutReportType;

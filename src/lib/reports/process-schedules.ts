@@ -61,7 +61,7 @@ export async function processDueSchedules(): Promise<{ processed: number; failed
          categoryIds: [],
          transactionType: 'all',
          aggregation: 'monthly',
-         includeDetails: true,
+         includeDetails: resolveRetiredReport(schedule.report_type) !== 'dues_collection_status',
          paymentStatus: 'all',
       };
 

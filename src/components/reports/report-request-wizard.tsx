@@ -127,6 +127,11 @@ const reportTypeConfig: Record<ReportType, {
         gradient: 'from-red-500/10 to-rose-500/5',
         iconBg: 'bg-red-500/15 text-red-600 dark:text-red-400',
     },
+    dues_collection_status: {
+        icon: LayoutList,
+        gradient: 'from-orange-500/10 to-amber-500/5',
+        iconBg: 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
+    },
     indebtedness_summary: {
         icon: LayoutList,
         gradient: 'from-orange-500/10 to-amber-500/5',
@@ -159,10 +164,13 @@ const periodIcons: Record<PeriodPreset, React.ElementType> = {
 };
 
 // Reports that don't depend on bank accounts
-const ACCOUNT_AGNOSTIC_REPORTS: ReportType[] = ['debtors_aging', 'debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'];
+const ACCOUNT_AGNOSTIC_REPORTS: ReportType[] = ['debtors_aging', 'debtors_report', 'dues_collection_status', 'development_levy', 'invoice_aging'];
 
 // Reports that are always "As of Today" (skip date selection)
-const REALTIME_REPORTS: ReportType[] = ['debtors_aging', 'debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'];
+const REALTIME_REPORTS: ReportType[] = ['debtors_aging', 'debtors_report', 'development_levy', 'invoice_aging'];
+
+// Invoice lines are off unless chosen for these (#1399, #1400); other reports keep their default.
+const INVOICE_LINES_OFF_BY_DEFAULT: ReportType[] = ['debtors_aging', 'dues_collection_status'];
 
 // ============================================================
 // Stepper Component
@@ -510,7 +518,6 @@ function OptionsStep({
     includeCharts,
     includeDetails,
     includeUnoccupied,
-    includeAmount,
     paymentStatus,
     aggregation,
     transactionType,
@@ -518,7 +525,6 @@ function OptionsStep({
     onIncludeChartsChange,
     onIncludeDetailsChange,
     onIncludeUnoccupiedChange,
-    onIncludeAmountChange,
     onPaymentStatusChange,
     onAggregationChange,
     onTransactionTypeChange,
@@ -526,7 +532,6 @@ function OptionsStep({
     includeCharts: boolean;
     includeDetails: boolean;
     includeUnoccupied: boolean;
-    includeAmount: boolean;
     paymentStatus: 'all' | 'paid' | 'unpaid';
     aggregation: AggregationType;
     transactionType: 'all' | 'credit' | 'debit';
@@ -534,16 +539,16 @@ function OptionsStep({
     onIncludeChartsChange: (value: boolean) => void;
     onIncludeDetailsChange: (value: boolean) => void;
     onIncludeUnoccupiedChange: (value: boolean) => void;
-    onIncludeAmountChange: (value: boolean) => void;
     onPaymentStatusChange: (value: 'all' | 'paid' | 'unpaid') => void;
     onAggregationChange: (value: AggregationType) => void;
     onTransactionTypeChange: (value: 'all' | 'credit' | 'debit') => void;
 }) {
-    const isIndebtednessReport = reportType === 'indebtedness_summary';
+    const isDuesReport = reportType === 'dues_collection_status';
     const isDevelopmentLevyReport = reportType === 'development_levy';
-    const isDebtReport = isIndebtednessReport || isDevelopmentLevyReport;
+    const isDebtReport = isDuesReport || isDevelopmentLevyReport;
     // Real-time reports don't use aggregation or transaction type filtering
-    const isRealtimeReport = ['debtors_aging', 'debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'].includes(reportType);
+    // The dues sheet has a period but no aggregation or transaction type either.
+    const isRealtimeReport = isDuesReport || REALTIME_REPORTS.includes(reportType as ReportType);
     return (
         <div className="space-y-6">
             <div className="text-center mb-8">
@@ -574,12 +579,12 @@ function OptionsStep({
 
 
 
-                    {reportType === 'debtors_aging' && (
+                    {(reportType === 'debtors_aging' || isDuesReport) && (
                         <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-red-500/10">
                             <div className="space-y-0.5">
                                 <Label className="font-medium">Show invoice lines</Label>
                                 <p className="text-sm text-muted-foreground">
-                                    List each unpaid invoice under its debtor
+                                    {isDuesReport ? 'List each unpaid invoice under its house' : 'List each unpaid invoice under its debtor'}
                                 </p>
                             </div>
                             <Switch checked={includeDetails} onCheckedChange={onIncludeDetailsChange} />
@@ -597,21 +602,6 @@ function OptionsStep({
                             <Switch
                                 checked={includeUnoccupied}
                                 onCheckedChange={onIncludeUnoccupiedChange}
-                            />
-                        </div>
-                    )}
-
-                    {isIndebtednessReport && (
-                        <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-amber-500/10">
-                            <div className="space-y-0.5">
-                                <Label className="font-medium">Include Amounts</Label>
-                                <p className="text-sm text-muted-foreground">
-                                    Show outstanding indebtedness amounts per house
-                                </p>
-                            </div>
-                            <Switch
-                                checked={includeAmount}
-                                onCheckedChange={onIncludeAmountChange}
                             />
                         </div>
                     )}
@@ -717,8 +707,8 @@ function ReviewStep({
             ? { startDate: formData.startDate || '', endDate: formData.endDate || '' }
             : getDateRangeFromPreset(formData.periodPreset || 'this_month');
 
-    const REALTIME_REPORTS_REVIEW = ['debtors_aging', 'debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'];
-    const ACCOUNT_AGNOSTIC_REPORTS_REVIEW = ['debtors_aging', 'debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'];
+    const REALTIME_REPORTS_REVIEW: string[] = REALTIME_REPORTS;
+    const ACCOUNT_AGNOSTIC_REPORTS_REVIEW: string[] = ACCOUNT_AGNOSTIC_REPORTS;
 
     return (
         <div className="space-y-6">
@@ -999,7 +989,7 @@ export function ReportRequestWizard({
             transactionType: 'all' as const,
             aggregation: 'monthly' as const,
             includeCharts: true,
-            includeDetails: (allowedReportTypes[0] ?? 'financial_overview') !== 'debtors_aging',
+            includeDetails: !INVOICE_LINES_OFF_BY_DEFAULT.includes(allowedReportTypes[0] ?? 'financial_overview'),
             includeUnoccupied: false,
             includeAmount: false,
             paymentStatus: 'all' as const,
@@ -1196,8 +1186,7 @@ export function ReportRequestWizard({
                                 value={formData.reportType}
                                 onChange={(type) => {
                                     setValue('reportType', type as ReportRequestFormData['reportType']);
-                                    // Invoice lines are off unless chosen (#1399); other reports keep their default.
-                                    setValue('includeDetails', type !== 'debtors_aging');
+                                    setValue('includeDetails', !INVOICE_LINES_OFF_BY_DEFAULT.includes(type as ReportType));
                                 }}
                                 allowedTypes={allowedReportTypes}
                             />
@@ -1228,14 +1217,12 @@ export function ReportRequestWizard({
                                 includeDetails={formData.includeDetails ?? true}
                                 onIncludeDetailsChange={(v) => setValue('includeDetails', v)}
                                 includeUnoccupied={formData.includeUnoccupied ?? false}
-                                includeAmount={formData.includeAmount ?? false}
                                 paymentStatus={formData.paymentStatus ?? 'all'}
                                 aggregation={formData.aggregation ?? 'monthly'}
                                 transactionType={formData.transactionType ?? 'all'}
                                 reportType={formData.reportType || 'financial_overview'}
                                 onIncludeChartsChange={(v) => setValue('includeCharts', v)}
                                 onIncludeUnoccupiedChange={(v) => setValue('includeUnoccupied', v)}
-                                onIncludeAmountChange={(v) => setValue('includeAmount', v)}
                                 onPaymentStatusChange={(v) => setValue('paymentStatus', v)}
                                 onAggregationChange={(v) => setValue('aggregation', v)}
                                 onTransactionTypeChange={(v) => setValue('transactionType', v)}
