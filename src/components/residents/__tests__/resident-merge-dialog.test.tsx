@@ -10,29 +10,21 @@ const OTHER = { id: 'res-dup', first_name: 'Ada', last_name: 'Obi', resident_cod
 const mocks = vi.hoisted(() => ({
   preview: null as ResidentMergePreview | null,
   previewArgs: vi.fn(),
+  candidates: null as unknown,
+  candidatesError: null as Error | null,
   mutateAsync: vi.fn(),
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 
 vi.mock('sonner', () => ({ toast: mocks.toast }));
 vi.mock('@/hooks/use-residents', () => ({
-  useResidentOptions: () => ({ data: { data: [CURRENT, OTHER] } }),
+  useMergeCandidates: () => ({ data: mocks.candidatesError ? undefined : mocks.candidates, error: mocks.candidatesError }),
   useResidentMergePreview: (keptId?: string, duplicateId?: string) => {
     mocks.previewArgs(keptId, duplicateId);
     return { data: keptId && duplicateId ? mocks.preview : undefined, isLoading: false, error: null };
   },
   useMergeResidents: () => ({ mutateAsync: mocks.mutateAsync, isPending: false }),
 }));
-// A plain select stands in for the popover combobox, which needs layout APIs jsdom lacks.
-vi.mock('@/components/ui/searchable-select', () => ({
-  SearchableSelect: ({ options, value, onValueChange }: { options: Array<{ value: string; label: string }>; value: string; onValueChange: (v: string) => void }) => (
-    <select aria-label="Other record" value={value} onChange={(e) => onValueChange(e.target.value)}>
-      <option value="">Choose</option>
-      {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-    </select>
-  ),
-}));
-
 import { ResidentMergeDialog } from '@/components/residents/resident-merge-dialog';
 
 const contact = (phone: string) => ({
@@ -64,7 +56,7 @@ function previewFor(overrides: Partial<ResidentMergePreview> = {}): ResidentMerg
 
 function renderDialog(onMerged = vi.fn()) {
   render(<ResidentMergeDialog open onOpenChange={vi.fn()} resident={CURRENT} onMerged={onMerged} />);
-  fireEvent.change(screen.getByLabelText('Other record'), { target: { value: OTHER.id } });
+  fireEvent.click(screen.getByRole('button', { name: /Ada Obi · 654321/ }));
   return onMerged;
 }
 
@@ -73,10 +65,46 @@ const mergeButton = () => screen.getByRole('button', { name: 'Merge residents' }
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.preview = previewFor();
+  mocks.candidatesError = null;
+  mocks.candidates = {
+    suggestions: [{ id: OTHER.id, name: 'Ada Obi', resident_code: '654321', houses: ['Close 1 No 4'], reason: 'Same phone, Similar name' }],
+    results: [{ id: 'res-found', name: 'Chika Eze', resident_code: '777777', houses: ['Close 2 No 9'] }],
+  };
 });
 afterEach(cleanup);
 
 describe('ResidentMergeDialog', () => {
+  it('lists likely duplicates and starts the preview when one is selected', () => {
+    render(<ResidentMergeDialog open onOpenChange={vi.fn()} resident={CURRENT} />);
+
+    expect(screen.getByText('Likely duplicates of Ada Obi (123456)')).toBeInTheDocument();
+    expect(screen.getByText('Close 1 No 4 · Same phone, Similar name')).toBeInTheDocument();
+    expect(mocks.previewArgs).toHaveBeenLastCalledWith(undefined, undefined);
+
+    fireEvent.click(screen.getByRole('button', { name: /Ada Obi · 654321/ }));
+
+    expect(mocks.previewArgs).toHaveBeenLastCalledWith(CURRENT.id, OTHER.id);
+    expect(screen.getByText('Selected: Ada Obi (654321)')).toBeInTheDocument();
+  });
+
+  it('shows search results once two characters are typed and lets one be picked', () => {
+    render(<ResidentMergeDialog open onOpenChange={vi.fn()} resident={CURRENT} />);
+    expect(screen.queryByText('Chika Eze')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText('Type a name, resident code, house or phone'), { target: { value: 'ch' } });
+    fireEvent.click(screen.getByRole('button', { name: /Chika Eze/ }));
+
+    expect(mocks.previewArgs).toHaveBeenLastCalledWith(CURRENT.id, 'res-found');
+  });
+
+  it('shows the reason when the candidates cannot be loaded instead of an empty list', () => {
+    mocks.candidatesError = new Error('Unauthorized');
+    render(<ResidentMergeDialog open onOpenChange={vi.fn()} resident={CURRENT} />);
+
+    expect(screen.getByText('Unauthorized')).toBeInTheDocument();
+    expect(screen.queryByText('No likely duplicates found.')).not.toBeInTheDocument();
+  });
+
   it('shows each blocker as a sentence and keeps the merge disabled', () => {
     mocks.preview = previewFor({
       can_merge: false,

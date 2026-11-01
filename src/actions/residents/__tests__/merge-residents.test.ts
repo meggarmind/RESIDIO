@@ -21,7 +21,7 @@ vi.mock('@/lib/supabase/server', () => ({
 }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
-import { mergeResidents, previewResidentMerge } from '@/actions/residents/merge-residents';
+import { getMergeCandidates, mergeResidents, previewResidentMerge } from '@/actions/residents/merge-residents';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 const KEPT = '11111111-1111-4111-8111-111111111111';
@@ -175,5 +175,25 @@ describe('mergeResidents', () => {
 
     expect((await mergeResidents(validInput)).error).toMatch(/safety check and nothing was changed/);
     expect(mocks.logAudit).not.toHaveBeenCalled();
+  });
+});
+
+describe('getMergeCandidates', () => {
+  it('refuses without residents.merge and never touches the database', async () => {
+    mocks.authorizePermission.mockResolvedValue({ authorized: false, error: 'Forbidden' });
+
+    const result = await getMergeCandidates(KEPT, 'ada');
+
+    expect(mocks.authorizePermission).toHaveBeenCalledWith(PERMISSIONS.RESIDENTS_MERGE);
+    expect(result).toEqual({ data: null, error: 'Forbidden' });
+    expect(mocks.createServerSupabaseClient).not.toHaveBeenCalled();
+  });
+
+  it('rejects an invalid id before querying', async () => {
+    const result = await getMergeCandidates('nope');
+
+    expect(result.data).toBeNull();
+    expect(result.error).toBeTruthy();
+    expect(mocks.createServerSupabaseClient).not.toHaveBeenCalled();
   });
 });

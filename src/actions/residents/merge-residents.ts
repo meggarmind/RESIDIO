@@ -6,6 +6,12 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import {
+  findSuggestions,
+  searchResidents,
+  type MergeCandidate,
+  type MergeCandidateRow,
+} from '@/lib/residents/merge-candidates';
 
 /**
  * Merge residents (#988, action half of #821). The database functions do the work and re-check
@@ -139,6 +145,76 @@ export async function previewResidentMerge(
     return { data: null, error: rpcErrorMessage(error) };
   }
   return { data: data as ResidentMergePreview, error: null };
+}
+
+export type { MergeCandidate };
+
+type CandidateQueryRow = Omit<MergeCandidateRow, 'houses'> & {
+  resident_houses: Array<{
+    is_active: boolean | null;
+    house: { id: string; short_name: string | null; house_number: string | null } | null;
+  }> | null;
+};
+
+const CANDIDATE_SELECT =
+  'id, first_name, last_name, resident_code, phone_primary, phone_secondary, account_status, merged_into_resident_id, resident_houses(is_active, house:houses(id, short_name, house_number))';
+
+function toCandidateRow(r: CandidateQueryRow): MergeCandidateRow {
+  const { resident_houses, ...rest } = r;
+  return {
+    ...rest,
+    houses: (resident_houses ?? [])
+      .filter((link) => link.is_active && link.house)
+      .map((link) => ({ id: link.house!.id, label: link.house!.short_name || link.house!.house_number || 'House' })),
+  };
+}
+
+/**
+ * Likely duplicates of a resident, plus a search over all residents (#1391). Feeds the merge
+ * form, so it takes the merge permission rather than the broader view permission.
+ */
+export async function getMergeCandidates(
+  residentId: string,
+  query?: string
+): Promise<{ data: { suggestions: MergeCandidate[]; results: MergeCandidate[] } | null; error: string | null }> {
+  const auth = await authorizePermission(PERMISSIONS.RESIDENTS_MERGE);
+  if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
+
+  const parsed = z.guid('Choose a valid resident').safeParse(residentId);
+  if (!parsed.success) return { data: null, error: parsed.error.issues[0].message };
+
+  const supabase = await createServerSupabaseClient();
+  const { data: currentRow, error: currentError } = await supabase
+    .from('residents')
+    .select(CANDIDATE_SELECT)
+    .eq('id', parsed.data)
+    .maybeSingle();
+  if (currentError) {
+    console.error('[getMergeCandidates] current resident lookup failed:', currentError);
+    return { data: null, error: `Could not load the resident: ${currentError.message}` };
+  }
+  if (!currentRow) return { data: null, error: 'Resident not found' };
+
+  const { data: rows, error } = await supabase
+    .from('residents')
+    .select(CANDIDATE_SELECT)
+    .neq('account_status', 'archived')
+    .is('merged_into_resident_id', null)
+    .neq('id', parsed.data)
+    .order('first_name')
+    .order('last_name')
+    .limit(1000);
+  if (error) {
+    console.error('[getMergeCandidates] resident list failed:', error);
+    return { data: null, error: `Could not load residents: ${error.message}` };
+  }
+
+  const current = toCandidateRow(currentRow as unknown as CandidateQueryRow);
+  const all = ((rows ?? []) as unknown as CandidateQueryRow[]).map(toCandidateRow);
+  return {
+    data: { suggestions: findSuggestions(current, all), results: searchResidents(current, all, query) },
+    error: null,
+  };
 }
 
 export async function mergeResidents(

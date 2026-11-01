@@ -9,8 +9,8 @@ residio_sources:
   - src/actions/residents/merge-residents.ts
   - src/components/residents/resident-merge-dialog.tsx
   - src/components/residents/wallet-transfer-dialog.tsx
-residio_verified_commit: 781fe578
-residio_verified_at: '2026-10-26'
+residio_verified_commit: ef8f9a11
+residio_verified_at: '2026-11-01'
 residio_app_version: '0.4.0'
 ---
 
@@ -53,7 +53,7 @@ Buttons appear only for users who hold the permission the action needs:
 
 Use **More → Merge residents** when one person has two resident records. The merge moves everything from the duplicate to the record you keep, then archives the duplicate. It cannot be undone from the app.
 
-1. Choose the other record, then choose which of the two records to keep.
+1. Choose the other record. Likely duplicates (same phone, same house or a similar name) show first. If the record is not in that list, search all residents by name, resident code, house or phone. Then choose which of the two records to keep.
 2. Read the preview. It lists everything that will move (house links, invoices, payments, the wallet balance and its transactions, WhatsApp opt-ins and links, notification preferences, documents, notes and the rest), the kept wallet's new balance and the combined account balance.
 3. If the preview shows a reason the merge cannot go ahead, fix that first. The merge stops when both records are linked to the same house (end one link with the move-out or unassign tools) or both records have a portal login (unlink one).
 4. Check any warning about a payment or an invoice that may have been entered on both records, and void the extra one first.
