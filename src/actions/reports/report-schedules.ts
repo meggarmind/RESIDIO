@@ -382,6 +382,11 @@ export async function saveGeneratedReport(input: {
     const auth = await authorizePermission(PERMISSIONS.REPORTS_VIEW_FINANCIAL);
     if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
 
+    // The database no longer checks the type (#1399), so this does.
+    if (!(REPORT_TYPE_VALUES as readonly string[]).includes(input.report_type)) {
+        return { data: null, error: 'Unknown report type' };
+    }
+
     const supabase = await createServerSupabaseClient();
 
     // Named fields only: extra properties smuggled in by a caller are ignored, and

@@ -7,13 +7,15 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { getEstateEmailSettings } from '@/lib/email/send-email';
 import { createAdminClient } from '@/lib/supabase/server';
-import type { ReportRequestFormData } from '@/lib/validators/reports';
+import { resolveRetiredReport, type ReportRequestFormData } from '@/lib/validators/reports';
 
 export async function GET(request: NextRequest) {
   const auth = await authorizePermission(PERMISSIONS.REPORTS_VIEW_FINANCIAL);
   if (!auth.authorized) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
 
-  const type = request.nextUrl.searchParams.get('type') as ReportRequestFormData['reportType'];
+  const requestedType = request.nextUrl.searchParams.get('type') as ReportRequestFormData['reportType'] | null;
+  // A History row of a retired report is made again as the report that replaced it (#1399).
+  const type = requestedType ? resolveRetiredReport(requestedType) : requestedType;
   const archiveId = request.nextUrl.searchParams.get('archiveId');
    const preset = request.nextUrl.searchParams.get('preset') || 'last_month';
   const includeAmount = request.nextUrl.searchParams.get('includeAmount') === 'true';
@@ -61,7 +63,8 @@ export async function GET(request: NextRequest) {
      includeAmount,
      includeUnoccupied,
      includeCharts,
-     includeDetails: true,
+     // Invoice lines are off for Debtors and aging unless asked for (#1399); other reports are unchanged.
+     includeDetails: type === 'debtors_aging' || type === 'dues_collection_status' ? request.nextUrl.searchParams.get('includeDetails') === 'true' : true,
      paymentStatus: paymentStatus === 'paid' || paymentStatus === 'unpaid' ? paymentStatus : 'all',
    };
 
