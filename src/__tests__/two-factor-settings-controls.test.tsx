@@ -33,6 +33,10 @@ vi.mock('@/hooks/use-two-factor', () => ({
   useSendBackupCodes: () => mocks.hooks.send,
   useWhatsAppSignInApproval: () => ({ isLoading: false, error: null, data: mocks.whatsApp }),
   useSetWhatsAppSignInApproval: () => mocks.hooks.setWhatsApp,
+  // Remembered computers (#1390) have their own test file.
+  useRememberedComputers: () => ({ isLoading: false, error: null, data: [] }),
+  useForgetRememberedComputer: () => mocks.hooks.forget,
+  useForgetAllRememberedComputers: () => mocks.hooks.forgetAll,
 }));
 
 import { TwoFactorControls } from '@/app/(dashboard)/settings/two-factor/two-factor-controls';
@@ -50,6 +54,8 @@ beforeEach(() => {
     regenerate: mutation(),
     send: mutation(),
     setWhatsApp: mutation(),
+    forget: mutation(),
+    forgetAll: mutation(),
   };
   mocks.whatsApp = { available: false, enabled: false };
 });

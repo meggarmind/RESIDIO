@@ -8,7 +8,7 @@ import { useAuth } from '@/lib/auth/auth-provider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from '@/components/ui/input-otp';
-import { Shield, Smartphone, Mail, Key, AlertCircle, Loader2, MessageCircle } from 'lucide-react';
+import { Shield, Smartphone, Mail, Key, AlertCircle, Loader2, MessageCircle, Monitor } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 type TwoFactorMethod = 'sms' | 'authenticator' | 'email';
@@ -51,6 +51,9 @@ export function Verify2FAForm() {
   const [codeSent, setCodeSent] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [accessState, setAccessState] = useState<'idle' | 'loading' | 'failed'>('idle');
+  // "Remember this computer for 30 days?" (#1390): asked once the second factor is done.
+  const [askRemember, setAskRemember] = useState(false);
+  const [isRemembering, setIsRemembering] = useState(false);
   // WhatsApp approval (#1389): offered when the start route says the account uses it.
   const [whatsAppAvailable, setWhatsAppAvailable] = useState(false);
   const [mode, setMode] = useState<'whatsapp' | 'code'>('code');
@@ -94,6 +97,12 @@ export function Verify2FAForm() {
         return;
       }
 
+      // A remembered computer of this user skips the second factor (#1390).
+      if (await tryRememberedComputer()) {
+        await loadAccessAndEnter();
+        return;
+      }
+
       setMethod(profile.two_factor_method as TwoFactorMethod);
 
       // WhatsApp approval first, when the account uses it (#1389). Otherwise the code entry as before.
@@ -121,7 +130,7 @@ export function Verify2FAForm() {
         if (result.status === 'approved') {
           stopped = true;
           clearInterval(timer);
-          await loadAccessAndEnter();
+          setAskRemember(true);
         } else if (result.status === 'denied') {
           stopped = true;
           clearInterval(timer);
@@ -214,6 +223,29 @@ export function Verify2FAForm() {
     }
   };
 
+  /** True when the server found a remembered computer of this user and set the marker (#1390). */
+  const tryRememberedComputer = async (): Promise<boolean> => {
+    try {
+      const response = await fetch('/api/auth/2fa/trusted-device/use', { method: 'POST' });
+      const result = await response.json();
+      return result?.trusted === true;
+    } catch {
+      return false;
+    }
+  };
+
+  /** The answer to "Remember this computer for 30 days?". Either way, then enter the app. */
+  const answerRemember = async (remember: boolean) => {
+    if (remember) {
+      setIsRemembering(true);
+      // A failure only means the next sign-in asks again, so it does not stop this one.
+      await fetch('/api/auth/2fa/trusted-device/remember', { method: 'POST' }).catch(() => undefined);
+      setIsRemembering(false);
+    }
+    setAskRemember(false);
+    await loadAccessAndEnter();
+  };
+
   // Enter the app only once the access rows have loaded, so the sidebar never
   // renders from an empty pre-2FA profile (#1341).
   const loadAccessAndEnter = async () => {
@@ -253,7 +285,7 @@ export function Verify2FAForm() {
         setError(result.message);
         setCode('');
       } else {
-        await loadAccessAndEnter();
+        setAskRemember(true);
       }
     } catch {
       setError('Verification failed. Please try again.');
@@ -313,6 +345,31 @@ export function Verify2FAForm() {
               </Button>
             </CardContent>
           )}
+        </Card>
+      </div>
+    );
+  }
+
+  if (askRemember) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="flex justify-center mb-4">
+              <Monitor className="h-8 w-8 text-primary" />
+            </div>
+            <CardTitle className="text-2xl">Remember this computer for 30 days?</CardTitle>
+            <CardDescription>Choose No on a shared or public computer.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            <Button onClick={() => answerRemember(true)} disabled={isRemembering}>
+              {isRemembering && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Yes, remember it
+            </Button>
+            <Button variant="outline" onClick={() => answerRemember(false)} disabled={isRemembering}>
+              No, ask me each time
+            </Button>
+          </CardContent>
         </Card>
       </div>
     );
