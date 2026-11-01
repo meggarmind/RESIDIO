@@ -4,7 +4,7 @@ import { getDebtStatuses, type DebtStatus } from '@/lib/billing/debt-status';
 import { ilikeAny } from '@/lib/postgrest-filter';
 import { sanitizeSearchInput } from '@/lib/utils';
 import { createAdminClient } from '@/lib/supabase/server';
-import { formatDay, formatMonth, formatNaira, lagosParts } from '@/lib/whatsapp/assistant-format';
+import { formatDay, formatMonth, formatNaira } from '@/lib/whatsapp/assistant-format';
 import { createSupabaseWhatsAppFinancialRepository, creditLine, type OwedFigures } from '@/lib/whatsapp/financial';
 
 /**
@@ -43,6 +43,8 @@ export interface OwesHouseData {
   unpaidMonths: { from: string; to: string; count: number } | null;
   /** Every verified payment in the calendar month of the latest one (`month` is `YYYY-MM`); null when there is none. */
   lastPayment: { month: string; payments: { amount: number; date: string }[] } | null;
+  /** For a paid-up house: the first and the last month (first days) the last month's payments paid; null otherwise. */
+  paidMonths?: { from: string; to: string } | null;
   walletBalance: number;
 }
 
@@ -83,51 +85,88 @@ function shortNaira(amount: number): string {
   return `₦${amount.toLocaleString('en-NG', { maximumFractionDigits: 2 })}`;
 }
 
-function statusText(status: OwesHouseData['status']): string {
-  if (status.key === 'arrears') return 'Owing ⛔';
-  if (status.key === 'outstanding') return 'Owing ⚠️';
-  if (status.key) return 'Cleared 🟢';
+/** The icon after the house code (owner, 1 Nov 2026): paid up, paid up with credit, arrears, outstanding. */
+function statusIcon(key: DebtStatus | null): string {
+  if (key === 'arrears') return ' ⛔';
+  if (key === 'outstanding') return ' ⚠️';
+  if (key === 'credit') return ' ✅';
+  if (key === 'paid_in_full') return ' 🟢';
+  return '';
+}
+
+function statusWord(status: OwesHouseData['status']): string {
+  if (status.key === 'arrears' || status.key === 'outstanding') return 'Outstanding';
+  if (status.key) return 'Paid up';
   return status.label;
 }
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-/** `Next Payment Due January 2027.`, or `Next Payment Due November.` in the current year (owner, 31 Oct 2026). */
-function nextPaymentDueLine(due: string, now: Date): string {
+/** `Next Payment Due January 2027.` */
+function nextPaymentDueLine(due: string): string {
   const [year, month] = due.split('-').map(Number);
-  return `Next Payment Due ${MONTH_NAMES[month - 1]}${year === lagosParts(now).year ? '' : ` ${year}`}.`;
+  return `Next Payment Due ${MONTH_NAMES[month - 1]} ${year}.`;
 }
 
-function lastPaidLine(lastPayment: OwesHouseData['lastPayment']): string {
+/**
+ * The months a payment paid when every payment goes to the oldest bill first: `paidBefore` is what earlier
+ * payments paid, `amount` the payment. Credit left after the last bill pays `creditMonths` ahead.
+ */
+export function monthsPaidBy(
+  bills: { periodStart: string; amount: number }[],
+  paidBefore: number,
+  amount: number,
+  creditMonths: string[] = [],
+): { from: string; to: string } | null {
+  let billed = 0;
+  let from: string | null = null;
+  let to: string | null = null;
+  for (const bill of [...bills].sort((a, b) => a.periodStart.localeCompare(b.periodStart))) {
+    const start = billed;
+    billed += bill.amount;
+    if (bill.amount <= 0 || billed <= paidBefore || start >= paidBefore + amount) continue;
+    from ??= bill.periodStart;
+    to = bill.periodStart;
+  }
+  if (paidBefore + amount > billed && creditMonths.length) {
+    from ??= creditMonths[0];
+    to = creditMonths[creditMonths.length - 1];
+  }
+  return from && to ? { from, to } : null;
+}
+
+function lastPaidLine(lastPayment: OwesHouseData['lastPayment'], paidMonths?: OwesHouseData['paidMonths']): string {
   if (!lastPayment) return 'No payment on record.';
   const payments = [...lastPayment.payments].sort((a, b) => a.date.localeCompare(b.date));
   const total = payments.reduce((sum, payment) => sum + payment.amount, 0);
-  const line = `Last paid: ${formatNaira(total)} in ${formatMonth(`${lastPayment.month}-01`)}`;
-  if (payments.length < 2) return `${line}.`;
+  // Owner sample (1 Nov 2026): `Last paid: ₦120,000.00 in Mar 2026 (Nov 2025 - Oct 2026)`.
+  const range = !paidMonths ? '' : paidMonths.from.slice(0, 7) === paidMonths.to.slice(0, 7)
+    ? ` (${formatMonth(paidMonths.from)})`
+    : ` (${formatMonth(paidMonths.from)} - ${formatMonth(paidMonths.to)})`;
+  const line = `Last paid: ${formatNaira(total)} in ${formatMonth(`${lastPayment.month}-01`)}${range}`;
+  if (payments.length < 2) return range ? line : `${line}.`;
   const parts = payments.map((payment) => `${shortNaira(payment.amount)} on ${formatDay(payment.date).slice(0, -5)}`);
   return `${line}, in ${payments.length} payments (${parts.join(', ')})`;
 }
 
 /**
- * Layout the owner approved (#1371): status in the heading, then the outstanding amount with its months,
- * then the last month paid, for example
- * `*OJO.K-4, CONSTANCE OKA*: Owing ⚠️` / `Outstanding of *₦10,000.00* for 2 months (Sep 2026 to Oct 2026).` /
- * `Last paid: ₦100,000.00 in Jun 2025.`
- * A cleared house shows when the next payment is due in place of the credit line (owner, 31 Oct 2026).
+ * Short lines so a long name does not wrap on a phone (owner, 1 Nov 2026), for example
+ * `*OJO.K-4* ⚠️` / `Name: CONSTANCE OKA` / `Status: Outstanding` /
+ * `Outstanding of *₦10,000.00* for 2 months (Sep 2026 to Oct 2026).` / `Last paid: ₦100,000.00 in Jun 2025.`
+ * A paid-up house shows when the next payment is due in place of the credit line.
  */
-export function composeAdminOwesAnswer(data: OwesHouseData, now: Date): string {
+export function composeAdminOwesAnswer(data: OwesHouseData): string {
   if (!data.billedTo) return [`*${data.houseLabel}*`, 'No resident is billed for this house, so there is no figure to show.'].join('\n');
-  const lines = [`*${data.houseLabel}, ${data.billedTo.name}*: ${statusText(data.status)}`];
+  const lines = [`*${data.houseLabel}*${statusIcon(data.status.key)}`, `Name: ${data.billedTo.name}`, `Status: ${statusWord(data.status)}`];
   const owed = data.owed;
   if (!owed || owed.invoiceCount === 0) lines.push('No bills on record.');
   else if (owed.outstanding > 0) {
     const months = data.unpaidMonths;
     lines.push(`Outstanding of *${formatNaira(owed.outstanding)}*${months ? ` for ${months.count} ${months.count === 1 ? 'month' : 'months'} (${monthRange(months)})` : ''}.`);
   } else if (owed.outstanding < 0) lines.push(`Outstanding: nothing, ${formatNaira(-owed.outstanding)} in credit.`);
-  else lines.push('Outstanding: nothing.');
-  lines.push(lastPaidLine(data.lastPayment));
+  lines.push(lastPaidLine(data.lastPayment, data.paidMonths));
   // The wallet pays bills as they are made, so credit next to an open bill is for another charge category.
-  if (owed?.nextPaymentDue && owed.outstanding <= 0 && !owed.rollForward) lines.push(nextPaymentDueLine(owed.nextPaymentDue, now));
+  if (owed?.nextPaymentDue && owed.outstanding <= 0 && !owed.rollForward) lines.push(nextPaymentDueLine(owed.nextPaymentDue));
   else if (owed?.credit) lines.push(creditLine(owed.credit));
   else if (data.walletBalance > 0 && (owed?.outstanding ?? 0) > 0) lines.push(`Credit: ${formatNaira(data.walletBalance)} (not for these bills)`);
   else if (data.walletBalance > 0 && !owed?.rollForward) lines.push(`Credit: ${formatNaira(data.walletBalance)}`);
@@ -169,7 +208,7 @@ async function answerHouse(input: OwesRunInput, houseId: string): Promise<string
     description: 'Admin looked up what a house owes on WhatsApp',
     metadata: { channel: 'whatsapp_admin', billed_resident_id: data.billedTo?.residentId ?? null },
   });
-  return composeAdminOwesAnswer(data, input.now);
+  return composeAdminOwesAnswer(data);
 }
 
 export async function runAdminOwesLookup(input: OwesRunInput): Promise<string> {
@@ -289,6 +328,7 @@ export function createSupabaseOwesRepository(): OwesRepository {
       let owed: OwedFigures | null = null;
       let unpaidMonths: OwesHouseData['unpaidMonths'] = null;
       let lastPayment: OwesHouseData['lastPayment'] = null;
+      let paidMonths: OwesHouseData['paidMonths'] = null;
       if (residentId) {
         const [resident, figures, unpaid, latest] = await Promise.all([
           supabase.from('residents').select('first_name, last_name').eq('id', residentId).maybeSingle(),
@@ -337,6 +377,35 @@ export function createSupabaseOwesRepository(): OwesRepository {
             .order('payment_date', { ascending: true });
           if (inMonth.error) throw inMonth.error;
           lastPayment = { month, payments: (inMonth.data || []).map((row) => ({ amount: Number(row.amount || 0), date: String(row.payment_date).slice(0, 10) })) };
+          if (status?.status === 'paid_in_full' || status?.status === 'credit') {
+            // Which bills those payments paid, oldest bill first (owner, 1 Nov 2026).
+            const [bills, earlier] = await Promise.all([
+              supabase
+                .from('invoices')
+                .select('period_start, amount_due')
+                .eq('resident_id', residentId)
+                .eq('house_id', houseId)
+                .eq('invoice_type', 'SERVICE_CHARGE')
+                .neq('status', 'void')
+                .not('period_start', 'is', null),
+              supabase
+                .from('payment_records')
+                .select('amount')
+                .eq('resident_id', residentId)
+                .eq('house_id', houseId)
+                .eq('status', 'paid')
+                .eq('is_verified', true)
+                .lt('payment_date', `${month}-01`),
+            ]);
+            if (bills.error) throw bills.error;
+            if (earlier.error) throw earlier.error;
+            paidMonths = monthsPaidBy(
+              (bills.data || []).map((bill) => ({ periodStart: String(bill.period_start).slice(0, 10), amount: Number(bill.amount_due || 0) })),
+              (earlier.data || []).reduce((sum, row) => sum + Number(row.amount || 0), 0),
+              lastPayment.payments.reduce((sum, payment) => sum + payment.amount, 0),
+              figures?.credit?.months ?? [],
+            );
+          }
         }
       }
       return {
@@ -347,6 +416,7 @@ export function createSupabaseOwesRepository(): OwesRepository {
         owed,
         unpaidMonths,
         lastPayment,
+        paidMonths,
         walletBalance: status?.walletBalance ?? 0,
       };
     },
