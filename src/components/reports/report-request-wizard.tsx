@@ -582,7 +582,7 @@ function OptionsStep({
                                     List each unpaid invoice under its debtor
                                 </p>
                             </div>
-                            <Switch checked={includeDetails} onCheckedChange={onIncludeDetailsChange} />
+                            <Switch checked={includeDetails} onCheckedChange={onIncludeDetailsChange} aria-label="Show invoice lines" />
                         </div>
                     )}
 

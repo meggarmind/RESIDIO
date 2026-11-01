@@ -12,6 +12,7 @@ import { isSummaryReport, type SummaryReportData } from '@/lib/reports/summary-r
 import { reportRequestSchema, type ReportRequestFormData } from '@/lib/validators/reports';
 
 const DAY = 24 * 60 * 60 * 1000;
+const n = (v: unknown) => Number(String(v).replace(/,/g, ''));
 const daysAgo = (n: number) => new Date(Date.now() - n * DAY).toISOString().slice(0, 10);
 
 const person = (id: string, first: string) => ({ id, first_name: first, last_name: 'Test', resident_code: `R-${id}`, email: `${id}@x.test`, phone_primary: `080${id}`, phone_secondary: null });
@@ -65,7 +66,7 @@ describe('Debtors and aging report (#1399)', () => {
       ['61-90 days', 30000],
       ['Over 90 days', 50000],
     ]);
-    expect(data.table.totals).toMatchObject({ current: 10000, days1to30: 15000, days31to60: 30000, days61to90: 30000, over90Days: 50000, total: 135000 });
+    expect(data.table.totals).toMatchObject({ current: '10,000.00', days1to30: '15,000.00', days31to60: '30,000.00', days61to90: '30,000.00', over90Days: '50,000.00', total: '135,000.00' });
   });
 
   it('cuts the buckets at exactly 0, 1, 30, 31, 60, 61, 90 and 91 days', async () => {
@@ -87,14 +88,15 @@ describe('Debtors and aging report (#1399)', () => {
       ['Oldest debt', '120 days'],
     ]);
     // Month name, never numeric (CORE.md section 4).
-    expect(data.summary[3].hint).toMatch(/^Due \d{2} [A-Z][a-z]{2} \d{4}$/);
+    expect(data.summary[3].hint).toMatch(/^Due \d{2} [A-Z][a-z]{3,8} \d{4}$/);
+    expect(data.summary[3].hint).not.toMatch(/\d{1,2}[/-]\d{1,2}/);
   });
 
   it('has one row per debtor, biggest first, with contact and amounts per bucket', async () => {
     const data = await run(INVOICES, { includeDetails: false });
     expect(data.table.rows).toHaveLength(2);
-    expect(data.table.rows[0]).toMatchObject({ debtor: 'Bola Test', house: '2', street: 'Palm Close', contact: '0802, 2@x.test', over90Days: 50000, total: 80000 });
-    expect(data.table.rows[1]).toMatchObject({ debtor: 'Ada Test', current: 10000, days1to30: 15000, days31to60: 30000, total: 55000 });
+    expect(data.table.rows[0]).toMatchObject({ debtor: 'Bola Test', house: '2', street: 'Palm Close', contact: '0802, 2@x.test', over90Days: '50,000.00', total: '80,000.00' });
+    expect(data.table.rows[1]).toMatchObject({ debtor: 'Ada Test', current: '10,000.00', days1to30: '15,000.00', days31to60: '30,000.00', total: '55,000.00' });
   });
 
   it('adds one invoice row under each debtor only when invoice lines are on', async () => {
@@ -102,8 +104,8 @@ describe('Debtors and aging report (#1399)', () => {
     const on = await run(INVOICES, { includeDetails: true });
     expect(off.table.rows).toHaveLength(2);
     expect(on.table.rows).toHaveLength(2 + 5);
-    expect(on.table.rows[1].debtor).toMatch(/INV-b120, due \d{2} [A-Z][a-z]{2} \d{4}, 120 days late/);
-    expect(on.table.rows[1]).toMatchObject({ over90Days: 50000, total: 50000, house: null });
+    expect(on.table.rows[1].debtor).toMatch(/INV-b120, due \d{2} [A-Z][a-z]{3,8} \d{4}, 120 days late/);
+    expect(on.table.rows[1]).toMatchObject({ over90Days: '50,000.00', total: '50,000.00', house: null });
     // Lines are detail: the totals row and the tiles do not change.
     expect(on.table.totals).toEqual(off.table.totals);
     expect(on.summary).toEqual(off.summary);
@@ -119,32 +121,44 @@ describe('Debtors and aging report (#1399)', () => {
     const old = await generateDebtorsReport(clientWith(INVOICES));
     const data = await run(INVOICES, { includeDetails: false });
     const totals = data.table.totals!;
-    expect(totals.total).toBe(old.summary.totalOutstanding);
+    expect(n(totals.total)).toBe(old.summary.totalOutstanding);
     // The old 0-30 bucket is split in two (not yet due / 1-30 late); the rest are the same.
-    expect((totals.current as number) + (totals.days1to30 as number)).toBe(old.summary.current);
-    expect(totals.days31to60).toBe(old.summary.days31to60);
-    expect(totals.days61to90).toBe(old.summary.days61to90);
-    expect(totals.over90Days).toBe(old.summary.over90Days);
+    expect(n(totals.current) + n(totals.days1to30)).toBe(old.summary.current);
+    expect(n(totals.days31to60)).toBe(old.summary.days31to60);
+    expect(n(totals.days61to90)).toBe(old.summary.days61to90);
+    expect(n(totals.over90Days)).toBe(old.summary.over90Days);
     expect(data.summary[1].value).toBe(old.summary.totalDebtors);
-    expect(data.table.rows.map((r) => [r.debtor, r.total])).toEqual(old.debtors.map((d) => [d.residentName, d.totalOutstanding]));
+    expect(data.table.rows.map((r) => r.debtor)).toEqual(old.debtors.map((d) => d.residentName));
+    expect(data.table.rows.map((r) => n(r.total))).toEqual(old.debtors.map((d) => d.totalOutstanding));
   });
 
   it('equals the retired Invoice Aging report: total and every bracket', async () => {
     const old = await generateInvoiceAging(clientWith(INVOICES));
     const totals = (await run(INVOICES)).table.totals!;
-    expect(totals.total).toBe(old.summary.totalOutstanding);
-    expect((totals.current as number) + (totals.days1to30 as number)).toBe(old.summary.current);
-    expect(totals.days31to60).toBe(old.summary.days30to60);
-    expect(totals.days61to90).toBe(old.summary.days60to90);
-    expect(totals.over90Days).toBe(old.summary.over90Days);
+    expect(n(totals.total)).toBe(old.summary.totalOutstanding);
+    expect(n(totals.current) + n(totals.days1to30)).toBe(old.summary.current);
+    expect(n(totals.days31to60)).toBe(old.summary.days30to60);
+    expect(n(totals.days61to90)).toBe(old.summary.days60to90);
+    expect(n(totals.over90Days)).toBe(old.summary.over90Days);
   });
 
-  it('keeps an invoice with no resident (the Aging report counted it) under "Unknown resident"', async () => {
-    const rows = [...INVOICES, invoice('x', null, '9', 10, 7000, 0)];
+  it('shows every money cell with 2 decimals', async () => {
+    const data = await run([invoice('m', A, '1', 5, 1234.5, 0)], { includeDetails: false });
+    expect(data.table.rows[0]).toMatchObject({ days1to30: '1,234.50', current: '0.00', total: '1,234.50' });
+    expect(data.table.totals).toMatchObject({ days1to30: '1,234.50', total: '1,234.50' });
+  });
+
+  it('counts an invoice with no resident in the money, one "No resident linked" row per house, not as a debtor', async () => {
+    const rows = [...INVOICES, invoice('x', null, '9', 10, 7000, 0), invoice('y', null, '8', 20, 3000, 0), invoice('z', null, '9', 30, 500, 0)];
     const old = await generateInvoiceAging(clientWith(rows));
     const data = await run(rows, { includeDetails: false });
-    expect(data.table.totals!.total).toBe(old.summary.totalOutstanding);
-    expect(data.table.rows.map((r) => r.debtor)).toContain('Unknown resident');
+    expect(n(data.table.totals!.total)).toBe(old.summary.totalOutstanding);
+    const unlinked = data.table.rows.filter((r) => r.debtor === 'No resident linked');
+    expect(unlinked.map((r) => [r.house, r.total]).sort()).toEqual([['8', '3,000.00'], ['9', '7,500.00']]);
+    expect(data.table.rows.map((r) => r.debtor)).not.toContain('Unknown resident');
+    expect(data.summary[1].value).toBe(2);
+    expect(data.notes!.join(' ')).toContain('No resident linked');
+    expect((await run(INVOICES)).notes!.join(' ')).not.toContain('No resident linked');
   });
 
   it('a database error fails the report with its message', async () => {
@@ -182,24 +196,117 @@ describe('Server PDF for a summary-layout report (#1399)', () => {
   });
 });
 
+async function runSchedule(schedule: Record<string, unknown>, renderResult: Buffer | null = null) {
+  vi.resetModules();
+  const generate = vi.fn().mockResolvedValue({ success: true, report: { type: 'debtors_aging', layout: 'summary', data: {} } });
+  const render = vi.fn().mockResolvedValue(renderResult);
+  const inserted: Record<string, unknown>[] = [];
+  const uploaded: string[] = [];
+  const send = vi.fn().mockResolvedValue({ success: true });
+  const email = vi.fn((props: unknown) => props);
+  const chain: Record<string, unknown> = {};
+  for (const method of ['select', 'eq', 'lte', 'update']) chain[method] = () => chain;
+  chain.order = async () => ({ data: [schedule], error: null });
+  chain.insert = (row: Record<string, unknown>) => { inserted.push(row); return chain; };
+  chain.single = async () => ({ data: { id: 'a1' }, error: null });
+  vi.doMock('@/lib/supabase/server', () => ({
+    createAdminClient: () => ({
+      from: () => chain,
+      storage: { from: () => ({ upload: async (name: string) => { uploaded.push(name); return { error: null }; } }) },
+    }),
+  }));
+  vi.doMock('@/lib/reports/report-generator', () => ({ generateReportWithClient: generate }));
+  vi.doMock('@/lib/pdf/reports/renderer', () => ({ renderReportPdf: render }));
+  vi.doMock('@/lib/email/send-email', () => ({ sendEmail: send, getEstateEmailSettings: vi.fn().mockResolvedValue({ estateName: 'Test Estate' }) }));
+  vi.doMock('@/emails/scheduled-report', () => ({ ScheduledReportEmail: email }));
+  vi.doMock('@/lib/audit/logger', () => ({ logAudit: vi.fn() }));
+  const { processDueSchedules } = await import('@/lib/reports/process-schedules');
+  await processDueSchedules();
+  for (const m of ['@/lib/supabase/server', '@/lib/reports/report-generator', '@/lib/pdf/reports/renderer', '@/lib/email/send-email', '@/emails/scheduled-report', '@/lib/audit/logger']) vi.doUnmock(m);
+  return { generate, render, inserted, uploaded, send, email };
+}
+
+const baseSchedule = { id: 's1', period_preset: 'last_month', frequency: 'monthly', bank_account_ids: [], recipients: ['a@x.test'], configuration: {}, include_summary: true };
+
 describe('processDueSchedules runs a retired report as Debtors and aging (#1399)', () => {
   it.each(['debtors_report', 'invoice_aging'])('a %s schedule', async (savedType) => {
+    const r = await runSchedule({ ...baseSchedule, report_type: savedType }, Buffer.from('%PDF-test'));
+    expect(r.generate.mock.calls[0][1].reportType).toBe('debtors_aging');
+    expect(r.render.mock.calls[0][0]).toBe('debtors_aging');
+    // The archive row, the stored file name and the email all use the resolved type.
+    expect(r.inserted[0].report_type).toBe('debtors_aging');
+    expect(r.uploaded[0]).toMatch(/^debtors_aging-/);
+    expect(r.send.mock.calls[0][0].subject).toBe('Scheduled Report: debtors_aging');
+    expect(r.send.mock.calls[0][0].metadata.reportType).toBe('debtors_aging');
+    // A point-in-time report states no period in the email.
+    expect(r.email.mock.calls[0][0]).toMatchObject({ reportLabel: 'Debtors and aging', periodLabel: undefined });
+  });
+
+  it('a period report still states its period', async () => {
+    const r = await runSchedule({ ...baseSchedule, report_type: 'transaction_log' }, Buffer.from('%PDF-test'));
+    expect((r.email.mock.calls[0][0] as { periodLabel: string }).periodLabel).toMatch(/ to /);
+  });
+});
+
+describe('Invoice lines follow the saved choice (#1399)', () => {
+  it.each([
+    ['debtors_aging', true, true],
+    ['debtors_aging', false, false],
+    ['debtors_aging', null, false],
+    ['debtors_report', true, false],
+    ['invoice_aging', true, false],
+    ['transaction_log', false, true],
+  ])('%s with include_summary %s generates with includeDetails %s', async (type, includeSummary, expected) => {
+    const r = await runSchedule({ ...baseSchedule, report_type: type, include_summary: includeSummary });
+    expect(r.generate.mock.calls[0][1].includeDetails).toBe(expected);
+  });
+});
+
+describe('saveGeneratedReport refuses an unknown report type (#1399)', () => {
+  it('writes nothing for a type outside the list', async () => {
     vi.resetModules();
-    const generate = vi.fn().mockResolvedValue({ success: true, report: { type: 'debtors_aging', layout: 'summary', data: {} } });
-    const render = vi.fn().mockResolvedValue(null);
-    const schedule = { id: 's1', report_type: savedType, period_preset: 'last_month', frequency: 'monthly', bank_account_ids: [], recipients: [], configuration: {} };
-    const chain: Record<string, unknown> = {};
-    for (const method of ['select', 'eq', 'lte']) chain[method] = () => chain;
-    chain.order = async () => ({ data: [schedule], error: null });
-    vi.doMock('@/lib/supabase/server', () => ({ createAdminClient: () => ({ from: () => chain }) }));
-    vi.doMock('@/lib/reports/report-generator', () => ({ generateReportWithClient: generate }));
-    vi.doMock('@/lib/pdf/reports/renderer', () => ({ renderReportPdf: render }));
-    vi.doMock('@/lib/email/send-email', () => ({ sendEmail: vi.fn(), getEstateEmailSettings: vi.fn().mockResolvedValue({ estateName: 'Test Estate' }) }));
+    const from = vi.fn();
+    vi.doMock('@/lib/auth/authorize', () => ({ authorizePermission: async () => ({ authorized: true, userId: 'u1', permissions: [] }) }));
+    vi.doMock('@/lib/supabase/server', () => ({ createServerSupabaseClient: async () => ({ from }) }));
     vi.doMock('@/lib/audit/logger', () => ({ logAudit: vi.fn() }));
-    const { processDueSchedules } = await import('@/lib/reports/process-schedules');
-    await processDueSchedules();
-    expect(generate.mock.calls[0][1].reportType).toBe('debtors_aging');
+    const { saveGeneratedReport } = await import('@/actions/reports/report-schedules');
+    const base = { name: 'x', period_start: '2026-01-01', period_end: '2026-01-31', report_data: {} };
+    expect(await saveGeneratedReport({ ...base, report_type: 'bogus' as never })).toEqual({ data: null, error: 'Unknown report type' });
+    expect(from).not.toHaveBeenCalled();
+    for (const m of ['@/lib/auth/authorize', '@/lib/supabase/server', '@/lib/audit/logger']) vi.doUnmock(m);
+  });
+});
+
+describe('/api/reports/download regenerates a retired History row as Debtors and aging (#1399)', () => {
+  async function download(query: string) {
+    vi.resetModules();
+    const generateReport = vi.fn().mockResolvedValue({ success: true, report: { type: 'debtors_aging', layout: 'summary', data: {} } });
+    const render = vi.fn().mockResolvedValue(Buffer.from('%PDF-test'));
+    vi.doMock('@/actions/reports/report-engine', () => ({ generateReport }));
+    vi.doMock('@/lib/pdf/reports/renderer', () => ({ renderReportPdf: render }));
+    vi.doMock('@/lib/pdf/reports/archive', () => ({ storeReportPdf: vi.fn().mockResolvedValue(null) }));
+    vi.doMock('@/lib/audit/logger', () => ({ logAudit: vi.fn() }));
+    vi.doMock('@/lib/auth/authorize', () => ({ authorizePermission: async () => ({ authorized: true, userId: 'u1' }) }));
+    vi.doMock('@/lib/email/send-email', () => ({ getEstateEmailSettings: async () => ({ estateName: 'Test Estate' }) }));
+    vi.doMock('@/lib/supabase/server', () => ({ createAdminClient: () => ({}) }));
+    const { GET } = await import('@/app/api/reports/download/route');
+    const { NextRequest } = await import('next/server');
+    const res = await GET(new NextRequest(`http://localhost/api/reports/download?${query}`));
+    for (const m of ['@/actions/reports/report-engine', '@/lib/pdf/reports/renderer', '@/lib/pdf/reports/archive', '@/lib/audit/logger', '@/lib/auth/authorize', '@/lib/email/send-email', '@/lib/supabase/server']) vi.doUnmock(m);
+    return { res, generateReport, render };
+  }
+
+  it.each(['debtors_report', 'invoice_aging'])('%s', async (type) => {
+    const { res, generateReport, render } = await download(`type=${type}`);
+    expect(generateReport.mock.calls[0][0].reportType).toBe('debtors_aging');
     expect(render.mock.calls[0][0]).toBe('debtors_aging');
-    for (const m of ['@/lib/supabase/server', '@/lib/reports/report-generator', '@/lib/pdf/reports/renderer', '@/lib/email/send-email', '@/lib/audit/logger']) vi.doUnmock(m);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Disposition')).toContain('debtors_aging-');
+  });
+
+  it('shows invoice lines only when asked for, and leaves other reports alone', async () => {
+    expect((await download('type=debtors_aging')).generateReport.mock.calls[0][0].includeDetails).toBe(false);
+    expect((await download('type=debtors_aging&includeDetails=true')).generateReport.mock.calls[0][0].includeDetails).toBe(true);
+    expect((await download('type=transaction_log')).generateReport.mock.calls[0][0].includeDetails).toBe(true);
   });
 });

@@ -26,6 +26,13 @@ function periodLabelFor(params: ReportRequestFormData): string | undefined {
   return `${formatEmailDate(startDate)} to ${formatEmailDate(endDate)}`;
 }
 
+// Debtors and aging shows invoice lines only when the schedule saved that choice; a schedule of a
+// retired report saved none. Every other report keeps its old value (#1399).
+function includeDetailsFor(savedType: ReportRequestFormData['reportType'], includeSummary: boolean | null): boolean {
+  if (resolveRetiredReport(savedType) !== 'debtors_aging') return true;
+  return savedType === 'debtors_aging' && includeSummary === true;
+}
+
 export async function processDueSchedules(): Promise<{ processed: number; failed: number; errors: string[] }> {
   const supabase = createAdminClient();
   const now = new Date().toISOString();
@@ -61,7 +68,8 @@ export async function processDueSchedules(): Promise<{ processed: number; failed
          categoryIds: [],
          transactionType: 'all',
          aggregation: 'monthly',
-         includeDetails: true,
+         // Invoice lines are a Debtors and aging choice; a retired schedule has none saved, so none are shown.
+         includeDetails: includeDetailsFor(schedule.report_type, schedule.include_summary),
          paymentStatus: 'all',
       };
 

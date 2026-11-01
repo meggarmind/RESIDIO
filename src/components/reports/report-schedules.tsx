@@ -243,7 +243,7 @@ function CreateScheduleDialog({
                             <Label>Report Type *</Label>
                             <Select
                                 value={formData.report_type}
-                                onValueChange={(v) => setFormData({ ...formData, report_type: v as CreateScheduleInput['report_type'] })}
+                                onValueChange={(v) => setFormData({ ...formData, report_type: v as CreateScheduleInput['report_type'], include_summary: v !== 'debtors_aging' })}
                             >
                                 <SelectTrigger>
                                     <SelectValue />

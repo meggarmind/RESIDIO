@@ -1055,7 +1055,9 @@ function agingBucketFor(daysOverdue: number): AgingBucketKey {
 
 const emptyBuckets = (): Record<AgingBucketKey, number> => ({ current: 0, days1to30: 0, days31to60: 0, days61to90: 0, over90Days: 0 });
 
-const reportDate = (value: string) => formatCalendarDate(value, 'en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+const reportDate = (value: string) => formatCalendarDate(value, 'en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+const moneyCells = (amounts: Record<AgingBucketKey, number>) =>
+  Object.fromEntries(Object.entries(amounts).map(([key, amount]) => [key, money(amount)]));
 const money = (amount: number) => amount.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 async function generateDebtorsAging(
@@ -1097,6 +1099,7 @@ async function generateDebtorsAging(
   interface Line { invoiceNumber: string; dueDate: string; daysOverdue: number; outstanding: number; bucket: AgingBucketKey }
   const debtorMap = new Map<string, {
     name: string;
+    linked: boolean;
     house: string;
     street: string;
     contact: string;
@@ -1120,14 +1123,18 @@ async function generateDebtorsAging(
     const bucket = agingBucketFor(daysOverdue);
 
     // The Debtors report skipped an invoice with no resident, the Aging report counted it. Counting it
-    // (as "Unknown resident") keeps the total equal to the Aging report and hides no money.
-    const key = resident?.id ?? 'unknown';
+    // (one "No resident linked" row for each house) keeps the total equal to the Aging report and hides
+    // no money. It is not a debtor, so the Debtors figure leaves it out.
+    const houseName = house?.house_number || 'N/A';
+    const streetName = house?.street?.name || 'N/A';
+    const key = resident?.id ?? `no-resident:${houseName}|${streetName}`;
     let debtor = debtorMap.get(key);
     if (!debtor) {
       debtor = {
-        name: resident ? `${resident.first_name} ${resident.last_name}` : 'Unknown resident',
-        house: house?.house_number || 'N/A',
-        street: house?.street?.name || 'N/A',
+        name: resident ? `${resident.first_name} ${resident.last_name}` : 'No resident linked',
+        linked: resident !== null,
+        house: houseName,
+        street: streetName,
         contact: resident ? [resident.phone_primary, resident.phone_secondary, resident.email].filter(Boolean).join(', ') : '',
         buckets: emptyBuckets(),
         total: 0,
@@ -1145,6 +1152,8 @@ async function generateDebtorsAging(
   const debtors = Array.from(debtorMap.values()).sort((a, b) => b.total - a.total);
   const totalOwed = debtors.reduce((sum, d) => sum + d.total, 0);
   const owedOver90 = bucketTotals.over90Days;
+  const debtorCount = debtors.filter((d) => d.linked).length;
+  const hasUnlinked = debtors.some((d) => !d.linked);
 
   const rows: Record<string, SummaryCell>[] = [];
   for (const d of debtors) {
@@ -1153,8 +1162,8 @@ async function generateDebtorsAging(
       house: d.house,
       street: d.street,
       contact: d.contact,
-      ...d.buckets,
-      total: d.total,
+      ...moneyCells(d.buckets),
+      total: money(d.total),
     });
     // "Show invoice lines": one indented row per invoice straight under its debtor, in the same table.
     if (showInvoiceLines) {
@@ -1162,9 +1171,9 @@ async function generateDebtorsAging(
         rows.push({
           debtor: `    ${line.invoiceNumber || 'Invoice'}, due ${reportDate(line.dueDate)}, ${line.daysOverdue} days late`,
           house: null, street: null, contact: null,
-          ...emptyBuckets(),
-          [line.bucket]: line.outstanding,
-          total: line.outstanding,
+          ...moneyCells(emptyBuckets()),
+          [line.bucket]: money(line.outstanding),
+          total: money(line.outstanding),
         });
       }
     }
@@ -1173,7 +1182,7 @@ async function generateDebtorsAging(
   const data: SummaryReportData = {
     summary: [
       { label: 'Total owed (NGN)', value: money(totalOwed), tone: totalOwed > 0 ? 'bad' : 'good' },
-      { label: 'Debtors', value: debtors.length, tone: debtors.length > 0 ? 'bad' : 'good' },
+      { label: 'Debtors', value: debtorCount, tone: debtorCount > 0 ? 'bad' : 'good' },
       { label: 'Owed over 90 days (NGN)', value: money(owedOver90), tone: owedOver90 > 0 ? 'bad' : 'good' },
       oldest
         ? { label: 'Oldest debt', value: `${oldest.daysOverdue} days`, tone: 'neutral', hint: `Due ${reportDate(oldest.dueDate)}` }
@@ -1193,9 +1202,12 @@ async function generateDebtorsAging(
         { key: 'total', label: 'Total', align: 'right' as const },
       ],
       rows,
-      totals: { debtor: 'Total', house: null, street: null, contact: null, ...bucketTotals, total: totalOwed },
+      totals: { debtor: 'Total', house: null, street: null, contact: null, ...moneyCells(bucketTotals), total: money(totalOwed) },
     },
-    notes: ['Amounts are what is still unpaid on invoices that are unpaid or part paid. Age is days past the due date.'],
+    notes: [
+      'Amounts are what is still unpaid on invoices that are unpaid or part paid. Age is days past the due date.',
+      ...(hasUnlinked ? ['Rows marked "No resident linked" are unpaid invoices with no resident. Their money is in the totals, but they are not counted as debtors.'] : []),
+    ],
   };
 
   return { type: 'debtors_aging', layout: 'summary', data };

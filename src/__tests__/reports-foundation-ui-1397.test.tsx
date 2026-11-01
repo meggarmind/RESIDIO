@@ -235,6 +235,49 @@ describe('ReportRequestWizard (#1397)', () => {
     expect(screen.getByText('This report cannot be generated yet, so it cannot be scheduled.')).toBeTruthy();
   });
 
+  // Debtors and aging skips the time period and accounts steps: one Next reaches Options (#1399).
+  it('Debtors and aging starts with invoice lines off, and the switch turns them on', async () => {
+    const off = renderWizard(['debtors_aging']);
+    fireEvent.click(screen.getByRole('button', { name: /^Next/ }));
+    const lines = screen.getByRole('switch', { name: 'Show invoice lines' });
+    expect(lines.getAttribute('aria-checked')).toBe('false');
+    fireEvent.click(screen.getByRole('button', { name: /^Next/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Generate Report/ }));
+    await waitFor(() => expect(off).toHaveBeenCalledTimes(1));
+    expect(off.mock.calls[0][0]).toMatchObject({ reportType: 'debtors_aging', includeDetails: false });
+
+    cleanup();
+    const on = renderWizard(['debtors_aging']);
+    fireEvent.click(screen.getByRole('button', { name: /^Next/ }));
+    fireEvent.click(screen.getByRole('switch', { name: 'Show invoice lines' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Next/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Generate Report/ }));
+    await waitFor(() => expect(on).toHaveBeenCalledTimes(1));
+    expect(on.mock.calls[0][0]).toMatchObject({ includeDetails: true });
+  });
+
+  it('choosing Debtors and aging in the picker turns invoice lines off; choosing another report turns them on', async () => {
+    const onGenerate = renderWizard(['financial_overview', 'debtors_aging']);
+    const list = screen.getByTestId('report-type-list');
+    fireEvent.click(within(list).getByRole('button', { name: 'Debtors and aging' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Next/ }));
+    expect(screen.getByRole('switch', { name: 'Show invoice lines' }).getAttribute('aria-checked')).toBe('false');
+    fireEvent.click(screen.getByRole('button', { name: /^Back|Previous/ }));
+    fireEvent.click(within(screen.getByTestId('report-type-list')).getByRole('button', { name: 'Financial Overview' }));
+    toReview();
+    fireEvent.click(screen.getByRole('button', { name: /Generate Report/ }));
+    await waitFor(() => expect(onGenerate).toHaveBeenCalledTimes(1));
+    expect(onGenerate.mock.calls[0][0]).toMatchObject({ reportType: 'financial_overview', includeDetails: true });
+  });
+
+  it('another report keeps invoice lines on by default and shows no such switch', async () => {
+    const onGenerate = renderWizard(['financial_overview']);
+    toReview();
+    fireEvent.click(screen.getByRole('button', { name: /Generate Report/ }));
+    await waitFor(() => expect(onGenerate).toHaveBeenCalledTimes(1));
+    expect(onGenerate.mock.calls[0][0]).toMatchObject({ includeDetails: true });
+  });
+
   it('offers the schedule switch for a report it can generate', () => {
     renderWizard(['financial_overview']);
     toReview();
