@@ -9,7 +9,7 @@ import type { DuplicateResidentMatch } from '@/lib/residents/duplicate-match';
 import { updateResident } from '@/actions/residents/update-resident';
 import { updateResidentStatus } from '@/actions/residents/update-resident-status';
 import { deleteResident } from '@/actions/residents/delete-resident';
-import { previewResidentMerge, mergeResidents, type MergeResidentsInput } from '@/actions/residents/merge-residents';
+import { previewResidentMerge, mergeResidents, getMergeCandidates, type MergeResidentsInput } from '@/actions/residents/merge-residents';
 import { assignHouse } from '@/actions/residents/assign-house';
 import { unassignHouse } from '@/actions/residents/unassign-house';
 import { moveOutLandlord } from '@/actions/residents/move-out-landlord';
@@ -194,6 +194,20 @@ export function useResidentMergePreview(keptId: string | undefined, duplicateId:
     },
     enabled: !!keptId && !!duplicateId,
     staleTime: 0,
+  });
+}
+
+export function useMergeCandidates(residentId: string, query: string, enabled = true) {
+  return useQuery({
+    queryKey: ['residentMergeCandidates', residentId, query],
+    queryFn: async () => {
+      const result = await getMergeCandidates(residentId, query);
+      if (result.error) throw new Error(result.error);
+      return result.data!;
+    },
+    enabled: enabled && !!residentId,
+    staleTime: 30 * 1000,
+    placeholderData: (prev) => prev,
   });
 }
 
