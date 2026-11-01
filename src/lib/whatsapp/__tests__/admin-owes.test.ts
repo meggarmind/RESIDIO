@@ -361,6 +361,10 @@ describe('composeAdminOwesAnswer', () => {
     expect(text).toContain('in 2 payments (₦12,500 on 2 Mar, ₦7,500.5 on 9 Mar)');
   });
 
+  it('shows no icon and the stored label when the house has no status row', () => {
+    expect(sample({ status: { key: null, label: 'Unknown' } }).split('\n').slice(0, 3)).toEqual(['*KOA-18A*', 'Name: Tolu Bello', 'Status: Unknown']);
+  });
+
   it('says so when no resident is billed', () => {
     expect(composeAdminOwesAnswer(house({ billedTo: null, owed: null }))).toContain('No resident is billed');
   });
