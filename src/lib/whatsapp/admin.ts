@@ -892,7 +892,9 @@ async function adminTurn(message: WhatsAppInboundMessage, input: AdminInput, opt
       // The item stays on screen for the next entry, such as a number from a pick-list.
       const next = await action.begin({ account: admin, binding: live, now });
       await createChoice(actionName, live, next.state ?? {});
-      await reply(`${answer}\n\n${action.again}`);
+      // The answer and the next-step hint go as two messages, so the answer can be forwarded alone (owner, 31 Oct 2026).
+      await reply(answer);
+      await reply(action.again);
       await setStep(ADMIN_ITEM_NODE);
       return;
     }
