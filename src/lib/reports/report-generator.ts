@@ -1405,6 +1405,7 @@ type DuesInvoice = {
   id: string;
   house_id: string | null;
   invoice_number: string | null;
+  invoice_type: string | null;
   amount_due: number | string | null;
   amount_paid: number | string | null;
   status: string;
@@ -1420,7 +1421,7 @@ async function fetchDuesInvoices(supabase: ReportSupabaseClient): Promise<DuesIn
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await supabase
       .from('invoices')
-      .select('id, house_id, invoice_number, amount_due, amount_paid, status, due_date, period_start, rate_snapshot')
+      .select('id, house_id, invoice_number, invoice_type, amount_due, amount_paid, status, due_date, period_start, rate_snapshot')
       .neq('status', 'void')
       .not('house_id', 'is', null)
       .order('id')
@@ -1486,7 +1487,8 @@ export async function generateDuesCollectionStatus(
   for (const house of indebtedness.houses) {
     const houseInvoices = byHouse.get(house.houseId) ?? [];
     const levy = levyStatusFor(houseInvoices.filter(isLevy));
-    const dues = houseInvoices.filter((i) => !isLevy(i));
+    // A month is a service charge (as in the WhatsApp balance); levies, adjustments and other types count in Owed only.
+    const dues = houseInvoices.filter((i) => i.invoice_type === 'SERVICE_CHARGE' && !isLevy(i));
 
     const months: Record<string, SummaryGridStatus> = {};
     for (const key of monthKeys) {

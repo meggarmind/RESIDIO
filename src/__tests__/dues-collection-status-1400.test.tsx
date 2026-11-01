@@ -58,21 +58,23 @@ const HOUSES = [
 let seq = 0;
 const inv = (houseId: string, status: string, due: string, amountDue: number, amountPaid: number, extra: Record<string, unknown> = {}) => ({
   id: `i${String(++seq).padStart(5, '0')}`, house_id: houseId, invoice_number: `INV-${seq}`, status, due_date: due,
-  amount_due: amountDue, amount_paid: amountPaid, period_start: null, rate_snapshot: null, ...extra,
+  amount_due: amountDue, amount_paid: amountPaid, period_start: null, rate_snapshot: null, invoice_type: 'SERVICE_CHARGE', ...extra,
 });
 const dues = (houseId: string, month: string, status: string, due: string, amountDue = 10000, amountPaid = status === 'paid' ? 10000 : 0) =>
   inv(houseId, status, due, amountDue, amountPaid, { period_start: `${month}-01` });
 // Due inside the period, so a levy counted as a month would show.
 const levy = (houseId: string, status: string, amountDue = 50000, amountPaid = status === 'paid' ? 50000 : 0) =>
-  inv(houseId, status, '2026-09-30', amountDue, amountPaid, { rate_snapshot: { is_development_levy: true } });
+  inv(houseId, status, '2026-09-30', amountDue, amountPaid, { invoice_type: 'LEVY', rate_snapshot: { is_development_levy: true } });
 
 const INVOICES = [
-  // h1 pays everything, levy included. A void invoice is ignored.
+  // h1 pays everything, levy included.
   dues('h1', '2026-08', 'paid', '2026-08-10'), dues('h1', '2026-09', 'paid', '2026-09-10'), dues('h1', '2026-10', 'paid', '2026-10-10'),
-  levy('h1', 'paid'), dues('h1', '2026-09', 'void', '2026-09-20', 99999),
+  levy('h1', 'paid'),
   // h2 paid August, owes September (overdue) and October (not yet due), part paid the levy.
   dues('h2', '2026-08', 'paid', '2026-08-10'), dues('h2', '2026-09', 'unpaid', '2026-09-10'), dues('h2', '2026-10', 'unpaid', '2026-10-25'),
   levy('h2', 'partially_paid', 50000, 20000),
+  // A void invoice is ignored: h2's September would still read overdue and owed, and h4's void month would read as a bill.
+  dues('h2', '2026-09', 'void', '2026-09-20', 99999), dues('h4', '2026-09', 'void', '2026-09-05', 7777),
   // h3 paid no month, also owes July (before the period) and the levy.
   dues('h3', '2026-07', 'unpaid', '2026-07-10', 5000), dues('h3', '2026-08', 'unpaid', '2026-08-10'),
   dues('h3', '2026-09', 'unpaid', '2026-09-10'), dues('h3', '2026-10', 'partially_paid', '2026-10-25', 10000, 4000),
@@ -176,6 +178,41 @@ describe('Dues, levies and collection status (#1400)', () => {
     expect(rowFor(await run({}, mixed), '4').levy).toBe('Part paid');
     // A levy invoice never counts as a month.
     expect(rowFor(await run({}, [levy('h4', 'unpaid')]), '4')).toMatchObject({ levy: 'Not paid', monthsPaid: '0 of 0', monthsOwed: 0 });
+  });
+
+  it('only service charges are months: a levy-type or other invoice without the levy flag adds to Owed, not to the months', async () => {
+    const other = [
+      dues('h4', '2026-08', 'paid', '2026-08-10'),
+      inv('h4', 'unpaid', '2026-08-20', 3000, 0, { invoice_type: 'LEVY', period_start: '2026-08-01' }), // would turn August overdue
+      inv('h4', 'unpaid', '2026-09-10', 2000, 0, { invoice_type: 'ADJUSTMENT', period_start: '2026-09-01' }), // would make September a billed month
+      inv('h4', 'unpaid', '2026-10-10', 1000, 0, { invoice_type: 'OTHER', period_start: '2026-10-01' }),
+    ];
+    const data = await run({}, other);
+    expect(rowFor(data, '4')).toMatchObject({ monthsPaid: '1 of 1', monthsOwed: 0, levy: 'No levy', owed: '6,000.00' });
+    expect(data.grid!.houses.find((h) => h.houseNumber === '4')!.months).toEqual({ '2026-08': 'paid_up', '2026-09': 'no_invoice', '2026-10': 'no_invoice' });
+    expect(data.table.totals!.owed).toBe('6,000.00');
+  });
+
+  it('a void invoice is no bill: a month with only a void invoice has no invoice', async () => {
+    const data = await run();
+    expect(data.grid!.houses.find((h) => h.houseNumber === '4')!.months['2026-09']).toBe('no_invoice');
+    expect(data.grid!.houses.find((h) => h.houseNumber === '2')!.months['2026-09']).toBe('overdue');
+    expect(rowFor(data, '2').owed).toBe('50,000.00');
+  });
+
+  it('an invoice due today is outstanding, not overdue; due yesterday is overdue', async () => {
+    const edge = [dues('h4', '2026-10', 'unpaid', '2026-10-15'), dues('h3', '2026-10', 'unpaid', '2026-10-14')];
+    const grid = (await run({}, edge)).grid!;
+    expect(grid.houses.find((h) => h.houseNumber === '4')!.months['2026-10']).toBe('outstanding');
+    expect(grid.houses.find((h) => h.houseNumber === '3')!.months['2026-10']).toBe('overdue');
+  });
+
+  it('invoice lines leave out an open invoice with nothing outstanding', async () => {
+    const zero = [inv('h4', 'unpaid', '2026-09-10', 5000, 5000, { period_start: '2026-09-01' }), dues('h4', '2026-10', 'unpaid', '2026-10-25')];
+    const on = await run({ includeDetails: true }, zero);
+    const lines = on.table.rows.filter((r) => r.street === null);
+    expect(lines).toHaveLength(1);
+    expect(lines[0].owed).toBe('10,000.00');
   });
 
   it('sorts a house into fully paid, part paid or not paid by what it owes and the months it paid', async () => {
@@ -441,5 +478,36 @@ describe('Retiring the Indebtedness reports (#1400)', () => {
       <TraditionalTemplate report={{ type: 'indebtedness_summary', data: old } as never} title="Indebtedness Report" estateName="Test Estate" />
     );
     expect(html).toContain('Palm Close');
+  });
+});
+
+describe('Invoice lines are off by default for the dues report (#1400)', () => {
+  it('the schedule dialog saves include_summary false for dues and debtors, true for others', async () => {
+    const { includeSummaryDefault } = await import('@/components/reports/report-schedules');
+    expect(includeSummaryDefault('dues_collection_status')).toBe(false);
+    expect(includeSummaryDefault('debtors_aging')).toBe(false);
+    expect(includeSummaryDefault('financial_overview')).toBe(true);
+  });
+
+  it.each([
+    ['dues_collection_status', '', false],
+    ['dues_collection_status', '&includeDetails=true', true],
+    ['indebtedness_summary', '', false], // a retired type is made again as the dues report
+    ['transaction_log', '', true],
+  ])('the download route for %s%s passes includeDetails %s', async (type, query, expected) => {
+    vi.resetModules();
+    const generateReport = vi.fn().mockResolvedValue({ success: false, error: 'stop' });
+    vi.doMock('@/actions/reports/report-engine', () => ({ generateReport }));
+    vi.doMock('@/lib/pdf/reports/renderer', () => ({ renderReportPdf: vi.fn() }));
+    vi.doMock('@/lib/pdf/reports/archive', () => ({ storeReportPdf: vi.fn() }));
+    vi.doMock('@/lib/audit/logger', () => ({ logAudit: vi.fn() }));
+    vi.doMock('@/lib/auth/authorize', () => ({ authorizePermission: async () => ({ authorized: true, userId: 'u1' }) }));
+    vi.doMock('@/lib/email/send-email', () => ({ getEstateEmailSettings: async () => ({ estateName: 'Test Estate' }) }));
+    vi.doMock('@/lib/supabase/server', () => ({ createAdminClient: () => ({}) }));
+    const { GET } = await import('@/app/api/reports/download/route');
+    const { NextRequest } = await import('next/server');
+    await GET(new NextRequest(`http://localhost/api/reports/download?type=${type}${query}`));
+    expect(generateReport.mock.calls[0][0]).toMatchObject({ reportType: type === 'indebtedness_summary' ? 'dues_collection_status' : type, includeDetails: expected });
+    for (const m of ['@/actions/reports/report-engine', '@/lib/pdf/reports/renderer', '@/lib/pdf/reports/archive', '@/lib/audit/logger', '@/lib/auth/authorize', '@/lib/email/send-email', '@/lib/supabase/server']) vi.doUnmock(m);
   });
 });

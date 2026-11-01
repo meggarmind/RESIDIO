@@ -278,6 +278,18 @@ describe('ReportRequestWizard (#1397)', () => {
     expect(onGenerate.mock.calls[0][0]).toMatchObject({ includeDetails: true });
   });
 
+  it('starts the dues report with invoice lines off, and other reports with them on (#1400)', async () => {
+    for (const [type, expected] of [['dues_collection_status', false], ['debtors_aging', false], ['financial_overview', true]] as const) {
+      const onGenerate = renderWizard([type]);
+      // Steps differ by type (the period and bank account steps are skipped for some): go on until the last one.
+      for (let i = 0; i < 4 && !screen.queryByRole('button', { name: /Generate Report/ }); i++) fireEvent.click(screen.getByRole('button', { name: /^Next/ }));
+      fireEvent.click(screen.getByRole('button', { name: /Generate Report/ }));
+      await waitFor(() => expect(onGenerate).toHaveBeenCalled());
+      expect(onGenerate.mock.calls[0][0]).toMatchObject({ reportType: type, includeDetails: expected });
+      cleanup();
+    }
+  });
+
   it('offers the schedule switch for a report it can generate', () => {
     renderWizard(['financial_overview']);
     toReview();
