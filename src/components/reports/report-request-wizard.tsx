@@ -999,7 +999,7 @@ export function ReportRequestWizard({
             transactionType: 'all' as const,
             aggregation: 'monthly' as const,
             includeCharts: true,
-            includeDetails: true,
+            includeDetails: (allowedReportTypes[0] ?? 'financial_overview') !== 'debtors_aging',
             includeUnoccupied: false,
             includeAmount: false,
             paymentStatus: 'all' as const,
@@ -1194,7 +1194,11 @@ export function ReportRequestWizard({
                         {step === 1 && (
                             <ReportTypeStep
                                 value={formData.reportType}
-                                onChange={(type) => setValue('reportType', type as ReportRequestFormData['reportType'])}
+                                onChange={(type) => {
+                                    setValue('reportType', type as ReportRequestFormData['reportType']);
+                                    // Invoice lines are off unless chosen (#1399); other reports keep their default.
+                                    setValue('includeDetails', type !== 'debtors_aging');
+                                }}
                                 allowedTypes={allowedReportTypes}
                             />
                         )}
