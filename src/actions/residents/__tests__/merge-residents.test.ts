@@ -197,3 +197,35 @@ describe('getMergeCandidates', () => {
     expect(mocks.createServerSupabaseClient).not.toHaveBeenCalled();
   });
 });
+
+describe('getMergeCandidates with rows', () => {
+  const ME = '44444444-4444-4444-8444-444444444444';
+  const link = (active: boolean) => ({ is_active: active, house: { id: 'h1', short_name: 'Close 1 No 4', house_number: '4' } });
+  const base = { phone_primary: null, phone_secondary: null, account_status: 'active', merged_into_resident_id: null };
+
+  it('counts only active house links as Same house', async () => {
+    const me = { id: ME, first_name: 'Ada', last_name: 'Obi', resident_code: '100001', ...base, resident_houses: [link(true)] };
+    const others = [
+      { id: 'active', first_name: 'Bola', last_name: 'Eze', resident_code: '100002', ...base, resident_houses: [link(true)] },
+      { id: 'ended', first_name: 'Chidi', last_name: 'Uzo', resident_code: '100003', ...base, resident_houses: [link(false)] },
+    ];
+    const list = {
+      neq: () => list,
+      is: () => list,
+      order: () => list,
+      limit: async () => ({ data: others, error: null }),
+    };
+    mocks.createServerSupabaseClient.mockResolvedValue({
+      from: () => ({
+        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: me, error: null }) }), neq: list.neq }),
+      }),
+    });
+
+    const result = await getMergeCandidates(ME);
+
+    expect(result.error).toBeNull();
+    expect(result.data?.suggestions).toEqual([
+      { id: 'active', name: 'Bola Eze', resident_code: '100002', houses: ['Close 1 No 4'], reason: 'Same house' },
+    ]);
+  });
+});

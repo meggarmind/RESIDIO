@@ -74,6 +74,37 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('ResidentMergeDialog', () => {
+  it('says so when there are no likely duplicates', () => {
+    mocks.candidates = { suggestions: [], results: [] };
+    render(<ResidentMergeDialog open onOpenChange={vi.fn()} resident={CURRENT} />);
+
+    expect(screen.getByText('No likely duplicates found.')).toBeInTheDocument();
+  });
+
+  it('says so when a search matches nobody', () => {
+    mocks.candidates = { suggestions: [], results: [] };
+    render(<ResidentMergeDialog open onOpenChange={vi.fn()} resident={CURRENT} />);
+
+    fireEvent.change(screen.getByPlaceholderText('Type a name, resident code, house or phone'), { target: { value: 'zz' } });
+
+    expect(screen.getByText('No resident matches.')).toBeInTheDocument();
+  });
+
+  it('clears the search when the dialog is closed and reopened', () => {
+    const onOpenChange = vi.fn();
+    const { rerender } = render(<ResidentMergeDialog open onOpenChange={onOpenChange} resident={CURRENT} />);
+    const placeholder = 'Type a name, resident code, house or phone';
+    fireEvent.change(screen.getByPlaceholderText(placeholder), { target: { value: 'chi' } });
+    expect(screen.getByText('Chika Eze')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    rerender(<ResidentMergeDialog open={false} onOpenChange={onOpenChange} resident={CURRENT} />);
+    rerender(<ResidentMergeDialog open onOpenChange={onOpenChange} resident={CURRENT} />);
+
+    expect(screen.getByPlaceholderText(placeholder)).toHaveValue('');
+    expect(screen.queryByText('Chika Eze')).not.toBeInTheDocument();
+  });
+
   it('lists likely duplicates and starts the preview when one is selected', () => {
     render(<ResidentMergeDialog open onOpenChange={vi.fn()} resident={CURRENT} />);
 

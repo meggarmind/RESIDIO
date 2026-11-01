@@ -57,6 +57,12 @@ describe('findSuggestions', () => {
     expect(out[0].reason).toBe('Same phone');
   });
 
+  it('ignores shared name words shorter than 3 letters', () => {
+    const al = row({ first_name: 'Al', last_name: 'Zed' });
+    const me = row({ id: 'me2', first_name: 'Al', last_name: 'Yak' });
+    expect(findSuggestions(me, [al])).toEqual([]);
+  });
+
   it('excludes the resident itself, archived and merged rows', () => {
     const out = findSuggestions(current, [
       current,
@@ -87,6 +93,16 @@ describe('searchResidents', () => {
     expect(searchResidents(current, rows, 'close 9').map((c) => c.id)).toEqual(['hs']);
     expect(searchResidents(current, rows, '4455').map((c) => c.id)).toEqual(['cd']);
     expect(searchResidents(current, rows, '8011112222').map((c) => c.id)).toEqual(['ph']);
+  });
+  it('finds a +234 phone from a 0-prefixed query, and the reverse, including spaced input', () => {
+    expect(searchResidents(current, rows, '08011112222').map((c) => c.id)).toEqual(['ph']);
+    expect(searchResidents(current, rows, '0801 111 2222').map((c) => c.id)).toEqual(['ph']);
+    const local = row({ id: 'local', phone_secondary: '08033334444' });
+    expect(searchResidents(current, [local], '+2348033334444').map((c) => c.id)).toEqual(['local']);
+  });
+  it('does not match code or phone on a 2-digit query', () => {
+    expect(searchResidents(current, [code, phone], '44')).toEqual([]);
+    expect(searchResidents(current, [code, phone], '80')).toEqual([]);
   });
   it('excludes self and archived, and caps at 6', () => {
     const many = Array.from({ length: 9 }, () => row({ first_name: 'Zed' }));

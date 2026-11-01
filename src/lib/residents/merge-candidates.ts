@@ -105,6 +105,10 @@ export function searchResidents(current: MergeCandidateRow, rows: MergeCandidate
       if (row.houses.some((h) => h.label.toLowerCase().includes(q))) return true;
       if (digitQuery) {
         if (row.resident_code.includes(digits)) return true;
+        if (digits.length >= 10) {
+          const wanted = normalisePhone(digits);
+          return [row.phone_primary, row.phone_secondary].some((p) => normalisePhone(p) === wanted);
+        }
         return [row.phone_primary, row.phone_secondary].some((p) => (p ?? '').replace(/\D/g, '').includes(digits));
       }
       return false;
