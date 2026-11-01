@@ -330,6 +330,15 @@ export function Verify2FAForm() {
     );
   }
 
+  const cancelAndSignOut = async () => {
+    if (whatsAppAvailable) {
+      // Close the open WhatsApp request first, while the session still exists (#1389).
+      await fetch('/api/auth/2fa/whatsapp/cancel', { method: 'POST' }).catch(() => undefined);
+    }
+    await supabase.auth.signOut();
+    router.push('/login');
+  };
+
   if (mode === 'whatsapp' && whatsAppState === 'denied') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -429,14 +438,7 @@ export function Verify2FAForm() {
             </div>
 
             <div className="text-center">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={async () => {
-                  await supabase.auth.signOut();
-                  router.push('/login');
-                }}
-              >
+              <Button variant="ghost" size="sm" onClick={cancelAndSignOut}>
                 Cancel and Sign Out
               </Button>
             </div>
@@ -580,10 +582,7 @@ export function Verify2FAForm() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={async () => {
-                await supabase.auth.signOut();
-                router.push('/login');
-              }}
+              onClick={cancelAndSignOut}
             >
               Cancel and Sign Out
             </Button>

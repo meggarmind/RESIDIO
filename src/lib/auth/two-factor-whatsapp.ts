@@ -17,8 +17,6 @@ import { randomInt } from 'node:crypto';
 export const WHATSAPP_APPROVAL_TTL_MS = 2 * 60 * 1000;
 export const WHATSAPP_APPROVAL_MAX_REQUESTS = 5;
 export const WHATSAPP_APPROVAL_WINDOW_MS = 15 * 60 * 1000;
-/** A typed reply is matched only to a request this recent, so an old open row cannot catch a later menu reply. */
-export const WHATSAPP_APPROVAL_REPLY_WINDOW_MS = 10 * 60 * 1000;
 
 export const NOT_ME_OPTION = 'This is not me';
 
@@ -68,8 +66,8 @@ export interface TwoFactorWhatsAppRepository {
   /** The profile whose active binding holds this number, or null. */
   findProfileByPhone(phoneNumber: string): Promise<string | null>;
   countRequestsSince(profileId: string, since: Date): Promise<number>;
-  /** Marks every pending request of the profile superseded. */
-  supersedePending(profileId: string, now: Date): Promise<void>;
+  /** Marks the profile's pending requests superseded: all of them, or only this login session's. */
+  supersedePending(profileId: string, now: Date, sessionId?: string): Promise<void>;
   insertRequest(input: {
     profileId: string;
     sessionId: string;
@@ -368,9 +366,10 @@ export function parseTypedAnswer(text: string | null | undefined): Answer | null
 
 /**
  * A typed reply in the chat. Runs BEFORE the resident menu and admin mode: when the sender's phone
- * owns a pending sign-in request, a 2-digit number or NO is the answer and is consumed here (true),
- * so it never reaches the menu (on 29 Oct a bare "1" went to the open resident session).
- * False means "not a sign-in answer": the message goes on to the menu as before.
+ * owns a pending, unexpired sign-in request, a 2-digit number or NO is the answer and is consumed
+ * here (true), so it never reaches the menu (on 29 Oct a bare "1" went to the open resident session).
+ * False means "not a sign-in answer": the message goes on to the menu as before. A request past its
+ * 2 minutes does not take the reply: it is marked expired quietly and the reply goes to the menu.
  */
 export async function consumeWhatsAppApprovalReply(
   message: { from: string; text: string | null },
@@ -381,10 +380,29 @@ export async function consumeWhatsAppApprovalReply(
   const profileId = await deps.repository.findProfileByPhone(message.from);
   if (!profileId) return false;
   const now = clock(deps);
-  const request = await deps.repository.findPendingForProfile(profileId, new Date(now.getTime() - WHATSAPP_APPROVAL_REPLY_WINDOW_MS));
+  const request = await deps.repository.findPendingForProfile(profileId, new Date(now.getTime() - WHATSAPP_APPROVAL_TTL_MS));
   if (!request) return false;
+  if (isExpired(request, now)) {
+    if (await deps.repository.decide(request.id, 'expired', null, now)) {
+      await deps.repository.logEvent(request.profileId, 'whatsapp_approval_expired', null, { request_id: request.id, via: 'text' });
+    }
+    return false;
+  }
   const outcome = await applyAnswer(request, message.from, answer, 'text', deps);
   return outcome !== 'ignored';
+}
+
+/**
+ * Closes the open request of this login session when the second factor was completed another way
+ * (authenticator code, backup code) or the user cancelled. No deny, no notice, no alert: a later
+ * answer then finds no request, so it goes to the menu and nobody is told of a block that did not happen.
+ * Without a session id, every open request of the profile is closed.
+ */
+export async function closeWhatsAppApproval(
+  ctx: { userId: string; sessionId: string | null },
+  deps: TwoFactorWhatsAppDeps
+): Promise<void> {
+  await deps.repository.supersedePending(ctx.userId, clock(deps), ctx.sessionId ?? undefined);
 }
 
 // ---------------------------------------------------------------------------

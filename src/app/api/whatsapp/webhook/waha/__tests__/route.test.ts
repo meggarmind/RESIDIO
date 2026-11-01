@@ -801,6 +801,22 @@ describe('WAHA WhatsApp webhook route', () => {
       expect(h.handleResidentMessage).not.toHaveBeenCalled();
     });
 
+    it('ignores a voter that is neither @c.us nor a resolvable @lid', async () => {
+      const answer = vi.fn();
+      mockApproval(answer);
+      vi.doMock('@/lib/whatsapp/providers/waha', async () => ({
+        ...(await vi.importActual<typeof import('@/lib/whatsapp/providers/waha')>('@/lib/whatsapp/providers/waha')),
+        lookupWahaLidPhone: vi.fn().mockResolvedValue('99@lid'),
+      }));
+      const h = await load();
+
+      const group = await h.POST(post(voteEvent({ from: '1203@g.us' }, 'evt_v4')));
+      await expect(group.json()).resolves.toMatchObject({ processed: false, outcome: 'ignored' });
+      const lid = await h.POST(post(voteEvent({ from: '99@lid' }, 'evt_v5')));
+      await expect(lid.json()).resolves.toMatchObject({ processed: false, outcome: 'ignored' });
+      expect(answer).not.toHaveBeenCalled();
+    });
+
     it("ignores the handset's own vote", async () => {
       const answer = vi.fn();
       mockApproval(answer);

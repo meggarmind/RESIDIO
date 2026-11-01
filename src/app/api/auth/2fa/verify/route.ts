@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyTwoFactorCode } from '@/actions/two-factor/verify';
 import { issueTwoFactorMarkerCookie } from '@/lib/auth/two-factor-session';
+import { closeCurrentWhatsAppApproval } from '@/lib/auth/two-factor-whatsapp-close';
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,6 +27,8 @@ export async function POST(request: NextRequest) {
           { status: 500 }
         );
       }
+      // Signed in another way: close this session's open WhatsApp approval, quietly (#1389).
+      await closeCurrentWhatsAppApproval();
     }
 
     return NextResponse.json(result);

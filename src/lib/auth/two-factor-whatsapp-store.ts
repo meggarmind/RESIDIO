@@ -121,12 +121,14 @@ export function createSupabaseTwoFactorWhatsAppRepository(): TwoFactorWhatsAppRe
       return count ?? 0;
     },
 
-    async supersedePending(profileId, now) {
-      const { error } = await db()
+    async supersedePending(profileId, now, sessionId) {
+      let query = db()
         .from('two_factor_whatsapp_requests')
         .update({ status: 'superseded', decided_at: now.toISOString() })
         .eq('profile_id', profileId)
         .eq('status', 'pending');
+      if (sessionId) query = query.eq('supabase_session_id', sessionId);
+      const { error } = await query;
       if (error) throw error;
     },
 

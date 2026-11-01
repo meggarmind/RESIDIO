@@ -5,6 +5,7 @@ import {
   SIGN_IN_EXPIRED_REPLY,
   WHATSAPP_APPROVAL_TTL_MS,
   answerWhatsAppApprovalVote,
+  closeWhatsAppApproval,
   consumeWhatsAppApprovalReply,
   getWhatsAppApprovalStatus,
   parseTypedAnswer,
@@ -72,6 +73,13 @@ describe('starting a request', () => {
     mem.addAccount({ profileId: ADMIN, phoneNumber: PHONE, ...change });
     const result = await startWhatsAppApproval({ userId: ADMIN, sessionId: SESSION, userAgent: CHROME }, mem.deps);
     expect(result).toEqual({ available: false });
+    expect(mem.requests).toHaveLength(0);
+    expect(mem.sender.sendPoll).not.toHaveBeenCalled();
+  });
+
+  it('creates no request without a session id', async () => {
+    const result = await startWhatsAppApproval({ userId: ADMIN, sessionId: null, userAgent: CHROME }, mem.deps);
+    expect(result).toMatchObject({ available: true, success: false });
     expect(mem.requests).toHaveLength(0);
     expect(mem.sender.sendPoll).not.toHaveBeenCalled();
   });
@@ -156,6 +164,26 @@ describe('answering', () => {
     expect(mem.sender.alertChairman).not.toHaveBeenCalled();
   });
 
+  it('a multi-select vote is ignored', async () => {
+    const { request } = await start();
+    expect(
+      await answerWhatsAppApprovalVote(
+        { pollMessageId: request.pollMessageId!, voterPhone: PHONE, selectedOptions: [request.matchCode, request.decoyCodes[0]] },
+        mem.deps
+      )
+    ).toBe('ignored');
+    expect(request.status).toBe('pending');
+  });
+
+  it('an option that is not one of the request\'s is ignored, not denied', async () => {
+    const { request } = await start();
+    const unknown = ['10', '11', '12', '13'].find((c) => c !== request.matchCode && !request.decoyCodes.includes(c))!;
+    expect(await vote(request.pollMessageId!, unknown)).toBe('ignored');
+    expect(await vote(request.pollMessageId!, 'Maybe later')).toBe('ignored');
+    expect(request.status).toBe('pending');
+    expect(mem.sender.alertChairman).not.toHaveBeenCalled();
+  });
+
   it('an empty vote (a vote taken back) is ignored', async () => {
     const { request } = await start();
     expect(await answerWhatsAppApprovalVote({ pollMessageId: request.pollMessageId!, voterPhone: PHONE, selectedOptions: [] }, mem.deps)).toBe('ignored');
@@ -189,6 +217,34 @@ describe('answering', () => {
   });
 });
 
+describe('status', () => {
+  it('returns none without a session id', async () => {
+    await start();
+    expect(await status(null)).toEqual({ status: 'none' });
+  });
+});
+
+describe('signing in another way (#1389 QA D1)', () => {
+  it('closing the request quietly makes a later reply or vote go nowhere: no block, no alert', async () => {
+    const { request } = await start();
+    await closeWhatsAppApproval({ userId: ADMIN, sessionId: SESSION }, mem.deps);
+    expect(request.status).toBe('superseded');
+
+    const wrong = ['10', '11', '12'].find((c) => c !== request.matchCode)!;
+    expect(await consumeWhatsAppApprovalReply({ from: PHONE, text: wrong }, mem.deps)).toBe(false);
+    expect(await vote(request.pollMessageId!, request.decoyCodes[0])).toBe('ignored');
+    expect(mem.sender.sendText).not.toHaveBeenCalled();
+    expect(mem.sender.alertChairman).not.toHaveBeenCalled();
+    expect(mem.events.map((e) => e.event)).not.toContain('whatsapp_approval_denied');
+  });
+
+  it("closes only that session's request when a session id is given", async () => {
+    const { request } = await start();
+    await closeWhatsAppApproval({ userId: ADMIN, sessionId: OTHER_SESSION }, mem.deps);
+    expect(request.status).toBe('pending');
+  });
+});
+
 describe('typed replies', () => {
   it('the typed right number approves; NO and a wrong number deny', async () => {
     let { request } = await start();
@@ -214,12 +270,21 @@ describe('typed replies', () => {
     expect(request.status).toBe('pending');
   });
 
-  it('an expired request still takes the answer, with the short expired reply', async () => {
+  it('an expired request does not swallow a typed reply: it goes to the menu and the row is expired quietly', async () => {
     const { request } = await start();
-    mem.advance(WHATSAPP_APPROVAL_TTL_MS + 1000);
-    expect(await consumeWhatsAppApprovalReply({ from: PHONE, text: request.matchCode }, mem.deps)).toBe(true);
+    mem.advance(WHATSAPP_APPROVAL_TTL_MS);
+    expect(await consumeWhatsAppApprovalReply({ from: PHONE, text: request.matchCode }, mem.deps)).toBe(false);
     expect(request.status).toBe('expired');
-    expect(mem.sender.sendText).toHaveBeenCalledWith(PHONE, SIGN_IN_EXPIRED_REPLY);
+    expect(mem.sender.sendText).not.toHaveBeenCalled();
+    expect(mem.sender.alertChairman).not.toHaveBeenCalled();
+  });
+
+  it('a reply minutes after expiry also goes to the menu', async () => {
+    const { request } = await start();
+    mem.advance(5 * 60 * 1000);
+    expect(await consumeWhatsAppApprovalReply({ from: PHONE, text: 'NO' }, mem.deps)).toBe(false);
+    expect(request.status).not.toBe('denied');
+    expect(mem.sender.alertChairman).not.toHaveBeenCalled();
   });
 
   it.each([

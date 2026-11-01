@@ -22,6 +22,10 @@ vi.mock('@/lib/auth/two-factor-session', () => ({
   },
 }));
 vi.mock('@/lib/auth/two-factor-guard', () => ({ clearTwoFactorTries: async () => {} }));
+vi.mock('@/actions/two-factor/verify', () => ({
+  verifyTwoFactorCode: async () => ({ success: true, verified: true, message: 'Verification successful' }),
+  verifyBackupCode: async () => ({ success: true, verified: true, message: 'Backup code verified' }),
+}));
 vi.mock('@/lib/supabase/server', () => ({
   createAdminClient: () => ({ from: () => ({ update: () => ({ eq: async () => ({ error: null }) }) }) }),
 }));
@@ -31,7 +35,10 @@ vi.mock('@/lib/auth/two-factor-whatsapp-store', () => ({
 
 import { POST as start } from '@/app/api/auth/2fa/whatsapp/start/route';
 import { GET as status } from '@/app/api/auth/2fa/whatsapp/status/route';
-import { answerWhatsAppApprovalVote } from '@/lib/auth/two-factor-whatsapp';
+import { POST as verifyCode } from '@/app/api/auth/2fa/verify/route';
+import { POST as verifyBackup } from '@/app/api/auth/2fa/verify-backup/route';
+import { POST as cancel } from '@/app/api/auth/2fa/whatsapp/cancel/route';
+import { answerWhatsAppApprovalVote, consumeWhatsAppApprovalReply } from '@/lib/auth/two-factor-whatsapp';
 
 const ADMIN = 'admin-1';
 const PHONE = '+2348030000001';
@@ -110,5 +117,41 @@ describe('status route', () => {
     await answerWhatsAppApprovalVote({ pollMessageId: request.pollMessageId!, voterPhone: PHONE, selectedOptions: ['This is not me'] }, mem.deps);
     expect(await (await status()).json()).toEqual({ status: 'denied' });
     expect(mocks.issued).toBe(0);
+  });
+});
+
+describe('finishing another way closes the open request (#1389 QA D1)', () => {
+  const codeBody = (code: string) => new NextRequest('http://localhost/x', { method: 'POST', body: JSON.stringify({ code }) });
+
+  it.each([
+    ['an authenticator code', () => verifyCode(codeBody('123456'))],
+    ['a backup code', () => verifyBackup(codeBody('AAAA1111'))],
+    ['Cancel and Sign Out', () => cancel()],
+  ])('after %s, a later 2-digit reply goes to the menu and nobody is alerted', async (_label, finish) => {
+    await startRequest();
+    const request = mem.requests[0];
+
+    expect((await finish()).status).toBe(200);
+    expect(request.status).toBe('superseded');
+
+    const wrong = ['10', '11', '12'].find((c) => c !== request.matchCode)!;
+    expect(await consumeWhatsAppApprovalReply({ from: PHONE, text: wrong }, mem.deps)).toBe(false);
+    expect(await answerWhatsAppApprovalVote({ pollMessageId: request.pollMessageId!, voterPhone: PHONE, selectedOptions: [request.decoyCodes[0]] }, mem.deps)).toBe('ignored');
+    expect(mem.sender.sendText).not.toHaveBeenCalled();
+    expect(mem.sender.alertChairman).not.toHaveBeenCalled();
+  });
+
+  it("leaves another session's request open", async () => {
+    await startRequest();
+    mocks.session = { userId: ADMIN, sessionId: 'session-b' };
+    await verifyCode(codeBody('123456'));
+    expect(mem.requests[0].status).toBe('pending');
+  });
+
+  it('does not close the request when the marker cannot be set', async () => {
+    await startRequest();
+    mocks.issueResult = false;
+    expect((await verifyCode(codeBody('123456'))).status).toBe(500);
+    expect(mem.requests[0].status).toBe('pending');
   });
 });

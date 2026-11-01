@@ -29,8 +29,10 @@ export function createMemoryTwoFactorWhatsApp(start = new Date('2026-11-01T09:00
     async countRequestsSince(profileId, since) {
       return requests.filter((r) => r.profileId === profileId && Date.parse(r.createdAt) >= since.getTime()).length;
     },
-    async supersedePending(profileId) {
-      for (const r of requests) if (r.profileId === profileId && r.status === 'pending') r.status = 'superseded';
+    async supersedePending(profileId, _now, sessionId) {
+      for (const r of requests) {
+        if (r.profileId === profileId && r.status === 'pending' && (!sessionId || r.sessionId === sessionId)) r.status = 'superseded';
+      }
     },
     async insertRequest(input) {
       if (requests.some((r) => r.profileId === input.profileId && r.status === 'pending')) {

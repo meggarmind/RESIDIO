@@ -103,6 +103,14 @@ describe('Verify2FAForm with WhatsApp approval (#1389)', () => {
     expect(await screen.findByText('Enter Backup Code')).toBeTruthy();
   });
 
+  it('"Cancel and Sign Out" closes the WhatsApp request before signing out', async () => {
+    render(<Verify2FAForm />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancel and Sign Out' }));
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith('/login'));
+    expect(fetchMock.mock.calls.map(([u]) => u)).toContain('/api/auth/2fa/whatsapp/cancel');
+    expect(mocks.signOut).toHaveBeenCalledTimes(1);
+  });
+
   it('shows the code entry when the account does not use WhatsApp approval', async () => {
     mocks.start = { available: false };
     render(<Verify2FAForm />);
