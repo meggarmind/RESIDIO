@@ -17,7 +17,7 @@ residio_sources:
   - src/components/admin/role-title-picker.tsx
   - src/components/admin/role-titles-manager.tsx
   - src/components/admin/pending-accounts-list.tsx
-residio_verified_commit: 480e535d
+residio_verified_commit: 4334a040
 residio_verified_at: '2026-11-01'
 residio_app_version: '0.4.0'
 ---
@@ -50,8 +50,9 @@ Two-factor authentication is optional: it applies only to accounts that have tur
 - **Turning it on.** Open **Settings → Two-factor login**, or choose **Two-factor login** in the profile menu (the round icon at the top right). Choose **Set up authenticator app**, scan the QR code shown with an authenticator app (or type the key shown under it, or use the link on a phone), and enter the 6-digit code the app shows. Ten backup codes are then shown once: save them before closing the dialog. **Copy codes** copies them, **Save as file** downloads them as a text file, and on a phone **Share** sends the file to an app you choose, such as WhatsApp, email or Files. **Email me** and **WhatsApp me** send the codes to your own email address or the WhatsApp number on your profile, for up to 15 minutes after they are made.
 - **Approve sign-ins on WhatsApp.** If a WhatsApp number is linked to your account for admin access, the same page shows **Approve sign-ins on WhatsApp**. When it is on, the verification page shows a 2-digit number, and the estate WhatsApp number sends you a poll. Tap the same number in the poll, or type it in the chat. **This is not me**, NO or a wrong number blocks the sign-in, signs that browser out and alerts the Chairman. A request ends after 2 minutes. **Send the WhatsApp message again** makes a new one, up to 5 in 15 minutes. **Use my authenticator code** and **Use a backup code** still work on the same page.
 - **Backup codes and turning it off.** On the same page, **Make new backup codes** replaces the old ones and **Turn off** removes two-factor and its backup codes. Both ask for a new code from the app.
+- **Remember this computer.** After the code, the WhatsApp approval or a backup code, the page asks **Remember this computer for 30 days?** Choose **Yes, remember it** to sign in on this computer with only the password for 30 days. Choose **No, ask me each time** on a shared or public computer. A remembered computer works only for the account that chose Yes, in the same browser. **Settings → Two-factor login** lists your remembered computers with the browser, the date added and the date last used. **Forget** stops one computer, and **Forget all computers** stops all of them. All your remembered computers are also forgotten when you change your password, make new backup codes, turn two-factor off, or when your role is removed or changed.
 - Each authenticator code works once. A code already used, for signing in or on this page, is refused; wait for the next one.
-- The verification lasts for that sign-in. Signing in again, or waiting 24 hours, asks for a code again.
+- The verification lasts for that sign-in. Signing in again, or waiting 24 hours, asks for a code again, unless the computer is remembered.
 - Until the code is entered, the account has no admin access in the database either, not only in the app.
 - After five wrong codes in 15 minutes code entry is locked for the rest of those 15 minutes. Making new backup codes and turning two-factor off have their own limit of five tries.
 - Accounts without two-factor turned on sign in exactly as before. Setting it up needs the `two_factor.enable` permission; turning it off needs `two_factor.disable`.
