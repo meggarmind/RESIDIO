@@ -63,6 +63,10 @@ describe('residents_uppercase_names trigger', () => {
     const id = await resident(db, { first_name: 'Ada' });
     await db.query('UPDATE public.residents SET first_name = $1 WHERE id = $2', ['chika', id]);
     expect((await names(db, id)).first_name).toBe('CHIKA');
+    await db.query('UPDATE public.residents SET last_name = $1 WHERE id = $2', ['Eze', id]);
+    expect((await names(db, id)).last_name).toBe('EZE');
+    await db.query('UPDATE public.residents SET company_name = $1 WHERE id = $2', ['Beta Ltd', id]);
+    expect((await names(db, id)).company_name).toBe('BETA LTD');
   });
 
   it('leaves a NULL company_name NULL', async () => {
@@ -85,9 +89,11 @@ describe('residents uppercase names backfill', () => {
   it('uppercases existing mixed-case rows when the migration runs', async () => {
     const id = await resident(db, { first_name: 'Ada', last_name: 'Obi Okafor', company_name: 'Acme Ltd' });
     expect(await names(db, id)).toEqual({ first_name: 'Ada', last_name: 'Obi Okafor', company_name: 'Acme Ltd' });
+    const companyOnly = await resident(db, { first_name: 'KEMI', last_name: 'BELLO', company_name: 'Gamma Ltd' });
 
     await replay(db, MIGRATION, readFileSync(path.join(migrationsDir, MIGRATION), 'utf8'));
 
     expect(await names(db, id)).toEqual({ first_name: 'ADA', last_name: 'OBI OKAFOR', company_name: 'ACME LTD' });
+    expect((await names(db, companyOnly)).company_name).toBe('GAMMA LTD');
   });
 });
