@@ -8,7 +8,7 @@ residio_sources:
   - src/app/(dashboard)/reports/**
   - src/actions/analytics/**
   - src/actions/reports/**
-residio_verified_commit: cfd9bcd3
+residio_verified_commit: 4582a7c3
 residio_verified_at: '2026-11-01'
 residio_app_version: '0.4.0'
 ---
@@ -44,6 +44,6 @@ Each report type has its own view permission. Today every report type needs the 
 3. Review the preview or parameters.
 4. Generate and download the report only after confirming the scope. If the report cannot be generated, a message tells you why.
 
-Scheduled reports are set up on the **Schedules** tab; creating or changing a schedule needs the manage report schedules permission. Without it, the tab shows the schedules and a line that tells you this. They are generated and delivered by a scheduled job, without anyone signed in. Each scheduled email carries the report as a PDF attachment, with a short message naming the report and the period it covers. Report PDFs, the on-screen report and these emails all show the estate name from **Settings > Estate**.
+Scheduled reports are set up on the **Schedules** tab; creating or changing a schedule needs the manage report schedules permission. Without it, the tab shows the schedules and a line that tells you this. You cannot schedule a report that cannot be generated yet: on the last step of **New Report**, the schedule switch is not shown for it, and a line tells you why. They are generated and delivered by a scheduled job, without anyone signed in. Each scheduled email carries the report as a PDF attachment, with a short message naming the report and the period it covers. Report PDFs, the on-screen report and these emails all show the estate name from **Settings > Estate**.
 
 Reports are snapshots. If a number looks wrong, trace it back to residents, invoices, payments, or expenditure instead of editing the report output.
