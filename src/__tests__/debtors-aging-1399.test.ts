@@ -34,10 +34,23 @@ const INVOICES = [
   invoice('paid', B, '2', 200, 9000, 9000),
 ];
 
+// Like the API: a read with no range returns at most 1,000 rows; `.range(a, b)` returns that slice.
+const API_ROW_CAP = 1000;
+const reads = { ranges: [] as [number, number][] };
 function clientWith(rows: unknown[]) {
   const chain: Record<string, unknown> = {};
   chain.select = () => chain;
-  chain.in = () => Promise.resolve({ data: rows, error: null });
+  chain.in = () => {
+    const read: Record<string, unknown> = {};
+    read.then = (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) =>
+      Promise.resolve({ data: rows.slice(0, API_ROW_CAP), error: null }).then(resolve, reject);
+    read.order = () => read;
+    read.range = (from: number, to: number) => {
+      reads.ranges.push([from, to]);
+      return Promise.resolve({ data: rows.slice(from, Math.min(to + 1, from + API_ROW_CAP)), error: null });
+    };
+    return read;
+  };
   return { from: () => chain } as never;
 }
 
@@ -161,8 +174,33 @@ describe('Debtors and aging report (#1399)', () => {
     expect((await run(INVOICES)).notes!.join(' ')).not.toContain('No resident linked');
   });
 
+  it('reads every page of invoices, so more than 1,000 are all in the totals', async () => {
+    reads.ranges = [];
+    const many = Array.from({ length: 2030 }, (_, i) => invoice(`p${i}`, i % 2 ? A : B, i % 2 ? '1' : '2', 100, 100, 0));
+    const data = await run(many, { includeDetails: false });
+    expect(reads.ranges).toEqual([[0, 999], [1000, 1999], [2000, 2999]]);
+    expect(n(data.table.totals!.total)).toBe(2030 * 100);
+    expect(data.summary[1].value).toBe(2);
+    // A read with no range stops at the API cap, which is why the old reports (kept unchanged as
+    // the test reference) are not used for this check.
+    expect((await generateInvoiceAging(clientWith(many))).summary.totalOutstanding).toBe(1000 * 100);
+  });
+
+  it('stops after a full last page with one more empty read, and after a short page at once', async () => {
+    reads.ranges = [];
+    await run(Array.from({ length: 1000 }, (_, i) => invoice(`q${i}`, A, '1', 5, 10, 0)));
+    expect(reads.ranges).toEqual([[0, 999], [1000, 1999]]);
+    reads.ranges = [];
+    await run(INVOICES);
+    expect(reads.ranges).toEqual([[0, 999]]);
+    reads.ranges = [];
+    await run(Array.from({ length: 999 }, (_, i) => invoice(`r${i}`, A, '1', 5, 10, 0)));
+    expect(reads.ranges).toEqual([[0, 999]]);
+  });
+
   it('a database error fails the report with its message', async () => {
-    const chain: Record<string, unknown> = { select: () => chain, in: () => Promise.resolve({ data: null, error: { message: 'boom' } }) };
+    const read = { order: () => read, range: () => Promise.resolve({ data: null, error: { message: 'boom' } }) };
+    const chain: Record<string, unknown> = { select: () => chain, in: () => read };
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const result = await generateReportWithClient({ from: () => chain } as never, params());
     spy.mockRestore();

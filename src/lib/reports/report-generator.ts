@@ -1066,10 +1066,14 @@ async function generateDebtorsAging(
 ): Promise<SummaryReport> {
   const today = new Date();
 
-  // Same query and filter as the Debtors report.
-  const { data: invoices, error } = await supabase
-    .from('invoices')
-    .select(`
+  // Same query and filter as the Debtors report, read a page at a time: the API returns at most
+  // 1,000 rows per request, and a single read would silently drop the rest from the totals.
+  const PAGE_SIZE = 1000;
+  const invoices = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data: page, error } = await supabase
+      .from('invoices')
+      .select(`
       id,
       invoice_number,
       amount_due,
@@ -1089,11 +1093,16 @@ async function generateDebtorsAging(
         street:streets (name)
       )
     `)
-    .in('status', ['unpaid', 'partially_paid']);
+      .in('status', ['unpaid', 'partially_paid'])
+      .order('id')
+      .range(from, from + PAGE_SIZE - 1);
 
-  if (error) {
-    console.error('Error fetching invoices for debtors and aging report:', error);
-    throw new Error(error.message);
+    if (error) {
+      console.error('Error fetching invoices for debtors and aging report:', error);
+      throw new Error(error.message);
+    }
+    invoices.push(...(page ?? []));
+    if (!page || page.length < PAGE_SIZE) break;
   }
 
   interface Line { invoiceNumber: string; dueDate: string; daysOverdue: number; outstanding: number; bucket: AgingBucketKey }
@@ -1110,7 +1119,7 @@ async function generateDebtorsAging(
   const bucketTotals = emptyBuckets();
   let oldest: { daysOverdue: number; dueDate: string } | null = null;
 
-  for (const invoice of invoices || []) {
+  for (const invoice of invoices) {
     const outstanding = (Number(invoice.amount_due) || 0) - (Number(invoice.amount_paid) || 0);
     if (outstanding <= 0) continue;
 
