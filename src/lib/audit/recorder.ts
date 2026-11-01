@@ -130,6 +130,7 @@ export const ENTITY_DISPLAY_FIELDS: Record<AuditEntityType, readonly (string | r
   two_factor_backup_codes: DEFAULT_DISPLAY_FIELDS,
   two_factor_policies: DEFAULT_DISPLAY_FIELDS,
   two_factor_audit_log: DEFAULT_DISPLAY_FIELDS,
+  two_factor_trusted_devices: DEFAULT_DISPLAY_FIELDS,
   whatsapp_optins: DEFAULT_DISPLAY_FIELDS,
   whatsapp_pending_contacts: DEFAULT_DISPLAY_FIELDS,
   whatsapp_link_tokens: DEFAULT_DISPLAY_FIELDS,
