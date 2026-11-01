@@ -394,6 +394,13 @@ describe('composeAdminOwesAnswer', () => {
     expect(monthsPaidBy(bills, 40000, 30000, ['2026-02-01', '2026-03-01'])).toEqual({ from: '2026-01-01', to: '2026-03-01' });
     expect(monthsPaidBy(bills, 50000, 20000, ['2026-02-01', '2026-03-01'])).toEqual({ from: '2026-02-01', to: '2026-03-01' });
     expect(monthsPaidBy(bills, 50000, 5000)).toBeNull();
+    // A payment that ends exactly on a bill boundary stops there.
+    expect(monthsPaidBy(bills, 0, 20000)).toEqual({ from: '2025-09-01', to: '2025-10-01' });
+    // Payments equal to the bills leave no credit, so credit months are not added.
+    expect(monthsPaidBy(bills, 20000, 30000, ['2026-02-01'])).toEqual({ from: '2025-11-01', to: '2026-01-01' });
+    // A zero bill is never counted as paid.
+    const withZero = [{ periodStart: '2025-09-01', amount: 10000 }, { periodStart: '2025-10-01', amount: 0 }, { periodStart: '2025-11-01', amount: 10000 }];
+    expect(monthsPaidBy(withZero, 10000, 10000)).toEqual({ from: '2025-11-01', to: '2025-11-01' });
   });
 
   it('says so when no resident is billed', () => {
