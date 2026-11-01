@@ -4,6 +4,8 @@ import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useSetWhatsAppSignInApproval, useWhatsAppSignInApproval } from '@/hooks/use-two-factor';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 /**
  * "Approve sign-ins on WhatsApp" (#1389). Shown only when two-factor login is on and a WhatsApp
@@ -12,7 +14,10 @@ import { useSetWhatsAppSignInApproval, useWhatsAppSignInApproval } from '@/hooks
 export function WhatsAppApprovalSwitch() {
   const approval = useWhatsAppSignInApproval();
   const save = useSetWhatsAppSignInApproval();
+  const { hasPermission } = useAuth();
 
+  // The read and the save both need two_factor.enable (CORE §6: the client check names the server's permission).
+  if (!hasPermission(PERMISSIONS.TWO_FACTOR_ENABLE)) return null;
   if (approval.isLoading) return null;
   if (approval.error) {
     return <p className="text-sm text-destructive">{approval.error.message}</p>;
