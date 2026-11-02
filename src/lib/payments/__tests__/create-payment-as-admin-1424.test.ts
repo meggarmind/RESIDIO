@@ -26,6 +26,7 @@ vi.mock('@/lib/payments/house-membership', () => ({ residentHasHouse: vi.fn().mo
 vi.mock('@/lib/matching/duplicate-matcher', () => ({ checkDuplicateGuardrail: vi.fn().mockResolvedValue({ isDuplicate: false }) }));
 
 import { createPaymentAsAdmin, createPaymentAsSystem } from '../create-payment';
+import { checkDuplicateGuardrail } from '@/lib/matching/duplicate-matcher';
 
 const RESIDENT_ID = '11111111-1111-4111-8111-111111111111';
 const HOUSE_ID = '22222222-2222-4222-8222-222222222222';
@@ -90,5 +91,19 @@ describe('createPaymentAsAdmin (#1424)', () => {
       expect.objectContaining({ metadata: { source: 'cron:fetch-emails' } }),
       { userId: null, system: 'cron:fetch-emails' }
     );
+  });
+});
+
+describe('duplicate guard split group (#1443)', () => {
+  const GROUP = '33333333-3333-4333-8333-333333333333';
+
+  it('passes the split group id to the duplicate guard', async () => {
+    await createPaymentAsAdmin({ ...INPUT, split_payment_group_id: GROUP }, 'chair-1', { channel: 'whatsapp_admin' });
+    expect(vi.mocked(checkDuplicateGuardrail).mock.calls[0][0]).toMatchObject({ splitPaymentGroupId: GROUP });
+  });
+
+  it('passes no group id when the payment is not split', async () => {
+    await createPaymentAsAdmin(INPUT, 'chair-1', { channel: 'whatsapp_admin' });
+    expect(vi.mocked(checkDuplicateGuardrail).mock.calls[0][0].splitPaymentGroupId).toBeFalsy();
   });
 });

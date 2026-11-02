@@ -28,6 +28,8 @@ export async function checkDuplicateGuardrail(
         date: Date | string;
         residentId?: string; // For payments
         reference?: string;
+        /** Rows of this split group (#1443) are lines of the same alert, not duplicates of it. */
+        splitPaymentGroupId?: string | null;
     },
     entityType: 'payment' | 'expense' | 'petty_cash',
     options: DuplicateCheckOptions = {}
@@ -59,10 +61,15 @@ export async function checkDuplicateGuardrail(
 
         // Expenses/Petty cash might not enforce unique Ref, but payments usually do.
         // If strict match on Ref, it's 100% duplicate.
-        const { data: exactRef, error: exactRefError } = await supabase
+        let exactQuery = supabase
             .from(table)
             .select('id')
-            .eq('reference_number', transaction.reference)
+            .eq('reference_number', transaction.reference);
+        if (table === 'payment_records' && transaction.splitPaymentGroupId) {
+            // A null group id must still count: `neq` alone would drop rows with no group.
+            exactQuery = exactQuery.or(`split_payment_group_id.is.null,split_payment_group_id.neq.${transaction.splitPaymentGroupId}`);
+        }
+        const { data: exactRef, error: exactRefError } = await exactQuery
             .limit(1)
             .maybeSingle();
         if (exactRefError) {
@@ -96,6 +103,9 @@ export async function checkDuplicateGuardrail(
 
     if (entityType === 'payment' && transaction.residentId) {
         query = query.eq('resident_id', transaction.residentId);
+    }
+    if (entityType === 'payment' && transaction.splitPaymentGroupId) {
+        query = query.or(`split_payment_group_id.is.null,split_payment_group_id.neq.${transaction.splitPaymentGroupId}`);
     }
 
     const { data: candidates, error } = await query;

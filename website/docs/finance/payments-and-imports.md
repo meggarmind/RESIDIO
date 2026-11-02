@@ -11,8 +11,8 @@ residio_sources:
   - src/actions/imports/**
   - src/components/imports/**
   - src/lib/parsers/**
-residio_verified_commit: 4039bd1b
-residio_verified_at: '2026-10-26'
+residio_verified_commit: f695f31
+residio_verified_at: '2026-11-02'
 residio_app_version: '0.4.0'
 ---
 
@@ -38,7 +38,7 @@ A payment for a house pays only that house's invoices. Any amount left over stay
 
 When a resident pays one sum for dues and a collection (for example dues and the End of Year Party), turn on **Part of this payment is for a collection** before saving. Enter the full amount received in **Amount**, then add one or more collection parts: the collection and the amount, or the quantity for an item purchase. The form shows how much goes to the wallet. Saving records each collection part as a payment into its collection, with its own `COL-` receipt, and the rest as a billing payment in the **Payment for** category. The parts always add up to the amount received. If the billing payment cannot be saved (for example it is a duplicate), the collection parts are reversed. A split where the collection parts take the whole amount is refused: record that payment in **Collections** instead. Splitting needs `payments.create` and `collections.manage`.
 
-Payments from a bank statement or email import are recorded as Dues, paid by the matched resident, unless the review marked the line as a collection (see below). A Paystack payment takes the category of the invoice it was started from.
+Payments from a bank statement or email import are recorded as Dues, paid by the matched resident, unless the review marked the line as a collection (see below). On **Payments > Awaiting verification**, **Approve** on a bank alert shows **What is this payment for?**. The alert starts as one Dues line for the whole amount. Change the type (for example Toll Gate Levy or Other), or choose **Add a line** to split the alert across types. The lines must add up to the amount of the alert, and a line for **Other** needs a comment. **Confirm approve** records one payment for each line; if one line fails, the app undoes the others and the alert stays in the list. A Paystack payment takes the category of the invoice it was started from.
 
 ## Change what a payment is for
 
