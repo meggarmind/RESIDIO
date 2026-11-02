@@ -50,6 +50,35 @@ export async function loadVerifiedPayments(fromDate: string, toDate: string, cli
   }
 }
 
+export interface UnverifiedPayments {
+  count: number;
+  total: number;
+}
+
+/**
+ * Bank-alert credits waiting in the email-import review queue: not matched to a resident yet, so
+ * not payments. All waiting credits count, whatever their date, because each one still needs a
+ * person to review it.
+ */
+export async function loadUnverifiedPayments(client: SupabaseClient = createAdminClient() as unknown as SupabaseClient): Promise<UnverifiedPayments> {
+  const result: UnverifiedPayments = { count: 0, total: 0 };
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await client
+      .from('email_transactions')
+      .select('id, amount')
+      .eq('status', 'queued_for_review')
+      .eq('transaction_type', 'credit')
+      .order('id')
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    for (const row of data ?? []) {
+      result.count += 1;
+      result.total += Number(row.amount) || 0;
+    }
+    if ((data?.length ?? 0) < PAGE) return result;
+  }
+}
+
 /** Today (Lagos) and the calendar month so far, as `YYYY-MM-DD`. */
 export function collectionDays(now: Date): { today: string; monthStart: string; monthEnd: string } {
   const today = lagosDateString(now);
@@ -67,7 +96,7 @@ function total(rows: CollectionPayment[]): number {
   return rows.reduce((sum, row) => sum + row.amount, 0);
 }
 
-export function composeCollectionsAnswer(payments: CollectionPayment[], now: Date): string {
+export function composeCollectionsAnswer(payments: CollectionPayment[], now: Date, unverified: UnverifiedPayments = { count: 0, total: 0 }): string {
   const { today } = collectionDays(now);
   const todays = payments.filter((p) => p.paymentDate === today);
   const lines = [
@@ -84,7 +113,8 @@ export function composeCollectionsAnswer(payments: CollectionPayment[], now: Dat
       lines.push(`${street}: ${formatNaira(total(rows))} (${plural(rows.length)})`);
     }
   }
-  lines.push('', 'Verified payments only.');
+  lines.push(`Unverified: ${formatNaira(unverified.total)} (${plural(unverified.count)})`);
+  lines.push('', 'Totals count verified payments only. Unverified = bank alerts waiting for review.');
   return lines.join('\n');
 }
 
@@ -95,11 +125,11 @@ export const collectionsAction: WhatsAppAdminAction = {
   freshCode: false,
   async run({ now }) {
     const { monthStart, monthEnd } = collectionDays(now);
-    const payments = await loadVerifiedPayments(monthStart, monthEnd);
+    const [payments, unverified] = await Promise.all([loadVerifiedPayments(monthStart, monthEnd), loadUnverifiedPayments()]);
     const { today } = collectionDays(now);
     return {
-      reply: composeCollectionsAnswer(payments, now),
-      audit: { today_count: payments.filter((p) => p.paymentDate === today).length, month_count: payments.length },
+      reply: composeCollectionsAnswer(payments, now, unverified),
+      audit: { today_count: payments.filter((p) => p.paymentDate === today).length, month_count: payments.length, unverified_count: unverified.count },
     };
   },
 };
