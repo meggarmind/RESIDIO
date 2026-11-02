@@ -21,6 +21,11 @@ interface EnhancedStatCardProps {
   className?: string;
   animate?: boolean;
   onClick?: () => void;
+  /**
+   * Opt-in filter-card behaviour: when defined (with onClick), the card is a
+   * keyboard-operable button exposing aria-pressed, ringed while selected.
+   */
+  selected?: boolean;
 }
 
 /**
@@ -59,7 +64,9 @@ export function EnhancedStatCard({
   className,
   animate = true,
   onClick,
+  selected,
 }: EnhancedStatCardProps) {
+  const isToggle = Boolean(onClick) && selected !== undefined;
   // Color mappings for accent colors with enhanced gradients
   const accentColors = {
     default: {
@@ -115,9 +122,22 @@ export function EnhancedStatCard({
         'relative overflow-hidden group',
         'hover:shadow-md transition-all duration-200',
         animate && 'animate-slide-up',
+        isToggle && 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+        isToggle && selected && 'ring-2 ring-primary border-primary',
         className
       )}
       onClick={onClick}
+      {...(isToggle && {
+        role: 'button',
+        tabIndex: 0,
+        'aria-pressed': selected,
+        onKeyDown: (e: React.KeyboardEvent) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onClick?.();
+          }
+        },
+      })}
     >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
         <CardTitle className="text-sm font-medium tracking-wide text-muted-foreground">
