@@ -119,6 +119,24 @@ const reportTypeConfig: Record<
         gradient: 'from-emerald-500 to-teal-500',
         iconBg: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
     },
+    collection_rate_by_street: {
+        icon: Users,
+        label: 'Collection rate by street',
+        gradient: 'from-orange-500 to-amber-500',
+        iconBg: 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
+    },
+    expenses_by_category: {
+        icon: ScrollText,
+        label: 'Expenses by category and vendor',
+        gradient: 'from-purple-500 to-violet-500',
+        iconBg: 'bg-purple-500/15 text-purple-600 dark:text-purple-400',
+    },
+    wallet_balances: {
+        icon: Receipt,
+        label: 'Wallet balances',
+        gradient: 'from-emerald-500 to-teal-500',
+        iconBg: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+    },
     indebtedness_summary: {
         icon: Users,
         label: 'Indebtedness Report',

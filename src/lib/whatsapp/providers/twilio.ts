@@ -6,6 +6,9 @@ import type { WhatsAppInboundMessage } from '@/lib/whatsapp/types';
 
 const TWILIO_API_BASE = 'https://api.twilio.com/2010-04-01';
 
+/** Upper bound on each Twilio send. */
+const TWILIO_SEND_TIMEOUT_MS = 15_000;
+
 interface TwilioSendResponse {
   sid?: string;
 }
@@ -62,6 +65,7 @@ export function createTwilioWhatsAppProvider(
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: body.toString(),
+      signal: AbortSignal.timeout(TWILIO_SEND_TIMEOUT_MS),
     });
 
     if (!response.ok) {
