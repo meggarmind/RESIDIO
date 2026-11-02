@@ -10,10 +10,15 @@ const mocks = vi.hoisted(() => ({
   can: new Set<string>(),
   houses: { data: undefined as unknown, isLoading: false, error: null as Error | null },
   residents: { data: undefined as unknown, isLoading: false, error: null as Error | null },
+  enabled: { houses: [] as unknown[], residents: [] as unknown[] },
 }));
 vi.mock('@/components/auth/can', () => ({ useCan: (p: string) => mocks.can.has(p) }));
-vi.mock('@/hooks/use-houses', () => ({ useHouses: () => mocks.houses }));
-vi.mock('@/hooks/use-residents', () => ({ useResidentOptions: () => mocks.residents }));
+vi.mock('@/hooks/use-houses', () => ({
+  useHouses: (_params: unknown, options?: { enabled?: boolean }) => { mocks.enabled.houses.push(options?.enabled); return mocks.houses; },
+}));
+vi.mock('@/hooks/use-residents', () => ({
+  useResidentOptions: (options?: { enabled?: boolean }) => { mocks.enabled.residents.push(options?.enabled); return mocks.residents; },
+}));
 
 import { generateReportWithClient } from '@/lib/reports/report-generator';
 import { isSummaryReport, subjectTitle, type SummaryReportData } from '@/lib/reports/summary-report';
@@ -87,7 +92,8 @@ const PAYMENTS = [
   payment(R2, '2026-09-20', 3000, { is_verified: false }), // awaiting verification
   payment(R2, '2026-10-05', 4000, { status: 'pending', is_verified: false }), // awaiting verification
   payment(R2, '2026-10-10', 5000),
-  payment(R2, '2026-10-11', 9999, { status: 'failed' }),
+  payment(R2, '2026-10-11', 9999, { status: 'failed', is_verified: false }), // never counted, not even as awaiting verification
+  payment(R2, '2026-11-05', 600, { is_verified: false }), // awaiting, but after the period: not in the note
 ];
 const WALLETS = [
   { id: W_DUES, resident_id: R2, charge_category: 'dues' },
@@ -340,6 +346,42 @@ describe('Statement of account: schedule, PDF and picker (#1402)', () => {
     for (const m of ['@/lib/auth/authorize', '@/lib/supabase/server', '@/lib/audit/logger', 'next/cache']) vi.doUnmock(m);
   });
 
+  it('updateReportSchedule refuses to make a schedule a statement without a subject, and checks the saved one', async () => {
+    vi.resetModules();
+    const update = vi.fn();
+    let existing: Record<string, unknown> = { id: 's1', name: 'S', report_type: 'financial_overview', configuration: {} };
+    const read = { select: () => read, eq: () => read, single: async () => ({ data: existing, error: null }) };
+    vi.doMock('@/lib/auth/authorize', () => ({ authorizePermission: async () => ({ authorized: true, userId: 'u1' }) }));
+    vi.doMock('@/lib/supabase/server', () => ({ createServerSupabaseClient: async () => ({ from: () => ({ ...read, update }) }) }));
+    vi.doMock('@/lib/audit/logger', () => ({ logAudit: vi.fn() }));
+    vi.doMock('next/cache', () => ({ revalidatePath: vi.fn() }));
+    const { updateReportSchedule } = await import('@/actions/reports/report-schedules');
+    expect((await updateReportSchedule('s1', { report_type: 'statement_of_account' })).error).toMatch(/needs the house or resident/);
+    existing = { ...existing, report_type: 'statement_of_account', configuration: { statementFor: 'house', statementId: H } };
+    expect((await updateReportSchedule('s1', { configuration: { statementFor: 'house', statementId: 'bad' } })).error).toMatch(/needs the house or resident/);
+    expect(update).not.toHaveBeenCalled();
+    for (const m of ['@/lib/auth/authorize', '@/lib/supabase/server', '@/lib/audit/logger', 'next/cache']) vi.doUnmock(m);
+  });
+
+  it('the report title from New report names the house and the period', async () => {
+    vi.resetModules();
+    const data = await run();
+    const save = vi.fn().mockResolvedValue({ data: null, error: null });
+    vi.doMock('@/actions/reports/report-engine', () => ({
+      generateReport: vi.fn().mockResolvedValue({ success: true, report: { type: 'statement_of_account', layout: 'summary', data } }),
+    }));
+    vi.doMock('@/actions/reports/report-schedules', () => ({ saveGeneratedReport: save }));
+    const { useGenerateReport } = await import('@/hooks/use-reports');
+    const { QueryClient, QueryClientProvider } = await import('@tanstack/react-query');
+    const { renderHook } = await import('@testing-library/react');
+    const client = new QueryClient();
+    const { result } = renderHook(() => useGenerateReport(), { wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider> });
+    const report = await result.current.mutateAsync({ ...params(), saveToHistory: true });
+    expect(report.title).toBe('Statement of account - 12, Palm Close, 01 August 2026 to 31 October 2026');
+    expect(save.mock.calls[0][0].name).toBe(report.title);
+    for (const m of ['@/actions/reports/report-engine', '@/actions/reports/report-schedules']) vi.doUnmock(m);
+  });
+
   it('a statement schedule runs for the house or resident it saved', async () => {
     vi.resetModules();
     const generate = vi.fn().mockResolvedValue({ success: false, error: 'stop' });
@@ -360,18 +402,27 @@ describe('Statement of account: schedule, PDF and picker (#1402)', () => {
 
   it('renders a server PDF with the subject in the title', async () => {
     const { renderReportPdf } = await import('@/lib/pdf/reports/renderer');
+    const pdf = await import('@/lib/pdf/reports/summary-report-pdf');
+    const spy = vi.spyOn(pdf, 'SummaryReportPdf');
     const buffer = await renderReportPdf('statement_of_account', await run(), 'Test Estate');
     expect(buffer).not.toBeNull();
     expect(buffer!.subarray(0, 4).toString()).toBe('%PDF');
+    expect(spy.mock.calls[0][0].title).toBe('Statement of account - 12, Palm Close, 01 August 2026 to 31 October 2026');
+    spy.mockRestore();
   });
 
   it('the picker offers only the lists the user can load, and shows a refused load as an error', () => {
     mocks.can = new Set([PERMISSIONS.HOUSES_VIEW]);
+    mocks.enabled = { houses: [], residents: [] };
     mocks.houses = { data: { data: [{ id: H, house_number: '12', street: { name: 'Palm Close' }, short_name: null }] }, isLoading: false, error: null };
     render(<StatementSubjectPicker statementFor="house" statementId="" onChange={vi.fn()} />);
     expect(screen.getByRole('button', { name: /A house/ })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /A resident/ })).toBeNull();
     expect(screen.getByText('You cannot view residents, so only a house statement is available.')).toBeTruthy();
+    // The resident list is not loaded for a user who cannot view residents.
+    expect(mocks.enabled.houses.every((e) => e === true)).toBe(true);
+    expect(mocks.enabled.residents.every((e) => e === false)).toBe(true);
+    expect(mocks.enabled.residents.length).toBeGreaterThan(0);
     cleanup();
 
     mocks.houses = { data: undefined, isLoading: false, error: new Error('permission denied') };
@@ -380,8 +431,10 @@ describe('Statement of account: schedule, PDF and picker (#1402)', () => {
     cleanup();
 
     mocks.can = new Set();
+    mocks.enabled = { houses: [], residents: [] };
     render(<StatementSubjectPicker statementFor="house" statementId="" onChange={vi.fn()} />);
     expect(screen.getByText(/You cannot view houses or residents/)).toBeTruthy();
     expect(screen.queryByRole('combobox')).toBeNull();
+    expect([...mocks.enabled.houses, ...mocks.enabled.residents].every((e) => e === false)).toBe(true);
   });
 });

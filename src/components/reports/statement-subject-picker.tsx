@@ -32,8 +32,9 @@ export function StatementSubjectPicker({
     const kind: StatementFor = statementFor === 'resident' ? (canResidents ? 'resident' : 'house') : canHouses ? 'house' : 'resident';
 
     // getHouses reads every active house when it sorts by house number, then returns `limit` of them.
-    const houses = useHouses({ limit: 1000 });
-    const residents = useResidentOptions();
+    // A list the user may not see is not loaded.
+    const houses = useHouses({ limit: 1000 }, { enabled: canHouses });
+    const residents = useResidentOptions({ enabled: canResidents });
 
     const houseOptions = (houses.data?.data ?? []).map((h) => ({
         value: h.id,
