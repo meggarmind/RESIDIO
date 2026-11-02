@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
+  HouseCandidate,
   HouseMatch,
   UnverifiedAlert,
   UnverifiedPayment,
@@ -83,6 +84,9 @@ let store: {
   alerts: StoredAlert[];
   payments: StoredPayment[];
   houses: HouseMatch[];
+  /** The residents on houses a name search can find (#1433). */
+  candidates: HouseCandidate[];
+  searched: string[];
   aliases: { residentId: string; name: string }[];
   recorded: { alertId: string; houseId: string; residentId: string; profileId: string; verified: boolean }[];
   audits: { entry: AuditEntry; profileId: string }[];
@@ -139,6 +143,16 @@ function fakeRepository(): UnverifiedPaymentsRepository {
     findHouse: async (code) => {
       store.findHouse.push(code);
       return store.houses.find((h) => h.code.toLowerCase() === code.toLowerCase()) ?? null;
+    },
+    searchHouses: async (text) => {
+      store.searched.push(text);
+      const words = text.toLowerCase().split(/\s+/).filter(Boolean);
+      if (words.join('').length < 2) return [];
+      return store.candidates.filter(
+        (c) =>
+          words.every((w) => c.resident.toLowerCase().includes(w)) ||
+          store.aliases.some((a) => a.residentId === c.residentId && a.name.toLowerCase().includes(text.toLowerCase()))
+      );
     },
     livePermissions: async () => store.live,
     autoProcessLimit: async () => store.limit,
@@ -221,6 +235,16 @@ beforeEach(() => {
       { houseId: 'house-ibb', code: 'IBB-3AF-4', residentId: 'resident-ibb', resident: 'CHIBUEZE NICHOLAS JAMES' },
       { houseId: 'house-empty', code: 'KOA-1', residentId: null, resident: null },
     ],
+    candidates: [
+      { houseId: 'house-koa', code: 'KOA-15F-2', residentId: 'resident-koa', resident: 'MARTINS AWONUSI', role: 'tenant' },
+      { houseId: 'house-ojo22', code: 'OJO.K-22F-3', residentId: 'resident-ojo', resident: 'MARTINS ONYEKA NWAGIMEJE', role: 'tenant' },
+      ...[11, 12, 13, 14, 15].flatMap((n) => [
+        { houseId: `house-okon-${n}-1`, code: `OJO.K-${n}F-1`, residentId: 'resident-okon', resident: 'MR OKON', role: 'resident_landlord' },
+        { houseId: `house-okon-${n}-2`, code: `OJO.K-${n}F-2`, residentId: 'resident-okon', resident: 'MR OKON', role: 'non_resident_landlord' },
+      ]),
+      { houseId: 'house-coresident', code: 'IBB-3AF-5', residentId: 'resident-co', resident: 'ADA CORESIDENT', role: 'co_resident' },
+    ],
+    searched: [],
     aliases: [],
     recorded: [],
     audits: [],
@@ -443,7 +467,7 @@ describe('Unverified payments in Admin tools (#1424)', () => {
   it('asks again for an unknown house code or a house with no resident', async () => {
     const chat = conversation();
     for (const text of ['6', '8', '1']) await chat.send(text);
-    expect(await chat.send('XYZ-1')).toEqual([`No house has the code XYZ-1. ${HOUSE_PROMPT}`]);
+    expect(await chat.send('XYZ-1')).toEqual(['No house matches "XYZ-1". Send another name or code. 0 Back.']);
     expect(await chat.send('KOA-1')).toEqual(['KOA-1 has no tenant or landlord to record the payment for. Send another house code, or 0 Back.']);
   });
 
@@ -542,7 +566,7 @@ describe('Unverified payments in Admin tools (#1424)', () => {
 
   it('goes back to the list on 0, and to Admin tools on 0 from the list', async () => {
     const chat = conversation();
-    for (const text of ['6', '8', '1']) await chat.send(text);
+    for (const text of ['6', '8']) await chat.send(text);
     expect(await chat.send('0')).toEqual([`${PAGE_1}\n\nReply a number to see one. M for more. 0 for Admin tools.`]);
     expect(chat.node).toBe(ADMIN_ITEM_NODE);
     const [menu] = await chat.send('0');
@@ -755,7 +779,103 @@ describe('payer names from Stage bank alert texts (#1424)', () => {
     ['FIP:GTB/ATSEYINKU  ATITAN THEODORE/Atseyinku Theod', 'ATSEYINKU ATITAN THEODORE'],
     ['FIP:WEM/MARTINS ABIMBOLA A/ALAT NIP TRANSFER FROM', 'MARTINS ABIMBOLA A'],
     ['FIP:ZIB/LILIAN/ Estate dues November to August', 'LILIAN'],
+    // #1433
+    ['FBNMOBILE:ISIMAH NKECHI RACHEAL/For 2 months Tuke', 'ISIMAH NKECHI RACHEAL'],
+    ['ISW:MMB/LUKA BROTHERS T/for estate security levy/A', 'LUKA BROTHERS T'],
+    ['NIP:FCMB/JOHN DOE/dues', 'JOHN DOE'],
+    ['TRF:OPAY/AMAKA OBI', 'AMAKA OBI'],
   ])('%s', (description, alias) => {
     expect(aliasName(description)).toBe(alias);
+  });
+});
+
+describe('Give to a house by code or name (#1433)', () => {
+  /** Opens alert 13 (the MARTINS ABIMBOLA A alert) and replies 1 Give to a house. */
+  async function atHouseQuestion() {
+    const chat = conversation();
+    for (const text of ['6', '13']) await chat.send(text);
+    expect(await chat.send('1')).toEqual([HOUSE_PROMPT]);
+    expect(HOUSE_PROMPT).toBe("Send the house code or part of the resident's name.\nExamples: IBB-3AF-4 or MARTINS");
+    return chat;
+  }
+
+  it('goes on as before for a house code, without a name search', async () => {
+    const chat = await atHouseQuestion();
+    const [confirm] = await chat.send('ibb-3af-4');
+    expect(confirm).toMatch(/^IBB-3AF-4: CHIBUEZE NICHOLAS JAMES\./);
+    expect(store.searched).toEqual([]);
+  });
+
+  it('lists the houses that match a name, then confirms the resident on the picked line', async () => {
+    const chat = await atHouseQuestion();
+    expect(await chat.send('martins')).toEqual([
+      '2 houses match "MARTINS":\n1. KOA-15F-2 MARTINS AWONUSI, tenant\n2. OJO.K-22F-3 MARTINS ONYEKA NWAGIMEJE, tenant\n\nReply a number, or send another name or code. 0 Back.',
+    ]);
+    // Not the resident of line 1: the picked line is used.
+    expect(await chat.send('2')).toEqual([
+      'OJO.K-22F-3: MARTINS ONYEKA NWAGIMEJE.\nRecord ₦39,000 for this resident from the MARTINS ABIMBOLA A alert?\n\nReply 1 Yes, 2 Yes but do not save the payer name, 0 Back.',
+    ]);
+    await chat.send('2');
+    expect(store.recorded).toEqual([{ alertId: 'alert-13', houseId: 'house-ojo22', residentId: 'resident-ojo', profileId: 'chair-1', verified: true }]);
+    expect(store.aliases).toEqual([]);
+  });
+
+  it('says so for one match, and for none, in the same step', async () => {
+    const chat = await atHouseQuestion();
+    expect((await chat.send('awonusi'))[0]).toMatch(/^1 house matches "AWONUSI":\n1\. KOA-15F-2 MARTINS AWONUSI, tenant\n/);
+    expect(await chat.send('zzzz')).toEqual(['No house matches "ZZZZ". Send another name or code. 0 Back.']);
+    // The old list is gone: a number is a new search now.
+    expect(await chat.send('1')).toEqual(['No house matches "1". Send another name or code. 0 Back.']);
+    expect(store.searched).toEqual(['awonusi', 'zzzz', '1']);
+  });
+
+  it('shows one line per house for a person with many houses, with landlord and co-resident words', async () => {
+    const chat = await atHouseQuestion();
+    const [list] = await chat.send('okon');
+    expect(list.split('\n').slice(0, 3)).toEqual(['10 houses match "OKON":', '1. OJO.K-11F-1 MR OKON, landlord', '2. OJO.K-11F-2 MR OKON, landlord']);
+    expect((await chat.send('coresident'))[0]).toContain('1. IBB-3AF-5 ADA CORESIDENT, co-resident');
+  });
+
+  it('pages nine to a page: M shows the rest, numbers go on, a pick works on page 2', async () => {
+    const chat = await atHouseQuestion();
+    const [page1] = await chat.send('okon');
+    expect(page1.split('\n')).toHaveLength(1 + 9 + 1 + 1);
+    expect(page1.endsWith('Reply a number, or send another name or code. M for more. 0 Back.')).toBe(true);
+    const [page2] = await chat.send('m');
+    expect(page2).toBe('10 houses match "OKON":\n10. OJO.K-15F-2 MR OKON, landlord\n\nReply a number, or send another name or code. 0 Back.');
+    expect(await chat.send('M')).toEqual(['There are no more houses. Reply a number, or send another name or code. 0 Back.']);
+    expect((await chat.send('10'))[0]).toMatch(/^OJO\.K-15F-2: MR OKON\./);
+  });
+
+  it('matches a saved payer name', async () => {
+    store.aliases = [{ residentId: 'resident-koa', name: 'MARTINS ABIMBOLA A' }];
+    const chat = await atHouseQuestion();
+    expect((await chat.send('abimbola'))[0]).toBe(
+      '1 house matches "ABIMBOLA":\n1. KOA-15F-2 MARTINS AWONUSI, tenant\n\nReply a number, or send another name or code. 0 Back.'
+    );
+  });
+
+  it('replaces the list with the new text, and a number then picks from the new list', async () => {
+    const chat = await atHouseQuestion();
+    await chat.send('martins');
+    await chat.send('okon');
+    expect((await chat.send('1'))[0]).toMatch(/^OJO\.K-11F-1: MR OKON\./);
+  });
+
+  it('0 goes back to the alert detail, from the question and from a list', async () => {
+    const detail = '🏦 Bank alert 13: no resident yet\nAmount: ₦39,000\nDate: 2 Nov 2026\nBank text: FIP:WEM/MARTINS ABIMBOLA A/ALAT NIP TRANSFER FROM\nBank email checked: yes\nKnown payer name: no match\nPayments with the same amount: none\n\nReply 1 Give to a house, 2 Not estate money, 0 Back.';
+    const chat = await atHouseQuestion();
+    expect(await chat.send('0')).toEqual([detail]);
+    await chat.send('1');
+    await chat.send('martins');
+    expect(await chat.send('0')).toEqual([detail]);
+    // From the alert detail, 1 asks again.
+    expect(await chat.send('1')).toEqual([HOUSE_PROMPT]);
+  });
+
+  it('passes the text to the search as typed, for the database to escape', async () => {
+    const chat = await atHouseQuestion();
+    await chat.send('50%_off');
+    expect(store.searched).toEqual(['50%_off']);
   });
 });
