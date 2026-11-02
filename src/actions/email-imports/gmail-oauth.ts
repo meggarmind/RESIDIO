@@ -26,6 +26,9 @@ import { encrypt, decrypt } from '@/lib/email-imports/oauth-encryption';
 import { validateImportRules } from '@/lib/email-imports/import-rules';
 import type { GmailConnectionStatus, GmailSyncCriteria } from '@/types/database';
 
+/** Upper bound on the token revoke call. */
+const GOOGLE_REVOKE_TIMEOUT_MS = 10_000;
+
 // ============================================================
 // Get Gmail OAuth Authorization URL
 // ============================================================
@@ -259,6 +262,7 @@ export async function disconnectGmail(): Promise<{ error: string | null }> {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: `token=${accessToken}`,
+      signal: AbortSignal.timeout(GOOGLE_REVOKE_TIMEOUT_MS),
     });
   } catch (revokeError) {
     // Log but don't fail - token might already be invalid

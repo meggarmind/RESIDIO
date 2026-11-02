@@ -3,6 +3,9 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { getSettingValueAsService } from '@/lib/settings/service';
 import { decideSend, loadSnapshotFor } from '@/lib/comms-override/gate';
 import { prefixText } from '@/lib/comms-override/labels';
+
+/** Upper bound on the Termii send call, so a hung API cannot hold the request open. */
+const TERMII_SEND_TIMEOUT_MS = 15_000;
 import { blockedError, toLogRecord } from '@/lib/comms-override/resolver';
 import type { CommsSendContext, ResolveResult } from '@/lib/comms-override/types';
 import type {
@@ -162,6 +165,7 @@ async function sendSingleSms(
         type: 'plain',
         channel: 'generic', // Can be 'generic', 'dnd' (Do Not Disturb), or 'whatsapp'
       }),
+      signal: AbortSignal.timeout(TERMII_SEND_TIMEOUT_MS),
     });
 
     const data: TermiiSendResponse = await response.json();

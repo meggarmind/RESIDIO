@@ -22,6 +22,7 @@ import { generateCollectionRateByStreet } from '@/lib/reports/generators/collect
 import { generateExpensesByCategory } from '@/lib/reports/generators/expenses-by-category';
 import { generateWalletBalances } from '@/lib/reports/generators/wallet-balances';
 import { OCCUPANT_PAYER_ROLES, resolvePayer, type BillingPayer } from '@/lib/billing/payer';
+import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
 
 /** Either the cookie-bound session client or the service-role admin client. */
 export type ReportSupabaseClient =
@@ -263,70 +264,51 @@ async function generateFinancialOverview(
   transactionType: 'all' | 'credit' | 'debit'
 ): Promise<FinancialOverviewData> {
   // 1. Fetch Bank Statement Rows
-  let query = supabase
-    .from('bank_statement_rows')
-    .select(`
-      id,
-      amount,
-      transaction_type,
-      transaction_date,
-      tag_id,
-      transaction_tags (
+  const { data: rows, error } = await fetchAllRows((from, to) => {
+    let query = supabase
+      .from('bank_statement_rows')
+      .select(`
         id,
-        name,
-        color,
-        transaction_type
-      ),
-      bank_statement_imports!inner (
-        id,
-        bank_account_id,
-        status
-      )
-    `)
-    .gte('transaction_date', startDate)
-    .lte('transaction_date', endDate)
-    .eq('bank_statement_imports.status', 'completed');
+        amount,
+        transaction_type,
+        transaction_date,
+        tag_id,
+        transaction_tags (
+          id,
+          name,
+          color,
+          transaction_type
+        ),
+        bank_statement_imports!inner (
+          id,
+          bank_account_id,
+          status
+        )
+      `)
+      .gte('transaction_date', startDate)
+      .lte('transaction_date', endDate)
+      .eq('bank_statement_imports.status', 'completed');
 
-  if (bankAccountIds.length > 0) {
-    query = query.in('bank_statement_imports.bank_account_id', bankAccountIds);
-  }
+    if (bankAccountIds.length > 0) {
+      query = query.in('bank_statement_imports.bank_account_id', bankAccountIds);
+    }
 
-  if (transactionType !== 'all') {
-    query = query.eq('transaction_type', transactionType);
-  }
+    if (transactionType !== 'all') {
+      query = query.eq('transaction_type', transactionType);
+    }
 
-  const { data: rows, error } = await query;
+    return query.order('id').range(from, to);
+  });
 
   if (error) {
     console.error('Error fetching financial overview (bank rows):', error);
-    throw new Error(error.message);
+    throw new Error(error);
   }
 
   // 2. Fetch Expenses (Manual / Petty Cash)
   // Only fetching if we are interested in 'debit' or 'all' transactions
   let expensesData: Record<string, unknown>[] = [];
   if (transactionType === 'all' || transactionType === 'debit') {
-    let expensesQuery = supabase
-      .from('expenses')
-      .select(`
-        id,
-        amount,
-        expense_date,
-        description,
-        category_id,
-        expense_categories (
-          id,
-          name,
-          color
-        ),
-        payment_method,
-        source_type,
-        status
-      `)
-      .gte('expense_date', startDate)
-      .lte('expense_date', endDate)
-      .eq('status', 'paid');
-
     // We exclude 'bank_import' source type because those should already be covered by bank_statement_rows
     // Assuming 'bank_import' means it was created FROM a bank row.
     // If payment_method is 'bank_transfer', it might still be a manual entry that hasn't been reconciled with a bank row yet.
@@ -338,9 +320,31 @@ async function generateFinancialOverview(
     // And we can include 'manual' expenses if we assume they are cash or external to the connected bank accounts.
     // Let's include all non-bank-import expenses for now to ensure visibility, but this is a policy decision.
 
-    expensesQuery = expensesQuery.neq('source_type', 'bank_import');
-
-    const { data: expenses, error: expensesError } = await expensesQuery;
+    const { data: expenses, error: expensesError } = await fetchAllRows((from, to) =>
+      supabase
+        .from('expenses')
+        .select(`
+          id,
+          amount,
+          expense_date,
+          description,
+          category_id,
+          expense_categories (
+            id,
+            name,
+            color
+          ),
+          payment_method,
+          source_type,
+          status
+        `)
+        .gte('expense_date', startDate)
+        .lte('expense_date', endDate)
+        .eq('status', 'paid')
+        .neq('source_type', 'bank_import')
+        .order('id')
+        .range(from, to)
+    );
 
     if (expensesError) {
       console.error('Error fetching expenses for report:', expensesError);
@@ -502,33 +506,37 @@ async function generateCollectionReport(
   endDate: string
 ): Promise<CollectionReportData> {
   // Get invoices within the period
-  const { data: invoices, error: invoiceError } = await supabase
-    .from('invoices')
-    .select(`
-      id,
-      invoice_number,
-      amount_due,
-      amount_paid,
-      status,
-      due_date,
-      resident:residents (
+  const { data: invoices, error: invoiceError } = await fetchAllRows((from, to) =>
+    supabase
+      .from('invoices')
+      .select(`
         id,
-        first_name,
-        last_name,
-        resident_code
-      ),
-      house:houses (
-        house_number,
-        street:streets (name)
-      )
-    `)
-    .gte('due_date', startDate)
-    .lte('due_date', endDate)
-    .neq('status', 'void');
+        invoice_number,
+        amount_due,
+        amount_paid,
+        status,
+        due_date,
+        resident:residents (
+          id,
+          first_name,
+          last_name,
+          resident_code
+        ),
+        house:houses (
+          house_number,
+          street:streets (name)
+        )
+      `)
+      .gte('due_date', startDate)
+      .lte('due_date', endDate)
+      .neq('status', 'void')
+      .order('id')
+      .range(from, to)
+  );
 
   if (invoiceError) {
     console.error('Error fetching invoices:', invoiceError);
-    throw new Error(invoiceError.message);
+    throw new Error(invoiceError);
   }
 
   // Process data
@@ -752,45 +760,48 @@ async function generateTransactionLog(
   bankAccountIds: string[],
   transactionType: 'all' | 'credit' | 'debit'
 ): Promise<TransactionLogData> {
-  let query = supabase
-    .from('bank_statement_rows')
-    .select(`
-      id,
-      transaction_date,
-      description,
-      amount,
-      transaction_type,
-      reference,
-      transaction_tags (
-        name,
-        color
-      ),
-      bank_statement_imports!inner (
-        status,
-        estate_bank_accounts (
-          account_name,
-          bank_name
+  const { data: rows, error } = await fetchAllRows((from, to) => {
+    let query = supabase
+      .from('bank_statement_rows')
+      .select(`
+        id,
+        transaction_date,
+        description,
+        amount,
+        transaction_type,
+        reference,
+        transaction_tags (
+          name,
+          color
+        ),
+        bank_statement_imports!inner (
+          status,
+          estate_bank_accounts (
+            account_name,
+            bank_name
+          )
         )
-      )
-    `)
-    .gte('transaction_date', startDate)
-    .lte('transaction_date', endDate)
-    .eq('bank_statement_imports.status', 'completed')
-    .order('transaction_date', { ascending: false });
+      `)
+      .gte('transaction_date', startDate)
+      .lte('transaction_date', endDate)
+      .eq('bank_statement_imports.status', 'completed')
+      .order('transaction_date', { ascending: false })
+      .order('id');
 
-  if (bankAccountIds.length > 0) {
-    query = query.in('bank_statement_imports.bank_account_id', bankAccountIds);
-  }
+    if (bankAccountIds.length > 0) {
+      query = query.in('bank_statement_imports.bank_account_id', bankAccountIds);
+    }
 
-  if (transactionType !== 'all') {
-    query = query.eq('transaction_type', transactionType);
-  }
+    if (transactionType !== 'all') {
+      query = query.eq('transaction_type', transactionType);
+    }
 
-  const { data: rows, error } = await query;
+    return query.range(from, to);
+  });
 
   if (error) {
     console.error('Error fetching transaction log:', error);
-    throw new Error(error.message);
+    throw new Error(error);
   }
 
   let totalCredits = 0;
@@ -1698,49 +1709,57 @@ async function generateDevelopmentLevyReport(
   const levyAmount = profile?.billing_items?.[0]?.amount || 0;
 
   // Get all active houses with residents
-  const { data: houses, error: housesError } = await supabase
-    .from('houses')
-    .select(`
-      id,
-      house_number,
-      street:streets (
+  const { data: houses, error: housesError } = await fetchAllRows((from, to) =>
+    supabase
+      .from('houses')
+      .select(`
         id,
-        name
-      ),
-      resident_houses (
-        resident_id,
-        resident_role,
-        is_active,
-        resident:residents!resident_houses_resident_id_fkey (
+        house_number,
+        street:streets (
           id,
-          first_name,
-          last_name
+          name
+        ),
+        resident_houses (
+          resident_id,
+          resident_role,
+          is_active,
+          resident:residents!resident_houses_resident_id_fkey (
+            id,
+            first_name,
+            last_name
+          )
         )
-      )
-    `)
-    .eq('is_active', true)
-    .order('house_number');
+      `)
+      .eq('is_active', true)
+      .order('house_number')
+      .order('id')
+      .range(from, to)
+  );
 
   if (housesError) {
     console.error('Error fetching houses for development levy report:', housesError);
-    throw new Error(housesError.message);
+    throw new Error(housesError);
   }
 
   // Get development levy invoices (filter by rate_snapshot containing is_development_levy)
-  const { data: invoices, error: invoicesError } = await supabase
-    .from('invoices')
-    .select(`
-      id,
-      house_id,
-      amount_due,
-      amount_paid,
-      status,
-      rate_snapshot
-    `);
+  const { data: invoices, error: invoicesError } = await fetchAllRows((from, to) =>
+    supabase
+      .from('invoices')
+      .select(`
+        id,
+        house_id,
+        amount_due,
+        amount_paid,
+        status,
+        rate_snapshot
+      `)
+      .order('id')
+      .range(from, to)
+  );
 
   if (invoicesError) {
     console.error('Error fetching development levy invoices:', invoicesError);
-    throw new Error(invoicesError.message);
+    throw new Error(invoicesError);
   }
 
   // Filter to only development levy invoices and track payment status per house
