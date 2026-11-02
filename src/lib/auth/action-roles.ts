@@ -169,6 +169,7 @@ export const PERMISSIONS = {
   WHATSAPP_ADMIN_COLLECTIONS: 'whatsapp_admin.collections',
   WHATSAPP_ADMIN_CLEARANCE_QUEUE: 'whatsapp_admin.clearance_queue',
   WHATSAPP_ADMIN_APPROVE_PAYMENT: 'whatsapp_admin.approve_payment',
+  WHATSAPP_ADMIN_UNVERIFIED_PAYMENTS: 'whatsapp_admin.unverified_payments',
 
   // Recipient groups: named lists of residents to send to (#819)
   GROUPS_VIEW: 'groups.view',

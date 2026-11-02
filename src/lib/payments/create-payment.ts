@@ -3,7 +3,7 @@ import { paymentFormSchema } from '@/lib/validators/payment'
 import { z } from 'zod'
 import { allocateWalletToInvoices } from '@/actions/billing/wallet'
 import { logAudit } from '@/lib/audit/logger'
-import { recordAudit, type AuditEntry } from '@/lib/audit/recorder'
+import { recordAudit, type AuditActor, type AuditEntry } from '@/lib/audit/recorder'
 import { settlePaymentBatch, creditWalletAsService, type SettlementBatch, type SettlementResult } from '@/lib/billing/settle-payment'
 import { authorizePermission } from '@/lib/auth/authorize'
 import { PERMISSIONS } from '@/lib/auth/action-roles'
@@ -76,8 +76,29 @@ export async function createPaymentAsSystem(
     data: CreatePaymentInput,
     source: string,
 ): Promise<CreatePaymentResult> {
+    return recordPaymentAsService(data, { userId: null, system: source }, { source })
+}
+
+/**
+ * Session-free payment creation for an admin with no web session (#1424: WhatsApp Admin tools).
+ * NOT a server action and has no permission check: the caller must re-check the admin's live
+ * permissions first. The same as `createPaymentAsSystem`, but the audit entry names the admin as
+ * the actor, with `metadata` added (such as `{ channel: 'whatsapp_admin' }`).
+ */
+export async function createPaymentAsAdmin(
+    data: CreatePaymentInput,
+    profileId: string,
+    metadata: Record<string, unknown>,
+): Promise<CreatePaymentResult> {
+    return recordPaymentAsService(data, { userId: profileId }, metadata)
+}
+
+async function recordPaymentAsService(
+    data: CreatePaymentInput,
+    actor: AuditActor,
+    metadata: Record<string, unknown>,
+): Promise<CreatePaymentResult> {
     const supabase = await createAdminClient()
-    const actor = { userId: null, system: source }
     return recordPayment(data, { trustedVerification: true }, {
         supabase,
         allocate: (residentId, houseId, paymentDate, { chargeCategory, ...batch }) => settlePaymentBatch(
@@ -92,7 +113,7 @@ export async function createPaymentAsSystem(
                 chargeCategory,
             }, actor),
         ),
-        audit: (entry) => recordAudit({ ...entry, metadata: { ...entry.metadata, source } }, actor).then(() => undefined),
+        audit: (entry) => recordAudit({ ...entry, metadata: { ...entry.metadata, ...metadata } }, actor).then(() => undefined),
     })
 }
 
