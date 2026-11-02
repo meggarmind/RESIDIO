@@ -782,6 +782,8 @@ describe('payer names from Stage bank alert texts (#1424)', () => {
     // #1433
     ['FBNMOBILE:ISIMAH NKECHI RACHEAL/For 2 months Tuke', 'ISIMAH NKECHI RACHEAL'],
     ['ISW:MMB/LUKA BROTHERS T/for estate security levy/A', 'LUKA BROTHERS T'],
+    ['NIP:FCMB/JOHN DOE/dues', 'JOHN DOE'],
+    ['TRF:OPAY/AMAKA OBI', 'AMAKA OBI'],
   ])('%s', (description, alias) => {
     expect(aliasName(description)).toBe(alias);
   });
@@ -807,7 +809,7 @@ describe('Give to a house by code or name (#1433)', () => {
   it('lists the houses that match a name, then confirms the resident on the picked line', async () => {
     const chat = await atHouseQuestion();
     expect(await chat.send('martins')).toEqual([
-      '2 houses match "MARTINS":\n1. KOA-15F-2 MARTINS AWONUSI, tenant\n2. OJO.K-22F-3 MARTINS ONYEKA NWAGIMEJE, tenant\nReply a number, or send another name or code. 0 Back.',
+      '2 houses match "MARTINS":\n1. KOA-15F-2 MARTINS AWONUSI, tenant\n2. OJO.K-22F-3 MARTINS ONYEKA NWAGIMEJE, tenant\n\nReply a number, or send another name or code. 0 Back.',
     ]);
     // Not the resident of line 1: the picked line is used.
     expect(await chat.send('2')).toEqual([
@@ -837,10 +839,10 @@ describe('Give to a house by code or name (#1433)', () => {
   it('pages nine to a page: M shows the rest, numbers go on, a pick works on page 2', async () => {
     const chat = await atHouseQuestion();
     const [page1] = await chat.send('okon');
-    expect(page1.split('\n')).toHaveLength(1 + 9 + 1);
+    expect(page1.split('\n')).toHaveLength(1 + 9 + 1 + 1);
     expect(page1.endsWith('Reply a number, or send another name or code. M for more. 0 Back.')).toBe(true);
     const [page2] = await chat.send('m');
-    expect(page2).toBe('10 houses match "OKON":\n10. OJO.K-15F-2 MR OKON, landlord\nReply a number, or send another name or code. 0 Back.');
+    expect(page2).toBe('10 houses match "OKON":\n10. OJO.K-15F-2 MR OKON, landlord\n\nReply a number, or send another name or code. 0 Back.');
     expect(await chat.send('M')).toEqual(['There are no more houses. Reply a number, or send another name or code. 0 Back.']);
     expect((await chat.send('10'))[0]).toMatch(/^OJO\.K-15F-2: MR OKON\./);
   });
@@ -849,7 +851,7 @@ describe('Give to a house by code or name (#1433)', () => {
     store.aliases = [{ residentId: 'resident-koa', name: 'MARTINS ABIMBOLA A' }];
     const chat = await atHouseQuestion();
     expect((await chat.send('abimbola'))[0]).toBe(
-      '1 house matches "ABIMBOLA":\n1. KOA-15F-2 MARTINS AWONUSI, tenant\nReply a number, or send another name or code. 0 Back.'
+      '1 house matches "ABIMBOLA":\n1. KOA-15F-2 MARTINS AWONUSI, tenant\n\nReply a number, or send another name or code. 0 Back.'
     );
   });
 

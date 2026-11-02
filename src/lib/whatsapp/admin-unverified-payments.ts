@@ -57,13 +57,15 @@ export function shortDay(day: string, now: Date): string {
 /**
  * The name parts of a bank alert's text: the parts after the transfer code (`FIP:ZIB`, `CPWInward:1000…`),
  * leaving out short bank codes and parts with digits. `FIP:ZIB/HENRY/ Henry Itoki` gives `HENRY`, `HENRY ITOKI`.
- * The first part is `CODE:NAME` when the bank gives no `/` after the code (#1433): `FBNMOBILE:ISIMAH NKECHI RACHEAL/For 2 months`
- * gives `ISIMAH NKECHI RACHEAL`.
+ * The first part is `CODE:NAME` when the bank gives no `/` after the code and the name has a space (#1433):
+ * `FBNMOBILE:ISIMAH NKECHI RACHEAL/For 2 months` gives `ISIMAH NKECHI RACHEAL`.
  */
 function payerParts(description: string | null): string[] {
   if (!description) return [];
   const [first, ...rest] = description.split('/');
-  const afterCode = first.includes(':') ? first.slice(first.indexOf(':') + 1) : '';
+  const name = first.includes(':') ? first.slice(first.indexOf(':') + 1).trim() : '';
+  // Only a name of two or more words: a single word after the code is a bank code (`NIP:FCMB`).
+  const afterCode = name.includes(' ') ? name : '';
   return [afterCode, ...rest]
     .map((part) => part.trim().replace(/\s+/g, ' ').toUpperCase())
     .filter((part) => part.length >= 2 && !/\d/.test(part) && !/^[A-Z]{1,3}$/.test(part));
@@ -222,6 +224,7 @@ function matchesText(text: string, matches: HouseCandidate[], page: number): str
   return [
     `${matches.length} ${matches.length === 1 ? 'house matches' : 'houses match'} "${text}":`,
     ...lines,
+    '',
     more ? 'Reply a number, or send another name or code. M for more. 0 Back.' : 'Reply a number, or send another name or code. 0 Back.',
   ].join('\n');
 }

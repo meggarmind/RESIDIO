@@ -223,6 +223,27 @@ describe('Unverified payments database (#1424)', () => {
     expect(calls('resident_payment_aliases', 'eq')).toContainEqual(['is_active', true]);
   });
 
+  it('keeps , ( ) and " from the typed text out of the or() filter, and asks for active residents only (#1433)', async () => {
+    mocks.results.residents = { data: [{ id: 'r-1' }], error: null };
+    await repo.searchHouses('ab,c(d)e"f');
+    expect(calls('residents', 'or')[0][0]).toBe('first_name.ilike.%ab%,last_name.ilike.%ab%');
+    expect(calls('residents', 'eq')).toContainEqual(['account_status', 'active']);
+  });
+
+  it('needs every word of a multi-word search in the name (#1433)', async () => {
+    mocks.results.residents = { data: [{ id: 'r-1' }, { id: 'r-2' }], error: null };
+    const link = (id: string, code: string, first: string, last: string) => ({
+      resident_id: id,
+      house_id: `h-${id}`,
+      resident_role: 'tenant',
+      house: { short_name: code, is_active: true },
+      resident: [{ first_name: first, last_name: last, account_status: 'active' }],
+    });
+    mocks.results.resident_houses = { data: [link('r-1', 'KOA-1', 'Martins', 'Awonusi'), link('r-2', 'KOA-2', 'Martins', 'Onyeka')], error: null };
+    expect(await repo.searchHouses('martins zzz')).toEqual([]);
+    expect((await repo.searchHouses('martins awonusi')).map((f) => f.code)).toEqual(['KOA-1']);
+  });
+
   it('does not search for fewer than 2 letters (#1433)', async () => {
     expect(await repo.searchHouses(' a ')).toEqual([]);
     expect(await repo.searchHouses('1')).toEqual([]);

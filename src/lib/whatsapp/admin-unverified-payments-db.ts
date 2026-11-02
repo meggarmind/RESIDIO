@@ -241,6 +241,7 @@ export function createUnverifiedPaymentsRepository(): UnverifiedPaymentsReposito
         db()
           .from('residents')
           .select('id')
+          .eq('account_status', 'active')
           .or(`first_name.ilike.%${sanitizeSearchInput(words[0])}%,last_name.ilike.%${sanitizeSearchInput(words[0])}%`)
           .limit(200),
         db().from('resident_payment_aliases').select('resident_id').ilike('alias_name', `%${sanitizeSearchInput(words.join(' '))}%`).eq('is_active', true).limit(200),
