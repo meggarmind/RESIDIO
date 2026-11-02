@@ -21,7 +21,7 @@ const status = (houseId: string, s: string, label: string) => ({ houseId, reside
 
 function table(data: unknown) {
   const q: Record<string, unknown> = {};
-  for (const m of ['select', 'eq', 'order', 'in', 'neq']) q[m] = () => q;
+  for (const m of ['select', 'eq', 'order', 'in', 'neq', 'range']) q[m] = () => q;
   q.then = (res: (v: unknown) => unknown) => Promise.resolve({ data, error: null }).then(res);
   return q;
 }

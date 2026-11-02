@@ -17,8 +17,9 @@ export const reportTypes = [
     { value: 'transaction_log', label: 'Transaction Log', description: 'Detailed list of all transactions', group: 'Money in and out', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
     { value: 'debtors_report', label: 'Debtors Report', description: 'Detailed debtors list with aging buckets and contact info', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL, retired: true },
     { value: 'debtors_aging', label: 'Debtors and aging', description: 'Who owes what, and for how long: every debtor with contact details and the amount in each age bucket', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
-    { value: 'indebtedness_summary', label: 'Indebtedness Report', description: 'Simple indebted/non-indebted status per house with optional amounts', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
-    { value: 'indebtedness_detail', label: 'Indebtedness Detail Report', description: 'Detailed breakdown of indebtedness per property', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
+    { value: 'dues_collection_status', label: 'Dues, levies and collection status', description: 'One sheet per house: each month paid or not paid in the period, the levy status and the total owed', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
+    { value: 'indebtedness_summary', label: 'Indebtedness Report', description: 'Simple indebted/non-indebted status per house with optional amounts', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL, retired: true },
+    { value: 'indebtedness_detail', label: 'Indebtedness Detail Report', description: 'Detailed breakdown of indebtedness per property', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL, retired: true },
     { value: 'development_levy', label: 'Development Levy Report', description: 'Development levy status per property', group: 'Levies', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
 ] as const satisfies readonly { value: string; label: string; description: string; group: ReportGroup; permission: Permission; retired?: true }[];
 
@@ -37,7 +38,7 @@ export const GENERATABLE_REPORT_TYPES: readonly ReportType[] = [
     'collection_report',
     'transaction_log',
     'debtors_aging',
-    'indebtedness_summary',
+    'dues_collection_status',
     'development_levy',
 ];
 
@@ -50,6 +51,8 @@ export function isRetiredReport(type: string): boolean {
 export const RETIRED_REPORT_REPLACEMENTS: Partial<Record<ReportType, ReportType>> = {
     debtors_report: 'debtors_aging',
     invoice_aging: 'debtors_aging',
+    indebtedness_summary: 'dues_collection_status',
+    indebtedness_detail: 'dues_collection_status',
 };
 
 /** `type`, or the report that replaced it when `type` is retired. */
@@ -124,6 +127,8 @@ export const reportRequestSchema = z.object({
     includeUnoccupied: z.boolean().default(false),
     includeAmount: z.boolean().default(false),
     paymentStatus: z.enum(['all', 'paid', 'unpaid']).default('all'),
+    // What the dues sheet covers: a `charge_categories.code` (#1400). Other reports ignore it.
+    chargeCategory: z.string().regex(/^[a-z][a-z0-9_]*$/).default('dues'),
 });
 
 export type ReportRequestFormData = z.infer<typeof reportRequestSchema>;

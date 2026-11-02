@@ -19,11 +19,26 @@ export interface ReportTypePickerProps {
     realtimeTypes: readonly ReportType[];
     /** Types that do not use bank accounts, so the wizard skips the accounts step. */
     accountAgnosticTypes: readonly ReportType[];
+    /** The charges the dues sheet can cover (#1400), read from charge_categories. Chips show on that report's card only. */
+    charge?: {
+        options: { code: string; name: string }[];
+        value: string;
+        onChange: (code: string) => void;
+        isLoading?: boolean;
+        error?: string | null;
+    };
+}
+
+/** Who the Primary Resident column shows, by charge (#1400): the rule of `pickIndebtednessPrimary`. */
+export function chargePayerLine(code: string): string {
+    return code === 'dues'
+        ? 'Shows the tenant, else the owner-occupier.'
+        : 'Shows the landlord (owner-occupier, else landlord, else developer).';
 }
 
 type ReportEntry = (typeof reportTypes)[number];
 
-export function ReportTypePicker({ value, onChange, allowedTypes, config, realtimeTypes, accountAgnosticTypes }: ReportTypePickerProps) {
+export function ReportTypePicker({ value, onChange, allowedTypes, config, realtimeTypes, accountAgnosticTypes, charge }: ReportTypePickerProps) {
     const [query, setQuery] = useState('');
     const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
@@ -160,6 +175,40 @@ export function ReportTypePicker({ value, onChange, allowedTypes, config, realti
                                     </Badge>
                                 </div>
                             </div>
+                            {selected.value === 'dues_collection_status' && charge && (
+                                <div className="rounded-lg border bg-card p-3" data-testid="charge-chips">
+                                    <p className="text-sm font-medium" id="charge-chips-label">Charge</p>
+                                    {charge.error ? (
+                                        <p className="mt-2 text-sm text-destructive" role="alert">The charges could not be loaded: {charge.error}</p>
+                                    ) : charge.isLoading ? (
+                                        <p className="mt-2 text-sm text-muted-foreground">Loading the charges...</p>
+                                    ) : (
+                                        <>
+                                            <div role="group" aria-labelledby="charge-chips-label" className="mt-2 flex flex-wrap gap-2">
+                                                {charge.options.map((option) => {
+                                                    const active = option.code === charge.value;
+                                                    return (
+                                                        <button
+                                                            key={option.code}
+                                                            type="button"
+                                                            aria-pressed={active}
+                                                            data-testid={`charge-chip-${option.code}`}
+                                                            onClick={() => charge.onChange(option.code)}
+                                                            className={cn(
+                                                                'inline-flex min-h-[44px] items-center rounded-md border px-4 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                                                                active ? 'border-foreground bg-foreground text-background' : 'bg-card text-foreground hover:bg-muted'
+                                                            )}
+                                                        >
+                                                            {option.name}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                            <p className="mt-2 text-sm text-muted-foreground" data-testid="charge-payer-line">{chargePayerLine(charge.value)}</p>
+                                        </>
+                                    )}
+                                </div>
+                            )}
                             <ReportTypePreview type={selected.value} title={selected.label} />
                         </>
                     ) : (

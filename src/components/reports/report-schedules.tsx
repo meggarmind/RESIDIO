@@ -62,8 +62,14 @@ const reportTypeOptions = [
     { value: 'financial_overview', label: 'Financial Overview', icon: FileBarChart },
     { value: 'collection_report', label: 'Collection Report', icon: Receipt },
     { value: 'debtors_aging', label: 'Debtors and aging', icon: Clock },
+    { value: 'dues_collection_status', label: 'Dues, levies and collection status', icon: Receipt },
     { value: 'transaction_log', label: 'Transaction Log', icon: ScrollText },
 ] as const;
+
+/** Invoice lines are off by default for these reports; every other report keeps its summary on. */
+export function includeSummaryDefault(reportType: string): boolean {
+    return reportType !== 'debtors_aging' && reportType !== 'dues_collection_status';
+}
 
 const frequencyOptions = [
     { value: 'daily', label: 'Daily' },
@@ -243,7 +249,7 @@ function CreateScheduleDialog({
                             <Label>Report Type *</Label>
                             <Select
                                 value={formData.report_type}
-                                onValueChange={(v) => setFormData({ ...formData, report_type: v as CreateScheduleInput['report_type'], include_summary: v !== 'debtors_aging' })}
+                                onValueChange={(v) => setFormData({ ...formData, report_type: v as CreateScheduleInput['report_type'], include_summary: includeSummaryDefault(v) })}
                             >
                                 <SelectTrigger>
                                     <SelectValue />
