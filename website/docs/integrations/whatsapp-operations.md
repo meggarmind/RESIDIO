@@ -11,8 +11,8 @@ residio_sources:
   - src/app/(dashboard)/(oversight)/system/whatsapp-monitoring/**
   - src/app/(dashboard)/(oversight)/system/whatsapp-bot-health/**
   - src/app/api/whatsapp/**
-residio_verified_commit: 1744f0ff
-residio_verified_at: '2026-11-01'
+residio_verified_commit: 2b9167c
+residio_verified_at: '2026-11-02'
 residio_app_version: '0.4.0'
 ---
 
