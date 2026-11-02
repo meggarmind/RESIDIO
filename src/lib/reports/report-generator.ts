@@ -15,6 +15,8 @@ import type { createServerSupabaseClient, createAdminClient } from '@/lib/supaba
 import type { ReportRequestFormData } from '@/lib/validators/reports';
 import { getDateRangeFromPreset, isRetiredReport, resolveRetiredReport, REPORT_TYPE_LABELS } from '@/lib/validators/reports';
 import type { SummaryCell, SummaryGrid, SummaryGridStatus, SummaryReport, SummaryReportData } from '@/lib/reports/summary-report';
+import { generateProjectSpend } from '@/lib/reports/generators/project-spend';
+import { generatePettyCash } from '@/lib/reports/generators/petty-cash';
 import { formatCalendarDate } from '@/lib/utils/calendar-date';
 import { DEFAULT_CHARGE_CATEGORY } from '@/lib/billing/charge-categories';
 import { DEBT_STATUS_DEFAULTS, getDebtStatuses, type DebtStatus } from '@/lib/billing/debt-status';
@@ -1943,6 +1945,16 @@ export async function generateReportWithClient(
           params.includeDetails,
           params.chargeCategory
         );
+        return { success: true, report };
+      }
+
+      case 'project_spend': {
+        const report = await generateProjectSpend(supabase, dateRange);
+        return { success: true, report };
+      }
+
+      case 'petty_cash': {
+        const report = await generatePettyCash(supabase, dateRange, params.includeDetails);
         return { success: true, report };
       }
 
