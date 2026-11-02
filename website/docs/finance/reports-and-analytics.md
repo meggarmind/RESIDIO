@@ -8,7 +8,7 @@ residio_sources:
   - src/app/(dashboard)/reports/**
   - src/actions/analytics/**
   - src/actions/reports/**
-residio_verified_commit: 7a622132
+residio_verified_commit: 1da25191
 residio_verified_at: '2026-11-02'
 residio_app_version: '0.4.0'
 ---
@@ -73,5 +73,29 @@ On the **Options** step, the switch **Show invoice lines** adds one row for each
 When you open the report, you can switch between **Sheet** and **Grid of months**. The grid has one row for each house and one column for each month. Each cell shows **Paid up**, **Outstanding**, **Overdue** or **No invoice**, with the same colours as the estate map. The two columns at the end show the levy and the amount owed. The grid is for the screen only. **Export PDF**, **Export CSV** and the scheduled email carry the sheet.
 
 Reports that were made before this change stay in **History** and **Archive**, and you can open them. You cannot make a new **Indebtedness Report** or **Indebtedness Detail Report**. A schedule that was set up for one of them now runs **Dues, levies and collection status** for **Security Dues**.
+
+## Collection rate by street
+
+**Collection rate by street** is in the **Debts** group. It asks for a time period, but not for bank accounts. It counts the invoices that fall due in the period, for all charges. Void invoices are not counted.
+
+The report shows four figures at the top: **Billed**, **Collected**, **Owed** and **Collection rate**. **Billed** is the amount on the invoices. **Collected** is the amount paid against them. **Owed** is the rest. **Collection rate** is **Collected** divided by **Billed**. A bar chart shows the collection rate of each street. The table has one row for each street, with the number of houses, the three amounts and the rate. The last row gives the totals. A street with no invoices in the period shows a dash for the rate and is not in the chart.
+
+The streets and houses are the same as on **Houses by debt status and street** and in the debt status report: active, verified, lived-in houses that have an active primary resident.
+
+## Expenses by category and vendor
+
+**Expenses by category and vendor** is in the **Money in and out** group. It asks for a time period, but not for bank accounts. It counts the paid expenses with a date in the period. Pending and cancelled expenses are not counted.
+
+The report shows four figures at the top: **Total spent**, **Expenses** (the number of expenses), **Categories used** and **Largest category**. A bar chart shows the eight largest categories. The table has one row for each category and one row for each vendor, with the number of expenses, the total and the share of the total spent. The category rows add up to the total, and so do the vendor rows. An expense with no vendor is counted under **Resident (no vendor)**, **Staff (no vendor)** or **No vendor**. An expense with no category is counted under **Uncategorised**.
+
+On the **Options** step, the switch **Show expense lines** adds one row for each expense under its category. It is off until you turn it on. A schedule keeps the choice.
+
+## Wallet balances
+
+**Wallet balances** is in the **Money in and out** group. It asks for a time period, but not for bank accounts. It shows one row for each resident, with **Opening balance**, **Credits**, **Debits** and **Closing balance**. A resident has one wallet for each charge. The report adds all the wallets of a resident into one row. A resident with no balance and no movement in the period is not shown.
+
+The four figures at the top are **Resident credit held** (the total of the closing balances, which is the credit the estate holds for residents), **Credits in period**, **Debits in period** and **Residents with credit**. A bar chart shows the credits and the debits of each month of the period.
+
+The closing balance comes from the wallet balance now. Movements that are dated after the end of the period are taken back out of it. For a period that ends today, the closing balance is the same as the wallet balance. The opening balance is worked back from the closing balance: **Opening balance** = **Closing balance** - **Credits** + **Debits**. Days are counted in UTC.
 
 Reports are snapshots. If a number looks wrong, trace it back to residents, invoices, payments, or expenditure instead of editing the report output.

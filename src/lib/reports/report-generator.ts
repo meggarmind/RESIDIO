@@ -18,6 +18,9 @@ import type { SummaryCell, SummaryGrid, SummaryGridStatus, SummaryReport, Summar
 import { formatCalendarDate } from '@/lib/utils/calendar-date';
 import { DEFAULT_CHARGE_CATEGORY } from '@/lib/billing/charge-categories';
 import { DEBT_STATUS_DEFAULTS, getDebtStatuses, type DebtStatus } from '@/lib/billing/debt-status';
+import { generateCollectionRateByStreet } from '@/lib/reports/generators/collection-rate-by-street';
+import { generateExpensesByCategory } from '@/lib/reports/generators/expenses-by-category';
+import { generateWalletBalances } from '@/lib/reports/generators/wallet-balances';
 import { OCCUPANT_PAYER_ROLES, resolvePayer, type BillingPayer } from '@/lib/billing/payer';
 
 /** Either the cookie-bound session client or the service-role admin client. */
@@ -1920,6 +1923,21 @@ export async function generateReportWithClient(
           params.includeDetails,
           params.chargeCategory
         );
+        return { success: true, report };
+      }
+
+      case 'collection_rate_by_street': {
+        const report = await generateCollectionRateByStreet(supabase, dateRange);
+        return { success: true, report };
+      }
+
+      case 'expenses_by_category': {
+        const report = await generateExpensesByCategory(supabase, dateRange, params.includeDetails);
+        return { success: true, report };
+      }
+
+      case 'wallet_balances': {
+        const report = await generateWalletBalances(supabase, dateRange);
         return { success: true, report };
       }
 
