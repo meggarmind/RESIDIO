@@ -26,12 +26,12 @@ function periodLabelFor(params: ReportRequestFormData): string | undefined {
   return `${formatEmailDate(startDate)} to ${formatEmailDate(endDate)}`;
 }
 
-// Debtors and aging, and Dues, levies and collection status, show invoice lines only when the
+// Debtors and aging, Dues, levies and collection status, and Expenses by category show lines only when the
 // schedule saved that choice; a schedule of a retired report saved none. Every other report keeps
 // its old value (#1399, #1400).
 function includeDetailsFor(savedType: ReportRequestFormData['reportType'], includeSummary: boolean | null): boolean {
   const runsAs = resolveRetiredReport(savedType);
-  if (runsAs !== 'debtors_aging' && runsAs !== 'dues_collection_status') return true;
+  if (runsAs !== 'debtors_aging' && runsAs !== 'dues_collection_status' && runsAs !== 'expenses_by_category') return true;
   return savedType === runsAs && includeSummary === true;
 }
 
@@ -67,6 +67,9 @@ export async function processDueSchedules(): Promise<{ processed: number; failed
         includeUnoccupied: schedule.configuration?.includeUnoccupied ?? false,
         // The charge a dues schedule covers; a schedule of a retired Indebtedness report saved none, so it is Dues (#1400).
         chargeCategory: schedule.report_type === 'dues_collection_status' && typeof schedule.configuration?.chargeCategory === 'string' ? schedule.configuration.chargeCategory : 'dues',
+        // Whose statement a Statement of account schedule makes; saved with the schedule (#1402).
+        statementFor: schedule.configuration?.statementFor === 'resident' ? 'resident' : 'house',
+        statementId: typeof schedule.configuration?.statementId === 'string' ? schedule.configuration.statementId : undefined,
          bankAccountIds: schedule.bank_account_ids || [],
          includeCharts: schedule.include_charts ?? false,
          categoryIds: [],
@@ -105,7 +108,8 @@ export async function processDueSchedules(): Promise<{ processed: number; failed
 
       // Email recipients
       const chargeName = params.reportType === 'dues_collection_status' ? (result.report.data as { chargeName?: string }).chargeName : undefined;
-      const reportLabel = `${REPORT_TYPE_LABELS[params.reportType] ?? schedule.report_type}${chargeName ? ` - ${chargeName}` : ''}`;
+      const subject = params.reportType === 'statement_of_account' ? (result.report.data as { subject?: string }).subject : undefined;
+      const reportLabel = `${REPORT_TYPE_LABELS[params.reportType] ?? schedule.report_type}${chargeName ? ` - ${chargeName}` : ''}${subject ? ` - ${subject}` : ''}`;
       const periodLabel = periodLabelFor(params);
        const recipients = ((schedule.recipients || []) as string[]).map((email: string) => ({ email, name: schedule.name }));
       if (recipients.length > 0) {

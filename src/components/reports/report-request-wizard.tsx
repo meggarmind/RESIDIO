@@ -44,6 +44,8 @@ import {
     CalendarClock,
     Mail,
     Repeat,
+    FileText,
+    Wallet,
     Target,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -64,6 +66,7 @@ import { useCreateReportSchedule, type CreateScheduleInput } from '@/hooks/use-r
 import { toast } from 'sonner';
 import { ReportTypePicker } from '@/components/reports/report-type-picker';
 import { useChargeCategories } from '@/hooks/use-billing';
+import { StatementSubjectPicker } from '@/components/reports/statement-subject-picker';
 
 // ============================================================
 // Types
@@ -134,6 +137,26 @@ const reportTypeConfig: Record<ReportType, {
         gradient: 'from-orange-500/10 to-amber-500/5',
         iconBg: 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
     },
+    statement_of_account: {
+        icon: FileText,
+        gradient: 'from-sky-500/10 to-blue-500/5',
+        iconBg: 'bg-sky-500/15 text-sky-600 dark:text-sky-400',
+    },
+    collection_rate_by_street: {
+        icon: LayoutList,
+        gradient: 'from-orange-500/10 to-amber-500/5',
+        iconBg: 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
+    },
+    expenses_by_category: {
+        icon: Receipt,
+        gradient: 'from-purple-500/10 to-violet-500/5',
+        iconBg: 'bg-purple-500/15 text-purple-600 dark:text-purple-400',
+    },
+    wallet_balances: {
+        icon: Wallet,
+        gradient: 'from-emerald-500/10 to-teal-500/5',
+        iconBg: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+    },
     indebtedness_summary: {
         icon: LayoutList,
         gradient: 'from-orange-500/10 to-amber-500/5',
@@ -171,13 +194,13 @@ const periodIcons: Record<PeriodPreset, React.ElementType> = {
 };
 
 // Reports that don't depend on bank accounts
-const ACCOUNT_AGNOSTIC_REPORTS: ReportType[] = ['debtors_aging', 'debtors_report', 'dues_collection_status', 'development_levy', 'invoice_aging', 'budget_vs_actual'];
+const ACCOUNT_AGNOSTIC_REPORTS: ReportType[] = ['debtors_aging', 'debtors_report', 'dues_collection_status', 'collection_rate_by_street', 'expenses_by_category', 'wallet_balances', 'development_levy', 'invoice_aging', 'statement_of_account', 'budget_vs_actual'];
 
 // Reports that are always "As of Today" (skip date selection)
 const REALTIME_REPORTS: ReportType[] = ['debtors_aging', 'debtors_report', 'development_levy', 'invoice_aging'];
 
 // Invoice lines are off unless chosen for these (#1399, #1400); other reports keep their default.
-const INVOICE_LINES_OFF_BY_DEFAULT: ReportType[] = ['debtors_aging', 'dues_collection_status'];
+const INVOICE_LINES_OFF_BY_DEFAULT: ReportType[] = ['debtors_aging', 'dues_collection_status', 'expenses_by_category'];
 
 // ============================================================
 // Stepper Component
@@ -566,8 +589,8 @@ function OptionsStep({
     const isDevelopmentLevyReport = reportType === 'development_levy';
     const isDebtReport = isDuesReport || isDevelopmentLevyReport;
     // Real-time reports don't use aggregation or transaction type filtering
-    // The dues sheet and Budget against actual have a period but no aggregation or transaction type either.
-    const isRealtimeReport = isDuesReport || reportType === 'budget_vs_actual' || REALTIME_REPORTS.includes(reportType as ReportType);
+    // The dues sheet, Statement of account and Budget against actual have a period but no aggregation or transaction type either.
+    const isRealtimeReport = isDuesReport || reportType === 'statement_of_account' || reportType === 'budget_vs_actual' || REALTIME_REPORTS.includes(reportType as ReportType);
     return (
         <div className="space-y-6">
             <div className="text-center mb-8">
@@ -598,15 +621,17 @@ function OptionsStep({
 
 
 
-                    {(reportType === 'debtors_aging' || isDuesReport) && (
+                    {(reportType === 'debtors_aging' || isDuesReport || reportType === 'expenses_by_category') && (
                         <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-red-500/10">
                             <div className="space-y-0.5">
-                                <Label className="font-medium">Show invoice lines</Label>
+                                <Label className="font-medium">{reportType === 'expenses_by_category' ? 'Show expense lines' : 'Show invoice lines'}</Label>
                                 <p className="text-sm text-muted-foreground">
-                                    {isDuesReport ? 'List each unpaid invoice under its house' : 'List each unpaid invoice under its debtor'}
+                                    {reportType === 'expenses_by_category'
+                                        ? 'List each expense under its category'
+                                        : isDuesReport ? 'List each unpaid invoice under its house' : 'List each unpaid invoice under its debtor'}
                                 </p>
                             </div>
-                            <Switch checked={includeDetails} onCheckedChange={onIncludeDetailsChange} aria-label="Show invoice lines" />
+                            <Switch checked={includeDetails} onCheckedChange={onIncludeDetailsChange} aria-label={reportType === 'expenses_by_category' ? 'Show expense lines' : 'Show invoice lines'} />
                         </div>
                     )}
 
@@ -1179,7 +1204,8 @@ export function ReportRequestWizard({
                 if (ACCOUNT_AGNOSTIC_REPORTS.includes(formData.reportType)) return true; // Accounts are skipped for agnostic
                 return true; // Accounts are optional (all = empty array)
             case 4:
-                return true;
+                // A statement is for one house or one resident (#1402).
+                return formData.reportType !== 'statement_of_account' || !!formData.statementId;
             case 5:
                 return true;
             default:
@@ -1231,6 +1257,19 @@ export function ReportRequestWizard({
                                 onAccountToggle={handleAccountToggle}
                                 onSelectAll={handleSelectAll}
                             />
+                        )}
+
+                        {step === 4 && formData.reportType === 'statement_of_account' && (
+                            <div className="mb-6">
+                                <StatementSubjectPicker
+                                    statementFor={formData.statementFor ?? 'house'}
+                                    statementId={formData.statementId ?? ''}
+                                    onChange={(kind, id) => {
+                                        setValue('statementFor', kind);
+                                        setValue('statementId', id || undefined);
+                                    }}
+                                />
+                            </div>
                         )}
 
                         {step === 4 && (

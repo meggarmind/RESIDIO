@@ -140,6 +140,92 @@ export const reportTypePreviews: Record<ReportType, PreviewDefinition> = {
             ['3', 'Cedar Way', 'C. Okafor', '9 of 10', '1', 'Part paid', '60,000.00', 'Outstanding'],
         ],
     },
+    statement_of_account: {
+        stats: [
+            { label: 'Opening balance', value: '20,000.00' },
+            { label: 'Charged', value: '30,000.00' },
+            { label: 'Paid', value: '40,000.00' },
+            { label: 'Owed now', value: '10,000.00' },
+        ],
+        tableTitle: 'Every charge and payment, with a running balance',
+        columns: [
+            { label: 'Date' },
+            { label: 'Item' },
+            { label: 'Charge type' },
+            { label: 'Charge', align: 'right' },
+            { label: 'Payment', align: 'right' },
+            { label: 'Balance', align: 'right' },
+        ],
+        rows: [
+            ['01 August 2026', 'Opening balance', '', '', '', '20,000.00'],
+            ['01 August 2026', 'INV-0412: Security Dues', 'Security Dues', '10,000.00', '', '30,000.00'],
+            ['14 August 2026', 'Payment (bank_transfer), ref FBN-2231', 'Security Dues', '', '40,000.00', '-10,000.00'],
+            ['01 September 2026', 'INV-0498: Security Dues', 'Security Dues', '10,000.00', '', '0.00'],
+            ['01 October 2026', 'INV-0571: Security Dues', 'Security Dues', '10,000.00', '', '10,000.00'],
+        ],
+    },
+    collection_rate_by_street: {
+        stats: [
+            { label: 'Billed', value: '9,600,000.00' },
+            { label: 'Collected', value: '8,340,000.00' },
+            { label: 'Owed', value: '1,260,000.00' },
+            { label: 'Collection rate', value: '86.9%' },
+        ],
+        tableTitle: 'Billed, collected and owed for each street',
+        columns: [
+            { label: 'Street' },
+            { label: 'Houses', align: 'right' },
+            { label: 'Billed', align: 'right' },
+            { label: 'Collected', align: 'right' },
+            { label: 'Owed', align: 'right' },
+            { label: 'Collection rate', align: 'right' },
+        ],
+        rows: [
+            ['Palm Close', '40', '4,800,000.00', '4,500,000.00', '300,000.00', '93.8%'],
+            ['Cedar Way', '56', '4,800,000.00', '3,840,000.00', '960,000.00', '80.0%'],
+        ],
+    },
+    expenses_by_category: {
+        stats: [
+            { label: 'Total spent', value: '3,150,000.00' },
+            { label: 'Expenses', value: '42' },
+            { label: 'Categories used', value: '6' },
+            { label: 'Largest category', value: 'Security' },
+        ],
+        tableTitle: 'Spending by category and by vendor',
+        columns: [
+            { label: 'Group' },
+            { label: 'Category or vendor' },
+            { label: 'Expenses', align: 'right' },
+            { label: 'Total', align: 'right' },
+            { label: 'Share', align: 'right' },
+        ],
+        rows: [
+            ['Category', 'Security', '3', '1,260,000.00', '40.0%'],
+            ['Category', 'Utilities', '12', '945,000.00', '30.0%'],
+            ['Vendor', 'Bright Power Ltd', '12', '945,000.00', '30.0%'],
+        ],
+    },
+    wallet_balances: {
+        stats: [
+            { label: 'Resident credit held', value: '2,450,000.00' },
+            { label: 'Credits in period', value: '1,800,000.00' },
+            { label: 'Debits in period', value: '1,350,000.00' },
+            { label: 'Residents with credit', value: '31' },
+        ],
+        tableTitle: 'Each resident wallet, opening to closing',
+        columns: [
+            { label: 'Resident' },
+            { label: 'Opening balance', align: 'right' },
+            { label: 'Credits', align: 'right' },
+            { label: 'Debits', align: 'right' },
+            { label: 'Closing balance', align: 'right' },
+        ],
+        rows: [
+            ['A. Bello', '20,000.00', '120,000.00', '100,000.00', '40,000.00'],
+            ['C. Okafor', '0.00', '60,000.00', '60,000.00', '0.00'],
+        ],
+    },
     // Retired (#1399): not offered in the picker; kept so the Record stays complete for old rows.
     debtors_report: {
         stats: [

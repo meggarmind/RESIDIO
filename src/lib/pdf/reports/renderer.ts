@@ -2,7 +2,7 @@ import React from 'react';
 import { pdf } from '@react-pdf/renderer';
 import type { DocumentProps } from '@react-pdf/renderer';
 import { REPORT_TYPE_LABELS, type ReportRequestFormData } from '@/lib/validators/reports';
-import { asOfChargeTitle } from '@/lib/reports/summary-report';
+import { asOfChargeTitle, subjectTitle } from '@/lib/reports/summary-report';
 import { SummaryReportPdf } from '@/lib/pdf/reports/summary-report-pdf';
 import { FinancialOverviewPdf } from '@/lib/pdf/reports/financial-overview-pdf';
 import { CollectionReportPdf } from '@/lib/pdf/reports/collection-report-pdf';
@@ -22,6 +22,10 @@ export async function renderReportPdf(type: ReportRequestFormData['reportType'],
     // Summary-first reports (#1399): `data` is the SummaryReportData of a report with `layout: 'summary'`.
     case 'debtors_aging': component = React.createElement(SummaryReportPdf, { data, title: REPORT_TYPE_LABELS[type], estateName }) as React.ReactElement<DocumentProps>; break;
     case 'dues_collection_status': component = React.createElement(SummaryReportPdf, { data, title: asOfChargeTitle(REPORT_TYPE_LABELS[type], data?.chargeName), estateName }) as React.ReactElement<DocumentProps>; break;
+    case 'statement_of_account': component = React.createElement(SummaryReportPdf, { data, title: subjectTitle(REPORT_TYPE_LABELS[type], data?.subject), estateName }) as React.ReactElement<DocumentProps>; break;
+    case 'collection_rate_by_street':
+    case 'expenses_by_category':
+    case 'wallet_balances':
     case 'budget_vs_actual': component = React.createElement(SummaryReportPdf, { data, title: REPORT_TYPE_LABELS[type], estateName }) as React.ReactElement<DocumentProps>; break;
     case 'development_levy': component = React.createElement(DevelopmentLevyPdf, { data, estateName }) as React.ReactElement<DocumentProps>; break;
     default: return null;

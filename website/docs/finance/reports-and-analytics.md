@@ -8,7 +8,7 @@ residio_sources:
   - src/app/(dashboard)/reports/**
   - src/actions/analytics/**
   - src/actions/reports/**
-residio_verified_commit: 29cabe99
+residio_verified_commit: 5ce5ae58
 residio_verified_at: '2026-11-02'
 residio_app_version: '0.4.0'
 ---
@@ -74,6 +74,47 @@ When you open the report, you can switch between **Sheet** and **Grid of months*
 
 Reports that were made before this change stay in **History** and **Archive**, and you can open them. You cannot make a new **Indebtedness Report** or **Indebtedness Detail Report**. A schedule that was set up for one of them now runs **Dues, levies and collection status** for **Security Dues**.
 
+## Collection rate by street
+
+**Collection rate by street** is in the **Debts** group. It asks for a time period, but not for bank accounts. It counts the invoices that fall due in the period, for all charges. Void invoices are not counted.
+
+The report shows four figures at the top: **Billed**, **Collected**, **Owed** and **Collection rate**. **Billed** is the amount on the invoices. **Collected** is the amount paid against them. **Owed** is the rest. **Collection rate** is **Collected** divided by **Billed**. A bar chart shows the collection rate of each street. The table has one row for each street, with the number of houses, the three amounts and the rate. The last row gives the totals. A street with no invoices in the period shows a dash for the rate and is not in the chart.
+
+The streets and houses are the same as on **Houses by debt status and street** and in the debt status report: active, verified, lived-in houses that have an active primary resident.
+
+## Expenses by category and vendor
+
+**Expenses by category and vendor** is in the **Money in and out** group. It asks for a time period, but not for bank accounts. It counts the paid expenses with a date in the period. Pending and cancelled expenses are not counted.
+
+The report shows four figures at the top: **Total spent**, **Expenses** (the number of expenses), **Categories used** and **Largest category**. A bar chart shows the eight largest categories. The table has one row for each category and one row for each vendor, with the number of expenses, the total and the share of the total spent. The category rows add up to the total, and so do the vendor rows. An expense with no vendor is counted under **Resident (no vendor)**, **Staff (no vendor)** or **No vendor**. An expense with no category is counted under **Uncategorised**.
+
+On the **Options** step, the switch **Show expense lines** adds one row for each expense under its category. It is off until you turn it on. A schedule keeps the choice.
+
+## Wallet balances
+
+**Wallet balances** is in the **Money in and out** group. It asks for a time period, but not for bank accounts. It shows one row for each resident, with **Opening balance**, **Credits**, **Debits** and **Closing balance**. A resident has one wallet for each charge. The report adds all the wallets of a resident into one row. A resident with no balance and no movement in the period is not shown.
+
+The four figures at the top are **Resident credit held** (the total of the closing balances, which is the credit the estate holds for residents), **Credits in period**, **Debits in period** and **Residents with credit**. A bar chart shows the credits and the debits of each month of the period.
+
+The closing balance comes from the wallet balance now. Movements that are dated after the end of the period are taken back out of it. For a period that ends today, the closing balance is the same as the wallet balance. The opening balance is worked back from the closing balance: **Opening balance** = **Closing balance** - **Credits** + **Debits**. Days are counted in UTC.
+
+## Statement of account
+
+**Statement of account** is in the **Money in and out** group. It shows every charge and every payment of one house or one resident in the period, line by line, with a running balance. It asks for a time period, but not for bank accounts. On the **Options** step, choose **A house** or **A resident**, then choose the house or the resident from the list. You can search the list. You see **A house** only if you can view houses, and **A resident** only if you can view residents. You cannot go to the next step until you choose one. The title gives the house or the resident and the period, for example "Statement of account - 12, Palm Close, 01 August 2026 to 31 October 2026".
+
+The report shows four figures at the top: **Opening balance** (on the first day of the period), **Charged**, **Paid** and **Owed now** (on the last day of the period; for a period that ended before today it is **Owed at end of period**). A negative balance is credit. A bar chart shows the amount charged and the amount paid in each month.
+
+The table has these columns: **Date**, **Item**, **Charge type**, **Charge**, **Payment** and **Balance**. The first row is the opening balance. Each invoice shows one row for each of its invoice lines. Each payment shows one row. The last row gives the totals. **Charge type** is the charge of the line, for example **Security Dues** or **Transformer Fee**. All charges are in one balance, so the closing balance is the balance of the whole account.
+
+The balance is the same balance as the **Account Statement**: all invoices that are not void, less all verified payments. An invoice is dated by the first day of the period it bills. A payment that is not verified yet is not in the balance; a note gives its amount.
+
+- On the statement of a resident, wallet movements are lines too, for example a credit or an adjustment. A wallet movement that only moves a payment into the wallet, or pays an invoice from the wallet, is not shown, because that payment and that invoice are lines already. Thus no money is counted two times.
+- On the statement of a house, there are no wallet lines, because a wallet belongs to a resident and not to a house. A payment for the house counts on the day it is paid, also when the money is still in the wallet and not yet used for an invoice. Each line gives the name of the resident.
+
+A note gives the unpaid amount on invoices today, as the house page or the resident page shows it. That figure changes only when money is used for an invoice. Thus it is different from the balance when money is in the wallet and not yet used, when a payment that is not verified was used for an invoice, or when an invoice is dated after the period.
+
+A schedule of this report keeps the house or the resident that you chose. In **History**, open the report with **View** to print it; the card has no **PDF** button for this report.
+
 ## Budget against actual
 
 **Budget against actual** is in the **Money in and out** group. It asks for a time period but not for bank accounts. For each expense category it shows the **Budget** for the period, the **Actual** spend, the **Difference** (budget minus actual; a minus sign means over budget), the **% used** and a **Status**. Set the budgets on **Expenditure → Budgets**.
@@ -82,6 +123,6 @@ Reports that were made before this change stay in **History** and **Archive**, a
 - **Actual** is the expenses marked **Paid** with an expense date in the period, in that category. Paid expenses with no category show as **No category**.
 - **Status** is **On track** below 85% used, **Near limit** from 85% to 100%, **Over budget** above 100%, and **No budget** for a category that has spend but no budget.
 
-The four figures at the top are **Total budget**, **Actual spend**, **Difference** and **% used**. The bar chart shows the % used of each category that has a budget. The last row of the table gives the totals. Anyone who can run financial reports can run this report, also without the expenditure permissions.
+The four figures at the top are **Total budget**, **Actual spend**, **Difference** and **% used**. The bar chart shows the % used of each category that has a budget. The last row of the table gives the totals. It reads budgets and expenses with your own access, the same as **Expenses by category and vendor**.
 
 Reports are snapshots. If a number looks wrong, trace it back to residents, invoices, payments, or expenditure instead of editing the report output.

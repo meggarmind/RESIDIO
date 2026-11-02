@@ -8,7 +8,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { idOrParentFilterStrict } from '@/lib/postgrest-filter';
 import { calculateNextRunDate } from '@/lib/reports/scheduled-report-store';
-import { REPORT_TYPE_LABELS, REPORT_TYPE_VALUES, REPORT_VIEW_PERMISSIONS, hasGenerator, isRetiredReport, reportsForPermissions, resolveRetiredReport, type ReportType } from '@/lib/validators/reports';
+import { REPORT_TYPE_LABELS, REPORT_TYPE_VALUES, REPORT_VIEW_PERMISSIONS, hasGenerator, isRetiredReport, reportsForPermissions, resolveRetiredReport, scheduleConfigurationError, type ReportType } from '@/lib/validators/reports';
 
 // Types
 // Derived from the report list (#1397), so a listed report is always a valid schedule type.
@@ -133,6 +133,8 @@ export async function createReportSchedule(input: CreateScheduleInput): Promise<
 
     // A schedule for a report with no generator would fail on every cron run (#1397).
     if (!hasGenerator(input.report_type)) return { data: null, error: unschedulableError(input.report_type) };
+    const configurationError = scheduleConfigurationError(input.report_type, input.configuration);
+    if (configurationError) return { data: null, error: configurationError };
 
     const supabase = await createServerSupabaseClient();
 
@@ -230,6 +232,10 @@ export async function updateReportSchedule(
 
     if (!existing) {
         return { data: null, error: 'Schedule not found' };
+    }
+    if (fields.report_type || fields.configuration) {
+        const configurationError = scheduleConfigurationError(fields.report_type ?? existing.report_type, fields.configuration ?? (existing.configuration as Record<string, unknown> | null));
+        if (configurationError) return { data: null, error: configurationError };
     }
 
     // Recalculate next run if frequency changes
