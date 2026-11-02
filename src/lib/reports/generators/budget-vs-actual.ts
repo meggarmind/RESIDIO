@@ -3,9 +3,8 @@
  * budget for the period, the actual paid spend, the difference and the % used.
  *
  * No authorization here (see the header of `report-generator.ts`): the callers check
- * REPORTS_VIEW_FINANCIAL first, and the generator switch passes the service-role client, because
- * `budgets`, `expenses` and `expense_categories` are readable through RLS only with view_expenditure,
- * a permission a role that runs this report need not hold.
+ * REPORTS_VIEW_FINANCIAL first. It reads through the caller's client, like Expenses by category, so
+ * RLS on `budgets`, `expenses` and `expense_categories` (view_expenditure) still applies.
  */
 
 import type { ReportSupabaseClient } from '@/lib/reports/report-generator';

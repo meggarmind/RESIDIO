@@ -45,7 +45,8 @@ import { ADMIN_NAV_SECTIONS } from '@/config/navigation';
 
 // ---------------------------------------------------------------------------
 // A fake Supabase client that applies the filters, caps an unpaged read at 1,000 rows like the API,
-// and records ranges and upserts.
+// and records ranges and upserts. A paged read (`.range`) with no `.order('id')` before it fails: without
+// a fixed order, pages can overlap or skip rows.
 // ---------------------------------------------------------------------------
 type Row = Record<string, unknown>;
 const API_ROW_CAP = 1000;
@@ -60,6 +61,7 @@ function fakeDb(tables: Record<string, Row[]>) {
 
     function builder(table: string) {
         const filters: ((r: Row) => boolean)[] = [];
+        const orders: string[] = [];
         const rows = () => (tables[table] ?? []).filter((r) => filters.every((f) => f(r)));
         const b: Record<string, unknown> = {};
         b.select = () => b;
@@ -68,9 +70,12 @@ function fakeDb(tables: Record<string, Row[]>) {
         b.gte = (c: string, v: string) => (filters.push((r) => String(r[c]) >= v), b);
         b.lte = (c: string, v: string) => (filters.push((r) => String(r[c]) <= v), b);
         b.in = (c: string, vs: unknown[]) => (filters.push((r) => vs.includes(r[c])), b);
-        b.order = () => b;
+        b.order = (column: string) => (orders.push(column), b);
         b.range = (from: number, to: number) => {
             calls.ranges.push({ table, from, to });
+            if (!orders.includes('id')) {
+                return Promise.resolve({ data: null, error: { message: `paged read of ${table} without .order('id')` } });
+            }
             return Promise.resolve({ data: rows().slice(from, Math.min(to + 1, from + API_ROW_CAP)), error: null });
         };
         b.then = (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) =>
@@ -416,7 +421,7 @@ describe('Budget against actual report', () => {
         expect(data.table.rows[0]).toMatchObject({ budget: '1,200.00', actual: '2,500.00' });
     });
 
-    it('runs through the generator with the service-role client, not the caller session client', async () => {
+    it("runs through the generator with the caller's session client, never the service-role client", async () => {
         const admin = fakeDb(TABLES);
         const session = fakeDb(TABLES);
         mocks.createAdminClient.mockReturnValue(admin.client);
@@ -426,8 +431,9 @@ describe('Budget against actual report', () => {
         expect(isSummaryReport(result.report)).toBe(true);
         expect(result.report).toMatchObject({ type: 'budget_vs_actual', layout: 'summary' });
         expect((result.report!.data as SummaryReportData).summary[0].value).toBe('2,300.00');
-        expect(admin.calls.from).toEqual(expect.arrayContaining(['budgets', 'expenses', 'expense_categories']));
-        expect(session.calls.from).toEqual([]);
+        expect(session.calls.from).toEqual(expect.arrayContaining(['budgets', 'expenses', 'expense_categories']));
+        expect(admin.calls.from).toEqual([]);
+        expect(mocks.createAdminClient).not.toHaveBeenCalled();
     });
 
     it('renders a server PDF with the summary layout', async () => {
@@ -438,7 +444,6 @@ describe('Budget against actual report', () => {
     });
 
     it('fails with a message when a custom period has no dates', async () => {
-        mocks.createAdminClient.mockReturnValue(fakeDb(TABLES).client);
         const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
         const params = reportRequestSchema.parse({ reportType: 'budget_vs_actual', periodPreset: 'custom' });
         const result = await generateReportWithClient(fakeDb(TABLES).client, params);
@@ -449,6 +454,21 @@ describe('Budget against actual report', () => {
 
 // ---------------------------------------------------------------------------
 describe('Budgets route and menu', () => {
+    it('opens on the current year in Africa/Lagos, not the server clock', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-12-31T23:30:00Z')); // 00:30 on 1 January 2027 in Lagos
+        try {
+            mocks.authorizePermission.mockResolvedValue({ authorized: false, error: 'Unauthorized' });
+            const { default: BudgetsPage } = await import('@/app/(dashboard)/expenditure/budgets/page');
+            const element = await BudgetsPage({ searchParams: Promise.resolve({}) });
+            expect(element.props).toMatchObject({ year: 2027, currentYear: 2027 });
+            const chosen = await BudgetsPage({ searchParams: Promise.resolve({ year: '2025' }) });
+            expect(chosen.props).toMatchObject({ year: 2025, currentYear: 2027 });
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     it('the page needs EXPENDITURE_VIEW and sits under Expenditure in the menu', () => {
         expect(ROUTE_PERMISSIONS['/expenditure/budgets']).toEqual([PERMISSIONS.EXPENDITURE_VIEW]);
         const expenditure = ADMIN_NAV_SECTIONS.flatMap((s) => s.items).find((i) => i.id === 'expenditure');
