@@ -26,7 +26,9 @@ import {
   type WhatsAppAdminRepository,
 } from '@/lib/whatsapp/admin';
 import {
+  aliasName,
   composeList,
+  payerName,
   parseStatementLine,
   HOUSE_PROMPT,
   NOT_ESTATE_MONEY_REASON,
@@ -340,7 +342,7 @@ describe('Unverified payments in Admin tools (#1424)', () => {
     ]);
     expect(store.recorded).toEqual([{ alertId: 'alert-8', houseId: 'house-ibb', residentId: 'resident-ibb', profileId: 'chair-1' }]);
     expect(store.alerts[2]).toEqual(expect.objectContaining({ status: 'processed', paymentId: 'new-payment-1', residentId: 'resident-ibb' }));
-    expect(store.aliases).toEqual([{ residentId: 'resident-ibb', name: 'Henry Itoki' }]);
+    expect(store.aliases).toEqual([{ residentId: 'resident-ibb', name: 'HENRY ITOKI' }]);
     expect(store.audits).toEqual([
       {
         profileId: 'chair-1',
@@ -552,5 +554,19 @@ describe('parseStatementLine (#1424)', () => {
     expect(parseStatementLine('23 Oct 2026')).toBeNull();
     expect(parseStatementLine('31 Feb 2026 TRF')).toBeNull();
     expect(parseStatementLine('12 Foo 2026 TRF')).toBeNull();
+  });
+});
+
+describe('payer names from Stage bank alert texts (#1424)', () => {
+  it.each([
+    ['PA:UP044011261031112606000088/TOYIN RUTH OLAYINKA/', 'TOYIN RUTH OLAYINKA', 'TOYIN RUTH OLAYINKA'],
+    ['CPWInward:100004261031110917175953609212/RAPHAEL W', 'RAPHAEL W', 'RAPHAEL W'],
+    ['FIP:ZIB/HENRY/ Henry Itoki', 'HENRY / HENRY ITOKI', 'HENRY ITOKI'],
+    ['FIP:GTB/ATSEYINKU  ATITAN THEODORE/Atseyinku Theod', 'ATSEYINKU ATITAN THEODORE / ATSEYINKU THEOD', 'ATSEYINKU ATITAN THEODORE'],
+    ['FIP:WEM/MARTINS ABIMBOLA A/ALAT NIP TRANSFER FROM', 'MARTINS ABIMBOLA A / ALAT NIP TRANSFER FROM', 'MARTINS ABIMBOLA A'],
+    ['FIP:ZIB/LILIAN/ Estate dues November to August', 'LILIAN / ESTATE DUES NOVEMBER TO AUGUST', 'LILIAN'],
+  ])('%s', (description, shown, alias) => {
+    expect(payerName(description)).toBe(shown);
+    expect(aliasName(description)).toBe(alias);
   });
 });

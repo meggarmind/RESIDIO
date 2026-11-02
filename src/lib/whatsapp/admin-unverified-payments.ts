@@ -51,9 +51,34 @@ export function shortDay(day: string, now: Date): string {
   return full.endsWith(` ${lagosParts(now).year}`) ? full.replace(/ \d{4}$/, '') : full;
 }
 
-/** The payer as the bank alert names them, in capitals. */
+/**
+ * The name parts of a bank alert's text: the parts after the transfer code (`FIP:ZIB`, `CPWInward:1000…`),
+ * leaving out short bank codes and parts with digits. `FIP:ZIB/HENRY/ Henry Itoki` gives `HENRY`, `HENRY ITOKI`.
+ */
+function payerParts(description: string | null): string[] {
+  if (!description) return [];
+  return description
+    .split('/')
+    .slice(1)
+    .map((part) => part.trim().replace(/\s+/g, ' ').toUpperCase())
+    .filter((part) => part.length >= 2 && !/\d/.test(part) && !/^[A-Z]{1,3}$/.test(part));
+}
+
+/** The payer as the bank alert names them, in capitals: at most two name parts. */
 export function payerName(description: string | null): string {
-  return ((description && extractSenderName(description)) || description || 'Unknown payer').toUpperCase();
+  const parts = payerParts(description);
+  if (parts.length === 0) return (description || 'Unknown payer').toUpperCase();
+  return parts.slice(0, 2).join(' / ');
+}
+
+/**
+ * The payer name to look up and save as an alias: the first name part, or the next part when it is the
+ * same name written longer (`HENRY` then `HENRY ITOKI`). Falls back to the dashboard's extractSenderName.
+ */
+export function aliasName(description: string | null): string | null {
+  const [first, next] = payerParts(description);
+  if (first) return next && next.length > first.length && next.startsWith(`${first.split(' ')[0]} `) ? next : first;
+  return description ? extractSenderName(description) : null;
 }
 
 const items = (count: number) => `${count} item${count === 1 ? '' : 's'}`;
@@ -157,7 +182,7 @@ async function leftPrompt(): Promise<string> {
 // Details
 
 async function alertDetails(list: ListState, number: number, alert: UnverifiedAlert): Promise<string> {
-  const name = alert.description ? extractSenderName(alert.description) : null;
+  const name = aliasName(alert.description);
   const known = name ? await repo().findPayerAlias(name) : null;
   return [
     `🏦 Bank alert ${number}: no resident yet`,
@@ -332,7 +357,7 @@ async function settle(account: WhatsAppAdminAccount, params: Record<string, unkn
         return { reply: `Not done: ${recorded.error}`, outcome: 'failed', settled: [] };
       }
       await r.finishAlert(alert.id, { paymentId: recorded.paymentId, residentId, profileId: account.profileId });
-      const name = alert.description ? extractSenderName(alert.description) : null;
+      const name = aliasName(alert.description);
       const savedAlias = params.saveAlias === true && !!name && name.length >= 2 && (await r.saveAlias(residentId, name, account.profileId));
       await audit({
         action: 'APPROVE',
@@ -346,7 +371,7 @@ async function settle(account: WhatsAppAdminAccount, params: Record<string, unkn
           `Done. ${naira(alert.amount)} is recorded for ${houseCode}, ${params.resident}.`,
           'The bank alert is the bank proof, so the payment is verified.',
           'The wallet pays open bills first.',
-          ...(savedAlias ? [`${payerName(alert.description)} is saved as a payer name for ${houseCode}.`] : []),
+          ...(savedAlias ? [`${name} is saved as a payer name for ${houseCode}.`] : []),
         ].join('\n'),
         outcome: 'recorded',
         settled: [number],
