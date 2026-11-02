@@ -8,7 +8,7 @@ residio_sources:
   - src/app/(dashboard)/reports/**
   - src/actions/analytics/**
   - src/actions/reports/**
-residio_verified_commit: 1da25191
+residio_verified_commit: 1d3f0095
 residio_verified_at: '2026-11-02'
 residio_app_version: '0.4.0'
 ---
@@ -62,15 +62,15 @@ Reports that were made before this change stay in **History** and **Archive**, a
 
 The report shows four figures at the top: **Projects**, **Spend in period**, **Spend to date** and **Budget left**. **Budget left** is the budget less the spend to date, for the projects that have a budget. A bar chart shows the spend in the period for each project. The table has one row for each project, with the columns **Project**, **Status**, **Budget**, **Spend in period**, **Spend to date**, **Budget left**, **Milestones** (for example "1 of 3 done") and **Next milestone** (the first milestone that is not complete, with its due date). The last row gives the totals.
 
-The spend is the amount of the expenses that are linked to the project. A bank statement row that you matched to a project is counted after the import turns it into an expense. It is not counted twice. Cancelled expenses are not counted.
+The spend is the amount of the expenses that are linked to the project. A bank statement row that you matched to a project is counted after the import turns it into an expense. It is not counted twice. Only expenses with the status paid are counted, the same as in **Financial Overview**.
 
 ## Petty cash
 
 **Petty cash** is in the **Money in and out** group. It shows each petty cash account for the period you choose. It needs the permission to view financial reports.
 
-The report shows four figures at the top: **Accounts**, **Top-ups**, **Spend** and **Closing balance**. A bar chart shows the spend for each account. The table has one row for each account, with the columns **Account**, **Opening balance**, **Top-ups**, **Spend** and **Closing balance**. The opening balance is the starting float plus the top-ups before the period, less the spend before the period. The top-ups are the bank statement rows that you matched to the account and imported. The last row gives the totals.
+The report shows four figures at the top: **Accounts**, **Top-ups**, **Spend** and **Closing balance**. A bar chart shows the spend for each account. The table has one row for each account, with the columns **Account**, **Opening balance**, **Top-ups**, **Spend** and **Closing balance**. The opening balance is the starting float plus the top-ups before the period, less the spend before the period. The top-ups are the bank statement rows and the email transactions that you matched to the account and that were imported. If the same transfer was imported both ways, it is counted two times. The last row gives the totals.
 
-On the **Options** step, the switch **Show spend lines** adds one row for each expense under its account. It is off until you turn it on. It is also available on a schedule. If the balance now on record for an account is different from the closing balance, a note under the table names the account. This can happen when cash collections or manual top-ups changed the balance, because these keep no history.
+On the **Options** step, the switch **Show spend lines** adds one row for each expense under its account. It is off until you turn it on. A schedule of this report always runs with spend lines off, because the schedule form has no switch for them. If the balance now on record for an account is different from the closing balance, a note under the table names the account. This can happen when cash collections or top-ups made by hand changed the balance, because these keep no history.
 
 ## Dues, levies and collection status
 

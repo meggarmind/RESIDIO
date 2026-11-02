@@ -181,7 +181,7 @@ const ACCOUNT_AGNOSTIC_REPORTS: ReportType[] = ['debtors_aging', 'debtors_report
 const REALTIME_REPORTS: ReportType[] = ['debtors_aging', 'debtors_report', 'development_levy', 'invoice_aging'];
 
 // Invoice lines are off unless chosen for these (#1399, #1400); other reports keep their default.
-const INVOICE_LINES_OFF_BY_DEFAULT: ReportType[] = ['debtors_aging', 'dues_collection_status', 'petty_cash'];
+export const INVOICE_LINES_OFF_BY_DEFAULT: ReportType[] = ['debtors_aging', 'dues_collection_status', 'petty_cash'];
 
 // ============================================================
 // Stepper Component

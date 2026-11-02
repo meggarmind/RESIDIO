@@ -3,8 +3,10 @@
  * closing balance for the period, and optionally each spend line.
  *
  * Opening balance = initial float + top-ups before the period - spend before the period. Top-ups are
- * the bank statement rows matched to the account and already processed (`status = 'created'`; the
- * import adds them to the balance). Spend is every expense of the account (`source_type =
+ * the bank statement rows matched to the account and already processed (`status = 'created'`) and the
+ * email transactions matched to it and already processed (`auto_processed` or `processed`); both
+ * imports add the amount to the balance. No column ties an email transaction to a bank row, so the
+ * same transfer imported both ways would count twice. Spend is every expense of the account (`source_type =
  * 'petty_cash'`), whatever its status, because the balance trigger takes the money off on insert and
  * does not give it back on cancel.
  */
@@ -15,6 +17,7 @@ import { summarizePettyCashAccount, type PettyCashAccountRow } from '@/lib/finan
 import { cents, money, reportDate } from '@/lib/reports/generators/money-out';
 
 interface TopUpRow { id: string; matched_petty_cash_account_id: string | null; amount: number | string | null; transaction_date: string | null }
+interface EmailTopUpRow { id: string; matched_petty_cash_account_id: string | null; amount: number | string | null; transaction_date: string | null }
 interface SpendRow { id: string; petty_cash_account_id: string | null; amount: number | string | null; expense_date: string; description: string | null; status: string | null }
 
 async function readAll<T>(label: string, page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<T[]> {
@@ -40,6 +43,9 @@ export async function generatePettyCash(
   const topUps = await readAll<TopUpRow>('top-ups', (from, to) =>
     supabase.from('bank_statement_rows').select('id, matched_petty_cash_account_id, amount, transaction_date')
       .not('matched_petty_cash_account_id', 'is', null).eq('status', 'created').lte('transaction_date', endDate).order('id').range(from, to));
+  const emailTopUps = await readAll<EmailTopUpRow>('email top-ups', (from, to) =>
+    supabase.from('email_transactions').select('id, matched_petty_cash_account_id, amount, transaction_date')
+      .not('matched_petty_cash_account_id', 'is', null).in('status', ['auto_processed', 'processed']).lte('transaction_date', endDate).order('id').range(from, to));
   const spendRows = await readAll<SpendRow>('spend', (from, to) =>
     supabase.from('expenses').select('id, petty_cash_account_id, amount, expense_date, description, status')
       .eq('source_type', 'petty_cash').not('petty_cash_account_id', 'is', null).lte('expense_date', endDate).order('id').range(from, to));
@@ -50,7 +56,7 @@ export async function generatePettyCash(
     if (!f) { f = { topUpsBefore: 0, topUps: 0, spendBefore: 0, spend: 0, lines: [] }; figures.set(id, f); }
     return f;
   };
-  for (const t of topUps) {
+  for (const t of [...topUps, ...emailTopUps]) {
     if (!t.matched_petty_cash_account_id || !t.transaction_date) continue;
     const f = figuresOf(t.matched_petty_cash_account_id);
     const amount = Math.abs(Number(t.amount) || 0);
@@ -115,9 +121,9 @@ export async function generatePettyCash(
       totals: { account: 'Total', opening: money(totals.opening), topUps: money(totals.topUps), spend: money(totals.spend), closing: money(totals.closing) },
     },
     notes: [
-      `Period: ${reportDate(startDate)} to ${reportDate(endDate)}. Opening balance is the starting float plus earlier top-ups, less earlier spend. Top-ups are bank statement rows matched to the account.`,
+      `Period: ${reportDate(startDate)} to ${reportDate(endDate)}. Opening balance is the starting float plus earlier top-ups, less earlier spend. Top-ups are bank statement rows and email transactions matched to the account.`,
       ...(mismatched.length > 0
-        ? [`The balance now on record differs from the closing balance for: ${mismatched.map((l) => `${l.account.name} (${money(l.account.currentBalance)} on record)`).join('; ')}. Cash collections and manual top-ups change the balance but keep no history, so they are not in these figures.`]
+        ? [`The balance now on record differs from the closing balance for: ${mismatched.map((l) => `${l.account.name} (${money(l.account.currentBalance)} on record)`).join('; ')}. Cash collections and top-ups made by hand change the balance but keep no history, so they are not in these figures.`]
         : []),
     ],
   };

@@ -4,7 +4,7 @@
  *
  * Spend is the amount of the project's expenses (`expenses.project_id`). A bank import row matched to
  * a project becomes one such expense when it is processed (process-import.ts), so counting the bank
- * rows as well would count that money twice. Cancelled expenses are left out.
+ * rows as well would count that money twice. Only paid expenses count, the same as the financial overview.
  */
 import type { ReportSupabaseClient } from '@/lib/reports/report-generator';
 import type { SummaryCell, SummaryReport, SummaryReportData } from '@/lib/reports/summary-report';
@@ -36,7 +36,7 @@ export async function generateProjectSpend(
     supabase.from('project_milestones').select('id, project_id, title, status, due_date').order('id').range(from, to));
   const expenses = await readAll<ExpenseRow>('expenses', (from, to) =>
     supabase.from('expenses').select('id, project_id, amount, expense_date')
-      .not('project_id', 'is', null).neq('status', 'cancelled').lte('expense_date', endDate).order('id').range(from, to));
+      .not('project_id', 'is', null).eq('status', 'paid').lte('expense_date', endDate).order('id').range(from, to));
 
   const spend = new Map<string, { period: number; toDate: number }>();
   for (const e of expenses) {
@@ -112,7 +112,7 @@ export async function generateProjectSpend(
       },
     },
     notes: [
-      'Spend is the amount of each project\'s expenses, including bank statement rows already turned into expenses. Cancelled expenses are left out.',
+      'Spend is the amount of each project\'s expenses, including bank statement rows already turned into expenses. Only paid expenses are counted, the same as the Financial Overview.',
       'Budget left is budget less spend to date, for projects that have a budget.',
     ],
   };
