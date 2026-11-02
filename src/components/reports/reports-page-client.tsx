@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import {
     FileBarChart,
+    Construction,
     Receipt,
     Clock,
     ScrollText,
@@ -105,6 +106,18 @@ const reportTypeConfig: Record<
         label: 'Dues, levies and collection status',
         gradient: 'from-orange-500 to-amber-500',
         iconBg: 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
+    },
+    project_spend: {
+        icon: Construction,
+        label: 'Project spend',
+        gradient: 'from-indigo-500 to-blue-500',
+        iconBg: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400',
+    },
+    petty_cash: {
+        icon: Receipt,
+        label: 'Petty cash',
+        gradient: 'from-emerald-500 to-teal-500',
+        iconBg: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
     },
     statement_of_account: {
         icon: FileText,

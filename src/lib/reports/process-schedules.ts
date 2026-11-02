@@ -31,7 +31,7 @@ function periodLabelFor(params: ReportRequestFormData): string | undefined {
 // its old value (#1399, #1400).
 function includeDetailsFor(savedType: ReportRequestFormData['reportType'], includeSummary: boolean | null): boolean {
   const runsAs = resolveRetiredReport(savedType);
-  if (runsAs !== 'debtors_aging' && runsAs !== 'dues_collection_status' && runsAs !== 'expenses_by_category') return true;
+  if (runsAs !== 'debtors_aging' && runsAs !== 'dues_collection_status' && runsAs !== 'expenses_by_category' && runsAs !== 'petty_cash') return true;
   return savedType === runsAs && includeSummary === true;
 }
 
