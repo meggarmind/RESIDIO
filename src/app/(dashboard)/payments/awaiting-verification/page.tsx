@@ -516,9 +516,10 @@ export default function AwaitingVerificationPage() {
                                 {row.alert.bank_account_last4
                                   ? `Account ending ${row.alert.bank_account_last4}`
                                   : ""}
-                                {row.alert.senderVerified === false
-                                  ? " Sender not verified"
-                                  : ""}
+                                {/* #1428: a checked bank email is bank proof, so Approve records it verified. */}
+                                {row.alert.senderVerified === true
+                                  ? " · Bank email checked: Approve records it verified"
+                                  : " · Bank email not checked: Approve records it unverified"}
                               </div>
                             </TableCell>
                             <TableCell className="text-right tabular-nums">

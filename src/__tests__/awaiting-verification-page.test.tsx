@@ -288,6 +288,16 @@ describe('awaiting verification page: cards and dates', () => {
     expect(screen.getByText('NIP TRANSFER FROM JOHN DOE')).toBeInTheDocument();
     expect(screen.queryByText('Ada Obi')).not.toBeInTheDocument();
   });
+
+  it('says whether the bank email was checked, so Approve records it verified or not (#1428)', async () => {
+    mocks.getAwaitingVerification.mockResolvedValue({
+      ...BOTH,
+      alerts: [ALERT, { ...ALERT, id: 'tx-2', description: 'FORWARDED ALERT', senderVerified: null }],
+    });
+    renderPage();
+    expect(await screen.findByText(/Bank email checked: Approve records it verified/)).toBeInTheDocument();
+    expect(screen.getByText(/Bank email not checked: Approve records it unverified/)).toBeInTheDocument();
+  });
 });
 
 describe('awaiting verification page: pinned behaviour (#1432 QA)', () => {
