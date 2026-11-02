@@ -14,6 +14,8 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { createPayment } from '@/actions/payments/create-payment';
+import { createPaymentCore } from '@/lib/payments/create-payment';
+import { embed } from '@/lib/utils';
 import { exceedsEmailAutoProcessLimit, extractSenderName } from '@/lib/email-imports/utils';
 // The limit (#710) and match rule are shared with the scheduled auto-record step (#1340).
 // So is the source gate: alert only, estate account, sender checked (#1353).
@@ -393,10 +395,10 @@ export async function processSingleTransaction(
 
   const adminClient = await createAdminClient();
 
-  // Get transaction
+  // Get transaction, with the sender check of its email (#1353)
   const { data: transaction, error: fetchError } = await adminClient
     .from('email_transactions')
-    .select('*')
+    .select('*, email_messages(sender_verified)')
     .eq('id', transactionId)
     .single();
 
@@ -486,13 +488,19 @@ export async function processSingleTransaction(
     return { success: false, error: 'Resident ID required for payment transactions' };
   }
 
+  // An alert whose email passed the sender check is bank proof (owner decision, 2 Nov 2026, #1428).
+  // Recording it verified also needs payments.verify, so payments.create alone cannot self-verify.
+  const senderVerified = embed(transaction.email_messages)?.sender_verified === true;
+  const verified = senderVerified && auth.permissions.includes(PERMISSIONS.PAYMENTS_VERIFY);
+
   // Create payment
   const paymentResult = await createPaymentFromTransaction(
     {
       ...emailTx,
       matched_resident_id: params.residentId,
     },
-    auth.userId
+    auth.userId,
+    verified
   );
 
   if (!paymentResult.success) {
@@ -553,6 +561,7 @@ export async function processSingleTransaction(
       payment_id: paymentResult.paymentId,
       notes: params.notes,
       saved_alias: params.saveAsAlias,
+      verified,
     },
   });
 
@@ -616,13 +625,18 @@ export async function skipTransaction(
 
 async function createPaymentFromTransaction(
   transaction: EmailTransaction,
-  userId?: string | null
+  userId?: string | null,
+  verified = false
 ): Promise<{ success: boolean; paymentId?: string; error?: string }> {
   if (!transaction.matched_resident_id || !transaction.amount) {
     return { success: false, error: 'Missing resident or amount' };
   }
 
-  const result = await createPayment({
+  // The public action records the payment unverified; the core records it verified (#1428).
+  const create = verified
+    ? (data: Parameters<typeof createPayment>[0]) => createPaymentCore({ ...data, is_verified: true }, { trustedVerification: true })
+    : createPayment;
+  const result = await create({
     resident_id: transaction.matched_resident_id,
     amount: Number(transaction.amount),
     payment_date: transaction.transaction_date

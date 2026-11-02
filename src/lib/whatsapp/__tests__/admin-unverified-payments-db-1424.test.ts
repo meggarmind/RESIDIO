@@ -49,12 +49,13 @@ const ALERT: UnverifiedAlert = {
   reference: 'REF-1',
   emailImportId: 'import-1',
   transactionDate: '2026-11-02T08:00:00Z',
+  senderVerified: true,
 };
 
 describe('Unverified payments database (#1424)', () => {
   it('records the payment verified, on the house, with the admin as actor and channel whatsapp_admin', async () => {
     mocks.createPaymentAsAdmin.mockResolvedValue({ success: true, data: { id: 'pay-1' } });
-    const result = await repo.recordPayment(ALERT, { houseId: 'house-1', residentId: 'res-1' }, 'chair-1');
+    const result = await repo.recordPayment(ALERT, { houseId: 'house-1', residentId: 'res-1' }, 'chair-1', true);
     expect(result).toEqual({ paymentId: 'pay-1' });
     expect(mocks.createPaymentAsAdmin).toHaveBeenCalledTimes(1);
     const [data, profileId, metadata] = mocks.createPaymentAsAdmin.mock.calls[0];
@@ -75,9 +76,37 @@ describe('Unverified payments database (#1424)', () => {
     expect(metadata).toEqual({ channel: 'whatsapp_admin' });
   });
 
+  it('records the payment unverified when the alert is not bank proof (#1428)', async () => {
+    mocks.createPaymentAsAdmin.mockResolvedValue({ success: true, data: { id: 'pay-2' } });
+    expect(await repo.recordPayment({ ...ALERT, senderVerified: false }, { houseId: 'house-1', residentId: 'res-1' }, 'chair-1', false)).toEqual({ paymentId: 'pay-2' });
+    expect(mocks.createPaymentAsAdmin.mock.calls[0][0]).toEqual(expect.objectContaining({ is_verified: false }));
+  });
+
+  it('loads the sender check of the alert email with the alert (#1428)', async () => {
+    const row = { ...ALERT, amount: 65000, transaction_date: '2026-11-02T08:00:00Z', created_at: 'c', email_import_id: 'i' };
+    mocks.results.email_transactions = {
+      data: [
+        { ...row, id: 'a-yes', email_messages: { sender_verified: true } },
+        { ...row, id: 'a-no', email_messages: { sender_verified: false } },
+        { ...row, id: 'a-null', email_messages: { sender_verified: null } },
+        { ...row, id: 'a-none', email_messages: null },
+        { ...row, id: 'a-array', email_messages: [{ sender_verified: true }] },
+      ],
+      error: null,
+    };
+    expect((await repo.listAlerts()).map((a) => [a.id, a.senderVerified])).toEqual([
+      ['a-yes', true],
+      ['a-no', false],
+      ['a-null', false],
+      ['a-none', false],
+      ['a-array', true],
+    ]);
+    expect(String(calls('email_transactions', 'select')[0][0])).toContain('email_messages(sender_verified)');
+  });
+
   it('passes a refused payment on as an error', async () => {
     mocks.createPaymentAsAdmin.mockResolvedValue({ error: 'Duplicate Payment Detected: x' });
-    expect(await repo.recordPayment(ALERT, { houseId: 'house-1', residentId: 'res-1' }, 'chair-1')).toEqual({ error: 'Duplicate Payment Detected: x' });
+    expect(await repo.recordPayment(ALERT, { houseId: 'house-1', residentId: 'res-1' }, 'chair-1', true)).toEqual({ error: 'Duplicate Payment Detected: x' });
   });
 
   it('lists queued credits only, and leaves resident reports waiting in Approvals out of the payments', async () => {
