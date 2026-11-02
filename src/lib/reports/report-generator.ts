@@ -1041,7 +1041,8 @@ interface IndebtednessResidentLink {
  * The Primary Resident of a house on the Indebtedness Report (#1420): the person the house's
  * Security Dues bill, by the billing payer rule (`resolvePayer`, #1068). An occupant-paid house
  * shows the tenant, else the owner-occupier; a landlord-paid house shows the landlord. A house
- * with nobody of that class still shows its landlord, else its developer, so no row is lost.
+ * with nobody of that class still shows its landlord, else its developer, else its occupant, so
+ * no row is lost.
  * Newest move-in first when two people share a role, as in get_debt_statuses.
  */
 export function pickIndebtednessPrimary(
@@ -1061,7 +1062,7 @@ export function pickIndebtednessPrimary(
       applicableRoles: null,
       residents: candidates,
     }).payer;
-  return (pick(payer) ?? pick('landlord'))?.link ?? null;
+  return (pick(payer) ?? pick('landlord') ?? pick('occupant'))?.link ?? null;
 }
 
 export async function generateIndebtednessReport(

@@ -39,6 +39,11 @@ type TemplateType = 'traditional' | 'modern';
 
 const AS_OF_REPORT_TYPES: string[] = ['invoice_aging', 'indebtedness_summary'];
 
+/** Reports that show the position on one day print "As of", not a period (#1420). */
+export function isAsOfReportType(reportType: string): boolean {
+  return AS_OF_REPORT_TYPES.includes(reportType);
+}
+
 interface ReportViewerProps {
   report: GeneratedReport;
   onBack?: () => void;
@@ -162,8 +167,7 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
   const dateRange = report.parameters.periodPreset === 'custom'
     ? { startDate: report.parameters.startDate || '', endDate: report.parameters.endDate || '' }
     : getDateRangeFromPreset(report.parameters.periodPreset);
-  // These reports show the position on one day, so they print "As of", not a period (#1420).
-  const isAsOfReport = AS_OF_REPORT_TYPES.includes(report.parameters.reportType);
+  const isAsOfReport = isAsOfReportType(report.parameters.reportType);
 
   // Robust label getter that handles the "undefined" issue
   const getDisplayTitle = useCallback(() => {

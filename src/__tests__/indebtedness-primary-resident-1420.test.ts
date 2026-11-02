@@ -14,6 +14,7 @@ vi.mock('@/lib/supabase/server', () => ({
 }));
 
 import { generateIndebtednessReport, pickIndebtednessPrimary } from '@/lib/reports/report-generator';
+import { isAsOfReportType } from '@/components/reports/report-viewer';
 
 const link = (id: string, role: string, moveIn = '2024-01-01', active = true) => ({
   resident_id: id,
@@ -59,6 +60,10 @@ describe('pickIndebtednessPrimary', () => {
     expect(pickIndebtednessPrimary(links, 'landlord')?.resident_id).toBe('nrl');
   });
 
+  it('still names the tenant on a landlord-pays profile with no landlord on record', () => {
+    expect(pickIndebtednessPrimary([link('tenant', 'tenant')], 'landlord')?.resident_id).toBe('tenant');
+  });
+
   it('takes the newest move-in when two tenants are active', () => {
     const links = [link('first', 'tenant', '2023-05-01'), link('newest', 'tenant', '2025-02-01')];
     expect(pickIndebtednessPrimary(links, 'occupant')?.resident_id).toBe('newest');
@@ -66,6 +71,14 @@ describe('pickIndebtednessPrimary', () => {
 
   it('returns null when nobody can be named', () => {
     expect(pickIndebtednessPrimary([link('kid', 'co_resident')], 'occupant')).toBeNull();
+  });
+});
+
+describe('isAsOfReportType', () => {
+  it('prints "As of" for the Indebtedness Report and invoice aging only', () => {
+    expect(isAsOfReportType('indebtedness_summary')).toBe(true);
+    expect(isAsOfReportType('invoice_aging')).toBe(true);
+    expect(isAsOfReportType('collection_report')).toBe(false);
   });
 });
 
