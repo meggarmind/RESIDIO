@@ -5,8 +5,8 @@ import { getInvoiceCronSettings } from '@/lib/billing/invoice-cron-settings';
 import {
   findReusableInvoiceGenerationRun,
   prepareInvoiceGenerationRunCore,
+  processInvoiceGenerationRunToCompletion,
 } from '@/lib/billing/invoice-generation-run-service';
-import { processInvoiceGenerationRunChunk } from '@/lib/billing/invoice-generation-worker';
 import { createAdminClient } from '@/lib/supabase/server';
 import { recordSystemAction } from '@/lib/system-log/recorder';
 
@@ -16,8 +16,8 @@ vi.mock('@/lib/billing/invoice-generation-run-service', () => ({
   findReusableInvoiceGenerationRun: vi.fn(),
   parseInvoiceGenerationRequest: (input: unknown) => input,
   prepareInvoiceGenerationRunCore: vi.fn(),
+  processInvoiceGenerationRunToCompletion: vi.fn(),
 }));
-vi.mock('@/lib/billing/invoice-generation-worker', () => ({ processInvoiceGenerationRunChunk: vi.fn() }));
 vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
 vi.mock('@/lib/system-log/recorder', () => ({ recordSystemAction: vi.fn() }));
 
@@ -51,7 +51,7 @@ describe('GET /api/cron/generate-invoices system log', () => {
       data: { id: 'run-1', candidateCount: 40 },
       error: null,
     } as never);
-    vi.mocked(processInvoiceGenerationRunChunk).mockResolvedValue({ processed: 40, run: { status: 'completed' } } as never);
+    vi.mocked(processInvoiceGenerationRunToCompletion).mockResolvedValue({ processed: 40, run: { status: 'completed' }, capped: false } as never);
   });
   afterEach(() => vi.unstubAllEnvs());
 
