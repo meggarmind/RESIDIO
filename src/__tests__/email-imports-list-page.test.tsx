@@ -126,4 +126,43 @@ describe('email imports list page', () => {
     expect(await screen.findByText('20 Oct 2026')).toBeInTheDocument();
     expect(screen.getByText('Showing 1 to 2 of 2')).toBeInTheDocument();
   });
+  it('hides Retry and Cancel without the trigger permission', async () => {
+    mocks.permissions = [];
+    mocks.listEmailImports.mockResolvedValue({
+      data: [...ROWS, { ...base, id: 'imp-run', status: 'processing', created_at: '2026-10-19T08:00:00Z' }],
+      count: 3,
+      error: null,
+    });
+    renderPage();
+    await screen.findAllByRole('link');
+    expect(screen.queryByRole('button', { name: 'Retry Processing' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cancel Import' })).not.toBeInTheDocument();
+  });
+
+  it('filters by the Completed and Auto-Processed cards', async () => {
+    renderPage();
+    await screen.findAllByRole('link');
+    fireEvent.click(screen.getByRole('button', { name: /^Completed/ }));
+    await waitFor(() =>
+      expect(mocks.listEmailImports).toHaveBeenLastCalledWith({ status: 'completed', limit: 25, offset: 0 })
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Auto-Processed/ }));
+    await waitFor(() =>
+      expect(mocks.listEmailImports).toHaveBeenLastCalledWith({ has: 'auto_processed', limit: 25, offset: 0 })
+    );
+  });
+
+  it('goes back to page 1 when a card is selected', async () => {
+    mocks.listEmailImports.mockResolvedValue({ data: ROWS, count: 60, error: null });
+    renderPage();
+    await screen.findAllByRole('link');
+    fireEvent.click(screen.getByRole('button', { name: /Next/ }));
+    await waitFor(() =>
+      expect(mocks.listEmailImports).toHaveBeenLastCalledWith({ limit: 25, offset: 25 })
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Queued for Review/ }));
+    await waitFor(() =>
+      expect(mocks.listEmailImports).toHaveBeenLastCalledWith({ has: 'queued', limit: 25, offset: 0 })
+    );
+  });
 });
