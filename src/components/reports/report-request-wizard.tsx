@@ -62,6 +62,7 @@ import { getBankAccountsForFilter } from '@/actions/reports/get-financial-overvi
 import { useCreateReportSchedule, type CreateScheduleInput } from '@/hooks/use-reports';
 import { toast } from 'sonner';
 import { ReportTypePicker } from '@/components/reports/report-type-picker';
+import { useChargeCategories } from '@/hooks/use-billing';
 
 // ============================================================
 // Types
@@ -244,11 +245,16 @@ function ReportTypeStep({
     value,
     onChange,
     allowedTypes,
+    chargeCategory,
+    onChargeChange,
 }: {
     value: ReportType | '';
     onChange: (type: ReportType) => void;
     allowedTypes: readonly ReportType[];
+    chargeCategory: string;
+    onChargeChange: (code: string) => void;
 }) {
+    const charges = useChargeCategories();
     return (
         <ReportTypePicker
             value={value}
@@ -257,6 +263,13 @@ function ReportTypeStep({
             config={reportTypeConfig}
             realtimeTypes={REALTIME_REPORTS}
             accountAgnosticTypes={ACCOUNT_AGNOSTIC_REPORTS}
+            charge={{
+                options: charges.data ?? [],
+                value: chargeCategory,
+                onChange: onChargeChange,
+                isLoading: charges.isLoading,
+                error: charges.error ? charges.error.message : null,
+            }}
         />
     );
 }
@@ -993,6 +1006,7 @@ export function ReportRequestWizard({
             includeUnoccupied: false,
             includeAmount: false,
             paymentStatus: 'all' as const,
+            chargeCategory: 'dues',
         },
     });
 
@@ -1189,6 +1203,8 @@ export function ReportRequestWizard({
                                     setValue('includeDetails', !INVOICE_LINES_OFF_BY_DEFAULT.includes(type as ReportType));
                                 }}
                                 allowedTypes={allowedReportTypes}
+                                chargeCategory={formData.chargeCategory ?? 'dues'}
+                                onChargeChange={(code) => setValue('chargeCategory', code)}
                             />
                         )}
 

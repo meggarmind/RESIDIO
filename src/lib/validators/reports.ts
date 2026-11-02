@@ -127,6 +127,8 @@ export const reportRequestSchema = z.object({
     includeUnoccupied: z.boolean().default(false),
     includeAmount: z.boolean().default(false),
     paymentStatus: z.enum(['all', 'paid', 'unpaid']).default('all'),
+    // What the dues sheet covers: a `charge_categories.code` (#1400). Other reports ignore it.
+    chargeCategory: z.string().regex(/^[a-z][a-z0-9_]*$/).default('dues'),
 });
 
 export type ReportRequestFormData = z.infer<typeof reportRequestSchema>;

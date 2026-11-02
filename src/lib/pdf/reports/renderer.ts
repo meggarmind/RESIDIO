@@ -20,7 +20,7 @@ export async function renderReportPdf(type: ReportRequestFormData['reportType'],
     case 'debtors_report': component = React.createElement(DebtorsReportPdf, { data, estateName }) as React.ReactElement<DocumentProps>; break;
     // Summary-first reports (#1399): `data` is the SummaryReportData of a report with `layout: 'summary'`.
     case 'debtors_aging': component = React.createElement(SummaryReportPdf, { data, title: REPORT_TYPE_LABELS[type], estateName }) as React.ReactElement<DocumentProps>; break;
-    case 'dues_collection_status': component = React.createElement(SummaryReportPdf, { data, title: REPORT_TYPE_LABELS[type], estateName }) as React.ReactElement<DocumentProps>; break;
+    case 'dues_collection_status': component = React.createElement(SummaryReportPdf, { data, title: `${REPORT_TYPE_LABELS[type]}${data?.chargeName ? ` - ${data.chargeName}` : ''}`, estateName }) as React.ReactElement<DocumentProps>; break;
     case 'development_levy': component = React.createElement(DevelopmentLevyPdf, { data, estateName }) as React.ReactElement<DocumentProps>; break;
     default: return null;
   }

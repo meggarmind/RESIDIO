@@ -38,7 +38,7 @@ import { formatDistanceToNow } from 'date-fns';
 
 type TemplateType = 'traditional' | 'modern';
 
-const AS_OF_REPORT_TYPES: string[] = ['invoice_aging', 'indebtedness_summary'];
+const AS_OF_REPORT_TYPES: string[] = ['invoice_aging', 'indebtedness_summary', 'dues_collection_status'];
 
 /** Reports that show the position on one day print "As of", not a period (#1420). */
 export function isAsOfReportType(reportType: string): boolean {

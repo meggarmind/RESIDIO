@@ -21,6 +21,8 @@ import {
 } from '@/actions/reports/report-schedules';
 import type { ReportRequestFormData } from '@/lib/validators/reports';
 import { getDateRangeFromPreset, REPORT_TYPE_LABELS } from '@/lib/validators/reports';
+import { isSummaryReport } from '@/lib/reports/summary-report';
+import { formatCalendarDate } from '@/lib/utils/calendar-date';
 import { toast } from 'sonner';
 
 // ============================================================
@@ -128,7 +130,11 @@ export function useGenerateReport() {
 
             // Format title based on report type
             let title = reportTypeLabels[params.reportType];
-            if (REALTIME_REPORTS.includes(params.reportType)) {
+            if (params.reportType === 'dues_collection_status') {
+                // The charge is in the title, and the report is as of one day: no period (#1400).
+                const chargeName = isSummaryReport(result.report) ? result.report.data.chargeName : undefined;
+                title += `${chargeName ? ` - ${chargeName}` : ''} - As of ${formatCalendarDate(new Date(), 'en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}`;
+            } else if (REALTIME_REPORTS.includes(params.reportType)) {
                 title += ` - As of ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
             } else {
                 title += ` - ${new Date(dateRange.startDate).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })} to ${new Date(dateRange.endDate).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}`;
@@ -198,6 +204,7 @@ function mapDbReportToGeneratedReport(dbReport: DBGeneratedReport): GeneratedRep
             includeUnoccupied: false,
             includeAmount: false,
             paymentStatus: 'all',
+            chargeCategory: 'dues',
         },
         data: dbReport.report_data as ReportData,
         // Versioning fields

@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
   const includeUnoccupied = request.nextUrl.searchParams.get('includeUnoccupied') === 'true';
    const bankAccountId = request.nextUrl.searchParams.get('bankAccountId');
   const includeCharts = request.nextUrl.searchParams.get('includeCharts') === 'true';
+  const chargeCategory = request.nextUrl.searchParams.get('chargeCategory') ?? 'dues';
    const categoryId = request.nextUrl.searchParams.get('categoryId');
    const paymentStatus = request.nextUrl.searchParams.get('paymentStatus');
 
@@ -63,6 +64,7 @@ export async function GET(request: NextRequest) {
      includeAmount,
      includeUnoccupied,
      includeCharts,
+     chargeCategory,
      // Invoice lines are off for Debtors and aging unless asked for (#1399); other reports are unchanged.
      includeDetails: type === 'debtors_aging' || type === 'dues_collection_status' ? request.nextUrl.searchParams.get('includeDetails') === 'true' : true,
      paymentStatus: paymentStatus === 'paid' || paymentStatus === 'unpaid' ? paymentStatus : 'all',

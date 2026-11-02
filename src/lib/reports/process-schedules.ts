@@ -21,7 +21,7 @@ const formatEmailDate = (iso: string) =>
 
 // Debtors and aging is a point-in-time report, so it has no period to state.
 function periodLabelFor(params: ReportRequestFormData): string | undefined {
-  if (params.reportType === 'debtors_aging') return undefined;
+  if (params.reportType === 'debtors_aging' || params.reportType === 'dues_collection_status') return undefined;
   const { startDate, endDate } = getDateRangeFromPreset(params.periodPreset);
   return `${formatEmailDate(startDate)} to ${formatEmailDate(endDate)}`;
 }
@@ -65,6 +65,8 @@ export async function processDueSchedules(): Promise<{ processed: number; failed
          endDate: '',
         includeAmount: schedule.configuration?.includeAmount ?? false,
         includeUnoccupied: schedule.configuration?.includeUnoccupied ?? false,
+        // The charge a dues schedule covers; a schedule of a retired Indebtedness report saved none, so it is Dues (#1400).
+        chargeCategory: schedule.report_type === 'dues_collection_status' && typeof schedule.configuration?.chargeCategory === 'string' ? schedule.configuration.chargeCategory : 'dues',
          bankAccountIds: schedule.bank_account_ids || [],
          includeCharts: schedule.include_charts ?? false,
          categoryIds: [],

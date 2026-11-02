@@ -127,6 +127,7 @@ export const reportTypePreviews: Record<ReportType, PreviewDefinition> = {
         columns: [
             { label: 'House' },
             { label: 'Street' },
+            { label: 'Primary Resident' },
             { label: 'Months paid', align: 'right' },
             { label: 'Months owed', align: 'right' },
             { label: 'Levy' },
@@ -134,9 +135,9 @@ export const reportTypePreviews: Record<ReportType, PreviewDefinition> = {
             { label: 'Status' },
         ],
         rows: [
-            ['12', 'Palm Close', '10 of 10', '0', 'Paid', '0.00', 'Paid in full'],
-            ['14', 'Palm Close', '6 of 10', '4', 'Not paid', '360,000.00', 'Arrears'],
-            ['3', 'Cedar Way', '9 of 10', '1', 'Part paid', '60,000.00', 'Outstanding'],
+            ['12', 'Palm Close', 'A. Bello', '10 of 10', '0', 'Paid', '0.00', 'Paid in full'],
+            ['14', 'Palm Close', 'M. Yusuf', '6 of 10', '4', 'Not paid', '360,000.00', 'Arrears'],
+            ['3', 'Cedar Way', 'C. Okafor', '9 of 10', '1', 'Part paid', '60,000.00', 'Outstanding'],
         ],
     },
     // Retired (#1399): not offered in the picker; kept so the Record stays complete for old rows.

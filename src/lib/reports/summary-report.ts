@@ -46,6 +46,8 @@ export interface SummaryReportData {
   };
   notes?: string[];
   grid?: SummaryGrid;
+  /** The charge a report covers (e.g. "Security Dues"); it goes in the report title (#1400). */
+  chargeName?: string;
 }
 
 /**

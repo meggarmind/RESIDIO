@@ -58,13 +58,13 @@ const HOUSES = [
 let seq = 0;
 const inv = (houseId: string, status: string, due: string, amountDue: number, amountPaid: number, extra: Record<string, unknown> = {}) => ({
   id: `i${String(++seq).padStart(5, '0')}`, house_id: houseId, invoice_number: `INV-${seq}`, status, due_date: due,
-  amount_due: amountDue, amount_paid: amountPaid, period_start: null, rate_snapshot: null, invoice_type: 'SERVICE_CHARGE', ...extra,
+  amount_due: amountDue, amount_paid: amountPaid, period_start: null, rate_snapshot: null, charge_category: 'dues', ...extra,
 });
 const dues = (houseId: string, month: string, status: string, due: string, amountDue = 10000, amountPaid = status === 'paid' ? 10000 : 0) =>
   inv(houseId, status, due, amountDue, amountPaid, { period_start: `${month}-01` });
 // Due inside the period, so a levy counted as a month would show.
 const levy = (houseId: string, status: string, amountDue = 50000, amountPaid = status === 'paid' ? 50000 : 0) =>
-  inv(houseId, status, '2026-09-30', amountDue, amountPaid, { invoice_type: 'LEVY', rate_snapshot: { is_development_levy: true } });
+  inv(houseId, status, '2026-09-30', amountDue, amountPaid, { rate_snapshot: { is_development_levy: true } });
 
 const INVOICES = [
   // h1 pays everything, levy included.
@@ -87,15 +87,18 @@ function table(rows: Record<string, unknown>[]) {
   let lo = 0;
   let hi = 999; // like PostgREST, a read with no range returns at most 1000 rows
   const q: Record<string, unknown> = {};
-  for (const m of ['select', 'eq', 'order', 'not']) q[m] = () => q;
+  for (const m of ['select', 'order', 'not']) q[m] = () => q;
+  // Only the charge columns filter; the houses fixtures carry no is_active.
+  q.eq = (col: string, val: unknown) => { if (col === 'charge_category' || col === 'code') filtered = filtered.filter((r) => r[col] === val); return q; };
   q.neq = (col: string, val: unknown) => { filtered = filtered.filter((r) => r[col] !== val); return q; };
   q.in = (col: string, vals: unknown[]) => { filtered = filtered.filter((r) => vals.includes(r[col])); return q; };
   q.range = (a: number, b: number) => { lo = a; hi = b; return q; };
   q.then = (res: (v: unknown) => unknown) => Promise.resolve({ data: filtered.slice(lo, hi + 1), error: null }).then(res);
   return q;
 }
+const CHARGES = [{ code: 'dues', name: 'Security Dues' }, { code: 'development_levy', name: 'Development Levy' }, { code: 'transformer_fee', name: 'Transformer Fee' }];
 const clientWith = (invoices: unknown[] = INVOICES, houses: unknown[] = HOUSES) =>
-  ({ from: (t: string) => table((t === 'houses' ? houses : invoices) as Record<string, unknown>[]) }) as never;
+  ({ from: (t: string) => table((t === 'houses' ? houses : t === 'charge_categories' ? CHARGES : invoices) as Record<string, unknown>[]) }) as never;
 
 const PERIOD = { periodPreset: 'custom' as const, startDate: '2026-08-01', endDate: '2026-10-31' };
 const params = (over: Partial<ReportRequestFormData> = {}) =>
@@ -130,7 +133,7 @@ describe('Dues, levies and collection status (#1400)', () => {
   it('has one row per house with months paid of billed, months owed, levy, owed and status', async () => {
     mocks.getDebtStatuses.mockResolvedValue([{ houseId: 'h3', residentId: null, status: 'arrears', label: 'Owing', owedInvoiceCount: 4, walletBalance: 0 }]);
     const data = await run();
-    expect(data.table.columns.map((c) => c.label)).toEqual(['House', 'Street', 'Months paid', 'Months owed', 'Levy', 'Owed', 'Status']);
+    expect(data.table.columns.map((c) => c.label)).toEqual(['House', 'Street', 'Primary Resident', 'Months paid', 'Months owed', 'Levy', 'Owed', 'Status']);
     expect(data.table.rows.map((r) => r.debtor)).toEqual(['3', '4', '1', '2']); // street, then house number
     expect(rowFor(data, '1')).toMatchObject({ street: 'Palm Close', monthsPaid: '3 of 3', monthsOwed: 0, levy: 'Paid', owed: '0.00' });
     expect(rowFor(data, '2')).toMatchObject({ monthsPaid: '1 of 3', monthsOwed: 2, levy: 'Part paid', owed: '50,000.00' });
@@ -180,17 +183,64 @@ describe('Dues, levies and collection status (#1400)', () => {
     expect(rowFor(await run({}, [levy('h4', 'unpaid')]), '4')).toMatchObject({ levy: 'Not paid', monthsPaid: '0 of 0', monthsOwed: 0 });
   });
 
-  it('only service charges are months: a levy-type or other invoice without the levy flag adds to Owed, not to the months', async () => {
+  it('counts only the chosen charge: other charges add nothing to the months, Owed or lines', async () => {
     const other = [
       dues('h4', '2026-08', 'paid', '2026-08-10'),
-      inv('h4', 'unpaid', '2026-08-20', 3000, 0, { invoice_type: 'LEVY', period_start: '2026-08-01' }), // would turn August overdue
-      inv('h4', 'unpaid', '2026-09-10', 2000, 0, { invoice_type: 'ADJUSTMENT', period_start: '2026-09-01' }), // would make September a billed month
-      inv('h4', 'unpaid', '2026-10-10', 1000, 0, { invoice_type: 'OTHER', period_start: '2026-10-01' }),
+      inv('h4', 'unpaid', '2026-08-20', 3000, 0, { charge_category: 'transformer_fee', period_start: '2026-08-01' }), // would turn August overdue
+      inv('h4', 'unpaid', '2026-09-10', 2000, 0, { charge_category: 'development_levy', period_start: '2026-09-01' }), // would make September a billed month
     ];
-    const data = await run({}, other);
-    expect(rowFor(data, '4')).toMatchObject({ monthsPaid: '1 of 1', monthsOwed: 0, levy: 'No levy', owed: '6,000.00' });
+    const data = await run({ includeDetails: true }, other);
+    expect(rowFor(data, '4')).toMatchObject({ monthsPaid: '1 of 1', monthsOwed: 0, owed: '0.00', levy: 'Not paid' });
     expect(data.grid!.houses.find((h) => h.houseNumber === '4')!.months).toEqual({ '2026-08': 'paid_up', '2026-09': 'no_invoice', '2026-10': 'no_invoice' });
-    expect(data.table.totals!.owed).toBe('6,000.00');
+    expect(data.table.totals!.owed).toBe('0.00');
+    expect(data.table.rows.filter((r) => r.street === null)).toEqual([]);
+    expect(data.chargeName).toBe('Security Dues');
+  });
+
+  it('another charge shows its own invoices, Owed and lines, named in chargeName', async () => {
+    const other = [
+      dues('h4', '2026-08', 'paid', '2026-08-10'),
+      inv('h4', 'unpaid', '2026-08-20', 3000, 0, { charge_category: 'transformer_fee', period_start: '2026-08-01' }),
+      inv('h4', 'paid', '2026-09-10', 2000, 2000, { charge_category: 'transformer_fee', period_start: '2026-09-01' }),
+    ];
+    const data = await run({ includeDetails: true, chargeCategory: 'transformer_fee' }, other);
+    expect(data.chargeName).toBe('Transformer Fee');
+    expect(rowFor(data, '4')).toMatchObject({ monthsPaid: '1 of 2', monthsOwed: 1, owed: '3,000.00' });
+    expect(data.table.rows.filter((r) => r.street === null)).toHaveLength(1);
+    expect(data.table.totals!.owed).toBe('3,000.00');
+    expect(data.notes!.join(' ')).toContain('Charge: Transformer Fee');
+  });
+
+  it('asks the debt status for the chosen charge only, and for every charge when none is chosen elsewhere', async () => {
+    mocks.getDebtStatuses.mockClear();
+    await run({ chargeCategory: 'development_levy' });
+    expect(mocks.getDebtStatuses.mock.calls[0][1]).toMatchObject({ chargeCategory: 'development_levy' });
+    mocks.getDebtStatuses.mockClear();
+    await generateIndebtednessReport(clientWith(), false, true);
+    expect(mocks.getDebtStatuses.mock.calls[0][1].chargeCategory).toBeUndefined();
+  });
+
+  it('an unknown charge fails the report with a clear message', async () => {
+    const result = await generateReportWithClient(clientWith(), params({ chargeCategory: 'nope' }));
+    expect(result).toEqual({ success: false, error: 'Unknown charge: nope' });
+  });
+
+  it('the Primary Resident is the tenant for dues and the landlord for levy and fee', async () => {
+    const links = [
+      { resident_id: 'ten', resident_role: 'tenant', is_active: true, move_in_date: '2025-01-01', resident: { id: 'ten', first_name: 'Ten', last_name: 'Ant' } },
+      { resident_id: 'nrl', resident_role: 'non_resident_landlord', is_active: true, move_in_date: '2020-01-01', resident: { id: 'nrl', first_name: 'Land', last_name: 'Lord' } },
+    ];
+    const houses = [{ id: 'h9', house_number: '9', street: { id: 's', name: 'Palm Close' }, resident_houses: links }];
+    for (const [charge, name] of [['dues', 'Ten Ant'], ['development_levy', 'Land Lord'], ['transformer_fee', 'Land Lord']] as const) {
+      const data = await run({ chargeCategory: charge }, [], houses);
+      expect(rowFor(data, '9').resident, charge).toBe(name);
+    }
+    // A dues house whose billing profile says the landlord pays shows the landlord.
+    const landlordPays = [{ ...houses[0], billing_profile: { payer: 'landlord' } }];
+    expect(rowFor(await run({ chargeCategory: 'dues' }, [], landlordPays), '9').resident).toBe('Land Lord');
+    // A landlord charge ignores an occupant profile.
+    const occupantPays = [{ ...houses[0], billing_profile: { payer: 'occupant' } }];
+    expect(rowFor(await run({ chargeCategory: 'transformer_fee' }, [], occupantPays), '9').resident).toBe('Land Lord');
   });
 
   it('a void invoice is no bill: a month with only a void invoice has no invoice', async () => {
@@ -251,7 +301,8 @@ describe('Dues, levies and collection status (#1400)', () => {
     ];
     const data = await run({}, edge);
     expect(rowFor(data, '4')).toMatchObject({ monthsPaid: '2 of 3', monthsOwed: 1 });
-    expect(data.notes!.join(' ')).toContain('Aug 2026 to Oct 2026');
+    // The report is as of one day: no period is printed in the notes (#1400).
+    expect(data.notes!.join(' ')).not.toMatch(/Aug 2026 to|Oct 2026/);
   });
 
   it('a one-month period has one month, and an empty custom range falls back to this year so far', async () => {
@@ -402,8 +453,8 @@ describe('Server PDF (#1400)', () => {
   it('the CSV export carries the table', async () => {
     const { summaryTableToCsv } = await import('@/lib/reports/summary-report');
     const csv = summaryTableToCsv((await run()).table);
-    expect(csv.split('\n')[0]).toBe('House,Street,Months paid,Months owed,Levy,Owed,Status');
-    expect(csv).toContain('3,Cedar Way,0 of 3,3,Not paid,"81,000.00",');
+    expect(csv.split('\n')[0]).toBe('House,Street,Primary Resident,Months paid,Months owed,Levy,Owed,Status');
+    expect(csv).toContain('3,Cedar Way,Res rh3,0 of 3,3,Not paid,"81,000.00",');
   });
 
   it('renderToStaticMarkup of the layout shows the tiles', async () => {
