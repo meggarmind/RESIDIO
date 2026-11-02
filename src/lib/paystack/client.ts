@@ -12,6 +12,9 @@ import type {
   PaystackErrorResponse,
 } from './types';
 
+/** Upper bound on each Paystack API call, so a hung API cannot hold the request open. */
+const PAYSTACK_REQUEST_TIMEOUT_MS = 15_000;
+
 // Paystack API configuration
 export const paystackConfig = {
   secretKey: process.env.PAYSTACK_SECRET_KEY || '',
@@ -84,6 +87,7 @@ export async function initializeTransaction(
         ...data,
         reference: data.reference || generateReference(),
       }),
+      signal: AbortSignal.timeout(PAYSTACK_REQUEST_TIMEOUT_MS),
     });
 
     const result = await response.json();
@@ -128,6 +132,7 @@ export async function verifyTransaction(
         headers: {
           Authorization: `Bearer ${paystackConfig.secretKey}`,
         },
+        signal: AbortSignal.timeout(PAYSTACK_REQUEST_TIMEOUT_MS),
       }
     );
 
