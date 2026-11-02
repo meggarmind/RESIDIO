@@ -63,12 +63,14 @@ const reportTypeOptions = [
     { value: 'collection_report', label: 'Collection Report', icon: Receipt },
     { value: 'debtors_aging', label: 'Debtors and aging', icon: Clock },
     { value: 'dues_collection_status', label: 'Dues, levies and collection status', icon: Receipt },
+    { value: 'project_spend', label: 'Project spend', icon: Receipt },
+    { value: 'petty_cash', label: 'Petty cash', icon: Receipt },
     { value: 'transaction_log', label: 'Transaction Log', icon: ScrollText },
 ] as const;
 
 /** Invoice lines are off by default for these reports; every other report keeps its summary on. */
 export function includeSummaryDefault(reportType: string): boolean {
-    return reportType !== 'debtors_aging' && reportType !== 'dues_collection_status';
+    return reportType !== 'debtors_aging' && reportType !== 'dues_collection_status' && reportType !== 'petty_cash';
 }
 
 const frequencyOptions = [

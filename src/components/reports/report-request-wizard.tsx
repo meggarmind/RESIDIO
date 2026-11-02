@@ -133,6 +133,16 @@ const reportTypeConfig: Record<ReportType, {
         gradient: 'from-orange-500/10 to-amber-500/5',
         iconBg: 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
     },
+    project_spend: {
+        icon: Construction,
+        gradient: 'from-indigo-500/10 to-blue-500/5',
+        iconBg: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400',
+    },
+    petty_cash: {
+        icon: Receipt,
+        gradient: 'from-emerald-500/10 to-teal-500/5',
+        iconBg: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+    },
     indebtedness_summary: {
         icon: LayoutList,
         gradient: 'from-orange-500/10 to-amber-500/5',
@@ -165,13 +175,13 @@ const periodIcons: Record<PeriodPreset, React.ElementType> = {
 };
 
 // Reports that don't depend on bank accounts
-const ACCOUNT_AGNOSTIC_REPORTS: ReportType[] = ['debtors_aging', 'debtors_report', 'dues_collection_status', 'development_levy', 'invoice_aging'];
+const ACCOUNT_AGNOSTIC_REPORTS: ReportType[] = ['debtors_aging', 'debtors_report', 'dues_collection_status', 'development_levy', 'invoice_aging', 'project_spend', 'petty_cash'];
 
 // Reports that are always "As of Today" (skip date selection)
 const REALTIME_REPORTS: ReportType[] = ['debtors_aging', 'debtors_report', 'development_levy', 'invoice_aging'];
 
 // Invoice lines are off unless chosen for these (#1399, #1400); other reports keep their default.
-const INVOICE_LINES_OFF_BY_DEFAULT: ReportType[] = ['debtors_aging', 'dues_collection_status'];
+const INVOICE_LINES_OFF_BY_DEFAULT: ReportType[] = ['debtors_aging', 'dues_collection_status', 'petty_cash'];
 
 // ============================================================
 // Stepper Component
@@ -591,6 +601,16 @@ function OptionsStep({
                     </div>
 
 
+
+                    {reportType === 'petty_cash' && (
+                        <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-emerald-500/10">
+                            <div className="space-y-0.5">
+                                <Label className="font-medium">Show spend lines</Label>
+                                <p className="text-sm text-muted-foreground">List each expense under its petty cash account</p>
+                            </div>
+                            <Switch checked={includeDetails} onCheckedChange={onIncludeDetailsChange} aria-label="Show spend lines" />
+                        </div>
+                    )}
 
                     {(reportType === 'debtors_aging' || isDuesReport) && (
                         <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-red-500/10">

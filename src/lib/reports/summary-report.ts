@@ -56,7 +56,7 @@ export interface SummaryReportData {
  * Report types that use this layout. A later report adds its value here, and its generator
  * returns `{ type, layout: 'summary', data }`.
  */
-export type SummaryLayoutReportType = 'debtors_aging' | 'dues_collection_status';
+export type SummaryLayoutReportType = 'debtors_aging' | 'dues_collection_status' | 'project_spend' | 'petty_cash';
 
 export interface SummaryReport {
   type: SummaryLayoutReportType;

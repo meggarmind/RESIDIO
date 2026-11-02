@@ -13,6 +13,8 @@ export type ReportGroup = 'Money in and out' | 'Debts' | 'Levies' | 'Occupancy' 
 export const reportTypes = [
     { value: 'financial_overview', label: 'Financial Overview', description: 'Summary of income, expenses, and net balance', group: 'Money in and out', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
     { value: 'collection_report', label: 'Collection Report', description: 'Payment collection summary by resident', group: 'Money in and out', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
+    { value: 'project_spend', label: 'Project spend', description: 'Spend on each capital project in the period and to date, against its budget and milestones', group: 'Money in and out', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
+    { value: 'petty_cash', label: 'Petty cash', description: 'Opening balance, top-ups, spend and closing balance for each petty cash account', group: 'Money in and out', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
     { value: 'invoice_aging', label: 'Invoice Aging Report', description: 'Outstanding invoices by age brackets', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL, retired: true },
     { value: 'transaction_log', label: 'Transaction Log', description: 'Detailed list of all transactions', group: 'Money in and out', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
     { value: 'debtors_report', label: 'Debtors Report', description: 'Detailed debtors list with aging buckets and contact info', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL, retired: true },
@@ -40,6 +42,8 @@ export const GENERATABLE_REPORT_TYPES: readonly ReportType[] = [
     'debtors_aging',
     'dues_collection_status',
     'development_levy',
+    'project_spend',
+    'petty_cash',
 ];
 
 /** True when `type` is a retired report: still listed for old rows, never run again (#1399). */
