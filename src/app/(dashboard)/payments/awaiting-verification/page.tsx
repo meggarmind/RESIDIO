@@ -1,9 +1,9 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { AlertCircle, Inbox, Receipt, ShieldCheck } from "lucide-react";
+import { AlertCircle, Inbox, Plus, Receipt, ShieldCheck, X } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -55,6 +56,8 @@ import {
 import { manuallyVerifyPayment } from "@/actions/finance/manual-verification";
 import { deletePayment } from "@/actions/payments/delete-payment";
 import { getActiveResidents } from "@/actions/residents/get-residents";
+import { useChargeCategories } from "@/hooks/use-billing";
+import { DEFAULT_CHARGE_CATEGORY } from "@/lib/billing/charge-categories";
 
 type CardKey = "all" | "alerts" | "receipts";
 type Mode = "approve" | "skip" | "verify" | "reject";
@@ -70,6 +73,15 @@ const SKIP_REASONS = [
   OTHER,
 ];
 const QUERY_KEY = ["awaiting-verification"];
+const OTHER_CATEGORY = "other";
+
+// One part of an alert (#1443). The amount is text so a half-typed number is not rewritten.
+type Line = { key: number; chargeCategory: string; amount: string; comment: string };
+const toKobo = (naira: number) => Math.round(naira * 100);
+const lineKobo = (l: Line) => {
+  const n = Number(l.amount);
+  return l.amount.trim() !== "" && Number.isFinite(n) && n > 0 ? toKobo(n) : 0;
+};
 
 const payerName = (a: AwaitingAlert) =>
   a.description ? extractSenderName(a.description) || a.description : "";
@@ -100,6 +112,20 @@ export default function AwaitingVerificationPage() {
   const [skipReason, setSkipReason] = useState("");
   const [otherReason, setOtherReason] = useState("");
   const [note, setNote] = useState("");
+  const [lines, setLines] = useState<Line[]>([]);
+  const nextLineKey = useRef(1);
+  const newLine = (amount: string): Line => ({
+    key: nextLineKey.current++,
+    chargeCategory: DEFAULT_CHARGE_CATEGORY,
+    amount,
+    comment: "",
+  });
+
+  const {
+    data: categories,
+    isError: categoriesIsError,
+    error: categoriesError,
+  } = useChargeCategories();
 
   const { data, isLoading, error } = useQuery({
     queryKey: QUERY_KEY,
@@ -141,10 +167,13 @@ export default function AwaitingVerificationPage() {
     setSkipReason("");
     setOtherReason("");
     setNote("");
+    setLines([]);
   };
   const open = (id: string, mode: Mode) => {
     close();
     setActive({ id, mode });
+    const alert = alerts.find((x) => x.id === id);
+    if (mode === "approve" && alert) setLines([newLine(String(alert.amount))]);
   };
   const done = (message: string) => {
     toast.success(message);
@@ -162,6 +191,13 @@ export default function AwaitingVerificationPage() {
         residentId,
         saveAsAlias: saveAsAlias && !!name,
         aliasName: saveAsAlias && name ? name : undefined,
+        lines: lines.map((l) => ({
+          chargeCategory: l.chargeCategory,
+          amount: Number(l.amount),
+          ...(l.chargeCategory === OTHER_CATEGORY
+            ? { comment: l.comment.trim() }
+            : {}),
+        })),
       });
       if (!result.success) throw new Error(result.error);
     },
@@ -250,6 +286,18 @@ export default function AwaitingVerificationPage() {
       const a = row.alert;
       const blocked = isReleaseBlocked(a);
       const name = payerName(a);
+      const leftKobo = toKobo(a.amount) - lines.reduce((t, l) => t + lineKobo(l), 0);
+      const linesValid =
+        lines.length > 0 &&
+        lines.every(
+          (l) =>
+            lineKobo(l) > 0 &&
+            Math.abs(Number(l.amount) * 100 - lineKobo(l)) < 1e-6 &&
+            (l.chargeCategory !== OTHER_CATEGORY || l.comment.trim().length > 0),
+        ) &&
+        leftKobo === 0;
+      const updateLine = (key: number, patch: Partial<Line>) =>
+        setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
       return (
         <div className="space-y-3">
           <div className="space-y-2">
@@ -279,6 +327,93 @@ export default function AwaitingVerificationPage() {
               </p>
             )}
           </div>
+          <div className="space-y-2">
+            <Label>What is this payment for?</Label>
+            {categoriesIsError && (
+              <ErrorLine>
+                Failed to load charge categories
+                {categoriesError instanceof Error && categoriesError.message
+                  ? `: ${categoriesError.message}`
+                  : ""}
+              </ErrorLine>
+            )}
+            {lines.map((l, i) => (
+              <div key={l.key} className="space-y-2 rounded-md border p-2">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <Select
+                      value={l.chargeCategory}
+                      onValueChange={(v) => updateLine(l.key, { chargeCategory: v })}
+                      disabled={categoriesIsError}
+                    >
+                      <SelectTrigger aria-label={`Charge category ${i + 1}`}>
+                        <SelectValue placeholder="Select a type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories?.map((c) => (
+                          <SelectItem key={c.code} value={c.code}>
+                            {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Input
+                    aria-label={`Amount ${i + 1}`}
+                    className="w-36 text-right tabular-nums"
+                    inputMode="decimal"
+                    value={l.amount}
+                    onChange={(e) => updateLine(l.key, { amount: e.target.value })}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    aria-label={`Remove line ${i + 1}`}
+                    disabled={lines.length <= 1}
+                    onClick={() => setLines((prev) => prev.filter((x) => x.key !== l.key))}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                {l.chargeCategory === OTHER_CATEGORY && (
+                  <Textarea
+                    aria-label={`Comment ${i + 1}`}
+                    placeholder="What is this payment for? (required)"
+                    maxLength={500}
+                    value={l.comment}
+                    onChange={(e) => updateLine(l.key, { comment: e.target.value })}
+                    rows={2}
+                  />
+                )}
+              </div>
+            ))}
+            <div className="flex items-center justify-between gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setLines((prev) => [
+                    ...prev,
+                    newLine(leftKobo > 0 ? String(leftKobo / 100) : ""),
+                  ])
+                }
+              >
+                <Plus className="mr-1 h-4 w-4" />
+                Add a line
+              </Button>
+              <p
+                className={`text-sm tabular-nums ${leftKobo === 0 ? "text-muted-foreground" : "text-amber-700 dark:text-amber-300"}`}
+              >
+                {leftKobo === 0
+                  ? `All of ${formatCurrency(a.amount)} is placed`
+                  : leftKobo > 0
+                    ? `Left to place: ${formatCurrency(leftKobo / 100)}`
+                    : `Over by: ${formatCurrency(-leftKobo / 100)}`}
+              </p>
+            </div>
+          </div>
           {name && (
             <div className="flex items-center gap-2">
               <Checkbox
@@ -300,7 +435,7 @@ export default function AwaitingVerificationPage() {
             approve.isPending,
             "Approving...",
             () => approve.mutate(a),
-            !residentId || blocked,
+            !residentId || blocked || !linesValid || categoriesIsError,
             false,
             blocked ? overLimitLabel : undefined,
           )}

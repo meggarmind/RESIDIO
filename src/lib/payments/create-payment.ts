@@ -166,7 +166,8 @@ async function recordPayment(
         date: result.data.payment_date,
         residentId: result.data.resident_id,
         reference: result.data.reference_number || undefined,
-        description: result.data.notes || undefined
+        description: result.data.notes || undefined,
+        splitPaymentGroupId: result.data.split_payment_group_id
     }, 'payment', { client: supabase });
 
     if (dupResult.isDuplicate) {
