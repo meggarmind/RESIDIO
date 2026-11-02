@@ -144,6 +144,7 @@ export const ENTITY_DISPLAY_FIELDS: Record<AuditEntityType, readonly (string | r
   collection_notified_parties: ['name'],
   visitor_vehicles: ['plate_number'],
   expenses: ['description'],
+  budgets: DEFAULT_DISPLAY_FIELDS,
   payment_records: ['reference'],
   petty_cash_accounts: ['name'],
   vendors: ['name'],

@@ -364,6 +364,7 @@ export type AuditEntityType =
   | 'visitor_vehicles'             // Visitor Vehicle Registration
   // Unified Expenditure Engine
   | 'expenses'                     // Expense records
+  | 'budgets'                      // Budget per expense category and month (#1406)
   | 'payment_records'              // Payment records
   | 'petty_cash_accounts'          // Petty cash account management
   // Personnel & Projects
@@ -471,6 +472,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   visitor_vehicles: 'Visitor Vehicle',                  // Visitor Management Enhancement
   // Unified Expenditure Engine
   expenses: 'Expense',                                  // Expense Management
+  budgets: 'Budget',                                    // Budgets (#1406)
   payment_records: 'Payment Record',                    // Payment Records
   petty_cash_accounts: 'Petty Cash Account',            // Petty Cash Management
   // Personnel & Projects
