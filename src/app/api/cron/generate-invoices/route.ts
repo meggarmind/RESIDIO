@@ -60,7 +60,7 @@ async function runInvoiceGeneration(run: SystemLogRun) {
             return NextResponse.json({ skipped: true, reason: 'Auto-generation is disabled', ...response });
         }
 
-        // Advance the newest queued/processing run by one bounded chunk
+        // Advance the newest queued/processing run to completion (chunk by chunk)
         const admin = createAdminClient();
         const { data: activeRuns, error: activeError } = await admin
             .from('invoice_generation_runs')
