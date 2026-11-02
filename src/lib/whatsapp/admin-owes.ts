@@ -14,7 +14,7 @@ import { createSupabaseWhatsAppFinancialRepository, creditLine, type OwedFigures
  * (binding, authenticator session, permission, daily cap) is #972's and runs before this.
  */
 
-export const OWES_LIST_MAX = 5;
+export const OWES_LIST_MAX = 20;
 export const OWES_PICK_MINUTES = 5;
 export const OWES_USAGE = 'Send a house code or a name, for example KOA-18A.';
 /** Asked when Resident status is chosen from Admin tools (#1292). */
@@ -51,6 +51,8 @@ export interface OwesHouseData {
 export interface OwesRepository {
   searchHouseCodes(term: string): Promise<OwesCandidate[]>;
   searchResidents(words: string[]): Promise<OwesCandidate[]>;
+  /** The name shown for each house (active tenant, else resident landlord, else non-resident landlord), in one read; a house with none is left out. */
+  loadHouseResidentNames(houseIds: string[]): Promise<Record<string, string>>;
   loadHouse(houseId: string): Promise<OwesHouseData | null>;
   /** Keeps the pick-list on the request until `expiresAt`. */
   saveChoices(requestId: string, choices: OwesCandidate[], expiresAt: string): Promise<void>;
@@ -174,8 +176,18 @@ export function composeAdminOwesAnswer(data: OwesHouseData): string {
   return lines.join('\n');
 }
 
+/** The order a house's resident is chosen in, as `get_debt_statuses` does: tenant, else resident landlord, else non-resident landlord. */
+export const HOUSE_NAME_ROLES = ['tenant', 'resident_landlord', 'non_resident_landlord'];
+
+/** The name of the first link in `HOUSE_NAME_ROLES` order; null when none of the links has one. */
+export function pickHouseResidentName(links: { role: string; name: string }[]): string | null {
+  const ranked = links.filter((link) => HOUSE_NAME_ROLES.includes(link.role) && link.name).sort((a, b) => HOUSE_NAME_ROLES.indexOf(a.role) - HOUSE_NAME_ROLES.indexOf(b.role));
+  return ranked[0]?.name ?? null;
+}
+
+/** `3. GLB-20A (Ohioma)`; a house with no resident shows `(no resident)`. */
 function candidateLine(candidate: OwesCandidate, index: number): string {
-  return `${index + 1}. ${candidate.name ? `${candidate.name}, ` : ''}${candidate.houseLabel}`;
+  return `${index + 1}. ${candidate.code ?? candidate.houseLabel} (${candidate.name || 'no resident'})`;
 }
 
 export interface OwesRunInput {
@@ -239,7 +251,7 @@ export async function runAdminOwesLookup(input: OwesRunInput): Promise<string> {
   for (const candidate of [...byCode, ...byName]) {
     if (!byHouse.has(candidate.houseId) || candidate.name) byHouse.set(candidate.houseId, candidate);
   }
-  const matches = [...byHouse.values()];
+  const matches = [...byHouse.values()].sort((a, b) => (a.code ?? a.houseLabel).localeCompare(b.code ?? b.houseLabel, 'en', { numeric: true }));
 
   if (matches.length === 0) return `No house or resident matches "${term}".`;
   if (matches.length === 1) return answerHouse(input, matches[0].houseId);
@@ -247,18 +259,22 @@ export async function runAdminOwesLookup(input: OwesRunInput): Promise<string> {
     return `More than ${OWES_LIST_MAX} matches for "${term}". Send a longer name or the house code.`;
   }
 
-  await repository.saveChoices(input.requestId, matches, new Date(now.getTime() + OWES_PICK_MINUTES * 60 * 1000).toISOString());
+  // A code match has no name yet: read the names of the listed houses in one query.
+  const names = await repository.loadHouseResidentNames(matches.filter((match) => !match.name).map((match) => match.houseId));
+  const listed = matches.map((match) => (match.name ? match : { ...match, name: names[match.houseId] ?? null }));
+
+  await repository.saveChoices(input.requestId, listed, new Date(now.getTime() + OWES_PICK_MINUTES * 60 * 1000).toISOString());
   await input.audit({
     action: 'VERIFY',
     entityType: 'whatsapp_admin_requests',
     entityId: input.requestId,
     entityDisplay: `WhatsApp admin owes list for "${term}"`,
     description: 'Admin was shown a list of houses to pick from on WhatsApp',
-    metadata: { channel: 'whatsapp_admin', query: term, listed: matches.map(({ houseId, name }) => ({ house_id: houseId, name })) },
+    metadata: { channel: 'whatsapp_admin', query: term, listed: listed.map(({ houseId, name }) => ({ house_id: houseId, name })) },
   });
   return [
     `${matches.length} matches for "${term}". Reply with the number within ${OWES_PICK_MINUTES} minutes, for example 1:`,
-    ...matches.map(candidateLine),
+    ...listed.map(candidateLine),
   ].join('\n');
 }
 
@@ -310,6 +326,31 @@ export function createSupabaseOwesRepository(): OwesRepository {
           return [{ houseId: link.house_id, houseLabel: houseLabel(house), code: house.short_name, name: `${row.first_name} ${row.last_name}`.trim() }];
         });
       });
+    },
+
+    async loadHouseResidentNames(houseIds) {
+      if (houseIds.length === 0) return {};
+      // resident_houses has two foreign keys to residents (resident_id, sponsor_resident_id): name the one.
+      const { data, error } = await client()
+        .from('resident_houses')
+        .select('house_id, resident_role, resident:residents!resident_houses_resident_id_fkey(first_name, last_name)')
+        .in('house_id', houseIds)
+        .eq('is_active', true)
+        .in('resident_role', HOUSE_NAME_ROLES);
+      if (error) throw error;
+      const byHouseId = new Map<string, { role: string; name: string }[]>();
+      for (const row of data || []) {
+        const resident = first(row.resident as unknown as { first_name: string | null; last_name: string | null } | { first_name: string | null; last_name: string | null }[] | null);
+        const name = `${resident?.first_name ?? ''} ${resident?.last_name ?? ''}`.trim();
+        const houseId = row.house_id as string;
+        byHouseId.set(houseId, [...(byHouseId.get(houseId) ?? []), { role: row.resident_role as string, name }]);
+      }
+      const names: Record<string, string> = {};
+      for (const [houseId, links] of byHouseId) {
+        const name = pickHouseResidentName(links);
+        if (name) names[houseId] = name;
+      }
+      return names;
     },
 
     async loadHouse(houseId) {

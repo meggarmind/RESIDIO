@@ -9,7 +9,7 @@ import { getSettingResultAsService } from '@/lib/settings/service';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
 import { createAdminClient } from '@/lib/supabase/server';
 import { maskPhone } from '@/lib/utils';
-import { OWES_PROMPT, createSupabaseOwesRepository, runAdminOwesLookup, toOwesParams, type OwesRepository } from '@/lib/whatsapp/admin-owes';
+import { OWES_LIST_MAX, OWES_PROMPT, createSupabaseOwesRepository, runAdminOwesLookup, toOwesParams, type OwesRepository } from '@/lib/whatsapp/admin-owes';
 import { isOnRoster } from '@/lib/whatsapp/co-resident';
 import { endOfLagosDay, formatDay, lagosMidnight, lagosParts } from '@/lib/whatsapp/assistant-format';
 import { WhatsAppAdminAlertEmail, whatsAppAdminAlertSubject, type WhatsAppAdminAlertEvent } from '@/emails/whatsapp-admin-alert';
@@ -212,7 +212,7 @@ export const WHATSAPP_ADMIN_ACTIONS: Record<string, WhatsAppAdminAction> = {
       return { reply: OWES_PROMPT, state: {} };
     },
     choose(text) {
-      return { params: /^[1-5]$/.test(text) ? { pick: Number(text) } : { query: text } };
+      return { params: /^\d{1,2}$/.test(text) && Number(text) >= 1 && Number(text) <= OWES_LIST_MAX ? { pick: Number(text) } : { query: text } };
     },
     again: 'Send another house code or name, or reply 0 for Admin tools.',
     run({ account, binding, now, requestId, params, audit, owes }) {
