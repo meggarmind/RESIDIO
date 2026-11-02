@@ -260,6 +260,8 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.IMPORTS_RESET,
   ],
   '/payments/email-imports': [PERMISSIONS.EMAIL_IMPORTS_VIEW],
+  // Either half is enough to open the page; the page hides the half the user lacks (#1432).
+  '/payments/awaiting-verification': [PERMISSIONS.EMAIL_IMPORTS_PROCESS, PERMISSIONS.PAYMENTS_VERIFY],
   '/billing': [PERMISSIONS.BILLING_VIEW],
   '/security': [PERMISSIONS.SECURITY_VIEW],
   '/reports': [PERMISSIONS.REPORTS_VIEW_FINANCIAL, PERMISSIONS.REPORTS_VIEW_OCCUPANCY, PERMISSIONS.REPORTS_VIEW_SECURITY],
