@@ -100,6 +100,12 @@ const reportTypeConfig: Record<
         gradient: 'from-red-500 to-rose-500',
         iconBg: 'bg-red-500/15 text-red-600 dark:text-red-400',
     },
+    dues_collection_status: {
+        icon: Users,
+        label: 'Dues, levies and collection status',
+        gradient: 'from-orange-500 to-amber-500',
+        iconBg: 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
+    },
     indebtedness_summary: {
         icon: Users,
         label: 'Indebtedness Report',

@@ -8,7 +8,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { idOrParentFilterStrict } from '@/lib/postgrest-filter';
 import { calculateNextRunDate } from '@/lib/reports/scheduled-report-store';
-import { REPORT_TYPE_LABELS, REPORT_TYPE_VALUES, REPORT_VIEW_PERMISSIONS, hasGenerator, isRetiredReport, reportsForPermissions, type ReportType } from '@/lib/validators/reports';
+import { REPORT_TYPE_LABELS, REPORT_TYPE_VALUES, REPORT_VIEW_PERMISSIONS, hasGenerator, isRetiredReport, reportsForPermissions, resolveRetiredReport, type ReportType } from '@/lib/validators/reports';
 
 // Types
 // Derived from the report list (#1397), so a listed report is always a valid schedule type.
@@ -121,7 +121,7 @@ export async function getReportSchedule(id: string): Promise<{ data: ReportSched
 
 function unschedulableError(type: string): string {
     if (isRetiredReport(type)) {
-        return `${REPORT_TYPE_LABELS[type as ReportType]} was replaced by Debtors and aging, so it cannot be scheduled.`;
+        return `${REPORT_TYPE_LABELS[type as ReportType]} was replaced by ${REPORT_TYPE_LABELS[resolveRetiredReport(type as ReportType)]}, so it cannot be scheduled.`;
     }
     return `${REPORT_TYPE_LABELS[type as ReportType] ?? 'This report'} cannot be generated yet, so it cannot be scheduled.`;
 }

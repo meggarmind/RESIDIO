@@ -13,9 +13,10 @@
 
 import type { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
 import type { ReportRequestFormData } from '@/lib/validators/reports';
-import { getDateRangeFromPreset, isRetiredReport, REPORT_TYPE_LABELS } from '@/lib/validators/reports';
-import type { SummaryCell, SummaryReport, SummaryReportData } from '@/lib/reports/summary-report';
+import { getDateRangeFromPreset, isRetiredReport, resolveRetiredReport, REPORT_TYPE_LABELS } from '@/lib/validators/reports';
+import type { SummaryCell, SummaryGrid, SummaryGridStatus, SummaryReport, SummaryReportData } from '@/lib/reports/summary-report';
 import { formatCalendarDate } from '@/lib/utils/calendar-date';
+import { DEFAULT_CHARGE_CATEGORY } from '@/lib/billing/charge-categories';
 import { DEBT_STATUS_DEFAULTS, getDebtStatuses, type DebtStatus } from '@/lib/billing/debt-status';
 import { OCCUPANT_PAYER_ROLES, resolvePayer, type BillingPayer } from '@/lib/billing/payer';
 
@@ -1266,7 +1267,9 @@ export function pickIndebtednessPrimary(
 export async function generateIndebtednessReport(
   supabase: ReportSupabaseClient,
   includeUnoccupied: boolean = false,
-  includeAmount: boolean = false
+  includeAmount: boolean = false,
+  /** The dues sheet (#1400): count one charge only, and name its payer class. Omitted, every charge counts as before. */
+  charge?: { category: string; payer: BillingPayer | null }
 ): Promise<IndebtednessReportData> {
   // Get all active houses with street info and primary residents
   const { data: houses, error: housesError } = await supabase
@@ -1301,20 +1304,32 @@ export async function generateIndebtednessReport(
     throw new Error(housesError.message);
   }
 
-  // Get outstanding amounts per house from invoices if needed or for summary counts
-  const { data: invoices, error: invoicesError } = await supabase
-    .from('invoices')
-    .select(`
+  // Get outstanding amounts per house from invoices if needed or for summary counts. Read a page at
+  // a time: the API returns at most 1,000 rows per request, and a single read would drop the rest
+  // from the totals.
+  const PAGE_SIZE = 1000;
+  const invoices: { house_id: string | null; amount_due: number | string | null; amount_paid: number | string | null; status: string }[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    let query = supabase
+      .from('invoices')
+      .select(`
       house_id,
       amount_due,
       amount_paid,
       status
     `)
-    .in('status', ['unpaid', 'partially_paid']);
+      .in('status', ['unpaid', 'partially_paid']);
+    if (charge) query = query.eq('charge_category', charge.category);
+    const { data: page, error: invoicesError } = await query
+      .order('id')
+      .range(from, from + PAGE_SIZE - 1);
 
-  if (invoicesError) {
-    console.error('Error fetching invoices:', invoicesError);
-    throw new Error(invoicesError.message);
+    if (invoicesError) {
+      console.error('Error fetching invoices:', invoicesError);
+      throw new Error(invoicesError.message);
+    }
+    invoices.push(...(page ?? []));
+    if (!page || page.length < PAGE_SIZE) break;
   }
 
   // Calculate outstanding per house
@@ -1328,7 +1343,7 @@ export async function generateIndebtednessReport(
   }
 
   const debtStatuses = new Map(
-    (await getDebtStatuses(supabase, { houseIds: (houses || []).map((h) => h.id) })).map((d) => [d.houseId, d]),
+    (await getDebtStatuses(supabase, { houseIds: (houses || []).map((h) => h.id), chargeCategory: charge?.category })).map((d) => [d.houseId, d]),
   );
 
   // Process houses
@@ -1340,7 +1355,7 @@ export async function generateIndebtednessReport(
 
     const residentHouses = house.resident_houses as unknown as IndebtednessResidentLink[] | null;
     const billingProfile = house.billing_profile as unknown as { payer: BillingPayer | null } | null;
-    const primaryAssignment = pickIndebtednessPrimary(residentHouses ?? [], billingProfile?.payer ?? 'occupant');
+    const primaryAssignment = pickIndebtednessPrimary(residentHouses ?? [], charge?.payer ?? billingProfile?.payer ?? 'occupant');
 
     if (!includeUnoccupied && !primaryAssignment) continue;
 
@@ -1392,6 +1407,243 @@ export async function generateIndebtednessReport(
 }
 
 
+
+// ============================================================
+// Dues, levies and collection status (replaces the two Indebtedness reports, #1400)
+// ============================================================
+
+/** A sheet shows at most this many months (the latest ones), so the grid stays readable. */
+const MAX_DUES_MONTHS = 24;
+
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const monthLabel = (key: string) => `${MONTH_ABBR[Number(key.slice(5, 7)) - 1]} ${key.slice(0, 4)}`;
+const MONTH_KEY = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/** Month keys ('YYYY-MM') from the month of `start` to the month of `end`. An unusable range falls back to this year so far. */
+function monthKeysBetween(start: string, end: string): string[] {
+  let from = start.slice(0, 7);
+  let to = end.slice(0, 7);
+  if (!MONTH_KEY.test(from) || !MONTH_KEY.test(to) || from > to) {
+    const year = getDateRangeFromPreset('this_year');
+    from = year.startDate.slice(0, 7);
+    to = year.endDate.slice(0, 7);
+  }
+  const keys: string[] = [];
+  let y = Number(from.slice(0, 4));
+  let m = Number(from.slice(5, 7));
+  while (`${y}-${String(m).padStart(2, '0')}` <= to) {
+    keys.push(`${y}-${String(m).padStart(2, '0')}`);
+    if (++m > 12) { m = 1; y++; }
+  }
+  return keys;
+}
+
+type DuesInvoice = {
+  id: string;
+  house_id: string | null;
+  invoice_number: string | null;
+  invoice_type: string | null;
+  charge_category: string;
+  amount_due: number | string | null;
+  amount_paid: number | string | null;
+  status: string;
+  due_date: string;
+  period_start: string | null;
+  rate_snapshot: { is_development_levy?: boolean } | null;
+};
+
+/** The chosen charge's non-void invoices, and the development levy's for the Levy column, a page of 1000 at a time (PostgREST caps one response at 1000 rows). */
+async function fetchDuesInvoices(supabase: ReportSupabaseClient, chargeCategory: string): Promise<DuesInvoice[]> {
+  const PAGE = 1000;
+  const rows: DuesInvoice[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('invoices')
+      .select('id, house_id, invoice_number, invoice_type, charge_category, amount_due, amount_paid, status, due_date, period_start, rate_snapshot')
+      .neq('status', 'void')
+      .in('charge_category', [chargeCategory, 'development_levy'])
+      .not('house_id', 'is', null)
+      .order('id')
+      .range(from, from + PAGE - 1);
+    if (error) {
+      console.error('Error fetching invoices for dues and collection status report:', error);
+      throw new Error(error.message);
+    }
+    rows.push(...((data ?? []) as unknown as DuesInvoice[]));
+    if (!data || data.length < PAGE) return rows;
+  }
+}
+
+type LevyStatusLabel = 'Paid' | 'Part paid' | 'Not paid' | 'No levy';
+
+function levyStatusFor(levyInvoices: DuesInvoice[]): LevyStatusLabel {
+  if (levyInvoices.length === 0) return 'No levy';
+  if (levyInvoices.every((i) => i.status === 'paid')) return 'Paid';
+  if (levyInvoices.some((i) => i.status === 'paid' || i.status === 'partially_paid' || (Number(i.amount_paid) || 0) > 0)) return 'Part paid';
+  return 'Not paid';
+}
+
+/** One month of one house, in the estate map's words: paid up, outstanding (not yet due), overdue, no invoice. */
+function monthStatusFor(invoices: DuesInvoice[], today: string): SummaryGridStatus {
+  if (invoices.length === 0) return 'no_invoice';
+  const open = invoices.filter((i) => i.status === 'unpaid' || i.status === 'partially_paid');
+  if (open.length === 0) return 'paid_up';
+  return open.some((i) => i.due_date < today) ? 'overdue' : 'outstanding';
+}
+
+export async function generateDuesCollectionStatus(
+  supabase: ReportSupabaseClient,
+  dateRange: { startDate: string; endDate: string },
+  includeUnoccupied: boolean,
+  showInvoiceLines: boolean,
+  chargeCategory: string = DEFAULT_CHARGE_CATEGORY
+): Promise<SummaryReport> {
+  // The charge comes from the table, never a fixed list, so a category added later works here.
+  const { data: categories, error: categoryError } = await supabase
+    .from('charge_categories')
+    .select('code, name, is_active')
+    .eq('code', chargeCategory);
+  if (categoryError) {
+    console.error('Error fetching the charge for the dues and collection status report:', categoryError);
+    throw new Error(categoryError.message);
+  }
+  const category = (categories as { code: string; name: string; is_active: boolean }[] | null)?.[0];
+  if (!category) throw new Error(`Unknown charge: ${chargeCategory}`);
+  if (!category.is_active) throw new Error(`${category.name} is not an active charge, so it cannot be reported.`);
+  const chargeName = category.name;
+
+  // The house list, the amounts owed and the status label come from the Indebtedness report's own
+  // generator, so the total owed here is the same figure it gave. It counts this charge only. Dues
+  // go to the billing profile's payer (the house's own, occupant by default); every other charge is
+  // a landlord's (owner decision on #1400, 2 Nov 2026).
+  const indebtedness = await generateIndebtednessReport(supabase, includeUnoccupied, true, {
+    category: chargeCategory,
+    payer: chargeCategory === DEFAULT_CHARGE_CATEGORY ? null : 'landlord',
+  });
+  const invoices = await fetchDuesInvoices(supabase, chargeCategory);
+  const today = new Date().toISOString().slice(0, 10);
+
+  const allMonths = monthKeysBetween(dateRange.startDate, dateRange.endDate);
+  const monthKeys = allMonths.slice(-MAX_DUES_MONTHS);
+
+  const byHouse = new Map<string, DuesInvoice[]>();
+  for (const invoice of invoices) {
+    if (!invoice.house_id) continue;
+    const list = byHouse.get(invoice.house_id);
+    if (list) list.push(invoice);
+    else byHouse.set(invoice.house_id, [invoice]);
+  }
+
+  let fullyPaid = 0;
+  let partPaid = 0;
+  let notPaid = 0;
+  let monthsOwedTotal = 0;
+  const streetOwed = new Map<string, number>();
+  const rows: Record<string, SummaryCell>[] = [];
+  const grid: SummaryGrid = { months: monthKeys.map((key) => ({ key, label: monthLabel(key) })), houses: [] };
+  const isLevy = (i: DuesInvoice) => i.rate_snapshot?.is_development_levy === true;
+
+  for (const house of indebtedness.houses) {
+    const houseInvoices = byHouse.get(house.houseId) ?? [];
+    const levy = levyStatusFor(houseInvoices.filter((i) => isLevy(i) || i.charge_category === 'development_levy'));
+    // Only the chosen charge makes months (and Owed and lines). A development levy that sits under Dues is
+    // still no month; under the Development Levy charge it is the bill.
+    const chosen = houseInvoices.filter((i) => i.charge_category === chargeCategory);
+    // Under Security Dues a month is a service charge, as in the WhatsApp balance: a levy, adjustment or other type
+    // adds to Owed only. Under any other charge the chosen charge's invoices are the bill, a flagged levy included.
+    const dues = chosen.filter((i) =>
+      chargeCategory === DEFAULT_CHARGE_CATEGORY ? i.invoice_type === 'SERVICE_CHARGE' && !isLevy(i) : chargeCategory === 'development_levy' || !isLevy(i)
+    );
+
+    const months: Record<string, SummaryGridStatus> = {};
+    for (const key of monthKeys) {
+      months[key] = monthStatusFor(dues.filter((i) => (i.period_start ?? i.due_date).slice(0, 7) === key), today);
+    }
+    const statuses = Object.values(months);
+    const monthsPaid = statuses.filter((s) => s === 'paid_up').length;
+    const monthsBilled = statuses.filter((s) => s !== 'no_invoice').length;
+    const monthsOwed = statuses.filter((s) => s === 'overdue' || s === 'outstanding').length;
+    monthsOwedTotal += monthsOwed;
+
+    // Same amount as the Indebtedness report; a house in credit owes nothing.
+    const owed = Math.max(0, house.outstandingAmount ?? 0);
+    if (owed === 0) fullyPaid++;
+    else if (monthsPaid === 0) notPaid++;
+    else partPaid++;
+    if (owed > 0) streetOwed.set(house.streetName, (streetOwed.get(house.streetName) ?? 0) + owed);
+
+    // The first column is keyed `debtor` so the server PDF gives it the wide column its invoice lines need.
+    rows.push({
+      debtor: house.houseNumber,
+      street: house.streetName,
+      resident: house.primaryResidentName,
+      monthsPaid: `${monthsPaid} of ${monthsBilled}`,
+      monthsOwed,
+      levy,
+      owed: money(owed),
+      status: house.statusLabel,
+    });
+    if (showInvoiceLines) {
+      const open = chosen
+        .filter((i) => i.status === 'unpaid' || i.status === 'partially_paid')
+        .map((i) => ({ i, outstanding: (Number(i.amount_due) || 0) - (Number(i.amount_paid) || 0) }))
+        .filter((l) => l.outstanding > 0)
+        .sort((a, b) => a.i.due_date.localeCompare(b.i.due_date));
+      for (const { i, outstanding } of open) {
+        rows.push({
+          debtor: `    ${i.invoice_number || 'Invoice'}, due ${reportDate(i.due_date)}, ${i.status === 'partially_paid' ? 'part paid' : 'unpaid'}`,
+          street: null, resident: null, monthsPaid: null, monthsOwed: null, levy: null,
+          owed: money(outstanding),
+          status: null,
+        });
+      }
+    }
+
+    grid.houses.push({ id: house.houseId, houseNumber: house.houseNumber, streetName: house.streetName, levy, owed, months });
+  }
+
+  const totalOwed = indebtedness.summary.totalOutstanding ?? 0;
+
+  const notes = [
+    `Charge: ${chargeName}. "Months paid" counts the months whose invoices are all paid, out of the months that have an invoice.`,
+    'Owed is everything still unpaid on the house for this charge, including earlier months, so it can be more than the months shown.',
+    'Fully paid: owes nothing. Part paid: owes something and has paid at least one month. Not paid: owes something and has paid no month.',
+  ];
+  if (allMonths.length > monthKeys.length) notes.push(`The period is longer than ${MAX_DUES_MONTHS} months, so the latest ${MAX_DUES_MONTHS} are shown.`);
+
+  const data: SummaryReportData = {
+    summary: [
+      { label: 'Houses fully paid', value: fullyPaid, tone: 'good' },
+      { label: 'Houses part paid', value: partPaid, tone: partPaid > 0 ? 'neutral' : 'good' },
+      { label: 'Houses not paid', value: notPaid, tone: notPaid > 0 ? 'bad' : 'good' },
+      { label: 'Total owed (NGN)', value: money(totalOwed), tone: totalOwed > 0 ? 'bad' : 'good' },
+    ],
+    chart: {
+      title: 'Owed by street (NGN)',
+      bars: Array.from(streetOwed, ([label, value]) => ({ label, value, display: money(value), tone: 'bad' as const }))
+        .sort((a, b) => b.value - a.value),
+    },
+    table: {
+      columns: [
+        { key: 'debtor', label: 'House' },
+        { key: 'street', label: 'Street' },
+        { key: 'resident', label: 'Primary Resident' },
+        { key: 'monthsPaid', label: 'Months paid', align: 'right' },
+        { key: 'monthsOwed', label: 'Months owed', align: 'right' },
+        { key: 'levy', label: 'Levy' },
+        { key: 'owed', label: 'Owed', align: 'right' },
+        { key: 'status', label: 'Status' },
+      ],
+      rows,
+      totals: { debtor: 'Total', street: null, resident: null, monthsPaid: null, monthsOwed: monthsOwedTotal, levy: null, owed: money(totalOwed), status: null },
+    },
+    notes,
+    grid,
+    chargeName,
+  };
+
+  return { type: 'dues_collection_status', layout: 'summary', data };
+}
 
 // ============================================================
 // Development Levy Report
@@ -1660,13 +1912,15 @@ export async function generateReportWithClient(
         return { success: true, report };
       }
 
-      case 'indebtedness_summary': {
-        const data = await generateIndebtednessReport(
+      case 'dues_collection_status': {
+        const report = await generateDuesCollectionStatus(
           supabase,
+          dateRange,
           params.includeUnoccupied,
-          params.includeAmount
+          params.includeDetails,
+          params.chargeCategory
         );
-        return { success: true, report: { type: 'indebtedness_summary', data } };
+        return { success: true, report };
       }
 
       case 'development_levy': {
@@ -1681,7 +1935,7 @@ export async function generateReportWithClient(
       default: {
         // A retired report (#1399): old rows still open, but it is not generated again.
         if (isRetiredReport(params.reportType)) {
-          return { success: false, error: `${REPORT_TYPE_LABELS[params.reportType]} was replaced by Debtors and aging.` };
+          return { success: false, error: `${REPORT_TYPE_LABELS[params.reportType]} was replaced by ${REPORT_TYPE_LABELS[resolveRetiredReport(params.reportType)]}.` };
         }
         // A listed report without a generator yet (#1397): say so rather than fail silently.
         const label = REPORT_TYPE_LABELS[params.reportType];

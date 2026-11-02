@@ -3,6 +3,7 @@
 import { useRef, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DuesMonthGrid } from './dues-month-grid';
 import { TraditionalTemplate } from './templates/traditional-template';
 import { ModernTemplate } from './templates/modern-template';
 import {
@@ -37,7 +38,7 @@ import { formatDistanceToNow } from 'date-fns';
 
 type TemplateType = 'traditional' | 'modern';
 
-const AS_OF_REPORT_TYPES: string[] = ['invoice_aging', 'indebtedness_summary'];
+const AS_OF_REPORT_TYPES: string[] = ['invoice_aging', 'indebtedness_summary', 'dues_collection_status'];
 
 /** Reports that show the position on one day print "As of", not a period (#1420). */
 export function isAsOfReportType(reportType: string): boolean {
@@ -151,6 +152,10 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  // A summary report with a month grid (#1400) can be read as the sheet or as the grid; the grid is screen only.
+  const [view, setView] = useState<'sheet' | 'grid'>('sheet');
+  const grid = isSummaryReport(report.data) ? report.data.data.grid : undefined;
+  const showGrid = !!grid && view === 'grid';
 
   // If report has a parentReportId, use that to fetch history of the *root* report, 
   // otherwise use report.id. But typically version history tracks items with same parent.
@@ -522,9 +527,22 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
       {/* Report Preview */}
       <div className={`flex-1 overflow-auto ${template === 'modern' ? 'bg-slate-100' : 'bg-slate-50'}`}>
         <div className="max-w-[1100px] mx-auto py-6">
-          {/* Preview Container with Shadow */}
+          {grid && (
+            <Tabs value={view} onValueChange={(v) => setView(v as 'sheet' | 'grid')} className="mb-4 px-4 sm:px-0">
+              <TabsList aria-label="Report view">
+                <TabsTrigger value="sheet" data-testid="report-view-sheet">Sheet</TabsTrigger>
+                <TabsTrigger value="grid" data-testid="report-view-grid">Grid of months</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          )}
+          {showGrid && grid && (
+            <div className="bg-background rounded-lg shadow-xl overflow-hidden">
+              <DuesMonthGrid grid={grid} />
+            </div>
+          )}
+          {/* Preview Container with Shadow. Kept mounted in grid view so Export PDF still prints the sheet. */}
           <div
-            className="bg-white rounded-lg shadow-xl overflow-hidden"
+            className={cn('bg-white rounded-lg shadow-xl overflow-hidden', showGrid && 'hidden')}
             style={{
               boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.15)',
             }}

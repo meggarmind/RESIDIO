@@ -116,6 +116,30 @@ export const reportTypePreviews: Record<ReportType, PreviewDefinition> = {
             ['C. Okafor', 'Block 2, House 3', '0805 000 0000', '0.00', '60,000.00', '0.00', '0.00', '0.00', '60,000.00'],
         ],
     },
+    dues_collection_status: {
+        stats: [
+            { label: 'Houses fully paid', value: '71' },
+            { label: 'Houses part paid', value: '11' },
+            { label: 'Houses not paid', value: '14' },
+            { label: 'Total owed', value: '1,260,000.00' },
+        ],
+        tableTitle: 'One sheet per house, with a grid of months',
+        columns: [
+            { label: 'House' },
+            { label: 'Street' },
+            { label: 'Primary Resident' },
+            { label: 'Months paid', align: 'right' },
+            { label: 'Months owed', align: 'right' },
+            { label: 'Levy' },
+            { label: 'Owed', align: 'right' },
+            { label: 'Status' },
+        ],
+        rows: [
+            ['12', 'Palm Close', 'A. Bello', '10 of 10', '0', 'Paid', '0.00', 'Paid in full'],
+            ['14', 'Palm Close', 'M. Yusuf', '6 of 10', '4', 'Not paid', '360,000.00', 'Arrears'],
+            ['3', 'Cedar Way', 'C. Okafor', '9 of 10', '1', 'Part paid', '60,000.00', 'Outstanding'],
+        ],
+    },
     // Retired (#1399): not offered in the picker; kept so the Record stays complete for old rows.
     debtors_report: {
         stats: [
@@ -139,6 +163,7 @@ export const reportTypePreviews: Record<ReportType, PreviewDefinition> = {
             ['2', 'C. Okafor', '0805 000 0000', 'Block 2, House 3', '1', '15', '₦60,000.00'],
         ],
     },
+    // Retired (#1400): replaced by Dues, levies and collection status.
     indebtedness_summary: {
         stats: [
             { label: 'Total Houses', value: '96' },
@@ -160,7 +185,7 @@ export const reportTypePreviews: Record<ReportType, PreviewDefinition> = {
             ['Cedar Way', '3', 'C. Okafor', 'Outstanding', '₦60,000.00'],
         ],
     },
-    // No separate generator exists yet for this type; it is shown with the per-house layout and amounts.
+    // Retired (#1400). It never had a generator (#1379).
     indebtedness_detail: {
         stats: [
             { label: 'Total Houses', value: '96' },

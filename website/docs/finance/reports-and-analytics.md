@@ -8,8 +8,8 @@ residio_sources:
   - src/app/(dashboard)/reports/**
   - src/actions/analytics/**
   - src/actions/reports/**
-residio_verified_commit: fcc05a95
-residio_verified_at: '2026-11-01'
+residio_verified_commit: 7a622132
+residio_verified_at: '2026-11-02'
 residio_app_version: '0.4.0'
 ---
 
@@ -55,5 +55,23 @@ The report shows four figures at the top: **Total owed**, **Debtors**, **Owed ov
 On the **Options** step, the switch **Show invoice lines** adds one row for each unpaid invoice under its debtor. The switch is off unless you turn it on.
 
 Reports that were made before this change stay in **History** and **Archive**, and you can open them. You cannot make a new **Debtors Report** or **Invoice Aging Report**. A schedule that was set up for one of them now runs **Debtors and aging**.
+
+## Dues, levies and collection status
+
+**Dues, levies and collection status** is in the **Debts** group. It replaces the **Indebtedness Report** and the **Indebtedness Detail Report**. It shows one sheet for the estate, with one row for each house. This report asks for a time period, which sets the months of the grid, but not for bank accounts. The report is as of one day: its title reads "Dues, levies and collection status - Security Dues - As of 02 November 2026", and no period is printed.
+
+On step 1, the card of this report shows the **Charge** buttons: **Security Dues** (the default), **Development Levy** and **Transformer Fee**. The list comes from the charge categories of the estate. The report counts only the invoices of the charge you choose, for the months, for **Owed** and for the invoice lines. The debt status and the wallet credit use the same charge. A line under the buttons says who the **Primary Resident** is. For **Security Dues**, it is the tenant, else the owner-occupier (if the billing profile of the house says the landlord pays, it is the landlord). For **Development Levy** and **Transformer Fee**, it is the landlord: the owner-occupier, else the landlord, else the developer. A schedule keeps the charge you chose.
+
+The report shows four figures at the top: **Houses fully paid**, **Houses part paid**, **Houses not paid** and **Total owed**. A house is fully paid when it owes nothing. A house is part paid when it owes money and has paid at least one month in the period. A house is not paid when it owes money and has paid no month in the period. A bar chart shows the amount owed on each street.
+
+The table has these columns for each house: **House**, **Street**, **Primary Resident**, **Months paid** (for example "3 of 4", the months in the period that are paid, out of the months that have an invoice), **Months owed**, **Levy**, **Owed** and **Status**. **Levy** shows **Paid**, **Part paid**, **Not paid** or **No levy** for the development levy. **Owed** is all the money that is still unpaid on the house for the chosen charge, with earlier months. It is the same amount as the **Indebtedness Report** gave. **Status** is the debt status from **Settings > Debt Status**. The last row gives the totals. A house that has paid more than it owes shows 0.00 and is not subtracted from the total.
+
+The report shows at most 24 months, the latest ones. Void invoices are not counted. Invoices of other charges are not counted. A development levy that is billed under Security Dues shows only in **Levy**, not in the months.
+
+On the **Options** step, the switch **Show invoice lines** adds one row for each unpaid invoice under its house. It is off until you turn it on. The switch **Unoccupied Properties** adds the houses that have no active resident.
+
+When you open the report, you can switch between **Sheet** and **Grid of months**. The grid has one row for each house and one column for each month. Each cell shows **Paid up**, **Outstanding**, **Overdue** or **No invoice**, with the same colours as the estate map. The two columns at the end show the levy and the amount owed. The grid is for the screen only. **Export PDF**, **Export CSV** and the scheduled email carry the sheet.
+
+Reports that were made before this change stay in **History** and **Archive**, and you can open them. You cannot make a new **Indebtedness Report** or **Indebtedness Detail Report**. A schedule that was set up for one of them now runs **Dues, levies and collection status** for **Security Dues**.
 
 Reports are snapshots. If a number looks wrong, trace it back to residents, invoices, payments, or expenditure instead of editing the report output.

@@ -21,6 +21,7 @@ import {
 } from '@/actions/reports/report-schedules';
 import type { ReportRequestFormData } from '@/lib/validators/reports';
 import { getDateRangeFromPreset, REPORT_TYPE_LABELS } from '@/lib/validators/reports';
+import { asOfChargeTitle, isSummaryReport } from '@/lib/reports/summary-report';
 import { toast } from 'sonner';
 
 // ============================================================
@@ -103,7 +104,7 @@ let generatedReports: GeneratedReport[] = [];
 const reportTypeLabels = REPORT_TYPE_LABELS;
 
 // Reports that are always "As of Today"
-const REALTIME_REPORTS: ReportRequestFormData['reportType'][] = ['debtors_aging', 'debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'];
+const REALTIME_REPORTS: ReportRequestFormData['reportType'][] = ['debtors_aging', 'debtors_report', 'development_levy', 'invoice_aging'];
 
 export function useGenerateReport() {
     const queryClient = useQueryClient();
@@ -128,7 +129,11 @@ export function useGenerateReport() {
 
             // Format title based on report type
             let title = reportTypeLabels[params.reportType];
-            if (REALTIME_REPORTS.includes(params.reportType)) {
+            if (params.reportType === 'dues_collection_status') {
+                // The charge is in the title, and the report is as of one day: no period (#1400).
+                const chargeName = isSummaryReport(result.report) ? result.report.data.chargeName : undefined;
+                title = asOfChargeTitle(title, chargeName);
+            } else if (REALTIME_REPORTS.includes(params.reportType)) {
                 title += ` - As of ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
             } else {
                 title += ` - ${new Date(dateRange.startDate).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })} to ${new Date(dateRange.endDate).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}`;
@@ -198,6 +203,7 @@ function mapDbReportToGeneratedReport(dbReport: DBGeneratedReport): GeneratedRep
             includeUnoccupied: false,
             includeAmount: false,
             paymentStatus: 'all',
+            chargeCategory: 'dues',
         },
         data: dbReport.report_data as ReportData,
         // Versioning fields

@@ -116,11 +116,13 @@ type DebtStatusRow = {
  *   wallet (a resident-level view). Otherwise a house counts every invoice billed to it and reads
  *   its billed resident's wallet (tenant, else resident landlord, else non-resident landlord).
  *
+ * - `chargeCategory` given: only invoices of that charge count and only that charge's wallet is read.
+ *
  * Runs with the caller's RLS: use the admin client for WhatsApp and reports. Throws on a read error.
  */
 export async function getDebtStatuses(
   supabase: DebtStatusClient,
-  params: { houseIds?: string[] | null; residentId?: string | null } = {},
+  params: { houseIds?: string[] | null; residentId?: string | null; chargeCategory?: string | null } = {},
 ): Promise<HouseDebtStatus[]> {
   if (params.houseIds && params.houseIds.length === 0) return [];
   // get_debt_statuses is not in the generated types until 20261022180000 is applied and
@@ -129,6 +131,8 @@ export async function getDebtStatuses(
     (supabase as unknown as SupabaseClient).rpc('get_debt_statuses', {
       p_house_ids: params.houseIds ?? null,
       p_resident_id: params.residentId ?? null,
+      // Sent only when asked for, so a database without the argument keeps working (#1400).
+      ...(params.chargeCategory ? { p_charge_category: params.chargeCategory } : {}),
     }),
     readDebtStatusSettings(supabase),
   ]);

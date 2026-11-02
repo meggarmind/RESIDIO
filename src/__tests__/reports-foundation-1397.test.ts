@@ -166,9 +166,10 @@ describe('generateReport authorizes with the report type permission (#1397)', ()
 
 describe('generateReportWithClient for a listed report with no generator (#1379)', () => {
   it('returns a clear error instead of nothing', async () => {
+    // indebtedness_detail never had a generator; since #1400 it is retired and says what replaced it.
     const real = await vi.importActual<typeof import('@/lib/reports/report-generator')>('@/lib/reports/report-generator');
     const result = await real.generateReportWithClient({} as never, request('indebtedness_detail'));
-    expect(result).toEqual({ success: false, error: 'Indebtedness Detail Report cannot be generated yet.' });
+    expect(result).toEqual({ success: false, error: 'Indebtedness Detail Report was replaced by Dues, levies and collection status.' });
   });
 });
 
@@ -236,7 +237,7 @@ describe('Reports page guard (#1397)', () => {
 });
 
 describe('Only reports with a generator can be scheduled (#1397)', () => {
-  const NO_GENERATOR = 'Indebtedness Detail Report cannot be generated yet, so it cannot be scheduled.';
+  const NO_GENERATOR = 'Indebtedness Detail Report was replaced by Dues, levies and collection status, so it cannot be scheduled.';
 
   it('GENERATABLE_REPORT_TYPES matches the cases in generateReportWithClient', async () => {
     const real = await vi.importActual<typeof import('@/lib/reports/report-generator')>('@/lib/reports/report-generator');
@@ -270,8 +271,8 @@ describe('Only reports with a generator can be scheduled (#1397)', () => {
 });
 
 describe('Retired reports (#1399)', () => {
-  it('debtors_report and invoice_aging are retired; everything else is not', () => {
-    expect(reportTypes.filter((t) => 'retired' in t).map((t) => t.value)).toEqual(['invoice_aging', 'debtors_report']);
+  it('the four replaced reports are retired; everything else is not', () => {
+    expect(reportTypes.filter((t) => 'retired' in t).map((t) => t.value)).toEqual(['invoice_aging', 'debtors_report', 'indebtedness_summary', 'indebtedness_detail']);
     expect(ALL).toContain('debtors_aging');
     expect(isRetiredReport('debtors_aging')).toBe(false);
   });

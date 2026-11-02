@@ -44,6 +44,16 @@ describe('getDebtStatuses', () => {
     ]);
   });
 
+  it('sends p_charge_category to the database function when a charge is given, and omits it otherwise (#1400)', async () => {
+    const { supabase, rpcFn } = client({ data: [], error: null });
+    await getDebtStatuses(supabase, { houseIds: ['h1'], chargeCategory: 'transformer_fee' });
+    expect(rpcFn).toHaveBeenLastCalledWith('get_debt_statuses', { p_house_ids: ['h1'], p_resident_id: null, p_charge_category: 'transformer_fee' });
+    await getDebtStatuses(supabase, { houseIds: ['h1'] });
+    expect(rpcFn.mock.lastCall![1]).not.toHaveProperty('p_charge_category');
+    await getDebtStatuses(supabase, { houseIds: ['h1'], chargeCategory: null });
+    expect(rpcFn.mock.lastCall![1]).not.toHaveProperty('p_charge_category');
+  });
+
   it('passes the houses and resident to the one database function, null when omitted', async () => {
     const { supabase, rpcFn } = client({ data: [], error: null });
     await getDebtStatuses(supabase);
