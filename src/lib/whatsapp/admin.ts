@@ -182,7 +182,9 @@ export interface WhatsAppAdminAction {
     string | { reply: string; audit: Record<string, unknown>; next?: { state: Record<string, unknown>; prompt: string } }
   >;
   /** What 0 shows instead of Admin tools while a question is open, such as the list again; null goes to Admin tools (#1424). */
-  back?(state: Record<string, unknown>): { reply: string; state: Record<string, unknown> } | null;
+  back?(
+    state: Record<string, unknown>
+  ): { reply: string; state: Record<string, unknown> } | null | Promise<{ reply: string; state: Record<string, unknown> } | null>;
   /** Set when the item stays open after an answer for another entry: the line added under the answer. */
   again?: string;
 }
@@ -1101,7 +1103,7 @@ async function adminTurn(message: WhatsAppInboundMessage, input: AdminInput, opt
     if (lower === '0') {
       const asked = await repository.findPendingChoice(live.id, now);
       const item = asked && Object.hasOwn(WHATSAPP_ADMIN_ACTIONS, asked.action) ? WHATSAPP_ADMIN_ACTIONS[asked.action] : null;
-      const back = asked && item?.back ? item.back(asked.state) : null;
+      const back = asked && item?.back ? await item.back(asked.state) : null;
       if (back) {
         await createChoice(asked!.action, live, back.state);
         await reply(back.reply);

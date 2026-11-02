@@ -181,6 +181,54 @@ describe('Unverified payments database (#1424)', () => {
     expect(await repo.findHouse('ibb-3af-4')).toEqual({ houseId: 'house-1', code: 'IBB-3AF-4', residentId: 'tenant', resident: 'TEN ANT' });
   });
 
+  it('searches names and payer names on active houses, escaping % and _, naming the resident_houses foreign keys (#1433)', async () => {
+    mocks.results.residents = { data: [{ id: 'r-1' }, { id: 'r-2' }], error: null };
+    mocks.results.resident_payment_aliases = { data: [{ resident_id: 'r-3' }], error: null };
+    const link = (resident_id: string, house_id: string, code: string, role: string, first: string, last: string, status = 'active', active = true) => ({
+      resident_id,
+      house_id,
+      resident_role: role,
+      house: { short_name: code, is_active: active },
+      resident: [{ first_name: first, last_name: last, account_status: status }],
+    });
+    mocks.results.resident_houses = {
+      data: [
+        link('r-1', 'h-2', 'KOA-15F-2', 'tenant', 'Martins', 'Awonusi'),
+        link('r-1', 'h-1', 'KOA-1', 'resident_landlord', 'Martins', 'Awonusi'),
+        link('r-2', 'h-3', 'OJO-1', 'tenant', 'Ada', 'Eze'), // name does not have the word: not a hit
+        link('r-3', 'h-4', 'IBB-1', 'co_resident', 'Ada', 'Eze'), // saved payer name: a hit
+        link('r-1', 'h-5', 'OFF-1', 'tenant', 'Martins', 'Awonusi', 'inactive'),
+        link('r-1', 'h-6', 'OLD-1', 'tenant', 'Martins', 'Awonusi', 'active', false),
+      ],
+      error: null,
+    };
+    const found = await repo.searchHouses('martins');
+    expect(found.map((f) => `${f.code} ${f.resident} ${f.role}`)).toEqual([
+      'IBB-1 Ada Eze co_resident',
+      'KOA-1 Martins Awonusi resident_landlord',
+      'KOA-15F-2 Martins Awonusi tenant',
+    ]);
+    expect(found[0]).toEqual({ houseId: 'h-4', code: 'IBB-1', residentId: 'r-3', resident: 'Ada Eze', role: 'co_resident' });
+    const select = calls('resident_houses', 'select')[0][0] as string;
+    expect(select).toContain('houses!resident_houses_house_id_fkey');
+    expect(select).toContain('residents!resident_houses_resident_id_fkey');
+    expect(calls('resident_houses', 'eq')).toContainEqual(['is_active', true]);
+    expect(calls('resident_houses', 'in')).toContainEqual(['resident_id', ['r-1', 'r-2', 'r-3']]);
+    expect(calls('resident_houses', 'in')).toContainEqual(['resident_role', ['tenant', 'resident_landlord', 'non_resident_landlord', 'co_resident']]);
+
+    mocks.calls = [];
+    await repo.searchHouses('50%_xy');
+    expect(calls('residents', 'or')[0][0]).toBe('first_name.ilike.%50\\%\\_xy%,last_name.ilike.%50\\%\\_xy%');
+    expect(calls('resident_payment_aliases', 'ilike')[0]).toEqual(['alias_name', '%50\\%\\_xy%']);
+    expect(calls('resident_payment_aliases', 'eq')).toContainEqual(['is_active', true]);
+  });
+
+  it('does not search for fewer than 2 letters (#1433)', async () => {
+    expect(await repo.searchHouses(' a ')).toEqual([]);
+    expect(await repo.searchHouses('1')).toEqual([]);
+    expect(mocks.calls).toEqual([]);
+  });
+
   it('writes each audit entry with the admin as actor and channel whatsapp_admin', async () => {
     await repo.audit({ action: 'REJECT', entityType: 'email_transactions', entityId: 'alert-1', metadata: { x: 1 } }, 'chair-1');
     expect(mocks.recordAudit).toHaveBeenCalledWith(
