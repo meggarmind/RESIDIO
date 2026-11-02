@@ -316,7 +316,7 @@ export function createSupabaseOwesRepository(): OwesRepository {
         .in('resident_houses.resident_role', BILLABLE_ROLES);
       // Every word must match the first or the last name.
       for (const word of words) query = query.or(ilikeAny(['first_name', 'last_name'], word));
-      const { data, error } = await query.limit(20);
+      const { data, error } = await query.limit(OWES_LIST_MAX + 1);
       if (error) throw error;
       return (data || []).flatMap((row) => {
         const links = row.resident_houses as unknown as { house_id: string; house: HouseRow | HouseRow[] | null }[];

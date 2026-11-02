@@ -191,6 +191,26 @@ describe('Resident status (owes lookup)', () => {
     expect(saved[6].name).toBeNull();
   });
 
+  it('sorts house codes by number, so GLB-10 follows GLB-9 (#1445)', async () => {
+    const owes = owesRepo({ searchHouseCodes: vi.fn().mockResolvedValue([candidate('GLB-2'), candidate('GLB-10'), candidate('GLB-9')]) });
+    const reply = await send('GLB', adminRepo(), owes);
+    const lines = (reply.mock.calls[0][0] as string).split('\n').slice(1);
+    expect(lines).toEqual(['1. GLB-2 (no resident)', '2. GLB-9 (no resident)', '3. GLB-10 (no resident)']);
+  });
+
+  it('saves the names with the choices, so a later number picks the right house (#1445)', async () => {
+    const owes = owesRepo({
+      searchHouseCodes: vi.fn().mockResolvedValue([candidate('GLB-9'), candidate('GLB-2')]),
+      loadHouseResidentNames: vi.fn().mockResolvedValue({ 'id-GLB-2': 'Ohioma', 'id-GLB-9': 'Wicken' }),
+    });
+    await send('GLB', adminRepo(), owes);
+    const saved = (owes.saveChoices as ReturnType<typeof vi.fn>).mock.calls[0][1] as OwesCandidate[];
+    expect(saved.map((c) => [c.houseId, c.name])).toEqual([['id-GLB-2', 'Ohioma'], ['id-GLB-9', 'Wicken']]);
+    const pick = owesRepo({ loadChoices: vi.fn().mockResolvedValue({ choices: saved, expiresAt: new Date(NOW.getTime() + 1000).toISOString() }) });
+    await send('2', adminRepo(), pick);
+    expect(pick.loadHouse).toHaveBeenCalledWith('id-GLB-9');
+  });
+
   it('lists exactly 20 matches', async () => {
     const owes = owesRepo({ searchHouseCodes: vi.fn().mockResolvedValue(Array.from({ length: 20 }, (_, i) => candidate(`KOA-${i + 1}`))) });
     const reply = await send('KOA', adminRepo(), owes);
