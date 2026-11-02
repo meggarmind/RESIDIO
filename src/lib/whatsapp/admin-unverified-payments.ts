@@ -16,7 +16,9 @@ import type { WhatsAppAdminAccount, WhatsAppAdminAction, ChooseResult } from '@/
  * one question at a time. The numbers stay the same until the admin opens item 6 again.
  *
  * A payment needs a resident check and bank proof (owner rule, 2 Nov 2026). Giving an alert to a
- * house records a verified payment: the alert is the bank proof, the admin's pick the resident check.
+ * house records a verified payment when the alert's email passed the sender check: the alert is the
+ * bank proof, the admin's pick the resident check. An alert whose email did not pass is no bank proof,
+ * so its payment is recorded unverified and an alert link refuses it (#1428).
  * Every write re-checks the live account's permissions first and is audited with the admin as actor.
  */
 
@@ -187,6 +189,7 @@ async function alertDetails(list: ListState, number: number, alert: UnverifiedAl
     `Amount: ${naira(alert.amount)}`,
     `Date: ${formatDay(alert.date)}`,
     `Bank text: ${alert.description || 'None'}`,
+    `Bank email checked: ${alert.senderVerified ? 'yes' : 'no'}`,
     `Known payer name: ${known ? `matches ${known}` : 'no match'}`,
     `Payments with the same amount: ${numbers(sameAmount(list, 'payment', alert.amount))}`,
     '',
@@ -319,6 +322,10 @@ function overLimitRefusal(limit: number | null): string {
 // ---------------------------------------------------------------------------
 // run: the writes
 
+export const NO_BANK_PROOF =
+  'No bank proof yet: the bank email did not pass the check. The payment stays in this list until a bank statement line or a checked alert proves it.';
+export const UNCHECKED_ALERT_REFUSAL =
+  'Not done: the bank email of this alert did not pass the check, so it is not bank proof. To verify the payment, pick it again and reply 1 Bank statement shows it.';
 const ALERT_NOT_LINKED = 'The alert could not be marked with the payment. Check the review queue on the dashboard.';
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
@@ -354,9 +361,10 @@ async function settle(account: WhatsAppAdminAccount, params: Record<string, unkn
       const residentId = String(params.residentId);
       const houseCode = String(params.houseCode);
       if (!(await r.claimAlert(alert.id))) return stale;
+      const verified = alert.senderVerified;
       let paymentId: string;
       try {
-        const recorded = await r.recordPayment(alert, { houseId: String(params.houseId), residentId }, account.profileId);
+        const recorded = await r.recordPayment(alert, { houseId: String(params.houseId), residentId }, account.profileId, verified);
         if ('error' in recorded) {
           await r.releaseAlert(alert.id);
           return { reply: `Not done: ${recorded.error}`, outcome: 'failed', settled: [] };
@@ -400,12 +408,12 @@ async function settle(account: WhatsAppAdminAccount, params: Record<string, unkn
         entityType: 'email_transactions',
         entityId: alert.id,
         entityDisplay: `Transaction: ${alert.description}`,
-        newValues: { resident_id: residentId, house: houseCode, payment_id: paymentId, saved_alias: savedAlias, ...(problems.length ? { problems } : {}) },
+        newValues: { resident_id: residentId, house: houseCode, payment_id: paymentId, saved_alias: savedAlias, verified, ...(problems.length ? { problems } : {}) },
       });
       return {
         reply: [
           `Done. ${naira(alert.amount)} is recorded for ${houseCode}, ${params.resident}.`,
-          'The bank alert is the bank proof, so the payment is verified.',
+          verified ? 'The bank alert is the bank proof, so the payment is verified.' : NO_BANK_PROOF,
           'The wallet pays open bills first.',
           ...(savedAlias ? [`${name} is saved as a payer name for ${houseCode}.`] : []),
           ...problems,
@@ -453,6 +461,7 @@ async function settle(account: WhatsAppAdminAccount, params: Record<string, unkn
       if (!payment) return stale;
       if (!alert || !alertEntry) return { ...stale, reply: `Item ${params.alertNumber} is already settled.`, settled: alertEntry ? [alertEntry.number] : [] };
       if (alert.amount !== payment.amount) return { reply: 'Not done: the bank alert and the payment have different amounts.', outcome: 'refused', settled: [] };
+      if (!alert.senderVerified) return { reply: UNCHECKED_ALERT_REFUSAL, outcome: 'refused', settled: [] };
       const blocked = await overLimitBlock(r, live, account, alert.amount);
       if (blocked) return { reply: blocked, outcome: 'over_limit', settled: [] };
       if (!(await r.claimAlert(alert.id))) return { ...stale, reply: `Item ${alertEntry.number} is already settled.`, settled: [alertEntry.number] };

@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { processEmailTransactions } from '../process-email-import';
+import { processEmailTransactions, processSingleTransaction } from '../process-email-import';
 import { matchEmailTransactions } from '@/lib/email-imports/process-email-matching';
 import { createAdminClient, createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { createPayment } from '@/actions/payments/create-payment';
+import { createPaymentCore } from '@/lib/payments/create-payment';
+import { logAudit } from '@/lib/audit/logger';
 import { createExpense } from '@/actions/expenses/create-expense';
 
 // Mock dependencies
@@ -24,7 +26,9 @@ vi.mock('@/lib/settings/service', () => ({
 vi.mock('@/lib/auth/action-roles', () => ({
     PERMISSIONS: {
         EMAIL_IMPORTS_PROCESS: 'email_imports_process',
-        EMAIL_IMPORTS_VIEW: 'email_imports_view'
+        EMAIL_IMPORTS_VIEW: 'email_imports_view',
+        PAYMENTS_VERIFY: 'payments.verify',
+        IMPORTS_APPROVE: 'imports.approve',
     },
 }));
 
@@ -34,6 +38,10 @@ vi.mock('@/lib/audit/logger', () => ({
 
 vi.mock('@/actions/payments/create-payment', () => ({
     createPayment: vi.fn(),
+}));
+
+vi.mock('@/lib/payments/create-payment', () => ({
+    createPaymentCore: vi.fn(),
 }));
 
 vi.mock('@/actions/expenses/create-expense', () => ({
@@ -198,6 +206,89 @@ describe('Email Import Processing', () => {
 
             expect(result.errored).toBe(1);
             expect(result.expensesCreated).toBe(0);
+        });
+    });
+
+    describe('processSingleTransaction credit: the sender check is bank proof (#1428)', () => {
+        const queued = (senderVerified: boolean | null, embedded: 'object' | 'array' | 'none' = 'object') => ({
+            id: 'tx_9',
+            transaction_type: 'credit',
+            status: 'queued_for_review',
+            amount: 1000,
+            description: 'FIP:ZIB/HENRY/ Henry Itoki',
+            reference: 'REF-9',
+            transaction_date: '2026-11-02',
+            email_import_id: '6f1c2a3b-4d5e-4f60-8a71-92b3c4d5e6f7',
+            matched_resident_id: null,
+            email_messages: embedded === 'none' ? null : embedded === 'array' ? [{ sender_verified: senderVerified }] : { sender_verified: senderVerified },
+        });
+
+        function setup(tx: ReturnType<typeof queued>, permissions: string[]) {
+            const selects: unknown[] = [];
+            mockSupabase.from.mockImplementation((table: string) => {
+                const q = createMockQuery(table === 'email_transactions' ? tx : null);
+                q.select.mockImplementation((columns: unknown) => {
+                    selects.push(columns);
+                    return q;
+                });
+                return q;
+            });
+            vi.mocked(authorizePermission).mockResolvedValue({ authorized: true, userId: 'user_123', permissions, roleName: 'chairman' } as unknown as Awaited<ReturnType<typeof authorizePermission>>);
+            vi.mocked(createPayment).mockResolvedValue({ success: true, data: { id: 'pay_unverified' } } as unknown as Awaited<ReturnType<typeof createPayment>>);
+            vi.mocked(createPaymentCore).mockResolvedValue({ success: true, data: { id: 'pay_verified' } } as unknown as Awaited<ReturnType<typeof createPaymentCore>>);
+            return selects;
+        }
+
+        const auditValues = () => (vi.mocked(logAudit).mock.calls.at(-1)![0] as { newValues: Record<string, unknown> }).newValues;
+
+        it('records the payment verified when the email passed the sender check and the admin holds payments.verify', async () => {
+            const selects = setup(queued(true), ['email_imports_process', 'payments.verify']);
+            const result = await processSingleTransaction('tx_9', { residentId: 'res_1' });
+            expect(result).toEqual({ success: true, paymentId: 'pay_verified' });
+            expect(selects[0]).toContain('email_messages(sender_verified)');
+            expect(createPayment).not.toHaveBeenCalled();
+            expect(createPaymentCore).toHaveBeenCalledTimes(1);
+            const [data, options] = vi.mocked(createPaymentCore).mock.calls[0];
+            expect(options).toEqual({ trustedVerification: true });
+            expect(data).toEqual(expect.objectContaining({ is_verified: true, resident_id: 'res_1', amount: 1000, email_transaction_id: 'tx_9', notes: 'Email import: FIP:ZIB/HENRY/ Henry Itoki' }));
+            expect(auditValues()).toEqual(expect.objectContaining({ payment_id: 'pay_verified', verified: true }));
+        });
+
+        it('reads the sender check from an embed returned as an array', async () => {
+            setup(queued(true, 'array'), ['email_imports_process', 'payments.verify']);
+            expect(await processSingleTransaction('tx_9', { residentId: 'res_1' })).toEqual({ success: true, paymentId: 'pay_verified' });
+        });
+
+        it('records it unverified when the admin lacks payments.verify, even with a checked email', async () => {
+            setup(queued(true), ['email_imports_process', 'payments.create']);
+            const result = await processSingleTransaction('tx_9', { residentId: 'res_1' });
+            expect(result).toEqual({ success: true, paymentId: 'pay_unverified' });
+            expect(createPaymentCore).not.toHaveBeenCalled();
+            expect(createPayment).toHaveBeenCalledTimes(1);
+            expect(vi.mocked(createPayment).mock.calls[0][0]).not.toHaveProperty('is_verified');
+            expect(auditValues()).toEqual(expect.objectContaining({ payment_id: 'pay_unverified', verified: false }));
+        });
+
+        it.each([
+            ['false', queued(false)],
+            ['null', queued(null)],
+            ['missing', queued(null, 'none')],
+        ])('records it unverified when the sender check is %s, even with payments.verify', async (_label, tx) => {
+            setup(tx, ['email_imports_process', 'payments.verify']);
+            const result = await processSingleTransaction('tx_9', { residentId: 'res_1' });
+            expect(result).toEqual({ success: true, paymentId: 'pay_unverified' });
+            expect(createPaymentCore).not.toHaveBeenCalled();
+            expect(createPayment).toHaveBeenCalledTimes(1);
+            expect(auditValues()).toEqual(expect.objectContaining({ verified: false }));
+        });
+
+        it('keeps the over-limit rule for a checked email', async () => {
+            setup({ ...queued(true), amount: 70000 }, ['email_imports_process', 'payments.verify']);
+            const result = await processSingleTransaction('tx_9', { residentId: 'res_1' });
+            expect(result.success).toBe(false);
+            expect(result.error).toMatch(/^Needs approval: payments over ₦60,000/);
+            expect(createPaymentCore).not.toHaveBeenCalled();
+            expect(createPayment).not.toHaveBeenCalled();
         });
     });
 });

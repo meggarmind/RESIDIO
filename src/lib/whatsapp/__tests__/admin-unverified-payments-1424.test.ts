@@ -31,8 +31,10 @@ import {
   parseStatementLine,
   HOUSE_PROMPT,
   NOT_ESTATE_MONEY_REASON,
+  NO_BANK_PROOF,
   NO_ITEMS_REPLY,
   STATEMENT_PROMPT,
+  UNCHECKED_ALERT_REFUSAL,
 } from '@/lib/whatsapp/admin-unverified-payments';
 import type { WhatsAppInboundMessage } from '@/lib/whatsapp/types';
 
@@ -82,7 +84,7 @@ let store: {
   payments: StoredPayment[];
   houses: HouseMatch[];
   aliases: { residentId: string; name: string }[];
-  recorded: { alertId: string; houseId: string; residentId: string; profileId: string }[];
+  recorded: { alertId: string; houseId: string; residentId: string; profileId: string; verified: boolean }[];
   audits: { entry: AuditEntry; profileId: string }[];
   live: string[];
   limit: number | null;
@@ -110,6 +112,7 @@ const alert = (date: string, amount: number, description: string): StoredAlert =
   reference: null,
   emailImportId: 'import-1',
   transactionDate: `${date}T08:00:00Z`,
+  senderVerified: true,
   status: 'queued_for_review',
 });
 const payment = (date: string, amount: number, houseCode: string, resident: string, notes: string | null = null): StoredPayment => ({
@@ -154,10 +157,10 @@ function fakeRepository(): UnverifiedPaymentsRepository {
       const a = store.alerts.find((x) => x.id === id)!;
       Object.assign(a, { paymentId, residentId });
     },
-    recordPayment: async (a, house, profileId) => {
+    recordPayment: async (a, house, profileId, verified) => {
       maybeThrow('recordPayment', 'beforeWrite');
       if (store.failRecord) return { error: store.failRecord };
-      store.recorded.push({ alertId: a.id, ...house, profileId });
+      store.recorded.push({ alertId: a.id, ...house, profileId, verified });
       maybeThrow('recordPayment', 'afterWrite');
       return { paymentId: `new-payment-${store.recorded.length}` };
     },
@@ -349,7 +352,7 @@ describe('Unverified payments in Admin tools (#1424)', () => {
     const chat = conversation();
     await chat.send('6');
     expect(await chat.send('8')).toEqual([
-      '🏦 Bank alert 8: no resident yet\nAmount: ₦65,000\nDate: 2 Nov 2026\nBank text: FIP:ZIB/HENRY/ Henry Itoki\nKnown payer name: no match\nPayments with the same amount: none\n\nReply 1 Give to a house, 2 Not estate money, 0 Back.',
+      '🏦 Bank alert 8: no resident yet\nAmount: ₦65,000\nDate: 2 Nov 2026\nBank text: FIP:ZIB/HENRY/ Henry Itoki\nBank email checked: yes\nKnown payer name: no match\nPayments with the same amount: none\n\nReply 1 Give to a house, 2 Not estate money, 0 Back.',
     ]);
     expect(await chat.send('1')).toEqual([HOUSE_PROMPT]);
     expect(await chat.send('Ibb-3Af-4')).toEqual([
@@ -362,13 +365,13 @@ describe('Unverified payments in Admin tools (#1424)', () => {
       'Done. ₦65,000 is recorded for IBB-3AF-4, CHIBUEZE NICHOLAS JAMES.\nThe bank alert is the bank proof, so the payment is verified.\nThe wallet pays open bills first.\nHENRY ITOKI is saved as a payer name for IBB-3AF-4.',
       '13 items left. Reply a number, or 0 for Admin tools.',
     ]);
-    expect(store.recorded).toEqual([{ alertId: 'alert-8', houseId: 'house-ibb', residentId: 'resident-ibb', profileId: 'chair-1' }]);
+    expect(store.recorded).toEqual([{ alertId: 'alert-8', houseId: 'house-ibb', residentId: 'resident-ibb', profileId: 'chair-1', verified: true }]);
     expect(store.alerts[2]).toEqual(expect.objectContaining({ status: 'processed', paymentId: 'new-payment-1', residentId: 'resident-ibb' }));
     expect(store.aliases).toEqual([{ residentId: 'resident-ibb', name: 'HENRY ITOKI' }]);
     expect(store.audits).toEqual([
       {
         profileId: 'chair-1',
-        entry: expect.objectContaining({ action: 'APPROVE', entityType: 'email_transactions', entityId: 'alert-8', newValues: expect.objectContaining({ payment_id: 'new-payment-1', saved_alias: true }) }),
+        entry: expect.objectContaining({ action: 'APPROVE', entityType: 'email_transactions', entityId: 'alert-8', newValues: expect.objectContaining({ payment_id: 'new-payment-1', saved_alias: true, verified: true }) }),
       },
     ]);
     expect(chat.repo.audit).toHaveBeenCalledWith(
@@ -379,6 +382,43 @@ describe('Unverified payments in Admin tools (#1424)', () => {
     expect(chat.node).toBe(ADMIN_ITEM_NODE);
     expect(await chat.send('8')).toEqual(['Item 8 is already settled. Reply another number, or 0 for Admin tools.']);
     expect((await chat.send('10'))[0]).toMatch(/^🏦 Bank alert 10: no resident yet/);
+  });
+
+  it('records an alert whose bank email did not pass the check unverified, and says there is no bank proof yet (#1428)', async () => {
+    store.alerts[2].senderVerified = false;
+    const chat = conversation();
+    await chat.send('6');
+    const [detail] = await chat.send('8');
+    expect(detail).toContain('\nBank email checked: no\n');
+    for (const text of ['1', 'IBB-3AF-4']) await chat.send(text);
+    const [done, left] = await chat.send('1');
+    expect(done).toBe(
+      [
+        'Done. ₦65,000 is recorded for IBB-3AF-4, CHIBUEZE NICHOLAS JAMES.',
+        'No bank proof yet: the bank email did not pass the check. The payment stays in this list until a bank statement line or a checked alert proves it.',
+        'The wallet pays open bills first.',
+        'HENRY ITOKI is saved as a payer name for IBB-3AF-4.',
+      ].join('\n')
+    );
+    expect(done).toContain(NO_BANK_PROOF);
+    expect(done).not.toContain('is verified');
+    expect(left).toBe('13 items left. Reply a number, or 0 for Admin tools.');
+    expect(store.recorded).toEqual([{ alertId: 'alert-8', houseId: 'house-ibb', residentId: 'resident-ibb', profileId: 'chair-1', verified: false }]);
+    expect(store.alerts[2].status).toBe('processed');
+    expect(store.audits[0].entry.newValues).toEqual(expect.objectContaining({ payment_id: 'new-payment-1', verified: false }));
+  });
+
+  it('refuses to link a payment to an alert whose bank email did not pass the check (#1428)', async () => {
+    store.alerts.push({ ...alert('2026-11-02', 120000, 'NIP/SUSAN BADIRU'), senderVerified: false });
+    const chat = conversation();
+    for (const text of ['6', '1', '2']) await chat.send(text);
+    const [reply, left] = await chat.send('15');
+    expect(reply).toBe(UNCHECKED_ALERT_REFUSAL);
+    expect(reply).toBe('Not done: the bank email of this alert did not pass the check, so it is not bank proof. To verify the payment, pick it again and reply 1 Bank statement shows it.');
+    expect(left).toBe('15 items left. Reply a number, or 0 for Admin tools.');
+    expect(store.payments[0].verified).toBe(false);
+    expect(store.alerts[9].status).toBe('queued_for_review');
+    expect(store.audits).toEqual([]);
   });
 
   it('records but saves no payer name on 2', async () => {
