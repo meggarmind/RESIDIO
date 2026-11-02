@@ -21,7 +21,7 @@ import {
 } from '@/actions/reports/report-schedules';
 import type { ReportRequestFormData } from '@/lib/validators/reports';
 import { getDateRangeFromPreset, REPORT_TYPE_LABELS } from '@/lib/validators/reports';
-import { asOfChargeTitle, isSummaryReport } from '@/lib/reports/summary-report';
+import { asOfChargeTitle, isSummaryReport, subjectTitle } from '@/lib/reports/summary-report';
 import { toast } from 'sonner';
 
 // ============================================================
@@ -133,6 +133,9 @@ export function useGenerateReport() {
                 // The charge is in the title, and the report is as of one day: no period (#1400).
                 const chargeName = isSummaryReport(result.report) ? result.report.data.chargeName : undefined;
                 title = asOfChargeTitle(title, chargeName);
+            } else if (params.reportType === 'statement_of_account') {
+                // The house or resident and the period, with month names (#1402).
+                title = subjectTitle(title, isSummaryReport(result.report) ? result.report.data.subject : undefined);
             } else if (REALTIME_REPORTS.includes(params.reportType)) {
                 title += ` - As of ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
             } else {

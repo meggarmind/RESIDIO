@@ -16,6 +16,7 @@ export const reportTypes = [
     { value: 'invoice_aging', label: 'Invoice Aging Report', description: 'Outstanding invoices by age brackets', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL, retired: true },
     { value: 'transaction_log', label: 'Transaction Log', description: 'Detailed list of all transactions', group: 'Money in and out', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
     { value: 'debtors_report', label: 'Debtors Report', description: 'Detailed debtors list with aging buckets and contact info', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL, retired: true },
+    { value: 'statement_of_account', label: 'Statement of account', description: 'Every charge and payment of one house or one resident in the period, with a running balance', group: 'Money in and out', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
     { value: 'debtors_aging', label: 'Debtors and aging', description: 'Who owes what, and for how long: every debtor with contact details and the amount in each age bucket', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
     { value: 'dues_collection_status', label: 'Dues, levies and collection status', description: 'One sheet per house: each month paid or not paid in the period, the levy status and the total owed', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
     { value: 'collection_rate_by_street', label: 'Collection rate by street', description: 'Per street: billed, collected, owed and the share of the bill that was paid', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
@@ -46,6 +47,7 @@ export const GENERATABLE_REPORT_TYPES: readonly ReportType[] = [
     'expenses_by_category',
     'wallet_balances',
     'development_levy',
+    'statement_of_account',
 ];
 
 /** True when `type` is a retired report: still listed for old rows, never run again (#1399). */
@@ -118,6 +120,8 @@ export const aggregationOptions = [
 
 export type AggregationType = typeof aggregationOptions[number]['value'];
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // Report Request Schema
 export const reportRequestSchema = z.object({
     reportType: z.enum(REPORT_TYPE_VALUES),
@@ -135,7 +139,24 @@ export const reportRequestSchema = z.object({
     paymentStatus: z.enum(['all', 'paid', 'unpaid']).default('all'),
     // What the dues sheet covers: a `charge_categories.code` (#1400). Other reports ignore it.
     chargeCategory: z.string().regex(/^[a-z][a-z0-9_]*$/).default('dues'),
+    // Whose statement a Statement of account is: a house or a resident, by id (#1402). Other reports ignore them.
+    statementFor: z.enum(['house', 'resident']).optional(),
+    statementId: z.string().regex(UUID_PATTERN, 'Choose a house or a resident').optional(),
 });
+
+/**
+ * Why a schedule cannot be saved with this configuration, or null. A Statement of account schedule
+ * must carry the house or resident it is for (#1402), or every run would fail.
+ */
+export function scheduleConfigurationError(type: string, configuration: Record<string, unknown> | null | undefined): string | null {
+    if (type !== 'statement_of_account') return null;
+    const statementFor = configuration?.statementFor;
+    const statementId = configuration?.statementId;
+    if ((statementFor !== 'house' && statementFor !== 'resident') || typeof statementId !== 'string' || !UUID_PATTERN.test(statementId)) {
+        return 'A Statement of account schedule needs the house or resident it is for.';
+    }
+    return null;
+}
 
 export type ReportRequestFormData = z.infer<typeof reportRequestSchema>;
 

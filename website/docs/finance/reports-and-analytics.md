@@ -8,7 +8,7 @@ residio_sources:
   - src/app/(dashboard)/reports/**
   - src/actions/analytics/**
   - src/actions/reports/**
-residio_verified_commit: 1da25191
+residio_verified_commit: 5ce5ae58
 residio_verified_at: '2026-11-02'
 residio_app_version: '0.4.0'
 ---
@@ -97,5 +97,22 @@ On the **Options** step, the switch **Show expense lines** adds one row for each
 The four figures at the top are **Resident credit held** (the total of the closing balances, which is the credit the estate holds for residents), **Credits in period**, **Debits in period** and **Residents with credit**. A bar chart shows the credits and the debits of each month of the period.
 
 The closing balance comes from the wallet balance now. Movements that are dated after the end of the period are taken back out of it. For a period that ends today, the closing balance is the same as the wallet balance. The opening balance is worked back from the closing balance: **Opening balance** = **Closing balance** - **Credits** + **Debits**. Days are counted in UTC.
+
+## Statement of account
+
+**Statement of account** is in the **Money in and out** group. It shows every charge and every payment of one house or one resident in the period, line by line, with a running balance. It asks for a time period, but not for bank accounts. On the **Options** step, choose **A house** or **A resident**, then choose the house or the resident from the list. You can search the list. You see **A house** only if you can view houses, and **A resident** only if you can view residents. You cannot go to the next step until you choose one. The title gives the house or the resident and the period, for example "Statement of account - 12, Palm Close, 01 August 2026 to 31 October 2026".
+
+The report shows four figures at the top: **Opening balance** (on the first day of the period), **Charged**, **Paid** and **Owed now** (on the last day of the period; for a period that ended before today it is **Owed at end of period**). A negative balance is credit. A bar chart shows the amount charged and the amount paid in each month.
+
+The table has these columns: **Date**, **Item**, **Charge type**, **Charge**, **Payment** and **Balance**. The first row is the opening balance. Each invoice shows one row for each of its invoice lines. Each payment shows one row. The last row gives the totals. **Charge type** is the charge of the line, for example **Security Dues** or **Transformer Fee**. All charges are in one balance, so the closing balance is the balance of the whole account.
+
+The balance is the same balance as the **Account Statement**: all invoices that are not void, less all verified payments. An invoice is dated by the first day of the period it bills. A payment that is not verified yet is not in the balance; a note gives its amount.
+
+- On the statement of a resident, wallet movements are lines too, for example a credit or an adjustment. A wallet movement that only moves a payment into the wallet, or pays an invoice from the wallet, is not shown, because that payment and that invoice are lines already. Thus no money is counted two times.
+- On the statement of a house, there are no wallet lines, because a wallet belongs to a resident and not to a house. A payment for the house counts on the day it is paid, also when the money is still in the wallet and not yet used for an invoice. Each line gives the name of the resident.
+
+A note gives the unpaid amount on invoices today, as the house page or the resident page shows it. That figure changes only when money is used for an invoice. Thus it is different from the balance when money is in the wallet and not yet used, when a payment that is not verified was used for an invoice, or when an invoice is dated after the period.
+
+A schedule of this report keeps the house or the resident that you chose. In **History**, open the report with **View** to print it; the card has no **PDF** button for this report.
 
 Reports are snapshots. If a number looks wrong, trace it back to residents, invoices, payments, or expenditure instead of editing the report output.
