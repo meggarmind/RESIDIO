@@ -44,6 +44,10 @@ import type {
  */
 
 const CONNECTION_CACHE_TTL_MS = 30_000;
+/** Upper bound on the session-status read. */
+const SESSION_STATUS_TIMEOUT_MS = 10_000;
+/** Upper bound on the message send. */
+const SEND_TIMEOUT_MS = 15_000;
 const API_KEY_FINGERPRINT_LENGTH = 12;
 const WORKING_STATUS = 'WORKING';
 
@@ -97,6 +101,7 @@ export async function lookupWahaPhone(
   const response = await fetchImpl(`${config.baseUrl}/api/sessions/${encodeURIComponent(config.session)}`, {
     headers: { 'X-Api-Key': config.apiKey },
     cache: 'no-store',
+    signal: AbortSignal.timeout(SESSION_STATUS_TIMEOUT_MS),
   });
   if (!response.ok) {
     return { ok: false, httpStatus: response.status };
@@ -328,6 +333,7 @@ async function wahaPost(
       method: 'POST',
       headers: { 'X-Api-Key': config.apiKey, 'Content-Type': 'application/json' },
       body: JSON.stringify({ session: config.session, ...payload }),
+      signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
     });
   } catch {
     return { ok: false, result: { success: false, error: 'WAHA provider request failed', retryable: true } };
