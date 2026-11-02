@@ -8,7 +8,7 @@ residio_sources:
   - src/app/(dashboard)/reports/**
   - src/actions/analytics/**
   - src/actions/reports/**
-residio_verified_commit: 7a622132
+residio_verified_commit: 29cabe99
 residio_verified_at: '2026-11-02'
 residio_app_version: '0.4.0'
 ---
@@ -73,5 +73,15 @@ On the **Options** step, the switch **Show invoice lines** adds one row for each
 When you open the report, you can switch between **Sheet** and **Grid of months**. The grid has one row for each house and one column for each month. Each cell shows **Paid up**, **Outstanding**, **Overdue** or **No invoice**, with the same colours as the estate map. The two columns at the end show the levy and the amount owed. The grid is for the screen only. **Export PDF**, **Export CSV** and the scheduled email carry the sheet.
 
 Reports that were made before this change stay in **History** and **Archive**, and you can open them. You cannot make a new **Indebtedness Report** or **Indebtedness Detail Report**. A schedule that was set up for one of them now runs **Dues, levies and collection status** for **Security Dues**.
+
+## Budget against actual
+
+**Budget against actual** is in the **Money in and out** group. It asks for a time period but not for bank accounts. For each expense category it shows the **Budget** for the period, the **Actual** spend, the **Difference** (budget minus actual; a minus sign means over budget), the **% used** and a **Status**. Set the budgets on **Expenditure → Budgets**.
+
+- **Budget** adds the monthly budgets of the months in the period. A month that the period covers only in part counts for its days in the period. For example, **This Year** ends today, so this month counts up to today.
+- **Actual** is the expenses marked **Paid** with an expense date in the period, in that category. Paid expenses with no category show as **No category**.
+- **Status** is **On track** below 85% used, **Near limit** from 85% to 100%, **Over budget** above 100%, and **No budget** for a category that has spend but no budget.
+
+The four figures at the top are **Total budget**, **Actual spend**, **Difference** and **% used**. The bar chart shows the % used of each category that has a budget. The last row of the table gives the totals. Anyone who can run financial reports can run this report, also without the expenditure permissions.
 
 Reports are snapshots. If a number looks wrong, trace it back to residents, invoices, payments, or expenditure instead of editing the report output.
