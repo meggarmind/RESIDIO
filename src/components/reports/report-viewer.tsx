@@ -37,6 +37,13 @@ import { formatDistanceToNow } from 'date-fns';
 
 type TemplateType = 'traditional' | 'modern';
 
+const AS_OF_REPORT_TYPES: string[] = ['invoice_aging', 'indebtedness_summary'];
+
+/** Reports that show the position on one day print "As of", not a period (#1420). */
+export function isAsOfReportType(reportType: string): boolean {
+  return AS_OF_REPORT_TYPES.includes(reportType);
+}
+
 interface ReportViewerProps {
   report: GeneratedReport;
   onBack?: () => void;
@@ -160,6 +167,7 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
   const dateRange = report.parameters.periodPreset === 'custom'
     ? { startDate: report.parameters.startDate || '', endDate: report.parameters.endDate || '' }
     : getDateRangeFromPreset(report.parameters.periodPreset);
+  const isAsOfReport = isAsOfReportType(report.parameters.reportType);
 
   // Robust label getter that handles the "undefined" issue
   const getDisplayTitle = useCallback(() => {
@@ -410,7 +418,7 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
               </h2>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Calendar className="h-3.5 w-3.5" />
-                {report.parameters.reportType !== 'invoice_aging' ? (
+                {!isAsOfReport ? (
                   <span>
                     {new Date(dateRange.startDate).toLocaleDateString('en-GB', { month: 'short', day: 'numeric', year: 'numeric' })}
                     {' — '}
@@ -527,7 +535,7 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
                 report={report.data}
                 title={getDisplayTitle()}
                 dateRange={
-                  report.parameters.reportType !== 'invoice_aging'
+                  !isAsOfReport
                     ? { start: dateRange.startDate, end: dateRange.endDate }
                     : undefined
                 }
@@ -539,7 +547,7 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
                 report={report.data}
                 title={getDisplayTitle()}
                 dateRange={
-                  report.parameters.reportType !== 'invoice_aging'
+                  !isAsOfReport
                     ? { start: dateRange.startDate, end: dateRange.endDate }
                     : undefined
                 }

@@ -7,6 +7,7 @@ export const WHATSAPP_ADMIN_ITEMS = [
   { permission: PERMISSIONS.WHATSAPP_ADMIN_COLLECTIONS, label: "Today's collections" },
   { permission: PERMISSIONS.WHATSAPP_ADMIN_CLEARANCE_QUEUE, label: 'Clearance requests' },
   { permission: PERMISSIONS.WHATSAPP_ADMIN_APPROVE_PAYMENT, label: 'Approve payment report' },
+  { permission: PERMISSIONS.WHATSAPP_ADMIN_UNVERIFIED_PAYMENTS, label: 'Unverified payments' },
 ] as const;
 
 export const WHATSAPP_ADMIN_ITEM_PERMISSIONS: string[] = WHATSAPP_ADMIN_ITEMS.map((item) => item.permission);

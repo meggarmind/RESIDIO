@@ -7,6 +7,7 @@
  *
  * Format: base64url(JSON {u, s, e}) "." base64url(HMAC-SHA256)
  *   u = user id, s = Supabase session id (JWT `session_id` claim), e = expiry (epoch s)
+ *   d = 1 only when a remembered computer skipped the second factor (#1390); absent otherwise
  *
  * Bound to the user AND the session, so it cannot be replayed onto another account
  * or survive a fresh sign-in. Uses Web Crypto only: this module runs in the Edge
@@ -29,6 +30,7 @@ interface MarkerPayload {
     u: string;
     s: string;
     e: number;
+    d?: 1;
 }
 
 function getSecret(): string {
@@ -88,22 +90,29 @@ export async function signTwoFactorMarker(args: {
     sessionId: string;
     nowSeconds?: number;
     ttlSeconds?: number;
+    /** A remembered computer skipped the second factor (#1390). */
+    viaTrustedDevice?: boolean;
 }): Promise<string> {
     const now = args.nowSeconds ?? Math.floor(Date.now() / 1000);
     const payload: MarkerPayload = {
         u: args.userId,
         s: args.sessionId,
         e: now + (args.ttlSeconds ?? TWO_FACTOR_MARKER_TTL_SECONDS),
+        ...(args.viaTrustedDevice ? { d: 1 as const } : {}),
     };
     const body = toBase64Url(encoder.encode(JSON.stringify(payload)));
     const sig = await crypto.subtle.sign('HMAC', await hmacKey('sign'), encoder.encode(body));
     return `${body}.${toBase64Url(new Uint8Array(sig))}`;
 }
 
-/** Fails closed: any malformed, tampered, expired, mismatched or unverifiable marker returns false. */
+/**
+ * Fails closed: any malformed, tampered, expired, mismatched or unverifiable marker returns false.
+ * `requireRealFactor` also refuses a marker issued by a remembered computer (#1390); without it, both
+ * kinds pass, as the middleware needs.
+ */
 export async function verifyTwoFactorMarker(
     marker: string | null | undefined,
-    expected: { userId: string; sessionId: string | null | undefined; nowSeconds?: number }
+    expected: { userId: string; sessionId: string | null | undefined; nowSeconds?: number; requireRealFactor?: boolean }
 ): Promise<boolean> {
     try {
         if (!marker || !expected.userId || !expected.sessionId) return false;
@@ -129,7 +138,8 @@ export async function verifyTwoFactorMarker(
             payload.u === expected.userId &&
             payload.s === expected.sessionId &&
             typeof payload.e === 'number' &&
-            payload.e > now
+            payload.e > now &&
+            !(expected.requireRealFactor && payload.d !== undefined)
         );
     } catch (error) {
         console.error('[2FA marker] verification failed closed:', error instanceof Error ? error.message : error);

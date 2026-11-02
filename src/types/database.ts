@@ -349,6 +349,7 @@ export type AuditEntityType =
   | 'two_factor_backup_codes'      // 2FA backup codes
   | 'two_factor_policies'          // 2FA enforcement policies
   | 'two_factor_audit_log'         // 2FA audit trail
+  | 'two_factor_trusted_devices'   // Remembered computers for 2FA (#1390)
   | 'whatsapp_optins'              // WhatsApp consent records
   | 'whatsapp_pending_contacts'    // Unrostered WhatsApp numbers
   | 'whatsapp_link_tokens'          // One-time WhatsApp linking tokens
@@ -455,6 +456,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   two_factor_backup_codes: '2FA Backup Code',           // Two-Factor Authentication
   two_factor_policies: '2FA Policy',                    // Two-Factor Authentication
   two_factor_audit_log: '2FA Audit Log',                // Two-Factor Authentication
+  two_factor_trusted_devices: '2FA Remembered Computer', // Two-Factor Authentication (#1390)
   whatsapp_optins: 'WhatsApp Opt-in',                    // WhatsApp Assistant
   whatsapp_pending_contacts: 'WhatsApp Pending Contact', // WhatsApp Assistant
   whatsapp_link_tokens: 'WhatsApp Link Token',           // WhatsApp Assistant
