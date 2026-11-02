@@ -17,6 +17,7 @@ import type { WhatsAppInboundMessage } from '@/lib/whatsapp/types';
 import { debtReportAction } from '@/lib/whatsapp/admin-debt-report';
 import { clearanceQueueAction, collectionsAction } from '@/lib/whatsapp/admin-collections';
 import { approvePaymentAction } from '@/lib/whatsapp/admin-approve-payment';
+import { unverifiedPaymentsAction } from '@/lib/whatsapp/admin-unverified-payments';
 
 /**
  * WhatsApp admin mode (#972): the security layer every admin action on WhatsApp goes through.
@@ -173,8 +174,15 @@ export interface WhatsAppAdminAction {
     text: string,
     state: Record<string, unknown>
   ): ChooseResult | Promise<ChooseResult>;
-  /** A string is the reply; the object form also adds `audit` to the request's audit entry (scope, outcome). */
-  run(context: WhatsAppAdminActionContext): Promise<string | { reply: string; audit: Record<string, unknown> }>;
+  /**
+   * A string is the reply; the object form also adds `audit` to the request's audit entry (scope, outcome).
+   * With `next`, the item stays open on that state and `prompt` follows the answer as its own message (#1424).
+   */
+  run(context: WhatsAppAdminActionContext): Promise<
+    string | { reply: string; audit: Record<string, unknown>; next?: { state: Record<string, unknown>; prompt: string } }
+  >;
+  /** What 0 shows instead of Admin tools while a question is open, such as the list again; null goes to Admin tools (#1424). */
+  back?(state: Record<string, unknown>): { reply: string; state: Record<string, unknown> } | null;
   /** Set when the item stays open after an answer for another entry: the line added under the answer. */
   again?: string;
 }
@@ -222,10 +230,11 @@ export const WHATSAPP_ADMIN_ACTIONS: Record<string, WhatsAppAdminAction> = {
   collections: collectionsAction,
   clearance: clearanceQueueAction,
   approve_payment: approvePaymentAction,
+  unverified_payments: unverifiedPaymentsAction,
 };
 
 /** Admin tools menu numbers (#1292). A number whose item the role may not use reads as unrecognised. */
-export const WHATSAPP_ADMIN_MENU: Record<string, string> = { '1': 'owes', '2': 'debt', '3': 'collections', '4': 'clearance', '5': 'approve_payment' };
+export const WHATSAPP_ADMIN_MENU: Record<string, string> = { '1': 'owes', '2': 'debt', '3': 'collections', '4': 'clearance', '5': 'approve_payment', '6': 'unverified_payments' };
 
 /** A request waiting for the admin's answer to an item's question is stored under this suffix (#982). */
 export const ADMIN_CHOICE_SUFFIX = ':choose';
@@ -887,6 +896,14 @@ async function adminTurn(message: WhatsAppInboundMessage, input: AdminInput, opt
       description: `Admin action "${actionName}" answered on WhatsApp`,
       metadata: { action: actionName, phone_number: masked, ...(typeof result === 'string' ? {} : result.audit) },
     }, admin.profileId);
+    if (typeof result !== 'string' && result.next) {
+      // The item stays open on the state the action gives, such as a list whose numbers must not change (#1424).
+      await createChoice(actionName, live, result.next.state);
+      await reply(answer);
+      await reply(result.next.prompt);
+      await setStep(ADMIN_ITEM_NODE);
+      return;
+    }
     if (action.again && action.begin) {
       // The item stays on screen for the next entry, such as a number from a pick-list.
       const next = await action.begin({ account: admin, binding: live, now });
@@ -1081,6 +1098,16 @@ async function adminTurn(message: WhatsAppInboundMessage, input: AdminInput, opt
   const live = binding!;
 
   if (node === ADMIN_ITEM_NODE) {
+    if (lower === '0') {
+      const asked = await repository.findPendingChoice(live.id, now);
+      const item = asked && Object.hasOwn(WHATSAPP_ADMIN_ACTIONS, asked.action) ? WHATSAPP_ADMIN_ACTIONS[asked.action] : null;
+      const back = asked && item?.back ? item.back(asked.state) : null;
+      if (back) {
+        await createChoice(asked!.action, live, back.state);
+        await reply(back.reply);
+        return true;
+      }
+    }
     if (lower === '0' || lower === 'cancel') {
       await showMenu(live);
       return true;
