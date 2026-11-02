@@ -121,6 +121,15 @@ describe('email imports list page', () => {
     expect(screen.getByRole('button', { name: 'Show all imports' })).toBeInTheDocument();
   });
 
+  it('sends the Queued card to Awaiting verification for a holder of email_imports.process', async () => {
+    mocks.permissions = [PERMISSIONS.EMAIL_IMPORTS_PROCESS];
+    renderPage();
+    await screen.findAllByRole('link');
+    fireEvent.click(screen.getByRole('button', { name: /Queued for Review/ }));
+    expect(mocks.push).toHaveBeenCalledWith('/payments/awaiting-verification');
+    expect(mocks.listEmailImports).not.toHaveBeenCalledWith(expect.objectContaining({ has: 'queued' }));
+  });
+
   it('uses month names and the server count in the footer', async () => {
     renderPage();
     expect(await screen.findByText('20 Oct 2026')).toBeInTheDocument();

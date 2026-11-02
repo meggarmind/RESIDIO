@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 function builder(result: unknown) {
   const calls: Array<[string, unknown[]]> = [];
   const b: Record<string, unknown> = {};
-  for (const m of ['select', 'eq', 'gt', 'order', 'range', 'limit']) {
+  for (const m of ['select', 'eq', 'gt', 'in', 'order', 'range', 'limit']) {
     b[m] = (...args: unknown[]) => {
       calls.push([m, args]);
       return b;
@@ -24,11 +24,21 @@ import { getEmailImportSummary, listEmailImports } from '@/actions/email-imports
 describe('listEmailImports', () => {
   beforeEach(() => mocks.from.mockReset());
 
-  it('filters has=queued on transactions_queued', async () => {
-    const { b, calls } = builder({ data: [], count: 0, error: null });
-    mocks.from.mockReturnValue(b);
+  it('filters has=queued on the live queued transactions, not transactions_queued', async () => {
+    const tx = builder({ data: [{ email_import_id: 'a' }, { email_import_id: 'a' }, { email_import_id: 'b' }], error: null });
+    const imports = builder({ data: [], count: 0, error: null });
+    mocks.from.mockImplementation((table: string) => (table === 'email_transactions' ? tx.b : imports.b));
     await listEmailImports({ has: 'queued' });
-    expect(calls).toContainEqual(['gt', ['transactions_queued', 0]]);
+    expect(tx.calls).toContainEqual(['eq', ['status', 'queued_for_review']]);
+    expect(imports.calls).toContainEqual(['in', ['id', ['a', 'b']]]);
+    expect(imports.calls.some(([m, args]) => m === 'gt' && args[0] === 'transactions_queued')).toBe(false);
+  });
+
+  it('returns an empty list when no transaction is queued', async () => {
+    const tx = builder({ data: [], error: null });
+    mocks.from.mockImplementation(() => tx.b);
+    const res = await listEmailImports({ has: 'queued' });
+    expect(res).toEqual({ data: [], count: 0, error: null });
   });
 
   it('filters has=auto_processed on transactions_auto_processed', async () => {
@@ -57,21 +67,20 @@ describe('listEmailImports', () => {
 describe('getEmailImportSummary', () => {
   beforeEach(() => mocks.from.mockReset());
 
-  it('counts and sums over every row, paging past 1000', async () => {
-    const full = Array.from({ length: 1000 }, () => ({
-      transactions_queued: 1,
-      transactions_auto_processed: 2,
-    }));
-    const tail = [{ transactions_queued: 5, transactions_auto_processed: null }];
+  it('counts imports, takes queued from live transactions and sums auto-processed over every row, paging past 1000', async () => {
+    const full = Array.from({ length: 1000 }, () => ({ transactions_auto_processed: 2 }));
+    const tail = [{ transactions_auto_processed: null }];
     const rangeCalls: unknown[][] = [];
+    const txCalls: Array<[string, unknown[]]> = [];
     let pageIdx = 0;
 
-    mocks.from.mockImplementation(() => {
+    mocks.from.mockImplementation((table: string) => {
       let completedOnly = false;
       const b: Record<string, unknown> = {};
       b.select = () => b;
-      b.eq = () => {
-        completedOnly = true;
+      b.eq = (...args: unknown[]) => {
+        if (table === 'email_transactions') txCalls.push(['eq', args]);
+        else completedOnly = true;
         return b;
       };
       b.order = () => b;
@@ -80,18 +89,17 @@ describe('getEmailImportSummary', () => {
         return Promise.resolve({ data: pageIdx++ === 0 ? full : tail, error: null });
       };
       b.then = (resolve: (v: unknown) => unknown) =>
-        Promise.resolve({ count: completedOnly ? 1500 : 1700, error: null }).then(resolve);
+        Promise.resolve({
+          count: table === 'email_transactions' ? 7 : completedOnly ? 1500 : 1700,
+          error: null,
+        }).then(resolve);
       return b;
     });
 
     const res = await getEmailImportSummary();
     expect(res.error).toBeNull();
-    expect(res.data).toEqual({
-      total: 1700,
-      completed: 1500,
-      queued: 1000 + 5,
-      autoProcessed: 2000,
-    });
+    expect(res.data).toEqual({ total: 1700, completed: 1500, queued: 7, autoProcessed: 2000 });
+    expect(txCalls).toEqual([['eq', ['status', 'queued_for_review']]]);
     expect(rangeCalls).toEqual([
       [0, 999],
       [1000, 1999],

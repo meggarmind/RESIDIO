@@ -86,6 +86,8 @@ export default function EmailImportsPage() {
   // email_imports.trigger; the Configure link leads to email_imports.configure.
   const canTrigger = useCan(PERMISSIONS.EMAIL_IMPORTS_TRIGGER);
   const canConfigure = useCan(PERMISSIONS.EMAIL_IMPORTS_CONFIGURE);
+  // The queued transactions are worked on Awaiting verification, which needs email_imports.process (#1432).
+  const canProcess = useCan(PERMISSIONS.EMAIL_IMPORTS_PROCESS);
 
   const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: ['email-imports', 'summary'],
@@ -224,7 +226,9 @@ export default function EmailImportsPage() {
           isLoading={summaryLoading}
           animate={false}
           selected={card === 'queued'}
-          onClick={() => selectCard('queued')}
+          onClick={() =>
+            canProcess ? router.push('/payments/awaiting-verification') : selectCard('queued')
+          }
         />
         <EnhancedStatCard
           title="Auto-Processed"
