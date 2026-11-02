@@ -3,7 +3,7 @@ import { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizeAnyPermission } from '@/lib/auth/authorize';
-import { REPORT_VIEW_PERMISSIONS, reportsForPermissions } from '@/lib/validators/reports';
+import { REPORT_VIEW_PERMISSIONS, runnableReportsForPermissions } from '@/lib/validators/reports';
 import { ReportsPageClient } from '@/components/reports/reports-page-client';
 
 export const metadata: Metadata = {
@@ -21,12 +21,12 @@ export default async function ReportsPage() {
         redirect('/login');
     }
 
-    // Open to a user who may run at least one listed report; the picker shows only those (#1397).
+    // Open to a user who may run at least one listed report; the picker shows only those, never a retired one (#1397, #1399).
     const auth = await authorizeAnyPermission(REPORT_VIEW_PERMISSIONS);
     if (!auth.authorized) {
         redirect('/dashboard');
     }
-    const allowedReportTypes = reportsForPermissions(auth.permissions);
+    const allowedReportTypes = runnableReportsForPermissions(auth.permissions);
 
     // The client reads ?tab= with useSearchParams, which needs a Suspense boundary for the build.
     return (

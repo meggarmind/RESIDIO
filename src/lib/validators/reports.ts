@@ -7,17 +7,20 @@ export type ReportGroup = 'Money in and out' | 'Debts' | 'Levies' | 'Occupancy' 
 
 // Report Types: the single list of reports. The request and schedule schemas, the page guard,
 // the picker, the engine and the menu all derive from it (#1397). `permission` is what a user
-// needs to run, list or schedule that report.
+// needs to run, list or schedule that report. `retired` marks a report that is no longer offered:
+// it stays in the list so History and Archive still show and open old rows, but it is not picked,
+// scheduled or generated again (#1399).
 export const reportTypes = [
     { value: 'financial_overview', label: 'Financial Overview', description: 'Summary of income, expenses, and net balance', group: 'Money in and out', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
     { value: 'collection_report', label: 'Collection Report', description: 'Payment collection summary by resident', group: 'Money in and out', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
-    { value: 'invoice_aging', label: 'Invoice Aging Report', description: 'Outstanding invoices by age brackets', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
+    { value: 'invoice_aging', label: 'Invoice Aging Report', description: 'Outstanding invoices by age brackets', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL, retired: true },
     { value: 'transaction_log', label: 'Transaction Log', description: 'Detailed list of all transactions', group: 'Money in and out', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
-    { value: 'debtors_report', label: 'Debtors Report', description: 'Detailed debtors list with aging buckets and contact info', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
+    { value: 'debtors_report', label: 'Debtors Report', description: 'Detailed debtors list with aging buckets and contact info', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL, retired: true },
+    { value: 'debtors_aging', label: 'Debtors and aging', description: 'Who owes what, and for how long: every debtor with contact details and the amount in each age bucket', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
     { value: 'indebtedness_summary', label: 'Indebtedness Report', description: 'Simple indebted/non-indebted status per house with optional amounts', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
     { value: 'indebtedness_detail', label: 'Indebtedness Detail Report', description: 'Detailed breakdown of indebtedness per property', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
     { value: 'development_levy', label: 'Development Levy Report', description: 'Development levy status per property', group: 'Levies', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
-] as const satisfies readonly { value: string; label: string; description: string; group: ReportGroup; permission: Permission }[];
+] as const satisfies readonly { value: string; label: string; description: string; group: ReportGroup; permission: Permission; retired?: true }[];
 
 export type ReportType = typeof reportTypes[number]['value'];
 export const REPORT_TYPE_LABELS = Object.fromEntries(
@@ -32,12 +35,27 @@ export const REPORT_TYPE_LABELS = Object.fromEntries(
 export const GENERATABLE_REPORT_TYPES: readonly ReportType[] = [
     'financial_overview',
     'collection_report',
-    'invoice_aging',
     'transaction_log',
-    'debtors_report',
+    'debtors_aging',
     'indebtedness_summary',
     'development_levy',
 ];
+
+/** True when `type` is a retired report: still listed for old rows, never run again (#1399). */
+export function isRetiredReport(type: string): boolean {
+    return reportTypes.some((rt) => rt.value === type && 'retired' in rt && rt.retired === true);
+}
+
+/** The report that took over from each retired one. A schedule saved for a retired report runs as this. */
+export const RETIRED_REPORT_REPLACEMENTS: Partial<Record<ReportType, ReportType>> = {
+    debtors_report: 'debtors_aging',
+    invoice_aging: 'debtors_aging',
+};
+
+/** `type`, or the report that replaced it when `type` is retired. */
+export function resolveRetiredReport<T extends ReportType>(type: T): ReportType {
+    return RETIRED_REPORT_REPLACEMENTS[type] ?? type;
+}
 
 /** True when the generator has a case for `type`. */
 export function hasGenerator(type: string): boolean {
@@ -58,6 +76,13 @@ export function getReportPermission(type: string): Permission | null {
 /** The reports a user holding `permissions` may run, list and see in history. */
 export function reportsForPermissions(permissions: readonly string[]): ReportType[] {
     return reportTypes.filter((rt) => permissions.includes(rt.permission)).map((rt) => rt.value);
+}
+
+/** The reports a user holding `permissions` may start or schedule: `reportsForPermissions` without the retired ones. */
+export function runnableReportsForPermissions(permissions: readonly string[]): ReportType[] {
+    return reportTypes
+        .filter((rt) => permissions.includes(rt.permission) && !isRetiredReport(rt.value))
+        .map((rt) => rt.value);
 }
 
 // Period Presets
