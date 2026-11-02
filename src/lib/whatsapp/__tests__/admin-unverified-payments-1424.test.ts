@@ -28,7 +28,6 @@ import {
 import {
   aliasName,
   composeList,
-  payerName,
   parseStatementLine,
   HOUSE_PROMPT,
   NOT_ESTATE_MONEY_REASON,
@@ -89,7 +88,17 @@ let store: {
   limit: number | null;
   findHouse: string[];
   failRecord?: string;
+  /** Throws from these repository writes; `afterWrite` means the row was written before the throw. */
+  throws: Partial<Record<'recordPayment' | 'verifyPayment' | 'finishAlert' | 'saveAlias' | 'paymentForAlert', 'beforeWrite' | 'afterWrite'>>;
+  /** claimAlert loses a race: another admin claimed the alert first. */
+  claimLost?: boolean;
+  /** verifyPayment finds the payment verified meanwhile and changes nothing. */
+  verifyRefused?: boolean;
 };
+
+function maybeThrow(name: keyof typeof store.throws, when: 'beforeWrite' | 'afterWrite') {
+  if (store.throws[name] === when) throw new Error(`${name} failed`);
+}
 
 let seq = 0;
 const alert = (date: string, amount: number, description: string): StoredAlert => ({
@@ -132,7 +141,7 @@ function fakeRepository(): UnverifiedPaymentsRepository {
     autoProcessLimit: async () => store.limit,
     claimAlert: async (id) => {
       const a = waitingAlert(id);
-      if (!a) return false;
+      if (!a || store.claimLost) return false;
       a.status = 'processed';
       return true;
     },
@@ -141,15 +150,24 @@ function fakeRepository(): UnverifiedPaymentsRepository {
       a.status = 'queued_for_review';
     },
     finishAlert: async (id, { paymentId, residentId }) => {
+      maybeThrow('finishAlert', 'beforeWrite');
       const a = store.alerts.find((x) => x.id === id)!;
       Object.assign(a, { paymentId, residentId });
     },
     recordPayment: async (a, house, profileId) => {
+      maybeThrow('recordPayment', 'beforeWrite');
       if (store.failRecord) return { error: store.failRecord };
       store.recorded.push({ alertId: a.id, ...house, profileId });
+      maybeThrow('recordPayment', 'afterWrite');
       return { paymentId: `new-payment-${store.recorded.length}` };
     },
+    paymentForAlert: async (alertId) => {
+      maybeThrow('paymentForAlert', 'beforeWrite');
+      const index = store.recorded.findIndex((p) => p.alertId === alertId);
+      return index < 0 ? null : `new-payment-${index + 1}`;
+    },
     saveAlias: async (residentId, name) => {
+      maybeThrow('saveAlias', 'beforeWrite');
       if (store.aliases.some((a) => a.residentId === residentId && a.name === name)) return false;
       store.aliases.push({ residentId, name });
       return true;
@@ -161,9 +179,11 @@ function fakeRepository(): UnverifiedPaymentsRepository {
       return true;
     },
     verifyPayment: async (id, { profileId, notes, emailTransactionId }) => {
+      maybeThrow('verifyPayment', 'beforeWrite');
       const p = openPayment(id);
-      if (!p) return false;
+      if (!p || store.verifyRefused) return false;
       Object.assign(p, { verified: true, verifiedBy: profileId, notes, emailTransactionId });
+      maybeThrow('verifyPayment', 'afterWrite');
       return true;
     },
     audit: async (entry, profileId) => {
@@ -182,16 +202,17 @@ beforeEach(() => {
       payment('2026-10-29', 60000, 'OJO.K-16A', 'COVENANT ITAUMA'),
       payment('2026-10-29', 30000, 'KOA-10F-5', 'BONIFACE OBIJIAKU'),
     ],
+    // Bank texts as they are on Stage (the first, second and last four), and in the same shape.
     alerts: [
-      alert('2026-10-31', 60000, 'NIP/TOYIN RUTH OLAYINKA'),
-      alert('2026-10-31', 1000, 'NIP/RAPHAEL WU'),
-      alert('2026-11-02', 65000, 'NIP/HENRY ITOKI'),
-      alert('2026-11-02', 60000, 'NIP/PROMISE DAN'),
-      alert('2026-11-02', 65000, 'NIP/GANIYAT IBE'),
-      alert('2026-11-02', 10000, 'NIP/OLUBANKE'),
-      alert('2026-11-02', 130000, 'NIP/ATSEYINKU ATITAN THEODORE'),
-      alert('2026-11-02', 39000, 'NIP/MARTINS ABIMBOLA'),
-      alert('2026-11-02', 100000, 'NIP/LILIAN OKO'),
+      alert('2026-10-31', 60000, 'PA:UP044011261031112606000088/TOYIN RUTH OLAYINKA/'),
+      alert('2026-10-31', 1000, 'CPWInward:100004261031110917175953609212/RAPHAEL W'),
+      alert('2026-11-02', 65000, 'FIP:ZIB/HENRY/ Henry Itoki'),
+      alert('2026-11-02', 60000, 'FIP:ZIB/PROMISE D/'),
+      alert('2026-11-02', 65000, 'FIP:ZIB/GANIYAT I/'),
+      alert('2026-11-02', 10000, 'FIP:ZIB/OLUBANKE/'),
+      alert('2026-11-02', 130000, 'FIP:GTB/ATSEYINKU  ATITAN THEODORE/Atseyinku Theod'),
+      alert('2026-11-02', 39000, 'FIP:WEM/MARTINS ABIMBOLA A/ALAT NIP TRANSFER FROM'),
+      alert('2026-11-02', 100000, 'FIP:ZIB/LILIAN/ Estate dues November to August'),
     ],
     houses: [
       { houseId: 'house-ibb', code: 'IBB-3AF-4', residentId: 'resident-ibb', resident: 'CHIBUEZE NICHOLAS JAMES' },
@@ -203,6 +224,7 @@ beforeEach(() => {
     live: FULL,
     limit: 500000,
     findHouse: [],
+    throws: {},
   };
   mocks.repo = fakeRepository();
 });
@@ -243,9 +265,9 @@ function repository(permissions: string[]): WhatsAppAdminRepository & { choice: 
 
 const message = (text: string): WhatsAppInboundMessage => ({ id: `wamid-${text}`, from: PHONE.slice(1), timestamp: '1', type: 'text', text });
 
-function conversation(permissions: string[] = FULL) {
+function conversation(permissions: string[] = FULL, startNode: string = ADMIN_MENU_NODE) {
   const repo = repository(permissions);
-  let node = ADMIN_MENU_NODE;
+  let node = startNode;
   return {
     repo,
     get node() {
@@ -274,9 +296,9 @@ const PAGE_1 = `1. 🧾 ₦120,000, 23 Oct, OJO.K-16C SUSAN ONOME BADIRU
 4. 🧾 ₦60,000, 29 Oct, OJO.K-16A COVENANT ITAUMA
 5. 🧾 ₦30,000, 29 Oct, KOA-10F-5 BONIFACE OBIJIAKU
 6. 🏦 ₦60,000, 31 Oct, TOYIN RUTH OLAYINKA
-7. 🏦 ₦1,000, 31 Oct, RAPHAEL WU
+7. 🏦 ₦1,000, 31 Oct, RAPHAEL W
 8. 🏦 ₦65,000, 2 Nov, HENRY ITOKI
-9. 🏦 ₦60,000, 2 Nov, PROMISE DAN`;
+9. 🏦 ₦60,000, 2 Nov, PROMISE D`;
 
 describe('Unverified payments in Admin tools (#1424)', () => {
   it('shows item 6 only with its permission and payments.verify, payments.create and email_imports.process', () => {
@@ -307,7 +329,7 @@ describe('Unverified payments in Admin tools (#1424)', () => {
     await chat.send('6');
     const [page2] = await chat.send('M');
     expect(page2).toBe(
-      `10. 🏦 ₦65,000, 2 Nov, GANIYAT IBE\n11. 🏦 ₦10,000, 2 Nov, OLUBANKE\n12. 🏦 ₦130,000, 2 Nov, ATSEYINKU ATITAN THEODORE\n13. 🏦 ₦39,000, 2 Nov, MARTINS ABIMBOLA\n14. 🏦 ₦100,000, 2 Nov, LILIAN OKO\n\nReply a number to see one. 0 for Admin tools.`
+      `10. 🏦 ₦65,000, 2 Nov, GANIYAT I\n11. 🏦 ₦10,000, 2 Nov, OLUBANKE\n12. 🏦 ₦130,000, 2 Nov, ATSEYINKU ATITAN THEODORE\n13. 🏦 ₦39,000, 2 Nov, MARTINS ABIMBOLA A\n14. 🏦 ₦100,000, 2 Nov, LILIAN\n\nReply a number to see one. 0 for Admin tools.`
     );
     expect(await chat.send('m')).toEqual(['There are no more items. Reply a number, or 0 for Admin tools.']);
     // A number from page 1 still works on page 2: the numbers do not change.
@@ -327,7 +349,7 @@ describe('Unverified payments in Admin tools (#1424)', () => {
     const chat = conversation();
     await chat.send('6');
     expect(await chat.send('8')).toEqual([
-      '🏦 Bank alert 8: no resident yet\nAmount: ₦65,000\nDate: 2 Nov 2026\nBank text: NIP/HENRY ITOKI\nKnown payer name: no match\nPayments with the same amount: none\n\nReply 1 Give to a house, 2 Not estate money, 0 Back.',
+      '🏦 Bank alert 8: no resident yet\nAmount: ₦65,000\nDate: 2 Nov 2026\nBank text: FIP:ZIB/HENRY/ Henry Itoki\nKnown payer name: no match\nPayments with the same amount: none\n\nReply 1 Give to a house, 2 Not estate money, 0 Back.',
     ]);
     expect(await chat.send('1')).toEqual([HOUSE_PROMPT]);
     expect(await chat.send('Ibb-3Af-4')).toEqual([
@@ -398,10 +420,10 @@ describe('Unverified payments in Admin tools (#1424)', () => {
     const chat = conversation();
     for (const text of ['6', '7']) await chat.send(text);
     expect(await chat.send('2')).toEqual([
-      'Mark the ₦1,000 alert from RAPHAEL WU as not estate money? It leaves this list and the review queue. The dashboard keeps a record.\n\nReply 1 Yes, 0 Back.',
+      'Mark the ₦1,000 alert from RAPHAEL W as not estate money? It leaves this list and the review queue. The dashboard keeps a record.\n\nReply 1 Yes, 0 Back.',
     ]);
     expect(await chat.send('1')).toEqual([
-      'Done. The ₦1,000 alert from RAPHAEL WU is marked not estate money.',
+      'Done. The ₦1,000 alert from RAPHAEL W is marked not estate money.',
       '13 items left. Reply a number, or 0 for Admin tools.',
     ]);
     expect(store.alerts[1]).toEqual(expect.objectContaining({ status: 'skipped', skipReason: NOT_ESTATE_MONEY_REASON }));
@@ -523,6 +545,134 @@ describe('Unverified payments in Admin tools (#1424)', () => {
   });
 });
 
+describe('Unverified payments when a write fails (#1424)', () => {
+  const LEFT_14 = '14 items left. Reply a number, or 0 for Admin tools.';
+  const HENRY = () => store.alerts[2];
+
+  async function giveHenry(chat = conversation()) {
+    for (const text of ['6', '8', '1', 'IBB-3AF-4']) await chat.send(text);
+    return chat.send('1');
+  }
+
+  /** Payment 1 (₦120,000) and a waiting ₦120,000 alert, number 15; the reply to picking it. */
+  async function linkSusan(chat = conversation(), before?: () => void) {
+    store.alerts.push(alert('2026-11-02', 120000, 'FIP:ZIB/SUSAN BADIRU/'));
+    for (const text of ['6', '1', '2']) await chat.send(text);
+    before?.();
+    return chat.send('15');
+  }
+  const susanAlert = () => store.alerts[9];
+
+  it('records nothing when another admin claimed the alert first', async () => {
+    store.claimLost = true;
+    expect(await giveHenry()).toEqual(['Item 8 is already settled.', LEFT_14]);
+    expect(store.recorded).toEqual([]);
+  });
+
+  it('puts the alert back when recording throws before a payment is written', async () => {
+    store.throws.recordPayment = 'beforeWrite';
+    expect(await giveHenry()).toEqual(['Not done: recordPayment failed. The alert is back in the list.', LEFT_14]);
+    expect(HENRY().status).toBe('queued_for_review');
+    expect(store.audits).toEqual([]);
+  });
+
+  it('keeps the alert and finishes it when recording throws after the payment is written', async () => {
+    store.throws.recordPayment = 'afterWrite';
+    const [done] = await giveHenry();
+    expect(done).toMatch(/^Done\. ₦65,000 is recorded for IBB-3AF-4/);
+    expect(HENRY()).toEqual(expect.objectContaining({ status: 'processed', paymentId: 'new-payment-1' }));
+    expect(store.audits.map((a) => a.entry.action)).toEqual(['APPROVE']);
+  });
+
+  it('leaves the alert claimed when it cannot tell whether a payment was written', async () => {
+    store.throws.recordPayment = 'beforeWrite';
+    store.throws.paymentForAlert = 'beforeWrite';
+    const [reply] = await giveHenry();
+    expect(reply).toBe('Not done: recordPayment failed. Check the review queue on the dashboard before you try again.');
+    expect(HENRY().status).toBe('processed');
+  });
+
+  it('reports the payment as recorded, and audits it, when marking the alert fails', async () => {
+    store.throws.finishAlert = 'beforeWrite';
+    const [done] = await giveHenry();
+    expect(done).toContain('Done. ₦65,000 is recorded for IBB-3AF-4, CHIBUEZE NICHOLAS JAMES.');
+    expect(done).toContain('The alert could not be marked with the payment. Check the review queue on the dashboard.');
+    expect(store.recorded).toHaveLength(1);
+    expect(store.audits[0].entry).toEqual(expect.objectContaining({ action: 'APPROVE', newValues: expect.objectContaining({ payment_id: 'new-payment-1' }) }));
+  });
+
+  it('reports the payment as recorded, and audits it, when saving the payer name fails', async () => {
+    store.throws.saveAlias = 'beforeWrite';
+    const [done] = await giveHenry();
+    expect(done).toMatch(/^Done\./);
+    expect(done).toContain('The payer name HENRY ITOKI could not be saved.');
+    expect(done).not.toContain('is saved as a payer name');
+    expect(store.audits[0].entry.newValues).toEqual(expect.objectContaining({ saved_alias: false }));
+  });
+
+  it('puts the alert back when the payment was verified meanwhile', async () => {
+    store.verifyRefused = true;
+    expect(await linkSusan()).toEqual(['Item 1 is already settled.', '15 items left. Reply a number, or 0 for Admin tools.']);
+    expect(susanAlert().status).toBe('queued_for_review');
+  });
+
+  it('puts the alert back when verifying throws and the payment is still unverified', async () => {
+    store.throws.verifyPayment = 'beforeWrite';
+    const [reply] = await linkSusan();
+    expect(reply).toBe('Not done: verifyPayment failed. The alert is back in the list.');
+    expect(susanAlert().status).toBe('queued_for_review');
+    expect(store.payments[0].verified).toBe(false);
+  });
+
+  it('finishes the link when verifying throws after the payment is verified', async () => {
+    store.throws.verifyPayment = 'afterWrite';
+    const [done] = await linkSusan();
+    expect(done).toMatch(/^Done\. ₦120,000 for OJO\.K-16C/);
+    expect(susanAlert()).toEqual(expect.objectContaining({ status: 'processed', paymentId: 'payment-1' }));
+  });
+
+  it('refuses a link when the amounts differ at the write', async () => {
+    const [reply] = await linkSusan(conversation(), () => {
+      susanAlert().amount = 125000;
+    });
+    expect(reply).toBe('Not done: the bank alert and the payment have different amounts.');
+    expect(store.payments[0].verified).toBe(false);
+    expect(susanAlert().status).toBe('queued_for_review');
+  });
+
+  it('refuses a link to an alert over the limit when the live account lacks imports.approve', async () => {
+    store.limit = 50000;
+    store.live = FULL.filter((p) => p !== 'imports.approve');
+    const [reply] = await linkSusan();
+    expect(reply).toBe('Not done: A bank alert over ₦50,000 needs the imports.approve permission to record.');
+    expect(store.payments[0].verified).toBe(false);
+    expect(susanAlert().status).toBe('queued_for_review');
+  });
+
+  it('links an alert over the limit for a live super admin', async () => {
+    store.limit = 50000;
+    store.live = FULL.filter((p) => p !== 'imports.approve');
+    const chat = conversation(FULL);
+    chat.repo.loadAccount = vi.fn().mockResolvedValue({ ...account, roleName: 'super_admin' });
+    expect((await linkSusan(chat))[0]).toMatch(/^Done\./);
+  });
+});
+
+describe('0 in the other Admin tools items (#1424)', () => {
+  it.each([
+    ['approve_payment', { reports: [{ number: 1, id: 'req-1' }] }],
+    ['approve_payment', { requestId: 'req-1' }],
+    ['owes', {}],
+    ['debt', { streets: [] }],
+  ])('still goes back to Admin tools from %s', async (action, state) => {
+    const chat = conversation(FULL, ADMIN_ITEM_NODE);
+    chat.repo.choice = { action, state };
+    const [menu] = await chat.send('0');
+    expect(menu).toContain('🛠️ Admin tools');
+    expect(chat.node).toBe(ADMIN_MENU_NODE);
+  });
+});
+
 describe('composeList (#1424)', () => {
   it('merges oldest first and shows the year for a day in another year', () => {
     seq = 0;
@@ -559,14 +709,13 @@ describe('parseStatementLine (#1424)', () => {
 
 describe('payer names from Stage bank alert texts (#1424)', () => {
   it.each([
-    ['PA:UP044011261031112606000088/TOYIN RUTH OLAYINKA/', 'TOYIN RUTH OLAYINKA', 'TOYIN RUTH OLAYINKA'],
-    ['CPWInward:100004261031110917175953609212/RAPHAEL W', 'RAPHAEL W', 'RAPHAEL W'],
-    ['FIP:ZIB/HENRY/ Henry Itoki', 'HENRY / HENRY ITOKI', 'HENRY ITOKI'],
-    ['FIP:GTB/ATSEYINKU  ATITAN THEODORE/Atseyinku Theod', 'ATSEYINKU ATITAN THEODORE / ATSEYINKU THEOD', 'ATSEYINKU ATITAN THEODORE'],
-    ['FIP:WEM/MARTINS ABIMBOLA A/ALAT NIP TRANSFER FROM', 'MARTINS ABIMBOLA A / ALAT NIP TRANSFER FROM', 'MARTINS ABIMBOLA A'],
-    ['FIP:ZIB/LILIAN/ Estate dues November to August', 'LILIAN / ESTATE DUES NOVEMBER TO AUGUST', 'LILIAN'],
-  ])('%s', (description, shown, alias) => {
-    expect(payerName(description)).toBe(shown);
+    ['PA:UP044011261031112606000088/TOYIN RUTH OLAYINKA/', 'TOYIN RUTH OLAYINKA'],
+    ['CPWInward:100004261031110917175953609212/RAPHAEL W', 'RAPHAEL W'],
+    ['FIP:ZIB/HENRY/ Henry Itoki', 'HENRY ITOKI'],
+    ['FIP:GTB/ATSEYINKU  ATITAN THEODORE/Atseyinku Theod', 'ATSEYINKU ATITAN THEODORE'],
+    ['FIP:WEM/MARTINS ABIMBOLA A/ALAT NIP TRANSFER FROM', 'MARTINS ABIMBOLA A'],
+    ['FIP:ZIB/LILIAN/ Estate dues November to August', 'LILIAN'],
+  ])('%s', (description, alias) => {
     expect(aliasName(description)).toBe(alias);
   });
 });

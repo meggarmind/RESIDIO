@@ -77,6 +77,8 @@ export interface UnverifiedPaymentsRepository {
     house: { houseId: string; residentId: string },
     profileId: string
   ): Promise<{ paymentId: string } | { error: string }>;
+  /** The payment recorded from this alert, if any: after a failed write, whether a payment row was written. */
+  paymentForAlert(alertId: string): Promise<string | null>;
   /** True when the payer name was saved now, false when the resident already has it. */
   saveAlias(residentId: string, name: string, profileId: string): Promise<boolean>;
   skipAlert(id: string, reason: string, profileId: string): Promise<boolean>;
@@ -271,6 +273,12 @@ export function createUnverifiedPaymentsRepository(): UnverifiedPaymentsReposito
       );
       if (!result.success || !result.data) return { error: result.error || 'Failed to create payment' };
       return { paymentId: result.data.id };
+    },
+
+    async paymentForAlert(alertId) {
+      const { data, error } = await db().from('payment_records').select('id').eq('email_transaction_id', alertId).limit(1).maybeSingle();
+      if (error) throw error;
+      return (data?.id as string | undefined) ?? null;
     },
 
     async saveAlias(residentId, name, profileId) {

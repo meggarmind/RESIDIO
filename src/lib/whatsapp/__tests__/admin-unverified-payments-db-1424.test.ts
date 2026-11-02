@@ -100,6 +100,23 @@ describe('Unverified payments database (#1424)', () => {
     expect(String(calls('payment_records', 'select')[0][0])).toContain('residents!payment_records_resident_id_fkey');
   });
 
+  it('gives no payment for a resident report waiting in Approvals, and the payment otherwise', async () => {
+    const row = { id: 'p-2', amount: 5000, payment_date: '2026-10-01', resident_id: 'r', house: null, resident: null };
+    mocks.results.payment_records = { data: { ...row, status: 'pending', approval_request_id: 'req-1' }, error: null };
+    expect(await repo.getPayment('p-2')).toBeNull();
+    mocks.results.payment_records = { data: { ...row, status: 'pending', approval_request_id: null }, error: null };
+    expect(await repo.getPayment('p-2')).toEqual(expect.objectContaining({ id: 'p-2' }));
+    expect(calls('payment_records', 'eq').slice(0, 2)).toEqual([['id', 'p-2'], ['is_verified', false]]);
+  });
+
+  it('finds the payment recorded from an alert by its email transaction', async () => {
+    mocks.results.payment_records = { data: { id: 'pay-9' }, error: null };
+    expect(await repo.paymentForAlert('alert-1')).toBe('pay-9');
+    expect(calls('payment_records', 'eq')).toEqual([['email_transaction_id', 'alert-1']]);
+    mocks.results.payment_records = { data: null, error: null };
+    expect(await repo.paymentForAlert('alert-1')).toBeNull();
+  });
+
   it('verifies a payment only while it is unverified and not a resident report', async () => {
     mocks.results.payment_records = { data: [], error: null };
     expect(await repo.verifyPayment('p-1', { profileId: 'chair-1', notes: 'n', emailTransactionId: 'alert-1' })).toBe(false);

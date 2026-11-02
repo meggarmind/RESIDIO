@@ -64,13 +64,6 @@ function payerParts(description: string | null): string[] {
     .filter((part) => part.length >= 2 && !/\d/.test(part) && !/^[A-Z]{1,3}$/.test(part));
 }
 
-/** The payer as the bank alert names them, in capitals: at most two name parts. */
-export function payerName(description: string | null): string {
-  const parts = payerParts(description);
-  if (parts.length === 0) return (description || 'Unknown payer').toUpperCase();
-  return parts.slice(0, 2).join(' / ');
-}
-
 /**
  * The payer name to look up and save as an alias: the first name part, or the next part when it is the
  * same name written longer (`HENRY` then `HENRY ITOKI`). Falls back to the dashboard's extractSenderName.
@@ -79,6 +72,11 @@ export function aliasName(description: string | null): string | null {
   const [first, next] = payerParts(description);
   if (first) return next && next.length > first.length && next.startsWith(`${first.split(' ')[0]} `) ? next : first;
   return description ? extractSenderName(description) : null;
+}
+
+/** The payer as the list and the messages name them, in capitals (the approved mockup): the alias name. */
+function payerLabel(description: string | null): string {
+  return (aliasName(description) || description || 'Unknown payer').toUpperCase();
 }
 
 const items = (count: number) => `${count} item${count === 1 ? '' : 's'}`;
@@ -150,7 +148,7 @@ const numbers = (entries: ListEntry[]) => (entries.length ? entries.map((e) => e
 export function composeList(alerts: UnverifiedAlert[], payments: UnverifiedPayment[], now: Date): { reply: string; entries: ListEntry[] } {
   const merged = [
     ...payments.map((p) => ({ kind: 'payment' as const, id: p.id, amount: p.amount, date: p.date, createdAt: p.createdAt, who: `${p.houseCode} ${p.resident}` })),
-    ...alerts.map((a) => ({ kind: 'alert' as const, id: a.id, amount: a.amount, date: a.date, createdAt: a.createdAt, who: payerName(a.description) })),
+    ...alerts.map((a) => ({ kind: 'alert' as const, id: a.id, amount: a.amount, date: a.date, createdAt: a.createdAt, who: payerLabel(a.description) })),
   ].sort((a, b) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt));
   const entries = merged.map((item, index) => ({
     number: index + 1,
@@ -253,7 +251,7 @@ async function chooseStep(text: string, list: ListState, step: Step): Promise<Ch
         const alert = await repo().getAlert(entry.id);
         if (!alert) return { retry: staleReply(step.number) };
         return ask(
-          `Mark the ${naira(alert.amount)} alert from ${payerName(alert.description)} as not estate money? It leaves this list and the review queue. The dashboard keeps a record.\n\n${YES_PROMPT}`,
+          `Mark the ${naira(alert.amount)} alert from ${payerLabel(alert.description)} as not estate money? It leaves this list and the review queue. The dashboard keeps a record.\n\n${YES_PROMPT}`,
           list,
           { name: 'not_estate', number: step.number }
         );
@@ -276,7 +274,7 @@ async function chooseStep(text: string, list: ListState, step: Step): Promise<Ch
       const alert = await repo().getAlert(entry.id);
       if (!alert) return { retry: staleReply(step.number) };
       return ask(
-        `${house.code}: ${house.resident}.\nRecord ${naira(alert.amount)} for this resident from the ${payerName(alert.description)} alert?\n\n${HOUSE_CONFIRM_PROMPT}`,
+        `${house.code}: ${house.resident}.\nRecord ${naira(alert.amount)} for this resident from the ${payerLabel(alert.description)} alert?\n\n${HOUSE_CONFIRM_PROMPT}`,
         list,
         { name: 'confirm_house', number: step.number, houseId: house.houseId, houseCode: house.code, residentId: house.residentId, resident: house.resident }
       );
@@ -321,7 +319,17 @@ function overLimitRefusal(limit: number | null): string {
 // ---------------------------------------------------------------------------
 // run: the writes
 
-type RunResult = { reply: string; audit: Record<string, unknown>; next: { state: Record<string, unknown>; prompt: string } };
+const ALERT_NOT_LINKED = 'The alert could not be marked with the payment. Check the review queue on the dashboard.';
+const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
+/** The dashboard review queue's rule (processSingleTransaction), on the live account: the refusal, or null. */
+async function overLimitBlock(r: UnverifiedPaymentsRepository, live: string[], account: WhatsAppAdminAccount, amount: number): Promise<string | null> {
+  if (live.includes(PERMISSIONS.IMPORTS_APPROVE) || account.roleName === 'super_admin') return null;
+  const limit = await r.autoProcessLimit();
+  return exceedsEmailAutoProcessLimit({ transaction_type: 'credit', amount }, limit) ? `Not done: ${overLimitRefusal(limit)}` : null;
+}
+
+type RunResult ={ reply: string; audit: Record<string, unknown>; next: { state: Record<string, unknown>; prompt: string } };
 
 async function settle(account: WhatsAppAdminAccount, params: Record<string, unknown>): Promise<{ reply: string; outcome: string; settled: number[] }> {
   const r = repo();
@@ -341,30 +349,58 @@ async function settle(account: WhatsAppAdminAccount, params: Record<string, unkn
     case 'give': {
       const alert = await r.getAlert(entry.id);
       if (!alert) return stale;
-      // The dashboard review queue's rule (processSingleTransaction).
-      if (!live.includes(PERMISSIONS.IMPORTS_APPROVE) && account.roleName !== 'super_admin') {
-        const limit = await r.autoProcessLimit();
-        if (exceedsEmailAutoProcessLimit({ transaction_type: 'credit', amount: alert.amount }, limit)) {
-          return { reply: `Not done: ${overLimitRefusal(limit)}`, outcome: 'over_limit', settled: [] };
-        }
-      }
+      const blocked = await overLimitBlock(r, live, account, alert.amount);
+      if (blocked) return { reply: blocked, outcome: 'over_limit', settled: [] };
       const residentId = String(params.residentId);
       const houseCode = String(params.houseCode);
       if (!(await r.claimAlert(alert.id))) return stale;
-      const recorded = await r.recordPayment(alert, { houseId: String(params.houseId), residentId }, account.profileId);
-      if ('error' in recorded) {
-        await r.releaseAlert(alert.id);
-        return { reply: `Not done: ${recorded.error}`, outcome: 'failed', settled: [] };
+      let paymentId: string;
+      try {
+        const recorded = await r.recordPayment(alert, { houseId: String(params.houseId), residentId }, account.profileId);
+        if ('error' in recorded) {
+          await r.releaseAlert(alert.id);
+          return { reply: `Not done: ${recorded.error}`, outcome: 'failed', settled: [] };
+        }
+        paymentId = recorded.paymentId;
+      } catch (error) {
+        // The payment may or may not be written: the alert goes back only when no payment has it.
+        console.error('[whatsapp-admin] Recording the payment from a bank alert failed:', { alertId: alert.id, error: errorText(error) });
+        let written: string | null;
+        try {
+          written = await r.paymentForAlert(alert.id);
+        } catch {
+          return { reply: `Not done: ${errorText(error)}. Check the review queue on the dashboard before you try again.`, outcome: 'error_unknown', settled: [] };
+        }
+        if (!written) {
+          await r.releaseAlert(alert.id);
+          return { reply: `Not done: ${errorText(error)}. The alert is back in the list.`, outcome: 'error', settled: [] };
+        }
+        paymentId = written;
       }
-      await r.finishAlert(alert.id, { paymentId: recorded.paymentId, residentId, profileId: account.profileId });
+      // The payment is written: from here a failure is reported with it, never as a generic error.
+      const problems: string[] = [];
+      try {
+        await r.finishAlert(alert.id, { paymentId, residentId, profileId: account.profileId });
+      } catch (error) {
+        console.error('[whatsapp-admin] Marking the bank alert processed failed:', { alertId: alert.id, error: errorText(error) });
+        problems.push(ALERT_NOT_LINKED);
+      }
       const name = aliasName(alert.description);
-      const savedAlias = params.saveAlias === true && !!name && name.length >= 2 && (await r.saveAlias(residentId, name, account.profileId));
+      let savedAlias = false;
+      if (params.saveAlias === true && name && name.length >= 2) {
+        try {
+          savedAlias = await r.saveAlias(residentId, name, account.profileId);
+        } catch (error) {
+          console.error('[whatsapp-admin] Saving the payer name failed:', { residentId, error: errorText(error) });
+          problems.push(`The payer name ${name} could not be saved.`);
+        }
+      }
       await audit({
         action: 'APPROVE',
         entityType: 'email_transactions',
         entityId: alert.id,
         entityDisplay: `Transaction: ${alert.description}`,
-        newValues: { resident_id: residentId, house: houseCode, payment_id: recorded.paymentId, saved_alias: savedAlias },
+        newValues: { resident_id: residentId, house: houseCode, payment_id: paymentId, saved_alias: savedAlias, ...(problems.length ? { problems } : {}) },
       });
       return {
         reply: [
@@ -372,8 +408,9 @@ async function settle(account: WhatsAppAdminAccount, params: Record<string, unkn
           'The bank alert is the bank proof, so the payment is verified.',
           'The wallet pays open bills first.',
           ...(savedAlias ? [`${name} is saved as a payer name for ${houseCode}.`] : []),
+          ...problems,
         ].join('\n'),
-        outcome: 'recorded',
+        outcome: problems.length ? 'recorded_with_problems' : 'recorded',
         settled: [number],
       };
     }
@@ -387,7 +424,7 @@ async function settle(account: WhatsAppAdminAccount, params: Record<string, unkn
         entityDisplay: `Transaction: ${alert.description}`,
         newValues: { skip_reason: NOT_ESTATE_MONEY_REASON },
       });
-      return { reply: `Done. The ${naira(alert.amount)} alert from ${payerName(alert.description)} is marked not estate money.`, outcome: 'skipped', settled: [number] };
+      return { reply: `Done. The ${naira(alert.amount)} alert from ${payerLabel(alert.description)} is marked not estate money.`, outcome: 'skipped', settled: [number] };
     }
     case 'statement': {
       const payment = await r.getPayment(entry.id);
@@ -416,12 +453,35 @@ async function settle(account: WhatsAppAdminAccount, params: Record<string, unkn
       if (!payment) return stale;
       if (!alert || !alertEntry) return { ...stale, reply: `Item ${params.alertNumber} is already settled.`, settled: alertEntry ? [alertEntry.number] : [] };
       if (alert.amount !== payment.amount) return { reply: 'Not done: the bank alert and the payment have different amounts.', outcome: 'refused', settled: [] };
+      const blocked = await overLimitBlock(r, live, account, alert.amount);
+      if (blocked) return { reply: blocked, outcome: 'over_limit', settled: [] };
       if (!(await r.claimAlert(alert.id))) return { ...stale, reply: `Item ${alertEntry.number} is already settled.`, settled: [alertEntry.number] };
-      if (!(await r.verifyPayment(payment.id, { profileId: account.profileId, notes: payment.notes, emailTransactionId: alert.id }))) {
-        await r.releaseAlert(alert.id);
-        return stale;
+      try {
+        if (!(await r.verifyPayment(payment.id, { profileId: account.profileId, notes: payment.notes, emailTransactionId: alert.id }))) {
+          await r.releaseAlert(alert.id);
+          return stale;
+        }
+      } catch (error) {
+        // The alert goes back only when the payment is still unverified, so it is never lost.
+        console.error('[whatsapp-admin] Verifying the payment from a bank alert failed:', { paymentId: payment.id, error: errorText(error) });
+        let unverified: boolean;
+        try {
+          unverified = !!(await r.getPayment(payment.id));
+        } catch {
+          return { reply: `Not done: ${errorText(error)}. Check the payment and the review queue on the dashboard.`, outcome: 'error_unknown', settled: [] };
+        }
+        if (unverified) {
+          await r.releaseAlert(alert.id);
+          return { reply: `Not done: ${errorText(error)}. The alert is back in the list.`, outcome: 'error', settled: [] };
+        }
       }
-      await r.finishAlert(alert.id, { paymentId: payment.id, residentId: payment.residentId, profileId: account.profileId });
+      const problems: string[] = [];
+      try {
+        await r.finishAlert(alert.id, { paymentId: payment.id, residentId: payment.residentId, profileId: account.profileId });
+      } catch (error) {
+        console.error('[whatsapp-admin] Marking the bank alert processed failed:', { alertId: alert.id, error: errorText(error) });
+        problems.push(ALERT_NOT_LINKED);
+      }
       await audit({
         action: 'VERIFY',
         entityType: 'payment_records',
@@ -435,11 +495,15 @@ async function settle(account: WhatsAppAdminAccount, params: Record<string, unkn
         entityType: 'email_transactions',
         entityId: alert.id,
         entityDisplay: `Transaction: ${alert.description}`,
-        newValues: { resident_id: payment.residentId, payment_id: payment.id, linked_to_existing_payment: true },
+        newValues: { resident_id: payment.residentId, payment_id: payment.id, linked_to_existing_payment: true, ...(problems.length ? { problems } : {}) },
       });
       return {
-        reply: `Done. ${naira(payment.amount)} for ${payment.houseCode}, ${payment.resident}, is now verified.\nBank proof: the ${naira(alert.amount)} alert from ${payerName(alert.description)}, ${formatDay(alert.date)}. No second payment is recorded.`,
-        outcome: 'linked',
+        reply: [
+          `Done. ${naira(payment.amount)} for ${payment.houseCode}, ${payment.resident}, is now verified.`,
+          `Bank proof: the ${naira(alert.amount)} alert from ${payerLabel(alert.description)}, ${formatDay(alert.date)}. No second payment is recorded.`,
+          ...problems,
+        ].join('\n'),
+        outcome: problems.length ? 'linked_with_problems' : 'linked',
         settled: [number, alertEntry.number],
       };
     }
