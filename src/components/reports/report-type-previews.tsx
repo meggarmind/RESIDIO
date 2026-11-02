@@ -140,6 +140,30 @@ export const reportTypePreviews: Record<ReportType, PreviewDefinition> = {
             ['3', 'Cedar Way', 'C. Okafor', '9 of 10', '1', 'Part paid', '60,000.00', 'Outstanding'],
         ],
     },
+    statement_of_account: {
+        stats: [
+            { label: 'Opening balance', value: '20,000.00' },
+            { label: 'Charged', value: '30,000.00' },
+            { label: 'Paid', value: '40,000.00' },
+            { label: 'Owed now', value: '10,000.00' },
+        ],
+        tableTitle: 'Every charge and payment, with a running balance',
+        columns: [
+            { label: 'Date' },
+            { label: 'Item' },
+            { label: 'Charge type' },
+            { label: 'Charge', align: 'right' },
+            { label: 'Payment', align: 'right' },
+            { label: 'Balance', align: 'right' },
+        ],
+        rows: [
+            ['01 August 2026', 'Opening balance', '', '', '', '20,000.00'],
+            ['01 August 2026', 'INV-0412: Security Dues', 'Security Dues', '10,000.00', '', '30,000.00'],
+            ['14 August 2026', 'Payment (bank_transfer), ref FBN-2231', 'Security Dues', '', '40,000.00', '-10,000.00'],
+            ['01 September 2026', 'INV-0498: Security Dues', 'Security Dues', '10,000.00', '', '0.00'],
+            ['01 October 2026', 'INV-0571: Security Dues', 'Security Dues', '10,000.00', '', '10,000.00'],
+        ],
+    },
     // Retired (#1399): not offered in the picker; kept so the Record stays complete for old rows.
     debtors_report: {
         stats: [

@@ -106,6 +106,12 @@ const reportTypeConfig: Record<
         gradient: 'from-orange-500 to-amber-500',
         iconBg: 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
     },
+    statement_of_account: {
+        icon: FileText,
+        label: 'Statement of account',
+        gradient: 'from-sky-500 to-blue-500',
+        iconBg: 'bg-sky-500/15 text-sky-600 dark:text-sky-400',
+    },
     indebtedness_summary: {
         icon: Users,
         label: 'Indebtedness Report',
@@ -192,7 +198,8 @@ function ReportCard({
                         <Button
                             variant="outline"
                             size="sm"
-                            className="h-8 gap-1.5"
+                            // Made again from the type and last month only; a Statement of account also needs its house or resident, so it is printed from View (#1402).
+                            className={cn('h-8 gap-1.5', report.type === 'statement_of_account' && 'hidden')}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 const params = new URLSearchParams({ type: report.type, preset: 'last_month' });

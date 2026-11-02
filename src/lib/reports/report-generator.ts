@@ -19,6 +19,7 @@ import { formatCalendarDate } from '@/lib/utils/calendar-date';
 import { DEFAULT_CHARGE_CATEGORY } from '@/lib/billing/charge-categories';
 import { DEBT_STATUS_DEFAULTS, getDebtStatuses, type DebtStatus } from '@/lib/billing/debt-status';
 import { OCCUPANT_PAYER_ROLES, resolvePayer, type BillingPayer } from '@/lib/billing/payer';
+import { generateStatementOfAccount } from '@/lib/reports/generators/statement-of-account';
 
 /** Either the cookie-bound session client or the service-role admin client. */
 export type ReportSupabaseClient =
@@ -1920,6 +1921,14 @@ export async function generateReportWithClient(
           params.includeDetails,
           params.chargeCategory
         );
+        return { success: true, report };
+      }
+
+      case 'statement_of_account': {
+        const report = await generateStatementOfAccount(supabase, dateRange, {
+          kind: params.statementFor ?? 'house',
+          id: params.statementId ?? '',
+        });
         return { success: true, report };
       }
 

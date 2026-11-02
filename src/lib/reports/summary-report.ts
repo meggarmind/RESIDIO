@@ -50,13 +50,15 @@ export interface SummaryReportData {
   grid?: SummaryGrid;
   /** The charge a report covers (e.g. "Security Dues"); it goes in the report title (#1400). */
   chargeName?: string;
+  /** Who and when a one-account report covers, e.g. "12, Palm Close, 01 January 2026 to 31 October 2026"; it goes in the title (#1402). */
+  subject?: string;
 }
 
 /**
  * Report types that use this layout. A later report adds its value here, and its generator
  * returns `{ type, layout: 'summary', data }`.
  */
-export type SummaryLayoutReportType = 'debtors_aging' | 'dues_collection_status';
+export type SummaryLayoutReportType = 'debtors_aging' | 'dues_collection_status' | 'statement_of_account';
 
 export interface SummaryReport {
   type: SummaryLayoutReportType;
@@ -70,6 +72,11 @@ export const MAX_SUMMARY_TILES = 4;
 export function asOfChargeTitle(label: string, chargeName: string | undefined, date: Date = new Date()): string {
   const day = formatCalendarDate(date, 'en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
   return `${label}${chargeName ? ` - ${chargeName}` : ''} - As of ${day}`;
+}
+
+/** Title of a report for one house or resident: "<report> - <subject>" (#1402). */
+export function subjectTitle(label: string, subject: string | undefined): string {
+  return subject ? `${label} - ${subject}` : label;
 }
 
 /** True for a report result that asks for the summary-first layout. */
