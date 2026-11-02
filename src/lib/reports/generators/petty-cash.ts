@@ -17,7 +17,6 @@ import { summarizePettyCashAccount, type PettyCashAccountRow } from '@/lib/finan
 import { cents, money, reportDate } from '@/lib/reports/generators/money-out';
 
 interface TopUpRow { id: string; matched_petty_cash_account_id: string | null; amount: number | string | null; transaction_date: string | null }
-interface EmailTopUpRow { id: string; matched_petty_cash_account_id: string | null; amount: number | string | null; transaction_date: string | null }
 interface SpendRow { id: string; petty_cash_account_id: string | null; amount: number | string | null; expense_date: string; description: string | null; status: string | null }
 
 async function readAll<T>(label: string, page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<T[]> {
@@ -43,7 +42,7 @@ export async function generatePettyCash(
   const topUps = await readAll<TopUpRow>('top-ups', (from, to) =>
     supabase.from('bank_statement_rows').select('id, matched_petty_cash_account_id, amount, transaction_date')
       .not('matched_petty_cash_account_id', 'is', null).eq('status', 'created').lte('transaction_date', endDate).order('id').range(from, to));
-  const emailTopUps = await readAll<EmailTopUpRow>('email top-ups', (from, to) =>
+  const emailTopUps = await readAll<TopUpRow>('email top-ups', (from, to) =>
     supabase.from('email_transactions').select('id, matched_petty_cash_account_id, amount, transaction_date')
       .not('matched_petty_cash_account_id', 'is', null).in('status', ['auto_processed', 'processed']).lte('transaction_date', endDate).order('id').range(from, to));
   const spendRows = await readAll<SpendRow>('spend', (from, to) =>

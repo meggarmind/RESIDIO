@@ -44,6 +44,7 @@ import {
     CalendarClock,
     Mail,
     Repeat,
+    FileText,
     Wallet,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -64,6 +65,7 @@ import { useCreateReportSchedule, type CreateScheduleInput } from '@/hooks/use-r
 import { toast } from 'sonner';
 import { ReportTypePicker } from '@/components/reports/report-type-picker';
 import { useChargeCategories } from '@/hooks/use-billing';
+import { StatementSubjectPicker } from '@/components/reports/statement-subject-picker';
 
 // ============================================================
 // Types
@@ -144,6 +146,11 @@ const reportTypeConfig: Record<ReportType, {
         gradient: 'from-emerald-500/10 to-teal-500/5',
         iconBg: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
     },
+    statement_of_account: {
+        icon: FileText,
+        gradient: 'from-sky-500/10 to-blue-500/5',
+        iconBg: 'bg-sky-500/15 text-sky-600 dark:text-sky-400',
+    },
     collection_rate_by_street: {
         icon: LayoutList,
         gradient: 'from-orange-500/10 to-amber-500/5',
@@ -191,7 +198,7 @@ const periodIcons: Record<PeriodPreset, React.ElementType> = {
 };
 
 // Reports that don't depend on bank accounts
-const ACCOUNT_AGNOSTIC_REPORTS: ReportType[] = ['debtors_aging', 'debtors_report', 'dues_collection_status', 'collection_rate_by_street', 'expenses_by_category', 'wallet_balances', 'development_levy', 'invoice_aging', 'project_spend', 'petty_cash'];
+const ACCOUNT_AGNOSTIC_REPORTS: ReportType[] = ['debtors_aging', 'debtors_report', 'dues_collection_status', 'collection_rate_by_street', 'expenses_by_category', 'wallet_balances', 'development_levy', 'invoice_aging', 'project_spend', 'petty_cash', 'statement_of_account'];
 
 // Reports that are always "As of Today" (skip date selection)
 const REALTIME_REPORTS: ReportType[] = ['debtors_aging', 'debtors_report', 'development_levy', 'invoice_aging'];
@@ -587,7 +594,7 @@ function OptionsStep({
     const isDebtReport = isDuesReport || isDevelopmentLevyReport;
     // Real-time reports don't use aggregation or transaction type filtering
     // The dues sheet has a period but no aggregation or transaction type either.
-    const isRealtimeReport = isDuesReport || REALTIME_REPORTS.includes(reportType as ReportType);
+    const isRealtimeReport = isDuesReport || reportType === 'statement_of_account' || REALTIME_REPORTS.includes(reportType as ReportType);
     return (
         <div className="space-y-6">
             <div className="text-center mb-8">
@@ -1211,7 +1218,8 @@ export function ReportRequestWizard({
                 if (ACCOUNT_AGNOSTIC_REPORTS.includes(formData.reportType)) return true; // Accounts are skipped for agnostic
                 return true; // Accounts are optional (all = empty array)
             case 4:
-                return true;
+                // A statement is for one house or one resident (#1402).
+                return formData.reportType !== 'statement_of_account' || !!formData.statementId;
             case 5:
                 return true;
             default:
@@ -1263,6 +1271,19 @@ export function ReportRequestWizard({
                                 onAccountToggle={handleAccountToggle}
                                 onSelectAll={handleSelectAll}
                             />
+                        )}
+
+                        {step === 4 && formData.reportType === 'statement_of_account' && (
+                            <div className="mb-6">
+                                <StatementSubjectPicker
+                                    statementFor={formData.statementFor ?? 'house'}
+                                    statementId={formData.statementId ?? ''}
+                                    onChange={(kind, id) => {
+                                        setValue('statementFor', kind);
+                                        setValue('statementId', id || undefined);
+                                    }}
+                                />
+                            </div>
                         )}
 
                         {step === 4 && (

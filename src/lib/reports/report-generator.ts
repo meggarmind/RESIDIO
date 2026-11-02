@@ -24,6 +24,7 @@ import { generateCollectionRateByStreet } from '@/lib/reports/generators/collect
 import { generateExpensesByCategory } from '@/lib/reports/generators/expenses-by-category';
 import { generateWalletBalances } from '@/lib/reports/generators/wallet-balances';
 import { OCCUPANT_PAYER_ROLES, resolvePayer, type BillingPayer } from '@/lib/billing/payer';
+import { generateStatementOfAccount } from '@/lib/reports/generators/statement-of-account';
 import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
 
 /** Either the cookie-bound session client or the service-role admin client. */
@@ -1954,6 +1955,14 @@ export async function generateReportWithClient(
 
       case 'petty_cash': {
         const report = await generatePettyCash(supabase, dateRange, params.includeDetails);
+        return { success: true, report };
+      }
+
+      case 'statement_of_account': {
+        const report = await generateStatementOfAccount(supabase, dateRange, {
+          kind: params.statementFor ?? 'house',
+          id: params.statementId ?? '',
+        });
         return { success: true, report };
       }
 
