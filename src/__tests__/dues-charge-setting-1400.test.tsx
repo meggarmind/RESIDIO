@@ -193,13 +193,46 @@ describe('Title and "as of" (#1400)', () => {
     expect(isAsOfReportType('transaction_log')).toBe(false);
   });
 
-  it('the server PDF title carries the charge', async () => {
-    const { SummaryReportPdf } = await import('@/lib/pdf/reports/summary-report-pdf');
+  it('the server PDF title is the full "<report> - <Charge> - As of <date>"', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-02T10:00:00Z'));
+    const { asOfChargeTitle } = await import('@/lib/reports/summary-report');
+    expect(asOfChargeTitle('Dues, levies and collection status', 'Development Levy')).toBe('Dues, levies and collection status - Development Levy - As of 02 November 2026');
+    // The renderer builds the PDF document with exactly that title.
+    const pdf = await import('@/lib/pdf/reports/summary-report-pdf');
+    const spy = vi.spyOn(pdf, 'SummaryReportPdf');
     const { renderReportPdf } = await import('@/lib/pdf/reports/renderer');
     const data = { summary: [], table: { columns: [{ key: 'a', label: 'A' }], rows: [{ a: 'x' }] }, chargeName: 'Development Levy' };
     const buffer = await renderReportPdf('dues_collection_status', data, 'Test Estate');
+    vi.useRealTimers();
     expect(buffer!.subarray(0, 4).toString()).toBe('%PDF');
-    expect(JSON.stringify(SummaryReportPdf({ data, title: 'Dues, levies and collection status - Development Levy', estateName: 'E' }))).toContain('Development Levy');
+    expect(spy.mock.calls[0][0].title).toBe('Dues, levies and collection status - Development Levy - As of 02 November 2026');
+    spy.mockRestore();
+  });
+
+  it('the scheduled email names the charge and carries no period', async () => {
+    vi.resetModules();
+    const data = { summary: [], table: { columns: [], rows: [] }, chargeName: 'Transformer Fee' };
+    const generate = vi.fn().mockResolvedValue({ success: true, report: { type: 'dues_collection_status', layout: 'summary', data } });
+    const schedule = { id: 's1', report_type: 'dues_collection_status', period_preset: 'last_month', frequency: 'monthly', bank_account_ids: [], recipients: ['a@x.test'], configuration: { chargeCategory: 'transformer_fee' } };
+    const chain: Record<string, unknown> = {};
+    for (const method of ['select', 'eq', 'lte', 'insert', 'single']) chain[method] = () => chain;
+    chain.order = async () => ({ data: [schedule], error: null });
+    chain.single = async () => ({ data: { id: 'a1' }, error: null });
+    const email = vi.fn((props: unknown) => props);
+    vi.doMock('@/lib/supabase/server', () => ({ createAdminClient: () => ({ from: () => chain, storage: { from: () => ({ upload: async () => ({ error: null }) }) } }) }));
+    vi.doMock('@/lib/reports/report-generator', () => ({ generateReportWithClient: generate }));
+    vi.doMock('@/lib/pdf/reports/renderer', () => ({ renderReportPdf: vi.fn().mockResolvedValue(Buffer.from('%PDF')) }));
+    vi.doMock('@/lib/email/send-email', () => ({ sendEmail: vi.fn().mockResolvedValue({ success: true }), getEstateEmailSettings: vi.fn().mockResolvedValue({ estateName: 'Test Estate' }) }));
+    vi.doMock('@/emails/scheduled-report', () => ({ ScheduledReportEmail: email }));
+    vi.doMock('@/lib/audit/logger', () => ({ logAudit: vi.fn() }));
+    const { processDueSchedules } = await import('@/lib/reports/process-schedules');
+    await processDueSchedules();
+    expect(email).toHaveBeenCalled();
+    const props = email.mock.calls[0][0] as { reportLabel: string; periodLabel?: string };
+    expect(props.reportLabel).toBe('Dues, levies and collection status - Transformer Fee');
+    expect(props.periodLabel).toBeUndefined();
+    for (const m of ['@/lib/supabase/server', '@/lib/reports/report-generator', '@/lib/pdf/reports/renderer', '@/lib/email/send-email', '@/emails/scheduled-report', '@/lib/audit/logger']) vi.doUnmock(m);
   });
 });
 

@@ -21,8 +21,7 @@ import {
 } from '@/actions/reports/report-schedules';
 import type { ReportRequestFormData } from '@/lib/validators/reports';
 import { getDateRangeFromPreset, REPORT_TYPE_LABELS } from '@/lib/validators/reports';
-import { isSummaryReport } from '@/lib/reports/summary-report';
-import { formatCalendarDate } from '@/lib/utils/calendar-date';
+import { asOfChargeTitle, isSummaryReport } from '@/lib/reports/summary-report';
 import { toast } from 'sonner';
 
 // ============================================================
@@ -133,7 +132,7 @@ export function useGenerateReport() {
             if (params.reportType === 'dues_collection_status') {
                 // The charge is in the title, and the report is as of one day: no period (#1400).
                 const chargeName = isSummaryReport(result.report) ? result.report.data.chargeName : undefined;
-                title += `${chargeName ? ` - ${chargeName}` : ''} - As of ${formatCalendarDate(new Date(), 'en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}`;
+                title = asOfChargeTitle(title, chargeName);
             } else if (REALTIME_REPORTS.includes(params.reportType)) {
                 title += ` - As of ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
             } else {

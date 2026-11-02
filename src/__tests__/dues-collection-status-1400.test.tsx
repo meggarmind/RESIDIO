@@ -58,7 +58,7 @@ const HOUSES = [
 let seq = 0;
 const inv = (houseId: string, status: string, due: string, amountDue: number, amountPaid: number, extra: Record<string, unknown> = {}) => ({
   id: `i${String(++seq).padStart(5, '0')}`, house_id: houseId, invoice_number: `INV-${seq}`, status, due_date: due,
-  amount_due: amountDue, amount_paid: amountPaid, period_start: null, rate_snapshot: null, charge_category: 'dues', ...extra,
+  amount_due: amountDue, amount_paid: amountPaid, period_start: null, rate_snapshot: null, charge_category: 'dues', invoice_type: 'SERVICE_CHARGE', ...extra,
 });
 const dues = (houseId: string, month: string, status: string, due: string, amountDue = 10000, amountPaid = status === 'paid' ? 10000 : 0) =>
   inv(houseId, status, due, amountDue, amountPaid, { period_start: `${month}-01` });
@@ -96,7 +96,12 @@ function table(rows: Record<string, unknown>[]) {
   q.then = (res: (v: unknown) => unknown) => Promise.resolve({ data: filtered.slice(lo, hi + 1), error: null }).then(res);
   return q;
 }
-const CHARGES = [{ code: 'dues', name: 'Security Dues' }, { code: 'development_levy', name: 'Development Levy' }, { code: 'transformer_fee', name: 'Transformer Fee' }];
+const CHARGES = [
+  { code: 'dues', name: 'Security Dues', is_active: true },
+  { code: 'development_levy', name: 'Development Levy', is_active: true },
+  { code: 'transformer_fee', name: 'Transformer Fee', is_active: true },
+  { code: 'old_charge', name: 'Old Charge', is_active: false },
+];
 const clientWith = (invoices: unknown[] = INVOICES, houses: unknown[] = HOUSES) =>
   ({ from: (t: string) => table((t === 'houses' ? houses : t === 'charge_categories' ? CHARGES : invoices) as Record<string, unknown>[]) }) as never;
 
@@ -195,6 +200,32 @@ describe('Dues, levies and collection status (#1400)', () => {
     expect(data.table.totals!.owed).toBe('0.00');
     expect(data.table.rows.filter((r) => r.street === null)).toEqual([]);
     expect(data.chargeName).toBe('Security Dues');
+  });
+
+  it('under Security Dues only service charges are months: levy, adjustment and other types add to Owed, not to the months', async () => {
+    const other = [
+      dues('h4', '2026-08', 'paid', '2026-08-10'),
+      inv('h4', 'unpaid', '2026-08-20', 3000, 0, { invoice_type: 'LEVY', period_start: '2026-08-01' }), // would turn August overdue
+      inv('h4', 'unpaid', '2026-09-10', 2000, 0, { invoice_type: 'ADJUSTMENT', period_start: '2026-09-01' }), // would make September a billed month
+      inv('h4', 'unpaid', '2026-10-10', 1000, 0, { invoice_type: 'OTHER', period_start: '2026-10-01' }),
+    ];
+    const data = await run({}, other);
+    expect(rowFor(data, '4')).toMatchObject({ monthsPaid: '1 of 1', monthsOwed: 0, owed: '6,000.00' });
+    expect(data.grid!.houses.find((h) => h.houseNumber === '4')!.months).toEqual({ '2026-08': 'paid_up', '2026-09': 'no_invoice', '2026-10': 'no_invoice' });
+  });
+
+  it('under the Development Levy charge a levy-flagged invoice is the charge, so it is a month', async () => {
+    const levyBill = [
+      inv('h4', 'unpaid', '2026-09-10', 4000, 0, { charge_category: 'development_levy', invoice_type: 'LEVY', period_start: '2026-09-01', rate_snapshot: { is_development_levy: true } }),
+    ];
+    const data = await run({ chargeCategory: 'development_levy' }, levyBill);
+    expect(rowFor(data, '4')).toMatchObject({ monthsPaid: '0 of 1', monthsOwed: 1, owed: '4,000.00', levy: 'Not paid' });
+    expect(data.grid!.houses.find((h) => h.houseNumber === '4')!.months['2026-09']).toBe('overdue');
+  });
+
+  it('refuses a charge that is not active, with a clear message', async () => {
+    const result = await generateReportWithClient(clientWith(), params({ chargeCategory: 'old_charge' }));
+    expect(result).toEqual({ success: false, error: 'Old Charge is not an active charge, so it cannot be reported.' });
   });
 
   it('another charge shows its own invoices, Owed and lines, named in chargeName', async () => {

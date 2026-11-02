@@ -8,6 +8,8 @@
  * (`dd mmm yyyy`, CORE.md section 4), e.g. through `formatCalendarDate` in `@/lib/utils/calendar-date`.
  */
 
+import { formatCalendarDate } from '@/lib/utils/calendar-date';
+
 export type SummaryTone = 'good' | 'bad' | 'neutral';
 
 /** A house's state in one month: the vocabulary of the estate map and `PAYMENT_STATUS_META`. */
@@ -63,6 +65,12 @@ export interface SummaryReport {
 }
 
 export const MAX_SUMMARY_TILES = 4;
+
+/** Title of a report that shows the position on one day for one charge: "<report> - <Charge> - As of 02 November 2026". */
+export function asOfChargeTitle(label: string, chargeName: string | undefined, date: Date = new Date()): string {
+  const day = formatCalendarDate(date, 'en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+  return `${label}${chargeName ? ` - ${chargeName}` : ''} - As of ${day}`;
+}
 
 /** True for a report result that asks for the summary-first layout. */
 export function isSummaryReport(report: unknown): report is SummaryReport {

@@ -1442,6 +1442,7 @@ type DuesInvoice = {
   id: string;
   house_id: string | null;
   invoice_number: string | null;
+  invoice_type: string | null;
   charge_category: string;
   amount_due: number | string | null;
   amount_paid: number | string | null;
@@ -1458,7 +1459,7 @@ async function fetchDuesInvoices(supabase: ReportSupabaseClient, chargeCategory:
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await supabase
       .from('invoices')
-      .select('id, house_id, invoice_number, charge_category, amount_due, amount_paid, status, due_date, period_start, rate_snapshot')
+      .select('id, house_id, invoice_number, invoice_type, charge_category, amount_due, amount_paid, status, due_date, period_start, rate_snapshot')
       .neq('status', 'void')
       .in('charge_category', [chargeCategory, 'development_levy'])
       .not('house_id', 'is', null)
@@ -1500,14 +1501,16 @@ export async function generateDuesCollectionStatus(
   // The charge comes from the table, never a fixed list, so a category added later works here.
   const { data: categories, error: categoryError } = await supabase
     .from('charge_categories')
-    .select('code, name')
+    .select('code, name, is_active')
     .eq('code', chargeCategory);
   if (categoryError) {
     console.error('Error fetching the charge for the dues and collection status report:', categoryError);
     throw new Error(categoryError.message);
   }
-  const chargeName = (categories as { code: string; name: string }[] | null)?.[0]?.name;
-  if (!chargeName) throw new Error(`Unknown charge: ${chargeCategory}`);
+  const category = (categories as { code: string; name: string; is_active: boolean }[] | null)?.[0];
+  if (!category) throw new Error(`Unknown charge: ${chargeCategory}`);
+  if (!category.is_active) throw new Error(`${category.name} is not an active charge, so it cannot be reported.`);
+  const chargeName = category.name;
 
   // The house list, the amounts owed and the status label come from the Indebtedness report's own
   // generator, so the total owed here is the same figure it gave. It counts this charge only. Dues
@@ -1546,7 +1549,11 @@ export async function generateDuesCollectionStatus(
     // Only the chosen charge makes months (and Owed and lines). A development levy that sits under Dues is
     // still no month; under the Development Levy charge it is the bill.
     const chosen = houseInvoices.filter((i) => i.charge_category === chargeCategory);
-    const dues = chosen.filter((i) => chargeCategory === 'development_levy' || !isLevy(i));
+    // Under Security Dues a month is a service charge, as in the WhatsApp balance: a levy, adjustment or other type
+    // adds to Owed only. Under any other charge the chosen charge's invoices are the bill, a flagged levy included.
+    const dues = chosen.filter((i) =>
+      chargeCategory === DEFAULT_CHARGE_CATEGORY ? i.invoice_type === 'SERVICE_CHARGE' && !isLevy(i) : chargeCategory === 'development_levy' || !isLevy(i)
+    );
 
     const months: Record<string, SummaryGridStatus> = {};
     for (const key of monthKeys) {
