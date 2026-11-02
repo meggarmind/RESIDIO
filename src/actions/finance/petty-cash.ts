@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache';
 import { logAudit } from '@/lib/audit/logger';
 import type { PettyCashAccount } from '@/types/database';
 import { validateMoneyAmount } from '@/lib/validators/money';
+import { summarizePettyCashAccount, type PettyCashAccountSummary } from '@/lib/finance/petty-cash-summary';
 
 // ============================================================
 // Petty Cash Metrics & Management
@@ -24,15 +25,6 @@ export interface PettyCashMetrics {
         averageDailySpend: number;
     };
     recentTransactions: PettyCashTransaction[];
-}
-
-export interface PettyCashAccountSummary {
-    id: string;
-    name: string;
-    currentBalance: number;
-    initialFloat: number;
-    lastReplenishmentAt: string | null;
-    isActive: boolean;
 }
 
 export interface PettyCashTransaction {
@@ -60,14 +52,7 @@ export async function getPettyCashMetrics(): Promise<PettyCashMetrics> {
         console.error('Error fetching petty cash accounts:', accountError);
     }
 
-    const accountSummaries: PettyCashAccountSummary[] = (accounts || []).map((acc) => ({
-        id: acc.id,
-        name: acc.name,
-        currentBalance: Number(acc.current_balance) || 0,
-        initialFloat: Number(acc.initial_float) || 0,
-        lastReplenishmentAt: acc.last_replenishment_at,
-        isActive: acc.is_active,
-    }));
+    const accountSummaries: PettyCashAccountSummary[] = (accounts || []).map(summarizePettyCashAccount);
 
     const totalBalance = accountSummaries.reduce((sum, acc) => sum + acc.currentBalance, 0);
 

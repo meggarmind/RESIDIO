@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
      includeCharts,
      chargeCategory,
      // Invoice lines are off for Debtors and aging unless asked for (#1399); other reports are unchanged.
-     includeDetails: type === 'debtors_aging' || type === 'dues_collection_status' || type === 'expenses_by_category' ? request.nextUrl.searchParams.get('includeDetails') === 'true' : true,
+     includeDetails: type === 'debtors_aging' || type === 'dues_collection_status' || type === 'petty_cash' || type === 'expenses_by_category' ? request.nextUrl.searchParams.get('includeDetails') === 'true' : true,
      paymentStatus: paymentStatus === 'paid' || paymentStatus === 'unpaid' ? paymentStatus : 'all',
    };
 

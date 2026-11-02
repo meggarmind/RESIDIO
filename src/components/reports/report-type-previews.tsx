@@ -140,6 +140,47 @@ export const reportTypePreviews: Record<ReportType, PreviewDefinition> = {
             ['3', 'Cedar Way', 'C. Okafor', '9 of 10', '1', 'Part paid', '60,000.00', 'Outstanding'],
         ],
     },
+    project_spend: {
+        stats: [
+            { label: 'Projects', value: '3' },
+            { label: 'Spend in period', value: '1,450,000.00' },
+            { label: 'Spend to date', value: '6,200,000.00' },
+            { label: 'Budget left', value: '3,800,000.00' },
+        ],
+        tableTitle: 'Spend on each project, against its budget and milestones',
+        columns: [
+            { label: 'Project' },
+            { label: 'Budget', align: 'right' },
+            { label: 'Spend in period', align: 'right' },
+            { label: 'Spend to date', align: 'right' },
+            { label: 'Budget left', align: 'right' },
+            { label: 'Milestones' },
+        ],
+        rows: [
+            ['Perimeter fence', '8,000,000.00', '1,200,000.00', '5,000,000.00', '3,000,000.00', '3 of 5 done'],
+            ['Gate house repairs', '2,000,000.00', '250,000.00', '1,200,000.00', '800,000.00', '1 of 2 done'],
+        ],
+    },
+    petty_cash: {
+        stats: [
+            { label: 'Accounts', value: '2' },
+            { label: 'Top-ups', value: '300,000.00' },
+            { label: 'Spend', value: '215,000.00' },
+            { label: 'Closing balance', value: '135,000.00' },
+        ],
+        tableTitle: 'Each petty cash account, opening to closing',
+        columns: [
+            { label: 'Account' },
+            { label: 'Opening balance', align: 'right' },
+            { label: 'Top-ups', align: 'right' },
+            { label: 'Spend', align: 'right' },
+            { label: 'Closing balance', align: 'right' },
+        ],
+        rows: [
+            ['Estate office', '50,000.00', '200,000.00', '165,000.00', '85,000.00'],
+            ['Security post', '0.00', '100,000.00', '50,000.00', '50,000.00'],
+        ],
+    },
     statement_of_account: {
         stats: [
             { label: 'Opening balance', value: '20,000.00' },
