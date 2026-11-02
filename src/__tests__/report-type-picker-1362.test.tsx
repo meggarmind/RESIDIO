@@ -50,8 +50,8 @@ describe('ReportTypePicker (#1362)', () => {
     expect(within(list()).queryByRole('button', { name: 'Indebtedness Report' })).toBeNull();
     expect(within(list()).queryByRole('button', { name: 'Indebtedness Detail Report' })).toBeNull();
     expect(within(list()).getByRole('button', { name: 'Dues, levies and collection status' })).toBeTruthy();
-    expect(reportTypes).toHaveLength(11);
-    expect(listed).toHaveLength(7);
+    expect(reportTypes).toHaveLength(14);
+    expect(listed).toHaveLength(10);
   });
 
   it('filters by label and by description', () => {
@@ -126,8 +126,8 @@ describe('ReportTypePicker (#1362)', () => {
   it('shows the right count on each group header', () => {
     renderPicker();
     const countOf = (group: RegExp) => within(within(list()).getByRole('button', { name: group })).getByText(/^\d+$/).textContent;
-    expect(countOf(/Money in and out/)).toBe('4');
-    expect(countOf(/Debts/)).toBe('2');
+    expect(countOf(/Money in and out/)).toBe('6');
+    expect(countOf(/Debts/)).toBe('3');
     expect(countOf(/Levies/)).toBe('1');
   });
 

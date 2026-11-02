@@ -2,6 +2,9 @@ import type { MetaWhatsAppConfig } from '@/lib/whatsapp/config';
 import type { WhatsAppProvider } from '@/lib/whatsapp/provider';
 import { isRetryableHttpStatus } from '@/lib/whatsapp/retry';
 
+/** Upper bound on each Graph API send. */
+const META_SEND_TIMEOUT_MS = 15_000;
+
 interface MetaSendResponse {
   messages?: Array<{ id?: string }>;
 }
@@ -30,6 +33,7 @@ export function createMetaWhatsAppProvider(
               body: message.body,
             },
           }),
+          signal: AbortSignal.timeout(META_SEND_TIMEOUT_MS),
         }
       );
 
@@ -79,6 +83,7 @@ export function createMetaWhatsAppProvider(
                 : undefined,
             },
           }),
+          signal: AbortSignal.timeout(META_SEND_TIMEOUT_MS),
         }
       );
 
