@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   manuallyVerifyPayment: vi.fn(),
   deletePayment: vi.fn(),
   getActiveResidents: vi.fn(),
+  categories: { data: undefined as unknown, isError: false, error: null as Error | null },
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
 }));
@@ -24,6 +25,7 @@ vi.mock('@/lib/auth/auth-provider', () => ({
     hasPermission: (p: string) => mocks.permissions.includes(p),
   }),
 }));
+vi.mock('@/hooks/use-billing', () => ({ useChargeCategories: () => mocks.categories }));
 vi.mock('sonner', () => ({ toast: { success: mocks.toastSuccess, error: mocks.toastError } }));
 vi.mock('@/actions/payments/awaiting-verification', () => ({
   getAwaitingVerification: (...a: unknown[]) => mocks.getAwaitingVerification(...a),
@@ -118,6 +120,15 @@ beforeEach(() => {
   mocks.deletePayment.mockReset().mockResolvedValue({ success: true });
   mocks.toastSuccess.mockReset();
   mocks.toastError.mockReset();
+  mocks.categories = {
+    data: [
+      { code: 'dues', name: 'Dues', sort_order: 1 },
+      { code: 'toll_gate_levy', name: 'Toll Gate Levy', sort_order: 4 },
+      { code: 'other', name: 'Other', sort_order: 99 },
+    ],
+    isError: false,
+    error: null,
+  };
   mocks.getActiveResidents.mockReset().mockResolvedValue({
     data: [{ id: 'res-1', first_name: 'Ada', last_name: 'Obi', resident_code: 'R-001' }],
     error: null,
@@ -129,8 +140,8 @@ describe('awaiting verification page: actions', () => {
   it('approves an alert with the chosen resident and the payer name as alias by default', async () => {
     renderPage();
     fireEvent.click(await screen.findByRole('button', { name: 'Approve' }));
-    const select = await screen.findByRole('combobox');
     await screen.findByRole('option', { name: /Ada Obi/ });
+    const select = screen.getAllByRole('combobox')[0];
     fireEvent.change(select, { target: { value: 'res-1' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirm approve' }));
     await waitFor(() => expect(mocks.processSingleTransaction).toHaveBeenCalledTimes(1));
@@ -147,7 +158,7 @@ describe('awaiting verification page: actions', () => {
     renderPage();
     fireEvent.click(await screen.findByRole('button', { name: 'Approve' }));
     await screen.findByRole('option', { name: /Ada Obi/ });
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'res-1' } });
+    fireEvent.change(screen.getAllByRole('combobox')[0], { target: { value: 'res-1' } });
     fireEvent.click(screen.getByLabelText('Save payer name as alias'));
     fireEvent.click(screen.getByRole('button', { name: 'Confirm approve' }));
     await waitFor(() => expect(mocks.processSingleTransaction).toHaveBeenCalled());
@@ -196,6 +207,66 @@ describe('awaiting verification page: actions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Confirm reject' }));
     await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('Locked'));
     expect(mocks.toastSuccess).not.toHaveBeenCalled();
+  });
+});
+
+describe('awaiting verification page: lines editor (#1443)', () => {
+  async function openApprove() {
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Approve' }));
+    await screen.findByRole('option', { name: /Ada Obi/ });
+    fireEvent.change(screen.getAllByRole('combobox')[0], { target: { value: 'res-1' } });
+  }
+  const confirm = () => screen.getByRole('button', { name: 'Confirm approve' });
+
+  it('starts with one dues line for the whole amount, so Approve is enabled', async () => {
+    await openApprove();
+    expect(screen.getByLabelText('Amount 1')).toHaveValue('5000');
+    expect(screen.getByText(/All of .*5,000.* is placed/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove line 1' })).toBeDisabled();
+    expect(confirm()).toBeEnabled();
+  });
+
+  it('blocks Approve while the lines do not add up and shows what is left', async () => {
+    await openApprove();
+    fireEvent.change(screen.getByLabelText('Amount 1'), { target: { value: '3000' } });
+    expect(screen.getByText(/Left to place: .*2,000/)).toBeInTheDocument();
+    expect(confirm()).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Add a line' }));
+    expect(screen.getByLabelText('Amount 2')).toHaveValue('2000');
+    expect(confirm()).toBeEnabled();
+  });
+
+  it('asks for a comment on an Other line', async () => {
+    await openApprove();
+    fireEvent.change(screen.getByLabelText('Amount 1'), { target: { value: '4000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add a line' }));
+    fireEvent.change(screen.getAllByRole('combobox')[2], { target: { value: 'other' } });
+    expect(confirm()).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Comment 2'), { target: { value: 'gate repair' } });
+    expect(confirm()).toBeEnabled();
+  });
+
+  it('sends the lines to processSingleTransaction', async () => {
+    await openApprove();
+    fireEvent.change(screen.getByLabelText('Amount 1'), { target: { value: '4000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add a line' }));
+    fireEvent.change(screen.getAllByRole('combobox')[1], { target: { value: 'toll_gate_levy' } });
+    fireEvent.change(screen.getAllByRole('combobox')[2], { target: { value: 'other' } });
+    fireEvent.change(screen.getByLabelText('Comment 2'), { target: { value: ' gate repair ' } });
+    fireEvent.click(confirm());
+    await waitFor(() => expect(mocks.processSingleTransaction).toHaveBeenCalledTimes(1));
+    expect(mocks.processSingleTransaction.mock.calls[0][1].lines).toEqual([
+      { chargeCategory: 'toll_gate_levy', amount: 4000 },
+      { chargeCategory: 'other', amount: 1000, comment: 'gate repair' },
+    ]);
+  });
+
+  it('shows an error and blocks Approve when the categories do not load', async () => {
+    mocks.categories = { data: undefined, isError: true, error: new Error('categories boom') };
+    await openApprove();
+    expect(screen.getByText(/Failed to load charge categories: categories boom/)).toBeInTheDocument();
+    expect(confirm()).toBeDisabled();
   });
 });
 
@@ -314,7 +385,7 @@ describe('awaiting verification page: pinned behaviour (#1432 QA)', () => {
     const confirm = screen.getByRole('button', { name: 'Confirm approve' });
     expect(confirm).toBeDisabled();
     await screen.findByRole('option', { name: /Ada Obi/ });
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'res-1' } });
+    fireEvent.change(screen.getAllByRole('combobox')[0], { target: { value: 'res-1' } });
     expect(confirm).toBeEnabled();
   });
 
