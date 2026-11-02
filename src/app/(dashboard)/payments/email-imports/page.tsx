@@ -88,7 +88,7 @@ export default function EmailImportsPage() {
   const canConfigure = useCan(PERMISSIONS.EMAIL_IMPORTS_CONFIGURE);
 
   const { data: summary, isLoading: summaryLoading } = useQuery({
-    queryKey: ['email-imports-summary'],
+    queryKey: ['email-imports', 'summary'],
     queryFn: async () => {
       const result = await getEmailImportSummary();
       if (result.error) throw new Error(result.error);
