@@ -38,6 +38,7 @@ import {
     RefreshCw,
     ScrollText,
     Settings2,
+    Target,
     Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -64,6 +65,7 @@ const reportTypeOptions = [
     { value: 'debtors_aging', label: 'Debtors and aging', icon: Clock },
     { value: 'dues_collection_status', label: 'Dues, levies and collection status', icon: Receipt },
     { value: 'transaction_log', label: 'Transaction Log', icon: ScrollText },
+    { value: 'budget_vs_actual', label: 'Budget against actual', icon: Target },
 ] as const;
 
 /** Invoice lines are off by default for these reports; every other report keeps its summary on. */

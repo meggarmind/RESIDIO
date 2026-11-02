@@ -11,7 +11,8 @@
  * See #483 (same pattern as #388).
  */
 
-import type { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
+import type { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { ReportRequestFormData } from '@/lib/validators/reports';
 import { getDateRangeFromPreset, isRetiredReport, resolveRetiredReport, REPORT_TYPE_LABELS } from '@/lib/validators/reports';
 import type { SummaryCell, SummaryGrid, SummaryGridStatus, SummaryReport, SummaryReportData } from '@/lib/reports/summary-report';
@@ -20,6 +21,7 @@ import { DEFAULT_CHARGE_CATEGORY } from '@/lib/billing/charge-categories';
 import { DEBT_STATUS_DEFAULTS, getDebtStatuses, type DebtStatus } from '@/lib/billing/debt-status';
 import { OCCUPANT_PAYER_ROLES, resolvePayer, type BillingPayer } from '@/lib/billing/payer';
 import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
+import { generateBudgetVsActual } from '@/lib/reports/generators/budget-vs-actual';
 
 /** Either the cookie-bound session client or the service-role admin client. */
 export type ReportSupabaseClient =
@@ -1939,6 +1941,13 @@ export async function generateReportWithClient(
           params.includeDetails,
           params.chargeCategory
         );
+        return { success: true, report };
+      }
+
+      case 'budget_vs_actual': {
+        // Service-role read (#1406): every caller has checked REPORTS_VIEW_FINANCIAL, but the budget
+        // and expense tables are readable through RLS only with view_expenditure.
+        const report = await generateBudgetVsActual(createAdminClient(), dateRange);
         return { success: true, report };
       }
 
