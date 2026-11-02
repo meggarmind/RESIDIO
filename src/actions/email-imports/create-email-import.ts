@@ -59,7 +59,16 @@ export async function listEmailImports(params?: {
   }
 
   if (params?.has === 'queued') {
-    query = query.gt('transactions_queued', 0);
+    // Live rows, not the count written at import time: approving or skipping a
+    // transaction later never updates email_imports.transactions_queued (#1432).
+    const { data: queuedRows, error: queuedError } = await supabase
+      .from('email_transactions')
+      .select('email_import_id')
+      .eq('status', 'queued_for_review');
+    if (queuedError) return { data: null, count: null, error: queuedError.message };
+    const ids = [...new Set((queuedRows ?? []).map((r) => r.email_import_id as string))];
+    if (ids.length === 0) return { data: [], count: 0, error: null };
+    query = query.in('id', ids);
   } else if (params?.has === 'auto_processed') {
     query = query.gt('transactions_auto_processed', 0);
   }
@@ -86,6 +95,8 @@ export type EmailImportSummary = {
   total: number;
   completed: number;
   queued: number;
+  /** Live queued debits: Awaiting verification lists credits only, so these stay on the import pages. */
+  queuedDebits: number;
   autoProcessed: number;
 };
 
@@ -97,24 +108,36 @@ export async function getEmailImportSummary(): Promise<{
 }> {
   const supabase = await createServerSupabaseClient();
 
-  const [totalRes, completedRes] = await Promise.all([
+  const [totalRes, completedRes, queuedRes, debitsRes] = await Promise.all([
     supabase.from('email_imports').select('*', { count: 'exact', head: true }),
     supabase
       .from('email_imports')
       .select('*', { count: 'exact', head: true })
       .eq('status', 'completed'),
+    // Live count: the import's transactions_queued is never lowered when a queued
+    // transaction is approved or skipped (#1432).
+    supabase
+      .from('email_transactions')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'queued_for_review'),
+    supabase
+      .from('email_transactions')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'queued_for_review')
+      .eq('transaction_type', 'debit'),
   ]);
 
   if (totalRes.error) return { data: null, error: totalRes.error.message };
   if (completedRes.error) return { data: null, error: completedRes.error.message };
+  if (queuedRes.error) return { data: null, error: queuedRes.error.message };
+  if (debitsRes.error) return { data: null, error: debitsRes.error.message };
 
-  // PostgREST caps a response at 1000 rows, so page through the two numeric columns.
-  let queued = 0;
+  // PostgREST caps a response at 1000 rows, so page through the numeric column.
   let autoProcessed = 0;
   for (let from = 0; ; from += SUMMARY_CHUNK) {
     const { data, error } = await supabase
       .from('email_imports')
-      .select('transactions_queued, transactions_auto_processed')
+      .select('transactions_auto_processed')
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })
       .range(from, from + SUMMARY_CHUNK - 1);
@@ -122,7 +145,6 @@ export async function getEmailImportSummary(): Promise<{
     if (error) return { data: null, error: error.message };
 
     for (const row of data ?? []) {
-      queued += row.transactions_queued || 0;
       autoProcessed += row.transactions_auto_processed || 0;
     }
     if (!data || data.length < SUMMARY_CHUNK) break;
@@ -132,7 +154,8 @@ export async function getEmailImportSummary(): Promise<{
     data: {
       total: totalRes.count ?? 0,
       completed: completedRes.count ?? 0,
-      queued,
+      queued: queuedRes.count ?? 0,
+      queuedDebits: debitsRes.count ?? 0,
       autoProcessed,
     },
     error: null,

@@ -31,6 +31,8 @@ export interface UnverifiedAlert {
   emailImportId: string;
   /** The transaction date as stored, for the payment date. */
   transactionDate: string | null;
+  /** The alert's email passed the sender check (#1353): only then is the alert bank proof (#1428). */
+  senderVerified: boolean;
 }
 
 /** A payment with no bank proof: is_verified false, not a resident report waiting in Approvals (item 5). */
@@ -75,7 +77,8 @@ export interface UnverifiedPaymentsRepository {
   recordPayment(
     alert: UnverifiedAlert,
     house: { houseId: string; residentId: string },
-    profileId: string
+    profileId: string,
+    verified: boolean
   ): Promise<{ paymentId: string } | { error: string }>;
   /** The payment recorded from this alert, if any: after a failed write, whether a payment row was written. */
   paymentForAlert(alertId: string): Promise<string | null>;
@@ -89,7 +92,8 @@ export interface UnverifiedPaymentsRepository {
 
 const db = () => createAdminClient() as unknown as SupabaseClient;
 
-const ALERT_COLUMNS = 'id, amount, transaction_date, created_at, description, reference, email_import_id';
+// email_transactions has one foreign key to email_messages (email_message_id).
+const ALERT_COLUMNS = 'id, amount, transaction_date, created_at, description, reference, email_import_id, email_messages(sender_verified)';
 // payment_records has two foreign keys to residents (resident_id, paid_by_resident_id): name the one.
 const PAYMENT_COLUMNS =
   'id, amount, payment_date, created_at, notes, status, approval_request_id, resident_id, house:houses!payment_records_house_id_fkey(short_name, house_number), resident:residents!payment_records_resident_id_fkey(first_name, last_name)';
@@ -108,6 +112,7 @@ function toAlert(row: Record<string, unknown>): UnverifiedAlert {
     reference: (row.reference as string | null) ?? null,
     emailImportId: row.email_import_id as string,
     transactionDate: (row.transaction_date as string | null) ?? null,
+    senderVerified: embed(row.email_messages as { sender_verified: boolean | null } | null)?.sender_verified === true,
   };
 }
 
@@ -249,8 +254,8 @@ export function createUnverifiedPaymentsRepository(): UnverifiedPaymentsReposito
       if (error) throw error;
     },
 
-    async recordPayment(alert, house, profileId) {
-      // The same payment the dashboard review queue records, but verified: the alert is the bank proof.
+    async recordPayment(alert, house, profileId, verified) {
+      // The same payment the dashboard review queue records: verified only when the alert is bank proof (#1428).
       const result = await createPaymentAsAdmin(
         {
           resident_id: house.residentId,
@@ -266,7 +271,7 @@ export function createUnverifiedPaymentsRepository(): UnverifiedPaymentsReposito
           // The admin matched the sender to this resident; no purpose is known: Dues (#1190).
           charge_category: DEFAULT_CHARGE_CATEGORY,
           paid_by_resident_id: house.residentId,
-          is_verified: true,
+          is_verified: verified,
         },
         profileId,
         WHATSAPP_ADMIN_CHANNEL
