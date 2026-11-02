@@ -44,6 +44,7 @@ import {
     CalendarClock,
     Mail,
     Repeat,
+    Wallet,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -133,6 +134,21 @@ const reportTypeConfig: Record<ReportType, {
         gradient: 'from-orange-500/10 to-amber-500/5',
         iconBg: 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
     },
+    collection_rate_by_street: {
+        icon: LayoutList,
+        gradient: 'from-orange-500/10 to-amber-500/5',
+        iconBg: 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
+    },
+    expenses_by_category: {
+        icon: Receipt,
+        gradient: 'from-purple-500/10 to-violet-500/5',
+        iconBg: 'bg-purple-500/15 text-purple-600 dark:text-purple-400',
+    },
+    wallet_balances: {
+        icon: Wallet,
+        gradient: 'from-emerald-500/10 to-teal-500/5',
+        iconBg: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+    },
     indebtedness_summary: {
         icon: LayoutList,
         gradient: 'from-orange-500/10 to-amber-500/5',
@@ -165,13 +181,13 @@ const periodIcons: Record<PeriodPreset, React.ElementType> = {
 };
 
 // Reports that don't depend on bank accounts
-const ACCOUNT_AGNOSTIC_REPORTS: ReportType[] = ['debtors_aging', 'debtors_report', 'dues_collection_status', 'development_levy', 'invoice_aging'];
+const ACCOUNT_AGNOSTIC_REPORTS: ReportType[] = ['debtors_aging', 'debtors_report', 'dues_collection_status', 'collection_rate_by_street', 'expenses_by_category', 'wallet_balances', 'development_levy', 'invoice_aging'];
 
 // Reports that are always "As of Today" (skip date selection)
 const REALTIME_REPORTS: ReportType[] = ['debtors_aging', 'debtors_report', 'development_levy', 'invoice_aging'];
 
 // Invoice lines are off unless chosen for these (#1399, #1400); other reports keep their default.
-const INVOICE_LINES_OFF_BY_DEFAULT: ReportType[] = ['debtors_aging', 'dues_collection_status'];
+const INVOICE_LINES_OFF_BY_DEFAULT: ReportType[] = ['debtors_aging', 'dues_collection_status', 'expenses_by_category'];
 
 // ============================================================
 // Stepper Component
@@ -592,15 +608,17 @@ function OptionsStep({
 
 
 
-                    {(reportType === 'debtors_aging' || isDuesReport) && (
+                    {(reportType === 'debtors_aging' || isDuesReport || reportType === 'expenses_by_category') && (
                         <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-red-500/10">
                             <div className="space-y-0.5">
-                                <Label className="font-medium">Show invoice lines</Label>
+                                <Label className="font-medium">{reportType === 'expenses_by_category' ? 'Show expense lines' : 'Show invoice lines'}</Label>
                                 <p className="text-sm text-muted-foreground">
-                                    {isDuesReport ? 'List each unpaid invoice under its house' : 'List each unpaid invoice under its debtor'}
+                                    {reportType === 'expenses_by_category'
+                                        ? 'List each expense under its category'
+                                        : isDuesReport ? 'List each unpaid invoice under its house' : 'List each unpaid invoice under its debtor'}
                                 </p>
                             </div>
-                            <Switch checked={includeDetails} onCheckedChange={onIncludeDetailsChange} aria-label="Show invoice lines" />
+                            <Switch checked={includeDetails} onCheckedChange={onIncludeDetailsChange} aria-label={reportType === 'expenses_by_category' ? 'Show expense lines' : 'Show invoice lines'} />
                         </div>
                     )}
 
