@@ -5,7 +5,7 @@ import { CalendarClock, CalendarOff, Check, ChevronDown, ChevronRight, Landmark,
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { reportTypes, type ReportType } from '@/lib/validators/reports';
+import { reportTypes, isRetiredReport, type ReportType } from '@/lib/validators/reports';
 import { ReportTypePreview } from '@/components/reports/report-type-previews';
 
 export interface ReportTypePickerProps {
@@ -32,7 +32,7 @@ export function ReportTypePicker({ value, onChange, allowedTypes, config, realti
         const order: string[] = [];
         const byGroup = new Map<string, ReportEntry[]>();
         for (const type of reportTypes) {
-            if (!allowedTypes.includes(type.value)) continue;
+            if (!allowedTypes.includes(type.value) || isRetiredReport(type.value)) continue;
             if (needle && !`${type.label} ${type.description}`.toLowerCase().includes(needle)) continue;
             if (!byGroup.has(type.group)) {
                 byGroup.set(type.group, []);
@@ -43,7 +43,7 @@ export function ReportTypePicker({ value, onChange, allowedTypes, config, realti
         return order.map((name) => ({ name, items: byGroup.get(name)! }));
     }, [needle, allowedTypes]);
 
-    const selected = reportTypes.find((t) => t.value === value && allowedTypes.includes(t.value));
+    const selected = reportTypes.find((t) => t.value === value && allowedTypes.includes(t.value) && !isRetiredReport(t.value));
     const isRealtime = selected ? realtimeTypes.includes(selected.value) : false;
     const isAgnostic = selected ? accountAgnosticTypes.includes(selected.value) : false;
     const SelectedIcon = selected ? config[selected.value].icon : null;

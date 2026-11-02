@@ -28,10 +28,10 @@ export interface SummaryReportData {
 }
 
 /**
- * Report types that use this layout. None yet: a later report adds its value here, and its
- * generator returns `{ type, layout: 'summary', data }`.
+ * Report types that use this layout. A later report adds its value here, and its generator
+ * returns `{ type, layout: 'summary', data }`.
  */
-export type SummaryLayoutReportType = never;
+export type SummaryLayoutReportType = 'debtors_aging';
 
 export interface SummaryReport {
   type: SummaryLayoutReportType;

@@ -13,8 +13,9 @@
 
 import type { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
 import type { ReportRequestFormData } from '@/lib/validators/reports';
-import { getDateRangeFromPreset, REPORT_TYPE_LABELS } from '@/lib/validators/reports';
-import type { SummaryReport } from '@/lib/reports/summary-report';
+import { getDateRangeFromPreset, isRetiredReport, REPORT_TYPE_LABELS } from '@/lib/validators/reports';
+import type { SummaryCell, SummaryReport, SummaryReportData } from '@/lib/reports/summary-report';
+import { formatCalendarDate } from '@/lib/utils/calendar-date';
 import { DEBT_STATUS_DEFAULTS, getDebtStatuses, type DebtStatus } from '@/lib/billing/debt-status';
 import { OCCUPANT_PAYER_ROLES, resolvePayer, type BillingPayer } from '@/lib/billing/payer';
 
@@ -635,7 +636,9 @@ interface AgingInvoice {
   daysOverdue: number;
 }
 
-async function generateInvoiceAging(
+// Kept, unchanged, as the reference the Debtors and aging report is tested against (#1399): its
+// totals must equal these two retired reports' totals. Nothing else calls them.
+export async function generateInvoiceAging(
   supabase: ReportSupabaseClient
 ): Promise<InvoiceAgingData> {
   const today = new Date();
@@ -830,7 +833,7 @@ async function generateTransactionLog(
 // Debtors Report
 // ============================================================
 
-async function generateDebtorsReport(
+export async function generateDebtorsReport(
   supabase: ReportSupabaseClient
 ): Promise<DebtorsReportData> {
   const today = new Date();
@@ -1023,6 +1026,201 @@ async function generateDebtorsReport(
     byAgingBracket,
     debtors,
   };
+}
+
+// ============================================================
+// Debtors and aging (replaces the Debtors and Invoice Aging reports, #1399)
+// ============================================================
+
+const AGING_BUCKETS = [
+  { key: 'current', label: 'Current', tone: 'good' },
+  { key: 'days1to30', label: '1-30 days', tone: 'neutral' },
+  { key: 'days31to60', label: '31-60 days', tone: 'neutral' },
+  { key: 'days61to90', label: '61-90 days', tone: 'bad' },
+  { key: 'over90Days', label: 'Over 90 days', tone: 'bad' },
+] as const;
+
+type AgingBucketKey = (typeof AGING_BUCKETS)[number]['key'];
+
+/**
+ * The same cut-offs as the two retired reports (their 0-30 bucket is split in two: not yet due, and
+ * 1-30 days late), so the amounts per bucket and the grand total do not change.
+ */
+function agingBucketFor(daysOverdue: number): AgingBucketKey {
+  if (daysOverdue > 90) return 'over90Days';
+  if (daysOverdue > 60) return 'days61to90';
+  if (daysOverdue > 30) return 'days31to60';
+  if (daysOverdue > 0) return 'days1to30';
+  return 'current';
+}
+
+const emptyBuckets = (): Record<AgingBucketKey, number> => ({ current: 0, days1to30: 0, days31to60: 0, days61to90: 0, over90Days: 0 });
+
+const reportDate = (value: string) => formatCalendarDate(value, 'en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+const moneyCells = (amounts: Record<AgingBucketKey, number>) =>
+  Object.fromEntries(Object.entries(amounts).map(([key, amount]) => [key, money(amount)]));
+const money = (amount: number) => amount.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+async function generateDebtorsAging(
+  supabase: ReportSupabaseClient,
+  showInvoiceLines: boolean
+): Promise<SummaryReport> {
+  const today = new Date();
+
+  // Same query and filter as the Debtors report, read a page at a time: the API returns at most
+  // 1,000 rows per request, and a single read would silently drop the rest from the totals.
+  const PAGE_SIZE = 1000;
+  const invoices = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data: page, error } = await supabase
+      .from('invoices')
+      .select(`
+      id,
+      invoice_number,
+      amount_due,
+      amount_paid,
+      status,
+      due_date,
+      resident:residents (
+        id,
+        first_name,
+        last_name,
+        email,
+        phone_primary,
+        phone_secondary
+      ),
+      house:houses (
+        house_number,
+        street:streets (name)
+      )
+    `)
+      .in('status', ['unpaid', 'partially_paid'])
+      .order('id')
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error) {
+      console.error('Error fetching invoices for debtors and aging report:', error);
+      throw new Error(error.message);
+    }
+    invoices.push(...(page ?? []));
+    if (!page || page.length < PAGE_SIZE) break;
+  }
+
+  interface Line { invoiceNumber: string; dueDate: string; daysOverdue: number; outstanding: number; bucket: AgingBucketKey }
+  const debtorMap = new Map<string, {
+    name: string;
+    linked: boolean;
+    house: string;
+    street: string;
+    contact: string;
+    buckets: Record<AgingBucketKey, number>;
+    total: number;
+    lines: Line[];
+  }>();
+  const bucketTotals = emptyBuckets();
+  let oldest: { daysOverdue: number; dueDate: string } | null = null;
+
+  for (const invoice of invoices) {
+    const outstanding = (Number(invoice.amount_due) || 0) - (Number(invoice.amount_paid) || 0);
+    if (outstanding <= 0) continue;
+
+    const resident = invoice.resident as unknown as {
+      id: string; first_name: string; last_name: string; email: string | null; phone_primary: string | null; phone_secondary: string | null;
+    } | null;
+    const house = invoice.house as unknown as { house_number: string; street: { name: string } | null } | null;
+
+    const daysOverdue = Math.max(0, Math.floor((today.getTime() - new Date(invoice.due_date).getTime()) / (1000 * 60 * 60 * 24)));
+    const bucket = agingBucketFor(daysOverdue);
+
+    // The Debtors report skipped an invoice with no resident, the Aging report counted it. Counting it
+    // (one "No resident linked" row for each house) keeps the total equal to the Aging report and hides
+    // no money. It is not a debtor, so the Debtors figure leaves it out.
+    const houseName = house?.house_number || 'N/A';
+    const streetName = house?.street?.name || 'N/A';
+    const key = resident?.id ?? `no-resident:${houseName}|${streetName}`;
+    let debtor = debtorMap.get(key);
+    if (!debtor) {
+      debtor = {
+        name: resident ? `${resident.first_name} ${resident.last_name}` : 'No resident linked',
+        linked: resident !== null,
+        house: houseName,
+        street: streetName,
+        contact: resident ? [resident.phone_primary, resident.phone_secondary, resident.email].filter(Boolean).join(', ') : '',
+        buckets: emptyBuckets(),
+        total: 0,
+        lines: [],
+      };
+      debtorMap.set(key, debtor);
+    }
+    debtor.buckets[bucket] += outstanding;
+    debtor.total += outstanding;
+    debtor.lines.push({ invoiceNumber: invoice.invoice_number ?? '', dueDate: invoice.due_date ?? '', daysOverdue, outstanding, bucket });
+    bucketTotals[bucket] += outstanding;
+    if (!oldest || daysOverdue > oldest.daysOverdue) oldest = { daysOverdue, dueDate: invoice.due_date ?? '' };
+  }
+
+  const debtors = Array.from(debtorMap.values()).sort((a, b) => b.total - a.total);
+  const totalOwed = debtors.reduce((sum, d) => sum + d.total, 0);
+  const owedOver90 = bucketTotals.over90Days;
+  const debtorCount = debtors.filter((d) => d.linked).length;
+  const hasUnlinked = debtors.some((d) => !d.linked);
+
+  const rows: Record<string, SummaryCell>[] = [];
+  for (const d of debtors) {
+    rows.push({
+      debtor: d.name,
+      house: d.house,
+      street: d.street,
+      contact: d.contact,
+      ...moneyCells(d.buckets),
+      total: money(d.total),
+    });
+    // "Show invoice lines": one indented row per invoice straight under its debtor, in the same table.
+    if (showInvoiceLines) {
+      for (const line of d.lines.sort((a, b) => b.daysOverdue - a.daysOverdue)) {
+        rows.push({
+          debtor: `    ${line.invoiceNumber || 'Invoice'}, due ${reportDate(line.dueDate)}, ${line.daysOverdue} days late`,
+          house: null, street: null, contact: null,
+          ...moneyCells(emptyBuckets()),
+          [line.bucket]: money(line.outstanding),
+          total: money(line.outstanding),
+        });
+      }
+    }
+  }
+
+  const data: SummaryReportData = {
+    summary: [
+      { label: 'Total owed (NGN)', value: money(totalOwed), tone: totalOwed > 0 ? 'bad' : 'good' },
+      { label: 'Debtors', value: debtorCount, tone: debtorCount > 0 ? 'bad' : 'good' },
+      { label: 'Owed over 90 days (NGN)', value: money(owedOver90), tone: owedOver90 > 0 ? 'bad' : 'good' },
+      oldest
+        ? { label: 'Oldest debt', value: `${oldest.daysOverdue} days`, tone: 'neutral', hint: `Due ${reportDate(oldest.dueDate)}` }
+        : { label: 'Oldest debt', value: 'None', tone: 'good' },
+    ],
+    chart: {
+      title: 'Owed by age (NGN)',
+      bars: AGING_BUCKETS.map((b) => ({ label: b.label, value: bucketTotals[b.key], display: money(bucketTotals[b.key]), tone: b.tone })),
+    },
+    table: {
+      columns: [
+        { key: 'debtor', label: 'Debtor' },
+        { key: 'house', label: 'House' },
+        { key: 'street', label: 'Street' },
+        { key: 'contact', label: 'Contact' },
+        ...AGING_BUCKETS.map((b) => ({ key: b.key, label: b.label, align: 'right' as const })),
+        { key: 'total', label: 'Total', align: 'right' as const },
+      ],
+      rows,
+      totals: { debtor: 'Total', house: null, street: null, contact: null, ...moneyCells(bucketTotals), total: money(totalOwed) },
+    },
+    notes: [
+      'Amounts are what is still unpaid on invoices that are unpaid or part paid. Age is days past the due date.',
+      ...(hasUnlinked ? ['Rows marked "No resident linked" are unpaid invoices with no resident. Their money is in the totals, but they are not counted as debtors.'] : []),
+    ],
+  };
+
+  return { type: 'debtors_aging', layout: 'summary', data };
 }
 
 // ============================================================
@@ -1446,11 +1644,6 @@ export async function generateReportWithClient(
         return { success: true, report: { type: 'collection_report', data } };
       }
 
-      case 'invoice_aging': {
-        const data = await generateInvoiceAging(supabase);
-        return { success: true, report: { type: 'invoice_aging', data } };
-      }
-
       case 'transaction_log': {
         const data = await generateTransactionLog(
           supabase,
@@ -1462,9 +1655,9 @@ export async function generateReportWithClient(
         return { success: true, report: { type: 'transaction_log', data } };
       }
 
-      case 'debtors_report': {
-        const data = await generateDebtorsReport(supabase);
-        return { success: true, report: { type: 'debtors_report', data } };
+      case 'debtors_aging': {
+        const report = await generateDebtorsAging(supabase, params.includeDetails);
+        return { success: true, report };
       }
 
       case 'indebtedness_summary': {
@@ -1486,6 +1679,10 @@ export async function generateReportWithClient(
       }
 
       default: {
+        // A retired report (#1399): old rows still open, but it is not generated again.
+        if (isRetiredReport(params.reportType)) {
+          return { success: false, error: `${REPORT_TYPE_LABELS[params.reportType]} was replaced by Debtors and aging.` };
+        }
         // A listed report without a generator yet (#1397): say so rather than fail silently.
         const label = REPORT_TYPE_LABELS[params.reportType];
         return { success: false, error: label ? `${label} cannot be generated yet.` : 'Invalid report type' };
