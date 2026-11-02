@@ -10,6 +10,7 @@ import {
   composeClearanceQueueAnswer,
   composeCollectionsAnswer,
   loadPendingClearanceRequests,
+  loadUnverifiedPayments,
   loadVerifiedPayments,
   type ClearanceRequest,
 } from '@/lib/whatsapp/admin-collections';
@@ -48,6 +49,18 @@ describe('composeCollectionsAnswer (#1296)', () => {
     expect(text).toContain('*Collections, 1 Nov 2026*');
     expect(text).toContain('Today: ₦900.00 (1 payment)');
     expect(text).toContain('No house on record: ₦900.00 (1 payment)');
+  });
+
+  it('adds the Unverified line after the street lines, kept out of the totals', () => {
+    const text = composeCollectionsAnswer(payments, BEFORE_LAGOS_MIDNIGHT, { count: 2, total: 75000 });
+    expect(text).toContain('Palm Street: ₦7,500.50 (2 payments)\nUnverified: ₦75,000.00 (2 payments)');
+    expect(text).toContain('Today: ₦17,500.50 (3 payments)');
+    expect(text).toContain('This month so far: ₦24,500.50 (4 payments)');
+  });
+
+  it('shows Unverified as nil when the review queue is empty, also with no street list', () => {
+    const text = composeCollectionsAnswer([], BEFORE_LAGOS_MIDNIGHT);
+    expect(text).toContain('This month so far: ₦0.00 (0 payments)\nUnverified: ₦0.00 (0 payments)');
   });
 
   it('shows nil and no street list when nothing came in today', () => {
@@ -90,6 +103,35 @@ describe('loadVerifiedPayments (#1296)', () => {
     const full = Array.from({ length: 1000 }, (_, i) => ({ id: String(i), amount: 1, payment_date: '2026-10-01', house: null }));
     const { client } = fakeClient([full, [{ id: 'x', amount: 1, payment_date: '2026-10-02', house: null }]]);
     expect(await loadVerifiedPayments('2026-10-01', '2026-10-31', client)).toHaveLength(1001);
+  });
+});
+
+describe('loadUnverifiedPayments', () => {
+  function fakeClient(pages: Array<Array<Record<string, unknown>>>) {
+    const calls: Record<string, unknown[][]> = {};
+    const query: Record<string, unknown> = {};
+    let page = 0;
+    for (const name of ['select', 'eq', 'order']) {
+      query[name] = (...args: unknown[]) => {
+        (calls[name] ??= []).push(args);
+        return query;
+      };
+    }
+    query.range = () => Promise.resolve({ data: pages[page++] ?? [], error: null });
+    return { client: { from: (table: string) => ((calls.from = [[table]]), query) } as never, calls };
+  }
+
+  it('sums only credits waiting in the review queue', async () => {
+    const { client, calls } = fakeClient([[{ id: 'a', amount: '60000' }, { id: 'b', amount: 15000 }]]);
+    expect(await loadUnverifiedPayments(client)).toEqual({ count: 2, total: 75000 });
+    expect(calls.from).toEqual([['email_transactions']]);
+    expect(calls.eq).toEqual([['status', 'queued_for_review'], ['transaction_type', 'credit']]);
+  });
+
+  it('reads every page', async () => {
+    const full = Array.from({ length: 1000 }, (_, i) => ({ id: String(i), amount: 1 }));
+    const { client } = fakeClient([full, [{ id: 'x', amount: 1 }]]);
+    expect(await loadUnverifiedPayments(client)).toEqual({ count: 1001, total: 1001 });
   });
 });
 

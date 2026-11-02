@@ -17,6 +17,7 @@ import { getDateRangeFromPreset, isRetiredReport, resolveRetiredReport, REPORT_T
 import type { SummaryCell, SummaryGrid, SummaryGridStatus, SummaryReport, SummaryReportData } from '@/lib/reports/summary-report';
 import { formatCalendarDate } from '@/lib/utils/calendar-date';
 import { DEBT_STATUS_DEFAULTS, getDebtStatuses, type DebtStatus } from '@/lib/billing/debt-status';
+import { OCCUPANT_PAYER_ROLES, resolvePayer, type BillingPayer } from '@/lib/billing/payer';
 
 /** Either the cookie-bound session client or the service-role admin client. */
 export type ReportSupabaseClient =
@@ -1226,6 +1227,42 @@ async function generateDebtorsAging(
 // Indebtedness Summary Report
 // ============================================================
 
+interface IndebtednessResidentLink {
+  resident_id: string;
+  resident_role: string;
+  is_active: boolean;
+  move_in_date: string | null;
+  resident: { id: string; first_name: string; last_name: string } | null;
+}
+
+/**
+ * The Primary Resident of a house on the Indebtedness Report (#1420): the person the house's
+ * Security Dues bill, by the billing payer rule (`resolvePayer`, #1068). An occupant-paid house
+ * shows the tenant, else the owner-occupier; a landlord-paid house shows the landlord. A house
+ * with nobody of that class still shows its landlord, else its developer, else its occupant, so
+ * no row is lost.
+ * Newest move-in first when two people share a role, as in get_debt_statuses.
+ */
+export function pickIndebtednessPrimary(
+  links: IndebtednessResidentLink[],
+  payer: BillingPayer,
+): IndebtednessResidentLink | null {
+  const candidates = links
+    .filter((link) => link.is_active)
+    .sort((a, b) => (b.move_in_date ?? '').localeCompare(a.move_in_date ?? ''))
+    .map((link) => ({ id: link.resident_id, role: link.resident_role, link }));
+  const hasOccupant = candidates.some((c) => (OCCUPANT_PAYER_ROLES as readonly string[]).includes(c.role));
+  const pick = (as: BillingPayer) =>
+    resolvePayer({
+      payer: as,
+      targetType: 'house',
+      house: { vacant: !hasOccupant, newNeverOccupied: false },
+      applicableRoles: null,
+      residents: candidates,
+    }).payer;
+  return (pick(payer) ?? pick('landlord') ?? pick('occupant'))?.link ?? null;
+}
+
 export async function generateIndebtednessReport(
   supabase: ReportSupabaseClient,
   includeUnoccupied: boolean = false,
@@ -1237,6 +1274,9 @@ export async function generateIndebtednessReport(
     .select(`
       id,
       house_number,
+      billing_profile:billing_profiles!houses_billing_profile_id_fkey (
+        payer
+      ),
       street:streets (
         id,
         name
@@ -1245,6 +1285,7 @@ export async function generateIndebtednessReport(
         resident_id,
         resident_role,
         is_active,
+        move_in_date,
         resident:residents!resident_houses_resident_id_fkey (
           id,
           first_name,
@@ -1307,18 +1348,9 @@ export async function generateIndebtednessReport(
   for (const house of houses || []) {
     const street = house.street as unknown as { id: string; name: string } | null;
 
-    // Find primary resident (billable role)
-    const residentHouses = house.resident_houses as unknown as Array<{
-      resident_id: string;
-      resident_role: string;
-      is_active: boolean;
-      resident: { id: string; first_name: string; last_name: string } | null;
-    }>;
-
-    const primaryRoles = ['tenant', 'resident_landlord', 'non_resident_landlord', 'developer'];
-    const primaryAssignment = residentHouses?.find(
-      rh => rh.is_active && primaryRoles.includes(rh.resident_role)
-    );
+    const residentHouses = house.resident_houses as unknown as IndebtednessResidentLink[] | null;
+    const billingProfile = house.billing_profile as unknown as { payer: BillingPayer | null } | null;
+    const primaryAssignment = pickIndebtednessPrimary(residentHouses ?? [], billingProfile?.payer ?? 'occupant');
 
     if (!includeUnoccupied && !primaryAssignment) continue;
 

@@ -10,6 +10,8 @@ import { checkAccountCode, claimTwoFactorTry, clearTwoFactorTries, tooManyTriesM
 import { sendEmail, getEstateEmailSettings } from '@/lib/email/send-email';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { BackupCodesEmail } from '@/emails/backup-codes';
+import { revokeAllTrustedDevices } from '@/lib/auth/two-factor-trusted-device';
+import { createTrustedDeviceRepository } from '@/lib/auth/two-factor-trusted-device-store';
 
 /**
  * Generate new backup codes for the current user
@@ -73,6 +75,14 @@ export async function generateBackupCodes(
   }
 
   await clearTwoFactorTries(user.id, 'manage');
+
+  // New backup codes also forget every remembered computer (#1390). Before the codes, failing closed.
+  try {
+    await revokeAllTrustedDevices(user.id, 'backup_codes_regenerated', createTrustedDeviceRepository());
+  } catch (error) {
+    console.error('[2FA] Could not forget remembered computers:', error);
+    return { success: false, message: 'Could not make new backup codes. Please try again.' };
+  }
 
   // Generate new backup codes
   const codes = await generateAndStoreBackupCodes(user.id);

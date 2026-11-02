@@ -20,6 +20,18 @@ describe('2FA marker', () => {
     expect(await verifyTwoFactorMarker(m, { userId: USER, sessionId: SESSION, nowSeconds: NOW + 10 })).toBe(true);
   });
 
+  it('a marker from a remembered computer passes the gate but not a real-factor check (#1390)', async () => {
+    const m = await signTwoFactorMarker({ userId: USER, sessionId: SESSION, nowSeconds: NOW, viaTrustedDevice: true });
+    expect(await verifyTwoFactorMarker(m, { userId: USER, sessionId: SESSION, nowSeconds: NOW })).toBe(true);
+    expect(await verifyTwoFactorMarker(m, { userId: USER, sessionId: SESSION, nowSeconds: NOW, requireRealFactor: true })).toBe(false);
+  });
+
+  it('a marker from a real factor, including one signed before #1390, passes a real-factor check', async () => {
+    const m = await signTwoFactorMarker({ userId: USER, sessionId: SESSION, nowSeconds: NOW });
+    expect(JSON.parse(Buffer.from(m.split('.')[0], 'base64url').toString())).toEqual({ u: USER, s: SESSION, e: NOW + 86400 });
+    expect(await verifyTwoFactorMarker(m, { userId: USER, sessionId: SESSION, nowSeconds: NOW, requireRealFactor: true })).toBe(true);
+  });
+
   it('rejects a marker for a different user', async () => {
     const m = await signTwoFactorMarker({ userId: USER, sessionId: SESSION, nowSeconds: NOW });
     expect(await verifyTwoFactorMarker(m, { userId: 'someone-else', sessionId: SESSION, nowSeconds: NOW })).toBe(false);

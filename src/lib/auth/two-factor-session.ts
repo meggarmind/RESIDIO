@@ -34,12 +34,16 @@ export async function getTwoFactorSessionContext(): Promise<TwoFactorSessionCont
  * code check has succeeded. Returns false (no cookie set) if there is no session id to
  * bind to, the record cannot be written, or the signing secret is unavailable: fail closed.
  */
-export async function issueTwoFactorMarkerCookie(): Promise<boolean> {
+export async function issueTwoFactorMarkerCookie(options: { viaTrustedDevice?: boolean } = {}): Promise<boolean> {
     try {
         const ctx = await getTwoFactorSessionContext();
         if (!ctx?.sessionId) return false;
 
-        const marker = await signTwoFactorMarker({ userId: ctx.userId, sessionId: ctx.sessionId });
+        const marker = await signTwoFactorMarker({
+            userId: ctx.userId,
+            sessionId: ctx.sessionId,
+            viaTrustedDevice: options.viaTrustedDevice,
+        });
         const expiresAt = new Date(Date.now() + TWO_FACTOR_MARKER_TTL_SECONDS * 1000);
         if (!(await recordVerifiedSession(ctx.userId, ctx.sessionId, expiresAt))) return false;
         const cookieStore = await cookies();
@@ -60,14 +64,21 @@ export async function issueTwoFactorMarkerCookie(): Promise<boolean> {
 /**
  * True only when the signed-in user completed the second factor in THIS session: a valid marker
  * cookie for this user and session id. For actions that need a 2FA session on top of the
- * middleware gate (#972). Fails closed.
+ * middleware gate (#972). Fails closed. `requireRealFactor` refuses a session that entered through a
+ * remembered computer (#1390), so that session cannot remember the computer again.
  */
-export async function hasVerifiedTwoFactorSession(userId: string): Promise<boolean> {
+export async function hasVerifiedTwoFactorSession(
+    userId: string,
+    options: { requireRealFactor?: boolean } = {}
+): Promise<boolean> {
     try {
         const ctx = await getTwoFactorSessionContext();
         if (!ctx || ctx.userId !== userId) return false;
         const cookieStore = await cookies();
-        return await verifyTwoFactorMarker(cookieStore.get(TWO_FACTOR_COOKIE)?.value, ctx);
+        return await verifyTwoFactorMarker(cookieStore.get(TWO_FACTOR_COOKIE)?.value, {
+            ...ctx,
+            requireRealFactor: options.requireRealFactor,
+        });
     } catch (error) {
         console.error('[2FA] Could not check the session marker:', error instanceof Error ? error.message : error);
         return false;

@@ -38,6 +38,18 @@ export function formatDateTimeMedium(date: Date | string): string {
   return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
+/** Day with the month as a name: "2 Nov 2026". */
+export function formatDayMedium(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+/** Time of day, 12-hour: "2:30 PM". */
+export function formatTime12(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+}
+
 /** "1 day", "7 days". */
 export function formatDayCount(days: number): string {
   return `${days} ${Math.abs(days) === 1 ? 'day' : 'days'}`;

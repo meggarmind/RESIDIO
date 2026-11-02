@@ -8,3 +8,4 @@ export { generateBackupCodes, getBackupCodesCount, sendBackupCodes } from './bac
 export { updateTwoFactorPolicy } from './policies';
 export { getTwoFactorAuditLog, getRecentTwoFactorActivity } from './audit-log';
 export { getWhatsAppSignInApproval, setWhatsAppSignInApproval } from './whatsapp-approval';
+export { listRememberedComputers, forgetRememberedComputer, forgetAllRememberedComputers } from './trusted-devices';
