@@ -61,7 +61,7 @@ vi.mock('@/components/ui/select', () => {
 });
 
 import AwaitingVerificationPage from '@/app/(dashboard)/payments/awaiting-verification/page';
-import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { PERMISSIONS, ROUTE_PERMISSIONS } from '@/lib/auth/action-roles';
 
 const ALERT = {
   id: 'tx-1',
@@ -80,6 +80,7 @@ const RECEIPT = {
   payment_date: '2026-11-01',
   created_at: '2026-11-01T09:00:00Z',
   notes: null,
+  reference_number: 'REF-9',
   houseCode: 'A1',
   resident: 'Ada Obi',
 };
@@ -97,8 +98,8 @@ const ALL_PERMS = [
   PERMISSIONS.EMAIL_IMPORTS_VIEW,
 ];
 
+const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 function renderPage() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
       <AwaitingVerificationPage />
@@ -107,6 +108,7 @@ function renderPage() {
 }
 
 beforeEach(() => {
+  client.clear();
   mocks.permissions = ALL_PERMS;
   mocks.role = 'chairman';
   mocks.getAwaitingVerification.mockReset().mockResolvedValue(BOTH);
@@ -285,5 +287,83 @@ describe('awaiting verification page: cards and dates', () => {
     fireEvent.click(screen.getByRole('button', { name: /Bank alerts, no resident/ }));
     expect(screen.getByText('NIP TRANSFER FROM JOHN DOE')).toBeInTheDocument();
     expect(screen.queryByText('Ada Obi')).not.toBeInTheDocument();
+  });
+});
+
+describe('awaiting verification page: pinned behaviour (#1432 QA)', () => {
+  it('guards the route with either permission', () => {
+    expect(ROUTE_PERMISSIONS['/payments/awaiting-verification']).toEqual([
+      PERMISSIONS.EMAIL_IMPORTS_PROCESS,
+      PERMISSIONS.PAYMENTS_VERIFY,
+    ]);
+  });
+
+  it('keeps Confirm approve disabled until a resident is chosen', async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Approve' }));
+    const confirm = screen.getByRole('button', { name: 'Confirm approve' });
+    expect(confirm).toBeDisabled();
+    await screen.findByRole('option', { name: /Ada Obi/ });
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'res-1' } });
+    expect(confirm).toBeEnabled();
+  });
+
+  it('disables the row buttons while an action runs', async () => {
+    mocks.deletePayment.mockReturnValue(new Promise(() => {}));
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Reject' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm reject' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Verify' })).toBeDisabled());
+    for (const name of ['Approve', 'Skip', 'Reject']) {
+      expect(screen.getByRole('button', { name })).toBeDisabled();
+    }
+  });
+
+  it('invalidates the email-imports queries after a successful action', async () => {
+    const spy = vi.spyOn(client, 'invalidateQueries');
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Reject' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm reject' }));
+    await waitFor(() => expect(spy).toHaveBeenCalledWith({ queryKey: ['email-imports'] }));
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['awaiting-verification'] });
+    spy.mockRestore();
+  });
+
+  it('shows the reference number in the receipt row only when there is one', async () => {
+    mocks.getAwaitingVerification.mockResolvedValue({
+      ...BOTH,
+      alerts: [],
+      receipts: [RECEIPT, { ...RECEIPT, id: 'pay-2', reference_number: null, resident: 'Bola Eze' }],
+    });
+    renderPage();
+    expect(await screen.findByText('REF-9')).toHaveClass('font-mono');
+    expect(screen.getAllByText('REF-9')).toHaveLength(1);
+  });
+
+  it('never says nothing is waiting when a half failed, and shows a dash, not 0', async () => {
+    mocks.getAwaitingVerification.mockResolvedValue({
+      ...BOTH,
+      alerts: null,
+      alertsError: 'alerts boom',
+      receipts: [],
+    });
+    renderPage();
+    expect(await screen.findByText(/alerts boom/)).toBeInTheDocument();
+    expect(screen.queryByText('Nothing is waiting for verification.')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Bank alerts, no resident/ })).toHaveTextContent('—');
+    expect(screen.getByRole('button', { name: /Bank alerts, no resident/ })).not.toHaveTextContent('0');
+    expect(screen.getByRole('button', { name: /^All/ })).toHaveTextContent('—');
+    expect(screen.getByRole('button', { name: /Receipts, no bank proof/ })).toHaveTextContent('0');
+  });
+
+  it('skips with a typed reason when Other is chosen, and requires the text', async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Skip' }));
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Other' } });
+    const confirm = screen.getByRole('button', { name: 'Confirm skip' });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Other reason'), { target: { value: '  Paid in cash  ' } });
+    fireEvent.click(confirm);
+    await waitFor(() => expect(mocks.skipTransaction).toHaveBeenCalledWith('tx-1', 'Paid in cash'));
   });
 });

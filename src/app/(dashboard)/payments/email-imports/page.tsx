@@ -86,7 +86,8 @@ export default function EmailImportsPage() {
   // email_imports.trigger; the Configure link leads to email_imports.configure.
   const canTrigger = useCan(PERMISSIONS.EMAIL_IMPORTS_TRIGGER);
   const canConfigure = useCan(PERMISSIONS.EMAIL_IMPORTS_CONFIGURE);
-  // The queued transactions are worked on Awaiting verification, which needs email_imports.process (#1432).
+  // Queued credits are worked on Awaiting verification (email_imports.process). It lists credits only,
+  // so queued debits keep the user on the import list (#1432).
   const canProcess = useCan(PERMISSIONS.EMAIL_IMPORTS_PROCESS);
 
   const { data: summary, isLoading: summaryLoading } = useQuery({
@@ -227,7 +228,7 @@ export default function EmailImportsPage() {
           animate={false}
           selected={card === 'queued'}
           onClick={() =>
-            canProcess ? router.push('/payments/awaiting-verification') : selectCard('queued')
+            canProcess && (summary?.queuedDebits ?? 0) === 0 ? router.push('/payments/awaiting-verification') : selectCard('queued')
           }
         />
         <EnhancedStatCard

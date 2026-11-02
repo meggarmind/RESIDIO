@@ -67,7 +67,7 @@ describe('email imports list page', () => {
     mocks.retry.mockReset();
     mocks.listEmailImports.mockReset().mockResolvedValue({ data: ROWS, count: 2, error: null });
     mocks.getEmailImportSummary.mockReset().mockResolvedValue({
-      data: { total: 321, completed: 300, queued: 42, autoProcessed: 77 },
+      data: { total: 321, completed: 300, queued: 42, queuedDebits: 0, autoProcessed: 77 },
       error: null,
     });
   });
@@ -128,6 +128,21 @@ describe('email imports list page', () => {
     fireEvent.click(screen.getByRole('button', { name: /Queued for Review/ }));
     expect(mocks.push).toHaveBeenCalledWith('/payments/awaiting-verification');
     expect(mocks.listEmailImports).not.toHaveBeenCalledWith(expect.objectContaining({ has: 'queued' }));
+  });
+
+  it('keeps the filter when queued debits exist, since Awaiting verification lists credits only', async () => {
+    mocks.permissions = [PERMISSIONS.EMAIL_IMPORTS_PROCESS];
+    mocks.getEmailImportSummary.mockResolvedValue({
+      data: { total: 3, completed: 3, queued: 4, queuedDebits: 1, autoProcessed: 0 },
+      error: null,
+    });
+    renderPage();
+    await screen.findByText('4');
+    fireEvent.click(screen.getByRole('button', { name: /Queued for Review/ }));
+    expect(mocks.push).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(mocks.listEmailImports).toHaveBeenLastCalledWith({ has: 'queued', limit: 25, offset: 0 })
+    );
   });
 
   it('uses month names and the server count in the footer', async () => {

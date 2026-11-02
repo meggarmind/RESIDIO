@@ -98,8 +98,12 @@ describe('getEmailImportSummary', () => {
 
     const res = await getEmailImportSummary();
     expect(res.error).toBeNull();
-    expect(res.data).toEqual({ total: 1700, completed: 1500, queued: 7, autoProcessed: 2000 });
-    expect(txCalls).toEqual([['eq', ['status', 'queued_for_review']]]);
+    expect(res.data).toEqual({ total: 1700, completed: 1500, queued: 7, queuedDebits: 7, autoProcessed: 2000 });
+    expect(txCalls).toEqual([
+      ['eq', ['status', 'queued_for_review']],
+      ['eq', ['status', 'queued_for_review']],
+      ['eq', ['transaction_type', 'debit']],
+    ]);
     expect(rangeCalls).toEqual([
       [0, 999],
       [1000, 1999],

@@ -95,6 +95,8 @@ export type EmailImportSummary = {
   total: number;
   completed: number;
   queued: number;
+  /** Live queued debits: Awaiting verification lists credits only, so these stay on the import pages. */
+  queuedDebits: number;
   autoProcessed: number;
 };
 
@@ -106,7 +108,7 @@ export async function getEmailImportSummary(): Promise<{
 }> {
   const supabase = await createServerSupabaseClient();
 
-  const [totalRes, completedRes, queuedRes] = await Promise.all([
+  const [totalRes, completedRes, queuedRes, debitsRes] = await Promise.all([
     supabase.from('email_imports').select('*', { count: 'exact', head: true }),
     supabase
       .from('email_imports')
@@ -118,11 +120,17 @@ export async function getEmailImportSummary(): Promise<{
       .from('email_transactions')
       .select('*', { count: 'exact', head: true })
       .eq('status', 'queued_for_review'),
+    supabase
+      .from('email_transactions')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'queued_for_review')
+      .eq('transaction_type', 'debit'),
   ]);
 
   if (totalRes.error) return { data: null, error: totalRes.error.message };
   if (completedRes.error) return { data: null, error: completedRes.error.message };
   if (queuedRes.error) return { data: null, error: queuedRes.error.message };
+  if (debitsRes.error) return { data: null, error: debitsRes.error.message };
 
   // PostgREST caps a response at 1000 rows, so page through the numeric column.
   let autoProcessed = 0;
@@ -147,6 +155,7 @@ export async function getEmailImportSummary(): Promise<{
       total: totalRes.count ?? 0,
       completed: completedRes.count ?? 0,
       queued: queuedRes.count ?? 0,
+      queuedDebits: debitsRes.count ?? 0,
       autoProcessed,
     },
     error: null,

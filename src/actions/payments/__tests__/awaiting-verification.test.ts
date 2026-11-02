@@ -47,6 +47,7 @@ const PAYMENT = {
   payment_date: '2026-11-01',
   created_at: '2026-11-01T09:00:00Z',
   notes: null,
+  reference_number: 'REF-9',
   status: 'paid',
   approval_request_id: null,
   house: { short_name: 'A1', house_number: '1' },
@@ -74,7 +75,7 @@ describe('getAwaitingVerification', () => {
       expect.objectContaining({ id: 'tx-1', amount: 5000, bank_account_last4: '1234', senderVerified: true }),
     ]);
     expect(res.receipts?.map((r) => r.id)).toEqual(['pay-1', 'pay-pending']);
-    expect(res.receipts?.[0]).toMatchObject({ houseCode: 'A1', resident: 'Ada Obi' });
+    expect(res.receipts?.[0]).toMatchObject({ houseCode: 'A1', resident: 'Ada Obi', reference_number: 'REF-9' });
     expect(res.autoProcessLimit).toBe(60000);
   });
 
@@ -85,6 +86,7 @@ describe('getAwaitingVerification', () => {
     expect(mocks.calls).toContainEqual(['payment_records', 'eq', ['is_verified', false]]);
     const cols = mocks.calls.find(([t, m]) => t === 'payment_records' && m === 'select')?.[2][0] as string;
     expect(cols).toContain('residents!payment_records_resident_id_fkey');
+    expect(cols).toContain('reference_number');
   });
 
   it('returns null alerts without email_imports.process and does not read them', async () => {
