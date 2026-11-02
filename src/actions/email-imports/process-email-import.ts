@@ -26,6 +26,7 @@ import {
   readEstateAccountNumbers,
 } from '@/lib/email-imports/auto-record';
 import { createExpense } from '@/actions/expenses/create-expense';
+import { z } from 'zod';
 import { reversePaymentSettlement } from '@/lib/payments/reverse-payment-settlement';
 import { writeEmailImportStatus } from '@/lib/email-imports/import-records';
 import type {
@@ -379,6 +380,14 @@ export async function processEmailTransactions(
 /** One part of an alert and what it is for (#1443). */
 export type PaymentLine = { chargeCategory: string; amount: number; comment?: string };
 
+const paymentLinesSchema = z.array(
+  z.object({
+    chargeCategory: z.string(),
+    amount: z.number(),
+    comment: z.string().nullish(),
+  })
+);
+
 const OTHER_CATEGORY = 'other';
 const MAX_COMMENT_LENGTH = 500;
 const toKobo = (naira: number) => Math.round(naira * 100);
@@ -532,6 +541,8 @@ export async function processSingleTransaction(
   }
 
   if (params.lines !== undefined) {
+    const parsedLines = paymentLinesSchema.safeParse(params.lines);
+    if (!parsedLines.success) return { success: false, error: 'The lines are not valid' };
     const { data: categories, error: categoriesError } = await adminClient
       .from('charge_categories')
       .select('code')
@@ -540,7 +551,7 @@ export async function processSingleTransaction(
       return { success: false, error: `Could not read the charge categories: ${categoriesError.message}` };
     }
     const lineError = validateLines(
-      params.lines,
+      parsedLines.data.map((l) => ({ ...l, comment: l.comment ?? undefined })),
       Number(emailTx.amount),
       new Set((categories ?? []).map((c: { code: string }) => c.code))
     );
@@ -771,6 +782,14 @@ async function rollbackPayments(paymentIds: string[], userId?: string | null): P
       failures.push(error.message);
       continue;
     }
+    // The "payment received" WhatsApp for this row must not go out for a payment that no longer exists.
+    // Only a row still waiting is cancelled; one already sent or being sent stays.
+    const { error: queueError } = await adminClient
+      .from('notification_queue')
+      .update({ status: 'cancelled', error_message: 'Payment undone: a later line of the same alert failed' })
+      .eq('deduplication_key', `payment_received:${id}`)
+      .eq('status', 'pending');
+    if (queueError) failures.push(`receipt message for payment ${id} not cancelled: ${queueError.message}`);
     await logAudit({
       action: 'DELETE',
       entityType: 'payments',

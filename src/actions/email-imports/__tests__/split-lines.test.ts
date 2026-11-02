@@ -41,6 +41,7 @@ const TX = {
 
 let updates: Array<{ table: string; values: unknown }>;
 let deletedIds: string[];
+let queueFilters: Array<[string, unknown]>;
 
 function fakeAdmin() {
     return {
@@ -48,12 +49,15 @@ function fakeAdmin() {
             let mode: 'select' | 'update' | 'delete' = 'select';
             let values: unknown;
             let id: unknown;
+            let activeFilter = false;
             const chain: Record<string, unknown> = {};
             chain.select = () => chain;
             chain.update = (v: unknown) => ((mode = 'update'), (values = v), chain);
             chain.delete = () => ((mode = 'delete'), chain);
             chain.eq = (col: string, v: unknown) => {
                 if (col === 'id') id = v;
+                if (table === 'notification_queue') queueFilters.push([col, v]);
+                if (col === 'is_active') activeFilter = v === true;
                 return chain;
             };
             chain.single = async () => {
@@ -63,7 +67,9 @@ function fakeAdmin() {
             };
             chain.then = (ok: (v: unknown) => unknown) => {
                 if (table === 'charge_categories') {
-                    return ok({ data: [{ code: 'dues' }, { code: 'toll_gate_levy' }, { code: 'other' }], error: null });
+                    // Honours the is_active filter: 'retired' exists but is inactive.
+                    const all = [{ code: 'dues', active: true }, { code: 'toll_gate_levy', active: true }, { code: 'other', active: true }, { code: 'retired', active: false }];
+                    return ok({ data: all.filter((c) => !activeFilter || c.active).map(({ code }) => ({ code })), error: null });
                 }
                 if (mode === 'update') updates.push({ table, values });
                 if (mode === 'delete') deletedIds.push(String(id));
@@ -80,6 +86,7 @@ beforeEach(() => {
     vi.clearAllMocks();
     updates = [];
     deletedIds = [];
+    queueFilters = [];
     vi.mocked(createAdminClient).mockResolvedValue(fakeAdmin() as never);
     vi.mocked(authorizePermission).mockResolvedValue({ authorized: true, userId: 'u1', permissions: PERMS, roleName: 'chairman' } as never);
     vi.mocked(reversePaymentSettlement).mockResolvedValue(null);
@@ -132,6 +139,10 @@ describe('processSingleTransaction lines (#1443)', () => {
 
     it.each([
         ['sum mismatch', [{ chargeCategory: 'dues', amount: 500 }, { chargeCategory: 'toll_gate_levy', amount: 499.99 }], /add up/],
+        ['inactive category', [{ chargeCategory: 'retired', amount: 1000 }], /Unknown or inactive/],
+        ['null lines entry', [null], /not valid/],
+        ['non-string comment', [{ chargeCategory: 'other', amount: 1000, comment: 5 }], /not valid/],
+        ['non-numeric amount', [{ chargeCategory: 'dues', amount: '1000' }], /not valid/],
         ['unknown category', [{ chargeCategory: 'bogus', amount: 1000 }], /Unknown or inactive/],
         ['other without a comment', [{ chargeCategory: 'other', amount: 1000, comment: '   ' }], /needs a comment/],
         ['other with a long comment', [{ chargeCategory: 'other', amount: 1000, comment: 'x'.repeat(501) }], /needs a comment/],
@@ -139,7 +150,7 @@ describe('processSingleTransaction lines (#1443)', () => {
         ['three decimals', [{ chargeCategory: 'dues', amount: 999.995 }, { chargeCategory: 'dues', amount: 0.005 }], /2 decimal/],
         ['no lines', [], /at least one line/],
     ])('refuses %s before any write', async (_label, lines, message) => {
-        const result = await processSingleTransaction('tx_1', { residentId: 'res_1', lines });
+        const result = await processSingleTransaction('tx_1', { residentId: 'res_1', lines: lines as never });
         expect(result.success).toBe(false);
         expect(result.error).toMatch(message);
         expect(createPayment).not.toHaveBeenCalled();
@@ -161,6 +172,10 @@ describe('processSingleTransaction lines (#1443)', () => {
         expect(deletedIds).toEqual(['pay_a']);
         expect(vi.mocked(logAudit).mock.calls.some((c) => (c[0] as { action: string; entityId: string }).action === 'DELETE' && (c[0] as { entityId: string }).entityId === 'pay_a')).toBe(true);
         expect(updates.some((u) => u.table === 'email_transactions')).toBe(false);
+        // The queued "payment received" WhatsApp of the undone line is cancelled, only while pending.
+        const cancel = updates.find((u) => u.table === 'notification_queue');
+        expect(cancel?.values).toMatchObject({ status: 'cancelled' });
+        expect(queueFilters).toEqual(expect.arrayContaining([['deduplication_key', 'payment_received:pay_a'], ['status', 'pending']]));
     });
 
     it('does not delete a payment whose settlement could not be reversed, and says so', async () => {
