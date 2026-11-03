@@ -74,6 +74,7 @@ function owesRepo(overrides: Partial<OwesRepository> = {}): OwesRepository {
   return {
     searchHouseCodes: vi.fn().mockResolvedValue([]),
     searchResidents: vi.fn().mockResolvedValue([]),
+    searchAliases: vi.fn().mockResolvedValue([]),
     loadHouseResidentNames: vi.fn().mockResolvedValue({}),
     loadHouse: vi.fn().mockImplementation(async (houseId: string) => house({ houseId })),
     saveChoices: vi.fn().mockResolvedValue(undefined),
@@ -145,6 +146,30 @@ describe('Resident status (owes lookup)', () => {
     const reply = await send('tolu', adminRepo(), owes);
     expect(owes.searchResidents).toHaveBeenCalledWith(['tolu']);
     expect(reply.mock.calls[0][0]).toContain('*KOA-18A* ⛔\nName: Tolu Bello\nStatus: Outstanding');
+  });
+
+  it('answers at once for one payer alias match (#1452)', async () => {
+    const owes = owesRepo({ searchAliases: vi.fn().mockResolvedValue([candidate('KOA-18A', 'Tolu Bello')]) });
+    const reply = await send('bello ent', adminRepo(), owes);
+    expect(owes.searchAliases).toHaveBeenCalledWith(['bello', 'ent']);
+    expect(reply.mock.calls[0][0]).toContain('*KOA-18A* ⛔\nName: Tolu Bello\nStatus: Outstanding');
+  });
+
+  it('merges an alias hit and a name hit for the same house into one line (#1452)', async () => {
+    const owes = owesRepo({
+      searchAliases: vi.fn().mockResolvedValue([candidate('KOA-18A', 'Tolu Bello')]),
+      searchResidents: vi.fn().mockResolvedValue([candidate('KOA-18A', 'Tolu Bello')]),
+    });
+    const reply = await send('tolu', adminRepo(), owes);
+    expect(owes.saveChoices).not.toHaveBeenCalled();
+    expect(reply.mock.calls[0][0]).toContain('*KOA-18A*');
+  });
+
+  it('lists alias hits with the code and the resident name (#1452)', async () => {
+    const owes = owesRepo({ searchAliases: vi.fn().mockResolvedValue([candidate('KOA-2', 'Ada Bello'), candidate('KOA-1', 'Ada Obi')]) });
+    const reply = await send('acme', adminRepo(), owes);
+    expect(reply.mock.calls[0][0]).toContain('1. KOA-1 (Ada Obi)');
+    expect(reply.mock.calls[0][0]).toContain('2. KOA-2 (Ada Bello)');
   });
 
   it('lists several name matches, numbered with the code and the name, and keeps the list for five minutes', async () => {
