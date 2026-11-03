@@ -340,9 +340,10 @@ export function createSupabaseOwesRepository(): OwesRepository {
       let aliases = client().from('resident_payment_aliases').select('resident_id').eq('is_active', true);
       // Every word must match the alias.
       for (const word of words) aliases = aliases.or(ilikeAny(['alias_name'], word));
-      const { data: aliasRows, error: aliasError } = await aliases.limit(OWES_LIST_MAX + 1);
+      // A resident can have several aliases: read more rows than the list holds, then cap the residents.
+      const { data: aliasRows, error: aliasError } = await aliases.limit(200);
       if (aliasError) throw aliasError;
-      const ids = [...new Set((aliasRows || []).map((row) => row.resident_id as string))];
+      const ids = [...new Set((aliasRows || []).map((row) => row.resident_id as string))].slice(0, OWES_LIST_MAX + 1);
       if (ids.length === 0) return [];
       const { data, error } = await residentsWithHouses().in('id', ids);
       if (error) throw error;
