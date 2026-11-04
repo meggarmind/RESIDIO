@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { PettyCashDashboard } from './petty-cash-dashboard';
 import { ExpenditureClient } from './expenditure-client';
-import { SnapLogDialog } from './snap-log-dialog';
 import { PettyCashTransactionDialog } from './petty-cash-transaction-dialog';
 import { ManagePettyCashDialog } from './petty-cash/manage-accounts-dialog';
 import { EnhancedPageHeader } from '@/components/dashboard/enhanced-stat-card';
@@ -28,7 +27,6 @@ import type { getVendors } from '@/actions/vendors/get-vendors';
 import type { getExpenseCategories } from '@/actions/expenses/get-expense-categories';
 import type { getProjects } from '@/actions/projects/get-projects';
 import type { getPettyCashAccounts } from '@/actions/finance/petty-cash';
-import type { ExpenseFormValues } from './log-expense-dialog';
 import type { ExpenseFilters } from './expense-filters';
 
 const LogExpenseDialog = dynamic(
@@ -68,10 +66,8 @@ export function ExpenditurePageClient({
     // Presentation only: the write actions enforce EXPENDITURE_MANAGE themselves.
     const canManage = useCan(PERMISSIONS.EXPENDITURE_MANAGE);
     const [isLogExpenseOpen, setIsLogExpenseOpen] = useState(false);
-    const [isSnapLogOpen, setIsSnapLogOpen] = useState(false);
     const [isTransactionOpen, setIsTransactionOpen] = useState(false);
     const [isManageAccountsOpen, setIsManageAccountsOpen] = useState(false);
-    const [dialogInitialData, setDialogInitialData] = useState<Partial<ExpenseFormValues> | null>(null);
     const [payees, setPayees] = useState<Payees | null>(null);
 
     // Residents and staff only fill the log dialog's payee list, so load them when it first opens.
@@ -92,17 +88,6 @@ export function ExpenditurePageClient({
     }, [isLogExpenseOpen, payees]);
 
     const handleLogExpense = () => {
-        setDialogInitialData(null);
-        setIsLogExpenseOpen(true);
-    };
-
-    const handleScanReceipt = () => {
-        setIsLogExpenseOpen(false);
-        setIsSnapLogOpen(true);
-    };
-
-    const handleSnapLog = (receiptData: Partial<ExpenseFormValues>) => {
-        setDialogInitialData(receiptData);
         setIsLogExpenseOpen(true);
     };
 
@@ -168,8 +153,6 @@ export function ExpenditurePageClient({
                             residents={payees?.residents}
                             staff={payees?.staff}
                             onSuccess={() => router.refresh()}
-                            initialData={dialogInitialData ?? undefined}
-                            onScanReceipt={handleScanReceipt}
                         />
                     )}
 
@@ -181,12 +164,6 @@ export function ExpenditurePageClient({
                     />
 
                     <ManagePettyCashDialog open={isManageAccountsOpen} onOpenChange={setIsManageAccountsOpen} />
-
-                    <SnapLogDialog
-                        open={isSnapLogOpen}
-                        onOpenChange={setIsSnapLogOpen}
-                        onSnapLog={handleSnapLog}
-                    />
                 </>
             )}
         </div>
