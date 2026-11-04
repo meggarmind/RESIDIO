@@ -8,6 +8,7 @@ import { RetagPaymentButton } from '@/components/payments/retag-payment-button';
 import { DeletePaymentButton } from '@/components/payments/delete-payment-button';
 import { MoveToCollectionButton } from '@/components/payments/move-to-collection-button';
 import { EmailReceiptDialog } from '@/components/payments/email-receipt-dialog';
+import { ViewReceiptButton } from '@/components/payments/view-receipt-button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -113,6 +114,7 @@ export default function PaymentDetailPage({ params }: PaymentDetailPageProps) {
                     </div>
                 </div>
                 <div className="flex gap-2">
+                    {payment.proof_url && <ViewReceiptButton paymentId={id} />}
                     <UnverifyPaymentButton paymentId={id} isVerified={payment.is_verified} />
                     <RetagPaymentButton paymentId={id} chargeCategory={payment.charge_category} />
                     <MoveToCollectionButton paymentId={id} amount={Number(payment.amount)} />
