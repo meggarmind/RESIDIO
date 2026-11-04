@@ -87,6 +87,8 @@ export interface PaymentReportInput {
   reference: string;
   /** When the resident sent a screenshot of the transfer to the estate phone, if they did. */
   screenshotAt?: string | null;
+  /** The receipt stored in the payment-proofs bucket (#1455), saved as the payment's proof_url. */
+  proofPath?: string | null;
   now?: Date;
 }
 
@@ -167,6 +169,7 @@ export async function createPaymentReport(input: PaymentReportInput): Promise<Pa
       notes,
       is_verified: false,
       whatsapp_report_key: reportKey(input.houseId, input.amount, input.paymentDate),
+      ...(input.proofPath && { proof_url: input.proofPath }),
     })
     .select('id')
     .single();
@@ -195,7 +198,7 @@ export async function createPaymentReport(input: PaymentReportInput): Promise<Pa
       entityType: 'payment_records',
       entityId: payment.id,
       entityDisplay: `Reported payment ${formatNaira(input.amount)} for ${input.houseLabel}`,
-      newValues: { amount: input.amount, payment_date: input.paymentDate, house_id: input.houseId, status: 'pending', approval_request_id: request.request_id },
+      newValues: { amount: input.amount, payment_date: input.paymentDate, house_id: input.houseId, status: 'pending', approval_request_id: request.request_id, ...(input.proofPath && { proof_url: input.proofPath }) },
       description: 'Payment reported by the resident over WhatsApp',
     },
     { userId: null, residentId: reporterId }

@@ -157,6 +157,81 @@ export async function lookupWahaLidPhone(
   return body?.lid === lid && typeof body.pn === 'string' && body.pn.length > 0 ? body.pn : null;
 }
 
+const MEDIA_DOWNLOAD_TIMEOUT_MS = 15_000;
+const WAHA_FILES_PATH = /^\/api\/files\/[A-Za-z0-9._~%-]+(?:\/[A-Za-z0-9._~%-]+)*$/;
+
+/**
+ * The URL to fetch a WAHA media file from (#1455), or null when the URL is not a WAHA file.
+ *
+ * SSRF guard: the host of `mediaUrl` comes from the webhook body and is never contacted. Only its
+ * `/api/files/...` path is kept, and it is fetched from the configured `baseUrl`. WAHA builds the media
+ * URL from its own public-host setting, which need not match the base URL Residio stores.
+ */
+export function wahaMediaFetchUrl(baseUrl: string, mediaUrl: string): string | null {
+  let path: string;
+  try {
+    path = new URL(mediaUrl).pathname;
+  } catch {
+    return null;
+  }
+  if (!WAHA_FILES_PATH.test(path) || /(?:^|\/)\.\.?(?:\/|$)|%2e|%2f|%5c/i.test(path)) return null;
+  return `${baseUrl.replace(/\/+$/, '')}${path}`;
+}
+
+export type WahaMediaDownload =
+  | { ok: true; bytes: Uint8Array }
+  | { ok: false; reason: 'not_allowed' | 'too_large' | 'download_failed'; httpStatus?: number };
+
+/**
+ * Downloads a media file from WAHA with the API key (#1455), reading at most `maxBytes`. No redirect is
+ * followed, so the request cannot be sent on to another host. Never throws.
+ */
+export async function downloadWahaMedia(
+  config: Pick<WahaWhatsAppConfig, 'baseUrl' | 'apiKey'>,
+  mediaUrl: string,
+  maxBytes: number,
+  fetchImpl: typeof fetch = fetch
+): Promise<WahaMediaDownload> {
+  const url = wahaMediaFetchUrl(config.baseUrl, mediaUrl);
+  if (!url) return { ok: false, reason: 'not_allowed' };
+  try {
+    const response = await fetchImpl(url, {
+      headers: { 'X-Api-Key': config.apiKey },
+      cache: 'no-store',
+      redirect: 'error',
+      signal: AbortSignal.timeout(MEDIA_DOWNLOAD_TIMEOUT_MS),
+    });
+    if (!response.ok || !response.body) return { ok: false, reason: 'download_failed', httpStatus: response.status };
+    if (Number(response.headers.get('content-length')) > maxBytes) {
+      await response.body.cancel().catch(() => undefined);
+      return { ok: false, reason: 'too_large' };
+    }
+
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        return { ok: false, reason: 'too_large' };
+      }
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return { ok: true, bytes };
+  } catch {
+    return { ok: false, reason: 'download_failed' };
+  }
+}
+
 const GROUP_READ_TIMEOUT_MS = 15_000;
 
 export interface WahaGroup {

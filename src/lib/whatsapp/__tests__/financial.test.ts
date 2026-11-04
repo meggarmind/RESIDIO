@@ -145,6 +145,7 @@ function repository(houses: FinancialHouse[] = [PALM], overrides: Partial<WhatsA
     startEmailChange: vi.fn().mockResolvedValue({ status: 'sent', email: 'new.name@example.com' }),
     confirmEmailChange: vi.fn().mockResolvedValue({ status: 'saved', email: 'new.name@example.com', statementsQueued: 0 }),
     createPaymentReport: vi.fn().mockResolvedValue({ status: 'created', paymentId: 'payment-1', requestId: 'request-1' }),
+    storeReportProof: vi.fn().mockResolvedValue({ status: 'stored', path: 'whatsapp/resident-1/proof-1.jpg' }),
     getReceiptPayments: vi.fn().mockResolvedValue([]),
     loadReceipt: vi.fn().mockResolvedValue(null),
     storeReceiptPdf: vi.fn().mockResolvedValue('https://storage.test/signed/receipt.pdf'),
@@ -1579,6 +1580,7 @@ describe('WhatsApp Assistant report a payment (#816 decisions 10-12)', () => {
       paymentDate: '2026-10-12',
       reference: 'GTB TRF FROM ADA',
       screenshotAt: null,
+      proofPath: null,
     });
     expect(replies[4]).toBe(`Reported. The estate office will check it against the bank statement. It shows as awaiting verification until then.\n\n${FOOTER}`);
   });
@@ -1669,6 +1671,64 @@ describe('WhatsApp Assistant report a payment (#816 decisions 10-12)', () => {
     expect(send.mock.calls[2][0].body).toBe('Screenshot received. The estate office will see it on the estate phone.\nContinue with your report, or reply CANCEL.');
     expect(send.mock.calls[3][0].body).toContain('12 Oct 2026. Reply with the bank narration');
     expect(repo.createPaymentReport).toHaveBeenCalledWith(expect.objectContaining({ screenshotAt: '09:53 on 9 Oct 2025' }));
+  });
+
+  describe('a WAHA receipt file (#1455)', () => {
+    const media = (mimetype = 'image/jpeg') => ({ ...message(''), type: 'media', text: null, media: { url: 'http://waha:3000/api/files/default/abc.jpeg', mimetype } });
+
+    async function reportWith(repo: Repo, files: ReturnType<typeof media>[]) {
+      const send = vi.fn().mockResolvedValue({ success: true });
+      const opts = { repository: repo, optedIn: true, send };
+      await handleFinancialMessage(message('report'), identity, opts);
+      await handleFinancialMessage(message('50000'), identity, opts);
+      for (const file of files) await handleFinancialMessage(file, identity, opts);
+      await handleFinancialMessage(message('12 Oct 2026'), identity, opts);
+      await handleFinancialMessage(message('GTB TRF FROM ADA'), identity, opts);
+      await handleFinancialMessage(message('1'), identity, opts);
+      return send.mock.calls.map((call) => call[0].body as string);
+    }
+
+    it('stores the file, says it is attached, and files the report with its path', async () => {
+      const repo = repository();
+      const file = media();
+      const replies = await reportWith(repo, [file]);
+
+      expect(repo.storeReportProof).toHaveBeenCalledWith({ residentId: 'resident-1', media: file.media });
+      expect(replies[2]).toBe('Receipt received. It is attached to your report.\nContinue with your report, or reply CANCEL.');
+      expect(replies[3]).toContain('12 Oct 2026. Reply with the bank narration');
+      expect(repo.createPaymentReport).toHaveBeenCalledWith(expect.objectContaining({ proofPath: 'whatsapp/resident-1/proof-1.jpg' }));
+    });
+
+    it('keeps the last file when two are sent', async () => {
+      const repo = repository([PALM], {
+        storeReportProof: vi.fn()
+          .mockResolvedValueOnce({ status: 'stored', path: 'whatsapp/resident-1/first.jpg' })
+          .mockResolvedValueOnce({ status: 'stored', path: 'whatsapp/resident-1/second.pdf' }),
+      });
+      await reportWith(repo, [media(), media('application/pdf')]);
+      expect(repo.createPaymentReport).toHaveBeenCalledWith(expect.objectContaining({ proofPath: 'whatsapp/resident-1/second.pdf' }));
+    });
+
+    it.each([
+      ['unsupported_type', 'That file was not attached. Send the receipt as a JPG, PNG, WEBP or PDF file.'],
+      ['too_large', 'That file was not attached because it is larger than 5 MB.'],
+      ['failed', 'That file could not be attached.'],
+    ] as const)('replies plainly when the file is %s and the report goes on without it', async (status, reply) => {
+      const repo = repository([PALM], { storeReportProof: vi.fn().mockResolvedValue({ status }) });
+      const replies = await reportWith(repo, [media()]);
+
+      expect(replies[2]).toBe(`${reply}\nContinue with your report, or reply CANCEL.`);
+      expect(replies[3]).toContain('12 Oct 2026. Reply with the bank narration');
+      expect(repo.createPaymentReport).toHaveBeenCalledWith(expect.objectContaining({ proofPath: null }));
+    });
+
+    it('stores nothing for a file sent outside a report: it gets the text-only reply', async () => {
+      const repo = repository();
+      const send = vi.fn().mockResolvedValue({ success: true });
+      await handleFinancialMessage(media(), identity, { repository: repo, optedIn: true, send });
+      expect(send.mock.calls[0][0].body).toBe('I can only read text messages here. Please type your request.');
+      expect(repo.storeReportProof).not.toHaveBeenCalled();
+    });
   });
 
   it('still answers an image outside a report with the text-only reply', async () => {
