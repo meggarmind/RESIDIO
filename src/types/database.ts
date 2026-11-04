@@ -1501,6 +1501,8 @@ export interface ApprovalRequestWithDetails extends ApprovalRequest {
     app_roles: JoinedProfileRole;
   } | null;
   entity_name: string; // House address, billing profile name, or payment reference/amount
+  /** A payment_record request whose payment has a receipt attached (#1455). */
+  has_receipt?: boolean;
 }
 
 // Phase 8: Audit Log Types
