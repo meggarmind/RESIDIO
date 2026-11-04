@@ -641,8 +641,7 @@ Four records, four distinct jobs. Keep them in their lanes:
 
 | Record | Job |
 | --- | --- |
-| GitHub issues | **the tracker** — the authoritative record of what is to be done |
-| `TODO.md` | the product backlog: mark completed items, add discovered follow-ups |
+| GitHub issues | **the tracker and the backlog** — the authoritative record of what is to be done. Close completed items, add discovered follow-ups |
 | `ACTIONPLAN.md` | the active plan — update it whenever work completes or invalidates a step |
 | Pinned issue **#412** "Session state: live handoff record" | the sole live handoff record — one comment per session |
 | `SESSION_STATE.md` | frozen archive (as of 2026-10-07): read-only history, never appended |

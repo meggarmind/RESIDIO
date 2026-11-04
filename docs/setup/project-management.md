@@ -23,7 +23,7 @@ This document covers git configuration, documentation update cadence, session wo
 | Document | Frequency | Trigger |
 |----------|-----------|---------|
 | Issue #412 handoff comment | Every substantive session | Before finishing any work, including unprompted progress tracking |
-| `TODO.md` | When backlog status changes | Complete, defer, discover, or reprioritize work |
+| GitHub issues | When backlog status changes | Complete, defer, discover, or reprioritize work |
 | `ACTIONPLAN.md` | When an active plan changes | Complete, revise, or invalidate a plan step |
 | `README.md` | Hourly | Or at session end |
 
@@ -109,7 +109,7 @@ gh issue comment 412 --repo meggarmind/RESIDIO --body-file handoff.md
 - **Don't re-litigate:** anything the next session might read as a regression
 - **Next steps:** including the verified baseline (branch, working-tree state, test/build/lint outcomes)
 
-### Step 2: Update `TODO.md` and `ACTIONPLAN.md`
+### Step 2: Update GitHub issues and `ACTIONPLAN.md`
 - Mark completed work, add discovered follow-ups, and reprioritize the backlog as needed
 - Update active plan steps where the session changed them
 
@@ -125,7 +125,7 @@ gh issue comment 412 --repo meggarmind/RESIDIO --body-file handoff.md
 When triggered by `sync_up`:
 
 ### Step 1: Update Internal Documentation
-- Update `TODO.md` with current state
+- Update the affected GitHub issues with current state
 - Update `CORE.md` (or a harness file, per its section 2) if new patterns established
 - Run `date` to confirm timestamp
 
@@ -156,7 +156,7 @@ git push
 ### Step 3: Evaluate Pending Work
 1. Check open issues on the tracker (`gh issue list`), including any `ready-for-agent` items
 2. Check the remote branch list (`git ls-remote --heads origin`) for work already in flight
-3. Read current phase from `TODO.md`
+3. Read current phase from `ACTIONPLAN.md`
 4. Identify next phase from roadmap
 
 ### Step 4: Present Options
