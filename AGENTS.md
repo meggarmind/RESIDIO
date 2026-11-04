@@ -123,7 +123,7 @@ If the MCP tools are not available in your session:
 - `docs/api/supabase-integration.md` — data-layer and MCP patterns
 - `docs/agents/branching.md` — branching, isolation, concurrent sessions, `stage` and promotion
 - `docs/agents/session-roles.md` — the peer arrangement and its standing safety terms
-- `TODO.md` / `ACTIONPLAN.md` — current phase and in-progress plan
+- GitHub issues (`meggarmind/RESIDIO`) — the backlog; `ACTIONPLAN.md` — current phase and in-progress plan
 
 <!-- BEGIN:nextjs-agent-rules -->
 
