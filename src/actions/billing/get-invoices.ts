@@ -145,7 +145,8 @@ export async function getInvoices(params: GetInvoicesParams = {}): Promise<GetIn
       resident:residents(id, first_name, last_name, resident_code),
       house:houses(id, house_number, short_name, street:streets(name)),
       billing_profile:billing_profiles(id, name),
-      invoice_items(id, description, amount)
+      invoice_items(id, description, amount),
+      write_off:invoice_write_offs!invoice_write_offs_invoice_id_fkey(id)
     `, { count: 'exact' })
         .order('created_at', { ascending: false });
 
@@ -246,7 +247,8 @@ export async function getInvoiceById(id: string): Promise<{ data: InvoiceWithDet
       resident:residents(id, first_name, last_name, resident_code, phone_primary, email),
       house:houses(id, house_number, short_name, street:streets(name)),
       billing_profile:billing_profiles(id, name),
-      invoice_items(id, description, amount)
+      invoice_items(id, description, amount),
+      write_off:invoice_write_offs!invoice_write_offs_invoice_id_fkey(id, batch_id, reason, note, amount_written_off, original_amount_due, written_off_at, written_off_by_profile:profiles!invoice_write_offs_written_off_by_fkey(full_name))
     `)
         .eq('id', id)
         .single();

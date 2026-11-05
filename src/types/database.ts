@@ -1460,6 +1460,9 @@ export interface InvoiceWriteOffSummary {
   written_off_by_profile?: { full_name: string | null } | { full_name: string | null }[] | null;
 }
 
+/** Amber badge for a written-off bill (#1460), shared by the bill list and the bill page. */
+export const WRITTEN_OFF_BADGE_CLASS = 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300';
+
 /** The write-off of a bill, or null: unwraps the embed whether PostgREST returned an object or an array. */
 export function invoiceWriteOff(invoice: Pick<InvoiceWithDetails, 'write_off'>): InvoiceWriteOffSummary | null {
   const value = invoice.write_off;
