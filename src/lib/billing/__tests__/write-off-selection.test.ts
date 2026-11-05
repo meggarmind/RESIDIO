@@ -69,6 +69,15 @@ describe('write-off smart select (#1460)', () => {
         expect(selectOldestUpTo(bills, 4999)).toEqual({ ids: [], total: 0, exact: false, gap: 4999 });
     });
 
+    it('stops at the first bill that does not fit, and does not skip it for a smaller newer bill', () => {
+        const bills: WriteOffBill[] = [
+            { id: 'small-new', period_start: '2021-03-01', amount_due: 1000, amount_paid: 0 },
+            { id: 'old', period_start: '2021-01-01', amount_due: 5000, amount_paid: 0 },
+            { id: 'big', period_start: '2021-02-01', amount_due: 10000, amount_paid: 0 },
+        ];
+        expect(selectOldestUpTo(bills, 6500)).toEqual({ ids: ['old'], total: 5000, exact: false, gap: 1500 });
+    });
+
     it('uses the unpaid balance of a part-paid bill', () => {
         const bills: WriteOffBill[] = [
             { id: 'part', period_start: '2020-01-01', amount_due: 5000, amount_paid: 2000 },
