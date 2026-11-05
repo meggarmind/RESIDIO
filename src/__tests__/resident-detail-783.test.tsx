@@ -87,6 +87,7 @@ vi.mock('@/actions/billing/settle-wallet-invoices', () => ({
   settleWalletInvoices: vi.fn(),
 }));
 vi.mock('@/actions/billing/prepay-future-invoices', () => ({ prepayFutureInvoices: vi.fn() }));
+vi.mock('@/actions/billing/write-off-invoices', () => ({ getWriteOffCandidates: vi.fn(), writeOffInvoices: vi.fn() }));
 vi.mock('@/actions/billing/get-wallet-payment-batch', () => ({
   getWalletPaymentBatch: vi.fn(),
   getWalletPaymentBatches: vi.fn().mockResolvedValue({ data: [], error: null }),
@@ -248,6 +249,17 @@ describe('ResidentMoneyTab actions (#1142)', () => {
     expect(screen.getByRole('button', { name: /settle invoices/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /prepay/i })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /record payment/i })).not.toBeInTheDocument();
+  });
+
+  it('shows Write off bills only with billing.write_off_invoices (#1460)', () => {
+    auth.granted = ['billing.manage_wallets', 'billing.create_invoice', 'billing.void_invoice'];
+    render(<ResidentMoneyTab resident={RESIDENT} />);
+    expect(screen.queryByRole('button', { name: /write off bills/i })).not.toBeInTheDocument();
+    cleanup();
+
+    auth.granted = ['billing.write_off_invoices'];
+    render(<ResidentMoneyTab resident={RESIDENT} />);
+    expect(screen.getByRole('button', { name: /write off bills/i })).toBeInTheDocument();
   });
 
   it('keeps aliases off the page until the button is pressed', () => {
