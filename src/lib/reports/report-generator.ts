@@ -23,6 +23,7 @@ import { DEBT_STATUS_DEFAULTS, getDebtStatuses, type DebtStatus } from '@/lib/bi
 import { generateCollectionRateByStreet } from '@/lib/reports/generators/collection-rate-by-street';
 import { generateExpensesByCategory } from '@/lib/reports/generators/expenses-by-category';
 import { generateWalletBalances } from '@/lib/reports/generators/wallet-balances';
+import { generateWriteOffs } from '@/lib/reports/generators/write-offs';
 import { OCCUPANT_PAYER_ROLES, resolvePayer, type BillingPayer } from '@/lib/billing/payer';
 import { generateStatementOfAccount } from '@/lib/reports/generators/statement-of-account';
 import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
@@ -1978,6 +1979,11 @@ export async function generateReportWithClient(
 
       case 'wallet_balances': {
         const report = await generateWalletBalances(supabase, dateRange);
+        return { success: true, report };
+      }
+
+      case 'write_offs': {
+        const report = await generateWriteOffs(supabase, dateRange);
         return { success: true, report };
       }
 
