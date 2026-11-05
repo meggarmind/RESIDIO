@@ -31,7 +31,7 @@ type WriteOffRow = {
   by: Embed<{ full_name: string | null }>;
 };
 
-/** One written-off bill, as the report and `getWriteOffs` show it. */
+/** One written-off bill, as the report shows it. */
 export type WriteOffReportRow = {
   id: string;
   batchId: string;

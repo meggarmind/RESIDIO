@@ -2,13 +2,11 @@
 
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { formatCurrency } from '@/lib/utils';
-import { readWriteOffs, type WriteOffReportRow } from '@/lib/reports/generators/write-offs';
 import { WRITE_OFF_REASONS, WRITE_OFF_REASON_LABELS } from '@/types/database';
 
 /**
@@ -197,16 +195,4 @@ export async function undoWriteOff(batchId: string): Promise<{ success: boolean;
 
     revalidateResident(data.resident_id);
     return { success: true, error: null, count: data.count, total };
-}
-
-/** Write-offs made in a date range (written_off_at, inclusive days), for the Write-offs report. */
-export async function getWriteOffs(range: { from: string; to: string }): Promise<{ data: WriteOffReportRow[] | null; error: string | null }> {
-    const auth = await authorizePermission(PERMISSIONS.REPORTS_VIEW_FINANCIAL);
-    if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
-    const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-    if (!day.safeParse(range.from).success || !day.safeParse(range.to).success) return { data: null, error: 'Invalid date range' };
-
-    const supabase = await createServerSupabaseClient();
-    const result = await readWriteOffs(supabase as unknown as SupabaseClient, { startDate: range.from, endDate: range.to });
-    return result.error !== null ? { data: null, error: result.error } : { data: result.data, error: null };
 }
