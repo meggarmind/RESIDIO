@@ -25,6 +25,8 @@
 --   4. undo_invoice_write_off(p_batch_id): puts each bill of the batch back to its original status
 --      and amount_due and deletes the batch's rows. Refused when any bill of the batch has changed
 --      since the write-off (a payment allocated or reversed, or its status or amount changed).
+--   5. resident_merge_references() lists invoice_write_offs.resident_id ('move'), so a resident
+--      merge re-points the write-off rows onto the kept resident, with the invoices.
 --
 -- AUTHORIZATION: inside each function (SECURITY DEFINER bypasses RLS), as in
 -- 20261103120000_wallet_credit_transfers.sql: billing.write_off_invoices, or service_role. The actor
@@ -36,6 +38,7 @@
 --
 -- ROLLBACK (written-off bills stay void/paid; undo each batch first if they must come back):
 -- BEGIN;
+-- -- re-run resident_merge_references() from 20261104120200_whatsapp_group_members.sql
 -- DROP FUNCTION IF EXISTS public.undo_invoice_write_off(UUID);
 -- DROP FUNCTION IF EXISTS public.write_off_invoices(UUID[], TEXT, TEXT, UUID);
 -- DROP TABLE IF EXISTS public.invoice_write_offs;
@@ -295,6 +298,76 @@ BEGIN
     );
 END;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- Resident merge inventory: invoice_write_offs.resident_id is a foreign key to residents, so
+-- resident_merge_references() must list it or a merge of a resident with a write-off is blocked
+-- (unhandled_reference). 'move': the rows follow the duplicate's invoices onto the kept resident.
+-- The list below is the one in 20261104120200_whatsapp_group_members.sql plus entry 53.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.resident_merge_references()
+RETURNS TABLE (ordinal integer, table_name text, column_name text, key_column text, handling text)
+LANGUAGE sql
+IMMUTABLE
+SET search_path = ''
+AS $$
+  VALUES
+    (1,  'resident_houses',                  'resident_id',                   'id',          'fold'),
+    (2,  'resident_houses',                  'sponsor_resident_id',           'id',          'move'),
+    (3,  'residents',                        'emergency_contact_resident_id', 'id',          'move'),
+    (4,  'residents',                        'merged_into_resident_id',       'id',          'move'),
+    (5,  'profiles',                         'resident_id',                   'id',          'move'),
+    (6,  'invoices',                         'resident_id',                   'id',          'move'),
+    (7,  'payment_records',                  'resident_id',                   'id',          'move'),
+    (8,  'paystack_transactions',            'resident_id',                   'id',          'move'),
+    (9,  'wallet_payment_batches',           'resident_id',                   'id',          'move'),
+    (10, 'wallet_settlement_requests',       'resident_id',                   'request_key', 'move'),
+    (11, 'late_fee_waivers',                 'resident_id',                   'id',          'move'),
+    (12, 'house_levy_history',               'resident_id',                   'id',          'move'),
+    (13, 'invoice_generation_candidates',    'resident_id',                   'id',          'move'),
+    (14, 'bank_statement_rows',              'matched_resident_id',           'id',          'move'),
+    (15, 'email_transactions',               'matched_resident_id',           'id',          'move'),
+    (16, 'expenses',                         'resident_id',                   'id',          'move'),
+    (17, 'resident_payment_aliases',         'resident_id',                   'id',          'fold'),
+    (18, 'resident_payment_cadence_summary', 'resident_id',                   'resident_id', 'fold'),
+    (19, 'house_ownership_history',          'resident_id',                   'id',          'move'),
+    (20, 'security_contacts',                'resident_id',                   'id',          'move'),
+    (21, 'access_logs',                      'resident_id',                   'id',          'move'),
+    (22, 'documents',                        'resident_id',                   'id',          'move'),
+    (23, 'email_logs',                       'resident_id',                   'id',          'move'),
+    (24, 'notification_queue',               'recipient_id',                  'id',          'move'),
+    (25, 'notification_history',             'recipient_id',                  'id',          'move'),
+    (26, 'notification_preferences',         'resident_id',                   'id',          'fold'),
+    (27, 'escalation_states',                'resident_id',                   'id',          'fold'),
+    (28, 'hierarchical_settings',            'resident_id',                   'id',          'fold'),
+    (29, 'announcement_read_receipts',       'resident_id',                   'id',          'fold'),
+    (30, 'report_subscriptions',             'resident_id',                   'id',          'fold'),
+    (31, 'verification_tokens',              'resident_id',                   'id',          'move'),
+    (32, 'approval_requests',                'affected_resident_id',          'id',          'move'),
+    (33, 'approval_requests',                'requested_by_resident_id',      'id',          'move'),
+    (34, 'impersonation_sessions',           'impersonated_resident_id',      'id',          'move'),
+    (35, 'whatsapp_optins',                  'resident_id',                   'id',          'fold'),
+    (36, 'whatsapp_sessions',                'resident_id',                   'id',          'move'),
+    (37, 'whatsapp_link_tokens',             'resident_id',                   'id',          'move'),
+    (38, 'whatsapp_pending_contacts',        'resident_id',                   'id',          'move'),
+    (39, 'whatsapp_disclosure_logs',         'resident_id',                   'id',          'move'),
+    (40, 'whatsapp_consent_decisions',       'resident_id',                   'id',          'move'),
+    (41, 'whatsapp_outbound_sends',          'resident_id',                   'id',          'move'),
+    (42, 'whatsapp_statement_requests',      'resident_id',                   'id',          'move'),
+    (43, 'whatsapp_survey_responses',        'resident_id',                   'id',          'move'),
+    (44, 'whatsapp_survey_opt_outs',         'resident_id',                   'resident_id', 'fold'),
+    (45, 'recipient_group_members',          'resident_id',                   'id',          'fold'),
+    (46, 'clearance_certificate_copies',     'recipient_resident_id',         'id',          'fold'),
+    (47, 'resident_wallets',                 'resident_id',                   'id',          'keep'),
+    (48, 'resident_merges',                  'kept_resident_id',              'id',          'keep'),
+    (49, 'resident_merges',                  'merged_resident_id',            'id',          'keep'),
+    (50, 'collection_payers',                'resident_id',                   'id',          'keep'),
+    (51, 'payment_records',                  'paid_by_resident_id',           'id',          'move'),
+    (52, 'whatsapp_group_members',           'resident_id',                   'id',          'move'),
+    (53, 'invoice_write_offs',               'resident_id',                   'id',          'move')
+$$;
+
+REVOKE ALL ON FUNCTION public.resident_merge_references() FROM PUBLIC, anon, authenticated;
 
 REVOKE ALL ON FUNCTION public.write_off_invoices(UUID[], TEXT, TEXT, UUID) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.undo_invoice_write_off(UUID) FROM PUBLIC, anon;
