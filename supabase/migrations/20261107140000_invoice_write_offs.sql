@@ -263,6 +263,10 @@ BEGIN
     PERFORM 1 FROM public.invoices WHERE id = ANY (v_ids) ORDER BY id FOR UPDATE;
     -- Lock the batch rows too, so two undos of one batch cannot both run.
     PERFORM 1 FROM public.invoice_write_offs WHERE batch_id = p_batch_id ORDER BY id FOR UPDATE;
+    -- A concurrent undo of the same batch committed while this one waited for the locks.
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Write-off already undone');
+    END IF;
 
     -- Each bill must be exactly as the write-off left it.
     SELECT string_agg(i.invoice_number, ', ' ORDER BY i.invoice_number) INTO v_bad

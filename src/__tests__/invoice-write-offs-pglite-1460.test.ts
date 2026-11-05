@@ -255,6 +255,21 @@ describe('#1460 undo_invoice_write_off', () => {
     expect((await undo('44444444-4444-4444-4444-444444444444')).rows![0].r.error).toMatch(/not found/);
   });
 
+  it('refuses a second undo of the same batch and changes nothing', async () => {
+    const r = await resident();
+    const a = await invoice(r, 5000);
+    const batch = (await writeOff([a])).rows![0].r.batch_id as string;
+    expect((await undo(batch)).rows![0].r.success).toBe(true);
+    // A later write-off of the same bill must not be touched by a repeated undo of the first batch.
+    const again = (await writeOff([a])).rows![0].r.batch_id as string;
+
+    const second = (await undo(batch)).rows![0].r;
+    expect(second.success).toBe(false);
+    expect(second.total ?? null).toBeNull();
+    expect((await bill(a)).status).toBe('void');
+    expect(Number((await one(`SELECT count(*) AS n FROM public.invoice_write_offs WHERE batch_id = $1`, [again])).n)).toBe(1);
+  });
+
   it('refuses a signed-in user without the permission', async () => {
     const r = await resident();
     const a = await invoice(r, 5000);
