@@ -121,6 +121,20 @@ describe('#1460 permission seed', () => {
   });
 });
 
+describe('#1460 invoice_write_offs table', () => {
+  it('names the foreign keys the app embeds by', async () => {
+    const names = await q(
+      `SELECT conname FROM pg_constraint WHERE conrelid = 'public.invoice_write_offs'::regclass AND contype = 'f' ORDER BY 1`
+    );
+    expect(names.map((r) => r.conname)).toEqual([
+      'invoice_write_offs_house_id_fkey',
+      'invoice_write_offs_invoice_id_fkey',
+      'invoice_write_offs_resident_id_fkey',
+      'invoice_write_offs_written_off_by_fkey',
+    ]);
+  });
+});
+
 describe('#1460 write_off_invoices', () => {
   it('voids unpaid bills and records one write-off row each, under one batch', async () => {
     const r = await resident();
