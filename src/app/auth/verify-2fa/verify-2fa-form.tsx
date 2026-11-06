@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from '@/components/ui/input-otp';
 import { Shield, Smartphone, Mail, Key, AlertCircle, Loader2, MessageCircle, Monitor } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { isChannelImplemented } from '@/lib/notifications/types';
 
 type TwoFactorMethod = 'sms' | 'authenticator' | 'email';
 
@@ -578,7 +579,7 @@ export function Verify2FAForm() {
           </Button>
 
           {/* Resend code option for SMS/email */}
-          {!useBackupCode && method !== 'authenticator' && (
+          {!useBackupCode && method !== 'authenticator' && !(method === 'sms' && !isChannelImplemented('sms')) && (
             <div className="text-center">
               <Button
                 variant="ghost"
