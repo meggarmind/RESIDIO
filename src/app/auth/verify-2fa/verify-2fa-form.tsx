@@ -64,6 +64,10 @@ export function Verify2FAForm() {
   // The first WhatsApp start, shared by every run of the check below, so a re-run sends no second request.
   const firstWhatsAppStart = useRef<Promise<boolean> | null>(null);
 
+  // SMS is switched off (#1464): no code can arrive, so only a backup code can finish this sign-in.
+  const smsOff = method === 'sms' && !isChannelImplemented('sms');
+  const backupMode = useBackupCode || smsOff;
+
   // Strict same-origin allow-list; anything else becomes /dashboard (#455).
   const redirectTo = safeNextPath(
     searchParams.get('next'),
@@ -110,8 +114,11 @@ export function Verify2FAForm() {
       firstWhatsAppStart.current ??= startWhatsAppApproval();
       if (await firstWhatsAppStart.current) return;
 
-      // For SMS/email, send code automatically
-      if (profile.two_factor_method !== 'authenticator') {
+      // For SMS/email, send code automatically (not for SMS while it is off: the server would refuse it)
+      if (
+        profile.two_factor_method !== 'authenticator' &&
+        !(profile.two_factor_method === 'sms' && !isChannelImplemented('sms'))
+      ) {
         await sendVerificationCode(profile.two_factor_method as TwoFactorMethod);
       }
     };
@@ -264,13 +271,13 @@ export function Verify2FAForm() {
   };
 
   const handleVerify = async () => {
-    if (!userId || code.length !== (useBackupCode ? 8 : 6)) return;
+    if (!userId || code.length !== (backupMode ? 8 : 6)) return;
 
     setIsLoading(true);
     setError(null);
 
     try {
-      const endpoint = useBackupCode
+      const endpoint = backupMode
         ? '/api/auth/2fa/verify-backup'
         : '/api/auth/2fa/verify';
 
@@ -309,6 +316,9 @@ export function Verify2FAForm() {
   };
 
   const getMethodDescription = () => {
+    if (smsOff) {
+      return 'SMS codes are switched off. Sign in with a backup code.';
+    }
     if (useBackupCode) {
       return 'Enter one of your backup codes to sign in.';
     }
@@ -511,19 +521,26 @@ export function Verify2FAForm() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            {useBackupCode ? (
+            {backupMode ? (
               <Key className="h-8 w-8 text-primary" />
             ) : (
               getMethodIcon()
             )}
           </div>
           <CardTitle className="text-2xl">
-            {useBackupCode ? 'Enter Backup Code' : 'Two-Factor Authentication'}
+            {backupMode ? 'Enter Backup Code' : 'Two-Factor Authentication'}
           </CardTitle>
           <CardDescription>{getMethodDescription()}</CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-6">
+          {smsOff && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>SMS codes are switched off. Sign in with a backup code.</AlertDescription>
+            </Alert>
+          )}
+
           {error && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
@@ -532,7 +549,7 @@ export function Verify2FAForm() {
           )}
 
           <div className="flex justify-center">
-            {useBackupCode ? (
+            {backupMode ? (
               <input
                 type="text"
                 value={code}
@@ -565,7 +582,7 @@ export function Verify2FAForm() {
 
           <Button
             onClick={handleVerify}
-            disabled={isLoading || code.length < (useBackupCode ? 8 : 6)}
+            disabled={isLoading || code.length < (backupMode ? 8 : 6)}
             className="w-full"
           >
             {isLoading ? (
@@ -579,7 +596,7 @@ export function Verify2FAForm() {
           </Button>
 
           {/* Resend code option for SMS/email */}
-          {!useBackupCode && method !== 'authenticator' && !(method === 'sms' && !isChannelImplemented('sms')) && (
+          {!backupMode && method !== 'authenticator' && (
             <div className="text-center">
               <Button
                 variant="ghost"
@@ -601,7 +618,8 @@ export function Verify2FAForm() {
             </div>
           )}
 
-          {/* Toggle backup code option */}
+          {/* Toggle backup code option (nothing to go back to while SMS is off) */}
+          {!smsOff && (
           <div className="text-center border-t pt-4">
             <Button
               variant="link"
@@ -625,6 +643,7 @@ export function Verify2FAForm() {
               )}
             </Button>
           </div>
+          )}
 
           {whatsAppAvailable && (
             <div className="text-center">

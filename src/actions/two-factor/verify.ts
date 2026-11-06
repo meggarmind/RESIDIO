@@ -61,11 +61,7 @@ export async function sendTwoFactorCode(
   // Owner decision 2026-11-06 (#1464): two-factor SMS follows the SMS switch.
   // Must run before any token is stored or any code is sent.
   if (method === 'sms' && !isChannelImplemented('sms')) {
-    return {
-      success: false,
-      message:
-        'SMS codes are switched off. Use a backup code to sign in, or ask an admin to reset your two-factor authentication.',
-    };
+    return { success: false, message: 'SMS codes are switched off.' };
   }
 
   // Invalidate existing tokens

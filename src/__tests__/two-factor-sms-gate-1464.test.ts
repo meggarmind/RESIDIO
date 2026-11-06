@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { authorizePermission } from '@/lib/auth/authorize';
 import { isChannelImplemented } from '@/lib/notifications/types';
 
 /**
@@ -120,13 +121,20 @@ describe('SMS off (the shipped state)', () => {
     expect(sendVerificationSms).not.toHaveBeenCalled();
   });
 
-  it('sign-in send with sms is refused and names real recovery options', async () => {
+  it('setup checks permission first: an unauthorized caller gets the unauthorized result, not the SMS-off message', async () => {
+    vi.mocked(authorizePermission).mockResolvedValueOnce({ authorized: false, error: 'Unauthorized' } as never);
+    const r = await initiateTwoFactorSetup({ method: 'sms' });
+    expect(r.success).toBe(false);
+    expect(r.message).toBe('Unauthorized');
+    expect(r.message).not.toMatch(/SMS codes are switched off/);
+  });
+
+  it('sign-in send with sms is refused with a context-neutral message', async () => {
     mocks.twoFactorEnabled = true;
     const r = await sendTwoFactorCode('sms');
     expect(r.success).toBe(false);
     expect(r.message).toMatch(/SMS codes are switched off/);
-    expect(r.message).toMatch(/backup code/);
-    expect(r.message).toMatch(/admin/);
+    expect(r.message).not.toMatch(/admin|backup code|sign in/);
     expect(tokenInserts()).toHaveLength(0);
     expect(mocks.updates).toHaveLength(0);
     expect(sendVerificationSms).not.toHaveBeenCalled();
