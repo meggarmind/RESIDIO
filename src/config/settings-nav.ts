@@ -439,6 +439,19 @@ export const settingsConfig: SettingsGroup[] = [
                         ],
                     },
                     {
+                        id: "sms-provider",
+                        title: "SMS provider",
+                        defaultCollapsed: true,
+                        rows: [
+                            {
+                                id: "sms-provider-choice",
+                                label: "SMS provider",
+                                help: "Termii or HollaTags. SMS is switched off for now, so this choice applies when SMS is switched on. Credentials are set on the server.",
+                                keywords: ["termii", "hollatags", "text message", "sender"],
+                            },
+                        ],
+                    },
+                    {
                         id: "email-types",
                         title: "Email types",
                         rows: [
