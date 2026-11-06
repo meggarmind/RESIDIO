@@ -69,6 +69,7 @@ const reportTypeOptions = [
     { value: 'collection_rate_by_street', label: 'Collection rate by street', icon: Receipt },
     { value: 'expenses_by_category', label: 'Expenses by category and vendor', icon: Receipt },
     { value: 'wallet_balances', label: 'Wallet balances', icon: Receipt },
+    { value: 'write_offs', label: 'Write-offs', icon: Receipt },
     { value: 'transaction_log', label: 'Transaction Log', icon: ScrollText },
     { value: 'budget_vs_actual', label: 'Budget against actual', icon: Target },
 ] as const;

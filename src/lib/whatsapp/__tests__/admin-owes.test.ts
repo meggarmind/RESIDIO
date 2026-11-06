@@ -14,6 +14,7 @@ import {
   OWES_PICK_MINUTES,
   composeAdminOwesAnswer,
   monthsPaidBy,
+  pickHouseResidentName,
   type OwesCandidate,
   type OwesHouseData,
   type OwesRepository,
@@ -73,6 +74,8 @@ function owesRepo(overrides: Partial<OwesRepository> = {}): OwesRepository {
   return {
     searchHouseCodes: vi.fn().mockResolvedValue([]),
     searchResidents: vi.fn().mockResolvedValue([]),
+    searchAliases: vi.fn().mockResolvedValue([]),
+    loadHouseResidentNames: vi.fn().mockResolvedValue({}),
     loadHouse: vi.fn().mockImplementation(async (houseId: string) => house({ houseId })),
     saveChoices: vi.fn().mockResolvedValue(undefined),
     loadChoices: vi.fn().mockResolvedValue(null),
@@ -145,17 +148,124 @@ describe('Resident status (owes lookup)', () => {
     expect(reply.mock.calls[0][0]).toContain('*KOA-18A* ⛔\nName: Tolu Bello\nStatus: Outstanding');
   });
 
-  it('lists several name matches, numbered, and keeps the list for five minutes', async () => {
+  it('answers at once for one payer alias match (#1452)', async () => {
+    const owes = owesRepo({ searchAliases: vi.fn().mockResolvedValue([candidate('KOA-18A', 'Tolu Bello')]) });
+    const reply = await send('bello ent', adminRepo(), owes);
+    expect(owes.searchAliases).toHaveBeenCalledWith(['bello', 'ent']);
+    expect(reply.mock.calls[0][0]).toContain('*KOA-18A* ⛔\nName: Tolu Bello\nStatus: Outstanding');
+  });
+
+  it('merges an alias hit and a name hit for the same house into one line (#1452)', async () => {
+    const owes = owesRepo({
+      searchAliases: vi.fn().mockResolvedValue([candidate('KOA-18A', 'Tolu Bello')]),
+      searchResidents: vi.fn().mockResolvedValue([candidate('KOA-18A', 'Tolu Bello')]),
+    });
+    const reply = await send('tolu', adminRepo(), owes);
+    expect(owes.saveChoices).not.toHaveBeenCalled();
+    expect(reply.mock.calls[0][0]).toContain('*KOA-18A*');
+  });
+
+  it('lists alias hits with the code and the resident name (#1452)', async () => {
+    const owes = owesRepo({ searchAliases: vi.fn().mockResolvedValue([candidate('KOA-2', 'Ada Bello'), candidate('KOA-1', 'Ada Obi')]) });
+    const reply = await send('acme', adminRepo(), owes);
+    expect(reply.mock.calls[0][0]).toContain('1. KOA-1 (Ada Obi)');
+    expect(reply.mock.calls[0][0]).toContain('2. KOA-2 (Ada Bello)');
+  });
+
+  it('lists several name matches, numbered with the code and the name, and keeps the list for five minutes', async () => {
     const owes = owesRepo({ searchResidents: vi.fn().mockResolvedValue([candidate('KOA-1', 'Ada Obi'), candidate('KOA-2', 'Ada Bello')]) });
     const reply = await send('ada', adminRepo(), owes);
 
-    expect(reply.mock.calls[0][0]).toContain('1. Ada Obi, KOA-1');
-    expect(reply.mock.calls[0][0]).toContain('2. Ada Bello, KOA-2');
+    expect(reply.mock.calls[0][0]).toContain('1. KOA-1 (Ada Obi)');
+    expect(reply.mock.calls[0][0]).toContain('2. KOA-2 (Ada Bello)');
     expect(owes.logDisclosure).not.toHaveBeenCalled();
     const [requestId, choices, expiresAt] = (owes.saveChoices as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(requestId).toBe('request-1');
     expect(choices).toHaveLength(2);
     expect(expiresAt).toBe(new Date(NOW.getTime() + OWES_PICK_MINUTES * 60 * 1000).toISOString());
+  });
+
+  it('lists up to 20 code matches sorted by house code, each with its resident name or (no resident) (#1445)', async () => {
+    const codes = ['GLB-20F-9', 'GLB-20BQ-2', ...Array.from({ length: 8 }, (_, i) => `GLB-20F-${i + 1}`)];
+    const names: Record<string, string> = Object.fromEntries(codes.filter((c) => c !== 'GLB-20F-6').map((c) => [`id-${c}`, `Name ${c}`]));
+    const owes = owesRepo({
+      searchHouseCodes: vi.fn().mockResolvedValue(codes.map((c) => candidate(c))),
+      loadHouseResidentNames: vi.fn().mockResolvedValue(names),
+    });
+    const reply = await send('GLB-20', adminRepo(), owes);
+    const lines = (reply.mock.calls[0][0] as string).split('\n');
+    expect(lines[0]).toBe('10 matches for "GLB-20". Reply with the number within 5 minutes, for example 1:');
+    expect(lines.slice(1)).toEqual([
+      '1. GLB-20BQ-2 (Name GLB-20BQ-2)',
+      '2. GLB-20F-1 (Name GLB-20F-1)',
+      '3. GLB-20F-2 (Name GLB-20F-2)',
+      '4. GLB-20F-3 (Name GLB-20F-3)',
+      '5. GLB-20F-4 (Name GLB-20F-4)',
+      '6. GLB-20F-5 (Name GLB-20F-5)',
+      '7. GLB-20F-6 (no resident)',
+      '8. GLB-20F-7 (Name GLB-20F-7)',
+      '9. GLB-20F-8 (Name GLB-20F-8)',
+      '10. GLB-20F-9 (Name GLB-20F-9)',
+    ]);
+    // The names come from one read for the listed houses, and the saved list keeps the sorted order.
+    expect(owes.loadHouseResidentNames).toHaveBeenCalledTimes(1);
+    expect((owes.loadHouseResidentNames as ReturnType<typeof vi.fn>).mock.calls[0][0]).toEqual(expect.arrayContaining(codes.map((c) => `id-${c}`)));
+    expect((owes.loadHouseResidentNames as ReturnType<typeof vi.fn>).mock.calls[0][0]).toHaveLength(10);
+    const saved = (owes.saveChoices as ReturnType<typeof vi.fn>).mock.calls[0][1] as OwesCandidate[];
+    expect(saved.map((c) => c.code)[0]).toBe('GLB-20BQ-2');
+    expect(saved[6].name).toBeNull();
+  });
+
+  it('sorts house codes by number, so GLB-10 follows GLB-9 (#1445)', async () => {
+    const owes = owesRepo({ searchHouseCodes: vi.fn().mockResolvedValue([candidate('GLB-2'), candidate('GLB-10'), candidate('GLB-9')]) });
+    const reply = await send('GLB', adminRepo(), owes);
+    const lines = (reply.mock.calls[0][0] as string).split('\n').slice(1);
+    expect(lines).toEqual(['1. GLB-2 (no resident)', '2. GLB-9 (no resident)', '3. GLB-10 (no resident)']);
+  });
+
+  it('saves the names with the choices, so a later number picks the right house (#1445)', async () => {
+    const owes = owesRepo({
+      searchHouseCodes: vi.fn().mockResolvedValue([candidate('GLB-9'), candidate('GLB-2')]),
+      loadHouseResidentNames: vi.fn().mockResolvedValue({ 'id-GLB-2': 'Ohioma', 'id-GLB-9': 'Wicken' }),
+    });
+    await send('GLB', adminRepo(), owes);
+    const saved = (owes.saveChoices as ReturnType<typeof vi.fn>).mock.calls[0][1] as OwesCandidate[];
+    expect(saved.map((c) => [c.houseId, c.name])).toEqual([['id-GLB-2', 'Ohioma'], ['id-GLB-9', 'Wicken']]);
+    const pick = owesRepo({ loadChoices: vi.fn().mockResolvedValue({ choices: saved, expiresAt: new Date(NOW.getTime() + 1000).toISOString() }) });
+    await send('2', adminRepo(), pick);
+    expect(pick.loadHouse).toHaveBeenCalledWith('id-GLB-9');
+  });
+
+  it('lists exactly 20 matches', async () => {
+    const owes = owesRepo({ searchHouseCodes: vi.fn().mockResolvedValue(Array.from({ length: 20 }, (_, i) => candidate(`KOA-${i + 1}`))) });
+    const reply = await send('KOA', adminRepo(), owes);
+    expect(reply.mock.calls[0][0]).toMatch(/^20 matches for "KOA"/);
+    expect(owes.saveChoices).toHaveBeenCalled();
+  });
+
+  it('asks to narrow when more than 20 match', async () => {
+    const many = Array.from({ length: 21 }, (_, i) => candidate(`KOA-${i + 1}`));
+    const owes = owesRepo({ searchHouseCodes: vi.fn().mockResolvedValue(many) });
+    const reply = await send('KOA', adminRepo(), owes);
+    expect(reply.mock.calls[0][0]).toBe('More than 20 matches for "KOA". Send a longer name or the house code.');
+    expect(owes.saveChoices).not.toHaveBeenCalled();
+    expect(owes.loadHouseResidentNames).not.toHaveBeenCalled();
+  });
+
+  it('picks a house by a two-digit number from the list (#1445)', async () => {
+    const choices = Array.from({ length: 12 }, (_, i) => candidate(`KOA-${i + 1}`));
+    const expiresAt = new Date(NOW.getTime() + 1000).toISOString();
+    const owes = owesRepo({ loadChoices: vi.fn().mockResolvedValue({ choices, expiresAt }) });
+    await send('12', adminRepo(), owes);
+    expect(owes.loadHouse).toHaveBeenCalledWith('id-KOA-12');
+    expect(owes.searchHouseCodes).not.toHaveBeenCalled();
+  });
+
+  it('treats 21 as a search, not a pick', async () => {
+    const owes = owesRepo();
+    await send('21', adminRepo(), owes);
+    expect(owes.loadChoices).not.toHaveBeenCalled();
+    expect(owes.searchHouseCodes).toHaveBeenCalledWith('21');
   });
 
   it('audits the query and the houses listed', async () => {
@@ -170,14 +280,6 @@ describe('Resident status (owes lookup)', () => {
       }),
       'admin-1'
     );
-  });
-
-  it('asks to narrow when more than five match', async () => {
-    const many = ['A', 'B', 'C', 'D', 'E', 'F'].map((code) => candidate(`KOA-${code}`, `Ada ${code}`));
-    const owes = owesRepo({ searchResidents: vi.fn().mockResolvedValue(many) });
-    const reply = await send('ada', adminRepo(), owes);
-    expect(reply.mock.calls[0][0]).toMatch(/More than 5 matches/);
-    expect(owes.saveChoices).not.toHaveBeenCalled();
   });
 
   it('answers the house picked from a live list and drops the list', async () => {
@@ -249,6 +351,19 @@ describe('Resident status (owes lookup)', () => {
     const reply = await send('KOA-18A', repo, owes);
     expect(reply.mock.calls[0][0]).toMatch(/session has ended[\s\S]*6-digit code/);
     expect(owes.searchHouseCodes).not.toHaveBeenCalled();
+  });
+});
+
+describe('pickHouseResidentName', () => {
+  it('prefers the tenant, then the resident landlord, then the non-resident landlord', () => {
+    expect(pickHouseResidentName([{ role: 'non_resident_landlord', name: 'C' }, { role: 'resident_landlord', name: 'B' }, { role: 'tenant', name: 'A' }])).toBe('A');
+    expect(pickHouseResidentName([{ role: 'non_resident_landlord', name: 'C' }, { role: 'resident_landlord', name: 'B' }])).toBe('B');
+    expect(pickHouseResidentName([{ role: 'non_resident_landlord', name: 'C' }])).toBe('C');
+  });
+
+  it('is null when no tenant or landlord has a name', () => {
+    expect(pickHouseResidentName([])).toBeNull();
+    expect(pickHouseResidentName([{ role: 'co_resident', name: 'D' }, { role: 'tenant', name: '' }])).toBeNull();
   });
 });
 

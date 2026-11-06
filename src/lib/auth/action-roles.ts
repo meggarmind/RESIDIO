@@ -69,6 +69,8 @@ export const PERMISSIONS = {
   BILLING_TRANSFER_WALLET_CREDIT: 'billing.transfer_wallet_credit',
   BILLING_REQUEST_LATE_FEE_WAIVER: 'billing.request_late_fee_waiver',
   BILLING_APPROVE_LATE_FEE_WAIVER: 'billing.approve_late_fee_waiver',
+  // Write off the unpaid balance of a resident's open bills (Exco settlement), and undo it (#1460).
+  BILLING_WRITE_OFF_INVOICES: 'billing.write_off_invoices',
 
   // Security Module
   SECURITY_VIEW: 'security.view',

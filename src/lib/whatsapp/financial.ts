@@ -15,7 +15,7 @@ import { normalizePhoneNumber } from '@/lib/sms/termii';
 import { getSettingResultAsService } from '@/lib/settings/service';
 import { isWhatsAppMasterSwitchOn } from '@/lib/whatsapp/master-switch';
 import { isWhatsAppRecipientAllowed } from '@/lib/whatsapp/rollout';
-import type { WhatsAppInboundMessage, WhatsAppTextMessage } from '@/lib/whatsapp/types';
+import type { WhatsAppInboundMedia, WhatsAppInboundMessage, WhatsAppTextMessage } from '@/lib/whatsapp/types';
 import { ReplySendError, hashWhatsAppLinkCode, type WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
 import { sendWhatsAppPinAlert } from '@/lib/whatsapp/pin-alert';
 import type { AccountStatementData } from '@/lib/billing/account-statement-data';
@@ -35,6 +35,7 @@ import {
 } from '@/lib/whatsapp/statement-delivery';
 import { getReceiptPayments, loadReceipt, storeReceiptPdf, type ReceiptPayment } from '@/lib/whatsapp/receipts';
 import { requestClearanceCertificate, type ClearanceRequestResult } from '@/lib/whatsapp/clearance-request';
+import { storeReportProof, type ReportProofResult } from '@/lib/whatsapp/report-proof';
 import type { PaymentReceiptData } from '@/lib/pdf/payment-receipt';
 import {
   REPORTS_PER_DAY,
@@ -273,6 +274,8 @@ export interface WhatsAppFinancialRepository {
   confirmEmailChange(residentId: string, code: string): Promise<EmailChangeConfirm>;
   /** Files a pending, unverified payment and its approval request (#816 decisions 10-12). */
   createPaymentReport(input: PaymentReportInput): Promise<PaymentReportResult>;
+  /** Stores a receipt sent during a report in the private payment-proofs bucket (#1455). Never throws. */
+  storeReportProof(input: { residentId: string; media: WhatsAppInboundMedia }): Promise<ReportProofResult>;
   /** The latest payments to pick a receipt from (#816 decision 14). */
   getReceiptPayments(residentId: string, houseId: string, limit: number): Promise<ReceiptPayment[]>;
   /** The receipt of a verified payment of this resident and property; null when there is none. */
@@ -882,6 +885,7 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
     startEmailChange,
     confirmEmailChange,
     createPaymentReport,
+    storeReportProof: (input) => storeReportProof(input),
     getReceiptPayments,
     loadReceipt,
     storeReceiptPdf,
@@ -1625,6 +1629,8 @@ interface ReportDraft {
   paymentDate?: string;
   reference?: string;
   screenshotAt?: string;
+  /** The stored receipt (#1455); a later one replaces it. */
+  proofPath?: string;
 }
 
 function reportDraft(turn: Turn): ReportDraft | null {
@@ -1704,6 +1710,7 @@ async function reportStep(turn: Turn, node: string): Promise<void> {
     paymentDate: draft.paymentDate,
     reference: draft.reference,
     screenshotAt: draft.screenshotAt ?? null,
+    proofPath: draft.proofPath ?? null,
   });
   const reply = result.status === 'created'
     ? 'Reported. The estate office will check it against the bank statement. It shows as awaiting verification until then.'
@@ -1717,8 +1724,25 @@ async function reportStep(turn: Turn, node: string): Promise<void> {
   await respond(turn, ask ? `${text}\n\n${ask}` : text, ask ? 'survey_score' : 'main');
 }
 
+const PROOF_REPLIES: Record<ReportProofResult['status'], string> = {
+  stored: 'Receipt received. It is attached to your report.',
+  unsupported_type: 'That file was not attached. Send the receipt as a JPG, PNG, WEBP or PDF file.',
+  too_large: 'That file was not attached because it is larger than 5 MB.',
+  failed: 'That file could not be attached.',
+};
+
+/** A WAHA file inside a report (#1455): stored and kept on the draft. Any failure is a plain reply and the report goes on. */
+async function attachReportProof(turn: Turn, node: string, media: WhatsAppInboundMedia): Promise<void> {
+  const context = await reportContext(turn);
+  if (!context) return;
+  const result = await turn.options.repository.storeReportProof({ residentId: turn.identity.id, media });
+  if (result.status === 'stored') turn.session.draft = { ...context.draft, proofPath: result.path };
+  await respond(turn, `${PROOF_REPLIES[result.status]}\nContinue with your report, or reply CANCEL.`, node);
+}
+
 /** An image inside a report: Chatmaid does not pass the file on, so say where it went and note when it came (decision 10). */
 async function acknowledgeScreenshot(turn: Turn, node: string): Promise<void> {
+  if (turn.message.media) return attachReportProof(turn, node, turn.message.media);
   const draft = reportDraft(turn);
   if (draft) {
     const sentAt = new Date(Number(turn.message.timestamp) * 1000);
@@ -2032,7 +2056,8 @@ async function converse(turn: Turn, expiredMidStep: { wasUnlocked: boolean } | n
     return showMain(turn, `Your session ended after ${SESSION_MINUTES} minutes without activity${pinClause}. Nothing was changed.`);
   }
 
-  if (turn.message.type === 'image' && node.startsWith('report_')) return acknowledgeScreenshot(turn, node);
+  // WAHA media carries `media` (#1455); Chatmaid images keep the 'image' type and no file.
+  if ((turn.message.type === 'image' || turn.message.media) && node.startsWith('report_')) return acknowledgeScreenshot(turn, node);
   if (turn.message.type !== 'text' || !text) return respond(turn, TEXT_ONLY_REPLY, node, turn.misses);
 
   if (node.startsWith('survey_')) {

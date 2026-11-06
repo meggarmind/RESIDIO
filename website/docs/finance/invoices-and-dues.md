@@ -7,8 +7,9 @@ residio_sources:
   - src/app/(dashboard)/billing/**
   - src/actions/billing/**
   - src/app/(dashboard)/settings/billing/**
-residio_verified_commit: d8c64be8
-residio_verified_at: '2026-10-25'
+  - src/components/residents/write-off-bills-dialog-content.tsx
+residio_verified_commit: eb97a11
+residio_verified_at: '2026-11-05'
 residio_app_version: '0.4.0'
 ---
 
@@ -20,7 +21,7 @@ Open **Invoices & Dues** to review the estate's billing position and work with i
 
 ## Review the queue
 
-Filter by status (**Unpaid**, **Overdue**, **Paid**, **Partial**, **Void**; Overdue means unpaid or partly paid and due before today), invoice type (service charge, levy, adjustment, other), billing period (this month, last month, the last 3 months, this year, or a **Custom range** of dates), and resident, or search by invoice number. Combine filters to narrow the working set. Each active filter appears as a chip under the search box; select a chip's remove button to clear that filter, or **Clear all** to clear every filter. On a phone, the filters open from a **Filters** button, which shows how many are active.
+Filter by status (**Unpaid**, **Overdue**, **Paid**, **Partial**, **Void**; Overdue means unpaid or partly paid and due before today), invoice type (service charge, levy, adjustment, other), billing period (this month, last month, the last 3 months, this year, or a **Custom range** of dates), and resident, or search by invoice number. A bill that was written off shows **Written off** (amber), not **Void**; the **Void** filter shows both. Combine filters to narrow the working set. Each active filter appears as a chip under the search box; select a chip's remove button to clear that filter, or **Clear all** to clear every filter. On a phone, the filters open from a **Filters** button, which shows how many are active.
 
 The cards above the list count the whole estate, not just the page on screen. **Total Invoices**, **Paid**, **Unpaid** and **Total Value** follow the filters you have set; **Overdue** always covers every overdue invoice. Select **Overdue** to filter the list to unpaid invoices. On a phone, each invoice is shown as a card with its amount, status, resident, house, period and due date.
 
@@ -44,3 +45,5 @@ The preview is the control point. Do not prepare a run until the candidate count
 ## Handle an exception
 
 Open the invoice detail page to inspect the resident, house, billing period, payments, wallet allocation, and audit history. Do not manually create a replacement invoice until you have confirmed the business key and current run status.
+
+A written-off bill shows the amount written off, the reason, the note, who wrote it off and when. A user with `billing.write_off_invoices` sees **Undo write-off**, which puts back all the bills of that write-off. To write off bills, use **Write off bills** on the resident's **Money** tab.

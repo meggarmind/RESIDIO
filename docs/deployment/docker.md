@@ -68,7 +68,7 @@ block at the top for exactly that reason.
 arg is recorded in `docker history`; an `ENV` is recorded in `docker inspect`. Either one hands
 the value to anyone who can pull the image. That covers `SUPABASE_SERVICE_ROLE_KEY_CLOUD`,
 `DATA_ENCRYPTION_KEY`, `GMAIL_TOKEN_ENCRYPTION_KEY`, `CRON_SECRET`, `RESEND_API_KEY`,
-`PAYSTACK_SECRET_KEY`, `PAYSTACK_WEBHOOK_SECRET`, `GOOGLE_CLIENT_SECRET`, `TERMII_API_KEY` and
+`PAYSTACK_SECRET_KEY`, `PAYSTACK_WEBHOOK_SECRET`, `GOOGLE_CLIENT_SECRET`, `TERMII_API_KEY`, `HOLLATAGS_PASSWORD` and
 every `WHATSAPP_*` value. If a build ever appears to need one of them, that is a bug in the code
 being built.
 

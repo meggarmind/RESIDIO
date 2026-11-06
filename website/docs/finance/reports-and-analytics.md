@@ -8,8 +8,9 @@ residio_sources:
   - src/app/(dashboard)/reports/**
   - src/actions/analytics/**
   - src/actions/reports/**
-residio_verified_commit: 1bc49d1c
-residio_verified_at: '2026-11-02'
+  - src/lib/reports/generators/write-offs.ts
+residio_verified_commit: eb97a11
+residio_verified_at: '2026-11-05'
 residio_app_version: '0.4.0'
 ---
 
@@ -113,6 +114,12 @@ On the **Options** step, the switch **Show expense lines** adds one row for each
 The four figures at the top are **Resident credit held** (the total of the closing balances, which is the credit the estate holds for residents), **Credits in period**, **Debits in period** and **Residents with credit**. A bar chart shows the credits and the debits of each month of the period.
 
 The closing balance comes from the wallet balance now. Movements that are dated after the end of the period are taken back out of it. For a period that ends today, the closing balance is the same as the wallet balance. The opening balance is worked back from the closing balance: **Opening balance** = **Closing balance** - **Credits** + **Debits**. Days are counted in UTC.
+
+## Write-offs
+
+**Write-offs** is in the **Debts** group. It asks for a time period, but not for bank accounts. It shows one row for each bill that was written off in the period, with **Resident**, **House**, **Bill month**, **Bill no.**, **Amount written off**, **Reason**, **Note**, **By** and **When**. The last row gives the total. A write-off that was undone is not shown.
+
+The four figures at the top are **Written off (NGN)**, **Bills**, **Residents** and **Write-offs** (the number of times bills were written off). For a part-paid bill, the amount is only the unpaid balance that was written off. Days are counted in UTC.
 
 ## Statement of account
 

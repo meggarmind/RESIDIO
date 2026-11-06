@@ -69,6 +69,7 @@ export const ENTITY_DISPLAY_FIELDS: Record<AuditEntityType, readonly (string | r
   houses: ['house_number', 'short_name'],
   resident_houses: DEFAULT_DISPLAY_FIELDS,
   invoices: ['invoice_number'],
+  invoice_write_offs: DEFAULT_DISPLAY_FIELDS,
   payments: ['reference_number'],
   billing_profiles: ['name'],
   billing_profile_versions: DEFAULT_DISPLAY_FIELDS,

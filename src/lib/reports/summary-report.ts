@@ -64,6 +64,7 @@ export type SummaryLayoutReportType =
   | 'collection_rate_by_street'
   | 'expenses_by_category'
   | 'wallet_balances'
+  | 'write_offs'
   | 'project_spend'
   | 'petty_cash'
   | 'statement_of_account'

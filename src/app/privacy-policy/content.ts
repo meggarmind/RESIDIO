@@ -61,7 +61,7 @@ export function buildPolicySections(ctx: PolicyContext): PolicySection[] {
       items: [
         'Supabase: hosting and database.',
         'Meta (WhatsApp), Chatmaid and Twilio: WhatsApp messaging.',
-        'Termii: SMS messages.',
+        'Termii and HollaTags: SMS messages.',
         'Resend: email.',
         'Paystack: online payments.',
         'We do not sell personal data.',

@@ -47,6 +47,7 @@ import {
     FileText,
     Wallet,
     Target,
+    Eraser,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -167,6 +168,11 @@ const reportTypeConfig: Record<ReportType, {
         gradient: 'from-emerald-500/10 to-teal-500/5',
         iconBg: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
     },
+    write_offs: {
+        icon: Eraser,
+        gradient: 'from-amber-500/10 to-yellow-500/5',
+        iconBg: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+    },
     indebtedness_summary: {
         icon: LayoutList,
         gradient: 'from-orange-500/10 to-amber-500/5',
@@ -204,7 +210,7 @@ const periodIcons: Record<PeriodPreset, React.ElementType> = {
 };
 
 // Reports that don't depend on bank accounts
-const ACCOUNT_AGNOSTIC_REPORTS: ReportType[] = ['debtors_aging', 'debtors_report', 'dues_collection_status', 'collection_rate_by_street', 'expenses_by_category', 'wallet_balances', 'development_levy', 'invoice_aging', 'project_spend', 'petty_cash', 'statement_of_account', 'budget_vs_actual'];
+const ACCOUNT_AGNOSTIC_REPORTS: ReportType[] = ['debtors_aging', 'debtors_report', 'dues_collection_status', 'collection_rate_by_street', 'expenses_by_category', 'wallet_balances', 'write_offs', 'development_levy', 'invoice_aging', 'project_spend', 'petty_cash', 'statement_of_account', 'budget_vs_actual'];
 
 // Reports that are always "As of Today" (skip date selection)
 const REALTIME_REPORTS: ReportType[] = ['debtors_aging', 'debtors_report', 'development_levy', 'invoice_aging'];

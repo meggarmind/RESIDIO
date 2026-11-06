@@ -267,6 +267,27 @@ export const reportTypePreviews: Record<ReportType, PreviewDefinition> = {
             ['C. Okafor', '0.00', '60,000.00', '60,000.00', '0.00'],
         ],
     },
+    write_offs: {
+        stats: [
+            { label: 'Written off (NGN)', value: '270,000.00' },
+            { label: 'Bills', value: '54' },
+            { label: 'Residents', value: '1' },
+            { label: 'Write-offs', value: '1' },
+        ],
+        tableTitle: 'Each bill written off in the period',
+        columns: [
+            { label: 'Resident' },
+            { label: 'Bill month' },
+            { label: 'Bill no.' },
+            { label: 'Amount written off', align: 'right' },
+            { label: 'Reason' },
+            { label: 'When' },
+        ],
+        rows: [
+            ['A. Bello', 'July 2020', 'INV-202007-0362', '5,000.00', 'Exco settlement', '05 November 2026'],
+            ['A. Bello', 'August 2020', 'INV-202008-0362', '5,000.00', 'Exco settlement', '05 November 2026'],
+        ],
+    },
     // Retired (#1399): not offered in the picker; kept so the Record stays complete for old rows.
     debtors_report: {
         stats: [

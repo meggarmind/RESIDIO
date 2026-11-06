@@ -144,6 +144,12 @@ const reportTypeConfig: Record<
         gradient: 'from-emerald-500 to-teal-500',
         iconBg: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
     },
+    write_offs: {
+        icon: Receipt,
+        label: 'Write-offs',
+        gradient: 'from-amber-500 to-yellow-500',
+        iconBg: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+    },
     indebtedness_summary: {
         icon: Users,
         label: 'Indebtedness Report',
