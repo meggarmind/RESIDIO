@@ -3,6 +3,7 @@
 import { createAdminClient } from '@/lib/supabase/server';
 import { sendEmail } from '@/lib/email/send-email';
 import { sendVerificationSms } from '@/lib/sms/send-sms';
+import { isChannelImplemented } from '@/lib/notifications/types';
 import { getEstateEmailSettings } from '@/lib/email/send-email';
 import { VerificationCodeEmail } from '@/emails/verification-code';
 import type { TwoFactorVerifyResult, TwoFactorMethod, Verify2FAInput } from '@/types/database';
@@ -55,6 +56,16 @@ export async function sendTwoFactorCode(
   // For authenticator method, we don't need to send a code
   if (method === 'authenticator') {
     return { success: true, message: 'Enter the code from your authenticator app' };
+  }
+
+  // Owner decision 2026-11-06 (#1464): two-factor SMS follows the SMS switch.
+  // Must run before any token is stored or any code is sent.
+  if (method === 'sms' && !isChannelImplemented('sms')) {
+    return {
+      success: false,
+      message:
+        'SMS codes are switched off. Use a backup code to sign in, or ask an admin to reset your two-factor authentication.',
+    };
   }
 
   // Invalidate existing tokens
