@@ -705,7 +705,8 @@ Runtime secrets (build variable off; different values per environment):
 `SUPABASE_SERVICE_ROLE_KEY_CLOUD`, `CRON_SECRET`, `DATA_ENCRYPTION_KEY`,
 `GMAIL_TOKEN_ENCRYPTION_KEY`, `RESEND_API_KEY`, `EMAIL_FROM_ADDRESS`, `EMAIL_REPLY_TO_ADDRESS`,
 `PAYSTACK_SECRET_KEY`, `PAYSTACK_WEBHOOK_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
-`GOOGLE_REDIRECT_URI`, `TERMII_API_KEY`, `TERMII_SENDER_ID`, `WHATSAPP_*` if used. Template and
+`GOOGLE_REDIRECT_URI`, `TERMII_API_KEY`, `TERMII_SENDER_ID`, `HOLLATAGS_USERNAME`,
+`HOLLATAGS_PASSWORD`, `HOLLATAGS_SENDER_ID`, `WHATSAPP_*` if used. Template and
 comments: `.env.docker.example`. Generate keys with
 `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` and store them in the
 password manager first. **Never rotate `DATA_ENCRYPTION_KEY` once data exists.**
@@ -785,7 +786,7 @@ Recommended: password manager as the master copy; app secrets in the deploy laye
 (Coolify's encrypted variables, or a root-only `.env` read by `docker compose` under #269); backup
 secrets in GitHub Actions secrets. Secrets the app reads (from the code): `CRON_SECRET`,
 `DATA_ENCRYPTION_KEY`, `GMAIL_TOKEN_ENCRYPTION_KEY`, `GOOGLE_CLIENT_SECRET`, `PAYSTACK_SECRET_KEY`,
-`PAYSTACK_WEBHOOK_SECRET`, `RESEND_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY(_CLOUD)`, `TERMII_API_KEY`,
+`PAYSTACK_WEBHOOK_SECRET`, `RESEND_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY(_CLOUD)`, `TERMII_API_KEY`, `HOLLATAGS_PASSWORD`,
 `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`. `DATA_ENCRYPTION_KEY`
 encrypts data at rest: losing it loses that data, so it belongs in the password manager too.
 

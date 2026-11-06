@@ -40,7 +40,7 @@ export interface SendSmsResult {
   success: boolean;
   messageId?: string;
   error?: string;
-  balance?: number; // Termii returns account balance
+  balance?: number; // set only when the provider returns an account balance
   /** Set when the communications override redirected or blocked the send (#715). */
   override?: OverrideLogRecord;
 }

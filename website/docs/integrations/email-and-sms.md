@@ -14,8 +14,8 @@ residio_sources:
   - src/app/(dashboard)/settings/reminders/**
   - src/app/(dashboard)/settings/wording/**
   - src/components/settings/messages/**
-residio_verified_commit: 62cf6490
-residio_verified_at: '2026-10-28'
+residio_verified_commit: 7b29a275
+residio_verified_at: '2026-11-06'
 residio_app_version: '0.4.0'
 ---
 
@@ -37,9 +37,11 @@ The same **Testing** section is where you send a test email to an address of you
 
 ## SMS
 
-SMS is used for a narrower set of messages: two-factor codes, plus contact verification codes once the SMS provider is connected. SMS is currently switched off for emergency broadcasts, reminders, contact verification codes, and the WhatsApp fallback below until the SMS provider (Termii) is connected. It is more expensive and more intrusive than email, so it should not be the default channel for routine billing communication.
+SMS is used for a narrower set of messages: two-factor codes, plus contact verification codes once the SMS provider is connected. SMS is currently switched off for emergency broadcasts, reminders, contact verification codes, and the WhatsApp fallback below until the SMS provider is connected. It is more expensive and more intrusive than email, so it should not be the default channel for routine billing communication.
 
-Until then, SMS has no settings of its own: **Settings → Messages → Reminders** offers only email and WhatsApp as channels for each step.
+The SMS provider is Termii or HollaTags. An admin picks the active one in **Settings → Messages → Email & sending**, in the **SMS provider** section. The page shows whether each provider has its credentials on the server. The credentials themselves are set by an engineer in the server environment, never in the dashboard. If the chosen provider has no credentials, SMS sends fail with an error. The system does not switch to the other provider. The choice applies when SMS is switched on. SMS stays switched off for now.
+
+Until then, SMS has no other settings: **Settings → Messages → Reminders** offers only email and WhatsApp as channels for each step.
 
 ### SMS fallback for urgent WhatsApp messages
 
@@ -100,7 +102,7 @@ Editing is available only while Chatmaid or WAHA is the connected WhatsApp provi
 
 The scheduled job sends at most one reminder per invoice per day, so running it again on the same day (for example after a timeout) does not resend. A reminder day that the job missed is not caught up later. If the job cannot read the schedule, the invoices or an invoice's reminder history, it reports the run as failed instead of sending nothing silently.
 
-Invoice reminders go out by email and WhatsApp only. SMS is switched off for reminders until the SMS provider (Termii) is connected, so an SMS step in a reminder schedule is skipped without an error. The default schedule is email only. The schedule editor offers Email and WhatsApp for each step; it does not offer SMS. A WhatsApp step reaches only residents who have opted in to WhatsApp.
+Invoice reminders go out by email and WhatsApp only. SMS is switched off for reminders until the SMS provider is connected, so an SMS step in a reminder schedule is skipped without an error. The default schedule is email only. The schedule editor offers Email and WhatsApp for each step; it does not offer SMS. A WhatsApp step reaches only residents who have opted in to WhatsApp.
 
 ## The notification queue
 
