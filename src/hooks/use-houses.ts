@@ -20,8 +20,9 @@ export type OwnershipHistoryWithEndDate = HouseOwnershipHistoryWithResident & {
 };
 import { toast } from 'sonner';
 
-export function useHouses(params: Partial<HouseSearchParams> = {}) {
+export function useHouses(params: Partial<HouseSearchParams> = {}, options: { enabled?: boolean } = {}) {
   return useQuery({
+    enabled: options.enabled ?? true,
     queryKey: ['houses', params],
     queryFn: async () => {
       const result = await getHouses(params);

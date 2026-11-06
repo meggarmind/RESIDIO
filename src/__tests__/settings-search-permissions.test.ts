@@ -148,6 +148,7 @@ describe('Settings row search entry permissions (#934, #935, #937)', () => {
       'email-payment-reminders': MANAGE_GENERAL,
       'email-invoice-notifications': MANAGE_GENERAL,
       'email-welcome': MANAGE_GENERAL,
+      'sms-provider-choice': MANAGE_GENERAL,
       'redirect-all': MANAGE_GENERAL,
       'override-contacts': MANAGE_GENERAL,
       'debug-mode': MANAGE_GENERAL,

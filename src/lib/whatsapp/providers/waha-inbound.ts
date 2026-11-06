@@ -119,6 +119,8 @@ function mapWahaMessage(message: Record<string, unknown>): WahaInbound | null {
 
   const hasMedia = message.hasMedia === true;
   const body = typeof message.body === 'string' && message.body.length > 0 ? message.body : null;
+  // `payload.media` is `{ url, mimetype, filename }`; `url` is absent when WAHA did not download the file (#1455).
+  const media = asRecord(message.media);
   return {
     message: {
       id,
@@ -127,6 +129,12 @@ function mapWahaMessage(message: Record<string, unknown>): WahaInbound | null {
       type: hasMedia ? 'media' : 'text',
       // 1:1 media gets the text-only reply (#804), so its caption is not read as a command.
       text: hasMedia ? null : body,
+      ...(hasMedia && {
+        media: {
+          url: typeof media?.url === 'string' && media.url.length > 0 ? media.url : null,
+          mimetype: typeof media?.mimetype === 'string' && media.mimetype.length > 0 ? media.mimetype : null,
+        },
+      }),
     },
     ignoredReason: hasMedia || body ? null : 'no_text',
   };
@@ -137,7 +145,7 @@ function mapWahaMessage(message: Record<string, unknown>): WahaInbound | null {
  * store read) to the canonical inbound shape. Shared by the webhook and the
  * reconciliation cron, so both apply the same rules.
  *
- * `id`, `from`, `body`, `hasMedia` and `timestamp` are the fields used. Returns
+ * `id`, `from`, `body`, `hasMedia`, `media` and `timestamp` are the fields used. Returns
  * null only for an object without a usable `id`: with no id there is nothing to
  * dedupe on.
  *
@@ -227,4 +235,56 @@ export function wahaEventDedupeKey(event: string, body: unknown, rawBody: string
       ? envelopeId.trim()
       : `body-${createHash('sha256').update(rawBody, 'utf8').digest('hex')}`;
   return `waha-event:${event}:${id}`;
+}
+
+export interface WahaPollVote {
+  /** The voted poll's message id (`true_<chat>_<key>`). */
+  pollMessageId: string;
+  /** The voter's raw WAHA id: `...@c.us` or a hidden `...@lid`. */
+  voterId: string;
+  /** The chosen options: strings (WEBJS) or `{ name }` objects (other engines). */
+  selectedOptions: unknown[];
+}
+
+function messageIdOf(value: unknown): string | null {
+  if (typeof value === 'string' && value.length > 0) return value;
+  const serialized = asRecord(value)?._serialized;
+  return typeof serialized === 'string' && serialized.length > 0 ? serialized : null;
+}
+
+/**
+ * Parses a `poll.vote` webhook body (#1389): `payload.vote` (`selectedOptions`, `from`, `fromMe`) and
+ * `payload.poll.id`, read from the WAHA docs (1 Nov 2026), not yet measured on a live container. The
+ * reader also takes `participant` or `author` for the voter and an `id._serialized` poll id, since the
+ * engines differ. Returns null for the handset's own vote or a body without a poll id or a voter.
+ */
+export function extractWahaPollVote(body: unknown): WahaPollVote | null {
+  const payload = payloadOf(body);
+  const vote = asRecord(payload?.vote);
+  const poll = asRecord(payload?.poll);
+  if (!vote || vote.fromMe === true) return null;
+  const pollMessageId = messageIdOf(poll?.id);
+  const voterId = [vote.from, vote.participant, vote.author]
+    .map(messageIdOf)
+    .find((id): id is string => !!id && id !== 'me');
+  if (!pollMessageId || !voterId) return null;
+  return {
+    pollMessageId,
+    voterId,
+    selectedOptions: Array.isArray(vote.selectedOptions) ? vote.selectedOptions : [],
+  };
+}
+
+/**
+ * The voter's phone number (`+234...`), with a hidden `@lid` resolved through `lookupLid` the same way
+ * `resolveWahaInbound` does: only a `@c.us` answer is used; anything else gives null.
+ */
+export async function resolveWahaVoterPhone(voterId: string, lookupLid: WahaLidLookup): Promise<string | null> {
+  if (voterId.endsWith('@c.us')) return normalizeChatmaidPhone(voterId);
+  if (!voterId.endsWith('@lid')) return null;
+  const phoneId = await lookupLid(voterId).catch((error: unknown) => {
+    console.error('[waha-inbound] LID lookup failed:', error instanceof Error ? error.message : 'unknown error');
+    return null;
+  });
+  return phoneId?.endsWith('@c.us') ? normalizeChatmaidPhone(phoneId) : null;
 }

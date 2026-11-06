@@ -254,28 +254,27 @@ describe('Part 2: approvals/index.ts hand-rolled legacy checks', () => {
   });
 });
 
-describe('Part 2: report-engine.ts checkReportAccess', () => {
+describe('Part 2: report-engine.ts per-report permission (#1397)', () => {
   it('pins which permission every top-level declaration requires', () => {
     expect(extractPermissionGuards(reportEngineSource)).toEqual({
-      checkReportAccess: 'REPORTS_VIEW_FINANCIAL',
       // The seven generators moved to lib/reports/report-generator.ts (#483), which is
       // deliberately authorization-free; see report-generator-session-free.test.ts.
-      // Delegates its authorization entirely to checkReportAccess(),
-      // verified below -- must not carry a second, independently-driftable
-      // check of its own.
+      // Authorizes with the requested report type's own permission (#1397), so the
+      // constant is looked up, not written here; pinned below.
       generateReport: null,
     });
   });
 
-  it('generateReport gates on checkReportAccess() as its first meaningful call', () => {
+  it('generateReport looks up the report permission, refuses an unlisted type, and authorizes with it as its first await', () => {
     const start = reportEngineSource.indexOf('export async function generateReport');
-    const rawBody = reportEngineSource.slice(start);
-    // Neutralise the setup await ahead of the guard, same as extractPermissionGuards.
-    const body = rawBody.replace(/await\s+createServerSupabaseClient\(\)/g, 'SETUP_CALL()');
+    const body = reportEngineSource.slice(start);
+    expect(body).toContain('const permission = getReportPermission(params.reportType);');
+    expect(body).toMatch(/if \(!permission\) \{\s*return \{ success: false, error: 'Unknown report type' \};/);
     const firstAwait = body.match(/\bawait\b/);
-    const accessCall = body.match(/await\s+checkReportAccess\(\)/);
-    expect(accessCall).not.toBeNull();
-    expect(firstAwait?.index).toBe(accessCall!.index);
+    const authCall = body.match(/await\s+authorizePermission\(permission\)/);
+    expect(authCall).not.toBeNull();
+    expect(firstAwait?.index).toBe(authCall!.index);
+    expect(body.slice(authCall!.index!, authCall!.index! + 150)).toMatch(/if \(!auth\.authorized\) \{\s*return/);
   });
 
   it('no longer reads the legacy profiles.role column for authorization', () => {
@@ -334,10 +333,12 @@ function extractPageGuard(src: string, exportName: string): { permission: string
 
 describe('Part 4: report page RBAC gates (not covered by module-integration.test.ts)', () => {
   it('pins which permission each page requires, and that failure redirects to /dashboard', () => {
-    expect(extractPageGuard(reportsPageSource, 'ReportsPage')).toEqual({
-      permission: 'REPORTS_VIEW_FINANCIAL',
-      failureAction: "redirect('/dashboard')",
-    });
+    // Reports opens for any report's view permission (#1397); with today's list that is
+    // still only REPORTS_VIEW_FINANCIAL (pinned in reports-foundation-1397.test.ts).
+    const reportsGuard = reportsPageSource.match(
+      /await\s+authorizeAnyPermission\(REPORT_VIEW_PERMISSIONS\);\s*if\s*\(\s*!auth\.authorized\s*\)\s*\{\s*(redirect\('[^']+'\))/
+    );
+    expect(reportsGuard?.[1]).toBe("redirect('/dashboard')");
     expect(extractPageGuard(financialOverviewPageSource, 'FinancialOverviewPage')).toEqual({
       permission: 'REPORTS_VIEW_FINANCIAL',
       failureAction: "redirect('/dashboard')",

@@ -3,6 +3,7 @@
 import { useRef, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DuesMonthGrid } from './dues-month-grid';
 import { TraditionalTemplate } from './templates/traditional-template';
 import { ModernTemplate } from './templates/modern-template';
 import {
@@ -19,6 +20,7 @@ import {
 import type { GeneratedReport } from '@/hooks/use-reports';
 import { useReportVersionHistory } from '@/hooks/use-reports';
 import { getDateRangeFromPreset, REPORT_TYPE_LABELS } from '@/lib/validators/reports';
+import { isSummaryReport, summaryTableToCsv } from '@/lib/reports/summary-report';
 import {
   Sheet,
   SheetContent,
@@ -35,6 +37,13 @@ import { formatDistanceToNow } from 'date-fns';
 // ============================================================
 
 type TemplateType = 'traditional' | 'modern';
+
+const AS_OF_REPORT_TYPES: string[] = ['invoice_aging', 'indebtedness_summary', 'dues_collection_status'];
+
+/** Reports that show the position on one day print "As of", not a period (#1420). */
+export function isAsOfReportType(reportType: string): boolean {
+  return AS_OF_REPORT_TYPES.includes(reportType);
+}
 
 interface ReportViewerProps {
   report: GeneratedReport;
@@ -143,6 +152,10 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  // A summary report with a month grid (#1400) can be read as the sheet or as the grid; the grid is screen only.
+  const [view, setView] = useState<'sheet' | 'grid'>('sheet');
+  const grid = isSummaryReport(report.data) ? report.data.data.grid : undefined;
+  const showGrid = !!grid && view === 'grid';
 
   // If report has a parentReportId, use that to fetch history of the *root* report, 
   // otherwise use report.id. But typically version history tracks items with same parent.
@@ -159,6 +172,7 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
   const dateRange = report.parameters.periodPreset === 'custom'
     ? { startDate: report.parameters.startDate || '', endDate: report.parameters.endDate || '' }
     : getDateRangeFromPreset(report.parameters.periodPreset);
+  const isAsOfReport = isAsOfReportType(report.parameters.reportType);
 
   // Robust label getter that handles the "undefined" issue
   const getDisplayTitle = useCallback(() => {
@@ -280,7 +294,10 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
     const filename = `${report.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.csv`;
 
     try {
-      if (report.data.type === 'transaction_log' && report.data.data.transactions) {
+      if (isSummaryReport(report.data)) {
+        // Summary-first reports export their table, whatever their type (#1397).
+        csvContent = summaryTableToCsv(report.data.data.table);
+      } else if (report.data.type === 'transaction_log' && report.data.data.transactions) {
         const headers = ["Date", "Description", "Amount", "Type", "Category", "Bank Account", "Reference"];
         csvContent = [
           headers.join(","),
@@ -406,7 +423,7 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
               </h2>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Calendar className="h-3.5 w-3.5" />
-                {report.parameters.reportType !== 'invoice_aging' ? (
+                {!isAsOfReport ? (
                   <span>
                     {new Date(dateRange.startDate).toLocaleDateString('en-GB', { month: 'short', day: 'numeric', year: 'numeric' })}
                     {' — '}
@@ -510,9 +527,22 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
       {/* Report Preview */}
       <div className={`flex-1 overflow-auto ${template === 'modern' ? 'bg-slate-100' : 'bg-slate-50'}`}>
         <div className="max-w-[1100px] mx-auto py-6">
-          {/* Preview Container with Shadow */}
+          {grid && (
+            <Tabs value={view} onValueChange={(v) => setView(v as 'sheet' | 'grid')} className="mb-4 px-4 sm:px-0">
+              <TabsList aria-label="Report view">
+                <TabsTrigger value="sheet" data-testid="report-view-sheet">Sheet</TabsTrigger>
+                <TabsTrigger value="grid" data-testid="report-view-grid">Grid of months</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          )}
+          {showGrid && grid && (
+            <div className="bg-background rounded-lg shadow-xl overflow-hidden">
+              <DuesMonthGrid grid={grid} />
+            </div>
+          )}
+          {/* Preview Container with Shadow. Kept mounted in grid view so Export PDF still prints the sheet. */}
           <div
-            className="bg-white rounded-lg shadow-xl overflow-hidden"
+            className={cn('bg-white rounded-lg shadow-xl overflow-hidden', showGrid && 'hidden')}
             style={{
               boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.15)',
             }}
@@ -523,7 +553,7 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
                 report={report.data}
                 title={getDisplayTitle()}
                 dateRange={
-                  report.parameters.reportType !== 'invoice_aging'
+                  !isAsOfReport
                     ? { start: dateRange.startDate, end: dateRange.endDate }
                     : undefined
                 }
@@ -535,7 +565,7 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
                 report={report.data}
                 title={getDisplayTitle()}
                 dateRange={
-                  report.parameters.reportType !== 'invoice_aging'
+                  !isAsOfReport
                     ? { start: dateRange.startDate, end: dateRange.endDate }
                     : undefined
                 }

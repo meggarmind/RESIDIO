@@ -62,6 +62,8 @@ const NO_RESIDENT_CONTEXT: Allowed[] = [
   { file: 'actions/two-factor/setup.ts', fn: 'initiateTwoFactorSetup', sites: 2, purpose: 'self_auth_2fa', reason: 'self-addressed code to the signed-in user' },
   { file: 'actions/two-factor/verify.ts', fn: 'sendTwoFactorCode', sites: 2, purpose: 'self_auth_2fa', reason: 'self-addressed code to the signed-in user' },
   { file: 'actions/two-factor/backup-codes.ts', fn: 'sendBackupCodes', sites: 2, purpose: 'self_auth_2fa', reason: 'self-addressed backup codes to the signed-in user' },
+  { file: 'lib/auth/two-factor-whatsapp-store.ts', fn: 'sendAdminNotice', sites: 1, purpose: 'self_auth_2fa', reason: "sign-in approval notice to the admin's own linked WhatsApp number (#1389)" },
+  { file: 'lib/auth/two-factor-whatsapp-store.ts', fn: 'alertChairmanOfBlockedSignIn', sites: 2, reason: 'blocked sign-in alert to the Chairman (staff: linked WhatsApp number or profiles.email, #1389): follow the global switch' },
   { file: 'lib/whatsapp/financial.ts', fn: 'sendFinancialReply', sites: 1, purpose: 'inbound_reply', reason: 'reply to whoever messaged us' },
   { file: 'lib/whatsapp/identity.ts', fn: 'sendReply', sites: 1, purpose: 'inbound_reply', reason: 'reply to whoever messaged us' },
 ];

@@ -235,15 +235,15 @@ describe('opening Admin tools with the code on (#1292 item 3)', () => {
     expect(setStep).toHaveBeenCalledWith(ADMIN_CODE_NODE);
   });
 
-  it('a good code opens the 15-minute session and shows the menu for this role', async () => {
+  it('a good code opens the session until the end of the Lagos day and shows the menu for this role', async () => {
     const repo = repository();
     const { reply, setStep } = await step(ADMIN_CODE_NODE, currentCode(), repo);
 
-    expect(repo.acceptCode).toHaveBeenCalledWith('binding-1', totpStepAt(NOW.getTime()), '2026-10-22T10:15:00.000Z', NOW);
+    expect(repo.acceptCode).toHaveBeenCalledWith('binding-1', totpStepAt(NOW.getTime()), '2026-10-22T22:59:59.000Z', NOW);
     expect(repo.audit).toHaveBeenCalledWith(expect.objectContaining({ action: 'APPROVE' }), account.profileId);
     const menu = reply.mock.calls[0][0] as string;
     expect(menu).toContain('🛠️ Admin tools: Ada Admin, Chairman');
-    expect(menu).toContain('Session ends 11:15');
+    expect(menu).toContain('Session ends 23:59');
     expect(menu).toContain('1. 🏠 Resident status');
     expect(menu).toContain('2. 📉 Security debt status');
     expect(menu).toContain('Reply 0 for menu or LOCK to lock now.');
@@ -299,16 +299,44 @@ describe('opening Admin tools with the code on (#1292 item 3)', () => {
   });
 });
 
+describe('session length depends on the Lagos day (#1410)', () => {
+  const at = (iso: string) => {
+    const when = new Date(iso);
+    return { when, code: generateTOTPCode(SECRET, totpStepAt(when.getTime())) };
+  };
+
+  it.each([
+    ['23:58 Lagos ends at 23:59:59 the same day', '2026-10-22T22:58:00Z', '2026-10-22T22:59:59.000Z'],
+    ['00:01 Lagos ends at 23:59:59 the next UTC date', '2026-10-22T23:01:00Z', '2026-10-23T22:59:59.000Z'],
+  ])('a code typed at %s', async (_label, iso, expected) => {
+    const { when, code } = at(iso);
+    const repo = repository();
+    await handleWhatsAppAdminStep(message(code), ADMIN_CODE_NODE, {
+      repository: repo, reply: vi.fn().mockResolvedValue(undefined), setStep: vi.fn().mockResolvedValue(undefined), now: () => when,
+    });
+    expect(repo.acceptCode).toHaveBeenCalledWith('binding-1', totpStepAt(when.getTime()), expected, when);
+  });
+
+  it('the no-code path opens until the end of the Lagos day too', async () => {
+    const when = new Date('2026-10-22T22:58:00Z');
+    const repo = repository({ getCodeRequired: vi.fn().mockResolvedValue(false) });
+    await handleWhatsAppAdminMessage(message('ADMIN'), parseWhatsAppAdminCommand('ADMIN')!, {
+      repository: repo, reply: vi.fn().mockResolvedValue(undefined), setStep: vi.fn().mockResolvedValue(undefined), now: () => when,
+    });
+    expect(repo.setSessionExpiry).toHaveBeenCalledWith('binding-1', '2026-10-22T22:59:59.000Z', when);
+  });
+});
+
 describe('opening Admin tools with the code off (#1292 item 3)', () => {
   it.each([
     ['the global switch is off', () => ({ getCodeRequired: vi.fn().mockResolvedValue(false) })],
     ["the admin's own switch is off", () => ({ findActiveBinding: vi.fn().mockResolvedValue(binding({ codeRequired: false })) })],
-  ])('opens the menu directly when %s, and the session still ends in 15 minutes', async (_label, overrides) => {
+  ])('opens the menu directly when %s, and the session still ends at the end of the Lagos day', async (_label, overrides) => {
     const repo = repository(overrides());
     const { reply, setStep } = await send('ADMIN', repo);
-    expect(repo.setSessionExpiry).toHaveBeenCalledWith('binding-1', '2026-10-22T10:15:00.000Z', NOW);
+    expect(repo.setSessionExpiry).toHaveBeenCalledWith('binding-1', '2026-10-22T22:59:59.000Z', NOW);
     expect(repo.acceptCode).not.toHaveBeenCalled();
-    expect(reply.mock.calls[0][0]).toContain('Session ends 11:15');
+    expect(reply.mock.calls[0][0]).toContain('Session ends 23:59');
     expect(reply.mock.calls[0][0]).not.toContain('6-digit code');
     expect(setStep).toHaveBeenCalledWith(ADMIN_MENU_NODE);
     expect(await createWhatsAppAdminTools(repository(overrides()), () => NOW).menuLabel(PHONE)).toBe('Admin tools');
@@ -350,7 +378,7 @@ describe('the Admin tools menu (#1292 item 4)', () => {
   it('opens Resident status as a question on screen', async () => {
     const repo = liveSession();
     const { reply, setStep } = await step(ADMIN_MENU_NODE, '1', repo);
-    expect(reply.mock.calls[0][0]).toMatch(/^Resident status\. Send a house code or a name/);
+    expect(reply.mock.calls[0][0]).toMatch(/^Resident status\. Send a house code, a name or a payer alias/);
     expect(repo.createRequest).toHaveBeenCalledWith(expect.objectContaining({ action: 'owes:choose', status: 'pending' }));
     expect(setStep).toHaveBeenCalledWith(ADMIN_ITEM_NODE);
   });
@@ -470,7 +498,7 @@ describe('the automatic link (#1292 item 6)', () => {
       phoneNumber: PHONE,
       fingerprint: accountFingerprint(account),
       totpStep: totpStepAt(NOW.getTime()),
-      sessionExpiresAt: '2026-10-22T10:15:00.000Z',
+      sessionExpiresAt: '2026-10-22T22:59:59.000Z',
       now: NOW,
     });
     expect(repo.audit).toHaveBeenCalledWith(expect.objectContaining({ action: 'ACTIVATE', entityId: 'binding-auto' }), account.profileId);
@@ -489,7 +517,7 @@ describe('the automatic link (#1292 item 6)', () => {
     const repo = autoLinkRepository({ getCodeRequired: vi.fn().mockResolvedValue(false) });
     const { reply } = await send('ADMIN', repo);
     expect(repo.createBinding).toHaveBeenCalledWith(expect.objectContaining({ totpStep: null, sessionExpiresAt: null }));
-    expect(repo.setSessionExpiry).toHaveBeenCalledWith('binding-auto', '2026-10-22T10:15:00.000Z', NOW);
+    expect(repo.setSessionExpiry).toHaveBeenCalledWith('binding-auto', '2026-10-22T22:59:59.000Z', NOW);
     expect(repo.audit).toHaveBeenCalledWith(expect.objectContaining({ action: 'ACTIVATE' }), account.profileId);
     expect(reply.mock.calls[0][0]).toContain('Admin tools: Ada Admin');
   });

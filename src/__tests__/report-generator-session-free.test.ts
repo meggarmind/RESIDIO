@@ -70,10 +70,10 @@ describe('source-level invariants (#483)', () => {
     }
   });
 
-  it('report-engine.ts stays a server-action module that gates on checkReportAccess', () => {
+  it('report-engine.ts stays a server-action module that gates on the report permission (#1397)', () => {
     const src = read('actions/reports/report-engine.ts');
     expect(src).toMatch(USE_SERVER);
-    expect(src).toContain('checkReportAccess()');
+    expect(src).toContain('await authorizePermission(permission)');
   });
 });
 
@@ -97,7 +97,7 @@ describe('generateReportWithClient', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const result = await generateReportWithClient(
       { from } as never,
-      { reportType: 'invoice_aging', periodPreset: 'last_month' } as never
+      { reportType: 'debtors_aging', periodPreset: 'last_month' } as never
     );
     spy.mockRestore();
     expect(from).toHaveBeenCalled();

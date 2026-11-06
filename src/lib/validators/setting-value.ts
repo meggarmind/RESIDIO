@@ -1,3 +1,4 @@
+import { SMS_PROVIDER_NAMES, SMS_PROVIDER_SETTING_KEY, isSmsProviderName } from '@/lib/sms/providers/types';
 import { MAX_MONEY_AMOUNT, validateMoneyAmount } from '@/lib/validators/money';
 import { isValidOverrideEmail, isValidOverridePhone } from '@/lib/comms-override/resolver';
 import { DEBUG_DURATION_MAX, DEBUG_DURATION_MIN, isValidDebugDuration } from '@/lib/comms-override/limits';
@@ -160,6 +161,13 @@ export function settingValueError(key: string, value: unknown, now: Date = new D
     return isValidAuditLogRetentionDays(toNumber(value))
       ? null
       : `Setting "${key}" must be a whole number of days from ${AUDIT_LOG_RETENTION_MIN_DAYS} to ${AUDIT_LOG_RETENTION_MAX_DAYS}`;
+  }
+
+  if (key === SMS_PROVIDER_SETTING_KEY) {
+    // An unknown name would silently fall back to Termii at send time (#1462).
+    return isSmsProviderName(value)
+      ? null
+      : `Setting "${key}" must be one of: ${SMS_PROVIDER_NAMES.join(', ')}`;
   }
 
   if (key === CLEARANCE_COPY_GROUP_KEY) {

@@ -6,34 +6,20 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
+import { EnhancedStatCard } from '@/components/dashboard/enhanced-stat-card';
+import { Pagination } from '@/components/ui/simple-pagination';
 import { useCan } from '@/components/auth/can';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { cn, formatDayMedium, formatTime12 } from '@/lib/utils';
 import {
-  useGmailConnectionStatus,
   useManualFetch,
   useCancelImport,
   useRetryImport,
-  useResetEmailImports,
 } from '@/hooks/use-gmail-connection';
 import {
-  ArrowRight,
   CheckCircle2,
+  ChevronRight,
   Clock,
   FileText,
   Inbox,
@@ -45,35 +31,54 @@ import {
   X,
   XCircle,
 } from 'lucide-react';
-import { listEmailImports } from '@/actions/email-imports/create-email-import';
+import { getEmailImportSummary, listEmailImports } from '@/actions/email-imports/create-email-import';
 import type { EmailImport, EmailImportStatus } from '@/types/database';
 
-const STATUS_COLORS: Record<EmailImportStatus, string> = {
-  pending: 'bg-gray-500',
-  fetching: 'bg-blue-500',
-  parsing: 'bg-blue-500',
-  matching: 'bg-yellow-500',
-  processing: 'bg-yellow-500',
-  completed: 'bg-green-500',
-  failed: 'bg-red-500',
+type CardKey = 'all' | 'completed' | 'queued' | 'auto';
+
+const PAGE_SIZE = 25;
+const IN_PROGRESS: EmailImportStatus[] = ['fetching', 'parsing', 'matching', 'processing'];
+
+const LIST_TITLES: Record<CardKey, string> = {
+  all: 'All imports',
+  completed: 'Completed imports',
+  queued: 'Imports with queued transactions',
+  auto: 'Imports with auto-processed transactions',
 };
 
-const STATUS_ICONS: Record<EmailImportStatus, React.ReactNode> = {
-  pending: <Clock className="h-4 w-4" />,
-  fetching: <Loader2 className="h-4 w-4 animate-spin" />,
-  parsing: <Loader2 className="h-4 w-4 animate-spin" />,
-  matching: <Loader2 className="h-4 w-4 animate-spin" />,
-  processing: <Loader2 className="h-4 w-4 animate-spin" />,
-  completed: <CheckCircle2 className="h-4 w-4" />,
-  failed: <XCircle className="h-4 w-4" />,
-};
+function filterParams(card: CardKey): { status?: EmailImportStatus; has?: 'queued' | 'auto_processed' } {
+  if (card === 'completed') return { status: 'completed' };
+  if (card === 'queued') return { has: 'queued' };
+  if (card === 'auto') return { has: 'auto_processed' };
+  return {};
+}
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+function StatusIcon({ status }: { status: EmailImportStatus }) {
+  if (status === 'completed') {
+    return <CheckCircle2 role="img" aria-label="Completed" className="h-5 w-5 shrink-0 text-green-600" />;
+  }
+  if (status === 'failed') {
+    return <XCircle role="img" aria-label="Failed" className="h-5 w-5 shrink-0 text-destructive" />;
+  }
+  if (status === 'pending') {
+    return <Clock role="img" aria-label="Pending" className="h-5 w-5 shrink-0 text-muted-foreground" />;
+  }
+  return (
+    <Loader2
+      role="img"
+      aria-label={`In progress: ${status}`}
+      className="h-5 w-5 shrink-0 animate-spin text-blue-500"
+    />
+  );
+}
 
 export default function EmailImportsPage() {
   const router = useRouter();
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const resetMutation = useResetEmailImports();
+  const [card, setCard] = useState<CardKey>('all');
+  const [page, setPage] = useState(1);
 
-  // Existing hooks
   const cancelMutation = useCancelImport();
   const retryMutation = useRetryImport();
   const manualFetchMutation = useManualFetch();
@@ -81,33 +86,83 @@ export default function EmailImportsPage() {
   // email_imports.trigger; the Configure link leads to email_imports.configure.
   const canTrigger = useCan(PERMISSIONS.EMAIL_IMPORTS_TRIGGER);
   const canConfigure = useCan(PERMISSIONS.EMAIL_IMPORTS_CONFIGURE);
+  // Queued credits are worked on Awaiting verification (email_imports.process). It lists credits only,
+  // so queued debits keep the user on the import list (#1432).
+  const canProcess = useCan(PERMISSIONS.EMAIL_IMPORTS_PROCESS);
+
+  const { data: summary, isLoading: summaryLoading } = useQuery({
+    queryKey: ['email-imports', 'summary'],
+    queryFn: async () => {
+      const result = await getEmailImportSummary();
+      if (result.error) throw new Error(result.error);
+      return result.data;
+    },
+  });
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['email-imports', statusFilter],
+    queryKey: ['email-imports', card, page],
     queryFn: async () => {
       const result = await listEmailImports({
-        status: statusFilter === 'all' ? undefined : (statusFilter as EmailImportStatus),
-        limit: 50,
+        ...filterParams(card),
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
       });
       if (result.error) throw new Error(result.error);
       return result;
     },
   });
 
-  const formatDate = (date: string | null) => {
-    if (!date) return '-';
-    return new Date(date).toLocaleString();
+  const selectCard = (next: CardKey) => {
+    setCard(next);
+    setPage(1);
   };
 
-  const formatDuration = (start: string | null, end: string | null) => {
-    if (!start) return '-';
-    const startDate = new Date(start);
-    const endDate = end ? new Date(end) : new Date();
-    const diffMs = endDate.getTime() - startDate.getTime();
-    const diffSecs = Math.floor(diffMs / 1000);
-    if (diffSecs < 60) return `${diffSecs}s`;
-    const diffMins = Math.floor(diffSecs / 60);
-    return `${diffMins}m ${diffSecs % 60}s`;
+  const rows = data?.data ?? [];
+  const total = data?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const firstShown = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const lastShown = Math.min(page * PAGE_SIZE, total);
+
+  const todayLabel = formatDayMedium(new Date());
+  const groups: { day: string; items: EmailImport[] }[] = [];
+  for (const item of rows) {
+    const day = formatDayMedium(item.created_at);
+    const last = groups[groups.length - 1];
+    if (last && last.day === day) last.items.push(item);
+    else groups.push({ day, items: [item] });
+  }
+
+  const openImport = (id: string) => router.push(`/payments/email-imports/${id}`);
+
+  const renderFlow = (item: EmailImport) => {
+    if (item.status === 'failed') {
+      return <span className="text-destructive">Import failed. Open to retry.</span>;
+    }
+    if (item.status !== 'completed') {
+      return <span className="capitalize text-muted-foreground">{item.status}</span>;
+    }
+    const emails = item.emails_fetched || 0;
+    const txns = item.transactions_extracted || 0;
+    const auto = item.transactions_auto_processed || 0;
+    const queued = item.transactions_queued || 0;
+    return (
+      <>
+        <span>{plural(emails, 'email', 'emails')}</span>
+        <span aria-hidden="true" className="text-muted-foreground">→</span>
+        <span>{plural(txns, 'txn', 'txns')}</span>
+        {txns > 0 && (
+          <>
+            <span aria-hidden="true" className="text-muted-foreground">→</span>
+            <span className="text-purple-600 dark:text-purple-400">{auto} auto</span>
+            {queued > 0 && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                {queued} queued
+              </span>
+            )}
+          </>
+        )}
+      </>
+    );
   };
 
   return (
@@ -142,90 +197,65 @@ export default function EmailImportsPage() {
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-blue-100 dark:bg-blue-950 rounded-lg">
-                <Mail className="h-6 w-6 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{data?.count || 0}</p>
-                <p className="text-sm text-muted-foreground">Total Imports</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-green-100 dark:bg-green-950 rounded-lg">
-                <CheckCircle2 className="h-6 w-6 text-green-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">
-                  {data?.data?.filter((i) => i.status === 'completed').length || 0}
-                </p>
-                <p className="text-sm text-muted-foreground">Completed</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-yellow-100 dark:bg-yellow-950 rounded-lg">
-                <Inbox className="h-6 w-6 text-yellow-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">
-                  {data?.data?.reduce((sum, i) => sum + (i.transactions_queued || 0), 0) || 0}
-                </p>
-                <p className="text-sm text-muted-foreground">Queued for Review</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-purple-100 dark:bg-purple-950 rounded-lg">
-                <FileText className="h-6 w-6 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">
-                  {data?.data?.reduce((sum, i) => sum + (i.transactions_auto_processed || 0), 0) || 0}
-                </p>
-                <p className="text-sm text-muted-foreground">Auto-Processed</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Summary cards: each one filters the list below */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <EnhancedStatCard
+          title="Total Imports"
+          value={summary?.total ?? 0}
+          icon={Mail}
+          accentColor="info"
+          isLoading={summaryLoading}
+          animate={false}
+          selected={card === 'all'}
+          onClick={() => selectCard('all')}
+        />
+        <EnhancedStatCard
+          title="Completed"
+          value={summary?.completed ?? 0}
+          icon={CheckCircle2}
+          accentColor="success"
+          isLoading={summaryLoading}
+          animate={false}
+          selected={card === 'completed'}
+          onClick={() => selectCard('completed')}
+        />
+        <EnhancedStatCard
+          title="Queued for Review"
+          value={summary?.queued ?? 0}
+          icon={Inbox}
+          accentColor="warning"
+          isLoading={summaryLoading}
+          animate={false}
+          selected={card === 'queued'}
+          onClick={() =>
+            canProcess && (summary?.queuedDebits ?? 0) === 0 ? router.push('/payments/awaiting-verification') : selectCard('queued')
+          }
+        />
+        <EnhancedStatCard
+          title="Auto-Processed"
+          value={summary?.autoProcessed ?? 0}
+          icon={FileText}
+          accentColor="default"
+          isLoading={summaryLoading}
+          animate={false}
+          selected={card === 'auto'}
+          onClick={() => selectCard('auto')}
+        />
       </div>
 
-      {/* Import History Table */}
+      {/* Import list */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <div>
-              <CardTitle>Import History</CardTitle>
-              <CardDescription>Recent email import sessions</CardDescription>
+              <CardTitle>{LIST_TITLES[card]}</CardTitle>
+              <CardDescription>Select a card above to change the list</CardDescription>
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="processing">Processing</SelectItem>
-                <SelectItem value="failed">Failed</SelectItem>
-              </SelectContent>
-            </Select>
+            {card !== 'all' && (
+              <Button variant="link" onClick={() => selectCard('all')}>
+                Show all imports
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -239,73 +269,62 @@ export default function EmailImportsPage() {
             <div className="text-center py-8 text-destructive">
               Failed to load imports: {error.message}
             </div>
-          ) : !data?.data || data.data.length === 0 ? (
+          ) : rows.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              No email imports yet. Connect Gmail in settings to start.
+              {card === 'all'
+                ? 'No email imports yet. Connect Gmail in settings to start.'
+                : 'No imports match this filter.'}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead>Trigger</TableHead>
-                  <TableHead>Emails</TableHead>
-                  <TableHead>Transactions</TableHead>
-                  <TableHead>Auto-Processed</TableHead>
-                  <TableHead>Queued</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Duration</TableHead>
-                  <TableHead></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.data.map((importItem: EmailImport) => (
-                  <TableRow key={importItem.id}>
-                    <TableCell className="whitespace-nowrap">
-                      {formatDate(importItem.created_at)}
-                    </TableCell>
-                    <TableCell className="max-w-32 truncate" title={importItem.source_email}>
-                      {importItem.source_email}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="capitalize">
-                        {importItem.trigger_type}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{importItem.emails_fetched || 0}</TableCell>
-                    <TableCell>{importItem.transactions_extracted || 0}</TableCell>
-                    <TableCell>{importItem.transactions_auto_processed || 0}</TableCell>
-                    <TableCell>
-                      {(importItem.transactions_queued || 0) > 0 ? (
-                        <Badge variant="secondary">
-                          {importItem.transactions_queued}
-                        </Badge>
-                      ) : (
-                        '-'
+            <div>
+              {groups.map((group) => (
+                <div key={group.day}>
+                  <div className="flex items-center justify-between border-b py-2 text-sm font-medium text-muted-foreground">
+                    <span>
+                      {group.day === todayLabel ? 'Today, ' : ''}
+                      {group.day}
+                    </span>
+                    <span>{plural(group.items.length, 'import', 'imports')}</span>
+                  </div>
+                  {group.items.map((importItem: EmailImport) => (
+                    <div
+                      key={importItem.id}
+                      role="link"
+                      tabIndex={0}
+                      aria-label={`Open email import from ${formatDayMedium(importItem.created_at)}, ${formatTime12(importItem.created_at)}`}
+                      onClick={() => openImport(importItem.id)}
+                      onKeyDown={(e) => {
+                        if (e.target !== e.currentTarget) return;
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          openImport(importItem.id);
+                        }
+                      }}
+                      className={cn(
+                        'flex cursor-pointer items-center gap-3 border-b px-2 py-3',
+                        'hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary'
                       )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        className={`${STATUS_COLORS[importItem.status]} text-white`}
-                      >
-                        <span className="flex items-center gap-1">
-                          {STATUS_ICONS[importItem.status]}
-                          {importItem.status}
-                        </span>
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {formatDuration(importItem.started_at, importItem.completed_at)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1 justify-end">
-                        {canTrigger && ['fetching', 'parsing', 'matching', 'processing'].includes(importItem.status) && (
+                    >
+                      <span className="w-20 shrink-0 text-sm font-medium tabular-nums">
+                        {formatTime12(importItem.created_at)}
+                      </span>
+                      <span className="hidden w-20 shrink-0 sm:block">
+                        <Badge variant="outline">
+                          {importItem.trigger_type === 'cron' ? 'Cron' : 'Manual'}
+                        </Badge>
+                      </span>
+                      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                        {renderFlow(importItem)}
+                      </div>
+                      <StatusIcon status={importItem.status} />
+                      <div className="flex shrink-0 gap-1">
+                        {canTrigger && IN_PROGRESS.includes(importItem.status) && (
                           <>
                             <Button
                               variant="ghost"
                               size="icon"
                               title="Retry Processing"
+                              aria-label="Retry Processing"
                               onClick={(e) => { e.stopPropagation(); retryMutation.mutate(importItem.id); }}
                               disabled={retryMutation.isPending}
                             >
@@ -315,6 +334,7 @@ export default function EmailImportsPage() {
                               variant="ghost"
                               size="icon"
                               title="Cancel Import"
+                              aria-label="Cancel Import"
                               className="text-destructive hover:text-destructive hover:bg-destructive/10"
                               onClick={(e) => { e.stopPropagation(); cancelMutation.mutate(importItem.id); }}
                               disabled={cancelMutation.isPending}
@@ -329,30 +349,29 @@ export default function EmailImportsPage() {
                             variant="ghost"
                             size="icon"
                             title="Retry Processing"
+                            aria-label="Retry Processing"
                             onClick={(e) => { e.stopPropagation(); retryMutation.mutate(importItem.id); }}
                             disabled={retryMutation.isPending}
                           >
                             <RotateCcw className="h-4 w-4" />
                           </Button>
                         )}
-
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label="View email import details"
-                          onClick={() => router.push(`/payments/email-imports/${importItem.id}`)}
-                        >
-                          <ArrowRight className="h-4 w-4" />
-                        </Button>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                      <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    </div>
+                  ))}
+                </div>
+              ))}
+              <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Showing {firstShown} to {lastShown} of {total}
+                </p>
+                <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
-    </div >
+    </div>
   );
 }

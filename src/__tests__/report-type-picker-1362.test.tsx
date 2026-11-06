@@ -14,12 +14,13 @@ const config = Object.fromEntries(
 ) as unknown as Record<ReportType, { icon: React.ElementType; iconBg: string }>;
 
 // Same split as report-request-wizard.tsx.
-const REALTIME: ReportType[] = ['debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'];
-const AGNOSTIC: ReportType[] = ['debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'];
+const REALTIME: ReportType[] = ['debtors_aging', 'development_levy'];
+const AGNOSTIC: ReportType[] = ['debtors_aging', 'dues_collection_status', 'development_levy'];
+const ALL: ReportType[] = reportTypes.map((t) => t.value);
 
 function renderPicker(value: ReportType | '' = 'financial_overview', onChange = vi.fn()) {
   render(
-    <ReportTypePicker value={value} onChange={onChange} config={config} realtimeTypes={REALTIME} accountAgnosticTypes={AGNOSTIC} />
+    <ReportTypePicker value={value} onChange={onChange} allowedTypes={ALL} config={config} realtimeTypes={REALTIME} accountAgnosticTypes={AGNOSTIC} />
   );
   return onChange;
 }
@@ -36,12 +37,21 @@ describe('ReportTypePicker (#1362)', () => {
     }
   });
 
-  it('lists all 8 report types', () => {
+  it('lists every report type that is not retired', () => {
     renderPicker();
-    for (const type of reportTypes) {
+    const listed = reportTypes.filter((type) => !('retired' in type));
+    for (const type of listed) {
       expect(within(list()).getByRole('button', { name: type.label })).toBeTruthy();
     }
-    expect(reportTypes).toHaveLength(8);
+    // The two reports Debtors and aging replaced (#1399) are not offered.
+    expect(within(list()).queryByRole('button', { name: 'Debtors Report' })).toBeNull();
+    expect(within(list()).queryByRole('button', { name: 'Invoice Aging Report' })).toBeNull();
+    // The two Indebtedness reports Dues, levies and collection status replaced (#1400) are not offered either.
+    expect(within(list()).queryByRole('button', { name: 'Indebtedness Report' })).toBeNull();
+    expect(within(list()).queryByRole('button', { name: 'Indebtedness Detail Report' })).toBeNull();
+    expect(within(list()).getByRole('button', { name: 'Dues, levies and collection status' })).toBeTruthy();
+    expect(reportTypes).toHaveLength(17);
+    expect(listed).toHaveLength(13);
   });
 
   it('filters by label and by description', () => {
@@ -49,10 +59,11 @@ describe('ReportTypePicker (#1362)', () => {
     const search = screen.getByLabelText('Search report types');
 
     fireEvent.change(search, { target: { value: 'aging' } });
-    // "Invoice Aging Report" by label; "Debtors Report" by its "aging buckets" description.
-    expect(within(list()).getByRole('button', { name: 'Invoice Aging Report' })).toBeTruthy();
-    expect(within(list()).getByRole('button', { name: 'Debtors Report' })).toBeTruthy();
+    // "Debtors and aging" by label; a word only in its description finds it too.
+    expect(within(list()).getByRole('button', { name: 'Debtors and aging' })).toBeTruthy();
     expect(within(list()).queryByRole('button', { name: 'Transaction Log' })).toBeNull();
+    fireEvent.change(search, { target: { value: 'age bucket' } });
+    expect(within(list()).getByRole('button', { name: 'Debtors and aging' })).toBeTruthy();
 
     fireEvent.change(search, { target: { value: 'zzzz' } });
     expect(screen.getByText('No report matches your search.')).toBeTruthy();
@@ -62,17 +73,17 @@ describe('ReportTypePicker (#1362)', () => {
     renderPicker();
     const header = within(list()).getByRole('button', { name: /Debts/ });
     expect(header.getAttribute('aria-expanded')).toBe('true');
-    expect(within(list()).getByRole('button', { name: 'Debtors Report' })).toBeTruthy();
+    expect(within(list()).getByRole('button', { name: 'Debtors and aging' })).toBeTruthy();
 
     fireEvent.click(header);
     expect(header.getAttribute('aria-expanded')).toBe('false');
-    expect(within(list()).queryByRole('button', { name: 'Debtors Report' })).toBeNull();
+    expect(within(list()).queryByRole('button', { name: 'Debtors and aging' })).toBeNull();
     // Other groups stay open.
     expect(within(list()).getByRole('button', { name: 'Transaction Log' })).toBeTruthy();
 
     fireEvent.click(header);
     expect(header.getAttribute('aria-expanded')).toBe('true');
-    expect(within(list()).getByRole('button', { name: 'Debtors Report' })).toBeTruthy();
+    expect(within(list()).getByRole('button', { name: 'Debtors and aging' })).toBeTruthy();
   });
 
   it('calls onChange with the value of the clicked type', () => {
@@ -97,7 +108,7 @@ describe('ReportTypePicker (#1362)', () => {
   });
 
   it('shows the date and account chips for a realtime type', () => {
-    renderPicker('debtors_report');
+    renderPicker('debtors_aging');
     const aim = screen.getByTestId('report-type-aim');
     expect(within(aim).getByText('Always as of today')).toBeTruthy();
     expect(within(aim).getByText('No bank account step')).toBeTruthy();
@@ -106,7 +117,7 @@ describe('ReportTypePicker (#1362)', () => {
   });
 
   it('labels the preview as an example and uses month names in dates', () => {
-    renderPicker('invoice_aging');
+    renderPicker('debtors_aging');
     const preview = screen.getByTestId('report-type-preview');
     expect(within(preview).getByText('Example layout')).toBeTruthy();
     expect(preview.textContent ?? '').not.toMatch(/\d{1,4}[/-]\d{1,2}[/-]\d{1,4}/);
@@ -115,7 +126,7 @@ describe('ReportTypePicker (#1362)', () => {
   it('shows the right count on each group header', () => {
     renderPicker();
     const countOf = (group: RegExp) => within(within(list()).getByRole('button', { name: group })).getByText(/^\d+$/).textContent;
-    expect(countOf(/Money in and out/)).toBe('3');
+    expect(countOf(/Money in and out/)).toBe('8');
     expect(countOf(/Debts/)).toBe('4');
     expect(countOf(/Levies/)).toBe('1');
   });
@@ -123,13 +134,13 @@ describe('ReportTypePicker (#1362)', () => {
   it('shows a preview that follows the selected type', () => {
     const onChange = vi.fn();
     const { rerender } = render(
-      <ReportTypePicker value="financial_overview" onChange={onChange} config={config} realtimeTypes={REALTIME} accountAgnosticTypes={AGNOSTIC} />
+      <ReportTypePicker value="financial_overview" onChange={onChange} allowedTypes={ALL} config={config} realtimeTypes={REALTIME} accountAgnosticTypes={AGNOSTIC} />
     );
     expect(within(screen.getByTestId('report-type-preview')).queryByText('Debtor')).toBeNull();
     expect(within(screen.getByTestId('report-type-preview')).getByText('Expenses')).toBeTruthy();
 
     rerender(
-      <ReportTypePicker value="debtors_report" onChange={onChange} config={config} realtimeTypes={REALTIME} accountAgnosticTypes={AGNOSTIC} />
+      <ReportTypePicker value="debtors_aging" onChange={onChange} allowedTypes={ALL} config={config} realtimeTypes={REALTIME} accountAgnosticTypes={AGNOSTIC} />
     );
     const preview = screen.getByTestId('report-type-preview');
     expect(within(preview).getByText('Debtor')).toBeTruthy();
@@ -139,9 +150,9 @@ describe('ReportTypePicker (#1362)', () => {
   it('opens a collapsed group while a search matches in it', () => {
     renderPicker();
     fireEvent.click(within(list()).getByRole('button', { name: /Debts/ }));
-    expect(within(list()).queryByRole('button', { name: 'Debtors Report' })).toBeNull();
+    expect(within(list()).queryByRole('button', { name: 'Debtors and aging' })).toBeNull();
 
     fireEvent.change(screen.getByLabelText('Search report types'), { target: { value: 'debtors' } });
-    expect(within(list()).getByRole('button', { name: 'Debtors Report' })).toBeTruthy();
+    expect(within(list()).getByRole('button', { name: 'Debtors and aging' })).toBeTruthy();
   });
 });

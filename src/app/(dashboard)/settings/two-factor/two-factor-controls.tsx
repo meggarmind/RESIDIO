@@ -25,6 +25,8 @@ import {
   useSendBackupCodes,
   useTwoFactorStatus,
 } from '@/hooks/use-two-factor';
+import { WhatsAppApprovalSwitch } from '@/app/(dashboard)/settings/two-factor/whatsapp-approval-switch';
+import { RememberedComputers } from '@/app/(dashboard)/settings/two-factor/remembered-computers';
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('en-NG', { dateStyle: 'medium' }).format(new Date(value));
@@ -304,6 +306,8 @@ export function TwoFactorControls() {
       <p className="text-sm text-muted-foreground">
         {state.backupCodesRemaining} unused backup {state.backupCodesRemaining === 1 ? 'code' : 'codes'} left.
       </p>
+      <WhatsAppApprovalSwitch />
+      <RememberedComputers />
       <div className="flex flex-wrap gap-2">
         {usesAuthenticator && (
           <Button type="button" size="sm" variant="outline" onClick={() => setAction('backup')}>

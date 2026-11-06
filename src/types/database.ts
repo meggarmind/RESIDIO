@@ -288,6 +288,7 @@ export type AuditEntityType =
   | 'houses'
   | 'resident_houses'
   | 'invoices'
+  | 'invoice_write_offs'          // Dues write-off (#1460)
   | 'payments'
   | 'billing_profiles'
   | 'billing_profile_versions'  // Historical rate schedule (#242)
@@ -349,6 +350,7 @@ export type AuditEntityType =
   | 'two_factor_backup_codes'      // 2FA backup codes
   | 'two_factor_policies'          // 2FA enforcement policies
   | 'two_factor_audit_log'         // 2FA audit trail
+  | 'two_factor_trusted_devices'   // Remembered computers for 2FA (#1390)
   | 'whatsapp_optins'              // WhatsApp consent records
   | 'whatsapp_pending_contacts'    // Unrostered WhatsApp numbers
   | 'whatsapp_link_tokens'          // One-time WhatsApp linking tokens
@@ -394,6 +396,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   houses: 'House',
   resident_houses: 'House Assignment',
   invoices: 'Invoice',
+  invoice_write_offs: 'Invoice write-off',
   payments: 'Payment',
   billing_profiles: 'Billing Profile',
   billing_profile_versions: 'Billing Profile Version',
@@ -455,6 +458,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   two_factor_backup_codes: '2FA Backup Code',           // Two-Factor Authentication
   two_factor_policies: '2FA Policy',                    // Two-Factor Authentication
   two_factor_audit_log: '2FA Audit Log',                // Two-Factor Authentication
+  two_factor_trusted_devices: '2FA Remembered Computer', // Two-Factor Authentication (#1390)
   whatsapp_optins: 'WhatsApp Opt-in',                    // WhatsApp Assistant
   whatsapp_pending_contacts: 'WhatsApp Pending Contact', // WhatsApp Assistant
   whatsapp_link_tokens: 'WhatsApp Link Token',           // WhatsApp Assistant
@@ -1431,6 +1435,39 @@ export interface InvoiceWithDetails extends Invoice {
     description: string;
     amount: number;
   }>;
+  /** The bill's write-off (#1460), when it has one. PostgREST returns a one-to-one embed as an object. */
+  write_off?: InvoiceWriteOffSummary | InvoiceWriteOffSummary[] | null;
+}
+
+/** Reasons for a dues write-off (#1460); the CHECK on invoice_write_offs.reason. */
+export const WRITE_OFF_REASONS = ['exco_settlement', 'hardship', 'other'] as const;
+export type WriteOffReason = typeof WRITE_OFF_REASONS[number];
+export const WRITE_OFF_REASON_LABELS: Record<WriteOffReason, string> = {
+  exco_settlement: 'Exco settlement',
+  hardship: 'Hardship',
+  other: 'Other',
+};
+
+/** A row of invoice_write_offs as the bill screens read it (#1460). Not in the generated types until the migration is applied. */
+export interface InvoiceWriteOffSummary {
+  id: string;
+  batch_id?: string;
+  reason?: WriteOffReason;
+  note?: string;
+  amount_written_off?: number;
+  original_amount_due?: number;
+  written_off_at?: string;
+  written_off_by_profile?: { full_name: string | null } | { full_name: string | null }[] | null;
+}
+
+/** Amber badge for a written-off bill (#1460), shared by the bill list and the bill page. */
+export const WRITTEN_OFF_BADGE_CLASS = 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300';
+
+/** The write-off of a bill, or null: unwraps the embed whether PostgREST returned an object or an array. */
+export function invoiceWriteOff(invoice: Pick<InvoiceWithDetails, 'write_off'>): InvoiceWriteOffSummary | null {
+  const value = invoice.write_off;
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
 }
 
 // Approval Request entity types
@@ -1499,6 +1536,8 @@ export interface ApprovalRequestWithDetails extends ApprovalRequest {
     app_roles: JoinedProfileRole;
   } | null;
   entity_name: string; // House address, billing profile name, or payment reference/amount
+  /** A payment_record request whose payment has a receipt attached (#1455). */
+  has_receipt?: boolean;
 }
 
 // Phase 8: Audit Log Types

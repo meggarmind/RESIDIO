@@ -14,6 +14,8 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { createPayment } from '@/actions/payments/create-payment';
+import { createPaymentCore } from '@/lib/payments/create-payment';
+import { embed } from '@/lib/utils';
 import { exceedsEmailAutoProcessLimit, extractSenderName } from '@/lib/email-imports/utils';
 // The limit (#710) and match rule are shared with the scheduled auto-record step (#1340).
 // So is the source gate: alert only, estate account, sender checked (#1353).
@@ -24,6 +26,8 @@ import {
   readEstateAccountNumbers,
 } from '@/lib/email-imports/auto-record';
 import { createExpense } from '@/actions/expenses/create-expense';
+import { z } from 'zod';
+import { reversePaymentSettlement } from '@/lib/payments/reverse-payment-settlement';
 import { writeEmailImportStatus } from '@/lib/email-imports/import-records';
 import type {
   EmailTransaction,
@@ -373,6 +377,54 @@ export async function processEmailTransactions(
 // Process Single Transaction (Admin Review)
 // ============================================================
 
+/** One part of an alert and what it is for (#1443). */
+export type PaymentLine = { chargeCategory: string; amount: number; comment?: string };
+
+const paymentLinesSchema = z.array(
+  z.object({
+    chargeCategory: z.string(),
+    amount: z.number(),
+    comment: z.string().nullish(),
+  })
+);
+
+const OTHER_CATEGORY = 'other';
+const MAX_COMMENT_LENGTH = 500;
+const toKobo = (naira: number) => Math.round(naira * 100);
+
+/**
+ * Check the lines of an alert before anything is written (#1443). Returns a plain message
+ * when they cannot be recorded, null when they can.
+ */
+function validateLines(
+  lines: PaymentLine[],
+  alertAmount: number,
+  activeCodes: Set<string>
+): string | null {
+  if (lines.length < 1) return 'Add at least one line';
+  let total = 0;
+  for (const line of lines) {
+    if (!Number.isFinite(line.amount) || line.amount <= 0) return 'Each line needs an amount above zero';
+    if (Math.abs(line.amount * 100 - toKobo(line.amount)) > 1e-6) {
+      return 'A line amount can have at most 2 decimal places';
+    }
+    if (!activeCodes.has(line.chargeCategory)) {
+      return `Unknown or inactive charge category: ${line.chargeCategory}`;
+    }
+    if (line.chargeCategory === OTHER_CATEGORY) {
+      const comment = line.comment?.trim() ?? '';
+      if (comment.length < 1 || comment.length > MAX_COMMENT_LENGTH) {
+        return `A line for Other needs a comment of 1 to ${MAX_COMMENT_LENGTH} characters`;
+      }
+    }
+    total += toKobo(line.amount);
+  }
+  if (total !== toKobo(alertAmount)) {
+    return 'The lines must add up to the amount of the alert';
+  }
+  return null;
+}
+
 export async function processSingleTransaction(
   transactionId: string,
   params: {
@@ -384,6 +436,8 @@ export async function processSingleTransaction(
     saveAsAlias?: boolean;
     aliasName?: string;
     aliasNotes?: string;
+    /** Credit only (#1443). Left out: one Dues payment for the whole amount. */
+    lines?: PaymentLine[];
   }
 ): Promise<{ success: boolean; paymentId?: string; expenseId?: string; error?: string }> {
   const auth = await authorizePermission(PERMISSIONS.EMAIL_IMPORTS_PROCESS);
@@ -393,10 +447,10 @@ export async function processSingleTransaction(
 
   const adminClient = await createAdminClient();
 
-  // Get transaction
+  // Get transaction, with the sender check of its email (#1353)
   const { data: transaction, error: fetchError } = await adminClient
     .from('email_transactions')
-    .select('*')
+    .select('*, email_messages(sender_verified)')
     .eq('id', transactionId)
     .single();
 
@@ -486,13 +540,38 @@ export async function processSingleTransaction(
     return { success: false, error: 'Resident ID required for payment transactions' };
   }
 
+  if (params.lines !== undefined) {
+    const parsedLines = paymentLinesSchema.safeParse(params.lines);
+    if (!parsedLines.success) return { success: false, error: 'The lines are not valid' };
+    const { data: categories, error: categoriesError } = await adminClient
+      .from('charge_categories')
+      .select('code')
+      .eq('is_active', true);
+    if (categoriesError) {
+      return { success: false, error: `Could not read the charge categories: ${categoriesError.message}` };
+    }
+    const lineError = validateLines(
+      parsedLines.data.map((l) => ({ ...l, comment: l.comment ?? undefined })),
+      Number(emailTx.amount),
+      new Set((categories ?? []).map((c: { code: string }) => c.code))
+    );
+    if (lineError) return { success: false, error: lineError };
+  }
+
+  // An alert whose email passed the sender check is bank proof (owner decision, 2 Nov 2026, #1428).
+  // Recording it verified also needs payments.verify, so payments.create alone cannot self-verify.
+  const senderVerified = embed(transaction.email_messages)?.sender_verified === true;
+  const verified = senderVerified && auth.permissions.includes(PERMISSIONS.PAYMENTS_VERIFY);
+
   // Create payment
   const paymentResult = await createPaymentFromTransaction(
     {
       ...emailTx,
       matched_resident_id: params.residentId,
     },
-    auth.userId
+    auth.userId,
+    verified,
+    params.lines
   );
 
   if (!paymentResult.success) {
@@ -507,7 +586,7 @@ export async function processSingleTransaction(
       matched_resident_id: params.residentId,
       match_confidence: emailTx.matched_resident_id === params.residentId ? emailTx.match_confidence : 'manual',
       match_method: emailTx.matched_resident_id === params.residentId ? emailTx.match_method : 'manual',
-      payment_id: paymentResult.paymentId,
+      payment_id: paymentResult.paymentIds?.[0],
       reviewed_by: auth.userId,
       reviewed_at: new Date().toISOString(),
       review_notes: params.notes,
@@ -551,8 +630,15 @@ export async function processSingleTransaction(
     newValues: {
       resident_id: params.residentId,
       payment_id: paymentResult.paymentId,
+      payment_ids: paymentResult.paymentIds,
+      lines: params.lines?.map((l) => ({
+        charge_category: l.chargeCategory,
+        amount: l.amount,
+        comment: l.comment?.trim() || undefined,
+      })),
       notes: params.notes,
       saved_alias: params.saveAsAlias,
+      verified,
     },
   });
 
@@ -616,34 +702,103 @@ export async function skipTransaction(
 
 async function createPaymentFromTransaction(
   transaction: EmailTransaction,
-  userId?: string | null
-): Promise<{ success: boolean; paymentId?: string; error?: string }> {
+  userId?: string | null,
+  verified = false,
+  lines?: PaymentLine[]
+): Promise<{ success: boolean; paymentId?: string; paymentIds?: string[]; error?: string }> {
   if (!transaction.matched_resident_id || !transaction.amount) {
     return { success: false, error: 'Missing resident or amount' };
   }
 
-  const result = await createPayment({
-    resident_id: transaction.matched_resident_id,
-    amount: Number(transaction.amount),
-    payment_date: transaction.transaction_date
-      ? new Date(transaction.transaction_date)
-      : new Date(),
-    status: 'paid',
-    method: 'bank_transfer',
-    reference_number: transaction.reference || undefined,
-    notes: `Email import: ${transaction.description}`,
-    email_import_id: transaction.email_import_id,
-    email_transaction_id: transaction.id,
-    // The sender was matched to this resident, so they paid it; no purpose is known: Dues (#1190).
-    charge_category: DEFAULT_CHARGE_CATEGORY,
-    paid_by_resident_id: transaction.matched_resident_id,
-  });
+  // The public action records the payment unverified; the core records it verified (#1428).
+  const create = verified
+    ? (data: Parameters<typeof createPayment>[0]) => createPaymentCore({ ...data, is_verified: true }, { trustedVerification: true })
+    : createPayment;
 
-  if (result.error) {
-    return { success: false, error: result.error };
+  // No lines: one Dues payment for the whole amount. The sender was matched to this resident,
+  // so they paid it; no purpose is known: Dues (#1190).
+  const parts: PaymentLine[] = lines ?? [
+    { chargeCategory: DEFAULT_CHARGE_CATEGORY, amount: Number(transaction.amount) },
+  ];
+  // Two or more lines share one group, so the duplicate guard knows they are one alert (#1443).
+  const groupId = parts.length > 1 ? crypto.randomUUID() : undefined;
+
+  const paymentIds: string[] = [];
+  for (const part of parts) {
+    const comment = part.comment?.trim();
+    const result = await create({
+      resident_id: transaction.matched_resident_id,
+      amount: part.amount,
+      payment_date: transaction.transaction_date
+        ? new Date(transaction.transaction_date)
+        : new Date(),
+      status: 'paid',
+      method: 'bank_transfer',
+      reference_number: transaction.reference || undefined,
+      notes: `Email import: ${transaction.description}${comment ? ` · ${comment}` : ''}`,
+      email_import_id: transaction.email_import_id,
+      email_transaction_id: transaction.id,
+      charge_category: part.chargeCategory,
+      paid_by_resident_id: transaction.matched_resident_id,
+      ...(groupId ? { split_payment_group_id: groupId } : {}),
+    });
+
+    if (result.error || !result.data?.id) {
+      const rollbackError = await rollbackPayments(paymentIds, userId);
+      const reason = result.error || 'Payment was not recorded';
+      return {
+        success: false,
+        error: rollbackError ? `${reason}. Earlier lines could not be undone: ${rollbackError}` : reason,
+      };
+    }
+    paymentIds.push(result.data.id);
   }
 
-  return { success: true, paymentId: result.data?.id };
+  return { success: true, paymentId: paymentIds[0], paymentIds };
+}
+
+/** Undo the lines already recorded when a later line fails (#1443); mirrors deletePayment. */
+async function rollbackPayments(paymentIds: string[], userId?: string | null): Promise<string | null> {
+  if (paymentIds.length === 0) return null;
+  const adminClient = await createAdminClient();
+  const failures: string[] = [];
+  for (const id of paymentIds) {
+    const { data: existing } = await adminClient.from('payment_records').select('*').eq('id', id).single();
+    if (!existing) {
+      failures.push(`payment ${id} not found`);
+      continue;
+    }
+    const reversalError = await reversePaymentSettlement(
+      adminClient as unknown as Parameters<typeof reversePaymentSettlement>[0],
+      existing,
+      userId
+    );
+    if (reversalError) {
+      failures.push(reversalError);
+      continue;
+    }
+    const { error } = await adminClient.from('payment_records').delete().eq('id', id);
+    if (error) {
+      failures.push(error.message);
+      continue;
+    }
+    // The "payment received" WhatsApp for this row must not go out for a payment that no longer exists.
+    // Only a row still waiting is cancelled; one already sent or being sent stays.
+    const { error: queueError } = await adminClient
+      .from('notification_queue')
+      .update({ status: 'cancelled', error_message: 'Payment undone: a later line of the same alert failed' })
+      .eq('deduplication_key', `payment_received:${id}`)
+      .eq('status', 'pending');
+    if (queueError) failures.push(`receipt message for payment ${id} not cancelled: ${queueError.message}`);
+    await logAudit({
+      action: 'DELETE',
+      entityType: 'payments',
+      entityId: id,
+      entityDisplay: `Payment ₦${Number(existing.amount).toLocaleString()}${existing.reference_number ? ` (${existing.reference_number})` : ''} (undone: a later line of the same alert failed)`,
+      oldValues: existing,
+    });
+  }
+  return failures.length ? failures.join('; ') : null;
 }
 
 // ============================================================

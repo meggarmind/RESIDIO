@@ -31,7 +31,7 @@ import { ResidentQuickView } from '@/components/residents/resident-quick-view';
 import { useAdminResidents, useContactVerificationStats } from '@/hooks/use-residents';
 import { useStreets } from '@/hooks/use-reference';
 import { Users, Plus, Search, Pencil, UserPlus, ChevronDown, X, CheckCircle2, AlertCircle, Clock, Eye } from 'lucide-react';
-import type { ResidentSearchParams, ContactVerificationFilter } from '@/lib/validators/resident';
+import { EXCLUDE_ARCHIVED, type ResidentSearchParams, type ContactVerificationFilter } from '@/lib/validators/resident';
 import type { AccountStatus, ResidentRole, ResidentWithHouses } from '@/types/database';
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
 import { Can } from '@/components/auth/can';
@@ -227,7 +227,7 @@ const columns: DataTableColumn<ResidentWithHouses>[] = [
 export function ResidentsTable({ initialSearch }: { initialSearch?: string } = {}) {
   const router = useRouter();
   const [search, setSearch] = usePersistedState('residents-registry:search', '');
-  const [status, setStatus] = usePersistedState<AccountStatus | typeof ALL_VALUE>('residents-registry:status', ALL_VALUE);
+  const [status, setStatus] = usePersistedState<AccountStatus | typeof ALL_VALUE | typeof EXCLUDE_ARCHIVED>('residents-registry:status-v2', EXCLUDE_ARCHIVED);
   const [streetId, setStreetId] = usePersistedState<string>('residents-registry:street', ALL_VALUE);
   const [contactVerification, setContactVerification] = usePersistedState<ContactVerificationFilter | typeof ALL_VALUE>('residents-registry:verification', ALL_VALUE);
   const [selectedRoles, setSelectedRoles] = usePersistedState<ResidentRole[]>('residents-registry:roles', []);
@@ -280,7 +280,7 @@ export function ResidentsTable({ initialSearch }: { initialSearch?: string } = {
 
   const params = useMemo<Partial<ResidentSearchParams>>(() => ({
     search: debouncedSearch || undefined,
-    status: status === ALL_VALUE ? undefined : status as AccountStatus,
+    status: status === ALL_VALUE ? undefined : status,
     street_id: streetId === ALL_VALUE ? undefined : streetId,
     contact_verification: contactVerification === ALL_VALUE ? undefined : contactVerification as ContactVerificationFilter,
     resident_role: selectedRoles.length > 0 ? selectedRoles : undefined,
@@ -332,11 +332,12 @@ export function ResidentsTable({ initialSearch }: { initialSearch?: string } = {
           </div>
         </form>
 
-        <Select value={status} onValueChange={(v) => setStatus(v as AccountStatus | typeof ALL_VALUE)}>
-          <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="All Status" />
+        <Select value={status} onValueChange={(v) => setStatus(v as AccountStatus | typeof ALL_VALUE | typeof EXCLUDE_ARCHIVED)}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="All except archived" />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value={EXCLUDE_ARCHIVED}>All except archived</SelectItem>
             <SelectItem value={ALL_VALUE}>All Status</SelectItem>
             <SelectItem value="active">Active</SelectItem>
             <SelectItem value="inactive">Inactive</SelectItem>

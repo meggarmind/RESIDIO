@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   findReusableInvoiceGenerationRun: vi.fn(),
   prepareInvoiceGenerationRunCore: vi.fn(),
   processInvoiceGenerationRunChunk: vi.fn(),
+  processInvoiceGenerationRunToCompletion: vi.fn(),
   activeRuns: [] as Array<{ id: string; status: string }>,
 }));
 
@@ -22,6 +23,7 @@ vi.mock('@/lib/billing/invoice-generation-run-service', () => ({
   findReusableInvoiceGenerationRun: mocks.findReusableInvoiceGenerationRun,
   parseInvoiceGenerationRequest: (input: unknown) => input,
   prepareInvoiceGenerationRunCore: mocks.prepareInvoiceGenerationRunCore,
+  processInvoiceGenerationRunToCompletion: mocks.processInvoiceGenerationRunToCompletion,
 }));
 vi.mock('@/lib/billing/invoice-generation-worker', () => ({
   processInvoiceGenerationRunChunk: mocks.processInvoiceGenerationRunChunk,
@@ -55,6 +57,7 @@ beforeEach(() => {
   mocks.findReusableInvoiceGenerationRun.mockResolvedValue(null);
   mocks.prepareInvoiceGenerationRunCore.mockResolvedValue({ data: { id: 'run-1', candidateCount: 3 } });
   mocks.processInvoiceGenerationRunChunk.mockResolvedValue({ processed: 3, run: { status: 'completed' } });
+  mocks.processInvoiceGenerationRunToCompletion.mockResolvedValue({ processed: 3, run: { status: 'completed' }, capped: false });
 });
 
 afterEach(() => {
@@ -118,7 +121,7 @@ describe('cron generate-invoices route catch-up (#638)', () => {
     const body = await (await GET(request)).json();
     expect(body).toMatchObject({ skipped: true, reason: 'Auto-generation is disabled' });
     expect(mocks.prepareInvoiceGenerationRunCore).not.toHaveBeenCalled();
-    expect(mocks.processInvoiceGenerationRunChunk).not.toHaveBeenCalled();
+    expect(mocks.processInvoiceGenerationRunToCompletion).not.toHaveBeenCalled();
   });
 
   it('honours a configured day of 10 (skips on 9, prepares on 10)', async () => {
@@ -141,7 +144,7 @@ describe('cron generate-invoices route catch-up (#638)', () => {
     expect(res.status).toBe(500);
     expect((await res.json()).error).toBe('settings unreadable');
     expect(mocks.prepareInvoiceGenerationRunCore).not.toHaveBeenCalled();
-    expect(mocks.processInvoiceGenerationRunChunk).not.toHaveBeenCalled();
+    expect(mocks.processInvoiceGenerationRunToCompletion).not.toHaveBeenCalled();
   });
 
   // The helper uses the service-role client: nothing may be read before the caller is authenticated.
@@ -153,7 +156,29 @@ describe('cron generate-invoices route catch-up (#638)', () => {
     expect(res.status).toBe(401);
     expect(mocks.getInvoiceCronSettings).not.toHaveBeenCalled();
     expect(mocks.prepareInvoiceGenerationRunCore).not.toHaveBeenCalled();
+    expect(mocks.processInvoiceGenerationRunToCompletion).not.toHaveBeenCalled();
+  });
+
+  // #1450: one 50-house chunk per daily call left 109 of 159 Nov 2026 bills unmade for days.
+  it('processes a newly prepared run to completion in one call, not one chunk', async () => {
+    setToday(5);
+    mocks.prepareInvoiceGenerationRunCore.mockResolvedValue({ data: { id: 'run-1', candidateCount: 159 } });
+    mocks.processInvoiceGenerationRunToCompletion.mockResolvedValue({ processed: 159, run: { status: 'completed' }, capped: false });
+    const body = await (await GET(request)).json();
+    expect(mocks.processInvoiceGenerationRunToCompletion).toHaveBeenCalledWith('run-1', null);
     expect(mocks.processInvoiceGenerationRunChunk).not.toHaveBeenCalled();
+    expect(body.prepared).toMatchObject({ runId: 'run-1', processed: 159, status: 'completed', capped: false });
+  });
+
+  it('finishes an active run left in progress by an earlier call', async () => {
+    setToday(17);
+    mocks.activeRuns = [{ id: 'run-p', status: 'processing' }];
+    mocks.findReusableInvoiceGenerationRun.mockResolvedValue({ id: 'run-p', status: 'completed' });
+    mocks.processInvoiceGenerationRunToCompletion.mockResolvedValue({ processed: 109, run: { status: 'completed' }, capped: false });
+    const body = await (await GET(request)).json();
+    expect(mocks.processInvoiceGenerationRunToCompletion).toHaveBeenCalledWith('run-p', null);
+    expect(mocks.processInvoiceGenerationRunChunk).not.toHaveBeenCalled();
+    expect(body.advanced).toMatchObject({ runId: 'run-p', processed: 109, status: 'completed' });
   });
 
   // The bug (#641): session-scoped actions in a cron path read zero rows and returned defaults.

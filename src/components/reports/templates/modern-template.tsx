@@ -12,6 +12,8 @@ import type {
   ReportData
 } from '@/actions/reports/report-engine';
 import { formatCalendarDate } from '@/lib/utils/calendar-date';
+import { isSummaryReport } from '@/lib/reports/summary-report';
+import { SummaryReportLayout } from '@/components/reports/summary-report-layout';
 
 // ============================================================
 // Utility Functions
@@ -1435,6 +1437,8 @@ export const ModernTemplate = forwardRef<HTMLDivElement, ModernTemplateProps>(
             <tr>
               <td>
                 <main>
+                  {/* Summary-first reports are picked by their layout marker, not their type (#1397). */}
+                  {isSummaryReport(report) && <SummaryReportLayout data={report.data} variant="modern" />}
                   {report.type === 'financial_overview' && (
                     <FinancialOverviewModern data={report.data} />
                   )}

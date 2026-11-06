@@ -63,6 +63,10 @@ import type {
 const CHATMAID_MAX_CONTENT_LENGTH = 4096;
 const CHATMAID_MAX_IDEMPOTENCY_KEY_LENGTH = 64;
 const CONNECTION_CACHE_TTL_MS = 30_000;
+/** Upper bound on the status and phone-list reads. */
+const CHATMAID_STATUS_TIMEOUT_MS = 10_000;
+/** Upper bound on the message send. */
+const CHATMAID_SEND_TIMEOUT_MS = 15_000;
 
 interface ChatmaidPhoneNumberEntry {
   id: string;
@@ -186,6 +190,7 @@ export async function lookupChatmaidPhone(
   const response = await fetchImpl(`${config.baseUrl}/v1/phone-numbers`, {
     headers: { Authorization: `Bearer ${config.apiKey}` },
     cache: 'no-store',
+    signal: AbortSignal.timeout(CHATMAID_STATUS_TIMEOUT_MS),
   });
   if (!response.ok) {
     return { ok: false, httpStatus: response.status };
@@ -209,6 +214,7 @@ export async function fetchChatmaidConnectionStatus(
   const response = await fetchImpl(`${config.baseUrl}/v1/phone-numbers/${phoneId}/status`, {
     headers: { Authorization: `Bearer ${config.apiKey}` },
     cache: 'no-store',
+    signal: AbortSignal.timeout(CHATMAID_STATUS_TIMEOUT_MS),
   });
   return response.ok ? extractConnectionStatus(await safeJson(response)) : 'unknown';
 }
@@ -236,6 +242,7 @@ async function resolveConnection(
   try {
     listResponse = await fetchImpl(`${config.baseUrl}/v1/phone-numbers`, {
       headers: { Authorization: `Bearer ${config.apiKey}` },
+      signal: AbortSignal.timeout(CHATMAID_STATUS_TIMEOUT_MS),
     });
   } catch {
     return { ok: false, error: 'Chatmaid bridge is disconnected' };
@@ -257,6 +264,7 @@ async function resolveConnection(
   try {
     statusResponse = await fetchImpl(`${config.baseUrl}/v1/phone-numbers/${match.id}/status`, {
       headers: { Authorization: `Bearer ${config.apiKey}` },
+      signal: AbortSignal.timeout(CHATMAID_STATUS_TIMEOUT_MS),
     });
   } catch {
     return { ok: false, error: 'Chatmaid bridge is disconnected' };
@@ -397,6 +405,7 @@ export function createChatmaidWhatsAppProvider(
           idempotencyKey,
           ...(mediaUrls?.length ? { mediaUrls } : {}),
         }),
+        signal: AbortSignal.timeout(CHATMAID_SEND_TIMEOUT_MS),
       });
     } catch {
       return { success: false, error: 'Chatmaid provider request failed', retryable: true };

@@ -103,7 +103,8 @@ export async function createWhatsAppAdminLinkCode(): Promise<ActionResult<{ code
   const auth = await authorizePermission(PERMISSIONS.WHATSAPP_ADMIN_QUERY);
   if (!auth.authorized || !auth.userId) return { success: false, data: null, error: auth.error || 'Unauthorized' };
 
-  if (!(await hasVerifiedTwoFactorSession(auth.userId))) {
+  // A remembered computer is not a second factor (#1390): linking a number needs a real one.
+  if (!(await hasVerifiedTwoFactorSession(auth.userId, { requireRealFactor: true }))) {
     return { success: false, data: null, error: 'Sign in with your authenticator app code to link a number' };
   }
 
