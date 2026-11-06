@@ -20,8 +20,8 @@ residio_sources:
   - src/app/(dashboard)/settings/banking/**
   - src/app/(dashboard)/settings/debt-status/**
   - src/app/(dashboard)/settings/system/**
-residio_verified_commit: c8f57c63
-residio_verified_at: '2026-10-28'
+residio_verified_commit: 7b29a275
+residio_verified_at: '2026-11-06'
 residio_app_version: '0.4.0'
 ---
 

@@ -10,7 +10,7 @@ residio_sources:
   - src/lib/sms/**
   - src/lib/paystack/index.ts
   - src/lib/email-imports/gmail-client.ts
-residio_verified_commit: 4bdf7c3
+residio_verified_commit: 7b29a275
 residio_verified_at: '2026-11-06'
 residio_app_version: '0.4.0'
 ---

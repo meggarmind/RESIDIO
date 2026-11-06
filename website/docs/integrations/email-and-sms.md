@@ -14,7 +14,7 @@ residio_sources:
   - src/app/(dashboard)/settings/reminders/**
   - src/app/(dashboard)/settings/wording/**
   - src/components/settings/messages/**
-residio_verified_commit: 4bdf7c3
+residio_verified_commit: 7b29a275
 residio_verified_at: '2026-11-06'
 residio_app_version: '0.4.0'
 ---
