@@ -37,7 +37,7 @@ The same **Testing** section is where you send a test email to an address of you
 
 ## SMS
 
-SMS is used for a narrower set of messages: two-factor codes, plus contact verification codes once the SMS provider is connected. SMS is currently switched off for emergency broadcasts, reminders, contact verification codes, and the WhatsApp fallback below until the SMS provider is connected. It is more expensive and more intrusive than email, so it should not be the default channel for routine billing communication.
+SMS is used for a narrower set of messages: two-factor codes and contact verification codes. SMS is currently switched off for two-factor codes, emergency broadcasts, reminders, contact verification codes, and the WhatsApp fallback below until the SMS provider is connected. It is more expensive and more intrusive than email, so it should not be the default channel for routine billing communication.
 
 The SMS provider is Termii or HollaTags. An admin picks the active one in **Settings → Messages → Email & sending**, in the **SMS provider** section. The page shows whether each provider has its credentials on the server. The credentials themselves are set by an engineer in the server environment, never in the dashboard. If the chosen provider has no credentials, SMS sends fail with an error. The system does not switch to the other provider. The choice applies when SMS is switched on. SMS stays switched off for now.
 
