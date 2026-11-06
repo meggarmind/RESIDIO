@@ -8,8 +8,8 @@ import {
     findReusableInvoiceGenerationRun,
     parseInvoiceGenerationRequest,
     prepareInvoiceGenerationRunCore,
+    processInvoiceGenerationRunToCompletion,
 } from '@/lib/billing/invoice-generation-run-service';
-import { processInvoiceGenerationRunChunk } from '@/lib/billing/invoice-generation-worker';
 import { createAdminClient } from '@/lib/supabase/server';
 
 const log = createLogger('[Cron]');
@@ -23,8 +23,9 @@ export const maxDuration = 300;
  * (scheduled daily at 6 AM UTC in vercel.json).
  *
  * Conservative behavior:
- * 1. Every invocation may advance the newest queued/processing run by ONE
- *    bounded chunk (<= 50 candidates) via the idempotent RPC.
+ * 1. Every invocation advances the newest queued/processing run to completion,
+ *    chunk by chunk (<= 50 candidates each) via the idempotent RPC. One chunk
+ *    per daily call left most houses unbilled for days (#1450).
  * 2. On or after the configured generation day (so a missed day is caught up
  *    later in the month), and only when no cron run (cancelled ones included, so a
  *    cancel holds for the month) exists for the current month, it prepares a
@@ -59,7 +60,7 @@ async function runInvoiceGeneration(run: SystemLogRun) {
             return NextResponse.json({ skipped: true, reason: 'Auto-generation is disabled', ...response });
         }
 
-        // Advance the newest queued/processing run by one bounded chunk
+        // Advance the newest queued/processing run to completion (chunk by chunk)
         const admin = createAdminClient();
         const { data: activeRuns, error: activeError } = await admin
             .from('invoice_generation_runs')
@@ -70,8 +71,8 @@ async function runInvoiceGeneration(run: SystemLogRun) {
         if (activeError) throw new Error(activeError.message);
         if (activeRuns && activeRuns.length > 0) {
             const active = activeRuns[0];
-            const chunk = await processInvoiceGenerationRunChunk(active.id, null);
-            response.advanced = { runId: active.id, processed: chunk.processed, status: chunk.run ? (chunk.run as { status: string }).status : null };
+            const chunk = await processInvoiceGenerationRunToCompletion(active.id, null);
+            response.advanced = { runId: active.id, processed: chunk.processed, status: chunk.run ? chunk.run.status : null, capped: chunk.capped };
             run.summary.advanced = response.advanced;
             log.info('Advanced invoice generation run', response.advanced as Record<string, unknown>);
         }
@@ -100,12 +101,13 @@ async function runInvoiceGeneration(run: SystemLogRun) {
             run.error = prepared.error;
             return NextResponse.json({ success: false, error: prepared.error, ...response }, { status: 500 });
         }
-        const chunk = await processInvoiceGenerationRunChunk(prepared.data.id, null);
+        const chunk = await processInvoiceGenerationRunToCompletion(prepared.data.id, null);
         response.prepared = {
             runId: prepared.data.id,
-            status: chunk.run ? (chunk.run as { status: string }).status : 'queued',
+            status: chunk.run ? chunk.run.status : 'queued',
             candidates: prepared.data.candidateCount,
             processed: chunk.processed,
+            capped: chunk.capped,
             walletAllocation: true,
             sendEmails: false,
             assessLateFees: false,

@@ -10,8 +10,8 @@ residio_sources:
   - src/lib/sms/**
   - src/lib/paystack/index.ts
   - src/lib/email-imports/gmail-client.ts
-residio_verified_commit: 86f51e25
-residio_verified_at: '2026-10-28'
+residio_verified_commit: 7b29a275
+residio_verified_at: '2026-11-06'
 residio_app_version: '0.4.0'
 ---
 
@@ -25,7 +25,7 @@ Residio talks to a small set of external services. Most are configured with serv
 |---|---|---|
 | WhatsApp (Meta, Twilio, Chatmaid or WAHA) | Resident messaging, identity checks, and balance lookups | **Settings → WhatsApp** |
 | Email (Resend) | Outbound notifications, reminders, receipts | **Settings → Email Settings** |
-| SMS (Termii) | Emergency broadcasts, two-factor codes (contact verification SMS is switched off until Termii is connected) | **Settings → Notifications** |
+| SMS (Termii or HollaTags) | Emergency broadcasts, two-factor codes (SMS is switched off until the SMS provider is connected) | **Settings → Messages → Email & sending** (choose the provider) |
 | Gmail import | Pulls bank alerts and statements into the payment queue | **Settings → Gmail Import** |
 | Bank statement files | CSV, Excel, and PDF statement parsing | **Transactions → Import Statement** |
 | Paystack | Online card payment collection and reconciliation | **Transactions**, **Approvals** |

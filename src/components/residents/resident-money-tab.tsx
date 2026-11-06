@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { CalendarRange, Plus, Receipt, Users } from 'lucide-react';
+import { CalendarRange, Eraser, Plus, Receipt, Users } from 'lucide-react';
 import type { ResidentWithHouses } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,6 +13,7 @@ import { WalletTransactions } from '@/components/residents/wallet-transactions';
 import { WalletPaymentBatchTools } from '@/components/residents/wallet-payment-batch-tools';
 import { UnpostedPaymentsStrip } from '@/components/residents/unposted-payments-strip';
 import { PaymentAliases } from '@/components/residents/payment-aliases';
+import { WriteOffBillsDialogContent } from '@/components/residents/write-off-bills-dialog-content';
 import { useResidentAliases } from '@/hooks/use-imports';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
@@ -26,6 +27,7 @@ export function ResidentMoneyTab({ resident }: { resident: ResidentWithHouses })
   const id = resident.id;
   const [batchSection, setBatchSection] = useState<'settle' | 'prepay' | null>(null);
   const [aliasesOpen, setAliasesOpen] = useState(false);
+  const [writeOffOpen, setWriteOffOpen] = useState(false);
   const { hasPermission } = useAuth();
   const { data: aliasesData } = useResidentAliases(id);
   const aliasCount = aliasesData?.data?.length ?? 0;
@@ -63,6 +65,12 @@ export function ResidentMoneyTab({ resident }: { resident: ResidentWithHouses })
                 </Button>
               </>
             )}
+            {hasPermission(PERMISSIONS.BILLING_WRITE_OFF_INVOICES) && (
+              <Button size="sm" variant="outline" className="min-h-11 justify-start md:min-h-0" onClick={() => setWriteOffOpen(true)}>
+                <Eraser className="mr-2 h-4 w-4" />
+                Write off bills
+              </Button>
+            )}
             <Button size="sm" variant="ghost" className="min-h-11 justify-start md:min-h-0" onClick={() => setAliasesOpen(true)}>
               <Users className="mr-2 h-4 w-4" />
               Payment aliases ({aliasCount})
@@ -98,6 +106,22 @@ export function ResidentMoneyTab({ resident }: { resident: ResidentWithHouses })
           )}
         </DialogContent>
       </Dialog>
+
+      {hasPermission(PERMISSIONS.BILLING_WRITE_OFF_INVOICES) && (
+        <Dialog open={writeOffOpen} onOpenChange={setWriteOffOpen}>
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>Write off bills</DialogTitle>
+              <DialogDescription>
+                Select the open bills of {residentName} to write off, for example after an Exco settlement.
+              </DialogDescription>
+            </DialogHeader>
+            {writeOffOpen && (
+              <WriteOffBillsDialogContent residentId={id} residentName={residentName} onDone={() => setWriteOffOpen(false)} />
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
 
       <Sheet open={aliasesOpen} onOpenChange={setAliasesOpen}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-md">

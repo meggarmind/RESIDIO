@@ -9,6 +9,6 @@ vi.mock('@/lib/supabase/server', () => ({ createServerSupabaseClient: vi.fn() })
 describe('create-email-import server actions', () => {
   it('exports only the read actions', async () => {
     const mod = await import('@/actions/email-imports/create-email-import');
-    expect(Object.keys(mod).sort()).toEqual(['getEmailImport', 'listEmailImports']);
+    expect(Object.keys(mod).sort()).toEqual(['getEmailImport', 'getEmailImportSummary', 'listEmailImports']);
   });
 });

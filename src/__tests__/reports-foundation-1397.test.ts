@@ -65,6 +65,9 @@ import {
   getReportPermission,
   GENERATABLE_REPORT_TYPES,
   hasGenerator,
+  isRetiredReport,
+  resolveRetiredReport,
+  runnableReportsForPermissions,
   type ReportRequestFormData,
 } from '@/lib/validators/reports';
 import { generateReport } from '@/actions/reports/report-engine';
@@ -74,6 +77,8 @@ import { ADMIN_NAV_SECTIONS, type NavItem } from '@/config/navigation';
 import ReportsPage from '@/app/(dashboard)/reports/page';
 
 const ALL = reportTypes.map((t) => t.value);
+// What the picker and the Reports page offer: everything except the retired reports (#1399).
+const RUNNABLE = reportTypes.filter((t) => !('retired' in t)).map((t) => t.value);
 
 function request(reportType: string): ReportRequestFormData {
   return reportRequestSchema.parse({ reportType, periodPreset: 'this_month' }) as ReportRequestFormData;
@@ -113,7 +118,7 @@ describe('One report list for every schema (#1397)', () => {
 });
 
 describe('Report permissions (#1397)', () => {
-  it('every report names a real permission; all 8 use reports.view_financial today', () => {
+  it('every report names a real permission; all 9 use reports.view_financial today', () => {
     const known = Object.values(PERMISSIONS) as string[];
     for (const t of reportTypes) expect(known, t.value).toContain(t.permission);
     expect(reportTypes.every((t) => t.permission === PERMISSIONS.REPORTS_VIEW_FINANCIAL)).toBe(true);
@@ -161,9 +166,10 @@ describe('generateReport authorizes with the report type permission (#1397)', ()
 
 describe('generateReportWithClient for a listed report with no generator (#1379)', () => {
   it('returns a clear error instead of nothing', async () => {
+    // indebtedness_detail never had a generator; since #1400 it is retired and says what replaced it.
     const real = await vi.importActual<typeof import('@/lib/reports/report-generator')>('@/lib/reports/report-generator');
     const result = await real.generateReportWithClient({} as never, request('indebtedness_detail'));
-    expect(result).toEqual({ success: false, error: 'Indebtedness Detail Report cannot be generated yet.' });
+    expect(result).toEqual({ success: false, error: 'Indebtedness Detail Report was replaced by Dues, levies and collection status.' });
   });
 });
 
@@ -219,7 +225,9 @@ describe('Reports page guard (#1397)', () => {
   it('opens for a holder of a report permission and passes the reports they may run', async () => {
     held.perms = [PERMISSIONS.REPORTS_VIEW_FINANCIAL];
     const page = (await ReportsPage()) as { props: { children: { props: { allowedReportTypes: string[] } } } };
-    expect(page.props.children.props.allowedReportTypes).toEqual(ALL);
+    expect(page.props.children.props.allowedReportTypes).toEqual(RUNNABLE);
+    expect(page.props.children.props.allowedReportTypes).not.toContain('debtors_report');
+    expect(page.props.children.props.allowedReportTypes).not.toContain('invoice_aging');
   });
 
   it('sends anyone else to the dashboard', async () => {
@@ -229,7 +237,7 @@ describe('Reports page guard (#1397)', () => {
 });
 
 describe('Only reports with a generator can be scheduled (#1397)', () => {
-  const NO_GENERATOR = 'Indebtedness Detail Report cannot be generated yet, so it cannot be scheduled.';
+  const NO_GENERATOR = 'Indebtedness Detail Report was replaced by Dues, levies and collection status, so it cannot be scheduled.';
 
   it('GENERATABLE_REPORT_TYPES matches the cases in generateReportWithClient', async () => {
     const real = await vi.importActual<typeof import('@/lib/reports/report-generator')>('@/lib/reports/report-generator');
@@ -238,7 +246,10 @@ describe('Only reports with a generator can be scheduled (#1397)', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     for (const type of ALL) {
       const result = await real.generateReportWithClient(stub as never, request(type));
-      expect(/cannot be generated yet/.test(result.error ?? ''), type).toBe(!hasGenerator(type));
+      // A retired report has no case on purpose: it is refused with its own message (#1399).
+      const refused = /cannot be generated yet|was replaced by/.test(result.error ?? '');
+      expect(refused, type).toBe(!hasGenerator(type));
+      expect(/was replaced by/.test(result.error ?? ''), type).toBe(isRetiredReport(type));
     }
     spy.mockRestore();
     expect(hasGenerator('indebtedness_detail')).toBe(false);
@@ -256,5 +267,55 @@ describe('Only reports with a generator can be scheduled (#1397)', () => {
     const result = await updateReportSchedule('s1', { report_type: 'indebtedness_detail' });
     expect(result).toEqual({ data: null, error: NO_GENERATOR });
     expect(calls.from).toEqual([]);
+  });
+});
+
+describe('Retired reports (#1399)', () => {
+  it('the four replaced reports are retired; everything else is not', () => {
+    expect(reportTypes.filter((t) => 'retired' in t).map((t) => t.value)).toEqual(['invoice_aging', 'debtors_report', 'indebtedness_summary', 'indebtedness_detail']);
+    expect(ALL).toContain('debtors_aging');
+    expect(isRetiredReport('debtors_aging')).toBe(false);
+  });
+
+  it('stay valid values, so History and Archive still show and open old rows', () => {
+    expect(REPORT_TYPE_VALUES).toContain('debtors_report');
+    expect(REPORT_TYPE_VALUES).toContain('invoice_aging');
+    expect(reportsForPermissions([PERMISSIONS.REPORTS_VIEW_FINANCIAL])).toEqual(ALL);
+  });
+
+  it('are not offered: runnableReportsForPermissions leaves them out', () => {
+    expect(runnableReportsForPermissions([PERMISSIONS.REPORTS_VIEW_FINANCIAL])).toEqual(RUNNABLE);
+    expect(runnableReportsForPermissions([PERMISSIONS.REPORTS_VIEW_FINANCIAL])).toContain('debtors_aging');
+    expect(runnableReportsForPermissions([])).toEqual([]);
+  });
+
+  it('are not generatable and not schedulable', () => {
+    for (const type of ['debtors_report', 'invoice_aging']) {
+      expect(hasGenerator(type), type).toBe(false);
+      expect(GENERATABLE_REPORT_TYPES).not.toContain(type);
+    }
+    expect(hasGenerator('debtors_aging')).toBe(true);
+  });
+
+  it('generateReportWithClient refuses a retired report with a pointer to the new one', async () => {
+    const real = await vi.importActual<typeof import('@/lib/reports/report-generator')>('@/lib/reports/report-generator');
+    const result = await real.generateReportWithClient({} as never, request('debtors_report'));
+    expect(result).toEqual({ success: false, error: 'Debtors Report was replaced by Debtors and aging.' });
+  });
+
+  it('createReportSchedule and updateReportSchedule refuse them and touch nothing', async () => {
+    held.perms = [PERMISSIONS.REPORTS_MANAGE_SCHEDULES];
+    const msg = 'Invoice Aging Report was replaced by Debtors and aging, so it cannot be scheduled.';
+    const created = await createReportSchedule({ name: 'x', report_type: 'invoice_aging', frequency: 'monthly', period_preset: 'last_month' });
+    expect(created).toEqual({ data: null, error: msg });
+    const updated = await updateReportSchedule('s1', { report_type: 'invoice_aging' });
+    expect(updated).toEqual({ data: null, error: msg });
+    expect(calls.from).toEqual([]);
+  });
+
+  it('a schedule saved for a retired report runs as Debtors and aging', () => {
+    expect(resolveRetiredReport('debtors_report')).toBe('debtors_aging');
+    expect(resolveRetiredReport('invoice_aging')).toBe('debtors_aging');
+    expect(resolveRetiredReport('transaction_log')).toBe('transaction_log');
   });
 });

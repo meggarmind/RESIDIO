@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import {
     FileBarChart,
+    Construction,
     Receipt,
     Clock,
     ScrollText,
@@ -88,11 +89,65 @@ const reportTypeConfig: Record<
         gradient: 'from-purple-500 to-violet-500',
         iconBg: 'bg-purple-500/15 text-purple-600 dark:text-purple-400',
     },
+    debtors_aging: {
+        icon: Users,
+        label: 'Debtors and aging',
+        gradient: 'from-red-500 to-rose-500',
+        iconBg: 'bg-red-500/15 text-red-600 dark:text-red-400',
+    },
     debtors_report: {
         icon: Users,
         label: 'Debtors Report',
         gradient: 'from-red-500 to-rose-500',
         iconBg: 'bg-red-500/15 text-red-600 dark:text-red-400',
+    },
+    dues_collection_status: {
+        icon: Users,
+        label: 'Dues, levies and collection status',
+        gradient: 'from-orange-500 to-amber-500',
+        iconBg: 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
+    },
+    project_spend: {
+        icon: Construction,
+        label: 'Project spend',
+        gradient: 'from-indigo-500 to-blue-500',
+        iconBg: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400',
+    },
+    petty_cash: {
+        icon: Receipt,
+        label: 'Petty cash',
+        gradient: 'from-emerald-500 to-teal-500',
+        iconBg: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+    },
+    statement_of_account: {
+        icon: FileText,
+        label: 'Statement of account',
+        gradient: 'from-sky-500 to-blue-500',
+        iconBg: 'bg-sky-500/15 text-sky-600 dark:text-sky-400',
+    },
+    collection_rate_by_street: {
+        icon: Users,
+        label: 'Collection rate by street',
+        gradient: 'from-orange-500 to-amber-500',
+        iconBg: 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
+    },
+    expenses_by_category: {
+        icon: ScrollText,
+        label: 'Expenses by category and vendor',
+        gradient: 'from-purple-500 to-violet-500',
+        iconBg: 'bg-purple-500/15 text-purple-600 dark:text-purple-400',
+    },
+    wallet_balances: {
+        icon: Receipt,
+        label: 'Wallet balances',
+        gradient: 'from-emerald-500 to-teal-500',
+        iconBg: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+    },
+    write_offs: {
+        icon: Receipt,
+        label: 'Write-offs',
+        gradient: 'from-amber-500 to-yellow-500',
+        iconBg: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
     },
     indebtedness_summary: {
         icon: Users,
@@ -180,7 +235,8 @@ function ReportCard({
                         <Button
                             variant="outline"
                             size="sm"
-                            className="h-8 gap-1.5"
+                            // Made again from the type and last month only; a Statement of account also needs its house or resident, so it is printed from View (#1402).
+                            className={cn('h-8 gap-1.5', report.type === 'statement_of_account' && 'hidden')}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 const params = new URLSearchParams({ type: report.type, preset: 'last_month' });

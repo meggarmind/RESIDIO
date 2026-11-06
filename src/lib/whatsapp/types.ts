@@ -37,12 +37,20 @@ export interface WhatsAppSendResult {
   override?: OverrideLogRecord;
 }
 
+/** The file of a WAHA media message (#1455); `url` is null when WAHA did not download it. */
+export interface WhatsAppInboundMedia {
+  url: string | null;
+  mimetype: string | null;
+}
+
 export interface WhatsAppInboundMessage {
   id: string;
   from: string;
   timestamp: string;
   type: string;
   text: string | null;
+  /** WAHA only: set on a 1:1 media message (#1455). */
+  media?: WhatsAppInboundMedia;
 }
 
 export interface WhatsAppInboundPayload {

@@ -13,10 +13,20 @@
 
 import type { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
 import type { ReportRequestFormData } from '@/lib/validators/reports';
-import { getDateRangeFromPreset, REPORT_TYPE_LABELS } from '@/lib/validators/reports';
-import type { SummaryReport } from '@/lib/reports/summary-report';
+import { getDateRangeFromPreset, isRetiredReport, resolveRetiredReport, REPORT_TYPE_LABELS } from '@/lib/validators/reports';
+import type { SummaryCell, SummaryGrid, SummaryGridStatus, SummaryReport, SummaryReportData } from '@/lib/reports/summary-report';
+import { generateProjectSpend } from '@/lib/reports/generators/project-spend';
+import { generatePettyCash } from '@/lib/reports/generators/petty-cash';
+import { formatCalendarDate } from '@/lib/utils/calendar-date';
+import { DEFAULT_CHARGE_CATEGORY } from '@/lib/billing/charge-categories';
 import { DEBT_STATUS_DEFAULTS, getDebtStatuses, type DebtStatus } from '@/lib/billing/debt-status';
+import { generateCollectionRateByStreet } from '@/lib/reports/generators/collection-rate-by-street';
+import { generateExpensesByCategory } from '@/lib/reports/generators/expenses-by-category';
+import { generateWalletBalances } from '@/lib/reports/generators/wallet-balances';
+import { generateWriteOffs } from '@/lib/reports/generators/write-offs';
 import { OCCUPANT_PAYER_ROLES, resolvePayer, type BillingPayer } from '@/lib/billing/payer';
+import { generateStatementOfAccount } from '@/lib/reports/generators/statement-of-account';
+import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
 
 /** Either the cookie-bound session client or the service-role admin client. */
 export type ReportSupabaseClient =
@@ -258,70 +268,51 @@ async function generateFinancialOverview(
   transactionType: 'all' | 'credit' | 'debit'
 ): Promise<FinancialOverviewData> {
   // 1. Fetch Bank Statement Rows
-  let query = supabase
-    .from('bank_statement_rows')
-    .select(`
-      id,
-      amount,
-      transaction_type,
-      transaction_date,
-      tag_id,
-      transaction_tags (
+  const { data: rows, error } = await fetchAllRows((from, to) => {
+    let query = supabase
+      .from('bank_statement_rows')
+      .select(`
         id,
-        name,
-        color,
-        transaction_type
-      ),
-      bank_statement_imports!inner (
-        id,
-        bank_account_id,
-        status
-      )
-    `)
-    .gte('transaction_date', startDate)
-    .lte('transaction_date', endDate)
-    .eq('bank_statement_imports.status', 'completed');
+        amount,
+        transaction_type,
+        transaction_date,
+        tag_id,
+        transaction_tags (
+          id,
+          name,
+          color,
+          transaction_type
+        ),
+        bank_statement_imports!inner (
+          id,
+          bank_account_id,
+          status
+        )
+      `)
+      .gte('transaction_date', startDate)
+      .lte('transaction_date', endDate)
+      .eq('bank_statement_imports.status', 'completed');
 
-  if (bankAccountIds.length > 0) {
-    query = query.in('bank_statement_imports.bank_account_id', bankAccountIds);
-  }
+    if (bankAccountIds.length > 0) {
+      query = query.in('bank_statement_imports.bank_account_id', bankAccountIds);
+    }
 
-  if (transactionType !== 'all') {
-    query = query.eq('transaction_type', transactionType);
-  }
+    if (transactionType !== 'all') {
+      query = query.eq('transaction_type', transactionType);
+    }
 
-  const { data: rows, error } = await query;
+    return query.order('id').range(from, to);
+  });
 
   if (error) {
     console.error('Error fetching financial overview (bank rows):', error);
-    throw new Error(error.message);
+    throw new Error(error);
   }
 
   // 2. Fetch Expenses (Manual / Petty Cash)
   // Only fetching if we are interested in 'debit' or 'all' transactions
   let expensesData: Record<string, unknown>[] = [];
   if (transactionType === 'all' || transactionType === 'debit') {
-    let expensesQuery = supabase
-      .from('expenses')
-      .select(`
-        id,
-        amount,
-        expense_date,
-        description,
-        category_id,
-        expense_categories (
-          id,
-          name,
-          color
-        ),
-        payment_method,
-        source_type,
-        status
-      `)
-      .gte('expense_date', startDate)
-      .lte('expense_date', endDate)
-      .eq('status', 'paid');
-
     // We exclude 'bank_import' source type because those should already be covered by bank_statement_rows
     // Assuming 'bank_import' means it was created FROM a bank row.
     // If payment_method is 'bank_transfer', it might still be a manual entry that hasn't been reconciled with a bank row yet.
@@ -333,9 +324,31 @@ async function generateFinancialOverview(
     // And we can include 'manual' expenses if we assume they are cash or external to the connected bank accounts.
     // Let's include all non-bank-import expenses for now to ensure visibility, but this is a policy decision.
 
-    expensesQuery = expensesQuery.neq('source_type', 'bank_import');
-
-    const { data: expenses, error: expensesError } = await expensesQuery;
+    const { data: expenses, error: expensesError } = await fetchAllRows((from, to) =>
+      supabase
+        .from('expenses')
+        .select(`
+          id,
+          amount,
+          expense_date,
+          description,
+          category_id,
+          expense_categories (
+            id,
+            name,
+            color
+          ),
+          payment_method,
+          source_type,
+          status
+        `)
+        .gte('expense_date', startDate)
+        .lte('expense_date', endDate)
+        .eq('status', 'paid')
+        .neq('source_type', 'bank_import')
+        .order('id')
+        .range(from, to)
+    );
 
     if (expensesError) {
       console.error('Error fetching expenses for report:', expensesError);
@@ -497,33 +510,37 @@ async function generateCollectionReport(
   endDate: string
 ): Promise<CollectionReportData> {
   // Get invoices within the period
-  const { data: invoices, error: invoiceError } = await supabase
-    .from('invoices')
-    .select(`
-      id,
-      invoice_number,
-      amount_due,
-      amount_paid,
-      status,
-      due_date,
-      resident:residents (
+  const { data: invoices, error: invoiceError } = await fetchAllRows((from, to) =>
+    supabase
+      .from('invoices')
+      .select(`
         id,
-        first_name,
-        last_name,
-        resident_code
-      ),
-      house:houses (
-        house_number,
-        street:streets (name)
-      )
-    `)
-    .gte('due_date', startDate)
-    .lte('due_date', endDate)
-    .neq('status', 'void');
+        invoice_number,
+        amount_due,
+        amount_paid,
+        status,
+        due_date,
+        resident:residents (
+          id,
+          first_name,
+          last_name,
+          resident_code
+        ),
+        house:houses (
+          house_number,
+          street:streets (name)
+        )
+      `)
+      .gte('due_date', startDate)
+      .lte('due_date', endDate)
+      .neq('status', 'void')
+      .order('id')
+      .range(from, to)
+  );
 
   if (invoiceError) {
     console.error('Error fetching invoices:', invoiceError);
-    throw new Error(invoiceError.message);
+    throw new Error(invoiceError);
   }
 
   // Process data
@@ -635,7 +652,9 @@ interface AgingInvoice {
   daysOverdue: number;
 }
 
-async function generateInvoiceAging(
+// Kept, unchanged, as the reference the Debtors and aging report is tested against (#1399): its
+// totals must equal these two retired reports' totals. Nothing else calls them.
+export async function generateInvoiceAging(
   supabase: ReportSupabaseClient
 ): Promise<InvoiceAgingData> {
   const today = new Date();
@@ -745,45 +764,48 @@ async function generateTransactionLog(
   bankAccountIds: string[],
   transactionType: 'all' | 'credit' | 'debit'
 ): Promise<TransactionLogData> {
-  let query = supabase
-    .from('bank_statement_rows')
-    .select(`
-      id,
-      transaction_date,
-      description,
-      amount,
-      transaction_type,
-      reference,
-      transaction_tags (
-        name,
-        color
-      ),
-      bank_statement_imports!inner (
-        status,
-        estate_bank_accounts (
-          account_name,
-          bank_name
+  const { data: rows, error } = await fetchAllRows((from, to) => {
+    let query = supabase
+      .from('bank_statement_rows')
+      .select(`
+        id,
+        transaction_date,
+        description,
+        amount,
+        transaction_type,
+        reference,
+        transaction_tags (
+          name,
+          color
+        ),
+        bank_statement_imports!inner (
+          status,
+          estate_bank_accounts (
+            account_name,
+            bank_name
+          )
         )
-      )
-    `)
-    .gte('transaction_date', startDate)
-    .lte('transaction_date', endDate)
-    .eq('bank_statement_imports.status', 'completed')
-    .order('transaction_date', { ascending: false });
+      `)
+      .gte('transaction_date', startDate)
+      .lte('transaction_date', endDate)
+      .eq('bank_statement_imports.status', 'completed')
+      .order('transaction_date', { ascending: false })
+      .order('id');
 
-  if (bankAccountIds.length > 0) {
-    query = query.in('bank_statement_imports.bank_account_id', bankAccountIds);
-  }
+    if (bankAccountIds.length > 0) {
+      query = query.in('bank_statement_imports.bank_account_id', bankAccountIds);
+    }
 
-  if (transactionType !== 'all') {
-    query = query.eq('transaction_type', transactionType);
-  }
+    if (transactionType !== 'all') {
+      query = query.eq('transaction_type', transactionType);
+    }
 
-  const { data: rows, error } = await query;
+    return query.range(from, to);
+  });
 
   if (error) {
     console.error('Error fetching transaction log:', error);
-    throw new Error(error.message);
+    throw new Error(error);
   }
 
   let totalCredits = 0;
@@ -830,7 +852,7 @@ async function generateTransactionLog(
 // Debtors Report
 // ============================================================
 
-async function generateDebtorsReport(
+export async function generateDebtorsReport(
   supabase: ReportSupabaseClient
 ): Promise<DebtorsReportData> {
   const today = new Date();
@@ -1026,6 +1048,201 @@ async function generateDebtorsReport(
 }
 
 // ============================================================
+// Debtors and aging (replaces the Debtors and Invoice Aging reports, #1399)
+// ============================================================
+
+const AGING_BUCKETS = [
+  { key: 'current', label: 'Current', tone: 'good' },
+  { key: 'days1to30', label: '1-30 days', tone: 'neutral' },
+  { key: 'days31to60', label: '31-60 days', tone: 'neutral' },
+  { key: 'days61to90', label: '61-90 days', tone: 'bad' },
+  { key: 'over90Days', label: 'Over 90 days', tone: 'bad' },
+] as const;
+
+type AgingBucketKey = (typeof AGING_BUCKETS)[number]['key'];
+
+/**
+ * The same cut-offs as the two retired reports (their 0-30 bucket is split in two: not yet due, and
+ * 1-30 days late), so the amounts per bucket and the grand total do not change.
+ */
+function agingBucketFor(daysOverdue: number): AgingBucketKey {
+  if (daysOverdue > 90) return 'over90Days';
+  if (daysOverdue > 60) return 'days61to90';
+  if (daysOverdue > 30) return 'days31to60';
+  if (daysOverdue > 0) return 'days1to30';
+  return 'current';
+}
+
+const emptyBuckets = (): Record<AgingBucketKey, number> => ({ current: 0, days1to30: 0, days31to60: 0, days61to90: 0, over90Days: 0 });
+
+const reportDate = (value: string) => formatCalendarDate(value, 'en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+const moneyCells = (amounts: Record<AgingBucketKey, number>) =>
+  Object.fromEntries(Object.entries(amounts).map(([key, amount]) => [key, money(amount)]));
+const money = (amount: number) => amount.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+async function generateDebtorsAging(
+  supabase: ReportSupabaseClient,
+  showInvoiceLines: boolean
+): Promise<SummaryReport> {
+  const today = new Date();
+
+  // Same query and filter as the Debtors report, read a page at a time: the API returns at most
+  // 1,000 rows per request, and a single read would silently drop the rest from the totals.
+  const PAGE_SIZE = 1000;
+  const invoices = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data: page, error } = await supabase
+      .from('invoices')
+      .select(`
+      id,
+      invoice_number,
+      amount_due,
+      amount_paid,
+      status,
+      due_date,
+      resident:residents (
+        id,
+        first_name,
+        last_name,
+        email,
+        phone_primary,
+        phone_secondary
+      ),
+      house:houses (
+        house_number,
+        street:streets (name)
+      )
+    `)
+      .in('status', ['unpaid', 'partially_paid'])
+      .order('id')
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error) {
+      console.error('Error fetching invoices for debtors and aging report:', error);
+      throw new Error(error.message);
+    }
+    invoices.push(...(page ?? []));
+    if (!page || page.length < PAGE_SIZE) break;
+  }
+
+  interface Line { invoiceNumber: string; dueDate: string; daysOverdue: number; outstanding: number; bucket: AgingBucketKey }
+  const debtorMap = new Map<string, {
+    name: string;
+    linked: boolean;
+    house: string;
+    street: string;
+    contact: string;
+    buckets: Record<AgingBucketKey, number>;
+    total: number;
+    lines: Line[];
+  }>();
+  const bucketTotals = emptyBuckets();
+  let oldest: { daysOverdue: number; dueDate: string } | null = null;
+
+  for (const invoice of invoices) {
+    const outstanding = (Number(invoice.amount_due) || 0) - (Number(invoice.amount_paid) || 0);
+    if (outstanding <= 0) continue;
+
+    const resident = invoice.resident as unknown as {
+      id: string; first_name: string; last_name: string; email: string | null; phone_primary: string | null; phone_secondary: string | null;
+    } | null;
+    const house = invoice.house as unknown as { house_number: string; street: { name: string } | null } | null;
+
+    const daysOverdue = Math.max(0, Math.floor((today.getTime() - new Date(invoice.due_date).getTime()) / (1000 * 60 * 60 * 24)));
+    const bucket = agingBucketFor(daysOverdue);
+
+    // The Debtors report skipped an invoice with no resident, the Aging report counted it. Counting it
+    // (one "No resident linked" row for each house) keeps the total equal to the Aging report and hides
+    // no money. It is not a debtor, so the Debtors figure leaves it out.
+    const houseName = house?.house_number || 'N/A';
+    const streetName = house?.street?.name || 'N/A';
+    const key = resident?.id ?? `no-resident:${houseName}|${streetName}`;
+    let debtor = debtorMap.get(key);
+    if (!debtor) {
+      debtor = {
+        name: resident ? `${resident.first_name} ${resident.last_name}` : 'No resident linked',
+        linked: resident !== null,
+        house: houseName,
+        street: streetName,
+        contact: resident ? [resident.phone_primary, resident.phone_secondary, resident.email].filter(Boolean).join(', ') : '',
+        buckets: emptyBuckets(),
+        total: 0,
+        lines: [],
+      };
+      debtorMap.set(key, debtor);
+    }
+    debtor.buckets[bucket] += outstanding;
+    debtor.total += outstanding;
+    debtor.lines.push({ invoiceNumber: invoice.invoice_number ?? '', dueDate: invoice.due_date ?? '', daysOverdue, outstanding, bucket });
+    bucketTotals[bucket] += outstanding;
+    if (!oldest || daysOverdue > oldest.daysOverdue) oldest = { daysOverdue, dueDate: invoice.due_date ?? '' };
+  }
+
+  const debtors = Array.from(debtorMap.values()).sort((a, b) => b.total - a.total);
+  const totalOwed = debtors.reduce((sum, d) => sum + d.total, 0);
+  const owedOver90 = bucketTotals.over90Days;
+  const debtorCount = debtors.filter((d) => d.linked).length;
+  const hasUnlinked = debtors.some((d) => !d.linked);
+
+  const rows: Record<string, SummaryCell>[] = [];
+  for (const d of debtors) {
+    rows.push({
+      debtor: d.name,
+      house: d.house,
+      street: d.street,
+      contact: d.contact,
+      ...moneyCells(d.buckets),
+      total: money(d.total),
+    });
+    // "Show invoice lines": one indented row per invoice straight under its debtor, in the same table.
+    if (showInvoiceLines) {
+      for (const line of d.lines.sort((a, b) => b.daysOverdue - a.daysOverdue)) {
+        rows.push({
+          debtor: `    ${line.invoiceNumber || 'Invoice'}, due ${reportDate(line.dueDate)}, ${line.daysOverdue} days late`,
+          house: null, street: null, contact: null,
+          ...moneyCells(emptyBuckets()),
+          [line.bucket]: money(line.outstanding),
+          total: money(line.outstanding),
+        });
+      }
+    }
+  }
+
+  const data: SummaryReportData = {
+    summary: [
+      { label: 'Total owed (NGN)', value: money(totalOwed), tone: totalOwed > 0 ? 'bad' : 'good' },
+      { label: 'Debtors', value: debtorCount, tone: debtorCount > 0 ? 'bad' : 'good' },
+      { label: 'Owed over 90 days (NGN)', value: money(owedOver90), tone: owedOver90 > 0 ? 'bad' : 'good' },
+      oldest
+        ? { label: 'Oldest debt', value: `${oldest.daysOverdue} days`, tone: 'neutral', hint: `Due ${reportDate(oldest.dueDate)}` }
+        : { label: 'Oldest debt', value: 'None', tone: 'good' },
+    ],
+    chart: {
+      title: 'Owed by age (NGN)',
+      bars: AGING_BUCKETS.map((b) => ({ label: b.label, value: bucketTotals[b.key], display: money(bucketTotals[b.key]), tone: b.tone })),
+    },
+    table: {
+      columns: [
+        { key: 'debtor', label: 'Debtor' },
+        { key: 'house', label: 'House' },
+        { key: 'street', label: 'Street' },
+        { key: 'contact', label: 'Contact' },
+        ...AGING_BUCKETS.map((b) => ({ key: b.key, label: b.label, align: 'right' as const })),
+        { key: 'total', label: 'Total', align: 'right' as const },
+      ],
+      rows,
+      totals: { debtor: 'Total', house: null, street: null, contact: null, ...moneyCells(bucketTotals), total: money(totalOwed) },
+    },
+    notes: [
+      'Amounts are what is still unpaid on invoices that are unpaid or part paid. Age is days past the due date.',
+      ...(hasUnlinked ? ['Rows marked "No resident linked" are unpaid invoices with no resident. Their money is in the totals, but they are not counted as debtors.'] : []),
+    ],
+  };
+
+  return { type: 'debtors_aging', layout: 'summary', data };
+}
+
+// ============================================================
 // Indebtedness Summary Report
 // ============================================================
 
@@ -1068,7 +1285,9 @@ export function pickIndebtednessPrimary(
 export async function generateIndebtednessReport(
   supabase: ReportSupabaseClient,
   includeUnoccupied: boolean = false,
-  includeAmount: boolean = false
+  includeAmount: boolean = false,
+  /** The dues sheet (#1400): count one charge only, and name its payer class. Omitted, every charge counts as before. */
+  charge?: { category: string; payer: BillingPayer | null }
 ): Promise<IndebtednessReportData> {
   // Get all active houses with street info and primary residents
   const { data: houses, error: housesError } = await supabase
@@ -1103,20 +1322,32 @@ export async function generateIndebtednessReport(
     throw new Error(housesError.message);
   }
 
-  // Get outstanding amounts per house from invoices if needed or for summary counts
-  const { data: invoices, error: invoicesError } = await supabase
-    .from('invoices')
-    .select(`
+  // Get outstanding amounts per house from invoices if needed or for summary counts. Read a page at
+  // a time: the API returns at most 1,000 rows per request, and a single read would drop the rest
+  // from the totals.
+  const PAGE_SIZE = 1000;
+  const invoices: { house_id: string | null; amount_due: number | string | null; amount_paid: number | string | null; status: string }[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    let query = supabase
+      .from('invoices')
+      .select(`
       house_id,
       amount_due,
       amount_paid,
       status
     `)
-    .in('status', ['unpaid', 'partially_paid']);
+      .in('status', ['unpaid', 'partially_paid']);
+    if (charge) query = query.eq('charge_category', charge.category);
+    const { data: page, error: invoicesError } = await query
+      .order('id')
+      .range(from, from + PAGE_SIZE - 1);
 
-  if (invoicesError) {
-    console.error('Error fetching invoices:', invoicesError);
-    throw new Error(invoicesError.message);
+    if (invoicesError) {
+      console.error('Error fetching invoices:', invoicesError);
+      throw new Error(invoicesError.message);
+    }
+    invoices.push(...(page ?? []));
+    if (!page || page.length < PAGE_SIZE) break;
   }
 
   // Calculate outstanding per house
@@ -1130,7 +1361,7 @@ export async function generateIndebtednessReport(
   }
 
   const debtStatuses = new Map(
-    (await getDebtStatuses(supabase, { houseIds: (houses || []).map((h) => h.id) })).map((d) => [d.houseId, d]),
+    (await getDebtStatuses(supabase, { houseIds: (houses || []).map((h) => h.id), chargeCategory: charge?.category })).map((d) => [d.houseId, d]),
   );
 
   // Process houses
@@ -1142,7 +1373,7 @@ export async function generateIndebtednessReport(
 
     const residentHouses = house.resident_houses as unknown as IndebtednessResidentLink[] | null;
     const billingProfile = house.billing_profile as unknown as { payer: BillingPayer | null } | null;
-    const primaryAssignment = pickIndebtednessPrimary(residentHouses ?? [], billingProfile?.payer ?? 'occupant');
+    const primaryAssignment = pickIndebtednessPrimary(residentHouses ?? [], charge?.payer ?? billingProfile?.payer ?? 'occupant');
 
     if (!includeUnoccupied && !primaryAssignment) continue;
 
@@ -1196,6 +1427,243 @@ export async function generateIndebtednessReport(
 
 
 // ============================================================
+// Dues, levies and collection status (replaces the two Indebtedness reports, #1400)
+// ============================================================
+
+/** A sheet shows at most this many months (the latest ones), so the grid stays readable. */
+const MAX_DUES_MONTHS = 24;
+
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const monthLabel = (key: string) => `${MONTH_ABBR[Number(key.slice(5, 7)) - 1]} ${key.slice(0, 4)}`;
+const MONTH_KEY = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/** Month keys ('YYYY-MM') from the month of `start` to the month of `end`. An unusable range falls back to this year so far. */
+function monthKeysBetween(start: string, end: string): string[] {
+  let from = start.slice(0, 7);
+  let to = end.slice(0, 7);
+  if (!MONTH_KEY.test(from) || !MONTH_KEY.test(to) || from > to) {
+    const year = getDateRangeFromPreset('this_year');
+    from = year.startDate.slice(0, 7);
+    to = year.endDate.slice(0, 7);
+  }
+  const keys: string[] = [];
+  let y = Number(from.slice(0, 4));
+  let m = Number(from.slice(5, 7));
+  while (`${y}-${String(m).padStart(2, '0')}` <= to) {
+    keys.push(`${y}-${String(m).padStart(2, '0')}`);
+    if (++m > 12) { m = 1; y++; }
+  }
+  return keys;
+}
+
+type DuesInvoice = {
+  id: string;
+  house_id: string | null;
+  invoice_number: string | null;
+  invoice_type: string | null;
+  charge_category: string;
+  amount_due: number | string | null;
+  amount_paid: number | string | null;
+  status: string;
+  due_date: string;
+  period_start: string | null;
+  rate_snapshot: { is_development_levy?: boolean } | null;
+};
+
+/** The chosen charge's non-void invoices, and the development levy's for the Levy column, a page of 1000 at a time (PostgREST caps one response at 1000 rows). */
+async function fetchDuesInvoices(supabase: ReportSupabaseClient, chargeCategory: string): Promise<DuesInvoice[]> {
+  const PAGE = 1000;
+  const rows: DuesInvoice[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('invoices')
+      .select('id, house_id, invoice_number, invoice_type, charge_category, amount_due, amount_paid, status, due_date, period_start, rate_snapshot')
+      .neq('status', 'void')
+      .in('charge_category', [chargeCategory, 'development_levy'])
+      .not('house_id', 'is', null)
+      .order('id')
+      .range(from, from + PAGE - 1);
+    if (error) {
+      console.error('Error fetching invoices for dues and collection status report:', error);
+      throw new Error(error.message);
+    }
+    rows.push(...((data ?? []) as unknown as DuesInvoice[]));
+    if (!data || data.length < PAGE) return rows;
+  }
+}
+
+type LevyStatusLabel = 'Paid' | 'Part paid' | 'Not paid' | 'No levy';
+
+function levyStatusFor(levyInvoices: DuesInvoice[]): LevyStatusLabel {
+  if (levyInvoices.length === 0) return 'No levy';
+  if (levyInvoices.every((i) => i.status === 'paid')) return 'Paid';
+  if (levyInvoices.some((i) => i.status === 'paid' || i.status === 'partially_paid' || (Number(i.amount_paid) || 0) > 0)) return 'Part paid';
+  return 'Not paid';
+}
+
+/** One month of one house, in the estate map's words: paid up, outstanding (not yet due), overdue, no invoice. */
+function monthStatusFor(invoices: DuesInvoice[], today: string): SummaryGridStatus {
+  if (invoices.length === 0) return 'no_invoice';
+  const open = invoices.filter((i) => i.status === 'unpaid' || i.status === 'partially_paid');
+  if (open.length === 0) return 'paid_up';
+  return open.some((i) => i.due_date < today) ? 'overdue' : 'outstanding';
+}
+
+export async function generateDuesCollectionStatus(
+  supabase: ReportSupabaseClient,
+  dateRange: { startDate: string; endDate: string },
+  includeUnoccupied: boolean,
+  showInvoiceLines: boolean,
+  chargeCategory: string = DEFAULT_CHARGE_CATEGORY
+): Promise<SummaryReport> {
+  // The charge comes from the table, never a fixed list, so a category added later works here.
+  const { data: categories, error: categoryError } = await supabase
+    .from('charge_categories')
+    .select('code, name, is_active')
+    .eq('code', chargeCategory);
+  if (categoryError) {
+    console.error('Error fetching the charge for the dues and collection status report:', categoryError);
+    throw new Error(categoryError.message);
+  }
+  const category = (categories as { code: string; name: string; is_active: boolean }[] | null)?.[0];
+  if (!category) throw new Error(`Unknown charge: ${chargeCategory}`);
+  if (!category.is_active) throw new Error(`${category.name} is not an active charge, so it cannot be reported.`);
+  const chargeName = category.name;
+
+  // The house list, the amounts owed and the status label come from the Indebtedness report's own
+  // generator, so the total owed here is the same figure it gave. It counts this charge only. Dues
+  // go to the billing profile's payer (the house's own, occupant by default); every other charge is
+  // a landlord's (owner decision on #1400, 2 Nov 2026).
+  const indebtedness = await generateIndebtednessReport(supabase, includeUnoccupied, true, {
+    category: chargeCategory,
+    payer: chargeCategory === DEFAULT_CHARGE_CATEGORY ? null : 'landlord',
+  });
+  const invoices = await fetchDuesInvoices(supabase, chargeCategory);
+  const today = new Date().toISOString().slice(0, 10);
+
+  const allMonths = monthKeysBetween(dateRange.startDate, dateRange.endDate);
+  const monthKeys = allMonths.slice(-MAX_DUES_MONTHS);
+
+  const byHouse = new Map<string, DuesInvoice[]>();
+  for (const invoice of invoices) {
+    if (!invoice.house_id) continue;
+    const list = byHouse.get(invoice.house_id);
+    if (list) list.push(invoice);
+    else byHouse.set(invoice.house_id, [invoice]);
+  }
+
+  let fullyPaid = 0;
+  let partPaid = 0;
+  let notPaid = 0;
+  let monthsOwedTotal = 0;
+  const streetOwed = new Map<string, number>();
+  const rows: Record<string, SummaryCell>[] = [];
+  const grid: SummaryGrid = { months: monthKeys.map((key) => ({ key, label: monthLabel(key) })), houses: [] };
+  const isLevy = (i: DuesInvoice) => i.rate_snapshot?.is_development_levy === true;
+
+  for (const house of indebtedness.houses) {
+    const houseInvoices = byHouse.get(house.houseId) ?? [];
+    const levy = levyStatusFor(houseInvoices.filter((i) => isLevy(i) || i.charge_category === 'development_levy'));
+    // Only the chosen charge makes months (and Owed and lines). A development levy that sits under Dues is
+    // still no month; under the Development Levy charge it is the bill.
+    const chosen = houseInvoices.filter((i) => i.charge_category === chargeCategory);
+    // Under Security Dues a month is a service charge, as in the WhatsApp balance: a levy, adjustment or other type
+    // adds to Owed only. Under any other charge the chosen charge's invoices are the bill, a flagged levy included.
+    const dues = chosen.filter((i) =>
+      chargeCategory === DEFAULT_CHARGE_CATEGORY ? i.invoice_type === 'SERVICE_CHARGE' && !isLevy(i) : chargeCategory === 'development_levy' || !isLevy(i)
+    );
+
+    const months: Record<string, SummaryGridStatus> = {};
+    for (const key of monthKeys) {
+      months[key] = monthStatusFor(dues.filter((i) => (i.period_start ?? i.due_date).slice(0, 7) === key), today);
+    }
+    const statuses = Object.values(months);
+    const monthsPaid = statuses.filter((s) => s === 'paid_up').length;
+    const monthsBilled = statuses.filter((s) => s !== 'no_invoice').length;
+    const monthsOwed = statuses.filter((s) => s === 'overdue' || s === 'outstanding').length;
+    monthsOwedTotal += monthsOwed;
+
+    // Same amount as the Indebtedness report; a house in credit owes nothing.
+    const owed = Math.max(0, house.outstandingAmount ?? 0);
+    if (owed === 0) fullyPaid++;
+    else if (monthsPaid === 0) notPaid++;
+    else partPaid++;
+    if (owed > 0) streetOwed.set(house.streetName, (streetOwed.get(house.streetName) ?? 0) + owed);
+
+    // The first column is keyed `debtor` so the server PDF gives it the wide column its invoice lines need.
+    rows.push({
+      debtor: house.houseNumber,
+      street: house.streetName,
+      resident: house.primaryResidentName,
+      monthsPaid: `${monthsPaid} of ${monthsBilled}`,
+      monthsOwed,
+      levy,
+      owed: money(owed),
+      status: house.statusLabel,
+    });
+    if (showInvoiceLines) {
+      const open = chosen
+        .filter((i) => i.status === 'unpaid' || i.status === 'partially_paid')
+        .map((i) => ({ i, outstanding: (Number(i.amount_due) || 0) - (Number(i.amount_paid) || 0) }))
+        .filter((l) => l.outstanding > 0)
+        .sort((a, b) => a.i.due_date.localeCompare(b.i.due_date));
+      for (const { i, outstanding } of open) {
+        rows.push({
+          debtor: `    ${i.invoice_number || 'Invoice'}, due ${reportDate(i.due_date)}, ${i.status === 'partially_paid' ? 'part paid' : 'unpaid'}`,
+          street: null, resident: null, monthsPaid: null, monthsOwed: null, levy: null,
+          owed: money(outstanding),
+          status: null,
+        });
+      }
+    }
+
+    grid.houses.push({ id: house.houseId, houseNumber: house.houseNumber, streetName: house.streetName, levy, owed, months });
+  }
+
+  const totalOwed = indebtedness.summary.totalOutstanding ?? 0;
+
+  const notes = [
+    `Charge: ${chargeName}. "Months paid" counts the months whose invoices are all paid, out of the months that have an invoice.`,
+    'Owed is everything still unpaid on the house for this charge, including earlier months, so it can be more than the months shown.',
+    'Fully paid: owes nothing. Part paid: owes something and has paid at least one month. Not paid: owes something and has paid no month.',
+  ];
+  if (allMonths.length > monthKeys.length) notes.push(`The period is longer than ${MAX_DUES_MONTHS} months, so the latest ${MAX_DUES_MONTHS} are shown.`);
+
+  const data: SummaryReportData = {
+    summary: [
+      { label: 'Houses fully paid', value: fullyPaid, tone: 'good' },
+      { label: 'Houses part paid', value: partPaid, tone: partPaid > 0 ? 'neutral' : 'good' },
+      { label: 'Houses not paid', value: notPaid, tone: notPaid > 0 ? 'bad' : 'good' },
+      { label: 'Total owed (NGN)', value: money(totalOwed), tone: totalOwed > 0 ? 'bad' : 'good' },
+    ],
+    chart: {
+      title: 'Owed by street (NGN)',
+      bars: Array.from(streetOwed, ([label, value]) => ({ label, value, display: money(value), tone: 'bad' as const }))
+        .sort((a, b) => b.value - a.value),
+    },
+    table: {
+      columns: [
+        { key: 'debtor', label: 'House' },
+        { key: 'street', label: 'Street' },
+        { key: 'resident', label: 'Primary Resident' },
+        { key: 'monthsPaid', label: 'Months paid', align: 'right' },
+        { key: 'monthsOwed', label: 'Months owed', align: 'right' },
+        { key: 'levy', label: 'Levy' },
+        { key: 'owed', label: 'Owed', align: 'right' },
+        { key: 'status', label: 'Status' },
+      ],
+      rows,
+      totals: { debtor: 'Total', street: null, resident: null, monthsPaid: null, monthsOwed: monthsOwedTotal, levy: null, owed: money(totalOwed), status: null },
+    },
+    notes,
+    grid,
+    chargeName,
+  };
+
+  return { type: 'dues_collection_status', layout: 'summary', data };
+}
+
+// ============================================================
 // Development Levy Report
 // ============================================================
 
@@ -1245,49 +1713,57 @@ async function generateDevelopmentLevyReport(
   const levyAmount = profile?.billing_items?.[0]?.amount || 0;
 
   // Get all active houses with residents
-  const { data: houses, error: housesError } = await supabase
-    .from('houses')
-    .select(`
-      id,
-      house_number,
-      street:streets (
+  const { data: houses, error: housesError } = await fetchAllRows((from, to) =>
+    supabase
+      .from('houses')
+      .select(`
         id,
-        name
-      ),
-      resident_houses (
-        resident_id,
-        resident_role,
-        is_active,
-        resident:residents!resident_houses_resident_id_fkey (
+        house_number,
+        street:streets (
           id,
-          first_name,
-          last_name
+          name
+        ),
+        resident_houses (
+          resident_id,
+          resident_role,
+          is_active,
+          resident:residents!resident_houses_resident_id_fkey (
+            id,
+            first_name,
+            last_name
+          )
         )
-      )
-    `)
-    .eq('is_active', true)
-    .order('house_number');
+      `)
+      .eq('is_active', true)
+      .order('house_number')
+      .order('id')
+      .range(from, to)
+  );
 
   if (housesError) {
     console.error('Error fetching houses for development levy report:', housesError);
-    throw new Error(housesError.message);
+    throw new Error(housesError);
   }
 
   // Get development levy invoices (filter by rate_snapshot containing is_development_levy)
-  const { data: invoices, error: invoicesError } = await supabase
-    .from('invoices')
-    .select(`
-      id,
-      house_id,
-      amount_due,
-      amount_paid,
-      status,
-      rate_snapshot
-    `);
+  const { data: invoices, error: invoicesError } = await fetchAllRows((from, to) =>
+    supabase
+      .from('invoices')
+      .select(`
+        id,
+        house_id,
+        amount_due,
+        amount_paid,
+        status,
+        rate_snapshot
+      `)
+      .order('id')
+      .range(from, to)
+  );
 
   if (invoicesError) {
     console.error('Error fetching development levy invoices:', invoicesError);
-    throw new Error(invoicesError.message);
+    throw new Error(invoicesError);
   }
 
   // Filter to only development levy invoices and track payment status per house
@@ -1446,11 +1922,6 @@ export async function generateReportWithClient(
         return { success: true, report: { type: 'collection_report', data } };
       }
 
-      case 'invoice_aging': {
-        const data = await generateInvoiceAging(supabase);
-        return { success: true, report: { type: 'invoice_aging', data } };
-      }
-
       case 'transaction_log': {
         const data = await generateTransactionLog(
           supabase,
@@ -1462,18 +1933,58 @@ export async function generateReportWithClient(
         return { success: true, report: { type: 'transaction_log', data } };
       }
 
-      case 'debtors_report': {
-        const data = await generateDebtorsReport(supabase);
-        return { success: true, report: { type: 'debtors_report', data } };
+      case 'debtors_aging': {
+        const report = await generateDebtorsAging(supabase, params.includeDetails);
+        return { success: true, report };
       }
 
-      case 'indebtedness_summary': {
-        const data = await generateIndebtednessReport(
+      case 'dues_collection_status': {
+        const report = await generateDuesCollectionStatus(
           supabase,
+          dateRange,
           params.includeUnoccupied,
-          params.includeAmount
+          params.includeDetails,
+          params.chargeCategory
         );
-        return { success: true, report: { type: 'indebtedness_summary', data } };
+        return { success: true, report };
+      }
+
+      case 'project_spend': {
+        const report = await generateProjectSpend(supabase, dateRange);
+        return { success: true, report };
+      }
+
+      case 'petty_cash': {
+        const report = await generatePettyCash(supabase, dateRange, params.includeDetails);
+        return { success: true, report };
+      }
+
+      case 'statement_of_account': {
+        const report = await generateStatementOfAccount(supabase, dateRange, {
+          kind: params.statementFor ?? 'house',
+          id: params.statementId ?? '',
+        });
+        return { success: true, report };
+      }
+
+      case 'collection_rate_by_street': {
+        const report = await generateCollectionRateByStreet(supabase, dateRange);
+        return { success: true, report };
+      }
+
+      case 'expenses_by_category': {
+        const report = await generateExpensesByCategory(supabase, dateRange, params.includeDetails);
+        return { success: true, report };
+      }
+
+      case 'wallet_balances': {
+        const report = await generateWalletBalances(supabase, dateRange);
+        return { success: true, report };
+      }
+
+      case 'write_offs': {
+        const report = await generateWriteOffs(supabase, dateRange);
+        return { success: true, report };
       }
 
       case 'development_levy': {
@@ -1486,6 +1997,10 @@ export async function generateReportWithClient(
       }
 
       default: {
+        // A retired report (#1399): old rows still open, but it is not generated again.
+        if (isRetiredReport(params.reportType)) {
+          return { success: false, error: `${REPORT_TYPE_LABELS[params.reportType]} was replaced by ${REPORT_TYPE_LABELS[resolveRetiredReport(params.reportType)]}.` };
+        }
         // A listed report without a generator yet (#1397): say so rather than fail silently.
         const label = REPORT_TYPE_LABELS[params.reportType];
         return { success: false, error: label ? `${label} cannot be generated yet.` : 'Invalid report type' };

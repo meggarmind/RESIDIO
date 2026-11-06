@@ -19,6 +19,9 @@ export const WHATSAPP_ADMIN_CHANNEL = { channel: 'whatsapp_admin' } as const;
 /** The house's resident a payment is recorded for: the same order get_debt_statuses picks by. */
 export const HOUSE_RESIDENT_ROLES = ['tenant', 'resident_landlord', 'non_resident_landlord'];
 
+/** The roles a name search shows (#1433): the house's residents and its co-residents. */
+export const SEARCH_RESIDENT_ROLES = [...HOUSE_RESIDENT_ROLES, 'co_resident'];
+
 /** An email-import credit waiting in the review queue: a bank alert with no resident. */
 export interface UnverifiedAlert {
   id: string;
@@ -31,6 +34,8 @@ export interface UnverifiedAlert {
   emailImportId: string;
   /** The transaction date as stored, for the payment date. */
   transactionDate: string | null;
+  /** The alert's email passed the sender check (#1353): only then is the alert bank proof (#1428). */
+  senderVerified: boolean;
 }
 
 /** A payment with no bank proof: is_verified false, not a resident report waiting in Approvals (item 5). */
@@ -53,6 +58,16 @@ export interface HouseMatch {
   resident: string | null;
 }
 
+/** One line of a name search: a resident on a house, with the role they hold there. */
+export interface HouseCandidate {
+  houseId: string;
+  code: string;
+  residentId: string;
+  resident: string;
+  /** The `resident_houses.resident_role` value. */
+  role: string;
+}
+
 export interface UnverifiedPaymentsRepository {
   listAlerts(): Promise<UnverifiedAlert[]>;
   listPayments(): Promise<UnverifiedPayment[]>;
@@ -64,6 +79,8 @@ export interface UnverifiedPaymentsRepository {
   findPayerAlias(name: string): Promise<string | null>;
   /** An active house by its code, as typed, and its resident; null when no house has the code. */
   findHouse(code: string): Promise<HouseMatch | null>;
+  /** Active houses of active residents whose name or saved payer name has every word of the text; one row per house and resident. */
+  searchHouses(text: string): Promise<HouseCandidate[]>;
   livePermissions(profileId: string): Promise<string[]>;
   autoProcessLimit(): Promise<number | null>;
   /** Moves the alert from the review queue to processed; false when it is not waiting any more. */
@@ -75,7 +92,8 @@ export interface UnverifiedPaymentsRepository {
   recordPayment(
     alert: UnverifiedAlert,
     house: { houseId: string; residentId: string },
-    profileId: string
+    profileId: string,
+    verified: boolean
   ): Promise<{ paymentId: string } | { error: string }>;
   /** The payment recorded from this alert, if any: after a failed write, whether a payment row was written. */
   paymentForAlert(alertId: string): Promise<string | null>;
@@ -89,7 +107,8 @@ export interface UnverifiedPaymentsRepository {
 
 const db = () => createAdminClient() as unknown as SupabaseClient;
 
-const ALERT_COLUMNS = 'id, amount, transaction_date, created_at, description, reference, email_import_id';
+// email_transactions has one foreign key to email_messages (email_message_id).
+const ALERT_COLUMNS = 'id, amount, transaction_date, created_at, description, reference, email_import_id, email_messages(sender_verified)';
 // payment_records has two foreign keys to residents (resident_id, paid_by_resident_id): name the one.
 const PAYMENT_COLUMNS =
   'id, amount, payment_date, created_at, notes, status, approval_request_id, resident_id, house:houses!payment_records_house_id_fkey(short_name, house_number), resident:residents!payment_records_resident_id_fkey(first_name, last_name)';
@@ -108,6 +127,7 @@ function toAlert(row: Record<string, unknown>): UnverifiedAlert {
     reference: (row.reference as string | null) ?? null,
     emailImportId: row.email_import_id as string,
     transactionDate: (row.transaction_date as string | null) ?? null,
+    senderVerified: embed(row.email_messages as { sender_verified: boolean | null } | null)?.sender_verified === true,
   };
 }
 
@@ -210,6 +230,50 @@ export function createUnverifiedPaymentsRepository(): UnverifiedPaymentsReposito
       };
     },
 
+    async searchHouses(text) {
+      // PostgREST or() reads , ( ) and " as syntax: they are not part of a name.
+      const words = text
+        .replace(/[,()"]/g, ' ')
+        .split(/\s+/)
+        .filter(Boolean);
+      if (words.length === 0 || words.join('').replace(/[^\p{L}]/gu, '').length < 2) return [];
+      const [{ data: named, error: nameError }, { data: aliased, error: aliasError }] = await Promise.all([
+        db()
+          .from('residents')
+          .select('id')
+          .eq('account_status', 'active')
+          .or(`first_name.ilike.%${sanitizeSearchInput(words[0])}%,last_name.ilike.%${sanitizeSearchInput(words[0])}%`)
+          .limit(200),
+        db().from('resident_payment_aliases').select('resident_id').ilike('alias_name', `%${sanitizeSearchInput(words.join(' '))}%`).eq('is_active', true).limit(200),
+      ]);
+      if (nameError) throw nameError;
+      if (aliasError) throw aliasError;
+      const aliasIds = new Set((aliased ?? []).map((row) => row.resident_id as string));
+      const ids = [...new Set([...(named ?? []).map((row) => row.id as string), ...aliasIds])];
+      if (ids.length === 0) return [];
+      // resident_houses has two foreign keys to residents (resident_id, sponsor_resident_id): name the one.
+      const { data: links, error } = await db()
+        .from('resident_houses')
+        .select(
+          'resident_id, house_id, resident_role, house:houses!resident_houses_house_id_fkey(short_name, is_active), resident:residents!resident_houses_resident_id_fkey(first_name, last_name, account_status)'
+        )
+        .in('resident_id', ids)
+        .eq('is_active', true)
+        .in('resident_role', SEARCH_RESIDENT_ROLES);
+      if (error) throw error;
+      const found: HouseCandidate[] = [];
+      for (const link of links ?? []) {
+        const house = embed(link.house as unknown as { short_name: string | null; is_active: boolean | null } | null);
+        const resident = embed(link.resident as unknown as (Name & { account_status: string | null }) | null);
+        const name = fullName(resident);
+        if (!house?.short_name || house.is_active === false || resident?.account_status !== 'active' || !name) continue;
+        const hit = aliasIds.has(link.resident_id as string) || words.every((word) => name.toLowerCase().includes(word.toLowerCase()));
+        if (!hit) continue;
+        found.push({ houseId: link.house_id as string, code: house.short_name, residentId: link.resident_id as string, resident: name, role: link.resident_role as string });
+      }
+      return found.sort((a, b) => a.code.localeCompare(b.code) || a.resident.localeCompare(b.resident));
+    },
+
     async livePermissions(profileId) {
       return (await loadLiveReviewer(profileId)).permissions;
     },
@@ -249,8 +313,8 @@ export function createUnverifiedPaymentsRepository(): UnverifiedPaymentsReposito
       if (error) throw error;
     },
 
-    async recordPayment(alert, house, profileId) {
-      // The same payment the dashboard review queue records, but verified: the alert is the bank proof.
+    async recordPayment(alert, house, profileId, verified) {
+      // The same payment the dashboard review queue records: verified only when the alert is bank proof (#1428).
       const result = await createPaymentAsAdmin(
         {
           resident_id: house.residentId,
@@ -266,7 +330,7 @@ export function createUnverifiedPaymentsRepository(): UnverifiedPaymentsReposito
           // The admin matched the sender to this resident; no purpose is known: Dues (#1190).
           charge_category: DEFAULT_CHARGE_CATEGORY,
           paid_by_resident_id: house.residentId,
-          is_verified: true,
+          is_verified: verified,
         },
         profileId,
         WHATSAPP_ADMIN_CHANNEL

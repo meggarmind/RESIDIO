@@ -3,6 +3,7 @@ import { exceedsEmailAutoProcessLimit, extractSenderName } from '@/lib/email-imp
 import { formatDay, lagosParts } from '@/lib/whatsapp/assistant-format';
 import {
   createUnverifiedPaymentsRepository,
+  type HouseCandidate,
   type UnverifiedAlert,
   type UnverifiedPayment,
   type UnverifiedPaymentsRepository,
@@ -16,14 +17,16 @@ import type { WhatsAppAdminAccount, WhatsAppAdminAction, ChooseResult } from '@/
  * one question at a time. The numbers stay the same until the admin opens item 6 again.
  *
  * A payment needs a resident check and bank proof (owner rule, 2 Nov 2026). Giving an alert to a
- * house records a verified payment: the alert is the bank proof, the admin's pick the resident check.
+ * house records a verified payment when the alert's email passed the sender check: the alert is the
+ * bank proof, the admin's pick the resident check. An alert whose email did not pass is no bank proof,
+ * so its payment is recorded unverified and an alert link refuses it (#1428).
  * Every write re-checks the live account's permissions first and is audited with the admin as actor.
  */
 
 export const PAGE_SIZE = 9;
 export const NOT_ESTATE_MONEY_REASON = 'Not estate money (WhatsApp admin)';
 export const NO_ITEMS_REPLY = 'There are no unverified payments.';
-export const HOUSE_PROMPT = 'Send the house code. Example: IBB-3AF-4';
+export const HOUSE_PROMPT = "Send the house code or part of the resident's name.\nExamples: IBB-3AF-4 or MARTINS";
 export const STATEMENT_PROMPT = 'Send the statement date and the bank text. Example: 23 Oct 2026 TRF FROM SUSAN BADIRU';
 export const ALERT_PROMPT = 'Reply 1 Give to a house, 2 Not estate money, 0 Back.';
 export const PAYMENT_PROMPT = 'Reply 1 Bank statement shows it, 2 Link a bank alert, 0 Back.';
@@ -54,12 +57,16 @@ export function shortDay(day: string, now: Date): string {
 /**
  * The name parts of a bank alert's text: the parts after the transfer code (`FIP:ZIB`, `CPWInward:1000…`),
  * leaving out short bank codes and parts with digits. `FIP:ZIB/HENRY/ Henry Itoki` gives `HENRY`, `HENRY ITOKI`.
+ * The first part is `CODE:NAME` when the bank gives no `/` after the code and the name has a space (#1433):
+ * `FBNMOBILE:ISIMAH NKECHI RACHEAL/For 2 months` gives `ISIMAH NKECHI RACHEAL`.
  */
 function payerParts(description: string | null): string[] {
   if (!description) return [];
-  return description
-    .split('/')
-    .slice(1)
+  const [first, ...rest] = description.split('/');
+  const name = first.includes(':') ? first.slice(first.indexOf(':') + 1).trim() : '';
+  // Only a name of two or more words: a single word after the code is a bank code (`NIP:FCMB`).
+  const afterCode = name.includes(' ') ? name : '';
+  return [afterCode, ...rest]
     .map((part) => part.trim().replace(/\s+/g, ' ').toUpperCase())
     .filter((part) => part.length >= 2 && !/\d/.test(part) && !/^[A-Z]{1,3}$/.test(part));
 }
@@ -97,7 +104,7 @@ export interface ListEntry {
 
 type Step =
   | { name: 'alert'; number: number }
-  | { name: 'house'; number: number }
+  | { name: 'house'; number: number; text?: string; matches?: HouseCandidate[]; page?: number }
   | { name: 'confirm_house'; number: number; houseId: string; houseCode: string; residentId: string; resident: string }
   | { name: 'not_estate'; number: number }
   | { name: 'payment'; number: number }
@@ -187,6 +194,7 @@ async function alertDetails(list: ListState, number: number, alert: UnverifiedAl
     `Amount: ${naira(alert.amount)}`,
     `Date: ${formatDay(alert.date)}`,
     `Bank text: ${alert.description || 'None'}`,
+    `Bank email checked: ${alert.senderVerified ? 'yes' : 'no'}`,
     `Known payer name: ${known ? `matches ${known}` : 'no match'}`,
     `Payments with the same amount: ${numbers(sameAmount(list, 'payment', alert.amount))}`,
     '',
@@ -204,6 +212,20 @@ function paymentDetails(list: ListState, number: number, payment: UnverifiedPaym
     `Bank alerts with the same amount: ${numbers(sameAmount(list, 'alert', payment.amount))}`,
     '',
     PAYMENT_PROMPT,
+  ].join('\n');
+}
+
+const ROLE_WORDS: Record<string, string> = { tenant: 'tenant', resident_landlord: 'landlord', non_resident_landlord: 'landlord', co_resident: 'co-resident' };
+
+/** A name search, 9 lines to a page, numbered through the pages like the main list (#1433). */
+function matchesText(text: string, matches: HouseCandidate[], page: number): string {
+  const lines = matches.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((m, i) => `${page * PAGE_SIZE + i + 1}. ${m.code} ${m.resident}, ${ROLE_WORDS[m.role] ?? m.role}`);
+  const more = (page + 1) * PAGE_SIZE < matches.length;
+  return [
+    `${matches.length} ${matches.length === 1 ? 'house matches' : 'houses match'} "${text}":`,
+    ...lines,
+    '',
+    more ? 'Reply a number, or send another name or code. M for more. 0 Back.' : 'Reply a number, or send another name or code. 0 Back.',
   ].join('\n');
 }
 
@@ -266,18 +288,32 @@ async function chooseStep(text: string, list: ListState, step: Step): Promise<Ch
       return ask(HOUSE_PROMPT, list, { name: 'house', number: step.number });
     }
     case 'house': {
-      const house = await repo().findHouse(text);
-      if (!house) return { retry: `No house has the code ${text}. ${HOUSE_PROMPT}` };
-      if (!house.residentId || !house.resident) {
-        return { retry: `${house.code} has no tenant or landlord to record the payment for. Send another house code, or 0 Back.` };
-      }
       const alert = await repo().getAlert(entry.id);
       if (!alert) return { retry: staleReply(step.number) };
-      return ask(
-        `${house.code}: ${house.resident}.\nRecord ${naira(alert.amount)} for this resident from the ${payerLabel(alert.description)} alert?\n\n${HOUSE_CONFIRM_PROMPT}`,
-        list,
-        { name: 'confirm_house', number: step.number, houseId: house.houseId, houseCode: house.code, residentId: house.residentId, resident: house.resident }
-      );
+      const confirm = (house: { houseId: string; code: string; residentId: string; resident: string }) =>
+        ask(
+          `${house.code}: ${house.resident}.\nRecord ${naira(alert.amount)} for this resident from the ${payerLabel(alert.description)} alert?\n\n${HOUSE_CONFIRM_PROMPT}`,
+          list,
+          { name: 'confirm_house', number: step.number, houseId: house.houseId, houseCode: house.code, residentId: house.residentId, resident: house.resident }
+        );
+      const shown = step.matches ?? [];
+      // A number picks the resident on that line; M shows the next page of the list on screen.
+      if (shown.length > 0 && /^\d+$/.test(text) && Number(text) >= 1 && Number(text) <= shown.length) return confirm(shown[Number(text) - 1]);
+      if (shown.length > 0 && text.toLowerCase() === 'm') {
+        const page = (step.page ?? 0) + 1;
+        if (page * PAGE_SIZE >= shown.length) return { retry: 'There are no more houses. Reply a number, or send another name or code. 0 Back.' };
+        return ask(matchesText(step.text ?? '', shown, page), list, { ...step, page });
+      }
+      const house = await repo().findHouse(text);
+      if (house && (!house.residentId || !house.resident)) {
+        return { retry: `${house.code} has no tenant or landlord to record the payment for. Send another house code, or 0 Back.` };
+      }
+      if (house) return confirm({ houseId: house.houseId, code: house.code, residentId: house.residentId!, resident: house.resident! });
+      const label = text.trim().replace(/\s+/g, ' ').toUpperCase();
+      const found = await repo().searchHouses(text);
+      // New text replaces the list on screen, even when nothing matches.
+      if (found.length === 0) return ask(`No house matches "${label}". Send another name or code. 0 Back.`, list, { name: 'house', number: step.number });
+      return ask(matchesText(label, found, 0), list, { name: 'house', number: step.number, text: label, matches: found, page: 0 });
     }
     case 'confirm_house': {
       if (text !== '1' && text !== '2') return { retry: HOUSE_CONFIRM_PROMPT };
@@ -319,6 +355,10 @@ function overLimitRefusal(limit: number | null): string {
 // ---------------------------------------------------------------------------
 // run: the writes
 
+export const NO_BANK_PROOF =
+  'No bank proof yet: the bank email did not pass the check. The payment stays in this list until a bank statement line or a checked alert proves it.';
+export const UNCHECKED_ALERT_REFUSAL =
+  'Not done: the bank email of this alert did not pass the check, so it is not bank proof. To verify the payment, pick it again and reply 1 Bank statement shows it.';
 const ALERT_NOT_LINKED = 'The alert could not be marked with the payment. Check the review queue on the dashboard.';
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
@@ -354,9 +394,10 @@ async function settle(account: WhatsAppAdminAccount, params: Record<string, unkn
       const residentId = String(params.residentId);
       const houseCode = String(params.houseCode);
       if (!(await r.claimAlert(alert.id))) return stale;
+      const verified = alert.senderVerified;
       let paymentId: string;
       try {
-        const recorded = await r.recordPayment(alert, { houseId: String(params.houseId), residentId }, account.profileId);
+        const recorded = await r.recordPayment(alert, { houseId: String(params.houseId), residentId }, account.profileId, verified);
         if ('error' in recorded) {
           await r.releaseAlert(alert.id);
           return { reply: `Not done: ${recorded.error}`, outcome: 'failed', settled: [] };
@@ -400,12 +441,12 @@ async function settle(account: WhatsAppAdminAccount, params: Record<string, unkn
         entityType: 'email_transactions',
         entityId: alert.id,
         entityDisplay: `Transaction: ${alert.description}`,
-        newValues: { resident_id: residentId, house: houseCode, payment_id: paymentId, saved_alias: savedAlias, ...(problems.length ? { problems } : {}) },
+        newValues: { resident_id: residentId, house: houseCode, payment_id: paymentId, saved_alias: savedAlias, verified, ...(problems.length ? { problems } : {}) },
       });
       return {
         reply: [
           `Done. ${naira(alert.amount)} is recorded for ${houseCode}, ${params.resident}.`,
-          'The bank alert is the bank proof, so the payment is verified.',
+          verified ? 'The bank alert is the bank proof, so the payment is verified.' : NO_BANK_PROOF,
           'The wallet pays open bills first.',
           ...(savedAlias ? [`${name} is saved as a payer name for ${houseCode}.`] : []),
           ...problems,
@@ -453,6 +494,7 @@ async function settle(account: WhatsAppAdminAccount, params: Record<string, unkn
       if (!payment) return stale;
       if (!alert || !alertEntry) return { ...stale, reply: `Item ${params.alertNumber} is already settled.`, settled: alertEntry ? [alertEntry.number] : [] };
       if (alert.amount !== payment.amount) return { reply: 'Not done: the bank alert and the payment have different amounts.', outcome: 'refused', settled: [] };
+      if (!alert.senderVerified) return { reply: UNCHECKED_ALERT_REFUSAL, outcome: 'refused', settled: [] };
       const blocked = await overLimitBlock(r, live, account, alert.amount);
       if (blocked) return { reply: blocked, outcome: 'over_limit', settled: [] };
       if (!(await r.claimAlert(alert.id))) return { ...stale, reply: `Item ${alertEntry.number} is already settled.`, settled: [alertEntry.number] };
@@ -534,10 +576,17 @@ export const unverifiedPaymentsAction: WhatsAppAdminAction = {
     return step ? chooseStep(text, list, step) : chooseFromList(text, list);
   },
 
-  back(state) {
+  async back(state) {
     // 0 on a detail or a question goes back to the list; 0 on the list goes to Admin tools.
-    if (!(state as Partial<ListState>).step) return null;
+    const step = (state as Partial<ListState>).step;
+    if (!step) return null;
     const list = listOf(state);
+    // 0 on the house question goes back to the alert detail (#1433).
+    if (step.name === 'house') {
+      const entry = list.entries.find((e) => e.number === step.number);
+      const alert = entry ? await repo().getAlert(entry.id) : null;
+      if (alert) return { reply: await alertDetails(list, step.number, alert), state: { ...list, step: { name: 'alert', number: step.number } } };
+    }
     const reply = open(list).length === 0 ? 'No unverified payments left in this list. Reply 0 for Admin tools.' : pageText(list);
     return { reply, state: list };
   },

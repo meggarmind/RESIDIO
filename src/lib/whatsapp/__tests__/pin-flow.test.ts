@@ -91,6 +91,7 @@ function statefulRepository(initialPinHash: string | null = null, allowance: Loo
     startEmailChange: vi.fn(),
     confirmEmailChange: vi.fn(),
     createPaymentReport: vi.fn(),
+    storeReportProof: vi.fn(),
     getReceiptPayments: vi.fn().mockResolvedValue([]),
     loadReceipt: vi.fn().mockResolvedValue(null),
     storeReceiptPdf: vi.fn(),

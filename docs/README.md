@@ -77,7 +77,7 @@ See [Development Environment](setup/development-environment.md) for detailed set
 
 ## Project Status
 
-Current development phase and progress are tracked in [TODO.md](../TODO.md).
+Development progress and the backlog are tracked as [GitHub issues](https://github.com/meggarmind/RESIDIO/issues).
 
 ---
 

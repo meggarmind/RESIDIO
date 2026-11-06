@@ -117,7 +117,8 @@ beforeEach(async () => {
 
 describe('#1189 migration over existing data', () => {
   it('makes every existing wallet, invoice and profile Dues, with the same balance', async () => {
-    expect(await q(`SELECT code FROM public.charge_categories ORDER BY sort_order`)).toEqual([
+    // Later migrations add more categories (#1443); the #1189 seed is these three, in this order.
+    expect(await q(`SELECT code FROM public.charge_categories WHERE code IN ('dues', 'development_levy', 'transformer_fee') ORDER BY sort_order`)).toEqual([
       { code: 'dues' },
       { code: 'development_levy' },
       { code: 'transformer_fee' },

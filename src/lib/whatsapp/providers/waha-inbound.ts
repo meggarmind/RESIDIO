@@ -119,6 +119,8 @@ function mapWahaMessage(message: Record<string, unknown>): WahaInbound | null {
 
   const hasMedia = message.hasMedia === true;
   const body = typeof message.body === 'string' && message.body.length > 0 ? message.body : null;
+  // `payload.media` is `{ url, mimetype, filename }`; `url` is absent when WAHA did not download the file (#1455).
+  const media = asRecord(message.media);
   return {
     message: {
       id,
@@ -127,6 +129,12 @@ function mapWahaMessage(message: Record<string, unknown>): WahaInbound | null {
       type: hasMedia ? 'media' : 'text',
       // 1:1 media gets the text-only reply (#804), so its caption is not read as a command.
       text: hasMedia ? null : body,
+      ...(hasMedia && {
+        media: {
+          url: typeof media?.url === 'string' && media.url.length > 0 ? media.url : null,
+          mimetype: typeof media?.mimetype === 'string' && media.mimetype.length > 0 ? media.mimetype : null,
+        },
+      }),
     },
     ignoredReason: hasMedia || body ? null : 'no_text',
   };
@@ -137,7 +145,7 @@ function mapWahaMessage(message: Record<string, unknown>): WahaInbound | null {
  * store read) to the canonical inbound shape. Shared by the webhook and the
  * reconciliation cron, so both apply the same rules.
  *
- * `id`, `from`, `body`, `hasMedia` and `timestamp` are the fields used. Returns
+ * `id`, `from`, `body`, `hasMedia`, `media` and `timestamp` are the fields used. Returns
  * null only for an object without a usable `id`: with no id there is nothing to
  * dedupe on.
  *

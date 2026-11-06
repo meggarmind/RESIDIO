@@ -98,6 +98,33 @@ describe('wahaMessageToInbound / extractWahaInbound', () => {
     expect(message).toMatchObject({ id: 'm1', from: '+2348000000000', type: 'media', text: null });
   });
 
+  it('keeps the media url and mimetype of a 1:1 media message (#1455)', async () => {
+    const [message] = await extractWahaMessages(
+      body({
+        id: 'm1', from: '2348000000000@c.us', fromMe: false, body: 'caption', hasMedia: true, timestamp: 1790000000,
+        media: { url: 'http://localhost:3000/api/files/default/m1.jpeg', mimetype: 'image/jpeg', filename: null },
+      })
+    );
+
+    expect(message).toMatchObject({ type: 'media', text: null, media: { url: 'http://localhost:3000/api/files/default/m1.jpeg', mimetype: 'image/jpeg' } });
+  });
+
+  it('keeps a media message without a downloaded file as media with a null url (#1455)', async () => {
+    const [message] = await extractWahaMessages(
+      body({ id: 'm1', from: '2348000000000@c.us', fromMe: false, body: '', hasMedia: true, timestamp: 1, media: { url: 7, mimetype: '' } })
+    );
+
+    expect(message.media).toEqual({ url: null, mimetype: null });
+  });
+
+  it('puts no media on a text message (#1455)', async () => {
+    const [message] = await extractWahaMessages(
+      body({ id: 'm1', from: '2348000000000@c.us', fromMe: false, body: 'hi', hasMedia: false, timestamp: 1, media: { url: 'http://x/api/files/a.jpeg' } })
+    );
+
+    expect(message).not.toHaveProperty('media');
+  });
+
   it('returns text null for a message with an empty body', async () => {
     const [message] = await extractWahaMessages(body({ id: 'm1', from: '2348000000000@c.us', fromMe: false, body: '', hasMedia: false, timestamp: 1 }));
 

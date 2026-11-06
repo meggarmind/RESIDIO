@@ -30,6 +30,7 @@ import {
   FileBarChart,
   Plus,
   CalendarClock,
+  ShieldCheck,
 } from 'lucide-react';
 import { PERMISSIONS, type Permission } from '@/lib/auth/action-roles';
 import { oversightConfig } from '@/config/oversight-nav';
@@ -149,6 +150,13 @@ const NAV_PAYMENTS: NavItem = {
       href: '/payments/email-imports',
       icon: Mail,
       permissions: [PERMISSIONS.EMAIL_IMPORTS_VIEW],
+    },
+    {
+      id: 'payments-awaiting-verification',
+      title: 'Awaiting verification',
+      href: '/payments/awaiting-verification',
+      icon: ShieldCheck,
+      permissions: [PERMISSIONS.EMAIL_IMPORTS_PROCESS, PERMISSIONS.PAYMENTS_VERIFY],
     },
   ],
 };

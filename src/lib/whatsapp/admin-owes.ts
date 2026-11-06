@@ -8,15 +8,15 @@ import { formatDay, formatMonth, formatNaira } from '@/lib/whatsapp/assistant-fo
 import { createSupabaseWhatsAppFinancialRepository, creditLine, type OwedFigures } from '@/lib/whatsapp/financial';
 
 /**
- * WhatsApp admin lookup of what a house owes (#981). An admin sends a house code or a name; the
+ * WhatsApp admin lookup of what a house owes (#981). An admin sends a house code, a name or a payer alias; the
  * answer is the figure the resident sees under "What I owe", the shared debt status (#980), the
  * months it covers, the last payment and what the wallet credit pays for. The resident is not told. The access gate
  * (binding, authenticator session, permission, daily cap) is #972's and runs before this.
  */
 
-export const OWES_LIST_MAX = 5;
+export const OWES_LIST_MAX = 20;
 export const OWES_PICK_MINUTES = 5;
-export const OWES_USAGE = 'Send a house code or a name, for example KOA-18A.';
+export const OWES_USAGE = 'Send a house code, a name or a payer alias, for example KOA-18A.';
 /** Asked when Resident status is chosen from Admin tools (#1292). */
 export const OWES_PROMPT = `Resident status. ${OWES_USAGE}`;
 const MAX_QUERY_LENGTH = 60;
@@ -51,6 +51,10 @@ export interface OwesHouseData {
 export interface OwesRepository {
   searchHouseCodes(term: string): Promise<OwesCandidate[]>;
   searchResidents(words: string[]): Promise<OwesCandidate[]>;
+  /** Houses of the residents whose active payer alias contains every word; the candidate carries the resident's name. */
+  searchAliases(words: string[]): Promise<OwesCandidate[]>;
+  /** The name shown for each house (active tenant, else resident landlord, else non-resident landlord), in one read; a house with none is left out. */
+  loadHouseResidentNames(houseIds: string[]): Promise<Record<string, string>>;
   loadHouse(houseId: string): Promise<OwesHouseData | null>;
   /** Keeps the pick-list on the request until `expiresAt`. */
   saveChoices(requestId: string, choices: OwesCandidate[], expiresAt: string): Promise<void>;
@@ -174,8 +178,18 @@ export function composeAdminOwesAnswer(data: OwesHouseData): string {
   return lines.join('\n');
 }
 
+/** The order a house's resident is chosen in, as `get_debt_statuses` does: tenant, else resident landlord, else non-resident landlord. */
+export const HOUSE_NAME_ROLES = ['tenant', 'resident_landlord', 'non_resident_landlord'];
+
+/** The name of the first link in `HOUSE_NAME_ROLES` order; null when none of the links has one. */
+export function pickHouseResidentName(links: { role: string; name: string }[]): string | null {
+  const ranked = links.filter((link) => HOUSE_NAME_ROLES.includes(link.role) && link.name).sort((a, b) => HOUSE_NAME_ROLES.indexOf(a.role) - HOUSE_NAME_ROLES.indexOf(b.role));
+  return ranked[0]?.name ?? null;
+}
+
+/** `3. GLB-20A (Ohioma)`; a house with no resident shows `(no resident)`. */
 function candidateLine(candidate: OwesCandidate, index: number): string {
-  return `${index + 1}. ${candidate.name ? `${candidate.name}, ` : ''}${candidate.houseLabel}`;
+  return `${index + 1}. ${candidate.code ?? candidate.houseLabel} (${candidate.name || 'no resident'})`;
 }
 
 export interface OwesRunInput {
@@ -230,16 +244,16 @@ export async function runAdminOwesLookup(input: OwesRunInput): Promise<string> {
   await repository.clearChoices(input.bindingId);
 
   const words = term.split(/\s+/).slice(0, 4);
-  const [byCode, byName] = await Promise.all([repository.searchHouseCodes(term), repository.searchResidents(words)]);
+  const [byCode, byName, byAlias] = await Promise.all([repository.searchHouseCodes(term), repository.searchResidents(words), repository.searchAliases(words)]);
 
   const exact = byCode.find((candidate) => candidate.code?.toLowerCase() === term.toLowerCase());
   if (exact) return answerHouse(input, exact.houseId);
 
   const byHouse = new Map<string, OwesCandidate>();
-  for (const candidate of [...byCode, ...byName]) {
+  for (const candidate of [...byCode, ...byAlias, ...byName]) {
     if (!byHouse.has(candidate.houseId) || candidate.name) byHouse.set(candidate.houseId, candidate);
   }
-  const matches = [...byHouse.values()];
+  const matches = [...byHouse.values()].sort((a, b) => (a.code ?? a.houseLabel).localeCompare(b.code ?? b.houseLabel, 'en', { numeric: true }));
 
   if (matches.length === 0) return `No house or resident matches "${term}".`;
   if (matches.length === 1) return answerHouse(input, matches[0].houseId);
@@ -247,18 +261,22 @@ export async function runAdminOwesLookup(input: OwesRunInput): Promise<string> {
     return `More than ${OWES_LIST_MAX} matches for "${term}". Send a longer name or the house code.`;
   }
 
-  await repository.saveChoices(input.requestId, matches, new Date(now.getTime() + OWES_PICK_MINUTES * 60 * 1000).toISOString());
+  // A code match has no name yet: read the names of the listed houses in one query.
+  const names = await repository.loadHouseResidentNames(matches.filter((match) => !match.name).map((match) => match.houseId));
+  const listed = matches.map((match) => (match.name ? match : { ...match, name: names[match.houseId] ?? null }));
+
+  await repository.saveChoices(input.requestId, listed, new Date(now.getTime() + OWES_PICK_MINUTES * 60 * 1000).toISOString());
   await input.audit({
     action: 'VERIFY',
     entityType: 'whatsapp_admin_requests',
     entityId: input.requestId,
     entityDisplay: `WhatsApp admin owes list for "${term}"`,
     description: 'Admin was shown a list of houses to pick from on WhatsApp',
-    metadata: { channel: 'whatsapp_admin', query: term, listed: matches.map(({ houseId, name }) => ({ house_id: houseId, name })) },
+    metadata: { channel: 'whatsapp_admin', query: term, listed: listed.map(({ houseId, name }) => ({ house_id: houseId, name })) },
   });
   return [
     `${matches.length} matches for "${term}". Reply with the number within ${OWES_PICK_MINUTES} minutes, for example 1:`,
-    ...matches.map(candidateLine),
+    ...listed.map(candidateLine),
   ].join('\n');
 }
 
@@ -277,6 +295,22 @@ const first = <T>(value: T | T[] | null): T | null => (Array.isArray(value) ? va
 export function createSupabaseOwesRepository(): OwesRepository {
   const client = () => createAdminClient() as unknown as SupabaseClient;
   const financial = createSupabaseWhatsAppFinancialRepository();
+  const residentsWithHouses = () =>
+    client()
+      .from('residents')
+      .select('first_name, last_name, resident_houses!resident_houses_resident_id_fkey!inner(house_id, house:houses(short_name, house_number, street:streets(name)))')
+      .eq('resident_houses.is_active', true)
+      .in('resident_houses.resident_role', BILLABLE_ROLES);
+  /** One candidate per billable house of each resident row. */
+  const candidatesOf = (data: Record<string, unknown>[] | null): OwesCandidate[] =>
+    (data || []).flatMap((row) => {
+      const links = row.resident_houses as unknown as { house_id: string; house: HouseRow | HouseRow[] | null }[];
+      return links.flatMap((link) => {
+        const house = first(link.house);
+        if (!house) return [];
+        return [{ houseId: link.house_id, houseLabel: houseLabel(house), code: house.short_name, name: `${row.first_name} ${row.last_name}`.trim() }];
+      });
+    });
 
   return {
     async searchHouseCodes(term) {
@@ -293,23 +327,52 @@ export function createSupabaseOwesRepository(): OwesRepository {
     },
 
     async searchResidents(words) {
-      let query = client()
-        .from('residents')
-        .select('first_name, last_name, resident_houses!resident_houses_resident_id_fkey!inner(house_id, house:houses(short_name, house_number, street:streets(name)))')
-        .eq('resident_houses.is_active', true)
-        .in('resident_houses.resident_role', BILLABLE_ROLES);
+      let query = residentsWithHouses();
       // Every word must match the first or the last name.
       for (const word of words) query = query.or(ilikeAny(['first_name', 'last_name'], word));
-      const { data, error } = await query.limit(20);
+      const { data, error } = await query.limit(OWES_LIST_MAX + 1);
       if (error) throw error;
-      return (data || []).flatMap((row) => {
-        const links = row.resident_houses as unknown as { house_id: string; house: HouseRow | HouseRow[] | null }[];
-        return links.flatMap((link) => {
-          const house = first(link.house);
-          if (!house) return [];
-          return [{ houseId: link.house_id, houseLabel: houseLabel(house), code: house.short_name, name: `${row.first_name} ${row.last_name}`.trim() }];
-        });
-      });
+      return candidatesOf(data);
+    },
+
+    async searchAliases(words) {
+      if (words.length === 0) return [];
+      let aliases = client().from('resident_payment_aliases').select('resident_id').eq('is_active', true);
+      // Every word must match the alias.
+      for (const word of words) aliases = aliases.or(ilikeAny(['alias_name'], word));
+      // A resident can have several aliases: read more rows than the list holds, then cap the residents.
+      const { data: aliasRows, error: aliasError } = await aliases.limit(200);
+      if (aliasError) throw aliasError;
+      const ids = [...new Set((aliasRows || []).map((row) => row.resident_id as string))].slice(0, OWES_LIST_MAX + 1);
+      if (ids.length === 0) return [];
+      const { data, error } = await residentsWithHouses().in('id', ids);
+      if (error) throw error;
+      return candidatesOf(data);
+    },
+
+    async loadHouseResidentNames(houseIds) {
+      if (houseIds.length === 0) return {};
+      // resident_houses has two foreign keys to residents (resident_id, sponsor_resident_id): name the one.
+      const { data, error } = await client()
+        .from('resident_houses')
+        .select('house_id, resident_role, resident:residents!resident_houses_resident_id_fkey(first_name, last_name)')
+        .in('house_id', houseIds)
+        .eq('is_active', true)
+        .in('resident_role', HOUSE_NAME_ROLES);
+      if (error) throw error;
+      const byHouseId = new Map<string, { role: string; name: string }[]>();
+      for (const row of data || []) {
+        const resident = first(row.resident as unknown as { first_name: string | null; last_name: string | null } | { first_name: string | null; last_name: string | null }[] | null);
+        const name = `${resident?.first_name ?? ''} ${resident?.last_name ?? ''}`.trim();
+        const houseId = row.house_id as string;
+        byHouseId.set(houseId, [...(byHouseId.get(houseId) ?? []), { role: row.resident_role as string, name }]);
+      }
+      const names: Record<string, string> = {};
+      for (const [houseId, links] of byHouseId) {
+        const name = pickHouseResidentName(links);
+        if (name) names[houseId] = name;
+      }
+      return names;
     },
 
     async loadHouse(houseId) {

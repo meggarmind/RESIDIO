@@ -32,7 +32,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useMemo } from 'react';
 import type { DateRange } from 'react-day-picker';
 import { getBillingResidentFilterOptions } from '@/actions/billing/get-invoices';
-import { INVOICE_TYPE_LABELS, type InvoiceType, type InvoiceStatus, type InvoiceWithDetails } from '@/types/database';
+import { INVOICE_TYPE_LABELS, WRITTEN_OFF_BADGE_CLASS, invoiceWriteOff, type InvoiceType, type InvoiceStatus, type InvoiceWithDetails } from '@/types/database';
 import {
     EnhancedStatCard,
     EnhancedTableCard,
@@ -66,6 +66,10 @@ function InvoiceTypeBadge({ invoice }: { invoice: InvoiceWithDetails }) {
 }
 
 function InvoiceStatusBadge({ invoice }: { invoice: InvoiceWithDetails }) {
+    // A bill with a write-off row (#1460) shows "Written off", apart from a bill voided as an error.
+    if (invoiceWriteOff(invoice)) {
+        return <Badge className={WRITTEN_OFF_BADGE_CLASS}>Written off</Badge>;
+    }
     return (
         <Badge className={cn(statusColors[invoice.status] || '')}>
             {invoice.status}

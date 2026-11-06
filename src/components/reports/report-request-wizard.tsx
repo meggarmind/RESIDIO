@@ -44,6 +44,9 @@ import {
     CalendarClock,
     Mail,
     Repeat,
+    FileText,
+    Wallet,
+    Eraser,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -62,6 +65,8 @@ import { getBankAccountsForFilter } from '@/actions/reports/get-financial-overvi
 import { useCreateReportSchedule, type CreateScheduleInput } from '@/hooks/use-reports';
 import { toast } from 'sonner';
 import { ReportTypePicker } from '@/components/reports/report-type-picker';
+import { useChargeCategories } from '@/hooks/use-billing';
+import { StatementSubjectPicker } from '@/components/reports/statement-subject-picker';
 
 // ============================================================
 // Types
@@ -122,6 +127,51 @@ const reportTypeConfig: Record<ReportType, {
         gradient: 'from-red-500/10 to-rose-500/5',
         iconBg: 'bg-red-500/15 text-red-600 dark:text-red-400',
     },
+    debtors_aging: {
+        icon: Users,
+        gradient: 'from-red-500/10 to-rose-500/5',
+        iconBg: 'bg-red-500/15 text-red-600 dark:text-red-400',
+    },
+    dues_collection_status: {
+        icon: LayoutList,
+        gradient: 'from-orange-500/10 to-amber-500/5',
+        iconBg: 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
+    },
+    project_spend: {
+        icon: Construction,
+        gradient: 'from-indigo-500/10 to-blue-500/5',
+        iconBg: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400',
+    },
+    petty_cash: {
+        icon: Receipt,
+        gradient: 'from-emerald-500/10 to-teal-500/5',
+        iconBg: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+    },
+    statement_of_account: {
+        icon: FileText,
+        gradient: 'from-sky-500/10 to-blue-500/5',
+        iconBg: 'bg-sky-500/15 text-sky-600 dark:text-sky-400',
+    },
+    collection_rate_by_street: {
+        icon: LayoutList,
+        gradient: 'from-orange-500/10 to-amber-500/5',
+        iconBg: 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
+    },
+    expenses_by_category: {
+        icon: Receipt,
+        gradient: 'from-purple-500/10 to-violet-500/5',
+        iconBg: 'bg-purple-500/15 text-purple-600 dark:text-purple-400',
+    },
+    wallet_balances: {
+        icon: Wallet,
+        gradient: 'from-emerald-500/10 to-teal-500/5',
+        iconBg: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+    },
+    write_offs: {
+        icon: Eraser,
+        gradient: 'from-amber-500/10 to-yellow-500/5',
+        iconBg: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+    },
     indebtedness_summary: {
         icon: LayoutList,
         gradient: 'from-orange-500/10 to-amber-500/5',
@@ -154,10 +204,13 @@ const periodIcons: Record<PeriodPreset, React.ElementType> = {
 };
 
 // Reports that don't depend on bank accounts
-const ACCOUNT_AGNOSTIC_REPORTS: ReportType[] = ['debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'];
+const ACCOUNT_AGNOSTIC_REPORTS: ReportType[] = ['debtors_aging', 'debtors_report', 'dues_collection_status', 'collection_rate_by_street', 'expenses_by_category', 'wallet_balances', 'write_offs', 'development_levy', 'invoice_aging', 'project_spend', 'petty_cash', 'statement_of_account'];
 
 // Reports that are always "As of Today" (skip date selection)
-const REALTIME_REPORTS: ReportType[] = ['debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'];
+const REALTIME_REPORTS: ReportType[] = ['debtors_aging', 'debtors_report', 'development_levy', 'invoice_aging'];
+
+// Invoice lines are off unless chosen for these (#1399, #1400); other reports keep their default.
+export const INVOICE_LINES_OFF_BY_DEFAULT: ReportType[] = ['debtors_aging', 'dues_collection_status', 'expenses_by_category', 'petty_cash'];
 
 // ============================================================
 // Stepper Component
@@ -231,11 +284,16 @@ function ReportTypeStep({
     value,
     onChange,
     allowedTypes,
+    chargeCategory,
+    onChargeChange,
 }: {
     value: ReportType | '';
     onChange: (type: ReportType) => void;
     allowedTypes: readonly ReportType[];
+    chargeCategory: string;
+    onChargeChange: (code: string) => void;
 }) {
+    const charges = useChargeCategories();
     return (
         <ReportTypePicker
             value={value}
@@ -244,6 +302,13 @@ function ReportTypeStep({
             config={reportTypeConfig}
             realtimeTypes={REALTIME_REPORTS}
             accountAgnosticTypes={ACCOUNT_AGNOSTIC_REPORTS}
+            charge={{
+                options: charges.data ?? [],
+                value: chargeCategory,
+                onChange: onChargeChange,
+                isLoading: charges.isLoading,
+                error: charges.error ? charges.error.message : null,
+            }}
         />
     );
 }
@@ -503,38 +568,39 @@ const AccountSelectionStep = memo(function AccountSelectionStep({
 
 function OptionsStep({
     includeCharts,
+    includeDetails,
     includeUnoccupied,
-    includeAmount,
     paymentStatus,
     aggregation,
     transactionType,
     reportType,
     onIncludeChartsChange,
+    onIncludeDetailsChange,
     onIncludeUnoccupiedChange,
-    onIncludeAmountChange,
     onPaymentStatusChange,
     onAggregationChange,
     onTransactionTypeChange,
 }: {
     includeCharts: boolean;
+    includeDetails: boolean;
     includeUnoccupied: boolean;
-    includeAmount: boolean;
     paymentStatus: 'all' | 'paid' | 'unpaid';
     aggregation: AggregationType;
     transactionType: 'all' | 'credit' | 'debit';
     reportType: ReportType;
     onIncludeChartsChange: (value: boolean) => void;
+    onIncludeDetailsChange: (value: boolean) => void;
     onIncludeUnoccupiedChange: (value: boolean) => void;
-    onIncludeAmountChange: (value: boolean) => void;
     onPaymentStatusChange: (value: 'all' | 'paid' | 'unpaid') => void;
     onAggregationChange: (value: AggregationType) => void;
     onTransactionTypeChange: (value: 'all' | 'credit' | 'debit') => void;
 }) {
-    const isIndebtednessReport = reportType === 'indebtedness_summary';
+    const isDuesReport = reportType === 'dues_collection_status';
     const isDevelopmentLevyReport = reportType === 'development_levy';
-    const isDebtReport = isIndebtednessReport || isDevelopmentLevyReport;
+    const isDebtReport = isDuesReport || isDevelopmentLevyReport;
     // Real-time reports don't use aggregation or transaction type filtering
-    const isRealtimeReport = ['debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'].includes(reportType);
+    // The dues sheet has a period but no aggregation or transaction type either.
+    const isRealtimeReport = isDuesReport || reportType === 'statement_of_account' || REALTIME_REPORTS.includes(reportType as ReportType);
     return (
         <div className="space-y-6">
             <div className="text-center mb-8">
@@ -565,6 +631,30 @@ function OptionsStep({
 
 
 
+                    {reportType === 'petty_cash' && (
+                        <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-emerald-500/10">
+                            <div className="space-y-0.5">
+                                <Label className="font-medium">Show spend lines</Label>
+                                <p className="text-sm text-muted-foreground">List each expense under its petty cash account</p>
+                            </div>
+                            <Switch checked={includeDetails} onCheckedChange={onIncludeDetailsChange} aria-label="Show spend lines" />
+                        </div>
+                    )}
+
+                    {(reportType === 'debtors_aging' || isDuesReport || reportType === 'expenses_by_category') && (
+                        <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-red-500/10">
+                            <div className="space-y-0.5">
+                                <Label className="font-medium">{reportType === 'expenses_by_category' ? 'Show expense lines' : 'Show invoice lines'}</Label>
+                                <p className="text-sm text-muted-foreground">
+                                    {reportType === 'expenses_by_category'
+                                        ? 'List each expense under its category'
+                                        : isDuesReport ? 'List each unpaid invoice under its house' : 'List each unpaid invoice under its debtor'}
+                                </p>
+                            </div>
+                            <Switch checked={includeDetails} onCheckedChange={onIncludeDetailsChange} aria-label={reportType === 'expenses_by_category' ? 'Show expense lines' : 'Show invoice lines'} />
+                        </div>
+                    )}
+
                     {isDebtReport && (
                         <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-emerald-500/10">
                             <div className="space-y-0.5">
@@ -576,21 +666,6 @@ function OptionsStep({
                             <Switch
                                 checked={includeUnoccupied}
                                 onCheckedChange={onIncludeUnoccupiedChange}
-                            />
-                        </div>
-                    )}
-
-                    {isIndebtednessReport && (
-                        <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-amber-500/10">
-                            <div className="space-y-0.5">
-                                <Label className="font-medium">Include Amounts</Label>
-                                <p className="text-sm text-muted-foreground">
-                                    Show outstanding indebtedness amounts per house
-                                </p>
-                            </div>
-                            <Switch
-                                checked={includeAmount}
-                                onCheckedChange={onIncludeAmountChange}
                             />
                         </div>
                     )}
@@ -696,8 +771,8 @@ function ReviewStep({
             ? { startDate: formData.startDate || '', endDate: formData.endDate || '' }
             : getDateRangeFromPreset(formData.periodPreset || 'this_month');
 
-    const REALTIME_REPORTS_REVIEW = ['debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'];
-    const ACCOUNT_AGNOSTIC_REPORTS_REVIEW = ['debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'];
+    const REALTIME_REPORTS_REVIEW: string[] = REALTIME_REPORTS;
+    const ACCOUNT_AGNOSTIC_REPORTS_REVIEW: string[] = ACCOUNT_AGNOSTIC_REPORTS;
 
     return (
         <div className="space-y-6">
@@ -978,10 +1053,11 @@ export function ReportRequestWizard({
             transactionType: 'all' as const,
             aggregation: 'monthly' as const,
             includeCharts: true,
-            includeDetails: true,
+            includeDetails: !INVOICE_LINES_OFF_BY_DEFAULT.includes(allowedReportTypes[0] ?? 'financial_overview'),
             includeUnoccupied: false,
             includeAmount: false,
             paymentStatus: 'all' as const,
+            chargeCategory: 'dues',
         },
     });
 
@@ -1148,7 +1224,8 @@ export function ReportRequestWizard({
                 if (ACCOUNT_AGNOSTIC_REPORTS.includes(formData.reportType)) return true; // Accounts are skipped for agnostic
                 return true; // Accounts are optional (all = empty array)
             case 4:
-                return true;
+                // A statement is for one house or one resident (#1402).
+                return formData.reportType !== 'statement_of_account' || !!formData.statementId;
             case 5:
                 return true;
             default:
@@ -1173,8 +1250,13 @@ export function ReportRequestWizard({
                         {step === 1 && (
                             <ReportTypeStep
                                 value={formData.reportType}
-                                onChange={(type) => setValue('reportType', type as ReportRequestFormData['reportType'])}
+                                onChange={(type) => {
+                                    setValue('reportType', type as ReportRequestFormData['reportType']);
+                                    setValue('includeDetails', !INVOICE_LINES_OFF_BY_DEFAULT.includes(type as ReportType));
+                                }}
                                 allowedTypes={allowedReportTypes}
+                                chargeCategory={formData.chargeCategory ?? 'dues'}
+                                onChargeChange={(code) => setValue('chargeCategory', code)}
                             />
                         )}
 
@@ -1197,18 +1279,31 @@ export function ReportRequestWizard({
                             />
                         )}
 
+                        {step === 4 && formData.reportType === 'statement_of_account' && (
+                            <div className="mb-6">
+                                <StatementSubjectPicker
+                                    statementFor={formData.statementFor ?? 'house'}
+                                    statementId={formData.statementId ?? ''}
+                                    onChange={(kind, id) => {
+                                        setValue('statementFor', kind);
+                                        setValue('statementId', id || undefined);
+                                    }}
+                                />
+                            </div>
+                        )}
+
                         {step === 4 && (
                             <OptionsStep
                                 includeCharts={formData.includeCharts ?? true}
+                                includeDetails={formData.includeDetails ?? true}
+                                onIncludeDetailsChange={(v) => setValue('includeDetails', v)}
                                 includeUnoccupied={formData.includeUnoccupied ?? false}
-                                includeAmount={formData.includeAmount ?? false}
                                 paymentStatus={formData.paymentStatus ?? 'all'}
                                 aggregation={formData.aggregation ?? 'monthly'}
                                 transactionType={formData.transactionType ?? 'all'}
                                 reportType={formData.reportType || 'financial_overview'}
                                 onIncludeChartsChange={(v) => setValue('includeCharts', v)}
                                 onIncludeUnoccupiedChange={(v) => setValue('includeUnoccupied', v)}
-                                onIncludeAmountChange={(v) => setValue('includeAmount', v)}
                                 onPaymentStatusChange={(v) => setValue('paymentStatus', v)}
                                 onAggregationChange={(v) => setValue('aggregation', v)}
                                 onTransactionTypeChange={(v) => setValue('transactionType', v)}

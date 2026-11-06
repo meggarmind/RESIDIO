@@ -378,7 +378,7 @@ describe('the Admin tools menu (#1292 item 4)', () => {
   it('opens Resident status as a question on screen', async () => {
     const repo = liveSession();
     const { reply, setStep } = await step(ADMIN_MENU_NODE, '1', repo);
-    expect(reply.mock.calls[0][0]).toMatch(/^Resident status\. Send a house code or a name/);
+    expect(reply.mock.calls[0][0]).toMatch(/^Resident status\. Send a house code, a name or a payer alias/);
     expect(repo.createRequest).toHaveBeenCalledWith(expect.objectContaining({ action: 'owes:choose', status: 'pending' }));
     expect(setStep).toHaveBeenCalledWith(ADMIN_ITEM_NODE);
   });

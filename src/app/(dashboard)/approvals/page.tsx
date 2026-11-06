@@ -46,6 +46,7 @@ import { cn } from '@/lib/utils';
 import { Can } from '@/components/auth/can';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { isStuckApproval } from '@/lib/approvals/stuck';
+import { ViewReceiptButton } from '@/components/payments/view-receipt-button';
 
 const ALL_VALUE = '_all';
 
@@ -104,6 +105,11 @@ function ApprovalActions({
 }) {
     return (
         <>
+            {request.entity_type === 'payment_record' && request.has_receipt && (
+                <div className="flex justify-end mb-1">
+                    <ViewReceiptButton paymentId={request.entity_id} className="h-8 rounded-lg" />
+                </div>
+            )}
             {request.status === 'pending' && (
                 <Can permission={PERMISSIONS.APPROVALS_APPROVE_REJECT}>
                 <div className="flex flex-wrap gap-2 justify-end">

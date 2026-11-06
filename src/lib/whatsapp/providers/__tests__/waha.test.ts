@@ -2,12 +2,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { isProviderSupported } from '@/lib/whatsapp/provider';
 import {
   createWahaWhatsAppProvider,
+  downloadWahaMedia,
   fetchWahaConnectionStatus,
   getWahaGroupParticipants,
   listWahaGroups,
   lookupWahaLidPhone,
   refreshWahaGroups,
   lookupWahaPhone,
+  wahaMediaFetchUrl,
 } from '@/lib/whatsapp/providers/waha';
 import type { WahaWhatsAppConfig } from '@/lib/whatsapp/config';
 import { formatNotice } from '@/lib/whatsapp/notice-format';
@@ -522,5 +524,59 @@ describe('WAHA group reads (#1325)', () => {
     expect((error as Error).message).toBe('WAHA group request failed (HTTP 429)');
     expect((error as Error).message).not.toContain('waha-super-secret-key');
     expect((error as Error).message).not.toContain('1203');
+  });
+});
+
+describe('WAHA media download (#1455)', () => {
+  const config = { baseUrl: 'https://waha.estate.test/', apiKey: 'waha-super-secret-key' };
+
+  it('fetches the file path from the configured base URL, never the host in the payload', () => {
+    expect(wahaMediaFetchUrl(config.baseUrl, 'http://evil.example:8080/api/files/default/ABC.jpeg')).toBe(
+      'https://waha.estate.test/api/files/default/ABC.jpeg'
+    );
+  });
+
+  it.each([
+    'http://169.254.169.254/latest/meta-data/',
+    'https://waha.estate.test/api/sessions/default',
+    'https://waha.estate.test/api/files/../sessions',
+    'https://waha.estate.test/api/files/a%2F..%2Fsessions',
+    'https://waha.estate.test/api/files/',
+    'not a url',
+  ])('refuses %s', (url) => {
+    expect(wahaMediaFetchUrl(config.baseUrl, url)).toBeNull();
+  });
+
+  it('downloads with the API key and follows no redirect', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(new Uint8Array([1, 2, 3])));
+    const result = await downloadWahaMedia(config, 'http://localhost:3000/api/files/default/ABC.jpeg', 10, fetchImpl);
+
+    expect(result).toEqual({ ok: true, bytes: new Uint8Array([1, 2, 3]) });
+    const [url, init] = fetchImpl.mock.calls[0];
+    expect(url).toBe('https://waha.estate.test/api/files/default/ABC.jpeg');
+    expect(init.headers).toEqual({ 'X-Api-Key': 'waha-super-secret-key' });
+    expect(init.redirect).toBe('error');
+  });
+
+  it('does not contact anything for a URL outside /api/files', async () => {
+    const fetchImpl = vi.fn();
+    expect(await downloadWahaMedia(config, 'http://10.0.0.1/admin', 10, fetchImpl)).toEqual({ ok: false, reason: 'not_allowed' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('refuses a file over the limit, by its declared length or by its bytes', async () => {
+    const declared = vi.fn().mockResolvedValue(new Response(new Uint8Array(4), { headers: { 'content-length': '11' } }));
+    expect(await downloadWahaMedia(config, 'http://w/api/files/a.jpeg', 10, declared)).toEqual({ ok: false, reason: 'too_large' });
+
+    const streamed = vi.fn().mockResolvedValue(new Response(new Uint8Array(11)));
+    expect(await downloadWahaMedia(config, 'http://w/api/files/a.jpeg', 10, streamed)).toEqual({ ok: false, reason: 'too_large' });
+  });
+
+  it('reports a failed download without throwing', async () => {
+    const notFound = vi.fn().mockResolvedValue(new Response('no', { status: 404 }));
+    expect(await downloadWahaMedia(config, 'http://w/api/files/a.jpeg', 10, notFound)).toEqual({ ok: false, reason: 'download_failed', httpStatus: 404 });
+
+    const down = vi.fn().mockRejectedValue(new TypeError('fetch failed'));
+    expect(await downloadWahaMedia(config, 'http://w/api/files/a.jpeg', 10, down)).toEqual({ ok: false, reason: 'download_failed' });
   });
 });

@@ -86,6 +86,7 @@ export async function getApprovalRequests(params: {
   const enrichedData = await Promise.all(
     (data || []).map(async (request) => {
       let entity_name = 'Unknown';
+      let has_receipt = false;
 
       if (request.entity_type === 'billing_profile') {
         const { data: profile } = await supabase
@@ -130,13 +131,14 @@ export async function getApprovalRequests(params: {
       } else if (request.entity_type === 'payment_record') {
         const { data: payment } = await supabase
           .from('payment_records')
-          .select('amount, resident:residents!payment_records_resident_id_fkey(first_name, last_name)')
+          .select('amount, proof_url, resident:residents!payment_records_resident_id_fkey(first_name, last_name)')
           .eq('id', request.entity_id)
           .single();
 
         if (payment) {
           const res = embed(payment.resident);
           entity_name = `₦${payment.amount.toLocaleString()} - ${res?.first_name} ${res?.last_name}`;
+          has_receipt = !!payment.proof_url;
         } else {
           entity_name = 'Deleted Payment';
         }
@@ -145,6 +147,7 @@ export async function getApprovalRequests(params: {
       return {
         ...request,
         entity_name,
+        has_receipt,
       } as ApprovalRequestWithDetails;
     })
   );

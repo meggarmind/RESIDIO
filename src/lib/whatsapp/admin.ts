@@ -9,7 +9,7 @@ import { getSettingResultAsService } from '@/lib/settings/service';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
 import { createAdminClient } from '@/lib/supabase/server';
 import { maskPhone } from '@/lib/utils';
-import { OWES_PROMPT, createSupabaseOwesRepository, runAdminOwesLookup, toOwesParams, type OwesRepository } from '@/lib/whatsapp/admin-owes';
+import { OWES_LIST_MAX, OWES_PROMPT, createSupabaseOwesRepository, runAdminOwesLookup, toOwesParams, type OwesRepository } from '@/lib/whatsapp/admin-owes';
 import { isOnRoster } from '@/lib/whatsapp/co-resident';
 import { endOfLagosDay, formatDay, lagosMidnight, lagosParts } from '@/lib/whatsapp/assistant-format';
 import { WhatsAppAdminAlertEmail, whatsAppAdminAlertSubject, type WhatsAppAdminAlertEvent } from '@/emails/whatsapp-admin-alert';
@@ -182,7 +182,9 @@ export interface WhatsAppAdminAction {
     string | { reply: string; audit: Record<string, unknown>; next?: { state: Record<string, unknown>; prompt: string } }
   >;
   /** What 0 shows instead of Admin tools while a question is open, such as the list again; null goes to Admin tools (#1424). */
-  back?(state: Record<string, unknown>): { reply: string; state: Record<string, unknown> } | null;
+  back?(
+    state: Record<string, unknown>
+  ): { reply: string; state: Record<string, unknown> } | null | Promise<{ reply: string; state: Record<string, unknown> } | null>;
   /** Set when the item stays open after an answer for another entry: the line added under the answer. */
   again?: string;
 }
@@ -210,7 +212,7 @@ export const WHATSAPP_ADMIN_ACTIONS: Record<string, WhatsAppAdminAction> = {
       return { reply: OWES_PROMPT, state: {} };
     },
     choose(text) {
-      return { params: /^[1-5]$/.test(text) ? { pick: Number(text) } : { query: text } };
+      return { params: /^\d{1,2}$/.test(text) && Number(text) >= 1 && Number(text) <= OWES_LIST_MAX ? { pick: Number(text) } : { query: text } };
     },
     again: 'Send another house code or name, or reply 0 for Admin tools.',
     run({ account, binding, now, requestId, params, audit, owes }) {
@@ -1101,7 +1103,7 @@ async function adminTurn(message: WhatsAppInboundMessage, input: AdminInput, opt
     if (lower === '0') {
       const asked = await repository.findPendingChoice(live.id, now);
       const item = asked && Object.hasOwn(WHATSAPP_ADMIN_ACTIONS, asked.action) ? WHATSAPP_ADMIN_ACTIONS[asked.action] : null;
-      const back = asked && item?.back ? item.back(asked.state) : null;
+      const back = asked && item?.back ? await item.back(asked.state) : null;
       if (back) {
         await createChoice(asked!.action, live, back.state);
         await reply(back.reply);

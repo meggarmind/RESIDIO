@@ -8,7 +8,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { idOrParentFilterStrict } from '@/lib/postgrest-filter';
 import { calculateNextRunDate } from '@/lib/reports/scheduled-report-store';
-import { REPORT_TYPE_LABELS, REPORT_TYPE_VALUES, REPORT_VIEW_PERMISSIONS, hasGenerator, reportsForPermissions, type ReportType } from '@/lib/validators/reports';
+import { REPORT_TYPE_LABELS, REPORT_TYPE_VALUES, REPORT_VIEW_PERMISSIONS, hasGenerator, isRetiredReport, reportsForPermissions, resolveRetiredReport, scheduleConfigurationError, type ReportType } from '@/lib/validators/reports';
 
 // Types
 // Derived from the report list (#1397), so a listed report is always a valid schedule type.
@@ -120,6 +120,9 @@ export async function getReportSchedule(id: string): Promise<{ data: ReportSched
 }
 
 function unschedulableError(type: string): string {
+    if (isRetiredReport(type)) {
+        return `${REPORT_TYPE_LABELS[type as ReportType]} was replaced by ${REPORT_TYPE_LABELS[resolveRetiredReport(type as ReportType)]}, so it cannot be scheduled.`;
+    }
     return `${REPORT_TYPE_LABELS[type as ReportType] ?? 'This report'} cannot be generated yet, so it cannot be scheduled.`;
 }
 
@@ -130,6 +133,8 @@ export async function createReportSchedule(input: CreateScheduleInput): Promise<
 
     // A schedule for a report with no generator would fail on every cron run (#1397).
     if (!hasGenerator(input.report_type)) return { data: null, error: unschedulableError(input.report_type) };
+    const configurationError = scheduleConfigurationError(input.report_type, input.configuration);
+    if (configurationError) return { data: null, error: configurationError };
 
     const supabase = await createServerSupabaseClient();
 
@@ -227,6 +232,10 @@ export async function updateReportSchedule(
 
     if (!existing) {
         return { data: null, error: 'Schedule not found' };
+    }
+    if (fields.report_type || fields.configuration) {
+        const configurationError = scheduleConfigurationError(fields.report_type ?? existing.report_type, fields.configuration ?? (existing.configuration as Record<string, unknown> | null));
+        if (configurationError) return { data: null, error: configurationError };
     }
 
     // Recalculate next run if frequency changes
@@ -378,6 +387,11 @@ export async function saveGeneratedReport(input: {
 }): Promise<{ data: GeneratedReport | null; error: string | null }> {
     const auth = await authorizePermission(PERMISSIONS.REPORTS_VIEW_FINANCIAL);
     if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
+
+    // The database no longer checks the type (#1399), so this does.
+    if (!(REPORT_TYPE_VALUES as readonly string[]).includes(input.report_type)) {
+        return { data: null, error: 'Unknown report type' };
+    }
 
     const supabase = await createServerSupabaseClient();
 

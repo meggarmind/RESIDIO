@@ -53,8 +53,9 @@ export function useResidents(params: Partial<ResidentSearchParams> = {}, options
  * Slim id/name/code list for resident dropdowns. One shared cache key (nested
  * under 'residents', so invalidateQueries(['residents']) still refreshes it).
  */
-export function useResidentOptions() {
+export function useResidentOptions(options: { enabled?: boolean } = {}) {
   return useQuery({
+    enabled: options.enabled ?? true,
     queryKey: ['residents', 'options'],
     queryFn: async () => {
       const result = await getResidentOptions();
