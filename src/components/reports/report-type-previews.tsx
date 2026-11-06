@@ -353,6 +353,28 @@ export const reportTypePreviews: Record<ReportType, PreviewDefinition> = {
             ['Cedar Way', '3', 'C. Okafor', 'Outstanding', '₦60,000.00'],
         ],
     },
+    budget_vs_actual: {
+        stats: [
+            { label: 'Total budget', value: '19,320,000.00' },
+            { label: 'Actual spend', value: '16,382,200.00' },
+            { label: 'Difference', value: '2,937,800.00' },
+            { label: '% used', value: '84.8%' },
+        ],
+        tableTitle: 'Budget against actual by category',
+        columns: [
+            { label: 'Category' },
+            { label: 'Budget', align: 'right' },
+            { label: 'Actual', align: 'right' },
+            { label: 'Difference', align: 'right' },
+            { label: '% used', align: 'right' },
+            { label: 'Status' },
+        ],
+        rows: [
+            ['Security Expenses', '6,000,000.00', '4,820,000.00', '1,180,000.00', '80.3%', 'On track'],
+            ['Maintenance', '3,600,000.00', '3,150,250.00', '449,750.00', '87.5%', 'Near limit'],
+            ['Contractor Payment', '2,400,000.00', '2,760,000.00', '-360,000.00', '115.0%', 'Over budget'],
+        ],
+    },
     development_levy: {
         stats: [
             { label: 'Total Properties', value: '96' },

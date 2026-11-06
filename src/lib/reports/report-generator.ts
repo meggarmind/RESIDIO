@@ -27,6 +27,7 @@ import { generateWriteOffs } from '@/lib/reports/generators/write-offs';
 import { OCCUPANT_PAYER_ROLES, resolvePayer, type BillingPayer } from '@/lib/billing/payer';
 import { generateStatementOfAccount } from '@/lib/reports/generators/statement-of-account';
 import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
+import { generateBudgetVsActual } from '@/lib/reports/generators/budget-vs-actual';
 
 /** Either the cookie-bound session client or the service-role admin client. */
 export type ReportSupabaseClient =
@@ -1979,6 +1980,11 @@ export async function generateReportWithClient(
 
       case 'wallet_balances': {
         const report = await generateWalletBalances(supabase, dateRange);
+        return { success: true, report };
+      }
+
+      case 'budget_vs_actual': {
+        const report = await generateBudgetVsActual(supabase, dateRange);
         return { success: true, report };
       }
 

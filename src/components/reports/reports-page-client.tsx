@@ -36,6 +36,7 @@ import {
     Trash2,
     Loader2,
     ShieldCheck,
+    Target,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -160,6 +161,12 @@ const reportTypeConfig: Record<
         label: 'Indebtedness Detail Report',
         gradient: 'from-yellow-500 to-orange-500',
         iconBg: 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400',
+    },
+    budget_vs_actual: {
+        icon: Target,
+        label: 'Budget against actual',
+        gradient: 'from-teal-500 to-emerald-500',
+        iconBg: 'bg-teal-500/15 text-teal-600 dark:text-teal-400',
     },
     development_levy: {
         icon: Sparkles,

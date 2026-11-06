@@ -38,6 +38,7 @@ import {
     RefreshCw,
     ScrollText,
     Settings2,
+    Target,
     Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -70,6 +71,7 @@ const reportTypeOptions = [
     { value: 'wallet_balances', label: 'Wallet balances', icon: Receipt },
     { value: 'write_offs', label: 'Write-offs', icon: Receipt },
     { value: 'transaction_log', label: 'Transaction Log', icon: ScrollText },
+    { value: 'budget_vs_actual', label: 'Budget against actual', icon: Target },
 ] as const;
 
 /** Invoice or expense lines are off by default for these reports; every other report keeps its summary on. */

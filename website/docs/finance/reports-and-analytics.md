@@ -9,8 +9,8 @@ residio_sources:
   - src/actions/analytics/**
   - src/actions/reports/**
   - src/lib/reports/generators/write-offs.ts
-residio_verified_commit: eb97a11
-residio_verified_at: '2026-11-05'
+residio_verified_commit: ec5c1454
+residio_verified_at: '2026-11-06'
 residio_app_version: '0.4.0'
 ---
 
@@ -137,5 +137,15 @@ The balance is the same balance as the **Account Statement**: all invoices that 
 A note gives the unpaid amount on invoices today, as the house page or the resident page shows it. That figure changes only when money is used for an invoice. Thus it is different from the balance when money is in the wallet and not yet used, when a payment that is not verified was used for an invoice, or when an invoice is dated after the period.
 
 A schedule of this report keeps the house or the resident that you chose. In **History**, open the report with **View** to print it; the card has no **PDF** button for this report.
+
+## Budget against actual
+
+**Budget against actual** is in the **Money in and out** group. It asks for a time period but not for bank accounts. For each expense category it shows the **Budget** for the period, the **Actual** spend, the **Difference** (budget minus actual; a minus sign means over budget), the **% used** and a **Status**. Set the budgets on **Expenditure → Budgets**.
+
+- **Budget** adds the monthly budgets of the months in the period. A month that the period covers only in part counts for its days in the period. For example, **This Year** ends today, so this month counts up to today.
+- **Actual** is the expenses marked **Paid** with an expense date in the period, in that category. Paid expenses with no category show as **No category**.
+- **Status** is **On track** below 85% used, **Near limit** from 85% to 100%, **Over budget** above 100%, and **No budget** for a category that has spend but no budget.
+
+The four figures at the top are **Total budget**, **Actual spend**, **Difference** and **% used**. The bar chart shows the % used of each category that has a budget. The last row of the table gives the totals. It reads budgets and expenses with your own access, the same as **Expenses by category and vendor**.
 
 Reports are snapshots. If a number looks wrong, trace it back to residents, invoices, payments, or expenditure instead of editing the report output.

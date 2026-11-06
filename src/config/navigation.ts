@@ -31,6 +31,7 @@ import {
   Plus,
   CalendarClock,
   ShieldCheck,
+  Target,
 } from 'lucide-react';
 import { PERMISSIONS, type Permission } from '@/lib/auth/action-roles';
 import { oversightConfig } from '@/config/oversight-nav';
@@ -305,6 +306,15 @@ const NAV_EXPENDITURE: NavItem = {
   href: '/expenditure',
   icon: CreditCard, // Using CreditCard for now or import Wallet
   permissions: [PERMISSIONS.EXPENDITURE_VIEW],
+  children: [
+    {
+      id: 'expenditure-budgets',
+      title: 'Budgets',
+      href: '/expenditure/budgets',
+      icon: Target,
+      permissions: [PERMISSIONS.EXPENDITURE_VIEW],
+    },
+  ],
 };
 
 export const ADMIN_NAV_SECTIONS: NavSection[] = [
