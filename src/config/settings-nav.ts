@@ -423,7 +423,7 @@ export const settingsConfig: SettingsGroup[] = [
             {
                 title: "Email & Sending",
                 href: "/settings/sending",
-                description: "Whether email goes out, which emails are sent, and testing",
+                description: "Whether email goes out, the SMS provider, which emails are sent, and testing",
                 permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
                 sections: [
                     {
