@@ -46,6 +46,7 @@ import {
     Repeat,
     FileText,
     Wallet,
+    Target,
     Eraser,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -182,6 +183,11 @@ const reportTypeConfig: Record<ReportType, {
         gradient: 'from-yellow-500/10 to-orange-500/5',
         iconBg: 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400',
     },
+    budget_vs_actual: {
+        icon: Target,
+        gradient: 'from-teal-500/10 to-emerald-500/5',
+        iconBg: 'bg-teal-500/15 text-teal-600 dark:text-teal-400',
+    },
     development_levy: {
         icon: Construction,
         gradient: 'from-indigo-500/10 to-blue-500/5',
@@ -204,7 +210,7 @@ const periodIcons: Record<PeriodPreset, React.ElementType> = {
 };
 
 // Reports that don't depend on bank accounts
-const ACCOUNT_AGNOSTIC_REPORTS: ReportType[] = ['debtors_aging', 'debtors_report', 'dues_collection_status', 'collection_rate_by_street', 'expenses_by_category', 'wallet_balances', 'write_offs', 'development_levy', 'invoice_aging', 'project_spend', 'petty_cash', 'statement_of_account'];
+const ACCOUNT_AGNOSTIC_REPORTS: ReportType[] = ['debtors_aging', 'debtors_report', 'dues_collection_status', 'collection_rate_by_street', 'expenses_by_category', 'wallet_balances', 'write_offs', 'development_levy', 'invoice_aging', 'project_spend', 'petty_cash', 'statement_of_account', 'budget_vs_actual'];
 
 // Reports that are always "As of Today" (skip date selection)
 const REALTIME_REPORTS: ReportType[] = ['debtors_aging', 'debtors_report', 'development_levy', 'invoice_aging'];
@@ -599,8 +605,8 @@ function OptionsStep({
     const isDevelopmentLevyReport = reportType === 'development_levy';
     const isDebtReport = isDuesReport || isDevelopmentLevyReport;
     // Real-time reports don't use aggregation or transaction type filtering
-    // The dues sheet has a period but no aggregation or transaction type either.
-    const isRealtimeReport = isDuesReport || reportType === 'statement_of_account' || REALTIME_REPORTS.includes(reportType as ReportType);
+    // The dues sheet, Statement of account and Budget against actual have a period but no aggregation or transaction type either.
+    const isRealtimeReport = isDuesReport || reportType === 'statement_of_account' || reportType === 'budget_vs_actual' || REALTIME_REPORTS.includes(reportType as ReportType);
     return (
         <div className="space-y-6">
             <div className="text-center mb-8">

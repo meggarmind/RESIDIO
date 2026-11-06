@@ -10,8 +10,8 @@ residio_sources:
   - src/lib/auth/action-roles.ts
   - src/config/navigation.ts
   - src/config/settings-nav.ts
-residio_verified_commit: 90d2fd4d
-residio_verified_at: '2026-10-20'
+residio_verified_commit: 29cabe99
+residio_verified_at: '2026-11-02'
 residio_app_version: '0.4.0'
 ---
 
@@ -25,7 +25,7 @@ Residio groups work by responsibility rather than by database table.
 
 - **Core:** dashboard and analytics.
 - **People & Property:** residents, houses, and contractors or staff.
-- **Financial:** transactions, imports, invoices, collections (contributions and item purchases), and expenditure.
+- **Financial:** transactions, imports, invoices, collections (contributions and item purchases), and expenditure (with budgets).
 - **Operations:** security, reports, documents, announcements, approvals, and capital projects.
 - **System:** the System dashboard (an at-a-glance read on cron health, the notification queue, audit activity and account approvals), Settings, and the individual pages behind each of those cards — audit logs, accounts, notification queue and history, data tools, and cron status.
 

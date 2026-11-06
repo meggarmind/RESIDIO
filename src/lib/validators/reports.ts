@@ -27,6 +27,7 @@ export const reportTypes = [
     { value: 'wallet_balances', label: 'Wallet balances', description: 'Per resident: opening balance, credits, debits and closing balance, and the total credit the estate holds', group: 'Money in and out', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
     { value: 'indebtedness_summary', label: 'Indebtedness Report', description: 'Simple indebted/non-indebted status per house with optional amounts', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL, retired: true },
     { value: 'indebtedness_detail', label: 'Indebtedness Detail Report', description: 'Detailed breakdown of indebtedness per property', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL, retired: true },
+    { value: 'budget_vs_actual', label: 'Budget against actual', description: 'Each expense category: the budget for the period, what was paid, the difference and the % of budget used', group: 'Money in and out', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
     { value: 'development_levy', label: 'Development Levy Report', description: 'Development levy status per property', group: 'Levies', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
 ] as const satisfies readonly { value: string; label: string; description: string; group: ReportGroup; permission: Permission; retired?: true }[];
 
@@ -54,6 +55,7 @@ export const GENERATABLE_REPORT_TYPES: readonly ReportType[] = [
     'project_spend',
     'petty_cash',
     'statement_of_account',
+    'budget_vs_actual',
 ];
 
 /** True when `type` is a retired report: still listed for old rows, never run again (#1399). */

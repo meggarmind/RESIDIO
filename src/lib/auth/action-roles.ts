@@ -288,6 +288,8 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   // Collections ledger (#1194).
   '/collections': [PERMISSIONS.COLLECTIONS_VIEW],
   '/expenditure': [PERMISSIONS.EXPENDITURE_VIEW],
+  // Budgets (#1406): read-only for view; the edit controls need EXPENDITURE_MANAGE.
+  '/expenditure/budgets': [PERMISSIONS.EXPENDITURE_VIEW],
   '/notifications': [PERMISSIONS.NOTIFICATIONS_VIEW],
   // Mirrors /reports: the analytics dashboard composes the same three report
   // families, and any one of them is enough to have something to look at.
