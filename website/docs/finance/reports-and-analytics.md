@@ -9,8 +9,8 @@ residio_sources:
   - src/actions/analytics/**
   - src/actions/reports/**
   - src/lib/reports/generators/write-offs.ts
-residio_verified_commit: eb97a11
-residio_verified_at: '2026-11-05'
+residio_verified_commit: ec5c1454
+residio_verified_at: '2026-11-06'
 residio_app_version: '0.4.0'
 ---
 

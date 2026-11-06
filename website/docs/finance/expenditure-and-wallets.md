@@ -8,8 +8,8 @@ residio_sources:
   - src/actions/finance/**
   - src/actions/billing/wallet.ts
   - src/actions/billing/wallet-transfers.ts
-residio_verified_commit: 444d0cf
-residio_verified_at: '2026-11-04'
+residio_verified_commit: ec5c1454
+residio_verified_at: '2026-11-06'
 residio_app_version: '0.4.0'
 ---
 
