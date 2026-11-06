@@ -14,8 +14,8 @@ residio_sources:
   - src/app/(dashboard)/settings/sending/**
   - src/app/(dashboard)/settings/announcements/**
   - src/components/settings/messages/**
-residio_verified_commit: bc152723
-residio_verified_at: '2026-10-30'
+residio_verified_commit: 1b9bc02a
+residio_verified_at: '2026-11-06'
 residio_app_version: '0.4.0'
 ---
 
@@ -66,6 +66,8 @@ Sent-notification history and the outgoing queue are system state rather than co
 ## Email and WhatsApp
 
 Email configuration and WhatsApp operations are separate controls, and live in different Settings groups. **Settings → Messages → Email & sending** configures outbound email; **Settings → Connections → WhatsApp** holds WhatsApp's provider credentials, rollout mode, consent, and pending contacts together — WhatsApp is grouped with the other external-service integrations rather than with Messages. Confirm provider status and rollout mode before enabling an operational communication path.
+
+**Settings → Messages → Email & sending → SMS provider** selects the SMS provider: Termii or HollaTags. Each provider shows if its credentials are set on the server. SMS is switched off at this time, so the selection applies only when SMS is switched on (see [Email and SMS](../integrations/email-and-sms.md)).
 
 :::warning[Production communication]
 Test recipient scope, template content, and daily caps before enabling automated outbound messages.
