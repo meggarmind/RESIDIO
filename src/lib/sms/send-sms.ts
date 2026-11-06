@@ -1,25 +1,22 @@
-import { termiiConfig, isSmsConfigured, formatPhoneForTermii } from './termii';
+import { getActiveSmsProvider } from './provider';
+import type { SmsProvider } from './providers/types';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getSettingValueAsService } from '@/lib/settings/service';
 import { decideSend, loadSnapshotFor } from '@/lib/comms-override/gate';
 import { prefixText } from '@/lib/comms-override/labels';
-
-/** Upper bound on the Termii send call, so a hung API cannot hold the request open. */
-const TERMII_SEND_TIMEOUT_MS = 15_000;
 import { blockedError, toLogRecord } from '@/lib/comms-override/resolver';
 import type { CommsSendContext, ResolveResult } from '@/lib/comms-override/types';
 import type {
   SendSmsOptions,
   SendSmsResult,
   SmsLogEntry,
-  TermiiSendResponse,
 } from './types';
 
 /**
  * Log SMS send attempt to database
  * Logs to notification_history for unified notification tracking
  */
-async function logSms(entry: SmsLogEntry): Promise<void> {
+async function logSms(entry: SmsLogEntry, provider: SmsProvider): Promise<void> {
   try {
     const supabase = createAdminClient();
 
@@ -41,7 +38,7 @@ async function logSms(entry: SmsLogEntry): Promise<void> {
         ...entry.metadata,
         sms_type: entry.smsType,
         recipient_name: entry.recipientName,
-        provider: 'termii',
+        provider: provider.name,
       },
       sent_at: entry.status === 'sent' ? new Date().toISOString() : null,
     });
@@ -52,7 +49,7 @@ async function logSms(entry: SmsLogEntry): Promise<void> {
 }
 
 /**
- * Send an SMS using Termii
+ * Send an SMS using the provider chosen in Settings -> Sending (Termii or HollaTags)
  * Handles logging, settings checks, and error handling
  */
 export async function sendSms(options: SendSmsOptions): Promise<SendSmsResult> {
@@ -66,9 +63,10 @@ export async function sendSms(options: SendSmsOptions): Promise<SendSmsResult> {
     return { success: false, error: 'SMS notifications are disabled' };
   }
 
-  // Check if Termii is configured
-  if (!isSmsConfigured()) {
-    return { success: false, error: 'SMS service not configured (missing TERMII_API_KEY)' };
+  // The chosen provider must have its credentials; there is no fallback to the other one (#1462).
+  const provider = await getActiveSmsProvider();
+  if (!provider.isConfigured()) {
+    return { success: false, error: provider.missingConfigError };
   }
 
   const recipients = Array.isArray(options.to) ? options.to : [options.to];
@@ -77,7 +75,7 @@ export async function sendSms(options: SendSmsOptions): Promise<SendSmsResult> {
   // resolved separately so its own original number labels its own message.
   const snapshot = await loadSnapshotFor(options);
 
-  // Send to each recipient (Termii API handles single recipient per request)
+  // Send to each recipient (each provider call takes a single recipient)
   const results: SendSmsResult[] = [];
 
   for (const recipient of recipients) {
@@ -90,7 +88,7 @@ export async function sendSms(options: SendSmsOptions): Promise<SendSmsResult> {
       },
       snapshot
     );
-    const result = await sendSingleSms(recipient, options, decision, envLabel);
+    const result = await sendSingleSms(recipient, options, decision, envLabel, provider);
     results.push(result);
   }
 
@@ -103,7 +101,7 @@ export async function sendSms(options: SendSmsOptions): Promise<SendSmsResult> {
     return {
       success: true,
       messageId: results[0]?.messageId,
-      balance: results[0]?.balance,
+      ...(results[0]?.balance !== undefined ? { balance: results[0].balance } : {}),
       ...(override ? { override } : {}),
     };
   }
@@ -122,7 +120,8 @@ async function sendSingleSms(
   recipient: { phone: string; name?: string; residentId?: string },
   options: SendSmsOptions,
   decision: ResolveResult,
-  envLabel: string
+  envLabel: string,
+  provider: SmsProvider
 ): Promise<SendSmsResult> {
   const override = toLogRecord(decision) ?? undefined;
   const logMetadata = override ? { ...options.metadata, override } : options.metadata;
@@ -140,7 +139,7 @@ async function sendSingleSms(
         status: 'failed',
         errorMessage,
         metadata: logMetadata,
-      });
+      }, provider);
     }
     return { success: false, error: errorMessage, override };
   }
@@ -149,28 +148,11 @@ async function sendSingleSms(
   const message = decision.redirect
     ? prefixText(envLabel, recipient.phone, options.message)
     : options.message;
-  const formattedPhone = formatPhoneForTermii(destination);
 
   try {
-    const response = await fetch(`${termiiConfig.baseUrl}/sms/send`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        api_key: termiiConfig.apiKey,
-        to: formattedPhone,
-        from: termiiConfig.senderId,
-        sms: message,
-        type: 'plain',
-        channel: 'generic', // Can be 'generic', 'dnd' (Do Not Disturb), or 'whatsapp'
-      }),
-      signal: AbortSignal.timeout(TERMII_SEND_TIMEOUT_MS),
-    });
+    const sent = await provider.send({ to: destination, message });
 
-    const data: TermiiSendResponse = await response.json();
-
-    if (data.code === 'ok') {
+    if (sent.success) {
       // Log successful send, unless the caller is writing its own history
       // row for this send (#401 -- see SendSmsOptions.skipHistoryLog).
       if (!options.skipHistoryLog) {
@@ -180,25 +162,25 @@ async function sendSingleSms(
           residentId: recipient.residentId,
           smsType: options.smsType,
           message: options.message,
-          messageId: data.message_id_str || data.message_id,
+          messageId: sent.messageId,
           status: 'sent',
           metadata: {
             ...logMetadata,
-            balance: data.balance,
+            ...(sent.balance !== undefined ? { balance: sent.balance } : {}),
           },
-        });
+        }, provider);
       }
 
       return {
         success: true,
-        messageId: data.message_id_str || data.message_id,
-        balance: data.balance,
+        messageId: sent.messageId,
+        ...(sent.balance !== undefined ? { balance: sent.balance } : {}),
         override,
       };
     }
 
-    // API returned an error
-    const errorMessage = data.message || 'Unknown Termii API error';
+    // The provider returned an error
+    const errorMessage = sent.error || `Unknown ${provider.name} error`;
 
     if (!options.skipHistoryLog) {
       await logSms({
@@ -210,7 +192,7 @@ async function sendSingleSms(
         status: 'failed',
         errorMessage,
         metadata: logMetadata,
-      });
+      }, provider);
     }
 
     return { success: false, error: errorMessage, override };
@@ -227,7 +209,7 @@ async function sendSingleSms(
         status: 'failed',
         errorMessage,
         metadata: logMetadata,
-      });
+      }, provider);
     }
 
     return { success: false, error: errorMessage, override };
