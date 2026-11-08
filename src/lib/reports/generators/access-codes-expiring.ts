@@ -90,7 +90,7 @@ export async function generateAccessCodesExpiring(
   const untilMs = (c: CodeRow) => Date.parse(c.valid_until as string);
   const expired = active.filter((c) => untilMs(c) < nowMs);
   const due = active.filter((c) => untilMs(c) >= nowMs && untilMs(c) <= windowMs).sort((a, b) => untilMs(a) - untilMs(b));
-  const dueSoon = due.filter((c) => untilMs(c) <= soonMs);
+  const dueSoon = active.filter((c) => untilMs(c) >= nowMs && untilMs(c) <= soonMs);
 
   // Renewed: made in the period, and the holder had a code made before it.
   const firstCodeAt = new Map<string, string>();

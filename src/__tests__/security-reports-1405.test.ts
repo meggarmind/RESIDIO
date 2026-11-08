@@ -174,6 +174,13 @@ describe('Access codes due to expire (#1405)', () => {
     expect(report.data.summary[1]).toMatchObject({ label: 'Expiring in 90 days', value: 3 });
   });
 
+  it('counts the 7-day tile over 7 days even when the list looks fewer days ahead', async () => {
+    const { data } = await generateAccessCodesExpiring(client({ access_codes: [code('d5', 'c1', day(5))] }), RANGE, 3, NOW);
+    expect(data.summary[0]).toMatchObject({ label: 'Expiring in 7 days', value: 1, tone: 'bad' });
+    expect(data.summary[1]).toMatchObject({ label: 'Expiring in 3 days', value: 0 });
+    expect(data.table.rows).toEqual([]);
+  });
+
   it('accepts 1 to 365 days in a request and a schedule, and 30 when none is given', () => {
     const base = { reportType: 'access_codes_expiring', periodPreset: 'this_month' };
     expect(reportRequestSchema.parse(base).expiryDays).toBeUndefined();
