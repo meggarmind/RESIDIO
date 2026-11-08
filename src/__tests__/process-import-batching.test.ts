@@ -374,6 +374,7 @@ describe('processImport reconciles a project debit with a pending expense (#1442
     return debit;
   }
   const pending = () => db.expenses.find((e) => e.id === PENDING)!;
+  const projectAudit = () => logAudit.mock.calls.map(([a]) => a).find((a) => a.action === 'UPDATE' && a.entityType === 'expenses');
   const verifyAudit = () => logAudit.mock.calls.map(([a]) => a).find((a) => a.action === 'VERIFY');
 
   it('sets the row project on an expense that has none and records it in the audit entry', async () => {
@@ -385,12 +386,32 @@ describe('processImport reconciles a project debit with a pending expense (#1442
     expect(updateExpenseStatus).toHaveBeenCalledWith(PENDING, 'paid');
     expect(createExpense).not.toHaveBeenCalled();
     expect(statusOf(debit.id)).toEqual(['created', 'Auto-reconciled with existing pending expense', PENDING]);
-    expect(verifyAudit()).toMatchObject({
+    expect(projectAudit()).toMatchObject({
       entityId: PENDING,
       oldValues: { project_id: null },
-      newValues: { status: 'paid', bank_row_id: debit.id, project_id: PROJECT },
+      newValues: { project_id: PROJECT },
     });
+    expect(verifyAudit().newValues).toEqual({ status: 'paid', bank_row_id: debit.id });
+    expect(verifyAudit().oldValues).toBeUndefined();
     expect(res).toMatchObject({ created_count: 1, created_expenses_count: 1 });
+  });
+
+  it('audits the committed project assignment even when marking the expense paid fails', async () => {
+    const debit = seedPending(null);
+    updateExpenseStatus.mockResolvedValueOnce({ error: 'Status update failed' });
+
+    const res = await processImport({ import_id: IMPORT });
+
+    expect(pending().project_id).toBe(PROJECT);
+    expect(updateExpenseStatus).toHaveBeenCalledWith(PENDING, 'paid');
+    expect(projectAudit()).toMatchObject({
+      entityId: PENDING,
+      oldValues: { project_id: null },
+      newValues: { project_id: PROJECT },
+    });
+    expect(verifyAudit()).toBeUndefined();
+    expect(statusOf(debit.id)).toEqual(['error', 'Status update failed', null]);
+    expect(res).toMatchObject({ created_count: 0, created_expenses_count: 0, error_count: 1 });
   });
 
   it('keeps the project an expense already has', async () => {
@@ -399,6 +420,7 @@ describe('processImport reconciles a project debit with a pending expense (#1442
     await processImport({ import_id: IMPORT });
 
     expect(pending().project_id).toBe(OTHER_PROJECT);
+    expect(projectAudit()).toBeUndefined();
     expect(updateExpenseStatus).toHaveBeenCalledWith(PENDING, 'paid');
     const audit = verifyAudit();
     expect(audit.oldValues).toBeUndefined();

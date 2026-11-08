@@ -790,7 +790,6 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
             // Check if we can reconcile a pending expense
             if (dupCheck.existing_status === 'pending' && dupCheck.existing_payment_id) {
               // Give the expense the row's project, unless it already has one (#1442).
-              let projectSet = false;
               if (row.matched_project_id) {
                 const { data: tagged, error: projectError } = await supabase
                   .from('expenses')
@@ -799,7 +798,16 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
                   .is('project_id', null)
                   .select('id');
                 if (projectError) throw new Error(`Failed to set the expense's project: ${projectError.message}`);
-                projectSet = (tagged?.length ?? 0) > 0;
+                if (tagged?.length) {
+                  await logAudit({
+                    action: 'UPDATE',
+                    entityType: 'expenses',
+                    entityId: dupCheck.existing_payment_id,
+                    entityDisplay: `Project assigned via Bank Import: ${row.description}`,
+                    oldValues: { project_id: null },
+                    newValues: { project_id: row.matched_project_id },
+                  });
+                }
               }
 
               // Reconcile: Update status to 'paid' and link
@@ -812,12 +820,7 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
                 entityType: 'expenses',
                 entityId: dupCheck.existing_payment_id,
                 entityDisplay: `Auto-reconciled via Bank Import: ${row.description}`,
-                ...(projectSet && { oldValues: { project_id: null } }),
-                newValues: {
-                  status: 'paid',
-                  bank_row_id: row.id,
-                  ...(projectSet && { project_id: row.matched_project_id }),
-                },
+                newValues: { status: 'paid', bank_row_id: row.id },
               });
 
               // Mark row as created (acting as the verification proof)
