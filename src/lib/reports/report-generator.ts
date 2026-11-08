@@ -28,6 +28,8 @@ import { OCCUPANT_PAYER_ROLES, resolvePayer, type BillingPayer } from '@/lib/bil
 import { generateStatementOfAccount } from '@/lib/reports/generators/statement-of-account';
 import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
 import { generateBudgetVsActual } from '@/lib/reports/generators/budget-vs-actual';
+import { generateVisitorAccessLog } from '@/lib/reports/generators/visitor-access-log';
+import { generateAccessCodesExpiring } from '@/lib/reports/generators/access-codes-expiring';
 
 /** Either the cookie-bound session client or the service-role admin client. */
 export type ReportSupabaseClient =
@@ -1985,6 +1987,16 @@ export async function generateReportWithClient(
 
       case 'budget_vs_actual': {
         const report = await generateBudgetVsActual(supabase, dateRange);
+        return { success: true, report };
+      }
+
+      case 'visitor_access_log': {
+        const report = await generateVisitorAccessLog(supabase, dateRange);
+        return { success: true, report };
+      }
+
+      case 'access_codes_expiring': {
+        const report = await generateAccessCodesExpiring(supabase, dateRange);
         return { success: true, report };
       }
 

@@ -39,6 +39,8 @@ import {
     ScrollText,
     Settings2,
     Target,
+    DoorOpen,
+    KeyRound,
     Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -72,6 +74,8 @@ const reportTypeOptions = [
     { value: 'write_offs', label: 'Write-offs', icon: Receipt },
     { value: 'transaction_log', label: 'Transaction Log', icon: ScrollText },
     { value: 'budget_vs_actual', label: 'Budget against actual', icon: Target },
+    { value: 'visitor_access_log', label: 'Visitor and access log', icon: DoorOpen },
+    { value: 'access_codes_expiring', label: 'Access codes due to expire', icon: KeyRound },
 ] as const;
 
 /** Invoice or expense lines are off by default for these reports; every other report keeps its summary on. */

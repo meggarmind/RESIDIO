@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { PERMISSIONS, type Permission } from '@/lib/auth/action-roles';
 
-// Picker groups. Occupancy and Security have no entries yet; their reports come in later issues.
+// Picker groups. Occupancy has no entries yet; its reports come in a later issue.
 export type ReportGroup = 'Money in and out' | 'Debts' | 'Levies' | 'Occupancy' | 'Security';
 
 // Report Types: the single list of reports. The request and schedule schemas, the page guard,
@@ -28,6 +28,8 @@ export const reportTypes = [
     { value: 'indebtedness_summary', label: 'Indebtedness Report', description: 'Simple indebted/non-indebted status per house with optional amounts', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL, retired: true },
     { value: 'indebtedness_detail', label: 'Indebtedness Detail Report', description: 'Detailed breakdown of indebtedness per property', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL, retired: true },
     { value: 'budget_vs_actual', label: 'Budget against actual', description: 'Each expense category: the budget for the period, what was paid, the difference and the % of budget used', group: 'Money in and out', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
+    { value: 'visitor_access_log', label: 'Visitor and access log', description: 'Check-ins and check-outs in the period: by house, by hour of day and by day, with the flagged entries', group: 'Security', permission: PERMISSIONS.REPORTS_VIEW_SECURITY },
+    { value: 'access_codes_expiring', label: 'Access codes due to expire', description: 'Active access codes that expire in the next 30 days, with holder, house and type', group: 'Security', permission: PERMISSIONS.REPORTS_VIEW_SECURITY },
     { value: 'development_levy', label: 'Development Levy Report', description: 'Development levy status per property', group: 'Levies', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
 ] as const satisfies readonly { value: string; label: string; description: string; group: ReportGroup; permission: Permission; retired?: true }[];
 
@@ -56,6 +58,8 @@ export const GENERATABLE_REPORT_TYPES: readonly ReportType[] = [
     'petty_cash',
     'statement_of_account',
     'budget_vs_actual',
+    'visitor_access_log',
+    'access_codes_expiring',
 ];
 
 /** True when `type` is a retired report: still listed for old rows, never run again (#1399). */

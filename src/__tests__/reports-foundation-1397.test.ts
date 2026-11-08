@@ -79,6 +79,9 @@ import ReportsPage from '@/app/(dashboard)/reports/page';
 const ALL = reportTypes.map((t) => t.value);
 // What the picker and the Reports page offer: everything except the retired reports (#1399).
 const RUNNABLE = reportTypes.filter((t) => !('retired' in t)).map((t) => t.value);
+// What a holder of the financial reports permission sees: the Security reports (#1405) need their own.
+const FINANCIAL = reportTypes.filter((t) => t.permission === PERMISSIONS.REPORTS_VIEW_FINANCIAL).map((t) => t.value);
+const FINANCIAL_RUNNABLE = reportTypes.filter((t) => t.permission === PERMISSIONS.REPORTS_VIEW_FINANCIAL && !('retired' in t)).map((t) => t.value);
 
 function request(reportType: string): ReportRequestFormData {
   return reportRequestSchema.parse({ reportType, periodPreset: 'this_month' }) as ReportRequestFormData;
@@ -118,18 +121,20 @@ describe('One report list for every schema (#1397)', () => {
 });
 
 describe('Report permissions (#1397)', () => {
-  it('every report names a real permission; all 9 use reports.view_financial today', () => {
+  it('every report names a real permission; only the Security group uses reports.view_security', () => {
     const known = Object.values(PERMISSIONS) as string[];
     for (const t of reportTypes) expect(known, t.value).toContain(t.permission);
-    expect(reportTypes.every((t) => t.permission === PERMISSIONS.REPORTS_VIEW_FINANCIAL)).toBe(true);
+    for (const t of reportTypes) {
+      expect(t.permission, t.value).toBe(t.group === 'Security' ? PERMISSIONS.REPORTS_VIEW_SECURITY : PERMISSIONS.REPORTS_VIEW_FINANCIAL);
+    }
   });
 
   it('REPORT_VIEW_PERMISSIONS is the distinct set', () => {
-    expect(REPORT_VIEW_PERMISSIONS).toEqual([PERMISSIONS.REPORTS_VIEW_FINANCIAL]);
+    expect(REPORT_VIEW_PERMISSIONS).toEqual([PERMISSIONS.REPORTS_VIEW_FINANCIAL, PERMISSIONS.REPORTS_VIEW_SECURITY]);
   });
 
   it('reportsForPermissions keeps only the reports whose permission is held', () => {
-    expect(reportsForPermissions([PERMISSIONS.REPORTS_VIEW_FINANCIAL])).toEqual(ALL);
+    expect(reportsForPermissions([PERMISSIONS.REPORTS_VIEW_FINANCIAL])).toEqual(FINANCIAL);
     expect(reportsForPermissions([PERMISSIONS.REPORTS_VIEW_OCCUPANCY])).toEqual([]);
     expect(reportsForPermissions([])).toEqual([]);
   });
@@ -193,7 +198,7 @@ describe('History, archive and schedule lists filter by permitted report types (
       const result = await load();
       expect(result.error).toBeNull();
       expect(calls.from).toEqual([table]);
-      expect(calls.in).toEqual([['report_type', ALL]]);
+      expect(calls.in).toEqual([['report_type', FINANCIAL]]);
     });
   }
 });
@@ -225,7 +230,7 @@ describe('Reports page guard (#1397)', () => {
   it('opens for a holder of a report permission and passes the reports they may run', async () => {
     held.perms = [PERMISSIONS.REPORTS_VIEW_FINANCIAL];
     const page = (await ReportsPage()) as { props: { children: { props: { allowedReportTypes: string[] } } } };
-    expect(page.props.children.props.allowedReportTypes).toEqual(RUNNABLE);
+    expect(page.props.children.props.allowedReportTypes).toEqual(FINANCIAL_RUNNABLE);
     expect(page.props.children.props.allowedReportTypes).not.toContain('debtors_report');
     expect(page.props.children.props.allowedReportTypes).not.toContain('invoice_aging');
   });
@@ -280,11 +285,12 @@ describe('Retired reports (#1399)', () => {
   it('stay valid values, so History and Archive still show and open old rows', () => {
     expect(REPORT_TYPE_VALUES).toContain('debtors_report');
     expect(REPORT_TYPE_VALUES).toContain('invoice_aging');
-    expect(reportsForPermissions([PERMISSIONS.REPORTS_VIEW_FINANCIAL])).toEqual(ALL);
+    expect(reportsForPermissions([PERMISSIONS.REPORTS_VIEW_FINANCIAL])).toEqual(FINANCIAL);
   });
 
   it('are not offered: runnableReportsForPermissions leaves them out', () => {
-    expect(runnableReportsForPermissions([PERMISSIONS.REPORTS_VIEW_FINANCIAL])).toEqual(RUNNABLE);
+    expect(runnableReportsForPermissions([PERMISSIONS.REPORTS_VIEW_FINANCIAL])).toEqual(FINANCIAL_RUNNABLE);
+    expect(runnableReportsForPermissions([PERMISSIONS.REPORTS_VIEW_FINANCIAL, PERMISSIONS.REPORTS_VIEW_SECURITY])).toEqual(RUNNABLE);
     expect(runnableReportsForPermissions([PERMISSIONS.REPORTS_VIEW_FINANCIAL])).toContain('debtors_aging');
     expect(runnableReportsForPermissions([])).toEqual([]);
   });
