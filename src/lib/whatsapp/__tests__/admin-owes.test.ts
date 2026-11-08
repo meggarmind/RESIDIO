@@ -13,6 +13,8 @@ import {
 import {
   OWES_PICK_MINUTES,
   composeAdminOwesAnswer,
+  monthsPaidBy,
+  pickHouseResidentName,
   type OwesCandidate,
   type OwesHouseData,
   type OwesRepository,
@@ -72,6 +74,8 @@ function owesRepo(overrides: Partial<OwesRepository> = {}): OwesRepository {
   return {
     searchHouseCodes: vi.fn().mockResolvedValue([]),
     searchResidents: vi.fn().mockResolvedValue([]),
+    searchAliases: vi.fn().mockResolvedValue([]),
+    loadHouseResidentNames: vi.fn().mockResolvedValue({}),
     loadHouse: vi.fn().mockImplementation(async (houseId: string) => house({ houseId })),
     saveChoices: vi.fn().mockResolvedValue(undefined),
     loadChoices: vi.fn().mockResolvedValue(null),
@@ -125,7 +129,7 @@ describe('Resident status (owes lookup)', () => {
 
     const text = reply.mock.calls[0][0] as string;
     expect(text.startsWith([
-      '*KOA-18A, Tolu Bello*: Owing ⛔',
+      '*KOA-18A* ⛔\nName: Tolu Bello\nStatus: Outstanding',
       'Outstanding of *₦45,000.00* for 3 months (Aug 2026 to Oct 2026).',
       'Last paid: ₦100,000.00 in Jun 2025.',
       'Credit: ₦2,500.00 (not for these bills)',
@@ -141,20 +145,127 @@ describe('Resident status (owes lookup)', () => {
     const owes = owesRepo({ searchResidents: vi.fn().mockResolvedValue([candidate('KOA-18A', 'Tolu Bello')]) });
     const reply = await send('tolu', adminRepo(), owes);
     expect(owes.searchResidents).toHaveBeenCalledWith(['tolu']);
-    expect(reply.mock.calls[0][0]).toContain('*KOA-18A, Tolu Bello*: Owing ⛔');
+    expect(reply.mock.calls[0][0]).toContain('*KOA-18A* ⛔\nName: Tolu Bello\nStatus: Outstanding');
   });
 
-  it('lists several name matches, numbered, and keeps the list for five minutes', async () => {
+  it('answers at once for one payer alias match (#1452)', async () => {
+    const owes = owesRepo({ searchAliases: vi.fn().mockResolvedValue([candidate('KOA-18A', 'Tolu Bello')]) });
+    const reply = await send('bello ent', adminRepo(), owes);
+    expect(owes.searchAliases).toHaveBeenCalledWith(['bello', 'ent']);
+    expect(reply.mock.calls[0][0]).toContain('*KOA-18A* ⛔\nName: Tolu Bello\nStatus: Outstanding');
+  });
+
+  it('merges an alias hit and a name hit for the same house into one line (#1452)', async () => {
+    const owes = owesRepo({
+      searchAliases: vi.fn().mockResolvedValue([candidate('KOA-18A', 'Tolu Bello')]),
+      searchResidents: vi.fn().mockResolvedValue([candidate('KOA-18A', 'Tolu Bello')]),
+    });
+    const reply = await send('tolu', adminRepo(), owes);
+    expect(owes.saveChoices).not.toHaveBeenCalled();
+    expect(reply.mock.calls[0][0]).toContain('*KOA-18A*');
+  });
+
+  it('lists alias hits with the code and the resident name (#1452)', async () => {
+    const owes = owesRepo({ searchAliases: vi.fn().mockResolvedValue([candidate('KOA-2', 'Ada Bello'), candidate('KOA-1', 'Ada Obi')]) });
+    const reply = await send('acme', adminRepo(), owes);
+    expect(reply.mock.calls[0][0]).toContain('1. KOA-1 (Ada Obi)');
+    expect(reply.mock.calls[0][0]).toContain('2. KOA-2 (Ada Bello)');
+  });
+
+  it('lists several name matches, numbered with the code and the name, and keeps the list for five minutes', async () => {
     const owes = owesRepo({ searchResidents: vi.fn().mockResolvedValue([candidate('KOA-1', 'Ada Obi'), candidate('KOA-2', 'Ada Bello')]) });
     const reply = await send('ada', adminRepo(), owes);
 
-    expect(reply.mock.calls[0][0]).toContain('1. Ada Obi, KOA-1');
-    expect(reply.mock.calls[0][0]).toContain('2. Ada Bello, KOA-2');
+    expect(reply.mock.calls[0][0]).toContain('1. KOA-1 (Ada Obi)');
+    expect(reply.mock.calls[0][0]).toContain('2. KOA-2 (Ada Bello)');
     expect(owes.logDisclosure).not.toHaveBeenCalled();
     const [requestId, choices, expiresAt] = (owes.saveChoices as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(requestId).toBe('request-1');
     expect(choices).toHaveLength(2);
     expect(expiresAt).toBe(new Date(NOW.getTime() + OWES_PICK_MINUTES * 60 * 1000).toISOString());
+  });
+
+  it('lists up to 20 code matches sorted by house code, each with its resident name or (no resident) (#1445)', async () => {
+    const codes = ['GLB-20F-9', 'GLB-20BQ-2', ...Array.from({ length: 8 }, (_, i) => `GLB-20F-${i + 1}`)];
+    const names: Record<string, string> = Object.fromEntries(codes.filter((c) => c !== 'GLB-20F-6').map((c) => [`id-${c}`, `Name ${c}`]));
+    const owes = owesRepo({
+      searchHouseCodes: vi.fn().mockResolvedValue(codes.map((c) => candidate(c))),
+      loadHouseResidentNames: vi.fn().mockResolvedValue(names),
+    });
+    const reply = await send('GLB-20', adminRepo(), owes);
+    const lines = (reply.mock.calls[0][0] as string).split('\n');
+    expect(lines[0]).toBe('10 matches for "GLB-20". Reply with the number within 5 minutes, for example 1:');
+    expect(lines.slice(1)).toEqual([
+      '1. GLB-20BQ-2 (Name GLB-20BQ-2)',
+      '2. GLB-20F-1 (Name GLB-20F-1)',
+      '3. GLB-20F-2 (Name GLB-20F-2)',
+      '4. GLB-20F-3 (Name GLB-20F-3)',
+      '5. GLB-20F-4 (Name GLB-20F-4)',
+      '6. GLB-20F-5 (Name GLB-20F-5)',
+      '7. GLB-20F-6 (no resident)',
+      '8. GLB-20F-7 (Name GLB-20F-7)',
+      '9. GLB-20F-8 (Name GLB-20F-8)',
+      '10. GLB-20F-9 (Name GLB-20F-9)',
+    ]);
+    // The names come from one read for the listed houses, and the saved list keeps the sorted order.
+    expect(owes.loadHouseResidentNames).toHaveBeenCalledTimes(1);
+    expect((owes.loadHouseResidentNames as ReturnType<typeof vi.fn>).mock.calls[0][0]).toEqual(expect.arrayContaining(codes.map((c) => `id-${c}`)));
+    expect((owes.loadHouseResidentNames as ReturnType<typeof vi.fn>).mock.calls[0][0]).toHaveLength(10);
+    const saved = (owes.saveChoices as ReturnType<typeof vi.fn>).mock.calls[0][1] as OwesCandidate[];
+    expect(saved.map((c) => c.code)[0]).toBe('GLB-20BQ-2');
+    expect(saved[6].name).toBeNull();
+  });
+
+  it('sorts house codes by number, so GLB-10 follows GLB-9 (#1445)', async () => {
+    const owes = owesRepo({ searchHouseCodes: vi.fn().mockResolvedValue([candidate('GLB-2'), candidate('GLB-10'), candidate('GLB-9')]) });
+    const reply = await send('GLB', adminRepo(), owes);
+    const lines = (reply.mock.calls[0][0] as string).split('\n').slice(1);
+    expect(lines).toEqual(['1. GLB-2 (no resident)', '2. GLB-9 (no resident)', '3. GLB-10 (no resident)']);
+  });
+
+  it('saves the names with the choices, so a later number picks the right house (#1445)', async () => {
+    const owes = owesRepo({
+      searchHouseCodes: vi.fn().mockResolvedValue([candidate('GLB-9'), candidate('GLB-2')]),
+      loadHouseResidentNames: vi.fn().mockResolvedValue({ 'id-GLB-2': 'Ohioma', 'id-GLB-9': 'Wicken' }),
+    });
+    await send('GLB', adminRepo(), owes);
+    const saved = (owes.saveChoices as ReturnType<typeof vi.fn>).mock.calls[0][1] as OwesCandidate[];
+    expect(saved.map((c) => [c.houseId, c.name])).toEqual([['id-GLB-2', 'Ohioma'], ['id-GLB-9', 'Wicken']]);
+    const pick = owesRepo({ loadChoices: vi.fn().mockResolvedValue({ choices: saved, expiresAt: new Date(NOW.getTime() + 1000).toISOString() }) });
+    await send('2', adminRepo(), pick);
+    expect(pick.loadHouse).toHaveBeenCalledWith('id-GLB-9');
+  });
+
+  it('lists exactly 20 matches', async () => {
+    const owes = owesRepo({ searchHouseCodes: vi.fn().mockResolvedValue(Array.from({ length: 20 }, (_, i) => candidate(`KOA-${i + 1}`))) });
+    const reply = await send('KOA', adminRepo(), owes);
+    expect(reply.mock.calls[0][0]).toMatch(/^20 matches for "KOA"/);
+    expect(owes.saveChoices).toHaveBeenCalled();
+  });
+
+  it('asks to narrow when more than 20 match', async () => {
+    const many = Array.from({ length: 21 }, (_, i) => candidate(`KOA-${i + 1}`));
+    const owes = owesRepo({ searchHouseCodes: vi.fn().mockResolvedValue(many) });
+    const reply = await send('KOA', adminRepo(), owes);
+    expect(reply.mock.calls[0][0]).toBe('More than 20 matches for "KOA". Send a longer name or the house code.');
+    expect(owes.saveChoices).not.toHaveBeenCalled();
+    expect(owes.loadHouseResidentNames).not.toHaveBeenCalled();
+  });
+
+  it('picks a house by a two-digit number from the list (#1445)', async () => {
+    const choices = Array.from({ length: 12 }, (_, i) => candidate(`KOA-${i + 1}`));
+    const expiresAt = new Date(NOW.getTime() + 1000).toISOString();
+    const owes = owesRepo({ loadChoices: vi.fn().mockResolvedValue({ choices, expiresAt }) });
+    await send('12', adminRepo(), owes);
+    expect(owes.loadHouse).toHaveBeenCalledWith('id-KOA-12');
+    expect(owes.searchHouseCodes).not.toHaveBeenCalled();
+  });
+
+  it('treats 21 as a search, not a pick', async () => {
+    const owes = owesRepo();
+    await send('21', adminRepo(), owes);
+    expect(owes.loadChoices).not.toHaveBeenCalled();
+    expect(owes.searchHouseCodes).toHaveBeenCalledWith('21');
   });
 
   it('audits the query and the houses listed', async () => {
@@ -171,21 +282,13 @@ describe('Resident status (owes lookup)', () => {
     );
   });
 
-  it('asks to narrow when more than five match', async () => {
-    const many = ['A', 'B', 'C', 'D', 'E', 'F'].map((code) => candidate(`KOA-${code}`, `Ada ${code}`));
-    const owes = owesRepo({ searchResidents: vi.fn().mockResolvedValue(many) });
-    const reply = await send('ada', adminRepo(), owes);
-    expect(reply.mock.calls[0][0]).toMatch(/More than 5 matches/);
-    expect(owes.saveChoices).not.toHaveBeenCalled();
-  });
-
   it('answers the house picked from a live list and drops the list', async () => {
     const expiresAt = new Date(NOW.getTime() + 1000).toISOString();
     const owes = owesRepo({ loadChoices: vi.fn().mockResolvedValue({ choices: [candidate('KOA-1', 'Ada Obi'), candidate('KOA-2', 'Ada Bello')], expiresAt }) });
     const reply = await send('2', adminRepo(), owes);
     expect(owes.loadHouse).toHaveBeenCalledWith('id-KOA-2');
     expect(owes.clearChoices).toHaveBeenCalledWith('binding-1');
-    expect(reply.mock.calls[0][0]).toContain('*KOA-18A, Tolu Bello*: Owing ⛔');
+    expect(reply.mock.calls[0][0]).toContain('*KOA-18A* ⛔\nName: Tolu Bello\nStatus: Outstanding');
   });
 
   it('refuses a pick when the list has expired', async () => {
@@ -228,7 +331,9 @@ describe('Resident status (owes lookup)', () => {
     const owes = owesRepo({ searchHouseCodes: vi.fn().mockResolvedValue([candidate('KOA-18A')]) });
     const repo = adminRepo();
     const reply = await send('KOA-18A', repo, owes);
-    expect(reply.mock.calls[0][0]).toMatch(/Send another house code or name, or reply 0 for Admin tools\.$/);
+    expect(reply).toHaveBeenCalledTimes(2);
+    expect(reply.mock.calls[0][0]).not.toContain('reply 0 for Admin tools');
+    expect(reply.mock.calls[1][0]).toBe('Send another house code or name, or reply 0 for Admin tools.');
     expect(repo.createRequest).toHaveBeenCalledWith(expect.objectContaining({ action: 'owes:choose', status: 'pending' }));
   });
 
@@ -249,23 +354,61 @@ describe('Resident status (owes lookup)', () => {
   });
 });
 
+describe('pickHouseResidentName', () => {
+  it('prefers the tenant, then the resident landlord, then the non-resident landlord', () => {
+    expect(pickHouseResidentName([{ role: 'non_resident_landlord', name: 'C' }, { role: 'resident_landlord', name: 'B' }, { role: 'tenant', name: 'A' }])).toBe('A');
+    expect(pickHouseResidentName([{ role: 'non_resident_landlord', name: 'C' }, { role: 'resident_landlord', name: 'B' }])).toBe('B');
+    expect(pickHouseResidentName([{ role: 'non_resident_landlord', name: 'C' }])).toBe('C');
+  });
+
+  it('is null when no tenant or landlord has a name', () => {
+    expect(pickHouseResidentName([])).toBeNull();
+    expect(pickHouseResidentName([{ role: 'co_resident', name: 'D' }, { role: 'tenant', name: '' }])).toBeNull();
+  });
+});
+
 describe('composeAdminOwesAnswer', () => {
   it('shows the signed roll-forward figure and the wallet credit', () => {
-    const text = composeAdminOwesAnswer(house({ owed: { invoiceCount: 1, outstanding: -1000, rollForward: true, overdue: null, next: null, awaitingVerification: 0 }, unpaidMonths: null }));
+    const text = composeAdminOwesAnswer(house({ owed: { invoiceCount: 1, outstanding: -1000, rollForward: true, overdue: null, next: null, nextPaymentDue: '2026-11-01', awaitingVerification: 0 }, unpaidMonths: null }));
+    expect(text).not.toContain('Next Payment Due');
     expect(text).toContain('Outstanding: nothing, ₦1,000.00 in credit.\nLast paid: ₦100,000.00 in Jun 2025.');
     expect(text).not.toContain('not for these bills');
     expect(text).not.toContain('netted');
   });
 
-  it('says which months the credit pays when nothing is owed (owner decision 29 Oct 2026)', () => {
+  it('renders the approved sample for a paid-up house with credit: next payment due, no credit line (owner, 1 Nov 2026)', () => {
     const owed = { invoiceCount: 4, outstanding: 0, overdue: null, next: null, nextPaymentDue: '2027-01-01', awaitingVerification: 0, credit: { amount: 20000, months: ['2026-11-01', '2026-12-01'] } };
-    const text = composeAdminOwesAnswer(house({ owed, unpaidMonths: null, walletBalance: 20000, status: { key: 'credit', label: 'Credit' } }));
+    const text = composeAdminOwesAnswer(house({
+      houseLabel: 'OJO.K-2',
+      billedTo: { residentId: 'r', name: 'EMEKA ABARA (PASTOR)' },
+      owed,
+      unpaidMonths: null,
+      walletBalance: 20000,
+      status: { key: 'credit', label: 'Credit' },
+      lastPayment: { month: '2026-05', payments: [{ amount: 100000, date: '2026-05-04' }] },
+    }));
     expect(text).toBe([
-      '*KOA-18A, Tolu Bello*: Cleared 🟢',
-      'Outstanding: nothing.',
-      'Last paid: ₦100,000.00 in Jun 2025.',
-      'Credit: ₦20,000.00. This pays Nov and Dec 2026.',
+      '*OJO.K-2* ✅',
+      'Name: EMEKA ABARA (PASTOR)',
+      'Status: Paid up',
+      'Last paid: ₦100,000.00 in May 2026.',
+      'Next Payment Due January 2027.',
     ].join('\n'));
+  });
+
+  it('always names the year of the next payment due, and keeps the credit line when no due month is known', () => {
+    const owed = { invoiceCount: 4, outstanding: 0, overdue: null, next: null, nextPaymentDue: '2026-11-01', awaitingVerification: 0 };
+    const text = composeAdminOwesAnswer(house({ owed, unpaidMonths: null, walletBalance: 0, status: { key: 'paid_in_full', label: 'Paid in Full' } }));
+    expect(text).toContain('Next Payment Due November 2026.');
+    expect(text).not.toContain('Credit');
+    const unknown = composeAdminOwesAnswer(house({ owed: { ...owed, nextPaymentDue: null }, unpaidMonths: null, walletBalance: 5000, status: { key: 'credit', label: 'Credit' } }));
+    expect(unknown).toContain('Credit: ₦5,000.00');
+    expect(unknown).not.toContain('Next Payment Due');
+  });
+
+  it('does not show a next payment due while the house owes', () => {
+    const owed = { invoiceCount: 3, outstanding: 45000, overdue: null, next: null, nextPaymentDue: '2026-11-01', awaitingVerification: 0 };
+    expect(composeAdminOwesAnswer(house({ owed }))).not.toContain('Next Payment Due');
   });
 
   it('names one month alone, and says so when there is no payment or bill', () => {
@@ -288,7 +431,9 @@ describe('composeAdminOwesAnswer', () => {
       unpaidMonths: { from: '2025-10-01', to: '2026-10-01', count: 13 },
       lastPayment: { month: '2025-09', payments: [{ amount: 15000, date: '2025-09-24' }, { amount: 25000, date: '2025-09-19' }] },
     })).toBe([
-      '*KOA-10F-4, MRS BANKE BAYO OJO*: Owing ⛔',
+      '*KOA-10F-4* ⛔',
+      'Name: MRS BANKE BAYO OJO',
+      'Status: Outstanding',
       'Outstanding of *₦65,000.00* for 13 months (Oct 2025 to Oct 2026).',
       'Last paid: ₦40,000.00 in Sep 2025, in 2 payments (₦25k on 19 Sep, ₦15k on 24 Sep)',
     ].join('\n'));
@@ -302,26 +447,75 @@ describe('composeAdminOwesAnswer', () => {
       owed: owedOf(10000),
       unpaidMonths: { from: '2026-09-01', to: '2026-10-01', count: 2 },
     })).toBe([
-      '*OJO.K-4, CONSTANCE OKA*: Owing ⚠️',
+      '*OJO.K-4* ⚠️',
+      'Name: CONSTANCE OKA',
+      'Status: Outstanding',
       'Outstanding of *₦10,000.00* for 2 months (Sep 2026 to Oct 2026).',
       'Last paid: ₦100,000.00 in Jun 2025.',
     ].join('\n'));
   });
 
-  it('renders the approved sample for a cleared house', () => {
+  it('renders the approved sample for a paid-up house', () => {
     expect(sample({
       houseLabel: 'IBB-5',
       billedTo: { residentId: 'r', name: 'CHIKE' },
       status: { key: 'paid_in_full', label: 'Paid in Full' },
-      owed: owedOf(0),
+      owed: { ...owedOf(0), nextPaymentDue: '2026-11-01' },
       unpaidMonths: null,
       lastPayment: { month: '2026-10', payments: [{ amount: 60000, date: '2026-10-05' }] },
-    })).toBe(['*IBB-5, CHIKE*: Cleared 🟢', 'Outstanding: nothing.', 'Last paid: ₦60,000.00 in Oct 2026.'].join('\n'));
+    })).toBe([
+      '*IBB-5* 🟢',
+      'Name: CHIKE',
+      'Status: Paid up',
+      'Last paid: ₦60,000.00 in Oct 2026.',
+      'Next Payment Due November 2026.',
+    ].join('\n'));
   });
 
   it('shows amounts that are not whole thousands in full naira', () => {
     const text = sample({ lastPayment: { month: '2026-03', payments: [{ amount: 12500, date: '2026-03-02' }, { amount: 7500.5, date: '2026-03-09' }] } });
     expect(text).toContain('in 2 payments (₦12,500 on 2 Mar, ₦7,500.5 on 9 Mar)');
+  });
+
+  it('shows no icon and the stored label when the house has no status row', () => {
+    expect(sample({ status: { key: null, label: 'Unknown' } }).split('\n').slice(0, 3)).toEqual(['*KOA-18A*', 'Name: Tolu Bello', 'Status: Unknown']);
+  });
+
+  it('renders the owner sample with the months the last payment paid (1 Nov 2026)', () => {
+    expect(sample({
+      houseLabel: 'GLB-5B',
+      billedTo: { residentId: 'r', name: 'CHARLES YEMI FARIMOYO' },
+      status: { key: 'paid_in_full', label: 'Paid in Full' },
+      owed: { ...owedOf(0), nextPaymentDue: '2026-11-01' },
+      unpaidMonths: null,
+      lastPayment: { month: '2026-03', payments: [{ amount: 120000, date: '2026-03-20' }] },
+      paidMonths: { from: '2025-11-01', to: '2026-10-01' },
+    })).toBe([
+      '*GLB-5B* 🟢',
+      'Name: CHARLES YEMI FARIMOYO',
+      'Status: Paid up',
+      'Last paid: ₦120,000.00 in Mar 2026 (Nov 2025 - Oct 2026)',
+      'Next Payment Due November 2026.',
+    ].join('\n'));
+    const one = sample({ lastPayment: { month: '2026-10', payments: [{ amount: 10000, date: '2026-10-02' }] }, paidMonths: { from: '2026-10-01', to: '2026-10-01' } });
+    expect(one).toContain('Last paid: ₦10,000.00 in Oct 2026 (Oct 2026)');
+  });
+
+  it('works out the months a payment paid, oldest bill first', () => {
+    const months = ['2025-09-01', '2025-10-01', '2025-11-01', '2025-12-01', '2026-01-01'];
+    const bills = months.map((periodStart) => ({ periodStart, amount: 10000 }));
+    expect(monthsPaidBy(bills, 20000, 30000)).toEqual({ from: '2025-11-01', to: '2026-01-01' });
+    expect(monthsPaidBy([...bills].reverse(), 0, 15000)).toEqual({ from: '2025-09-01', to: '2025-10-01' });
+    expect(monthsPaidBy(bills, 40000, 30000, ['2026-02-01', '2026-03-01'])).toEqual({ from: '2026-01-01', to: '2026-03-01' });
+    expect(monthsPaidBy(bills, 50000, 20000, ['2026-02-01', '2026-03-01'])).toEqual({ from: '2026-02-01', to: '2026-03-01' });
+    expect(monthsPaidBy(bills, 50000, 5000)).toBeNull();
+    // A payment that ends exactly on a bill boundary stops there.
+    expect(monthsPaidBy(bills, 0, 20000)).toEqual({ from: '2025-09-01', to: '2025-10-01' });
+    // Payments equal to the bills leave no credit, so credit months are not added.
+    expect(monthsPaidBy(bills, 20000, 30000, ['2026-02-01'])).toEqual({ from: '2025-11-01', to: '2026-01-01' });
+    // A zero bill is never counted as paid.
+    const withZero = [{ periodStart: '2025-09-01', amount: 10000 }, { periodStart: '2025-10-01', amount: 0 }, { periodStart: '2025-11-01', amount: 10000 }];
+    expect(monthsPaidBy(withZero, 10000, 10000)).toEqual({ from: '2025-11-01', to: '2025-11-01' });
   });
 
   it('says so when no resident is billed', () => {

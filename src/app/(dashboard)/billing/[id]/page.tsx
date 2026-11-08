@@ -4,7 +4,12 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { getInvoiceById } from '@/actions/billing/get-invoices';
 import { getParentInvoice } from '@/actions/billing/get-invoice-corrections';
-import type { InvoiceWithDetails } from '@/types/database';
+import { WRITE_OFF_REASON_LABELS, WRITTEN_OFF_BADGE_CLASS, invoiceWriteOff, type InvoiceWithDetails } from '@/types/database';
+import { undoWriteOff } from '@/actions/billing/write-off-invoices';
+import { ConfirmAction } from '@/components/ui/confirm-action';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { formatCalendarDate } from '@/lib/utils/calendar-date';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { EnhancedPageHeader } from '@/components/dashboard/page-header';
@@ -14,7 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { InvoiceCorrectionDialog } from '@/components/billing/invoice-correction-dialog';
 import { InvoiceCorrectionTimeline } from '@/components/billing/invoice-correction-timeline';
 import { formatCurrency } from '@/lib/utils';
-import { Printer, Loader2, FileEdit, AlertCircle, ScrollText } from 'lucide-react';
+import { Printer, Loader2, FileEdit, AlertCircle, ScrollText, Eraser, Undo2 } from 'lucide-react';
 import { StatementGeneratorDialog } from '@/components/billing/statement-generator-dialog';
 import { useAuth } from '@/lib/auth/auth-provider';
 import Link from 'next/link';
@@ -37,6 +42,7 @@ export default function InvoiceDetailPage() {
     const [correctionDialogOpen, setCorrectionDialogOpen] = useState(false);
 
     const canCreateCorrections = hasPermission('billing.create_invoice');
+    const canWriteOff = hasPermission(PERMISSIONS.BILLING_WRITE_OFF_INVOICES);
 
     useEffect(() => {
         async function fetchInvoice() {
@@ -95,6 +101,19 @@ export default function InvoiceDetailPage() {
     }
 
     const totalItems = invoice.invoice_items?.reduce((sum, item) => sum + item.amount, 0) || 0;
+    const writeOff = invoiceWriteOff(invoice);
+    const writeOffBy = writeOff ? (Array.isArray(writeOff.written_off_by_profile) ? writeOff.written_off_by_profile[0] : writeOff.written_off_by_profile)?.full_name : null;
+
+    const handleUndoWriteOff = async () => {
+        if (!writeOff?.batch_id) return;
+        const result = await undoWriteOff(writeOff.batch_id);
+        if (!result.success) {
+            toast.error(result.error || 'Undo failed');
+            throw new Error(result.error || 'Undo failed');
+        }
+        toast.success(`Write-off undone for ${result.count} bills (${formatCurrency(result.total ?? 0)})`);
+        await refetchInvoice();
+    };
 
     return (
         <div className="p-6 max-w-6xl mx-auto space-y-6">
@@ -166,6 +185,43 @@ export default function InvoiceDetailPage() {
                 </div>
             )}
 
+            {/* Write-off (#1460): why, who and when, and the undo for the whole write-off. */}
+            {writeOff && (
+                <div className="border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-900/20">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="flex items-start">
+                            <Eraser className="mr-2 mt-0.5 h-5 w-5 text-amber-600 dark:text-amber-400" />
+                            <div className="space-y-1 text-sm">
+                                <h4 className="font-semibold text-amber-900 dark:text-amber-200">
+                                    Written off: {formatCurrency(Number(writeOff.amount_written_off) || 0)}
+                                    {writeOff.reason && ` (${WRITE_OFF_REASON_LABELS[writeOff.reason] ?? writeOff.reason})`}
+                                </h4>
+                                {writeOff.note && <p className="text-amber-900 dark:text-amber-200">{writeOff.note}</p>}
+                                <p className="text-amber-800/80 dark:text-amber-300/80">
+                                    By {writeOffBy || 'an admin'}
+                                    {writeOff.written_off_at && ` on ${formatCalendarDate(writeOff.written_off_at.slice(0, 10), 'en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`}
+                                    {writeOff.original_amount_due !== undefined && `. The bill was ${formatCurrency(Number(writeOff.original_amount_due) || 0)}.`}
+                                </p>
+                            </div>
+                        </div>
+                        {canWriteOff && writeOff.batch_id && (
+                            <ConfirmAction
+                                trigger={
+                                    <Button variant="outline" size="sm" className="min-h-11 shrink-0 md:min-h-0">
+                                        <Undo2 className="mr-2 h-4 w-4" />
+                                        Undo write-off
+                                    </Button>
+                                }
+                                title="Undo write-off"
+                                description="Every bill written off with this one goes back to how it was before, and the resident owes it again. The undo is refused if a bill has changed since."
+                                confirmLabel="Undo write-off"
+                                onConfirm={handleUndoWriteOff}
+                            />
+                        )}
+                    </div>
+                </div>
+            )}
+
             <Tabs defaultValue="details" className="w-full">
                 <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="details">Invoice Details</TabsTrigger>
@@ -181,9 +237,13 @@ export default function InvoiceDetailPage() {
                                     {invoice.invoice_number}
                                 </CardDescription>
                             </div>
-                            <Badge className={statusColors[invoice.status] || ''} variant="outline">
-                                {invoice.status.toUpperCase()}
-                            </Badge>
+                            {writeOff ? (
+                                <Badge className={WRITTEN_OFF_BADGE_CLASS} variant="outline">WRITTEN OFF</Badge>
+                            ) : (
+                                <Badge className={statusColors[invoice.status] || ''} variant="outline">
+                                    {invoice.status.toUpperCase()}
+                                </Badge>
+                            )}
                         </CardHeader>
 
                 <CardContent className="space-y-6">

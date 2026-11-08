@@ -8,8 +8,8 @@ residio_sources:
   - src/actions/finance/**
   - src/actions/billing/wallet.ts
   - src/actions/billing/wallet-transfers.ts
-residio_verified_commit: de3a81fc
-residio_verified_at: '2026-10-26'
+residio_verified_commit: ec5c1454
+residio_verified_at: '2026-11-06'
 residio_app_version: '0.4.0'
 ---
 
@@ -21,7 +21,17 @@ Use **Expenditure** to record and review estate costs. Include a clear descripti
 
 The page opens with the petty cash float, this month's spend, and **Pending approval**: how many expenses are still pending and their total. Select that card to list only pending expenses. The ledger filters by status (All, Pending, Paid), category, and a search across description, payee, and category; the filters are kept in the page address, so a filtered view can be bookmarked or shared. The ledger footer shows the total of every expense matching the filters, not just the visible page.
 
-Logging an expense, the **Petty cash** menu (top up, manage accounts), and the row actions on a pending expense need the manage expenditure permission; users who can only view expenditure do not see them. To prefill a new expense from a receipt, choose **Scan a receipt** inside **Log Expense**. **Cancel Expense** asks for confirmation before the expense is marked cancelled. If an expense cannot be saved, for example because it duplicates an existing expense or its amount or date is invalid, **Log Expense** shows the reason and keeps the form open.
+Logging an expense, the **Petty cash** menu (top up, manage accounts), and the row actions on a pending expense need the manage expenditure permission; users who can only view expenditure do not see them. **Cancel Expense** asks for confirmation before the expense is marked cancelled. If an expense cannot be saved, for example because it duplicates an existing expense or its amount or date is invalid, **Log Expense** shows the reason and keeps the form open.
+
+## Budgets
+
+**Expenditure → Budgets** sets a budget for each expense category, for one year. Choose the year at the top. Each category shows its **Yearly amount**, a bar with the percent of the budget used so far (expenses marked paid in that year), and the amount paid.
+
+The months start as an even split of the yearly amount: 11 equal months, and December takes the remainder, so the months always add up to the year. To give a category different months (for example, more electricity in the dry season), select **Adjust months** and change the months. A badge on each category shows **Even split**, **Custom months** or **Months do not add up**. When the months do not add up, a message gives the months total and the yearly amount, and the amount to add or remove. **Reset to even split** puts the months back to the even split. If you change the yearly amount while the months are an even split, the months follow it; custom months stay as they are.
+
+**Save budgets** saves all the changed categories together, or none of them. It stays off while any category has months that do not add up. While you have unsaved changes, the year cannot be changed; save, or select **Discard changes**. Editing needs the manage expenditure permission. Users who can only view expenditure see the amounts and can open **Show months**, but they cannot change them.
+
+The **Budget against actual** report compares these budgets with what was paid (see **Reports and analytics**).
 
 ## Wallets
 

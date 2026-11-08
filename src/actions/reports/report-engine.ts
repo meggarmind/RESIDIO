@@ -2,8 +2,7 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
-import { PERMISSIONS } from '@/lib/auth/action-roles';
-import type { ReportRequestFormData } from '@/lib/validators/reports';
+import { getReportPermission, type ReportRequestFormData } from '@/lib/validators/reports';
 import { generateReportWithClient } from '@/lib/reports/report-generator';
 import type { GenerateReportResult } from '@/lib/reports/report-generator';
 
@@ -26,30 +25,20 @@ export type {
   GenerateReportResult,
 } from '@/lib/reports/report-generator';
 
-// ============================================================
-// Authorization Check
-// ============================================================
-
-async function checkReportAccess() {
-  // Permission check (migrated off the legacy role-list check)
-  const auth = await authorizePermission(PERMISSIONS.REPORTS_VIEW_FINANCIAL);
-  if (!auth.authorized) {
-    return { authorized: false as const, error: auth.error || 'Forbidden' };
-  }
-
-  return { authorized: true as const };
-}
-
 export async function generateReport(
   params: ReportRequestFormData
 ): Promise<GenerateReportResult> {
-  const supabase = await createServerSupabaseClient();
-
-  // Check authorization
-  const authCheck = await checkReportAccess();
-  if (!authCheck.authorized) {
-    return { success: false, error: authCheck.error };
+  // Each report carries its own view permission (#1397); an unlisted type is refused.
+  const permission = getReportPermission(params.reportType);
+  if (!permission) {
+    return { success: false, error: 'Unknown report type' };
   }
 
+  const auth = await authorizePermission(permission);
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || 'Forbidden' };
+  }
+
+  const supabase = await createServerSupabaseClient();
   return generateReportWithClient(supabase, params);
 }

@@ -92,6 +92,203 @@ export const reportTypePreviews: Record<ReportType, PreviewDefinition> = {
             ['3', '09 Oct 2026', 'Security contract', 'Security', '-₦210,000.00'],
         ],
     },
+    debtors_aging: {
+        stats: [
+            { label: 'Total owed', value: '1,260,000.00' },
+            { label: 'Debtors', value: '14' },
+            { label: 'Owed over 90 days', value: '340,000.00' },
+            { label: 'Oldest debt', value: '212 days' },
+        ],
+        tableTitle: 'Debtors by age of debt',
+        columns: [
+            { label: 'Debtor' },
+            { label: 'House' },
+            { label: 'Contact' },
+            { label: 'Current', align: 'right' },
+            { label: '1-30 days', align: 'right' },
+            { label: '31-60 days', align: 'right' },
+            { label: '61-90 days', align: 'right' },
+            { label: 'Over 90 days', align: 'right' },
+            { label: 'Total', align: 'right' },
+        ],
+        rows: [
+            ['M. Yusuf', 'Block 7, House 9', '0803 000 0000', '0.00', '0.00', '0.00', '0.00', '360,000.00', '360,000.00'],
+            ['C. Okafor', 'Block 2, House 3', '0805 000 0000', '0.00', '60,000.00', '0.00', '0.00', '0.00', '60,000.00'],
+        ],
+    },
+    dues_collection_status: {
+        stats: [
+            { label: 'Houses fully paid', value: '71' },
+            { label: 'Houses part paid', value: '11' },
+            { label: 'Houses not paid', value: '14' },
+            { label: 'Total owed', value: '1,260,000.00' },
+        ],
+        tableTitle: 'One sheet per house, with a grid of months',
+        columns: [
+            { label: 'House' },
+            { label: 'Street' },
+            { label: 'Primary Resident' },
+            { label: 'Months paid', align: 'right' },
+            { label: 'Months owed', align: 'right' },
+            { label: 'Levy' },
+            { label: 'Owed', align: 'right' },
+            { label: 'Status' },
+        ],
+        rows: [
+            ['12', 'Palm Close', 'A. Bello', '10 of 10', '0', 'Paid', '0.00', 'Paid in full'],
+            ['14', 'Palm Close', 'M. Yusuf', '6 of 10', '4', 'Not paid', '360,000.00', 'Arrears'],
+            ['3', 'Cedar Way', 'C. Okafor', '9 of 10', '1', 'Part paid', '60,000.00', 'Outstanding'],
+        ],
+    },
+    project_spend: {
+        stats: [
+            { label: 'Projects', value: '3' },
+            { label: 'Spend in period', value: '1,450,000.00' },
+            { label: 'Spend to date', value: '6,200,000.00' },
+            { label: 'Budget left', value: '3,800,000.00' },
+        ],
+        tableTitle: 'Spend on each project, against its budget and milestones',
+        columns: [
+            { label: 'Project' },
+            { label: 'Budget', align: 'right' },
+            { label: 'Spend in period', align: 'right' },
+            { label: 'Spend to date', align: 'right' },
+            { label: 'Budget left', align: 'right' },
+            { label: 'Milestones' },
+        ],
+        rows: [
+            ['Perimeter fence', '8,000,000.00', '1,200,000.00', '5,000,000.00', '3,000,000.00', '3 of 5 done'],
+            ['Gate house repairs', '2,000,000.00', '250,000.00', '1,200,000.00', '800,000.00', '1 of 2 done'],
+        ],
+    },
+    petty_cash: {
+        stats: [
+            { label: 'Accounts', value: '2' },
+            { label: 'Top-ups', value: '300,000.00' },
+            { label: 'Spend', value: '215,000.00' },
+            { label: 'Closing balance', value: '135,000.00' },
+        ],
+        tableTitle: 'Each petty cash account, opening to closing',
+        columns: [
+            { label: 'Account' },
+            { label: 'Opening balance', align: 'right' },
+            { label: 'Top-ups', align: 'right' },
+            { label: 'Spend', align: 'right' },
+            { label: 'Closing balance', align: 'right' },
+        ],
+        rows: [
+            ['Estate office', '50,000.00', '200,000.00', '165,000.00', '85,000.00'],
+            ['Security post', '0.00', '100,000.00', '50,000.00', '50,000.00'],
+        ],
+    },
+    statement_of_account: {
+        stats: [
+            { label: 'Opening balance', value: '20,000.00' },
+            { label: 'Charged', value: '30,000.00' },
+            { label: 'Paid', value: '40,000.00' },
+            { label: 'Owed now', value: '10,000.00' },
+        ],
+        tableTitle: 'Every charge and payment, with a running balance',
+        columns: [
+            { label: 'Date' },
+            { label: 'Item' },
+            { label: 'Charge type' },
+            { label: 'Charge', align: 'right' },
+            { label: 'Payment', align: 'right' },
+            { label: 'Balance', align: 'right' },
+        ],
+        rows: [
+            ['01 August 2026', 'Opening balance', '', '', '', '20,000.00'],
+            ['01 August 2026', 'INV-0412: Security Dues', 'Security Dues', '10,000.00', '', '30,000.00'],
+            ['14 August 2026', 'Payment (bank_transfer), ref FBN-2231', 'Security Dues', '', '40,000.00', '-10,000.00'],
+            ['01 September 2026', 'INV-0498: Security Dues', 'Security Dues', '10,000.00', '', '0.00'],
+            ['01 October 2026', 'INV-0571: Security Dues', 'Security Dues', '10,000.00', '', '10,000.00'],
+        ],
+    },
+    collection_rate_by_street: {
+        stats: [
+            { label: 'Billed', value: '9,600,000.00' },
+            { label: 'Collected', value: '8,340,000.00' },
+            { label: 'Owed', value: '1,260,000.00' },
+            { label: 'Collection rate', value: '86.9%' },
+        ],
+        tableTitle: 'Billed, collected and owed for each street',
+        columns: [
+            { label: 'Street' },
+            { label: 'Houses', align: 'right' },
+            { label: 'Billed', align: 'right' },
+            { label: 'Collected', align: 'right' },
+            { label: 'Owed', align: 'right' },
+            { label: 'Collection rate', align: 'right' },
+        ],
+        rows: [
+            ['Palm Close', '40', '4,800,000.00', '4,500,000.00', '300,000.00', '93.8%'],
+            ['Cedar Way', '56', '4,800,000.00', '3,840,000.00', '960,000.00', '80.0%'],
+        ],
+    },
+    expenses_by_category: {
+        stats: [
+            { label: 'Total spent', value: '3,150,000.00' },
+            { label: 'Expenses', value: '42' },
+            { label: 'Categories used', value: '6' },
+            { label: 'Largest category', value: 'Security' },
+        ],
+        tableTitle: 'Spending by category and by vendor',
+        columns: [
+            { label: 'Group' },
+            { label: 'Category or vendor' },
+            { label: 'Expenses', align: 'right' },
+            { label: 'Total', align: 'right' },
+            { label: 'Share', align: 'right' },
+        ],
+        rows: [
+            ['Category', 'Security', '3', '1,260,000.00', '40.0%'],
+            ['Category', 'Utilities', '12', '945,000.00', '30.0%'],
+            ['Vendor', 'Bright Power Ltd', '12', '945,000.00', '30.0%'],
+        ],
+    },
+    wallet_balances: {
+        stats: [
+            { label: 'Resident credit held', value: '2,450,000.00' },
+            { label: 'Credits in period', value: '1,800,000.00' },
+            { label: 'Debits in period', value: '1,350,000.00' },
+            { label: 'Residents with credit', value: '31' },
+        ],
+        tableTitle: 'Each resident wallet, opening to closing',
+        columns: [
+            { label: 'Resident' },
+            { label: 'Opening balance', align: 'right' },
+            { label: 'Credits', align: 'right' },
+            { label: 'Debits', align: 'right' },
+            { label: 'Closing balance', align: 'right' },
+        ],
+        rows: [
+            ['A. Bello', '20,000.00', '120,000.00', '100,000.00', '40,000.00'],
+            ['C. Okafor', '0.00', '60,000.00', '60,000.00', '0.00'],
+        ],
+    },
+    write_offs: {
+        stats: [
+            { label: 'Written off (NGN)', value: '270,000.00' },
+            { label: 'Bills', value: '54' },
+            { label: 'Residents', value: '1' },
+            { label: 'Write-offs', value: '1' },
+        ],
+        tableTitle: 'Each bill written off in the period',
+        columns: [
+            { label: 'Resident' },
+            { label: 'Bill month' },
+            { label: 'Bill no.' },
+            { label: 'Amount written off', align: 'right' },
+            { label: 'Reason' },
+            { label: 'When' },
+        ],
+        rows: [
+            ['A. Bello', 'July 2020', 'INV-202007-0362', '5,000.00', 'Exco settlement', '05 November 2026'],
+            ['A. Bello', 'August 2020', 'INV-202008-0362', '5,000.00', 'Exco settlement', '05 November 2026'],
+        ],
+    },
+    // Retired (#1399): not offered in the picker; kept so the Record stays complete for old rows.
     debtors_report: {
         stats: [
             { label: 'Total Debtors', value: '14' },
@@ -114,6 +311,7 @@ export const reportTypePreviews: Record<ReportType, PreviewDefinition> = {
             ['2', 'C. Okafor', '0805 000 0000', 'Block 2, House 3', '1', '15', '₦60,000.00'],
         ],
     },
+    // Retired (#1400): replaced by Dues, levies and collection status.
     indebtedness_summary: {
         stats: [
             { label: 'Total Houses', value: '96' },
@@ -135,7 +333,7 @@ export const reportTypePreviews: Record<ReportType, PreviewDefinition> = {
             ['Cedar Way', '3', 'C. Okafor', 'Outstanding', '₦60,000.00'],
         ],
     },
-    // No separate generator exists yet for this type; it is shown with the per-house layout and amounts.
+    // Retired (#1400). It never had a generator (#1379).
     indebtedness_detail: {
         stats: [
             { label: 'Total Houses', value: '96' },
@@ -153,6 +351,28 @@ export const reportTypePreviews: Record<ReportType, PreviewDefinition> = {
         rows: [
             ['Palm Close', '14', 'M. Yusuf', 'Arrears', '₦360,000.00'],
             ['Cedar Way', '3', 'C. Okafor', 'Outstanding', '₦60,000.00'],
+        ],
+    },
+    budget_vs_actual: {
+        stats: [
+            { label: 'Total budget', value: '19,320,000.00' },
+            { label: 'Actual spend', value: '16,382,200.00' },
+            { label: 'Difference', value: '2,937,800.00' },
+            { label: '% used', value: '84.8%' },
+        ],
+        tableTitle: 'Budget against actual by category',
+        columns: [
+            { label: 'Category' },
+            { label: 'Budget', align: 'right' },
+            { label: 'Actual', align: 'right' },
+            { label: 'Difference', align: 'right' },
+            { label: '% used', align: 'right' },
+            { label: 'Status' },
+        ],
+        rows: [
+            ['Security Expenses', '6,000,000.00', '4,820,000.00', '1,180,000.00', '80.3%', 'On track'],
+            ['Maintenance', '3,600,000.00', '3,150,250.00', '449,750.00', '87.5%', 'Near limit'],
+            ['Contractor Payment', '2,400,000.00', '2,760,000.00', '-360,000.00', '115.0%', 'Over budget'],
         ],
     },
     development_levy: {

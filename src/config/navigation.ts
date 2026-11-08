@@ -30,10 +30,13 @@ import {
   FileBarChart,
   Plus,
   CalendarClock,
+  ShieldCheck,
+  Target,
 } from 'lucide-react';
 import { PERMISSIONS, type Permission } from '@/lib/auth/action-roles';
 import { oversightConfig } from '@/config/oversight-nav';
 import { flattenSettingsNav, type SettingsGroup } from '@/config/settings-nav';
+import { REPORT_VIEW_PERMISSIONS } from '@/lib/validators/reports';
 
 /**
  * Navigation item definition
@@ -149,6 +152,13 @@ const NAV_PAYMENTS: NavItem = {
       icon: Mail,
       permissions: [PERMISSIONS.EMAIL_IMPORTS_VIEW],
     },
+    {
+      id: 'payments-awaiting-verification',
+      title: 'Awaiting verification',
+      href: '/payments/awaiting-verification',
+      icon: ShieldCheck,
+      permissions: [PERMISSIONS.EMAIL_IMPORTS_PROCESS, PERMISSIONS.PAYMENTS_VERIFY],
+    },
   ],
 };
 
@@ -220,7 +230,8 @@ const NAV_REPORTS: NavItem = {
   title: 'Reports',
   href: '/reports',
   icon: FileBarChart,
-  permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
+  // Any report's view permission (#1397): the page, history and schedule list all accept it.
+  permissions: REPORT_VIEW_PERMISSIONS,
   children: [
     {
       id: 'reports-new',
@@ -228,21 +239,21 @@ const NAV_REPORTS: NavItem = {
       href: '/reports?tab=new',
       queryDefaults: { tab: 'new' },
       icon: Plus,
-      permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
+      permissions: REPORT_VIEW_PERMISSIONS,
     },
     {
       id: 'reports-history',
       title: 'History',
       href: '/reports?tab=recent',
       icon: History,
-      permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
+      permissions: REPORT_VIEW_PERMISSIONS,
     },
     {
       id: 'reports-schedules',
       title: 'Schedules',
       href: '/reports?tab=schedules',
       icon: CalendarClock,
-      permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
+      permissions: REPORT_VIEW_PERMISSIONS,
     },
   ],
 };
@@ -295,6 +306,15 @@ const NAV_EXPENDITURE: NavItem = {
   href: '/expenditure',
   icon: CreditCard, // Using CreditCard for now or import Wallet
   permissions: [PERMISSIONS.EXPENDITURE_VIEW],
+  children: [
+    {
+      id: 'expenditure-budgets',
+      title: 'Budgets',
+      href: '/expenditure/budgets',
+      icon: Target,
+      permissions: [PERMISSIONS.EXPENDITURE_VIEW],
+    },
+  ],
 };
 
 export const ADMIN_NAV_SECTIONS: NavSection[] = [

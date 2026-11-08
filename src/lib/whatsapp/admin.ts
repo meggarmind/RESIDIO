@@ -9,14 +9,15 @@ import { getSettingResultAsService } from '@/lib/settings/service';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
 import { createAdminClient } from '@/lib/supabase/server';
 import { maskPhone } from '@/lib/utils';
-import { OWES_PROMPT, createSupabaseOwesRepository, runAdminOwesLookup, toOwesParams, type OwesRepository } from '@/lib/whatsapp/admin-owes';
+import { OWES_LIST_MAX, OWES_PROMPT, createSupabaseOwesRepository, runAdminOwesLookup, toOwesParams, type OwesRepository } from '@/lib/whatsapp/admin-owes';
 import { isOnRoster } from '@/lib/whatsapp/co-resident';
-import { formatDay, lagosMidnight, lagosParts } from '@/lib/whatsapp/assistant-format';
+import { endOfLagosDay, formatDay, lagosMidnight, lagosParts } from '@/lib/whatsapp/assistant-format';
 import { WhatsAppAdminAlertEmail, whatsAppAdminAlertSubject, type WhatsAppAdminAlertEvent } from '@/emails/whatsapp-admin-alert';
 import type { WhatsAppInboundMessage } from '@/lib/whatsapp/types';
 import { debtReportAction } from '@/lib/whatsapp/admin-debt-report';
 import { clearanceQueueAction, collectionsAction } from '@/lib/whatsapp/admin-collections';
 import { approvePaymentAction } from '@/lib/whatsapp/admin-approve-payment';
+import { unverifiedPaymentsAction } from '@/lib/whatsapp/admin-unverified-payments';
 
 /**
  * WhatsApp admin mode (#972): the security layer every admin action on WhatsApp goes through.
@@ -25,15 +26,14 @@ import { approvePaymentAction } from '@/lib/whatsapp/admin-approve-payment';
  * their number with a one-time code issued from their 2FA dashboard session (`ADMIN LINK <code>`),
  * or it is linked on first use when it is the phone of the resident record tied to their profile
  * (#1292). Admin tools open from "6. Admin tools" on the main menu, or `ADMIN`. When a code is
- * needed, a single-use authenticator code opens a 15-minute session; an action marked `freshCode`
- * needs a new code every time. Every turn re-checks the binding against the live account, so a role
+ * needed, a single-use authenticator code opens a session that lasts until 23:59:59 Lagos time that day (#1410);
+ * an action marked `freshCode` needs a new code every time. Every turn re-checks the binding against the live account, so a role
  * change, a disabled account or a new or removed authenticator ends it.
  */
 
 /** Role categories that may use admin tools (#1290 decision 4): every staff role, never a resident role. */
 export const WHATSAPP_ADMIN_ROLE_CATEGORIES = ['exco', 'bot', 'staff'];
 export const ADMIN_LINK_CODE_TTL_MINUTES = 10;
-export const ADMIN_SESSION_MINUTES = 15;
 export const ADMIN_REQUEST_TTL_MINUTES = 5;
 export const ADMIN_REVERIFY_DAYS = 90;
 export const ADMIN_IDLE_DAYS = 30;
@@ -174,8 +174,17 @@ export interface WhatsAppAdminAction {
     text: string,
     state: Record<string, unknown>
   ): ChooseResult | Promise<ChooseResult>;
-  /** A string is the reply; the object form also adds `audit` to the request's audit entry (scope, outcome). */
-  run(context: WhatsAppAdminActionContext): Promise<string | { reply: string; audit: Record<string, unknown> }>;
+  /**
+   * A string is the reply; the object form also adds `audit` to the request's audit entry (scope, outcome).
+   * With `next`, the item stays open on that state and `prompt` follows the answer as its own message (#1424).
+   */
+  run(context: WhatsAppAdminActionContext): Promise<
+    string | { reply: string; audit: Record<string, unknown>; next?: { state: Record<string, unknown>; prompt: string } }
+  >;
+  /** What 0 shows instead of Admin tools while a question is open, such as the list again; null goes to Admin tools (#1424). */
+  back?(
+    state: Record<string, unknown>
+  ): { reply: string; state: Record<string, unknown> } | null | Promise<{ reply: string; state: Record<string, unknown> } | null>;
   /** Set when the item stays open after an answer for another entry: the line added under the answer. */
   again?: string;
 }
@@ -203,7 +212,7 @@ export const WHATSAPP_ADMIN_ACTIONS: Record<string, WhatsAppAdminAction> = {
       return { reply: OWES_PROMPT, state: {} };
     },
     choose(text) {
-      return { params: /^[1-5]$/.test(text) ? { pick: Number(text) } : { query: text } };
+      return { params: /^\d{1,2}$/.test(text) && Number(text) >= 1 && Number(text) <= OWES_LIST_MAX ? { pick: Number(text) } : { query: text } };
     },
     again: 'Send another house code or name, or reply 0 for Admin tools.',
     run({ account, binding, now, requestId, params, audit, owes }) {
@@ -223,10 +232,11 @@ export const WHATSAPP_ADMIN_ACTIONS: Record<string, WhatsAppAdminAction> = {
   collections: collectionsAction,
   clearance: clearanceQueueAction,
   approve_payment: approvePaymentAction,
+  unverified_payments: unverifiedPaymentsAction,
 };
 
 /** Admin tools menu numbers (#1292). A number whose item the role may not use reads as unrecognised. */
-export const WHATSAPP_ADMIN_MENU: Record<string, string> = { '1': 'owes', '2': 'debt', '3': 'collections', '4': 'clearance', '5': 'approve_payment' };
+export const WHATSAPP_ADMIN_MENU: Record<string, string> = { '1': 'owes', '2': 'debt', '3': 'collections', '4': 'clearance', '5': 'approve_payment', '6': 'unverified_payments' };
 
 /** A request waiting for the admin's answer to an item's question is stored under this suffix (#982). */
 export const ADMIN_CHOICE_SUFFIX = ':choose';
@@ -888,11 +898,21 @@ async function adminTurn(message: WhatsAppInboundMessage, input: AdminInput, opt
       description: `Admin action "${actionName}" answered on WhatsApp`,
       metadata: { action: actionName, phone_number: masked, ...(typeof result === 'string' ? {} : result.audit) },
     }, admin.profileId);
+    if (typeof result !== 'string' && result.next) {
+      // The item stays open on the state the action gives, such as a list whose numbers must not change (#1424).
+      await createChoice(actionName, live, result.next.state);
+      await reply(answer);
+      await reply(result.next.prompt);
+      await setStep(ADMIN_ITEM_NODE);
+      return;
+    }
     if (action.again && action.begin) {
       // The item stays on screen for the next entry, such as a number from a pick-list.
       const next = await action.begin({ account: admin, binding: live, now });
       await createChoice(actionName, live, next.state ?? {});
-      await reply(`${answer}\n\n${action.again}`);
+      // The answer and the next-step hint go as two messages, so the answer can be forwarded alone (owner, 31 Oct 2026).
+      await reply(answer);
+      await reply(action.again);
       await setStep(ADMIN_ITEM_NODE);
       return;
     }
@@ -946,7 +966,7 @@ async function adminTurn(message: WhatsAppInboundMessage, input: AdminInput, opt
 
   const open = async () => {
     if (codeNeeded) return sessionLive(binding, now) ? showMenu(binding) : askCode();
-    // No code needed (#1292 item 3): the linked number alone opens Admin tools; the session still ends in 15 minutes.
+    // No code needed (#1292 item 3): the linked number alone opens Admin tools; the session still ends at the end of the Lagos day.
     binding ??= await autoLink(null, null);
     if (!binding) {
       // Another message linked the number or the admin first; the next turn finds that binding.
@@ -955,14 +975,14 @@ async function adminTurn(message: WhatsAppInboundMessage, input: AdminInput, opt
       return;
     }
     if (!sessionLive(binding, now)) {
-      const sessionExpiresAt = new Date(now.getTime() + ADMIN_SESSION_MINUTES * MINUTE).toISOString();
+      const sessionExpiresAt = endOfLagosDay(now).toISOString();
       await repository.setSessionExpiry(binding.id, sessionExpiresAt, now);
       await repository.audit({
         action: 'APPROVE',
         entityType: 'whatsapp_admin_bindings',
         entityId: binding.id,
         entityDisplay: `WhatsApp admin link for ${admin.fullName}`,
-        description: `WhatsApp admin session opened for ${ADMIN_SESSION_MINUTES} minutes without a code (code not required)`,
+        description: `WhatsApp admin session opened until the end of the day without a code (code not required)`,
         metadata: { phone_number: masked, session_expires_at: sessionExpiresAt },
       }, admin.profileId);
       binding = { ...binding, sessionExpiresAt };
@@ -1001,7 +1021,7 @@ async function adminTurn(message: WhatsAppInboundMessage, input: AdminInput, opt
   const takeCode = async (code: string) => {
     if (!codeNeeded) return open();
     const step = matchTotpStep(code, admin.totpSecret!, now.getTime());
-    const sessionExpiresAt = new Date(now.getTime() + ADMIN_SESSION_MINUTES * MINUTE).toISOString();
+    const sessionExpiresAt = endOfLagosDay(now).toISOString();
     let live: WhatsAppAdminBinding | null;
     if (binding) {
       if (
@@ -1024,7 +1044,7 @@ async function adminTurn(message: WhatsAppInboundMessage, input: AdminInput, opt
       entityType: 'whatsapp_admin_bindings',
       entityId: live.id,
       entityDisplay: `WhatsApp admin link for ${admin.fullName}`,
-      description: `WhatsApp admin session opened for ${ADMIN_SESSION_MINUTES} minutes`,
+      description: `WhatsApp admin session opened until the end of the day`,
       metadata: { phone_number: masked, session_expires_at: sessionExpiresAt },
     }, admin.profileId);
 
@@ -1080,6 +1100,16 @@ async function adminTurn(message: WhatsAppInboundMessage, input: AdminInput, opt
   const live = binding!;
 
   if (node === ADMIN_ITEM_NODE) {
+    if (lower === '0') {
+      const asked = await repository.findPendingChoice(live.id, now);
+      const item = asked && Object.hasOwn(WHATSAPP_ADMIN_ACTIONS, asked.action) ? WHATSAPP_ADMIN_ACTIONS[asked.action] : null;
+      const back = asked && item?.back ? await item.back(asked.state) : null;
+      if (back) {
+        await createChoice(asked!.action, live, back.state);
+        await reply(back.reply);
+        return true;
+      }
+    }
     if (lower === '0' || lower === 'cancel') {
       await showMenu(live);
       return true;

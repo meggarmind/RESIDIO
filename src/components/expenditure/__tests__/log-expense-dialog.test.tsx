@@ -67,4 +67,10 @@ describe('LogExpenseDialog (#845)', () => {
     await waitFor(() => expect(onSuccess).toHaveBeenCalledWith({ id: 'e1' }));
     expect(mocks.toastError).not.toHaveBeenCalled();
   });
+
+  it('does not offer a Scan a receipt button', () => {
+    mocks.createExpense.mockResolvedValue({ data: null, error: 'x' });
+    renderDialog();
+    expect(screen.queryByRole('button', { name: /scan a receipt/i })).not.toBeInTheDocument();
+  });
 });

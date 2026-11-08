@@ -8,8 +8,8 @@ residio_sources:
   - src/lib/parsers/**
   - src/actions/email-imports/**
   - src/app/(dashboard)/settings/email-integration/**
-residio_verified_commit: bf3eb6f0
-residio_verified_at: '2026-10-30'
+residio_verified_commit: 4f104ffd
+residio_verified_at: '2026-11-02'
 residio_app_version: '0.4.0'
 ---
 
@@ -96,7 +96,7 @@ If Residio cannot read the limit, or the stored value is invalid, it fails safe:
 
 For each queued row you can:
 
-- **Process** it, which creates the payment and applies the allocation.
+- **Process** it, which creates the payment and applies the allocation. The payment is verified when the alert passed the sender check and you hold the **Verify Payments** permission (`payments.verify`): an alert that passed the check is bank proof. Otherwise the payment is recorded unverified, for example when the alert was forwarded by hand. An unverified payment stays out of the verified totals and gets no WhatsApp receipt until it is verified.
 - **Skip** it, when the credit is not a resident payment.
 - Leave it, when you need to confirm something first.
 

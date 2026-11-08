@@ -51,6 +51,7 @@ describe('registry and page components agree', () => {
     'src/components/settings/messages/email-wording-section.tsx',
     'src/components/settings/messages/email-delivery-sections.tsx',
     'src/components/settings/messages/testing-section.tsx',
+    'src/components/settings/messages/sms-provider-section.tsx',
     'src/components/settings/messages/announcement-templates-section.tsx',
     'src/components/settings/messages/announcement-categories-section.tsx',
   ];

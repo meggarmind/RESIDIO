@@ -149,6 +149,17 @@ describe('createPaymentReport (#816 decisions 11-12)', () => {
     );
   });
 
+  it('saves the stored WhatsApp receipt as the proof_url of the pending payment, and audits it (#1455)', async () => {
+    const { calls } = happyDb();
+    await createPaymentReport({ ...input, proofPath: 'whatsapp/resident-1/proof-1.jpg' });
+    const insert = calls.find((call) => call.table === 'payment_records' && call.op === 'insert')!.args[0] as Record<string, unknown>;
+    expect(insert.proof_url).toBe('whatsapp/resident-1/proof-1.jpg');
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ newValues: expect.objectContaining({ proof_url: 'whatsapp/resident-1/proof-1.jpg' }) }),
+      expect.anything()
+    );
+  });
+
   it('notes only "Reported via WhatsApp" when there was no screenshot', async () => {
     const { calls } = happyDb();
     await createPaymentReport(input);

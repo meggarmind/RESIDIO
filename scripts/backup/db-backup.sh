@@ -73,7 +73,21 @@ fi
 
 # First successful backup of the month becomes the monthly copy (the 1st for nightly prod;
 # the first weekly run of the month for stage). Server-side copy, nothing is re-uploaded.
-existing_monthly="$(rclone lsf "${base}/monthly/" --files-only)"
+# List a prefix; a real rclone failure fails the run. Only exit 3 (directory not found) means empty.
+# The listing is a plain assignment: errexit does not see a process substitution's exit status.
+list_dir() {
+  local out rc=0
+  out="$(rclone lsf "$1" --files-only)" || rc=$?
+  if [ "$rc" -eq 3 ]; then
+    return 0
+  elif [ "$rc" -ne 0 ]; then
+    echo "::error::rclone lsf failed (exit ${rc}) for $1" >&2
+    return "$rc"
+  fi
+  printf '%s\n' "$out"
+}
+
+existing_monthly="$(list_dir "${base}/monthly/")"
 if ! grep -qx "${month}.dump.age" <<<"$existing_monthly"; then
   echo "Copying to monthly/${month}.dump.age"
   rclone copyto "${base}/daily/${day}.dump.age" "${base}/monthly/${month}.dump.age"
@@ -82,8 +96,9 @@ fi
 # Prune last, and only after everything above succeeded. Keeps the newest N by name
 # (names sort chronologically), so a gap in runs never deletes more than intended.
 prune() {
-  local prefix="$1" keep="$2" files=() f
-  mapfile -t files < <(rclone lsf "${base}/${prefix}/" --files-only | sort)
+  local prefix="$1" keep="$2" files=() f listing
+  listing="$(list_dir "${base}/${prefix}/")"
+  mapfile -t files < <(grep -v '^$' <<<"$listing" | sort || true)
   local total="${#files[@]}"
   if [ "$total" -le "$keep" ]; then
     echo "${prefix}: ${total} kept, nothing to prune"

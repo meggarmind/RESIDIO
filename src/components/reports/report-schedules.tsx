@@ -38,6 +38,7 @@ import {
     RefreshCw,
     ScrollText,
     Settings2,
+    Target,
     Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -52,6 +53,7 @@ import {
     type CreateScheduleInput,
 } from '@/hooks/use-reports';
 import { format, formatDistanceToNow } from 'date-fns';
+import { REPORT_TYPE_LABELS } from '@/lib/validators/reports';
 
 // ============================================================
 // Configuration
@@ -60,9 +62,22 @@ import { format, formatDistanceToNow } from 'date-fns';
 const reportTypeOptions = [
     { value: 'financial_overview', label: 'Financial Overview', icon: FileBarChart },
     { value: 'collection_report', label: 'Collection Report', icon: Receipt },
-    { value: 'invoice_aging', label: 'Invoice Aging', icon: Clock },
+    { value: 'debtors_aging', label: 'Debtors and aging', icon: Clock },
+    { value: 'dues_collection_status', label: 'Dues, levies and collection status', icon: Receipt },
+    { value: 'project_spend', label: 'Project spend', icon: Receipt },
+    { value: 'petty_cash', label: 'Petty cash', icon: Receipt },
+    { value: 'collection_rate_by_street', label: 'Collection rate by street', icon: Receipt },
+    { value: 'expenses_by_category', label: 'Expenses by category and vendor', icon: Receipt },
+    { value: 'wallet_balances', label: 'Wallet balances', icon: Receipt },
+    { value: 'write_offs', label: 'Write-offs', icon: Receipt },
     { value: 'transaction_log', label: 'Transaction Log', icon: ScrollText },
+    { value: 'budget_vs_actual', label: 'Budget against actual', icon: Target },
 ] as const;
+
+/** Invoice or expense lines are off by default for these reports; every other report keeps its summary on. */
+export function includeSummaryDefault(reportType: string): boolean {
+    return reportType !== 'debtors_aging' && reportType !== 'dues_collection_status' && reportType !== 'expenses_by_category' && reportType !== 'petty_cash';
+}
 
 const frequencyOptions = [
     { value: 'daily', label: 'Daily' },
@@ -124,7 +139,7 @@ function ScheduleCard({
                         <div className="min-w-0">
                             <h4 className="font-medium text-sm truncate">{schedule.name}</h4>
                             <p className="text-xs text-muted-foreground mt-0.5">
-                                {reportType?.label} &bull; {schedule.frequency}
+                                {reportType?.label ?? REPORT_TYPE_LABELS[schedule.report_type]} &bull; {schedule.frequency}
                             </p>
                             <div className="flex items-center gap-2 mt-2">
                                 <Badge variant="outline" className="text-xs">
@@ -242,7 +257,7 @@ function CreateScheduleDialog({
                             <Label>Report Type *</Label>
                             <Select
                                 value={formData.report_type}
-                                onValueChange={(v) => setFormData({ ...formData, report_type: v as CreateScheduleInput['report_type'] })}
+                                onValueChange={(v) => setFormData({ ...formData, report_type: v as CreateScheduleInput['report_type'], include_summary: includeSummaryDefault(v) })}
                             >
                                 <SelectTrigger>
                                     <SelectValue />
@@ -423,6 +438,12 @@ export function ReportSchedulesPanel() {
                     <p className="text-sm text-muted-foreground">
                         Reports are generated automatically at 6 AM UTC
                     </p>
+                    {/* Visibility follows access (#1397): say why the write controls are missing. */}
+                    {!canManage && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                            You can view schedules. Creating or changing one needs the Manage report schedules permission.
+                        </p>
+                    )}
                 </div>
                 {canManage && (
                     <Button onClick={() => setCreateDialogOpen(true)} size="sm">

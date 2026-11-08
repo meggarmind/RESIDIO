@@ -14,16 +14,25 @@ import { renderReportPdf } from '@/lib/pdf/reports/renderer';
 import { sendEmail, getEstateEmailSettings } from '@/lib/email/send-email';
 import { ScheduledReportEmail } from '@/emails/scheduled-report';
 import { logAudit } from '@/lib/audit/logger';
-import { REPORT_TYPE_LABELS, getDateRangeFromPreset, type ReportRequestFormData } from '@/lib/validators/reports';
+import { REPORT_TYPE_LABELS, getDateRangeFromPreset, resolveRetiredReport, type ReportRequestFormData } from '@/lib/validators/reports';
 
 const formatEmailDate = (iso: string) =>
   new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 
-// Invoice aging is a point-in-time report, so it has no period to state.
+// Debtors and aging is a point-in-time report, so it has no period to state.
 function periodLabelFor(params: ReportRequestFormData): string | undefined {
-  if (params.reportType === 'invoice_aging') return undefined;
+  if (params.reportType === 'debtors_aging' || params.reportType === 'dues_collection_status') return undefined;
   const { startDate, endDate } = getDateRangeFromPreset(params.periodPreset);
   return `${formatEmailDate(startDate)} to ${formatEmailDate(endDate)}`;
+}
+
+// Debtors and aging, Dues, levies and collection status, and Expenses by category show lines only when the
+// schedule saved that choice; a schedule of a retired report saved none. Every other report keeps
+// its old value (#1399, #1400).
+function includeDetailsFor(savedType: ReportRequestFormData['reportType'], includeSummary: boolean | null): boolean {
+  const runsAs = resolveRetiredReport(savedType);
+  if (runsAs !== 'debtors_aging' && runsAs !== 'dues_collection_status' && runsAs !== 'expenses_by_category' && runsAs !== 'petty_cash') return true;
+  return savedType === runsAs && includeSummary === true;
 }
 
 export async function processDueSchedules(): Promise<{ processed: number; failed: number; errors: string[] }> {
@@ -49,36 +58,43 @@ export async function processDueSchedules(): Promise<{ processed: number; failed
   for (const schedule of schedules) {
     try {
       const params: ReportRequestFormData = {
-        reportType: schedule.report_type,
+        // A schedule saved for a retired report runs as the report that replaced it (#1399).
+        reportType: resolveRetiredReport(schedule.report_type),
          periodPreset: (schedule.period_preset || 'last_month') as ReportRequestFormData['periodPreset'],
          startDate: '',
          endDate: '',
         includeAmount: schedule.configuration?.includeAmount ?? false,
         includeUnoccupied: schedule.configuration?.includeUnoccupied ?? false,
+        // The charge a dues schedule covers; a schedule of a retired Indebtedness report saved none, so it is Dues (#1400).
+        chargeCategory: schedule.report_type === 'dues_collection_status' && typeof schedule.configuration?.chargeCategory === 'string' ? schedule.configuration.chargeCategory : 'dues',
+        // Whose statement a Statement of account schedule makes; saved with the schedule (#1402).
+        statementFor: schedule.configuration?.statementFor === 'resident' ? 'resident' : 'house',
+        statementId: typeof schedule.configuration?.statementId === 'string' ? schedule.configuration.statementId : undefined,
          bankAccountIds: schedule.bank_account_ids || [],
          includeCharts: schedule.include_charts ?? false,
          categoryIds: [],
          transactionType: 'all',
          aggregation: 'monthly',
-         includeDetails: true,
+         // Invoice lines are a Debtors and aging choice; a retired schedule has none saved, so none are shown.
+         includeDetails: includeDetailsFor(schedule.report_type, schedule.include_summary),
          paymentStatus: 'all',
       };
 
       const result = await generateReportWithClient(supabase, params);
        if (result.error || !result.report) { failed++; errors.push(`Schedule ${schedule.id}: ${result.error || 'No data'}`); continue; }
 
-       const buffer = await renderReportPdf(schedule.report_type, result.report.data, estate.estateName);
+       const buffer = await renderReportPdf(params.reportType, result.report.data, estate.estateName);
       if (!buffer) { failed++; errors.push(`Schedule ${schedule.id}: PDF rendering failed`); continue; }
 
       // Store in archive
-      const fileName = `${schedule.report_type}-${new Date().toISOString().split('T')[0]}-${Date.now()}.pdf`;
+      const fileName = `${params.reportType}-${new Date().toISOString().split('T')[0]}-${Date.now()}.pdf`;
       const { error: uploadError } = await supabase.storage.from('report-pdfs').upload(fileName, buffer, { contentType: 'application/pdf' });
       if (uploadError) throw new Error(`PDF archive upload failed: ${uploadError.message}`);
 
         const { error: archiveError } = await supabase
         .from('report_archive')
         .insert({
-          report_type: schedule.report_type,
+          report_type: params.reportType,
           schedule_id: schedule.id,
           generated_by: schedule.created_by || null,
           file_path: fileName,
@@ -91,17 +107,19 @@ export async function processDueSchedules(): Promise<{ processed: number; failed
        if (archiveError) throw new Error(`PDF archive record failed: ${archiveError.message}`);
 
       // Email recipients
-      const reportLabel = REPORT_TYPE_LABELS[params.reportType] ?? schedule.report_type;
+      const chargeName = params.reportType === 'dues_collection_status' ? (result.report.data as { chargeName?: string }).chargeName : undefined;
+      const subject = params.reportType === 'statement_of_account' ? (result.report.data as { subject?: string }).subject : undefined;
+      const reportLabel = `${REPORT_TYPE_LABELS[params.reportType] ?? schedule.report_type}${chargeName ? ` - ${chargeName}` : ''}${subject ? ` - ${subject}` : ''}`;
       const periodLabel = periodLabelFor(params);
        const recipients = ((schedule.recipients || []) as string[]).map((email: string) => ({ email, name: schedule.name }));
       if (recipients.length > 0) {
         const emailResult = await sendEmail({
           to: recipients,
-          subject: `Scheduled Report: ${schedule.report_type}`,
+          subject: `Scheduled Report: ${params.reportType}`,
           react: ScheduledReportEmail({ ...estate, reportLabel, periodLabel }),
             emailType: 'notification',
           attachments: [{ filename: fileName, content: buffer }],
-          metadata: { reportType: schedule.report_type, scheduleId: schedule.id },
+          metadata: { reportType: params.reportType, scheduleId: schedule.id },
         });
         if (!emailResult.success) throw new Error(`Scheduled report email failed: ${emailResult.error || 'Unknown error'}`);
       }

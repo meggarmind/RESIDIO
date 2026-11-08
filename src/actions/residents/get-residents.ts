@@ -5,7 +5,7 @@ import { authorizePermission, authorizeAnyPermission } from '@/lib/auth/authoriz
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { eqValue, ilikeContains } from '@/lib/postgrest-filter';
 import type { ResidentWithHouses } from '@/types/database';
-import type { ResidentSearchParams } from '@/lib/validators/resident';
+import { EXCLUDE_ARCHIVED, type ResidentSearchParams } from '@/lib/validators/resident';
 
 // Type moved to avoid 'use server' export restriction
 type GetResidentsResponse = {
@@ -78,7 +78,9 @@ export async function getResidents(params: Partial<ResidentSearchParams> = {}): 
       ].join(',')
     );
   }
-  if (status) {
+  if (status === EXCLUDE_ARCHIVED) {
+    query = query.neq('account_status', 'archived');
+  } else if (status) {
     query = query.eq('account_status', status);
   }
   if (verification) {

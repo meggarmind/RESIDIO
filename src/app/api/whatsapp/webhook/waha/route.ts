@@ -10,10 +10,14 @@ import {
   WAHA_HUMAN_TAKEOVER_PAUSE_MS,
   extractWahaInbound,
   extractWahaOutgoingRecipient,
+  extractWahaPollVote,
   isWahaManualOutgoing,
+  resolveWahaVoterPhone,
   verifyWahaSignature,
   wahaEventDedupeKey,
 } from '@/lib/whatsapp/providers/waha-inbound';
+import { answerWhatsAppApprovalVote } from '@/lib/auth/two-factor-whatsapp';
+import { createTwoFactorWhatsAppDeps } from '@/lib/auth/two-factor-whatsapp-store';
 import {
   OUTBOUND_FAILURE_ALERT_THRESHOLD,
   OUTBOUND_FAILURE_ALERT_WINDOW_MINUTES,
@@ -351,6 +355,35 @@ async function handleGroupParticipants(payload: unknown, config: WahaWhatsAppCon
   }
 }
 
+/**
+ * `poll.vote` (#1389): an admin's answer to a sign-in approval poll. Only a vote from the request
+ * owner's linked number counts; the rules are in `answerWhatsAppApprovalVote`. Deduped by the
+ * envelope id; a failure releases the claim so WAHA's retry runs again.
+ */
+async function handlePollVote(payload: unknown, config: WahaWhatsAppConfig, dedupeKey: string) {
+  const vote = extractWahaPollVote(payload);
+  if (!vote) {
+    return NextResponse.json({ received: true, processed: false, ignored: 'poll.vote' });
+  }
+  try {
+    const box: { outcome?: string } = {};
+    const claim = await runOnce(dedupeKey, async () => {
+      const voterPhone = await resolveWahaVoterPhone(vote.voterId, (lid) => lookupWahaLidPhone(config, lid));
+      box.outcome = voterPhone
+        ? await answerWhatsAppApprovalVote({ pollMessageId: vote.pollMessageId, voterPhone, selectedOptions: vote.selectedOptions }, createTwoFactorWhatsAppDeps())
+        : 'ignored';
+    });
+    if (claim === 'duplicate') {
+      return NextResponse.json({ received: true, processed: true, duplicate: true });
+    }
+    // The outcome only: no number, no option text.
+    return NextResponse.json({ received: true, processed: box.outcome !== 'ignored', outcome: box.outcome });
+  } catch (error) {
+    console.error('[waha-webhook] Failed to handle poll.vote:', error instanceof Error ? error.message : error);
+    return processingFailed('poll.vote could not be processed');
+  }
+}
+
 export async function POST(request: NextRequest) {
   const resolved = await resolveWhatsAppConfig();
 
@@ -430,6 +463,8 @@ export async function POST(request: NextRequest) {
       return handleGroupParticipants(payload, resolved.config, wahaEventDedupeKey(event, payload, rawBody));
     case 'session.status':
       return handleSessionStatus(payload, wahaEventDedupeKey(event, payload, rawBody));
+    case 'poll.vote':
+      return handlePollVote(payload, resolved.config, wahaEventDedupeKey(event, payload, rawBody));
     default:
       return NextResponse.json({ received: true, processed: false, ignored: event });
   }
