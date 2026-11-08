@@ -789,6 +789,19 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
           if (dupCheck.is_duplicate) {
             // Check if we can reconcile a pending expense
             if (dupCheck.existing_status === 'pending' && dupCheck.existing_payment_id) {
+              // Give the expense the row's project, unless it already has one (#1442).
+              let projectSet = false;
+              if (row.matched_project_id) {
+                const { data: tagged, error: projectError } = await supabase
+                  .from('expenses')
+                  .update({ project_id: row.matched_project_id })
+                  .eq('id', dupCheck.existing_payment_id)
+                  .is('project_id', null)
+                  .select('id');
+                if (projectError) throw new Error(`Failed to set the expense's project: ${projectError.message}`);
+                projectSet = (tagged?.length ?? 0) > 0;
+              }
+
               // Reconcile: Update status to 'paid' and link
               const { error: reconcileError } = await updateExpenseStatus(dupCheck.existing_payment_id, 'paid');
               if (reconcileError) throw new Error(reconcileError);
@@ -799,7 +812,12 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
                 entityType: 'expenses',
                 entityId: dupCheck.existing_payment_id,
                 entityDisplay: `Auto-reconciled via Bank Import: ${row.description}`,
-                newValues: { status: 'paid', bank_row_id: row.id },
+                ...(projectSet && { oldValues: { project_id: null } }),
+                newValues: {
+                  status: 'paid',
+                  bank_row_id: row.id,
+                  ...(projectSet && { project_id: row.matched_project_id }),
+                },
               });
 
               // Mark row as created (acting as the verification proof)
