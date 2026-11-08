@@ -9,7 +9,7 @@ import { processImport } from '@/actions/imports/process-import';
 
 const {
   authorizePermission, createServerSupabaseClient, logAudit, createPaymentCore, createExpense, updateImportStatus,
-  postCollectionParts, reverseCollectionParts, noticePostedParts,
+  postCollectionParts, reverseCollectionParts, noticePostedParts, updateExpenseStatus,
 } =
   vi.hoisted(() => ({
     authorizePermission: vi.fn(),
@@ -21,6 +21,7 @@ const {
     postCollectionParts: vi.fn(),
     reverseCollectionParts: vi.fn(),
     noticePostedParts: vi.fn(),
+    updateExpenseStatus: vi.fn(),
   }));
 
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission }));
@@ -29,12 +30,12 @@ vi.mock('@/lib/collections/intake', () => ({ postCollectionParts, reverseCollect
 vi.mock('@/lib/audit/logger', () => ({ logAudit }));
 vi.mock('@/lib/payments/create-payment', () => ({ createPaymentCore }));
 vi.mock('@/actions/expenses/create-expense', () => ({ createExpense }));
-vi.mock('@/actions/expenses/update-expense', () => ({ updateExpenseStatus: vi.fn() }));
+vi.mock('@/actions/expenses/update-expense', () => ({ updateExpenseStatus }));
 vi.mock('@/lib/imports/update-import-status', () => ({ updateImportStatus }));
 vi.mock('@/lib/notifications/admin-notifier', () => ({ notifyAdmins: vi.fn() }));
 
 type Row = Record<string, unknown>;
-type Filter = { kind: 'eq' | 'in' | 'gte' | 'lte' | 'notnull'; col: string; val: unknown };
+type Filter = { kind: 'eq' | 'in' | 'gte' | 'lte' | 'notnull' | 'isnull'; col: string; val: unknown };
 type Entry = { table: string; op: string; vals?: Row; filters: Filter[]; range?: [number, number] };
 
 let db: Record<string, Row[]>;
@@ -66,6 +67,8 @@ function makeSupabase() {
       chain.lte = (col: string, val: unknown) => (entry.filters.push({ kind: 'lte', col, val }), chain);
       // Only .not(col, 'is', null) is used.
       chain.not = (col: string) => (entry.filters.push({ kind: 'notnull', col, val: null }), chain);
+      // Only .is(col, null) is used.
+      chain.is = (col: string) => (entry.filters.push({ kind: 'isnull', col, val: null }), chain);
       chain.order = (col: string) => (orders.push(col), chain);
       chain.range = (from: number, to: number) => ((entry.range = [from, to]), chain);
 
@@ -76,6 +79,7 @@ function makeSupabase() {
             if (f.kind === 'eq') return v === f.val;
             if (f.kind === 'in') return (f.val as unknown[]).includes(v);
             if (f.kind === 'notnull') return v != null;
+            if (f.kind === 'isnull') return v == null;
             if (f.kind === 'gte') return cmp(v, f.val) >= 0;
             return cmp(v, f.val) <= 0;
           })
@@ -173,6 +177,7 @@ beforeEach(() => {
   logAudit.mockResolvedValue(undefined);
   createServerSupabaseClient.mockImplementation(async () => makeSupabase());
   updateImportStatus.mockResolvedValue({ error: null });
+  updateExpenseStatus.mockResolvedValue({ error: null });
   createPaymentCore.mockImplementation(async (input: { amount: number }) =>
     input.amount === 666 ? { data: null, error: 'Payment write failed' } : { data: { id: uid(5000 + ++paymentSeq) }, error: null }
   );
@@ -352,5 +357,73 @@ describe('processImport collection lines (#1195)', () => {
 
     expect(postCollectionParts).not.toHaveBeenCalled();
     expect(statusOf(line.id)[0]).toBe('error');
+  });
+});
+
+describe('processImport reconciles a project debit with a pending expense (#1442)', () => {
+  const PROJECT = uid(3101);
+  const OTHER_PROJECT = uid(3102);
+  const PENDING = uid(7101);
+
+  function seedPending(projectId: string | null) {
+    const debit = row({
+      transaction_type: 'debit', matched_resident_id: null, matched_project_id: PROJECT, transaction_hash: 'h-pending',
+    });
+    seed([debit]);
+    db.expenses.push({ id: PENDING, transaction_hash: 'h-pending', status: 'pending', project_id: projectId, amount: 5, expense_date: '2026-01-10' });
+    return debit;
+  }
+  const pending = () => db.expenses.find((e) => e.id === PENDING)!;
+  const projectAudit = () => logAudit.mock.calls.map(([a]) => a).find((a) => a.action === 'UPDATE' && a.entityType === 'expenses');
+  const verifyAudit = () => logAudit.mock.calls.map(([a]) => a).find((a) => a.action === 'VERIFY');
+
+  it('sets the row project on an expense that has none and records it in the audit entry', async () => {
+    const debit = seedPending(null);
+
+    const res = await processImport({ import_id: IMPORT });
+
+    expect(pending().project_id).toBe(PROJECT);
+    expect(updateExpenseStatus).toHaveBeenCalledWith(PENDING, 'paid');
+    expect(createExpense).not.toHaveBeenCalled();
+    expect(statusOf(debit.id)).toEqual(['created', 'Auto-reconciled with existing pending expense', PENDING]);
+    expect(projectAudit()).toMatchObject({
+      entityId: PENDING,
+      oldValues: { project_id: null },
+      newValues: { project_id: PROJECT },
+    });
+    expect(verifyAudit().newValues).toEqual({ status: 'paid', bank_row_id: debit.id });
+    expect(verifyAudit().oldValues).toBeUndefined();
+    expect(res).toMatchObject({ created_count: 1, created_expenses_count: 1 });
+  });
+
+  it('audits the committed project assignment even when marking the expense paid fails', async () => {
+    const debit = seedPending(null);
+    updateExpenseStatus.mockResolvedValueOnce({ error: 'Status update failed' });
+
+    const res = await processImport({ import_id: IMPORT });
+
+    expect(pending().project_id).toBe(PROJECT);
+    expect(updateExpenseStatus).toHaveBeenCalledWith(PENDING, 'paid');
+    expect(projectAudit()).toMatchObject({
+      entityId: PENDING,
+      oldValues: { project_id: null },
+      newValues: { project_id: PROJECT },
+    });
+    expect(verifyAudit()).toBeUndefined();
+    expect(statusOf(debit.id)).toEqual(['error', 'Status update failed', null]);
+    expect(res).toMatchObject({ created_count: 0, created_expenses_count: 0, error_count: 1 });
+  });
+
+  it('keeps the project an expense already has', async () => {
+    seedPending(OTHER_PROJECT);
+
+    await processImport({ import_id: IMPORT });
+
+    expect(pending().project_id).toBe(OTHER_PROJECT);
+    expect(projectAudit()).toBeUndefined();
+    expect(updateExpenseStatus).toHaveBeenCalledWith(PENDING, 'paid');
+    const audit = verifyAudit();
+    expect(audit.oldValues).toBeUndefined();
+    expect(audit.newValues).not.toHaveProperty('project_id');
   });
 });
