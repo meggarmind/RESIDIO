@@ -70,6 +70,7 @@ export async function processDueSchedules(): Promise<{ processed: number; failed
         // Whose statement a Statement of account schedule makes; saved with the schedule (#1402).
         statementFor: schedule.configuration?.statementFor === 'resident' ? 'resident' : 'house',
         statementId: typeof schedule.configuration?.statementId === 'string' ? schedule.configuration.statementId : undefined,
+        expiryDays: typeof schedule.configuration?.expiryDays === 'number' ? schedule.configuration.expiryDays : undefined,
          bankAccountIds: schedule.bank_account_ids || [],
          includeCharts: schedule.include_charts ?? false,
          categoryIds: [],

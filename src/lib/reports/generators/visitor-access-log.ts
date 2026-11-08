@@ -2,8 +2,9 @@
  * "Visitor and access log" report (#1405, layout B): the check-ins and check-outs in the period, by
  * house, by hour of day and by day, with the flagged entries listed.
  *
- * Reads `access_logs` directly through the caller's client, as `getAccessLogs` does, because that
- * action needs `security.view_logs`, a permission the report's holders may not have. Days and hours
+ * Reads `access_logs` directly, as `getAccessLogs` does, because that action needs
+ * `security.view_logs`, a permission the report's holders may not have; the on-demand path passes the
+ * admin client for that reason (report-engine.ts). Days and hours
  * are Lagos time (UTC+1). A visit is counted on the day of its check-in.
  *
  * No authorization here (see the header of report-generator.ts): the callers check REPORTS_VIEW_SECURITY.

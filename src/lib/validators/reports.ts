@@ -29,7 +29,7 @@ export const reportTypes = [
     { value: 'indebtedness_detail', label: 'Indebtedness Detail Report', description: 'Detailed breakdown of indebtedness per property', group: 'Debts', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL, retired: true },
     { value: 'budget_vs_actual', label: 'Budget against actual', description: 'Each expense category: the budget for the period, what was paid, the difference and the % of budget used', group: 'Money in and out', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
     { value: 'visitor_access_log', label: 'Visitor and access log', description: 'Check-ins and check-outs in the period: by house, by hour of day and by day, with the flagged entries', group: 'Security', permission: PERMISSIONS.REPORTS_VIEW_SECURITY },
-    { value: 'access_codes_expiring', label: 'Access codes due to expire', description: 'Active access codes that expire in the next 30 days, with holder, house and type', group: 'Security', permission: PERMISSIONS.REPORTS_VIEW_SECURITY },
+    { value: 'access_codes_expiring', label: 'Access codes due to expire', description: 'Active access codes that expire in the next 30 days, or a number of days you choose, with holder, house and type', group: 'Security', permission: PERMISSIONS.REPORTS_VIEW_SECURITY },
     { value: 'development_levy', label: 'Development Levy Report', description: 'Development levy status per property', group: 'Levies', permission: PERMISSIONS.REPORTS_VIEW_FINANCIAL },
 ] as const satisfies readonly { value: string; label: string; description: string; group: ReportGroup; permission: Permission; retired?: true }[];
 
@@ -154,6 +154,7 @@ export const reportRequestSchema = z.object({
     // Whose statement a Statement of account is: a house or a resident, by id (#1402). Other reports ignore them.
     statementFor: z.enum(['house', 'resident']).optional(),
     statementId: z.string().regex(UUID_PATTERN, 'Choose a house or a resident').optional(),
+    expiryDays: z.number().int().min(1, 'Choose 1 to 365 days').max(365, 'Choose 1 to 365 days').optional(),
 });
 
 /**
@@ -161,6 +162,12 @@ export const reportRequestSchema = z.object({
  * must carry the house or resident it is for (#1402), or every run would fail.
  */
 export function scheduleConfigurationError(type: string, configuration: Record<string, unknown> | null | undefined): string | null {
+    if (type === 'access_codes_expiring') {
+        const days = configuration?.expiryDays;
+        return days === undefined || reportRequestSchema.shape.expiryDays.safeParse(days).success
+            ? null
+            : 'An Access codes due to expire schedule needs 1 to 365 days.';
+    }
     if (type !== 'statement_of_account') return null;
     const statementFor = configuration?.statementFor;
     const statementId = configuration?.statementId;

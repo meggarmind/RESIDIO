@@ -1996,7 +1996,7 @@ export async function generateReportWithClient(
       }
 
       case 'access_codes_expiring': {
-        const report = await generateAccessCodesExpiring(supabase, dateRange);
+        const report = await generateAccessCodesExpiring(supabase, dateRange, params.expiryDays);
         return { success: true, report };
       }
 

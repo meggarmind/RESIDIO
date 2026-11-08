@@ -1,10 +1,11 @@
 /**
  * "Access codes due to expire" report (#1405, layout B): the active access codes that expire in the
- * next 30 days, with holder, house and type, and tiles for 7 days, 30 days, already expired and
- * renewed in the period.
+ * next N days (30 unless the request names another number), with holder, house and type, and tiles
+ * for 7 days, N days, already expired and renewed in the period.
  *
- * Reads `access_codes` directly through the caller's client, as `getExpiringCodes` does, because
- * that action needs a security permission the report's holders may not have. The report shows where
+ * Reads `access_codes` directly, as `getExpiringCodes` does, because that action needs a security
+ * permission the report's holders may not have; the on-demand path passes the admin client for that
+ * reason (report-engine.ts). The report shows where
  * the codes stand now, not on the period's end date; only "Renewed" follows the period. The code
  * itself (the secret the visitor types) is never printed.
  *
@@ -30,7 +31,7 @@ import {
   type ResidentHouseEmbed,
 } from '@/lib/reports/generators/security-common';
 
-/** How far ahead the list looks. */
+/** How far ahead the list looks when the request names no number of days. */
 export const EXPIRY_WINDOW_DAYS = 30;
 const SOON_DAYS = 7;
 
@@ -52,6 +53,7 @@ type CodeRow = {
 export async function generateAccessCodesExpiring(
   client: ReportSupabaseClient,
   dateRange: { startDate: string; endDate: string },
+  windowDays: number = EXPIRY_WINDOW_DAYS,
   now: Date = new Date()
 ): Promise<SummaryReport> {
   const { startDate, endDate } = dateRange;
@@ -71,7 +73,6 @@ export async function generateAccessCodesExpiring(
           resident:residents(resident_houses!resident_houses_resident_id_fkey(is_active, is_primary, house:houses!house_id(house_number, short_name, street:streets(name))))
         )
       `)
-      .lt('created_at', periodTo)
       .order('id')
       .range(from, to) as never
   );
@@ -83,7 +84,7 @@ export async function generateAccessCodesExpiring(
 
   const nowMs = now.getTime();
   const soonMs = nowMs + SOON_DAYS * DAY_MS;
-  const windowMs = nowMs + EXPIRY_WINDOW_DAYS * DAY_MS;
+  const windowMs = nowMs + windowDays * DAY_MS;
 
   const active = codes.filter((c) => c.is_active !== false && c.valid_until);
   const untilMs = (c: CodeRow) => Date.parse(c.valid_until as string);
@@ -115,7 +116,7 @@ export async function generateAccessCodesExpiring(
   const data: SummaryReportData = {
     summary: [
       { label: 'Expiring in 7 days', value: dueSoon.length, tone: dueSoon.length > 0 ? 'bad' : 'good' },
-      { label: `Expiring in ${EXPIRY_WINDOW_DAYS} days`, value: due.length, tone: 'neutral' },
+      { label: `Expiring in ${windowDays} days`, value: due.length, tone: 'neutral' },
       { label: 'Already expired', value: expired.length, tone: expired.length > 0 ? 'bad' : 'good', hint: 'Still marked active' },
       { label: 'Renewed this period', value: renewed.length, tone: 'neutral' },
     ],
@@ -130,7 +131,7 @@ export async function generateAccessCodesExpiring(
       rows,
     },
     notes: [
-      `Codes that expire in the next ${EXPIRY_WINDOW_DAYS} days, as at ${formatLongDate(now.toISOString().slice(0, 10))}. Only active codes are counted. The code itself is not shown.`,
+      `Codes that expire in the next ${windowDays} days, as at ${formatLongDate(now.toISOString().slice(0, 10))}. Only active codes are counted. The code itself is not shown.`,
       'Already expired: codes that are still marked active but whose valid-until date has passed.',
       `Renewed this period: codes made between ${formatLongDate(startDate)} and ${formatLongDate(endDate)} for a holder who already had an earlier code.`,
     ],

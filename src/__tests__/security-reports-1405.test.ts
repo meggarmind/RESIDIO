@@ -1,11 +1,22 @@
 // #1405: Security reports (layout B): Visitor and access log, Access codes due to expire.
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const engine = vi.hoisted(() => ({ admin: null as unknown, session: null as unknown, adminCalls: 0 }));
+vi.mock('@/lib/supabase/server', () => ({
+  createAdminClient: () => {
+    engine.adminCalls += 1;
+    return engine.admin;
+  },
+  createServerSupabaseClient: async () => engine.session,
+}));
+vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: async () => ({ authorized: true }) }));
 
 import { generateVisitorAccessLog } from '@/lib/reports/generators/visitor-access-log';
 import { generateAccessCodesExpiring } from '@/lib/reports/generators/access-codes-expiring';
 import { generateReportWithClient } from '@/lib/reports/report-generator';
 import { isSummaryReport } from '@/lib/reports/summary-report';
-import { GENERATABLE_REPORT_TYPES, getReportPermission, reportRequestSchema, reportsForPermissions, reportTypes, type ReportRequestFormData } from '@/lib/validators/reports';
+import { generateReport } from '@/actions/reports/report-engine';
+import { GENERATABLE_REPORT_TYPES, getReportPermission, reportRequestSchema, scheduleConfigurationError, reportsForPermissions, reportTypes, type ReportRequestFormData } from '@/lib/validators/reports';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 type Row = Record<string, unknown>;
@@ -124,7 +135,7 @@ describe('Access codes due to expire (#1405)', () => {
         // c8's only code was made in the period: new, not renewed
         code('c8-new', 'c8', day(200), { created_at: '2026-11-05T09:00:00Z' }),
       ],
-    }), { startDate: '2026-11-01', endDate: '2026-11-08' }, NOW);
+    }), { startDate: '2026-11-01', endDate: '2026-11-08' }, 30, NOW);
 
     expect(data.summary.map((t) => [t.label, t.value])).toEqual([
       ['Expiring in 7 days', 1], ['Expiring in 30 days', 2], ['Already expired', 1], ['Renewed this period', 1],
@@ -136,7 +147,64 @@ describe('Access codes due to expire (#1405)', () => {
   });
 
   it('never prints the code value', async () => {
-    const { data } = await generateAccessCodesExpiring(client({ access_codes: [{ ...code('a', 'c1', day(3)), code: 'SECRET123' }] }), RANGE, NOW);
+    const { data } = await generateAccessCodesExpiring(client({ access_codes: [{ ...code('a', 'c1', day(3)), code: 'SECRET123' }] }), RANGE, 30, NOW);
     expect(JSON.stringify(data)).not.toContain('SECRET123');
+  });
+
+  it('lists a code made after the period ends, since the list shows the codes as they are today', async () => {
+    // Period is October; the code was made on 3 Nov and expires in 4 days.
+    const { data } = await generateAccessCodesExpiring(client({
+      access_codes: [code('nov', 'c1', day(4), { created_at: '2026-11-03T09:00:00Z' })],
+    }), { startDate: '2026-10-01', endDate: '2026-10-31' }, 30, NOW);
+    expect(data.summary.map((t) => [t.label, t.value])).toEqual([
+      ['Expiring in 7 days', 1], ['Expiring in 30 days', 1], ['Already expired', 0], ['Renewed this period', 0],
+    ]);
+    expect(data.table.rows.map((r) => r.holder)).toEqual(['Holder c1']);
+  });
+
+  it('looks as many days ahead as the request asks', async () => {
+    const tables = { access_codes: [code('d5', 'c1', day(5)), code('d20', 'c2', day(20)), code('d60', 'c3', day(60))] };
+    const { data } = await generateAccessCodesExpiring(client(tables), RANGE, 10, NOW);
+    expect(data.summary[1]).toMatchObject({ label: 'Expiring in 10 days', value: 1 });
+    expect(data.table.rows.map((r) => r.holder)).toEqual(['Holder c1']);
+
+    const params = reportRequestSchema.parse({ reportType: 'access_codes_expiring', periodPreset: 'custom', ...RANGE, expiryDays: 90 }) as ReportRequestFormData;
+    const viaSwitch = await generateReportWithClient(client(tables), params);
+    const report = viaSwitch.report as { data: { summary: { label: string; value: unknown }[] } };
+    expect(report.data.summary[1]).toMatchObject({ label: 'Expiring in 90 days', value: 3 });
+  });
+
+  it('accepts 1 to 365 days in a request and a schedule, and 30 when none is given', () => {
+    const base = { reportType: 'access_codes_expiring', periodPreset: 'this_month' };
+    expect(reportRequestSchema.parse(base).expiryDays).toBeUndefined();
+    expect(reportRequestSchema.safeParse({ ...base, expiryDays: 0 }).success).toBe(false);
+    expect(reportRequestSchema.safeParse({ ...base, expiryDays: 366 }).success).toBe(false);
+    expect(reportRequestSchema.safeParse({ ...base, expiryDays: 7.5 }).success).toBe(false);
+    expect(scheduleConfigurationError('access_codes_expiring', {})).toBeNull();
+    expect(scheduleConfigurationError('access_codes_expiring', { expiryDays: 60 })).toBeNull();
+    expect(scheduleConfigurationError('access_codes_expiring', { expiryDays: 0 })).not.toBeNull();
+    expect(scheduleConfigurationError('access_codes_expiring', { expiryDays: '60' })).not.toBeNull();
+  });
+});
+
+describe('Security reports run on demand (#1405)', () => {
+  beforeEach(() => {
+    engine.adminCalls = 0;
+    // The session client sees what RLS lets a trustee see: no access logs. The admin client sees them all.
+    engine.session = client({ access_logs: [] });
+    engine.admin = client({ access_logs: [log('a', 'c1', '2026-11-02T10:00:00Z')] });
+  });
+
+  it('reads with the admin client once the security report permission is checked', async () => {
+    const result = await generateReport(reportRequestSchema.parse({ reportType: 'visitor_access_log', periodPreset: 'custom', ...RANGE }) as ReportRequestFormData);
+    expect(result.success).toBe(true);
+    const report = result.report as { data: { summary: { value: unknown }[] } };
+    expect(report.data.summary[0].value).toBe(1);
+    expect(engine.adminCalls).toBe(1);
+  });
+
+  it('keeps other reports on the session client', async () => {
+    await generateReport(reportRequestSchema.parse({ reportType: 'budget_vs_actual', periodPreset: 'custom', ...RANGE }) as ReportRequestFormData);
+    expect(engine.adminCalls).toBe(0);
   });
 });

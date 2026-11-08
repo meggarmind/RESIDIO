@@ -1310,6 +1310,26 @@ export function ReportRequestWizard({
                             </div>
                         )}
 
+                        {step === 4 && formData.reportType === 'access_codes_expiring' && (
+                            <div className="mb-6 max-w-xs space-y-2">
+                                <Label htmlFor="expiry-days">Days ahead</Label>
+                                <Input
+                                    id="expiry-days"
+                                    type="number"
+                                    min={1}
+                                    max={365}
+                                    step={1}
+                                    placeholder="30"
+                                    value={formData.expiryDays ?? ''}
+                                    onChange={(e) => {
+                                        const days = e.target.valueAsNumber;
+                                        setValue('expiryDays', Number.isNaN(days) ? undefined : days);
+                                    }}
+                                />
+                                <p className="text-sm text-muted-foreground">List the codes that expire in this many days, from 1 to 365. Leave it empty for 30.</p>
+                            </div>
+                        )}
+
                         {step === 4 && (
                             <OptionsStep
                                 includeCharts={formData.includeCharts ?? true}

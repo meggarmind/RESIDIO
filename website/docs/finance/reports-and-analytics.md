@@ -152,7 +152,7 @@ The four figures at the top are **Total budget**, **Actual spend**, **Difference
 
 ## Visitor and access log
 
-**Visitor and access log** is in the **Security** group. It needs the permission to view security reports. It asks for a time period but not for bank accounts. It counts the visits that checked in during the period,.
+**Visitor and access log** is in the **Security** group. It needs the permission to view security reports. It asks for a time period but not for bank accounts. It counts the visits that checked in during the period.
 
 - The table has one row for each house, with **Visits**, **Unique visitors**, **Checked out** and **Flagged**. The last row gives the totals. A visit with no house shows as **No house**. Unique visitors in a house row are counted for that house only, so the rows can add up to more than the total.
 - The four figures at the top are **Visits**, **Unique visitors**, **Flagged** and **Busiest hour**. The bar chart shows visits by day.
@@ -162,10 +162,10 @@ Days and hours are Lagos time. A visit counts on the day it checked in.
 
 ## Access codes due to expire
 
-**Access codes due to expire** is in the **Security** group. It needs the permission to view security reports. It asks for a time period but not for bank accounts, and the period only changes **Renewed this period**. The rest shows the codes as they are today.
+**Access codes due to expire** is in the **Security** group. It needs the permission to view security reports. It asks for a time period but not for bank accounts, and the period only changes **Renewed this period**. In the options step you can set how many days ahead the report looks, from 1 to 365. The default is 30. A schedule keeps the number you set. The rest shows the codes as they are today.
 
-- The table lists the active codes that expire in the next 30 days, soonest first: **Holder**, **House**, **Type** (**Permanent** or **One time**), **Expires** and **Days left**. The code itself is not shown.
-- **Expiring in 7 days** and **Expiring in 30 days** count those codes. **Already expired** counts codes that are still marked active but whose valid-until date has passed.
+- The table lists the active codes that expire in that number of days, soonest first: **Holder**, **House**, **Type** (**Permanent** or **One time**), **Expires** and **Days left**. The code itself is not shown.
+- **Expiring in 7 days** and **Expiring in 30 days** (or the number of days you set) count those codes. **Already expired** counts codes that are still marked active but whose valid-until date has passed.
 - **Renewed this period** counts the codes made in the period for a holder who already had an earlier code. Residio has no renew button, so a new code for the same holder is what counts as a renewal.
 
 Reports are snapshots. If a number looks wrong, trace it back to residents, invoices, payments, or expenditure instead of editing the report output.
