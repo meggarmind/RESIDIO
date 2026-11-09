@@ -11,8 +11,8 @@ residio_sources:
   - src/lib/reports/generators/write-offs.ts
   - src/lib/reports/generators/visitor-access-log.ts
   - src/lib/reports/generators/access-codes-expiring.ts
-residio_verified_commit: 3217792b
-residio_verified_at: '2026-11-08'
+residio_verified_commit: 291de0d2
+residio_verified_at: '2026-11-09'
 residio_app_version: '0.4.0'
 ---
 

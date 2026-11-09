@@ -4,8 +4,9 @@
  * Deliberately NOT a server-action module (no directive): `generateReportWithClient` performs
  * NO authorization and accepts any Supabase client, so it must never be reachable as a
  * client-callable server action. Callers are responsible for authorization:
- *   - `generateReport` in `@/actions/reports/report-engine` (session client, gated by
- *     the report-view permission check), and
+ *   - `generateReport` in `@/actions/reports/report-engine` (gated by the report-view permission
+ *     check; session client, except the Security reports, which get the admin client because
+ *     RLS on the security tables does not follow `reports.view_security`, #1405), and
  *   - the CRON_SECRET-authenticated cron path (`@/lib/reports/process-schedules`), which has
  *     no session and passes the admin client.
  * See #483 (same pattern as #388).
