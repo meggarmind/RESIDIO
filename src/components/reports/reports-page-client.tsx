@@ -37,6 +37,8 @@ import {
     Loader2,
     ShieldCheck,
     Target,
+    DoorOpen,
+    KeyRound,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -167,6 +169,18 @@ const reportTypeConfig: Record<
         label: 'Budget against actual',
         gradient: 'from-teal-500 to-emerald-500',
         iconBg: 'bg-teal-500/15 text-teal-600 dark:text-teal-400',
+    },
+    visitor_access_log: {
+        icon: DoorOpen,
+        label: 'Visitor and access log',
+        gradient: 'from-slate-500 to-sky-500',
+        iconBg: 'bg-sky-500/15 text-sky-600 dark:text-sky-400',
+    },
+    access_codes_expiring: {
+        icon: KeyRound,
+        label: 'Access codes due to expire',
+        gradient: 'from-amber-500 to-orange-500',
+        iconBg: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
     },
     development_levy: {
         icon: Sparkles,

@@ -4,8 +4,9 @@
  * Deliberately NOT a server-action module (no directive): `generateReportWithClient` performs
  * NO authorization and accepts any Supabase client, so it must never be reachable as a
  * client-callable server action. Callers are responsible for authorization:
- *   - `generateReport` in `@/actions/reports/report-engine` (session client, gated by
- *     the report-view permission check), and
+ *   - `generateReport` in `@/actions/reports/report-engine` (gated by the report-view permission
+ *     check; session client, except the Security reports, which get the admin client because
+ *     RLS on the security tables does not follow `reports.view_security`, #1405), and
  *   - the CRON_SECRET-authenticated cron path (`@/lib/reports/process-schedules`), which has
  *     no session and passes the admin client.
  * See #483 (same pattern as #388).
@@ -28,6 +29,8 @@ import { OCCUPANT_PAYER_ROLES, resolvePayer, type BillingPayer } from '@/lib/bil
 import { generateStatementOfAccount } from '@/lib/reports/generators/statement-of-account';
 import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
 import { generateBudgetVsActual } from '@/lib/reports/generators/budget-vs-actual';
+import { generateVisitorAccessLog } from '@/lib/reports/generators/visitor-access-log';
+import { generateAccessCodesExpiring } from '@/lib/reports/generators/access-codes-expiring';
 
 /** Either the cookie-bound session client or the service-role admin client. */
 export type ReportSupabaseClient =
@@ -1985,6 +1988,16 @@ export async function generateReportWithClient(
 
       case 'budget_vs_actual': {
         const report = await generateBudgetVsActual(supabase, dateRange);
+        return { success: true, report };
+      }
+
+      case 'visitor_access_log': {
+        const report = await generateVisitorAccessLog(supabase, dateRange);
+        return { success: true, report };
+      }
+
+      case 'access_codes_expiring': {
+        const report = await generateAccessCodesExpiring(supabase, dateRange, params.expiryDays);
         return { success: true, report };
       }
 

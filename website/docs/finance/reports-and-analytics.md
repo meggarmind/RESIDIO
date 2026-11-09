@@ -9,8 +9,10 @@ residio_sources:
   - src/actions/analytics/**
   - src/actions/reports/**
   - src/lib/reports/generators/write-offs.ts
-residio_verified_commit: ec5c1454
-residio_verified_at: '2026-11-06'
+  - src/lib/reports/generators/visitor-access-log.ts
+  - src/lib/reports/generators/access-codes-expiring.ts
+residio_verified_commit: 291de0d2
+residio_verified_at: '2026-11-09'
 residio_app_version: '0.4.0'
 ---
 
@@ -38,10 +40,10 @@ If the aging figures cannot be loaded, the card says *Invoice aging unavailable*
 
 ## Report workflow
 
-Each report type has its own view permission. Today every report type needs the view financial reports permission. **Reports** in the main sidebar opens when you have the permission of at least one report type; without one, you are returned to the dashboard. The page has five tabs: **New Report**, **History**, **Schedules**, **Archive** and **Wallet Check**. Step 1 of **New Report**, **History**, **Archive** and **Schedules** show only the report types you have the permission for.
+Each report type has its own view permission. The money, debt and levy reports need the view financial reports permission. The two **Security** reports need the view security reports permission, so security staff can open **Reports** without access to the money reports. **Reports** in the main sidebar opens when you have the permission of at least one report type; without one, you are returned to the dashboard. The page has five tabs: **New Report**, **History**, **Schedules**, **Archive** and **Wallet Check**. Step 1 of **New Report**, **History**, **Archive** and **Schedules** show only the report types you have the permission for.
 
 1. Open **Reports → New report** in the sidebar.
-2. On step 1, select the report type. The list on the left has a search field and groups (**Money in and out**, **Debts**, **Levies**); select a group name to close or open it. The right side shows what the report asks for (a date range or "as of today", and bank accounts or none), the next step, and an **Example layout** of the report. Then select the period, if the report asks for one.
+2. On step 1, select the report type. The list on the left has a search field and groups (**Money in and out**, **Debts**, **Levies**, **Security**); select a group name to close or open it. The right side shows what the report asks for (a date range or "as of today", and bank accounts or none), the next step, and an **Example layout** of the report. Then select the period, if the report asks for one.
 3. Review the preview or parameters.
 4. Generate and download the report only after confirming the scope. If the report cannot be generated, a message tells you why.
 
@@ -147,5 +149,23 @@ A schedule of this report keeps the house or the resident that you chose. In **H
 - **Status** is **On track** below 85% used, **Near limit** from 85% to 100%, **Over budget** above 100%, and **No budget** for a category that has spend but no budget.
 
 The four figures at the top are **Total budget**, **Actual spend**, **Difference** and **% used**. The bar chart shows the % used of each category that has a budget. The last row of the table gives the totals. It reads budgets and expenses with your own access, the same as **Expenses by category and vendor**.
+
+## Visitor and access log
+
+**Visitor and access log** is in the **Security** group. It needs the permission to view security reports. It asks for a time period but not for bank accounts. It counts the visits that checked in during the period.
+
+- The table has one row for each house, with **Visits**, **Unique visitors**, **Checked out** and **Flagged**. The last row gives the totals. A visit with no house shows as **No house**. Unique visitors in a house row are counted for that house only, so the rows can add up to more than the total.
+- The four figures at the top are **Visits**, **Unique visitors**, **Flagged** and **Busiest hour**. The bar chart shows visits by day.
+- The notes give the visits for each hour of check-in, and list the flagged entries with the time, the visitor, the house and the reason (the first 25).
+
+Days and hours are Lagos time. A visit counts on the day it checked in.
+
+## Access codes due to expire
+
+**Access codes due to expire** is in the **Security** group. It needs the permission to view security reports. It asks for a time period but not for bank accounts, and the period only changes **Renewed this period**. In the options step you can set how many days ahead the report looks, from 1 to 365. The default is 30. A schedule keeps the number you set. The rest shows the codes as they are today.
+
+- The table lists the active codes that expire in that number of days, soonest first: **Holder**, **House**, **Type** (**Permanent** or **One time**), **Expires** and **Days left**. The code itself is not shown.
+- **Expiring in 30 days** (or the number of days you set) counts those codes. **Expiring in 7 days** always counts the active codes that expire in the next 7 days, even when you set fewer days. **Already expired** counts codes that are still marked active but whose valid-until date has passed.
+- **Renewed this period** counts the codes made in the period for a holder who already had an earlier code. Residio has no renew button, so a new code for the same holder is what counts as a renewal.
 
 Reports are snapshots. If a number looks wrong, trace it back to residents, invoices, payments, or expenditure instead of editing the report output.

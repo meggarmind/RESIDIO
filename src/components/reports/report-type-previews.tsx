@@ -375,6 +375,48 @@ export const reportTypePreviews: Record<ReportType, PreviewDefinition> = {
             ['Contractor Payment', '2,400,000.00', '2,760,000.00', '-360,000.00', '115.0%', 'Over budget'],
         ],
     },
+    visitor_access_log: {
+        stats: [
+            { label: 'Visits', value: '214' },
+            { label: 'Unique visitors', value: '131' },
+            { label: 'Flagged', value: '3' },
+            { label: 'Busiest hour', value: '17:00 (29)' },
+        ],
+        tableTitle: 'Visits by house',
+        columns: [
+            { label: 'House' },
+            { label: 'Visits', align: 'right' },
+            { label: 'Unique visitors', align: 'right' },
+            { label: 'Checked out', align: 'right' },
+            { label: 'Flagged', align: 'right' },
+        ],
+        rows: [
+            ['12, Palm Close', '18', '9', '17', '1'],
+            ['4, Cedar Way', '11', '6', '11', '0'],
+            ['7, Palm Close', '9', '5', '8', '0'],
+        ],
+    },
+    access_codes_expiring: {
+        stats: [
+            { label: 'Expiring in 7 days', value: '4' },
+            { label: 'Expiring in 30 days', value: '17' },
+            { label: 'Already expired', value: '2' },
+            { label: 'Renewed this period', value: '9' },
+        ],
+        tableTitle: 'Codes due to expire',
+        columns: [
+            { label: 'Holder' },
+            { label: 'House' },
+            { label: 'Type' },
+            { label: 'Expires' },
+            { label: 'Days left', align: 'right' },
+        ],
+        rows: [
+            ['A. Bello', '12, Palm Close', 'Permanent', '12 Nov 2026 23:59', '4'],
+            ['C. Okafor', '4, Cedar Way', 'One time', '20 Nov 2026 12:00', '12'],
+            ['T. Musa', '7, Palm Close', 'Permanent', '02 Dec 2026 23:59', '24'],
+        ],
+    },
     development_levy: {
         stats: [
             { label: 'Total Properties', value: '96' },

@@ -68,7 +68,9 @@ export type SummaryLayoutReportType =
   | 'project_spend'
   | 'petty_cash'
   | 'statement_of_account'
-  | 'budget_vs_actual';
+  | 'budget_vs_actual'
+  | 'visitor_access_log'
+  | 'access_codes_expiring';
 
 export interface SummaryReport {
   type: SummaryLayoutReportType;

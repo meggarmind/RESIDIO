@@ -28,9 +28,9 @@ describe('Reports in the main menu (#1373)', () => {
 
   it('asks for the page guard permission, on the entry and on every child', () => {
     const reports = core.items[1];
-    expect(reports.permissions).toEqual([PERMISSIONS.REPORTS_VIEW_FINANCIAL]);
+    expect(reports.permissions).toEqual([PERMISSIONS.REPORTS_VIEW_FINANCIAL, PERMISSIONS.REPORTS_VIEW_SECURITY]);
     for (const child of reports.children!) {
-      expect(child.permissions, child.title).toEqual([PERMISSIONS.REPORTS_VIEW_FINANCIAL]);
+      expect(child.permissions, child.title).toEqual([PERMISSIONS.REPORTS_VIEW_FINANCIAL, PERMISSIONS.REPORTS_VIEW_SECURITY]);
     }
   });
 

@@ -1,6 +1,7 @@
 'use server';
 
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createAdminClient, createServerSupabaseClient } from '@/lib/supabase/server';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { getReportPermission, type ReportRequestFormData } from '@/lib/validators/reports';
 import { generateReportWithClient } from '@/lib/reports/report-generator';
@@ -39,6 +40,10 @@ export async function generateReport(
     return { success: false, error: auth.error || 'Forbidden' };
   }
 
-  const supabase = await createServerSupabaseClient();
+  // Security reports read with the admin client: RLS on access_logs / access_codes needs
+  // security.operate_records, which some reports.view_security holders (trustee) lack, so the
+  // session client would return an empty or partial report with no error (#1405).
+  const supabase =
+    permission === PERMISSIONS.REPORTS_VIEW_SECURITY ? createAdminClient() : await createServerSupabaseClient();
   return generateReportWithClient(supabase, params);
 }
